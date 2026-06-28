@@ -17,7 +17,7 @@ import 'package:navis/src/utils/song_id_utils.dart';
 /// Number of remaining tracks (after the current one) that triggers refill.
 const _kRefillThreshold = 3;
 
-/// Target number of tracks to queue per refill.
+/// Target number of tracks to queue per background refill.
 const _kTargetQueueBatchSize = 5;
 
 /// Last.fm recommendation request limit per refill.
@@ -52,6 +52,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   Timer? _retryTimer;
   DateTime? _nextRefillAllowedAt;
   int _consecutiveTransientFailures = 0;
+  int? _mixSegmentEndIndex;
 
   @override
   SameVibesState build() {
@@ -64,6 +65,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   }
 
   Future<void> activate(String seedSongId) async {
+    _mixSegmentEndIndex = null;
     state = SameVibesState(
       active: true,
       seedSongId: seedSongId,
@@ -76,6 +78,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _retryTimer = null;
     _nextRefillAllowedAt = null;
     _consecutiveTransientFailures = 0;
+    _mixSegmentEndIndex = null;
     state = const SameVibesState.inactive();
   }
 
@@ -102,17 +105,21 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
     if (next.isRadioMode) return;
-    if (state.refilling || state.error == SameVibesError.unsupported) {
+    if (state.refilling || state.error != null) {
       return;
     }
 
     if (next.queueSongIds.isEmpty) {
+      _mixSegmentEndIndex = null;
       state = const SameVibesState.inactive();
       return;
     }
 
     final currentIndex = next.currentIndex ?? 0;
-    final remaining = next.queueSongIds.length - currentIndex - 1;
+    final mixEnd = _mixSegmentEndIndex;
+    final remaining = mixEnd != null
+        ? mixEnd - currentIndex - 1
+        : next.queueSongIds.length - currentIndex - 1;
     if (remaining <= _kRefillThreshold) {
       unawaited(_refill());
     }
@@ -146,6 +153,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       seedSongId: normalizedSeedSongId,
       clearError: true,
     );
+    const targetBatch = _kTargetQueueBatchSize;
+    const searchAttemptLimit = _kMaxSearchAttempts;
     AppLogger.debug(
       'SameVibes diagnostics: refill start '
       'seedSongId=$normalizedSeedSongId '
@@ -197,6 +206,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         lastFmResult = await _fetchLastFmRecommendations(
           expectedArtist: seed.artist,
           expectedTitle: seed.title,
+          limit: _kLastFmRecommendationLimit,
         );
         AppLogger.debug(
           'SameVibes diagnostics: seed resolved artist="${seed.artist}" '
@@ -210,6 +220,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             blockedIds: queuedIds,
             blockedSongKeys: queuedSongKeys,
             preferences: candidatePreferences,
+            targetCount: targetBatch,
+            maxSearchAttempts: searchAttemptLimit,
             onChunk: (chunk) async {
               if (chunk.isEmpty || !state.active) {
                 return 0;
@@ -257,13 +269,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       var fallbackReason = 'not_needed';
       var fallbackSeedEligible = false;
       final shouldAttemptFallback = switch (lastFmResult.outcome) {
-        LastFmFetchOutcome.success => mappedSongCount < _kTargetQueueBatchSize,
+        LastFmFetchOutcome.success => mappedSongCount < targetBatch,
         LastFmFetchOutcome.noResults ||
         LastFmFetchOutcome.apiError ||
         LastFmFetchOutcome.networkError ||
         LastFmFetchOutcome.parseError ||
-        LastFmFetchOutcome.notConfigured =>
-          mappedSongCount < _kTargetQueueBatchSize,
+        LastFmFetchOutcome.notConfigured => mappedSongCount < targetBatch,
       };
 
       if (shouldAttemptFallback) {
@@ -287,7 +298,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           };
         }
       } else {
-        fallbackReason = mappedSongCount >= _kTargetQueueBatchSize
+        fallbackReason = mappedSongCount >= targetBatch
             ? 'mapping_sufficient'
             : 'seed_not_server_addressable';
       }
@@ -313,7 +324,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           try {
             final fallback = await api.getSimilarSongs(
               fallbackSeedSongId,
-              count: _kTargetQueueBatchSize,
+              count: targetBatch,
             );
             AppLogger.debug(
               'SameVibes diagnostics: fallback candidates=${fallback.length}',
@@ -323,7 +334,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               fallback: fallback,
               excludedIds: queuedIds,
               excludedSongKeys: queuedSongKeys,
-              targetCount: _kTargetQueueBatchSize - mappedSongCount,
+              targetCount: targetBatch - mappedSongCount,
             );
             if (fallbackSongs.isNotEmpty) {
               for (final song in fallbackSongs) {
@@ -372,7 +383,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         }
       }
 
-      if (mappedSongCount < _kTargetQueueBatchSize && !shouldAttemptFallback) {
+      if (mappedSongCount < targetBatch && !shouldAttemptFallback) {
         AppLogger.debug(
           'SameVibes diagnostics: fallback skipped '
           'reason=$fallbackReason mapped=$mappedSongCount',
@@ -388,17 +399,31 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       }
 
       final songsToQueue = <Song>[...mappedSongs, ...fallbackSongs];
+      var totalQueued = 0;
       if (songsToQueue.isNotEmpty) {
-        await ref
+        final currentIndex = ref.read(playerStateProvider).currentIndex ?? 0;
+        totalQueued = await ref
             .read(queueProvider.notifier)
-            .playNextWithSongs(songsToQueue, expandMatchFlows: false);
+            .insertMixTracksAfterCurrent(
+              songsToQueue,
+              expandMatchFlows: false,
+            );
+        if (totalQueued > 0) {
+          _mixSegmentEndIndex = currentIndex + 1 + totalQueued;
+        }
       }
 
-      final totalQueued = songsToQueue.length;
       if (totalQueued <= 0) {
         AppLogger.debug(
           'SameVibes diagnostics: no tracks queued (empty result after fallback)',
         );
+        if (isInitial) {
+          _retryTimer?.cancel();
+          _retryTimer = null;
+          _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
+          state = const SameVibesState(error: SameVibesError.networkError);
+          return;
+        }
         _scheduleTransientRetry(reason: fallbackReason);
       } else {
         AppLogger.debug(
@@ -414,11 +439,38 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       );
     } on Exception catch (error) {
       AppLogger.debug('SameVibes refill error: $error');
+      if (isInitial) {
+        _retryTimer?.cancel();
+        _retryTimer = null;
+        _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
+        state = const SameVibesState(error: SameVibesError.networkError);
+        return;
+      }
       _scheduleTransientRetry(reason: 'unexpected_exception');
       state = state.copyWith(
         refilling: false,
         error: SameVibesError.networkError,
       );
+    } on Object catch (error, stackTrace) {
+      AppLogger.debug('SameVibes refill error: $error\n$stackTrace');
+      if (isInitial) {
+        _retryTimer?.cancel();
+        _retryTimer = null;
+        _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
+        state = const SameVibesState(error: SameVibesError.networkError);
+        return;
+      }
+      _scheduleTransientRetry(reason: 'unexpected_exception');
+      if (state.active) {
+        state = state.copyWith(
+          refilling: false,
+          error: SameVibesError.networkError,
+        );
+      }
+    } finally {
+      if (state.active && state.refilling) {
+        state = state.copyWith(refilling: false);
+      }
     }
   }
 
@@ -452,6 +504,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     required Set<String> blockedIds,
     required Set<String> blockedSongKeys,
     required _CandidatePreferenceContext preferences,
+    required int targetCount,
+    required int maxSearchAttempts,
     required Future<int> Function(List<Song> chunk) onChunk,
   }) async {
     if (recommendations.isEmpty) {
@@ -462,7 +516,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       ..sort((a, b) => (b.match ?? 0).compareTo(a.match ?? 0));
 
     final attemptsLimit = sortedRecs
-        .take(_kMaxSearchAttempts)
+        .take(maxSearchAttempts)
         .toList(
           growable: false,
         );
@@ -476,7 +530,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       batchStart < attemptsLimit.length;
       batchStart += _kMappingParallelism
     ) {
-      if (!state.active || mappedCount >= _kTargetQueueBatchSize) {
+      if (!state.active || mappedCount >= targetCount) {
         break;
       }
       final batchEnd = math.min(
@@ -495,7 +549,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       );
 
       for (final best in resolutions) {
-        if (!state.active || mappedCount >= _kTargetQueueBatchSize) {
+        if (!state.active || mappedCount >= targetCount) {
           break;
         }
         attempts += 1;
@@ -549,6 +603,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   Future<LastFmTrackFetchResult> _fetchLastFmRecommendations({
     required String expectedArtist,
     required String expectedTitle,
+    required int limit,
   }) async {
     final client = ref.read(lastFmApiClientProvider);
     if (client == null) {
@@ -564,7 +619,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     final result = await client.getSimilarTracksResult(
       artist: expectedArtist,
       track: expectedTitle,
-      limit: _kLastFmRecommendationLimit,
+      limit: limit,
     );
     AppLogger.debug(
       'SameVibes diagnostics: lastfm recommendations=${result.tracks.length} '

@@ -39,7 +39,11 @@ if [[ -f "${SCRIPT_DIR}/release.env" ]]; then
   source "${SCRIPT_DIR}/release.env"
 fi
 
-DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=dev" "--dart-define=NAVIS_SELF_UPDATE=true")
+DART_DEFINE_ARGS=(
+  "--dart-define=NAVIS_UPDATE_CHANNEL=dev"
+  "--dart-define=NAVIS_SELF_UPDATE=true"
+  "--dart-define=NAVIS_AGENT_DEBUG=true"
+)
 export NAVIS_SELF_UPDATE=true
 if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")

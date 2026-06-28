@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -47,6 +48,9 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
         onRefresh: () async {
           ref.invalidate(playlistSyncProvider);
           await ref.read(playlistSyncProvider.future);
+          ref
+              .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+              .refreshFull();
         },
         child: playlistsAsync.when(
           data: (items) {
@@ -402,10 +406,10 @@ class _VirtualPlaylistTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final virtualPlaylist = item.virtualPlaylist!;
     return ListTile(
       leading: ListenBrainzPlaylistArtwork(
-        playlist: item.virtualPlaylist!,
+        playlist: virtualPlaylist,
         size: 48,
         borderRadius: 4,
       ),
@@ -415,7 +419,7 @@ class _VirtualPlaylistTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        '${l10n.playlistsSongCount(item.songCount)} · ListenBrainz',
+        '${listenBrainzPlaylistAvailabilityLabel(virtualPlaylist)} · ListenBrainz',
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,

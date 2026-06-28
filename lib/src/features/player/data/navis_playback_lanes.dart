@@ -84,15 +84,22 @@ class _SupersedingLane {
 
     _inFlight = _inFlight.then((_) async {
       if (token.isCancelled || completer.isCompleted) {
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
         return;
       }
       try {
         final value = await operation(token);
         if (!token.isCancelled && !completer.isCompleted) {
           completer.complete(value);
+        } else if (!completer.isCompleted) {
+          completer.complete();
         }
       } on OperationCancelledException {
-        // Silently drop — superseded by a newer command.
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
       } on Object catch (error, stackTrace) {
         if (!completer.isCompleted) {
           completer.completeError(error, stackTrace);

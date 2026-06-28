@@ -69,11 +69,51 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'Automatic library sync now avoids daily full-library rescans, bounds noisy server index fanout, and refreshes starred/genre/playlist metadata less often to reduce background data usage',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Instant Mix now honors the legacy Subsonic instant-mix setting in Playback Settings instead of routing to Same Vibes, and active mix sessions reconcile when you switch between modes',
       type: _EntryType.fix,
     ),
     _Entry(
       'Listen Together now validates stored sessions on app launch — valid rooms auto-resume without a prompt, and expired or invalid sessions are cleared silently instead of showing a stale resume dialog',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Listen Together upgrades to Voyage voyage-sync.v4alpha1 for tighter multi-device sync — connection.ready handshake, explicit command frames, member.status telemetry, and playback phase tracking',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Listen Together accepts Voyage voyage-sync.v4alpha1 and the legacy sync.v4alpha1 protocol alias during server rollout',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Voyage connection errors in Configuration now show the expected and supported protocol versions when Listen Together cannot negotiate a compatible server',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Instant Mix uses the server instant-mix endpoint for 50-track batches again, Same Vibes keeps its 5-track Last.fm fills, and both modes recover instead of staying stuck loading',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Library resync and playlist refresh now trigger ListenBrainz weekly playlist discovery and rematching, including on fresh installs after token validation',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'ListenBrainz weekly playlists stay visible after matching completes, even when none of the recommendations match your server yet',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'ListenBrainz weekly playlist details now keep unavailable recommendations aligned with playable tracks and include a Match action to retry matching for one weekly playlist',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Same Vibes and Instant Mix no longer loop through repeated startup errors when only part of a recommendation batch can be queued',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Remote search3 tracks start playing more reliably after tap, including when re-selected from the library or during Listen Together queue changes',
       type: _EntryType.fix,
     ),
   ]),

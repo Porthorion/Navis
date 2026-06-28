@@ -223,7 +223,6 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     PlaylistLibraryItem item,
     ListenBrainzDiscoverPlaylist virtual,
   ) {
-    final l10n = AppLocalizations.of(context)!;
     return ListTile(
       minLeadingWidth: 48,
       horizontalTitleGap: 12,
@@ -234,7 +233,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       ),
       title: Text(item.name),
       subtitle: Text(
-        '${l10n.playlistsSongCount(item.songCount)} · ListenBrainz',
+        '${listenBrainzPlaylistAvailabilityLabel(virtual)} · ListenBrainz',
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => NavService.openListenBrainzWeeklyDetail(

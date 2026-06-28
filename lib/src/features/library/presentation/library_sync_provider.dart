@@ -53,6 +53,13 @@ final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
   return const SystemLibrarySyncNotifier();
 });
 
+@visibleForTesting
+final requiredLibrarySyncModelVersionProvider = Provider<String?>((ref) {
+  // Keep automatic startup sync low-data by default.  Override this only when a
+  // future library-sync storage contract change needs a one-time repair pass.
+  return null;
+});
+
 final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
   final api = ref.watch(subsonicApiProvider);
   if (api == null) {
@@ -252,7 +259,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
 
-    // Detect app updates: force a full resync whenever the version changes.
     final fingerprint = _toSessionFingerprint(config);
     if (_startupSyncDoneFingerprint == fingerprint) {
       return;
@@ -260,23 +266,26 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     _startupSyncInFlight = true;
     final database = ref.read(navisDatabaseProvider);
-    final packageInfo = await ref.read(packageInfoProvider.future);
-    final currentBuild = '${packageInfo.version}+${packageInfo.buildNumber}';
-    final lastSyncBuild = await database.appSettingsDao
+    final requiredSyncModelVersion = ref.read(
+      requiredLibrarySyncModelVersionProvider,
+    );
+    final lastSyncModelVersion = await database.appSettingsDao
         .getLastFullSyncAppBuild();
-    final isNewVersion = lastSyncBuild != currentBuild;
+    final requiresSyncModelRepair =
+        requiredSyncModelVersion != null &&
+        lastSyncModelVersion != requiredSyncModelVersion;
 
     final networkType = ref.read(networkTypeProvider);
     final deferFullResyncOnMobile =
-        isNewVersion && networkType == NetworkType.cellular;
+        requiresSyncModelRepair && networkType == NetworkType.cellular;
     if (deferFullResyncOnMobile) {
       AppLogger.debug(
-        'Startup full library resync deferred on cellular for app build '
-        '$currentBuild.',
+        'Startup library sync model repair deferred on cellular for model '
+        '$requiredSyncModelVersion.',
       );
     }
     unawaited(
-      (isNewVersion && !deferFullResyncOnMobile
+      (requiresSyncModelRepair && !deferFullResyncOnMobile
               ? syncNow(forceFull: true)
               : syncIfStale())
           .then((result) {
@@ -287,11 +296,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
             if (completedStartupPass) {
               _startupSyncDoneFingerprint = fingerprint;
             }
-            // Record the version so subsequent startups skip the forced resync.
-            if (isNewVersion &&
+            if (requiresSyncModelRepair &&
                 !deferFullResyncOnMobile &&
                 result.status == LibrarySyncStatus.succeeded) {
-              database.appSettingsDao.setLastFullSyncAppBuild(currentBuild);
+              unawaited(
+                database.appSettingsDao.setLastFullSyncAppBuild(
+                  requiredSyncModelVersion,
+                ),
+              );
             }
           })
           .whenComplete(() {

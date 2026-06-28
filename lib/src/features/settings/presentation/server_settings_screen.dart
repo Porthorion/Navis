@@ -20,6 +20,7 @@ import 'package:navis/src/features/group_listening/data/group_listening_reposito
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -597,6 +598,9 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             ),
           );
       if (!mounted) return;
+      ref
+          .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+          .refreshAfterTokenValidation();
       setState(() {
         _listenBrainzError = null;
         _listenBrainzSuccess = 'ListenBrainz token validated.';
@@ -922,8 +926,28 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
       return 'Voyage is unavailable. Check the URL and try again.';
     }
     return switch (failure.code) {
-      GroupListeningErrorCode.unsupportedProtocolVersion =>
-        'Update Navis or choose a Voyage server with a compatible protocol.',
+      GroupListeningErrorCode.unsupportedProtocolVersion => () {
+        final expected = failure.details['expected_protocol_version'];
+        final received = failure.details['received_protocol_version'];
+        if (expected is String &&
+            expected.isNotEmpty &&
+            received is String &&
+            received.isNotEmpty) {
+          return 'Voyage protocol mismatch: server sent $received; '
+              'Navis expects $expected. Update Voyage or Navis.';
+        }
+        final supported = failure.details['supported_protocol_versions'];
+        if (expected is String &&
+            expected.isNotEmpty &&
+            supported is List &&
+            supported.isNotEmpty) {
+          return 'Voyage does not advertise $expected '
+              '(server supports: ${supported.join(', ')}). '
+              'Update Voyage or Navis.';
+        }
+        return 'Update Navis or choose a Voyage server with a compatible '
+            'protocol ($voyageProtocolVersion).';
+      }(),
       GroupListeningErrorCode.validationFailed =>
         'Check the Voyage server configuration and try again.',
       GroupListeningErrorCode.insecureTransport =>

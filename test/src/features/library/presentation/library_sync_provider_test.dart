@@ -12,7 +12,6 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -20,14 +19,6 @@ import '../../../../helpers/test_database.dart';
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
 final _shortSyncInterval = syncIntervalDurationProvider.overrideWithValue(
   const Duration(milliseconds: 10),
-);
-
-final _testPackageInfo = PackageInfo(
-  appName: 'Navis',
-  packageName: 'org.navis.app',
-  version: '1.0.0',
-  buildNumber: '1',
-  buildSignature: '',
 );
 
 class _StaticReachabilityController extends ServerReachabilityController {
@@ -148,9 +139,6 @@ void main() {
             ),
           ),
           navisDatabaseProvider.overrideWithValue(database),
-          packageInfoProvider.overrideWithValue(
-            AsyncData<PackageInfo>(_testPackageInfo),
-          ),
           librarySyncEngineProvider.overrideWithValue(engine),
         ],
       );
@@ -333,9 +321,6 @@ void main() {
               ),
             ),
             navisDatabaseProvider.overrideWithValue(database),
-            packageInfoProvider.overrideWithValue(
-              AsyncData<PackageInfo>(_testPackageInfo),
-            ),
             librarySyncEngineProvider.overrideWithValue(engine),
           ],
         );
@@ -353,7 +338,7 @@ void main() {
     );
 
     test(
-      'app update full resync deferred on cellular runs when Wi-Fi returns',
+      'sync model repair deferred on cellular runs when Wi-Fi returns',
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
@@ -403,8 +388,8 @@ void main() {
               ),
             ),
             navisDatabaseProvider.overrideWithValue(database),
-            packageInfoProvider.overrideWithValue(
-              AsyncData<PackageInfo>(_testPackageInfo),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(
+              'model-v2',
             ),
             librarySyncEngineProvider.overrideWithValue(engine),
           ],
@@ -427,7 +412,7 @@ void main() {
         expect(engine.forceFullCalls.single, isTrue);
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
-          '1.0.0+1',
+          'model-v2',
         );
       },
     );

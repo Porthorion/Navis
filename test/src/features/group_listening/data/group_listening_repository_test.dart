@@ -27,6 +27,24 @@ void main() {
       expect(replayDiscovery.supportsReplayResume, isTrue);
       expect(replayDiscovery.preferredProtocolVersion, voyageProtocolVersion);
     });
+
+    test('detects shortened sync.v4alpha1 alias in supported versions', () {
+      const aliasDiscovery = GroupListeningCapabilityDiscovery(
+        service: 'voyage',
+        apiVersion: 'v1',
+        serverVersion: '1.0.0',
+        buildCommit: 'test',
+        buildTime: 'test',
+        supportedProtocolVersions: <String>[voyageProtocolVersionAlias],
+        latestProtocolVersion: voyageProtocolVersionAlias,
+        websocketPath: '/api/v1/rooms/ws',
+        heartbeatInterval: Duration(seconds: 10),
+        memberStaleTimeout: Duration(seconds: 45),
+      );
+
+      expect(aliasDiscovery.supportsCurrentProtocol, isTrue);
+      expect(aliasDiscovery.preferredProtocolVersion, voyageProtocolVersion);
+    });
   });
 
   group('VoyageGroupListeningHttpClient.discover', () {
@@ -85,6 +103,60 @@ void main() {
         voyageProtocolVersion,
       );
     });
+
+    test(
+      'accepts shortened sync.v4alpha1 protocol alias from health',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() async {
+          await server.close(force: true);
+        });
+
+        server.listen((request) async {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode(<String, Object?>{
+                'protocol_version': voyageProtocolVersionAlias,
+                'server_time_ms': 1_720_000_000_000,
+                'data': <String, Object?>{
+                  'service': 'voyage',
+                  'api_version': 'v1',
+                  'server_version': '1.1.0',
+                  'build_commit': 'test',
+                  'build_time': 'test',
+                  'supported_protocol_versions': <String>[
+                    voyageProtocolVersionAlias,
+                  ],
+                  'latest_protocol_version': voyageProtocolVersionAlias,
+                  'websocket_path': '/api/v1/rooms/ws',
+                  'heartbeat_interval_ms': 10000,
+                  'member_stale_timeout_ms': 45000,
+                  'capabilities': const <String, Object?>{},
+                },
+              }),
+            );
+          await request.response.close();
+        });
+
+        final client = VoyageGroupListeningHttpClient();
+        final discovery = await client.discover(
+          GroupListeningClientConfiguration(
+            voyageBaseUrl: Uri.parse('http://127.0.0.1:${server.port}'),
+            sourceServerOrigin: 'https://sub.example.com',
+            sourceServerFingerprint: 'fingerprint-1',
+            displayName: 'Alice',
+            deviceLabel: 'Linux box',
+            autoFollowHost: true,
+            allowInsecureTransport: true,
+          ),
+        );
+
+        expect(discovery.supportsCurrentProtocol, isTrue);
+        expect(discovery.preferredProtocolVersion, voyageProtocolVersion);
+      },
+    );
   });
 
   group('VoyageGroupListeningHttpClient.rejoinRoom', () {

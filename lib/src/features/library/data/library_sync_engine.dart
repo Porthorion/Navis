@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -163,6 +164,9 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
 
 const _navisCapabilitiesNamespace = 'navis';
 const _bulkSongSearchQueryCapabilityKey = 'bulkSongSearchWildcardQuery';
+const _libraryIndexesFingerprintCapabilityKey = 'libraryIndexesFingerprint';
+const _auxiliarySyncLastSyncedAtCapabilityKey = 'auxiliarySyncLastSyncedAt';
+const _defaultAuxiliarySyncStaleAfter = Duration(hours: 12);
 
 int _incrementalArtistFanoutFallbackThreshold({
   required int existingArtistCount,
@@ -199,6 +203,31 @@ bool _shouldFallbackIncrementalArtistFanout({
 }
 
 String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
+  return _readNavisStringCapability(
+    capabilitiesJson,
+    _bulkSongSearchQueryCapabilityKey,
+  );
+}
+
+String? _readStoredIndexesFingerprint(String? capabilitiesJson) {
+  return _readNavisStringCapability(
+    capabilitiesJson,
+    _libraryIndexesFingerprintCapabilityKey,
+  );
+}
+
+DateTime? _readStoredAuxiliarySyncedAt(String? capabilitiesJson) {
+  final raw = _readNavisStringCapability(
+    capabilitiesJson,
+    _auxiliarySyncLastSyncedAtCapabilityKey,
+  );
+  if (raw == null || raw.isEmpty) {
+    return null;
+  }
+  return DateTime.tryParse(raw);
+}
+
+String? _readNavisStringCapability(String? capabilitiesJson, String key) {
   if (capabilitiesJson == null || capabilitiesJson.trim().isEmpty) {
     return null;
   }
@@ -211,8 +240,8 @@ String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
     if (navisCapabilities is! Map) {
       return null;
     }
-    final query = navisCapabilities[_bulkSongSearchQueryCapabilityKey];
-    return query is String ? query : null;
+    final value = navisCapabilities[key];
+    return value is String ? value : null;
   } on FormatException {
     return null;
   }
@@ -221,6 +250,40 @@ String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
 String? _mergeStoredBulkSongSearchQuery(
   String? capabilitiesJson,
   String? query,
+) {
+  return _mergeNavisStringCapability(
+    capabilitiesJson,
+    _bulkSongSearchQueryCapabilityKey,
+    query,
+  );
+}
+
+String? _mergeStoredIndexesFingerprint(
+  String? capabilitiesJson,
+  String? fingerprint,
+) {
+  return _mergeNavisStringCapability(
+    capabilitiesJson,
+    _libraryIndexesFingerprintCapabilityKey,
+    fingerprint,
+  );
+}
+
+String? _mergeStoredAuxiliarySyncedAt(
+  String? capabilitiesJson,
+  DateTime? syncedAt,
+) {
+  return _mergeNavisStringCapability(
+    capabilitiesJson,
+    _auxiliarySyncLastSyncedAtCapabilityKey,
+    syncedAt?.toUtc().toIso8601String(),
+  );
+}
+
+String? _mergeNavisStringCapability(
+  String? capabilitiesJson,
+  String key,
+  String? value,
 ) {
   final root = <String, dynamic>{};
   if (capabilitiesJson != null && capabilitiesJson.trim().isNotEmpty) {
@@ -244,10 +307,10 @@ String? _mergeStoredBulkSongSearchQuery(
     }
   }
 
-  if (query == null) {
-    navisCapabilities.remove(_bulkSongSearchQueryCapabilityKey);
+  if (value == null) {
+    navisCapabilities.remove(key);
   } else {
-    navisCapabilities[_bulkSongSearchQueryCapabilityKey] = query;
+    navisCapabilities[key] = value;
   }
 
   if (navisCapabilities.isEmpty) {
@@ -262,6 +325,32 @@ String? _mergeStoredBulkSongSearchQuery(
   return jsonEncode(root);
 }
 
+String _fingerprintIndexes(Indexes indexes) {
+  final artistIds = <String>{};
+  for (final index in indexes.indexes) {
+    for (final artist in index.artists) {
+      final id = artist.id.trim();
+      if (id.isNotEmpty) {
+        artistIds.add(id);
+      }
+    }
+  }
+  for (final artist in indexes.shortcut) {
+    final id = artist.id.trim();
+    if (id.isNotEmpty) {
+      artistIds.add(id);
+    }
+  }
+  for (final artist in indexes.child) {
+    final id = artist.id.trim();
+    if (id.isNotEmpty) {
+      artistIds.add(id);
+    }
+  }
+  final normalized = artistIds.toList(growable: false)..sort();
+  return sha1.convert(utf8.encode(normalized.join('\n'))).toString();
+}
+
 class DriftLibrarySyncEngine implements LibrarySyncEngine {
   DriftLibrarySyncEngine({
     required LibrarySyncApi api,
@@ -270,6 +359,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     this.networkType = NetworkType.other,
     this.staleAfter = const Duration(hours: 1),
     this.rebaselineAfter = const Duration(hours: 24),
+    this.auxiliarySyncStaleAfter = _defaultAuxiliarySyncStaleAfter,
     this.fastPathPageSize = 500,
     this.fastPathMaxPages = 200,
     this.bulkSearchPageSize = 1000,
@@ -294,6 +384,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   final NetworkType networkType;
   final Duration staleAfter;
   final Duration rebaselineAfter;
+  final Duration auxiliarySyncStaleAfter;
   final int fastPathPageSize;
   final int fastPathMaxPages;
   final int bulkSearchPageSize;
@@ -439,11 +530,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       return failed;
     }
 
-    final mode = _resolveMode(
-      serverConfig,
-      forceFull: forceFull,
-      preferIncremental: preferIncremental,
-    );
+    final mode = _resolveMode(serverConfig, forceFull: forceFull);
     final storedBulkSongSearchQuery = _readStoredBulkSongSearchQuery(
       serverConfig.capabilitiesJson,
     );
@@ -481,6 +568,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     }
 
     try {
+      final auxiliaryDue = _shouldSyncAuxiliary(serverConfig.capabilitiesJson);
+      final syncAuxiliary = force || auxiliaryDue;
       if (!force && hasFreshSync && pendingHydrationCount > 0) {
         state = await _hydratePendingSongs(
           state: _withMetrics(
@@ -503,6 +592,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           state: state,
           serverConfig: serverConfig,
           priorityAlbumIds: priorityAlbumIds,
+          syncAuxiliary: syncAuxiliary,
           metrics: metrics,
           onProgress: onProgress,
         );
@@ -511,6 +601,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           state: state,
           serverConfig: serverConfig,
           priorityAlbumIds: priorityAlbumIds,
+          syncAuxiliary: syncAuxiliary,
           metrics: metrics,
           onProgress: onProgress,
         );
@@ -520,12 +611,18 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           serverConfig: serverConfig,
           mode: mode,
           priorityAlbumIds: priorityAlbumIds,
+          syncAuxiliary: true,
           metrics: metrics,
           onProgress: onProgress,
         );
       }
 
-      await _reconcileStarredContent(metrics);
+      if (force || metrics.metadataChanged || auxiliaryDue) {
+        await _reconcileStarredContent(metrics);
+        await _markAuxiliarySynced(DateTime.now(), metrics);
+      } else {
+        metrics.skippedReason = metrics.skippedReason ?? 'auxiliaryFresh';
+      }
 
       final syncedAt = DateTime.now();
       final completedMode = state.mode ?? mode;
@@ -592,7 +689,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
   Future<void> _reconcileStarredContent(_SyncRunMetrics metrics) async {
     try {
-      final starred = await _api.getStarredContent();
+      final starred = await _withRetry(
+        _api.getStarredContent,
+        metrics: metrics,
+        endpoint: 'getStarredContent',
+      );
       final pendingActions = await _database.starSyncDao.getPendingActions();
       final pendingByType = <String, Set<String>>{
         'album': <String>{},
@@ -643,7 +744,6 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   LibrarySyncMode _resolveMode(
     ServerConfigModel config, {
     required bool forceFull,
-    bool preferIncremental = false,
   }) {
     if (forceFull) {
       return LibrarySyncMode.forceFull;
@@ -653,20 +753,50 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       return LibrarySyncMode.fullInitial;
     }
 
-    // When preferIncremental is set (e.g. manual pull-to-refresh), skip the
-    // rebaseline check and go straight to incremental sync.  This avoids
-    // re-fetching the entire library on every manual refresh.
-    if (preferIncremental) {
-      return LibrarySyncMode.incremental;
-    }
-
-    final lastFullSync = config.lastFullSyncedAt;
-    if (lastFullSync == null ||
-        DateTime.now().difference(lastFullSync) >= rebaselineAfter) {
-      return LibrarySyncMode.rebaselineFull;
-    }
-
     return LibrarySyncMode.incremental;
+  }
+
+  bool _shouldSyncAuxiliary(String? capabilitiesJson) {
+    final lastAuxiliarySync = _readStoredAuxiliarySyncedAt(capabilitiesJson);
+    if (lastAuxiliarySync == null) {
+      return true;
+    }
+    return DateTime.now().difference(lastAuxiliarySync) >=
+        auxiliarySyncStaleAfter;
+  }
+
+  Future<void> _updateStoredIndexesFingerprint(
+    String fingerprint,
+    _SyncRunMetrics metrics,
+  ) async {
+    final serverConfig = await _serverConfigRepository.getActiveServer();
+    final currentCapabilitiesJson = serverConfig?.capabilitiesJson;
+    final nextCapabilitiesJson = _mergeStoredIndexesFingerprint(
+      currentCapabilitiesJson,
+      fingerprint,
+    );
+    if (nextCapabilitiesJson == currentCapabilitiesJson) {
+      return;
+    }
+    await _serverConfigRepository.updateCapabilitiesJson(nextCapabilitiesJson);
+    metrics.addDbWriteBatch();
+  }
+
+  Future<void> _markAuxiliarySynced(
+    DateTime syncedAt,
+    _SyncRunMetrics metrics,
+  ) async {
+    final serverConfig = await _serverConfigRepository.getActiveServer();
+    final currentCapabilitiesJson = serverConfig?.capabilitiesJson;
+    final nextCapabilitiesJson = _mergeStoredAuxiliarySyncedAt(
+      currentCapabilitiesJson,
+      syncedAt,
+    );
+    if (nextCapabilitiesJson == currentCapabilitiesJson) {
+      return;
+    }
+    await _serverConfigRepository.updateCapabilitiesJson(nextCapabilitiesJson);
+    metrics.addDbWriteBatch();
   }
 
   Future<LibrarySyncState> _runFullSync({
@@ -674,9 +804,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     required ServerConfigModel serverConfig,
     required LibrarySyncMode mode,
     required Iterable<String> priorityAlbumIds,
+    required bool syncAuxiliary,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
+    metrics.metadataChanged = true;
     var current = _withMetrics(
       state.copyWith(
         stage: LibrarySyncStage.fetchingArtists,
@@ -687,7 +819,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(current);
 
-    final artists = await _withRetry(_api.getArtists, metrics: metrics);
+    final artists = await _withRetry(
+      _api.getArtists,
+      metrics: metrics,
+      endpoint: 'getArtists',
+    );
 
     current = _withMetrics(
       current.copyWith(
@@ -736,6 +872,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             final detail = await _withRetry(
               () => _api.getArtist(artist.id),
               metrics: metrics,
+              endpoint: 'getArtist',
             );
             current = _withMetrics(
               current.copyWith(
@@ -815,11 +952,13 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       metrics.addDbWriteBatch();
     }
 
-    current = await _syncGenresAndPlaylistsBestEffort(
-      current: current,
-      metrics: metrics,
-      onProgress: onProgress,
-    );
+    if (syncAuxiliary) {
+      current = await _syncGenresAndPlaylistsBestEffort(
+        current: current,
+        metrics: metrics,
+        onProgress: onProgress,
+      );
+    }
 
     current = await _hydratePendingSongs(
       state: _withMetrics(
@@ -858,6 +997,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     required LibrarySyncState state,
     required ServerConfigModel serverConfig,
     required Iterable<String> priorityAlbumIds,
+    required bool syncAuxiliary,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -871,7 +1011,16 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(current);
 
-    final artists = await _withRetry(_api.getArtists, metrics: metrics);
+    final artists = await _withRetry(
+      _api.getArtists,
+      metrics: metrics,
+      endpoint: 'getArtists',
+    );
+    final normalizedArtistIds = artists.map((artist) => artist.id).toList()
+      ..sort();
+    final indexesFingerprint = sha1
+        .convert(utf8.encode(normalizedArtistIds.join('\n')))
+        .toString();
     current = _withMetrics(
       current.copyWith(
         stage: LibrarySyncStage.fetchingAlbums,
@@ -919,6 +1068,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             final detail = await _withRetry(
               () => _api.getArtist(artist.id),
               metrics: metrics,
+              endpoint: 'getArtist',
             );
             current = _withMetrics(
               current.copyWith(processed: (current.processed ?? 0) + 1),
@@ -1046,11 +1196,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       onProgress: onProgress,
     );
 
-    current = await _syncGenresAndPlaylistsBestEffort(
-      current: current,
-      metrics: metrics,
-      onProgress: onProgress,
-    );
+    if (syncAuxiliary || metrics.metadataChanged) {
+      current = await _syncGenresAndPlaylistsBestEffort(
+        current: current,
+        metrics: metrics,
+        onProgress: onProgress,
+      );
+    }
+
+    await _updateStoredIndexesFingerprint(indexesFingerprint, metrics);
 
     return _withMetrics(
       current.copyWith(
@@ -1066,6 +1220,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     required LibrarySyncState state,
     required ServerConfigModel serverConfig,
     required Iterable<String> priorityAlbumIds,
+    required bool syncAuxiliary,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -1084,22 +1239,42 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       indexes = await _withRetry(
         () => _api.getIndexes(ifModifiedSince: serverConfig.lastSynced),
         metrics: metrics,
+        endpoint: 'getIndexes',
       );
     } on Object catch (error) {
       if (!_isIndexesUnsupported(error)) {
         rethrow;
       }
-      return _runRebaselineSync(
-        state: current.copyWith(mode: LibrarySyncMode.rebaselineFull),
-        serverConfig: serverConfig,
-        priorityAlbumIds: priorityAlbumIds,
-        metrics: metrics,
-        onProgress: onProgress,
+      AppLogger.info(
+        'Incremental sync skipped: getIndexes is unsupported. '
+        'Use Force Full Sync to repair library metadata manually.',
+      );
+      metrics.skippedReason = 'indexesUnsupported';
+      if (syncAuxiliary) {
+        current = await _syncGenresAndPlaylistsBestEffort(
+          current: current,
+          metrics: metrics,
+          onProgress: onProgress,
+        );
+      }
+      return _withMetrics(
+        current.copyWith(
+          mode: LibrarySyncMode.incremental,
+          stage: LibrarySyncStage.finalizing,
+          clearProcessed: true,
+          clearTotal: true,
+          pendingHydrationCount: 0,
+        ),
+        metrics,
       );
     }
 
-    final changedArtistIds = _extractChangedArtistIds(indexes);
+    final indexesFingerprint = _fingerprintIndexes(indexes);
+    var changedArtistIds = _extractChangedArtistIds(indexes);
     final storedBulkSongSearchQuery = _readStoredBulkSongSearchQuery(
+      serverConfig.capabilitiesJson,
+    );
+    final storedIndexesFingerprint = _readStoredIndexesFingerprint(
       serverConfig.capabilitiesJson,
     );
     final existingArtistCount = await _database.libraryDao.countArtists();
@@ -1108,20 +1283,48 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       existingArtistCount: existingArtistCount,
       hasKnownBulkSongFastPath: storedBulkSongSearchQuery != null,
     )) {
+      final fanoutThreshold = _incrementalArtistFanoutFallbackThreshold(
+        existingArtistCount: existingArtistCount,
+        hasKnownBulkSongFastPath: storedBulkSongSearchQuery != null,
+      );
+      if (storedIndexesFingerprint == indexesFingerprint) {
+        AppLogger.info(
+          'Incremental sync skipped noisy unchanged index fanout '
+          '(changedArtists=${changedArtistIds.length}, '
+          'existingArtists=$existingArtistCount, '
+          'knownBulkSongFastPath=${storedBulkSongSearchQuery != null}).',
+        );
+        metrics.skippedReason = 'noisyIndexesUnchanged';
+        if (syncAuxiliary) {
+          current = await _syncGenresAndPlaylistsBestEffort(
+            current: current,
+            metrics: metrics,
+            onProgress: onProgress,
+          );
+        }
+        await _updateStoredIndexesFingerprint(indexesFingerprint, metrics);
+        return _withMetrics(
+          current.copyWith(
+            mode: LibrarySyncMode.incremental,
+            stage: LibrarySyncStage.finalizing,
+            clearProcessed: true,
+            clearTotal: true,
+            pendingHydrationCount: 0,
+          ),
+          metrics,
+        );
+      }
       AppLogger.info(
         'Incremental sync fanout too large '
         '(changedArtists=${changedArtistIds.length}, '
         'existingArtists=$existingArtistCount, '
         'knownBulkSongFastPath=${storedBulkSongSearchQuery != null}). '
-        'Switching to fast rebaseline sync.',
+        'Processing bounded incremental batch of $fanoutThreshold artists.',
       );
-      return _runRebaselineSync(
-        state: current.copyWith(mode: LibrarySyncMode.rebaselineFull),
-        serverConfig: serverConfig,
-        priorityAlbumIds: priorityAlbumIds,
-        metrics: metrics,
-        onProgress: onProgress,
-      );
+      metrics.skippedReason = 'noisyIndexesBounded';
+      changedArtistIds = (changedArtistIds.toList(
+        growable: false,
+      )..sort()).take(fanoutThreshold).toSet();
     }
 
     current = _withMetrics(
@@ -1143,6 +1346,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           final artist = await _withRetry(
             () => _api.getArtist(artistId),
             metrics: metrics,
+            endpoint: 'getArtist',
           );
           current = _withMetrics(
             current.copyWith(processed: (current.processed ?? 0) + 1),
@@ -1164,6 +1368,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     final artistDetails = details.whereType<Artist>().toList(growable: false);
     final touchedArtistIds = artistDetails.map((artist) => artist.id).toSet();
+    if (touchedArtistIds.isNotEmpty || deletedArtistIds.isNotEmpty) {
+      metrics.metadataChanged = true;
+    }
 
     current = _withMetrics(
       current.copyWith(stage: LibrarySyncStage.persistingMetadata),
@@ -1171,10 +1378,12 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(current);
 
-    await _database.libraryDao.upsertArtists(
-      _toArtistCompanions(artistDetails),
-    );
-    metrics.addDbWriteBatch();
+    if (artistDetails.isNotEmpty) {
+      await _database.libraryDao.upsertArtists(
+        _toArtistCompanions(artistDetails),
+      );
+      metrics.addDbWriteBatch();
+    }
 
     final albumsByArtist = <String, List<Album>>{
       for (final artist in artistDetails) artist.id: artist.albums,
@@ -1210,6 +1419,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     }
 
     if (changedOrNewAlbums.isNotEmpty) {
+      metrics.metadataChanged = true;
       await _database.libraryDao.upsertAlbums(
         await _toAlbumCompanions(
           changedOrNewAlbums,
@@ -1223,12 +1433,14 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         .where((id) => !albumsNeedingHydration.contains(id))
         .toList(growable: false);
     if (hydratedWithoutSongRefresh.isNotEmpty) {
+      metrics.metadataChanged = true;
       await _database.libraryDao.markAlbumsSongsHydratedByIds(
         hydratedWithoutSongRefresh,
       );
       metrics.addDbWriteBatch();
     }
     if (albumsNeedingHydration.isNotEmpty) {
+      metrics.metadataChanged = true;
       await _database.libraryDao.markAlbumsPendingHydrationByIds(
         albumsNeedingHydration,
       );
@@ -1245,12 +1457,14 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           .where((id) => !nextAlbumIds.contains(id))
           .toList(growable: false);
       if (staleAlbumIds.isNotEmpty) {
+        metrics.metadataChanged = true;
         await _database.libraryDao.deleteAlbumsByIds(staleAlbumIds);
         metrics.addDbWriteBatch();
       }
     }
 
     for (final deletedArtistId in deletedArtistIds) {
+      metrics.metadataChanged = true;
       await _database.libraryDao.removeArtistTree(deletedArtistId);
       metrics.addDbWriteBatch();
     }
@@ -1275,11 +1489,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       onProgress: onProgress,
     );
 
-    current = await _syncGenresAndPlaylistsBestEffort(
-      current: current,
-      metrics: metrics,
-      onProgress: onProgress,
-    );
+    if (syncAuxiliary || metrics.metadataChanged) {
+      current = await _syncGenresAndPlaylistsBestEffort(
+        current: current,
+        metrics: metrics,
+        onProgress: onProgress,
+      );
+    }
+
+    await _updateStoredIndexesFingerprint(indexesFingerprint, metrics);
 
     return _withMetrics(
       current.copyWith(
@@ -1306,7 +1524,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(state);
     try {
-      final genres = await _withRetry(_api.getGenres, metrics: metrics);
+      final genres = await _withRetry(
+        _api.getGenres,
+        metrics: metrics,
+        endpoint: 'getGenres',
+      );
       await _database.libraryDao.replaceGenres(_toGenreCompanions(genres));
       metrics.addDbWriteBatch();
     } on Object catch (error, stackTrace) {
@@ -1321,7 +1543,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(state);
     try {
-      final playlists = await _withRetry(_api.getPlaylists, metrics: metrics);
+      final playlists = await _withRetry(
+        _api.getPlaylists,
+        metrics: metrics,
+        endpoint: 'getPlaylists',
+      );
       await _database.playlistDao.upsertPlaylists(
         _toPlaylistCompanions(playlists),
       );
@@ -1735,6 +1961,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           ),
           metrics: metrics,
           maxAttempts: 2,
+          endpoint: 'searchSongsPage',
         );
         if (page.songs.isEmpty) {
           continue;
@@ -1826,6 +2053,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         ),
         metrics: metrics,
         maxAttempts: 3,
+        endpoint: 'searchSongsPage',
       );
 
       final songs = page.songs;
@@ -1940,6 +2168,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       final page = await _withRetry(
         () => _api.getAlbumListPage(size: fastPathPageSize, offset: offset),
         metrics: metrics,
+        endpoint: 'getAlbumListPage',
       );
       if (page.isEmpty) {
         break;
@@ -2002,6 +2231,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     Future<T> Function() action, {
     required _SyncRunMetrics metrics,
     int maxAttempts = 4,
+    String? endpoint,
   }) async {
     final effectiveMaxAttempts = networkType == NetworkType.cellular
         ? maxAttempts.clamp(1, 2)
@@ -2016,6 +2246,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics.recordApiAttempt(
           elapsed: stopwatch.elapsed,
           isRetryAttempt: attempt > 1,
+          endpoint: endpoint,
         );
         return result;
       } on SyncCancelledException {
@@ -2024,6 +2255,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics.recordApiAttempt(
           elapsed: stopwatch.elapsed,
           isRetryAttempt: attempt > 1,
+          endpoint: endpoint,
         );
         if (!_isTransient(error) || attempt >= effectiveMaxAttempts) {
           metrics.recordApiFailure();
@@ -2065,6 +2297,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       final album = await _withRetry(
         () => _api.getAlbum(albumId),
         metrics: metrics,
+        endpoint: 'getAlbum',
       );
       return _AlbumFetchResult.success(album);
     } on SyncCancelledException {
@@ -2229,6 +2462,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       'requests=${metrics.apiRequests} '
       'retries=${metrics.apiRetries} '
       'failures=${metrics.apiFailures} '
+      'endpointRequests=${_formatEndpointCounts(metrics.apiRequestsByEndpoint)} '
+      'metadataChanged=${metrics.metadataChanged} '
+      'skippedReason=${metrics.skippedReason ?? 'none'} '
       'deletedAlbums=${metrics.deletedAlbums} '
       'hardAlbumFailures=${metrics.hardAlbumFailures} '
       'avgLatencyMs=${metrics.averageLatencyMs ?? 0} '
@@ -2237,6 +2473,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       '${metrics.hydrationThroughputAlbumsPerSecond?.toStringAsFixed(2) ?? '0.00'} '
       'durationMs=${durationMs ?? 0}',
     );
+  }
+
+  String _formatEndpointCounts(Map<String, int> counts) {
+    if (counts.isEmpty) {
+      return '{}';
+    }
+    final entries = counts.entries.toList(growable: false)
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return '{${entries.map((entry) => '${entry.key}:${entry.value}').join(',')}}';
   }
 
   List<ArtistsTableCompanion> _toArtistCompanions(List<Artist> artists) {
@@ -2442,6 +2687,9 @@ class _SyncRunMetrics {
   int dbWriteBatches = 0;
   int deletedAlbums = 0;
   int hardAlbumFailures = 0;
+  bool metadataChanged = false;
+  String? skippedReason;
+  final Map<String, int> apiRequestsByEndpoint = <String, int>{};
   int _latencySumMs = 0;
   int _latencySamples = 0;
   double? hydrationThroughputAlbumsPerSecond;
@@ -2456,8 +2704,13 @@ class _SyncRunMetrics {
   void recordApiAttempt({
     required Duration elapsed,
     required bool isRetryAttempt,
+    String? endpoint,
   }) {
     apiRequests++;
+    if (endpoint != null && endpoint.isNotEmpty) {
+      apiRequestsByEndpoint[endpoint] =
+          (apiRequestsByEndpoint[endpoint] ?? 0) + 1;
+    }
     if (isRetryAttempt) {
       apiRetries++;
     }

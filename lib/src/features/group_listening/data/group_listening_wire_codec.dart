@@ -1076,8 +1076,7 @@ GroupListeningRepositoryException _protocolFormatFailure(String message) {
 
 void validateProtocolVersion(Object? value) {
   final protocolVersion = nullableStringValue(value) ?? '';
-  if (protocolVersion == voyageProtocolVersion ||
-      protocolVersion == voyageProtocolVersionV3) {
+  if (isSupportedVoyageProtocolVersion(protocolVersion)) {
     return;
   }
   throw GroupListeningRepositoryException(

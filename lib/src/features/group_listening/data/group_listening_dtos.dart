@@ -58,20 +58,13 @@ class GroupListeningCapabilityDiscovery {
   final Set<String> capabilities;
 
   bool get supportsCurrentProtocol =>
-      supportedProtocolVersions.contains(voyageProtocolVersionV3) ||
-      supportedProtocolVersions.contains(voyageProtocolVersion);
+      discoveryListsSupportedVoyageProtocol(supportedProtocolVersions);
 
   bool get supportsReplayResume =>
-      (supportedProtocolVersions.contains(voyageProtocolVersionV3) ||
-          supportedProtocolVersions.contains(voyageProtocolVersion)) &&
+      supportsCurrentProtocol &&
       capabilities.contains(voyageReplayResumeCapability);
 
-  String get preferredProtocolVersion {
-    if (supportedProtocolVersions.contains(voyageProtocolVersionV3)) {
-      return voyageProtocolVersionV3;
-    }
-    return voyageProtocolVersion;
-  }
+  String get preferredProtocolVersion => voyageProtocolVersion;
 }
 
 @immutable

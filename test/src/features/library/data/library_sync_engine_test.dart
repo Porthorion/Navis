@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -90,7 +91,10 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   }
 
   @override
-  Future<StarredContent> getStarredContent() async => starredContent;
+  Future<StarredContent> getStarredContent() async {
+    calls.add('getStarredContent');
+    return starredContent;
+  }
 
   @override
   Future<List<Album>> getAlbumListPage({
@@ -167,6 +171,11 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
     }
     return SearchResult3(songs: bulkSongPages[offset] ?? const <Song>[]);
   }
+}
+
+String _testIndexesFingerprint(Iterable<String> artistIds) {
+  final normalized = artistIds.toList(growable: false)..sort();
+  return sha1.convert(utf8.encode(normalized.join('\n'))).toString();
 }
 
 void main() {
@@ -1094,7 +1103,7 @@ void main() {
     );
 
     test(
-      'incremental mode falls back to rebaseline when indexes unsupported',
+      'incremental mode skips full scan when indexes are unsupported',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
@@ -1116,57 +1125,101 @@ void main() {
         final state = await engine.syncIfStale();
 
         expect(state.status, LibrarySyncStatus.succeeded);
-        expect(state.mode, LibrarySyncMode.rebaselineFull);
-        expect(api.calls, contains('getArtists'));
-        expect(api.calls, contains('getAlbumListPage:0:500'));
+        expect(state.mode, LibrarySyncMode.incremental);
+        expect(api.calls, contains('getIndexes'));
+        expect(api.calls, isNot(contains('getArtists')));
+        expect(api.calls, isNot(contains('getAlbumListPage:0:500')));
       },
       skip: !sqliteAvailable,
     );
 
     test(
-      'incremental mode falls back to rebaseline when changed artist fanout is too large',
+      'incremental mode bounds changed artist fanout instead of rebaseline',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
           lastFullSyncedAt: DateTime.now().subtract(const Duration(hours: 2)),
         );
+        final noisyArtistIds = List<String>.generate(
+          49,
+          (index) => 'artist-${index + 1}',
+        );
         api.indexes = Indexes(
           indexes: <IndexesIndex>[
             IndexesIndex(
               name: 'A',
-              artists: List<Artist>.generate(
-                49,
-                (index) => Artist(
-                  id: 'artist-${index + 1}',
-                  name: 'Artist ${index + 1}',
-                ),
-              ),
+              artists: noisyArtistIds
+                  .map((id) => Artist(id: id, name: id))
+                  .toList(growable: false),
             ),
           ],
         );
-        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
-        api.fastPathPages[0] = const <Album>[
-          Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
-        ];
-        api.albumDetails['album-1'] = const Album(
-          id: 'album-1',
-          name: 'Album 1',
-          songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
-        );
+        for (final artistId in noisyArtistIds) {
+          api.artistDetails[artistId] = Artist(id: artistId, name: artistId);
+        }
 
         final state = await engine.syncIfStale();
         final config = await serverConfigRepository.getActiveServer();
 
         expect(state.status, LibrarySyncStatus.succeeded);
-        expect(state.mode, LibrarySyncMode.rebaselineFull);
+        expect(state.mode, LibrarySyncMode.incremental);
         expect(api.calls, contains('getIndexes'));
-        expect(api.calls, contains('getArtists'));
-        expect(api.calls, contains('getAlbumListPage:0:500'));
+        expect(
+          api.calls.where((call) => call.startsWith('getArtist:')).length,
+          48,
+        );
+        expect(api.calls, isNot(contains('getArtists')));
+        expect(api.calls, isNot(contains('getAlbumListPage:0:500')));
+        expect(
+          config?.lastFullSyncedAt?.isBefore(
+            DateTime.now().subtract(const Duration(hours: 1)),
+          ),
+          isTrue,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'incremental mode skips unchanged noisy index fingerprint',
+      () async {
+        final noisyArtistIds = List<String>.generate(
+          49,
+          (index) => 'artist-${index + 1}',
+        );
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
+          lastFullSyncedAt: DateTime.now(),
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'libraryIndexesFingerprint': _testIndexesFingerprint(
+                noisyArtistIds,
+              ),
+            },
+          }),
+        );
+        api.indexes = Indexes(
+          indexes: <IndexesIndex>[
+            IndexesIndex(
+              name: 'A',
+              artists: noisyArtistIds
+                  .map((id) => Artist(id: id, name: id))
+                  .toList(growable: false),
+            ),
+          ],
+        );
+
+        final state = await engine.syncIfStale();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.mode, LibrarySyncMode.incremental);
+        expect(api.calls, contains('getIndexes'));
         expect(
           api.calls.where((call) => call.startsWith('getArtist:')),
           isEmpty,
         );
-        expect(config?.lastFullSyncedAt, isNotNull);
+        expect(api.calls, isNot(contains('getArtists')));
+        expect(api.calls, isNot(contains('getAlbumListPage:0:500')));
       },
       skip: !sqliteAvailable,
     );
@@ -1200,8 +1253,31 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('incremental sync skips fresh auxiliary endpoints', () async {
+      await saveSession(
+        lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+        lastFullSyncedAt: DateTime.now(),
+        capabilitiesJson: jsonEncode(<String, Object?>{
+          'navis': <String, Object?>{
+            'auxiliarySyncLastSyncedAt': DateTime.now()
+                .toUtc()
+                .toIso8601String(),
+          },
+        }),
+      );
+
+      final state = await engine.syncIfStale();
+
+      expect(state.status, LibrarySyncStatus.succeeded);
+      expect(state.mode, LibrarySyncMode.incremental);
+      expect(api.calls, contains('getIndexes'));
+      expect(api.calls, isNot(contains('getStarredContent')));
+      expect(api.calls, isNot(contains('getGenres')));
+      expect(api.calls, isNot(contains('getPlaylists')));
+    }, skip: !sqliteAvailable);
+
     test(
-      'daily rebaseline mode triggers full sync after interval',
+      'automatic sync stays incremental after the old rebaseline interval',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
@@ -1221,11 +1297,14 @@ void main() {
         final config = await serverConfigRepository.getActiveServer();
 
         expect(state.status, LibrarySyncStatus.succeeded);
-        expect(state.mode, LibrarySyncMode.rebaselineFull);
+        expect(state.mode, LibrarySyncMode.incremental);
+        expect(api.calls, contains('getIndexes'));
+        expect(api.calls, isNot(contains('getArtists')));
+        expect(api.calls, isNot(contains('getAlbumListPage:0:500')));
         expect(config?.lastFullSyncedAt, isNotNull);
         expect(
-          config!.lastFullSyncedAt!.isAfter(
-            DateTime.now().subtract(const Duration(minutes: 1)),
+          config!.lastFullSyncedAt!.isBefore(
+            DateTime.now().subtract(const Duration(hours: 1)),
           ),
           isTrue,
         );
@@ -1234,7 +1313,7 @@ void main() {
     );
 
     test(
-      'rebaseline avoids rehydrating unchanged albums',
+      'incremental sync after old rebaseline interval avoids rehydrating unchanged albums',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
@@ -1281,7 +1360,7 @@ void main() {
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
-        expect(state.mode, LibrarySyncMode.rebaselineFull);
+        expect(state.mode, LibrarySyncMode.incremental);
         expect(api.calls, isNot(contains('getAlbum:album-1')));
         expect(pending, 0);
         expect(songs.map((song) => song.id), contains('song-1'));

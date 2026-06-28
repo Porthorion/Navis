@@ -1,25 +1,29 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
-/// Number of remaining tracks (after the current one) that triggers
-/// an automatic refill fetch.
+/// Number of remaining mix tracks (after the current one) that triggers refill.
 const _kRefillThreshold = 3;
 
 /// Maximum duration a single refill fetch is allowed to run before it is
 /// cancelled and the refilling flag is reset.
 const _kRefillTimeout = Duration(seconds: 30);
 
+/// Guard against rapid repeated refill attempts from playback ticks.
+const _kMinimumRefillInterval = Duration(milliseconds: 1200);
+
 /// Global notifier that manages the Instant Mix auto-refill mode.
 ///
 /// When `active`, this notifier watches the playback queue and automatically
-/// appends similar tracks whenever fewer than `_kRefillThreshold` tracks remain
-/// after the current position.  The seed song is updated each cycle to the
-/// currently-playing track, keeping the recommendations fresh.
+/// appends similar tracks whenever fewer than [_kRefillThreshold] mix tracks
+/// remain after the current position.  The seed song is updated each cycle to
+/// the currently-playing track, keeping the recommendations fresh.
 ///
 /// The provider is intentionally **not** `autoDispose` — the Instant Mix
 /// session should persist across navigation until explicitly deactivated or
@@ -30,9 +34,14 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   /// invocation.
   bool _isRefilling = false;
 
+  /// Exclusive end index of the active mix segment in the playback queue.
+  ///
+  /// Refill is based on tracks within this segment, not the pre-mix queue tail.
+  int? _mixSegmentEndIndex;
+  DateTime? _nextRefillAllowedAt;
+
   @override
   InstantMixState build() {
-    // Whenever the playback snapshot changes, check if a refill is needed.
     ref.listen<PlaybackSnapshot>(
       playerStateProvider,
       _onSnapshotChanged,
@@ -40,15 +49,9 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     return const InstantMixState.inactive();
   }
 
-  // ---------------------------------------------------------------------------
-  // Public API
-  // ---------------------------------------------------------------------------
-
-  /// Activates Instant Mix and immediately queues similar tracks.
-  ///
-  /// If Instant Mix is already active this replaces the current seed, cancels
-  /// any pending error, and starts a fresh refill from [seedSongId].
   Future<void> activate(String seedSongId) async {
+    _mixSegmentEndIndex = null;
+    _nextRefillAllowedAt = null;
     state = InstantMixState(
       active: true,
       seedSongId: seedSongId,
@@ -56,15 +59,12 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     await _refill(seedSongId, isInitial: true);
   }
 
-  /// Deactivates Instant Mix and stops all future auto-refills.
   void deactivate() {
+    _mixSegmentEndIndex = null;
+    _nextRefillAllowedAt = null;
     state = const InstantMixState.inactive();
   }
 
-  /// Toggles the Instant Mix mode.
-  ///
-  /// [currentSongId] is used as the seed when activating.  If [currentSongId]
-  /// is null and Instant Mix is not currently active, the call is a no-op.
   Future<void> toggle(String? currentSongId) async {
     if (state.active) {
       deactivate();
@@ -73,91 +73,97 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     }
   }
 
-  /// Clears a pending one-shot error so it is not shown again.
   void clearError() {
     if (state.error != null) {
       state = state.copyWith(clearError: true);
     }
   }
 
-  /// Clears the pending snackbar message so it is not shown again.
   void clearSnackbar() {
     if (state.pendingSnackbar != null) {
       state = state.copyWith(clearSnackbar: true);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Internal
-  // ---------------------------------------------------------------------------
-
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
     if (next.isRadioMode) return;
-    if (state.refilling || state.error == InstantMixError.unsupported) return;
+    if (state.refilling || state.error != null) return;
 
-    // Deactivate automatically when the user clears / replaces the queue,
-    // so the toggle does not silently refill a brand-new queue.
     if (next.queueSongIds.isEmpty) {
+      _mixSegmentEndIndex = null;
       state = const InstantMixState.inactive();
       return;
     }
 
     final currentIndex = next.currentIndex ?? 0;
-    final remaining = next.queueSongIds.length - currentIndex - 1;
+    final remaining = _mixRemainingAfterCurrent(currentIndex, next);
 
     if (remaining <= _kRefillThreshold) {
-      // Use the currently-playing track as seed for fresh variety.
+      final nextAllowed = _nextRefillAllowedAt;
+      if (nextAllowed != null && DateTime.now().isBefore(nextAllowed)) {
+        return;
+      }
       final seedSongId = next.currentSongId ?? state.seedSongId;
       if (seedSongId != null) {
-        // _refill is async but we intentionally fire-and-forget here.
         // ignore: discarded_futures
         _refill(seedSongId);
       }
     }
   }
 
-  /// Fetches similar songs and inserts them after the current queue item.
-  ///
-  /// When AudioMuse is available the AI-powered recommendations are tried
-  /// first.  If AudioMuse returns no results (or is not configured) the
-  /// method falls back to the standard Subsonic getSimilarSongs endpoint.
-  ///
-  /// [isInitial] distinguishes the first activation fill (which may show
-  /// a snackbar) from background auto-refills (which are silent).
+  int _mixRemainingAfterCurrent(int currentIndex, PlaybackSnapshot snapshot) {
+    final mixEnd = _mixSegmentEndIndex;
+    if (mixEnd != null) {
+      return mixEnd - currentIndex - 1;
+    }
+    return snapshot.queueSongIds.length - currentIndex - 1;
+  }
+
   Future<void> _refill(String seedSongId, {bool isInitial = false}) async {
-    // Guard 1: local boolean prevents overlapping refills even if the state
-    // update has not yet been observed by a concurrent listener invocation.
     if (_isRefilling || state.refilling) return;
     _isRefilling = true;
-    // Record the seed we are refilling from.
     state = state.copyWith(refilling: true, seedSongId: seedSongId);
 
     try {
-      // Guard 2: wrap the actual fetch work in a timeout so a slow or hung API
-      // call cannot leave the notifier stuck in `refilling: true` indefinitely.
       await _doRefill(seedSongId, isInitial: isInitial).timeout(
         _kRefillTimeout,
         onTimeout: () {
           AppLogger.debug(
-            'InstantMix: refill timed out after ${_kRefillTimeout.inSeconds}s — resetting',
+            'InstantMix: refill timed out after ${_kRefillTimeout.inSeconds}s '
+            '— resetting',
           );
           state = state.copyWith(refilling: false);
         },
       );
+    } on Object catch (error, stackTrace) {
+      AppLogger.debug(
+        'InstantMix refill failed: $error\n$stackTrace',
+      );
+      if (isInitial) {
+        state = const InstantMixState(error: InstantMixError.networkError);
+        return;
+      }
+      if (state.active) {
+        state = state.copyWith(
+          refilling: false,
+          error: InstantMixError.networkError,
+        );
+      }
     } finally {
       _isRefilling = false;
+      if (state.active && state.refilling) {
+        state = state.copyWith(refilling: false);
+      }
     }
   }
 
-  /// Internal implementation of the refill fetch, called inside [_refill].
   Future<void> _doRefill(String seedSongId, {bool isInitial = false}) async {
     try {
       final legacyMode =
           ref.read(preferredMixModeProvider) ==
           PreferredMixMode.legacyInstantMix;
 
-      // ── 1. Try AudioMuse AI recommendations first (non-legacy only) ──
       if (!legacyMode) {
         final audioMuseRepo = ref.read(audioMuseRepositoryProvider);
         if (audioMuseRepo != null) {
@@ -165,17 +171,24 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
             final recs = await audioMuseRepo.getRecommendations(
               seedSongId: seedSongId,
             );
-            // Guard 3: user may have deactivated Instant Mix while the fetch ran.
             if (recs.isNotEmpty && state.active) {
-              final ids = recs.map((r) => r.id).toList(growable: false);
-              final handler = ref.read(audioHandlerProvider);
-              await handler?.playNext(ids, expandMatchFlows: false);
+              final songs = _songsFromAudioMuse(recs);
+              final queuedCount = await _queueMixSongs(songs);
+              if (queuedCount <= 0) {
+                state = isInitial
+                    ? const InstantMixState(error: InstantMixError.networkError)
+                    : state.copyWith(
+                        refilling: false,
+                        error: InstantMixError.networkError,
+                      );
+                return;
+              }
               AppLogger.debug(
-                'InstantMix: queued ${ids.length} tracks via AudioMuse',
+                'InstantMix: queued $queuedCount tracks via AudioMuse',
               );
               state = state.copyWith(
                 refilling: false,
-                pendingSnackbar: isInitial ? '${recs.length}' : null,
+                pendingSnackbar: isInitial ? '$queuedCount' : null,
               );
               return;
             }
@@ -185,13 +198,11 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         }
       }
 
-      // Guard 3: check again after AudioMuse path (covers fallback too).
       if (!state.active) {
         state = state.copyWith(refilling: false);
         return;
       }
 
-      // ── 2. Subsonic recommendations ──
       final api = ref.read(subsonicApiProvider);
       if (api == null) {
         state = state.copyWith(refilling: false);
@@ -201,45 +212,91 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       late final List<Song> songs;
       if (legacyMode) {
         try {
-          songs = await api.getInstantMix(seedSongId);
+          songs = await api.getInstantMix(seedSongId, count: 50);
         } on SubsonicNotFoundException {
-          songs = await api.getSimilarSongs(seedSongId);
+          songs = await api.getSimilarSongs(seedSongId, count: 50);
         }
       } else {
-        songs = await api.getSimilarSongs(seedSongId);
+        songs = await api.getSimilarSongs(seedSongId, count: 50);
       }
-      // Guard 3: deactivated while fetching — discard results.
       if (!state.active) {
         state = state.copyWith(refilling: false);
         return;
       }
 
-      final ids = songs.map((s) => s.id).toList(growable: false);
-      final handler = ref.read(audioHandlerProvider);
-      await handler?.playNext(ids, expandMatchFlows: false);
-
+      final queuedCount = await _queueMixSongs(songs);
+      if (queuedCount <= 0) {
+        state = isInitial
+            ? const InstantMixState(error: InstantMixError.networkError)
+            : state.copyWith(
+                refilling: false,
+                error: InstantMixError.networkError,
+              );
+        return;
+      }
       state = state.copyWith(
         refilling: false,
-        // Surface a snackbar on initial activation only.
-        pendingSnackbar: isInitial ? '${songs.length}' : null,
+        pendingSnackbar: isInitial ? '$queuedCount' : null,
       );
     } on SubsonicNotFoundException {
-      state = InstantMixState(
-        // Keep active=false so the toggle returns to its off state.
+      state = const InstantMixState(
         error: InstantMixError.unsupported,
       );
-    } on Exception {
-      // Network/parse error — deactivate and surface error once.
-      state = InstantMixState(
-        error: InstantMixError.networkError,
+    } on Object catch (error, stackTrace) {
+      AppLogger.debug('InstantMix _doRefill error: $error\n$stackTrace');
+      if (isInitial) {
+        state = const InstantMixState(error: InstantMixError.networkError);
+        return;
+      }
+      if (state.active) {
+        state = state.copyWith(
+          refilling: false,
+          error: InstantMixError.networkError,
+        );
+      }
+    }
+  }
+
+  List<Song> _songsFromAudioMuse(List<AudioMuseRecommendation> recs) {
+    return recs
+        .map(
+          (rec) => Song(
+            id: rec.id,
+            title: rec.title,
+            artist: rec.artist,
+            album: rec.album,
+            coverArt: rec.coverArtId,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<int> _queueMixSongs(List<Song> songs) async {
+    if (songs.isEmpty) {
+      return 0;
+    }
+    final currentIndex = ref.read(playerStateProvider).currentIndex ?? 0;
+    try {
+      final queuedCount = await ref
+          .read(queueProvider.notifier)
+          .insertMixTracksAfterCurrent(
+            songs,
+            expandMatchFlows: false,
+          );
+      if (queuedCount > 0) {
+        _mixSegmentEndIndex = currentIndex + 1 + queuedCount;
+        _nextRefillAllowedAt = DateTime.now().add(_kMinimumRefillInterval);
+      }
+      return queuedCount;
+    } on Object catch (error, stackTrace) {
+      AppLogger.debug(
+        'InstantMix queue failed: $error\n$stackTrace',
       );
+      rethrow;
     }
   }
 }
 
-/// Global provider for the Instant Mix auto-refill service.
-///
-/// Not autoDispose — must persist across routing to keep the session alive.
 final instantMixProvider =
     NotifierProvider<InstantMixNotifier, InstantMixState>(
       InstantMixNotifier.new,

@@ -6,8 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
-import 'package:navis/src/api/models/artist_info.dart';
-import 'package:navis/src/api/models/artist_ref.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
@@ -21,9 +20,9 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import '../../../../helpers/test_database.dart';
 
 class _DelayedReplaceHandler implements NavisPlaybackHandler {
-  _DelayedReplaceHandler({required Completer<void> gate}) : _gate = gate;
+  _DelayedReplaceHandler({required this.gate});
 
-  final Completer<void> _gate;
+  final Completer<void> gate;
   int replaceCalls = 0;
 
   @override
@@ -64,7 +63,7 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
     bool expandMatchFlows = true,
   }) async {
     replaceCalls += 1;
-    await _gate.future;
+    await gate.future;
   }
 
   @override
@@ -75,7 +74,7 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
     bool expandMatchFlows = true,
   }) async {
     replaceCalls += 1;
-    await _gate.future;
+    await gate.future;
   }
 
   @override
@@ -272,6 +271,54 @@ ListenBrainzDiscoverPlaylist _listenBrainzPlaylist() {
           creator: 'ListenBrainz Artist',
         ),
         status: ListenBrainzRecommendationMatchStatus.pending,
+      ),
+    ],
+    matchingComplete: true,
+  );
+}
+
+ListenBrainzDiscoverPlaylist _listenBrainzMixedPlaylist() {
+  return const ListenBrainzDiscoverPlaylist(
+    playlist: ListenBrainzPlaylist(
+      identifier: 'jams',
+      title: 'Generated weekly jams',
+      sourcePatch: 'weekly-jams',
+      tracks: <ListenBrainzPlaylistTrack>[
+        ListenBrainzPlaylistTrack(
+          title: 'Matched Track',
+          creator: 'ListenBrainz Artist',
+        ),
+        ListenBrainzPlaylistTrack(
+          title: 'Missing Track',
+          creator: 'Missing Artist',
+        ),
+      ],
+    ),
+    recommendations: <ListenBrainzResolvedRecommendation>[
+      ListenBrainzResolvedRecommendation(
+        track: ListenBrainzPlaylistTrack(
+          title: 'Matched Track',
+          creator: 'ListenBrainz Artist',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.matched,
+        song: Song(
+          id: 'matched-track',
+          title: 'Matched Track',
+          artist: 'ListenBrainz Artist',
+        ),
+        tableSong: SongsTableData(
+          id: 'matched-track',
+          title: 'Matched Track',
+          artistName: 'ListenBrainz Artist',
+          track: 1,
+        ),
+      ),
+      ListenBrainzResolvedRecommendation(
+        track: ListenBrainzPlaylistTrack(
+          title: 'Missing Track',
+          creator: 'Missing Artist',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.unmatched,
       ),
     ],
     matchingComplete: true,
@@ -658,9 +705,88 @@ void main() {
         expect(find.text('Weekly Jams'), findsNWidgets(2));
         expect(find.text('Queued Track'), findsOneWidget);
         expect(
+          tester
+              .widget<FilledButton>(find.widgetWithText(FilledButton, 'Play'))
+              .onPressed,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'Shuffle'),
+              )
+              .onPressed,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<OutlinedButton>(
+                find.widgetWithText(OutlinedButton, 'Download Album'),
+              )
+              .onPressed,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<OutlinedButton>(
+                find.widgetWithText(OutlinedButton, 'Match'),
+              )
+              .onPressed,
+          isNotNull,
+        );
+        expect(
           tester.getTopLeft(find.text('Queued Track')).dy,
           greaterThan(360),
         );
+
+        await _disposeApp(tester);
+      },
+    );
+
+    testWidgets(
+      'ListenBrainz weekly detail aligns unavailable rows with matched rows',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 780);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ListenBrainzWeeklyDetailScreen(
+              sourcePatch: 'weekly-jams',
+            ),
+            database: database,
+            adaptiveContext: _mobileContext,
+            overrides: [
+              listenBrainzDiscoverStreamProvider.overrideWithValue(
+                AsyncData<List<ListenBrainzDiscoverPlaylist>>(
+                  <ListenBrainzDiscoverPlaylist>[_listenBrainzMixedPlaylist()],
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pump();
+
+        final matchedTitleLeft = tester
+            .getTopLeft(
+              find.text('Matched Track').last,
+            )
+            .dx;
+        final missingTitleLeft = tester
+            .getTopLeft(
+              find.text('Missing Track'),
+            )
+            .dx;
+
+        expect(
+          missingTitleLeft,
+          moreOrLessEquals(matchedTitleLeft, epsilon: 1),
+        );
+        expect(find.byTooltip('Search'), findsOneWidget);
 
         await _disposeApp(tester);
       },

@@ -434,12 +434,16 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
     required this.index,
     required this.onPlay,
     required this.onSearch,
+    this.contentPadding,
+    this.horizontalTitleGap = 6,
   });
 
   final ListenBrainzResolvedRecommendation recommendation;
   final int index;
   final ValueChanged<Song> onPlay;
   final ValueChanged<ListenBrainzPlaylistTrack> onSearch;
+  final EdgeInsetsGeometry? contentPadding;
+  final double horizontalTitleGap;
 
   @override
   Widget build(BuildContext context) {
@@ -476,9 +480,12 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
       child: Material(
         type: MaterialType.transparency,
         child: ListTile(
-          contentPadding: EdgeInsets.zero,
+          dense: true,
+          contentPadding: contentPadding,
+          minLeadingWidth: 32,
+          horizontalTitleGap: horizontalTitleGap,
           leading: SizedBox(
-            width: 42,
+            width: 32,
             child: pending
                 ? const Center(
                     child: SizedBox.square(
@@ -486,7 +493,14 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : Center(child: Text('$index')),
+                : Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '$index',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
           ),
           title: Text(
             playableSong?.title ?? track.title,
@@ -506,22 +520,33 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
                   : cs.onSurfaceVariant,
             ),
           ),
-          trailing: playableSong == null
-              ? IconButton(
-                  tooltip: pending ? 'Matching' : 'Search',
-                  icon: Icon(
-                    pending
-                        ? Icons.hourglass_empty_rounded
-                        : Icons.search_rounded,
-                  ),
-                  onPressed: pending ? null : () => onSearch(track),
-                )
-              : Text(
-                  formatSeconds(playableSong.duration),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
+          trailing: SizedBox(
+            width: 76,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: playableSong == null
+                  ? IconButton(
+                      tooltip: pending ? 'Matching' : 'Search',
+                      icon: Icon(
+                        pending
+                            ? Icons.hourglass_empty_rounded
+                            : Icons.search_rounded,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      onPressed: pending ? null : () => onSearch(track),
+                    )
+                  : Text(
+                      formatSeconds(playableSong.duration),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurface.withValues(alpha: 0.5),
+                      ),
+                    ),
+            ),
+          ),
           onTap: playableSong == null ? null : () => onPlay(playableSong),
         ),
       ),

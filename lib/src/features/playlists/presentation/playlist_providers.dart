@@ -45,6 +45,15 @@ class PlaylistLibraryItem {
   int get songCount => virtualPlaylist?.totalCount ?? playlist!.songCount ?? 0;
 }
 
+String listenBrainzPlaylistAvailabilityLabel(
+  ListenBrainzDiscoverPlaylist playlist,
+) {
+  if (!playlist.matchingComplete) {
+    return '${playlist.matchedCount} available · matching';
+  }
+  return '${playlist.matchedCount} of ${playlist.totalCount} available';
+}
+
 /// Watches the local playlist list (synced from server).
 /// Non-autoDispose so the stream stays alive across tab switches, preventing
 /// the playlist tab from resetting back to a loading/empty state on revisit.

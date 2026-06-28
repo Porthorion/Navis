@@ -14,6 +14,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:uuid/uuid.dart';
 
 /// Global broadcast stream for playback action errors.
@@ -80,6 +81,10 @@ class QueueController extends Notifier<List<String>> {
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
     );
+    await _ensurePlayingAfterAutoPlay(
+      autoPlay: autoPlay,
+      songId: normalized[normalizedStartIndex],
+    );
   }
 
   /// Like [replace] but accepts pre-fetched [SongsTableData] rows so the
@@ -111,6 +116,10 @@ class QueueController extends Notifier<List<String>> {
       startIndex: normalizedStartIndex,
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
+    );
+    await _ensurePlayingAfterAutoPlay(
+      autoPlay: autoPlay,
+      songId: songs[normalizedStartIndex].id,
     );
   }
 
@@ -185,13 +194,6 @@ class QueueController extends Notifier<List<String>> {
       expandMatchFlows: expandMatchFlows,
       syncGroupListening: false,
     );
-    // Belt-and-suspenders: if autoPlay was requested, explicitly ensure the
-    // handler is playing.  Remote sources (Octo-Fiesta) can trigger preload
-    // timing quirks that leave the player paused despite autoPlay being set.
-    if (autoPlay) {
-      final handler = ref.read(audioHandlerProvider);
-      await handler?.play();
-    }
   }
 
   /// Like [add], but accepts a [Song] API model object.
@@ -307,6 +309,57 @@ class QueueController extends Notifier<List<String>> {
       return;
     }
     await _ensureSongsInDatabase(songs);
+  }
+
+  /// Persists [Song] rows locally so [NavisAudioHandler] can resolve them.
+  Future<void> persistSongsForPlayback(List<Song> songs) async {
+    await _ensureSongsInDatabase(songs);
+  }
+
+  /// Inserts mix/refill tracks after the current item without Listen Together
+  /// sync. Persists metadata first, then delegates to the audio handler.
+  Future<int> insertMixTracksAfterCurrent(
+    List<Song> songs, {
+    bool expandMatchFlows = false,
+  }) async {
+    final normalizedSongs = songs
+        .map((song) {
+          final id = song.id.trim();
+          return id.isEmpty ? null : song.copyWith(id: id);
+        })
+        .nonNulls
+        .toList(growable: false);
+    if (normalizedSongs.isEmpty) {
+      return 0;
+    }
+    await _ensureSongsInDatabase(normalizedSongs);
+    final ids = normalizedSongs.map((song) => song.id).toList(growable: false);
+    final handler = _requireHandler();
+    final before = handler.snapshot.queueSongIds;
+    await handler.playNext(ids, expandMatchFlows: expandMatchFlows);
+    final after = handler.snapshot.queueSongIds;
+    final inserted = _countInsertedSongIds(before: before, after: after);
+    return inserted > 0 ? inserted : normalizedSongs.length;
+  }
+
+  int _countInsertedSongIds({
+    required List<String> before,
+    required List<String> after,
+  }) {
+    final beforeCounts = <String, int>{};
+    for (final id in before) {
+      beforeCounts[id] = (beforeCounts[id] ?? 0) + 1;
+    }
+    var inserted = 0;
+    for (final id in after) {
+      final remaining = beforeCounts[id] ?? 0;
+      if (remaining > 0) {
+        beforeCounts[id] = remaining - 1;
+      } else {
+        inserted++;
+      }
+    }
+    return inserted;
   }
 
   /// Upsert [Song] API model objects into the local database so that the
@@ -700,8 +753,69 @@ class QueueController extends Notifier<List<String>> {
       ref
           .read(groupListeningUserIntentProvider.notifier)
           .record(UserPlaybackIntent.queueReplace);
+      if (autoPlay && normalized.isNotEmpty) {
+        unawaited(
+          _applyOptimisticLocalQueuePlayback(
+            normalized,
+            startIndex: currentIndex ?? 0,
+            songs: songs,
+          ),
+        );
+      }
     }
     return mutationId != null && mutationId.isNotEmpty;
+  }
+
+  Future<void> _applyOptimisticLocalQueuePlayback(
+    List<String> ids, {
+    required int startIndex,
+    List<Song> songs = const <Song>[],
+  }) async {
+    try {
+      if (songs.isNotEmpty) {
+        await _ensureSongsInDatabase(songs);
+      }
+      final handler = ref.read(audioHandlerProvider);
+      if (handler == null) {
+        return;
+      }
+      final normalizedStartIndex = startIndex.clamp(0, ids.length - 1);
+      await handler.replaceQueue(
+        ids,
+        startIndex: normalizedStartIndex,
+        autoPlay: true,
+        expandMatchFlows: false,
+      );
+      await _ensurePlayingAfterAutoPlay(
+        autoPlay: true,
+        songId: ids[normalizedStartIndex],
+      );
+    } on Object catch (error) {
+      AppLogger.debug(
+        'Listen Together optimistic queue replace playback failed: $error',
+      );
+    }
+  }
+
+  Future<void> _ensurePlayingAfterAutoPlay({
+    required bool autoPlay,
+    String? songId,
+  }) async {
+    if (!autoPlay) {
+      return;
+    }
+    final handler = ref.read(audioHandlerProvider);
+    if (handler == null) {
+      return;
+    }
+    final normalized = songId?.trim() ?? '';
+    if (normalized.isNotEmpty && !isServerAddressableSongId(normalized)) {
+      await handler.play();
+      return;
+    }
+    if (!handler.snapshot.playing) {
+      await handler.play();
+    }
   }
 
   List<GroupListeningQueueEntry> _queueEntriesForIds(

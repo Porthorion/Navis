@@ -53,6 +53,8 @@ Located in `lib/src/providers/app_providers.dart`:
 - `librarySyncEngineProvider` - Sync engine instance
 - `librarySyncControllerProvider` - Sync state and controls
 - `syncStaleAfterProvider` - Sync staleness threshold
+- `requiredLibrarySyncModelVersionProvider` - Optional one-time repair gate
+  for sync storage contract changes; app build updates do not force full sync
 
 **library_providers.dart** (planned):
 - Artist, album, song providers
@@ -368,12 +370,16 @@ The Last.fm API key used by "Same Vibes" instant mix mode is injected at build t
 
 ### Sync Flow
 
-1. App launch or pull-to-refresh → `LibrarySyncController.syncIfStale()`
-2. Sync controller checks staleness threshold
-3. Sync engine fetches from API (full or incremental)
-4. Sync engine writes to database in transactions
-5. Database streams notify providers
-6. UI updates reactively
+1. App launch or periodic timer → `LibrarySyncController.syncIfStale()`
+2. Sync controller checks staleness threshold and skips cellular auto-sync
+3. Sync engine uses incremental `getIndexes(ifModifiedSince)` after the
+   initial sync; automatic daily rebaseline scans are not selected
+4. Noisy or unsupported server indexes are treated as bounded/skip cases;
+   manual Force Full Sync remains the repair path
+5. Starred, genre, and playlist metadata refresh on manual sync, real metadata
+   changes, or the longer auxiliary sync window
+6. Sync engine writes to database in transactions, database streams notify
+   providers, and UI updates reactively
 
 ### Cache Flow
 

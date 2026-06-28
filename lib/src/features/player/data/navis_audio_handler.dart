@@ -3134,19 +3134,60 @@ class NavisAudioHandler extends BaseAudioHandler
 
       // Insert in reverse order at the same position so relative order is
       // preserved (first incoming song ends up right after current).
+      final generation = _activeLoadGeneration;
+      final inserted = <_PreparedQueueItem>[];
       for (var i = prepared.length - 1; i >= 0; i--) {
-        _queueItems.insert(insertAt, prepared[i].mediaItem);
-        await _player.insertAudioSource(insertAt, prepared[i].audioSource);
+        final entry = prepared[i];
+        _queueItems.insert(insertAt, entry.mediaItem);
+        try {
+          await _runTimedPlayerOperation(
+            generation: generation,
+            operation: 'play next insert',
+            action: () =>
+                _player.insertAudioSource(insertAt, entry.audioSource),
+            songId: entry.song.id,
+          );
+        } on Object catch (error) {
+          _queueItems.removeAt(insertAt);
+          if (inserted.isEmpty) {
+            rethrow;
+          }
+          AppLogger.debug(
+            'playNext stopped after partial insert: '
+            'inserted=${inserted.length} remaining=${i + 1} error=$error',
+          );
+          break;
+        }
         final inactiveDeck = _crossfadePlayer;
         if (inactiveDeck != null) {
-          await inactiveDeck.insertAudioSource(
-            insertAt,
-            prepared[i].source.asClonedAudioSource(tag: prepared[i].mediaItem),
-          );
+          try {
+            await _runTimedPlayerOperation(
+              generation: generation,
+              operation: 'play next inactive insert',
+              action: () => inactiveDeck.insertAudioSource(
+                insertAt,
+                entry.source.asClonedAudioSource(
+                  tag: entry.mediaItem,
+                ),
+              ),
+              songId: entry.song.id,
+            );
+          } on Object catch (error) {
+            AppLogger.debug(
+              'playNext inactive deck insert failed for ${entry.song.id}: '
+              '$error',
+            );
+          }
         }
+        inserted.add(entry);
+        token.checkCancelled();
       }
 
-      _observeLockCacheForPrepared(prepared);
+      if (inserted.isEmpty) {
+        return;
+      }
+
+      _observeLockCacheForPrepared(inserted);
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
       await _persistSafely(
         () => _persistQueueState(includeQueueItems: true),

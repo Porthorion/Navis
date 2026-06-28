@@ -10,6 +10,7 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/subsonic_logging_interceptor.dart';
 import 'package:navis/src/api/subsonic_retry_interceptor.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -676,6 +677,11 @@ class SubsonicApiClient {
     if (bytes <= 0) {
       return;
     }
+    AppLogger.debug(
+      'Subsonic API response bytes path=$path '
+      'category=${networkUsageCategoryForSubsonicPath(path).key} '
+      'estimatedDecodedBytes=$bytes',
+    );
     reporter(
       category: networkUsageCategoryForSubsonicPath(path),
       bytes: bytes,

@@ -822,6 +822,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Weekly Jams'), findsOneWidget);
+        expect(find.text('0 of 1 available · ListenBrainz'), findsOneWidget);
         expect(find.text('Server Mix'), findsOneWidget);
         expect(
           find.byKey(const ValueKey<String>('listenBrainzPlaylistDivider')),

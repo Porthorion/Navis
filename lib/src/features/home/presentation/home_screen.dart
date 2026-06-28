@@ -110,7 +110,9 @@ class _ListenBrainzWeeklyDetailScreenState
         title: 'Could not load weekly playlist',
         message: playlistsAsync.error.toString(),
         onRetry: () {
-          ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refresh();
+          ref
+              .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+              .refreshFull();
         },
       );
     } else if (playlistsAsync.hasValue) {
@@ -496,11 +498,26 @@ class _ListenBrainzWeeklyDetailContentState
       .map((recommendation) => recommendation.tableSong!)
       .toList(growable: false);
 
+  String get _playlistSourcePatch =>
+      playlist.playlist.sourcePatch?.trim() ?? '';
+
+  bool get _playlistIsMatching {
+    final sourcePatch = _playlistSourcePatch;
+    return sourcePatch.isNotEmpty &&
+        ref
+            .watch(listenBrainzPlaylistRematchControllerProvider)
+            .contains(
+              sourcePatch,
+            );
+  }
+
   Widget _buildActions(
     List<SongsTableData> serverSongs, {
     bool iconOnly = false,
   }) {
     final l10n = AppLocalizations.of(context)!;
+    final sourcePatch = _playlistSourcePatch;
+    final canMatch = sourcePatch.isNotEmpty && !_playlistIsMatching;
     if (iconOnly) {
       return Wrap(
         spacing: 6,
@@ -525,6 +542,16 @@ class _ListenBrainzWeeklyDetailContentState
             tooltip: l10n.albumDetailDownloadAction,
             icon: const Icon(Icons.download_outlined),
             onPressed: serverSongs.isEmpty ? null : _downloadVirtualAlbum,
+          ),
+          IconButton(
+            tooltip: 'Match',
+            icon: _playlistIsMatching
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync_rounded),
+            onPressed: canMatch ? _rematchPlaylist : null,
           ),
         ],
       );
@@ -553,6 +580,16 @@ class _ListenBrainzWeeklyDetailContentState
           onPressed: serverSongs.isEmpty ? null : _downloadVirtualAlbum,
           icon: const Icon(Icons.download_outlined),
           label: Text(l10n.albumDetailDownloadAction),
+        ),
+        OutlinedButton.icon(
+          onPressed: canMatch ? _rematchPlaylist : null,
+          icon: _playlistIsMatching
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.sync_rounded),
+          label: const Text('Match'),
         ),
       ],
     );
@@ -596,6 +633,10 @@ class _ListenBrainzWeeklyDetailContentState
         return _ListenBrainzRecommendationTile(
           recommendation: recommendation,
           index: index + 1,
+          contentPadding: compact
+              ? const EdgeInsetsDirectional.only(start: 8, end: 4)
+              : null,
+          horizontalTitleGap: 6,
           onPlay: (song) {
             ref.read(queueProvider.notifier).replaceWithSongs(
               <Song>[song],
@@ -629,6 +670,28 @@ class _ListenBrainzWeeklyDetailContentState
     ref.read(queueProvider.notifier).replaceWithTableData(<SongsTableData>[
       song,
     ], expandMatchFlows: false).ignore();
+  }
+
+  Future<void> _rematchPlaylist() async {
+    try {
+      final matched = await ref
+          .read(listenBrainzPlaylistRematchControllerProvider.notifier)
+          .rematch(playlist);
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message:
+            'Matched ${matched.matchedCount} of ${matched.totalCount} tracks',
+        level: AppNoticeLevel.success,
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: 'Could not match playlist: $error',
+        level: AppNoticeLevel.error,
+      );
+    }
   }
 
   Future<void> _downloadVirtualAlbum() async {
@@ -847,7 +910,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeDownloadedRandomAlbumsProvider);
     ref.invalidate(homeRandomAlbumShowcaseProvider);
     ref.invalidate(homeRandomShowcaseProvider);
-    ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refresh();
+    ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refreshFull();
     ref.invalidate(updateProvider);
   }
 
@@ -1442,7 +1505,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ref.invalidate(homeRandomAlbumShowcaseProvider);
               ref
                   .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
-                  .refresh();
+                  .refreshFull();
               ref.invalidate(homeRandomShowcaseProvider);
             },
           ),

@@ -227,6 +227,22 @@ User action → queueProvider (QueueController)
 
 Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-cache)** → **Stream**
 
+### Library sync data policy
+
+- Automatic library sync is **low-data by default** after initial sync.
+- Do not reintroduce periodic/daily full rebaseline scans from `syncIfStale()`.
+  Full library repair belongs behind explicit Force Full Sync or a dedicated
+  sync-model migration gate.
+- Incremental sync uses `getIndexes(ifModifiedSince)`. Unsupported or noisy
+  all-artist index responses must stay bounded or skip safely; they should not
+  fall back to whole-library `getArtists`/`getAlbumList2` scans automatically.
+- Starred content, genres, and playlists are auxiliary metadata. Do not fetch
+  them on every hourly no-op metadata probe; refresh them on manual sync, real
+  metadata changes, or the longer auxiliary sync window.
+- App version/build changes do not imply a full resync. Use
+  `requiredLibrarySyncModelVersionProvider` only when a storage/sync contract
+  change truly requires a one-time repair.
+
 ### Listen Together / Voyage
 
 - Active protocol is `voyage-sync.v4alpha1`; old V2/V3 branches should not be
