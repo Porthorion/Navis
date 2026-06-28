@@ -211,6 +211,9 @@ Defaults used by this script:
 - `NAVIS_APP_ID_SUFFIX=.dev`
 - `NAVIS_APP_NAME="Navis Dev"`
 - `--dart-define=NAVIS_UPDATE_CHANNEL=dev`
+- `--dart-define=NAVIS_SELF_UPDATE=true`
+- Android builds use the `sideload` flavor and emit
+  `build/app/outputs/flutter-apk/app-sideload-release.apk`.
 
 This ensures the dev app can live next to stable and the in-app updater checks dev-channel release assets.
 

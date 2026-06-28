@@ -299,16 +299,17 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   if [[ -n "${FLATPAK_ID:-}" ]]; then
     _flutter_bin="$(command -v flutter)"
     /usr/bin/flatpak-spawn --host -- bash -c \
-      "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; export NAVIS_SELF_UPDATE=true; cd \"${SCRIPT_DIR}/..\"; flutter build apk --release --obfuscate --split-debug-info=\"${ANDROID_OBFUSCATION_DIR}\" $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
+      "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; export NAVIS_SELF_UPDATE=true; cd \"${SCRIPT_DIR}/..\"; flutter build apk --release --flavor sideload --obfuscate --split-debug-info=\"${ANDROID_OBFUSCATION_DIR}\" $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
   else
     flutter build apk \
       --release \
+      --flavor sideload \
       --obfuscate \
       --split-debug-info="${ANDROID_OBFUSCATION_DIR}" \
       "${DART_DEFINE_ARGS[@]}"
   fi
 
-  APK_PATH="${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-release.apk"
+  APK_PATH="${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-sideload-release.apk"
   APK_ASSET_NAME="${ASSET_PREFIX}-${VERSION}.apk"
   APK_ASSET="${SCRIPT_DIR}/../${APK_ASSET_NAME}"
 

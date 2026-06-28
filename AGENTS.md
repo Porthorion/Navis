@@ -478,8 +478,6 @@ Agents must avoid:
 | `DEVELOPMENT_PLAN.md` | Roadmap only | Claims `@riverpod` codegen; mobile-only intro; verify against code |
 | `PROGRESS.md` | Task checkboxes | Update with date + evidence when completing work |
 
-**Missing doc:** `docs/multi-os-build-from-mac.md` is linked from `README.md` but the file does not exist. Do not reference it until created.
-
 ---
 
 ## 16. Related agent files
