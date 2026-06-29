@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.6',
+    entries: [
+      ChangelogEntry(
+        'Fixed album art loading stalling after a few covers when cached or missing artwork responses were not fully drained',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.5',
     entries: [
       ChangelogEntry(

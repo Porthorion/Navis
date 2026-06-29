@@ -455,7 +455,7 @@ class CoverArtHttpFileService implements FileService {
 }
 
 class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
-  const _CoverArtHttpFileServiceResponse(
+  _CoverArtHttpFileServiceResponse(
     this._response, {
     required Duration bodyReadTimeout,
     required Uri diagnosticUri,
@@ -466,7 +466,12 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
        _diagnosticUri = diagnosticUri,
        _onTimeout = onTimeout,
        _onDone = onDone,
-       _onBytesRead = onBytesRead;
+       _onBytesRead = onBytesRead {
+    if (!_expectsConsumedBody) {
+      _releaseOnce();
+      unawaited(_discardBody());
+    }
+  }
 
   final HttpClientResponse _response;
   final Duration _bodyReadTimeout;
@@ -480,6 +485,9 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
 
   @override
   Stream<List<int>> get content async* {
+    if (!_expectsConsumedBody) {
+      return;
+    }
     var bytesRead = 0;
     try {
       await for (final chunk in _response.timeout(
@@ -503,7 +511,45 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
       if (bytesRead > 0) {
         _onBytesRead(bytesRead);
       }
-      _onDone();
+      _releaseOnce();
+    }
+  }
+
+  bool get _expectsConsumedBody {
+    return statusCode == HttpStatus.ok || statusCode == HttpStatus.accepted;
+  }
+
+  bool _released = false;
+
+  void _releaseOnce() {
+    if (_released) {
+      return;
+    }
+    _released = true;
+    _onDone();
+  }
+
+  Future<void> _discardBody() async {
+    try {
+      await _response
+          .timeout(
+            _bodyReadTimeout,
+            onTimeout: (sink) {
+              final error = TimeoutException(
+                'Timed out discarding cover art response body from $_diagnosticUri',
+                _bodyReadTimeout,
+              );
+              AppLogger.warning('$error');
+              sink.close();
+              scheduleMicrotask(_onTimeout);
+            },
+          )
+          .drain<void>();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Cover art response discard failed for $_diagnosticUri: '
+        '$error\n$stackTrace',
+      );
     }
   }
 

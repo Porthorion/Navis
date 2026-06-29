@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.6', [
+    _Entry(
+      'Fixed album art loading stalling after a few covers when cached or missing artwork responses were not fully drained',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.5', [
     _Entry(
       'Re-introduced smart in-app updates: Forgejo/sideload Android builds can self-update, Google Play installs are redirected to the Play Store, and desktop keeps the existing updater',

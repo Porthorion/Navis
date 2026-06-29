@@ -248,6 +248,107 @@ void main() {
       );
     });
 
+    test(
+      'unconsumed not-modified responses release coordinator slots',
+      () async {
+        final coordinator = CoverArtLoadCoordinator();
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final service = CoverArtHttpFileService(
+          loadCoordinator: coordinator,
+          connectionTimeout: const Duration(milliseconds: 50),
+          responseTimeout: const Duration(milliseconds: 50),
+          bodyReadTimeout: const Duration(milliseconds: 50),
+        );
+        addTearDown(service.close);
+        addTearDown(() => server.close(force: true));
+
+        server.listen((request) {
+          final id = request.uri.queryParameters['id'] ?? '';
+          if (id == 'cover-ok') {
+            request.response.headers.contentType = ContentType('image', 'jpeg');
+            request.response.add(_tinyJpeg);
+            unawaited(request.response.close());
+            return;
+          }
+          request.response.statusCode = HttpStatus.notModified;
+          request.response.headers.set(HttpHeaders.etagHeader, '"$id"');
+          unawaited(request.response.close());
+        });
+
+        final notModified = await Future.wait(
+          List<Future<FileServiceResponse>>.generate(4, (index) {
+            return service.get(
+              _coverArtUrl(server, id: 'cover-not-modified-$index'),
+            );
+          }),
+        );
+
+        expect(
+          notModified.map((response) => response.statusCode),
+          everyElement(HttpStatus.notModified),
+        );
+        expect(coordinator.activeCount, 0);
+
+        final nextResponse = await service
+            .get(_coverArtUrl(server, id: 'cover-ok'))
+            .timeout(const Duration(seconds: 1));
+
+        expect(nextResponse.statusCode, HttpStatus.ok);
+        expect(
+          await nextResponse.content.expand((bytes) => bytes).toList(),
+          hasLength(4),
+        );
+      },
+    );
+
+    test('unconsumed invalid responses do not exhaust slots', () async {
+      final coordinator = CoverArtLoadCoordinator();
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final service = CoverArtHttpFileService(
+        loadCoordinator: coordinator,
+        connectionTimeout: const Duration(milliseconds: 50),
+        responseTimeout: const Duration(milliseconds: 50),
+        bodyReadTimeout: const Duration(milliseconds: 50),
+      );
+      addTearDown(service.close);
+      addTearDown(() => server.close(force: true));
+
+      server.listen((request) {
+        final id = request.uri.queryParameters['id'] ?? '';
+        if (id == 'cover-ok') {
+          request.response.headers.contentType = ContentType('image', 'jpeg');
+          request.response.add(_tinyJpeg);
+          unawaited(request.response.close());
+          return;
+        }
+        request.response.statusCode = HttpStatus.notFound;
+        request.response.write('missing $id');
+        unawaited(request.response.close());
+      });
+
+      final missing = await Future.wait(
+        List<Future<FileServiceResponse>>.generate(8, (index) {
+          return service.get(_coverArtUrl(server, id: 'cover-missing-$index'));
+        }),
+      );
+
+      expect(
+        missing.map((response) => response.statusCode),
+        everyElement(HttpStatus.notFound),
+      );
+      expect(coordinator.activeCount, 0);
+
+      final nextResponse = await service
+          .get(_coverArtUrl(server, id: 'cover-ok'))
+          .timeout(const Duration(seconds: 1));
+
+      expect(nextResponse.statusCode, HttpStatus.ok);
+      expect(
+        await nextResponse.content.expand((bytes) => bytes).toList(),
+        hasLength(4),
+      );
+    });
+
     test('rapid stale visible requests do not reach the server', () async {
       final coordinator = CoverArtLoadCoordinator(
         maxActiveDownloads: 1,
