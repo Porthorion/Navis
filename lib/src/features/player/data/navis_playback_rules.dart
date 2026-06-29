@@ -27,6 +27,28 @@ enum NavisPreviousTrackAction {
 
 const Duration navisPreviousTrackRestartThreshold = Duration(seconds: 3);
 
+@immutable
+class NavisQueueReplacementMetadataAnchor {
+  const NavisQueueReplacementMetadataAnchor({
+    required this.expectedIndex,
+    required this.mediaItem,
+  });
+
+  final int expectedIndex;
+  final MediaItem mediaItem;
+}
+
+@immutable
+class NavisResolvedQueueMetadata {
+  const NavisResolvedQueueMetadata({
+    required this.mediaItem,
+    required this.currentIndex,
+  });
+
+  final MediaItem? mediaItem;
+  final int? currentIndex;
+}
+
 final class NavisAndroidAutoSearchRequest {
   const NavisAndroidAutoSearchRequest({
     required this.type,
@@ -121,6 +143,72 @@ String? _stringExtra(Map<String, dynamic>? extras, String key) {
 
 bool _containsIgnoreCase(String value, String query) {
   return value.toLowerCase().contains(query.toLowerCase());
+}
+
+@visibleForTesting
+bool navisIsQueueReplacementMetadataAnchorConfirmed({
+  required List<MediaItem> queueItems,
+  required int? backendCurrentIndex,
+  required NavisQueueReplacementMetadataAnchor? anchor,
+}) {
+  if (anchor == null || backendCurrentIndex == null) {
+    return false;
+  }
+  if (backendCurrentIndex != anchor.expectedIndex) {
+    return false;
+  }
+  return backendCurrentIndex >= 0 &&
+      backendCurrentIndex < queueItems.length &&
+      queueItems[backendCurrentIndex].id == anchor.mediaItem.id;
+}
+
+@visibleForTesting
+NavisResolvedQueueMetadata navisResolveQueueMetadata({
+  required List<MediaItem> queueItems,
+  required int? backendCurrentIndex,
+  required MediaItem? fallbackMediaItem,
+  required NavisQueueReplacementMetadataAnchor? anchor,
+}) {
+  if (anchor != null &&
+      !navisIsQueueReplacementMetadataAnchorConfirmed(
+        queueItems: queueItems,
+        backendCurrentIndex: backendCurrentIndex,
+        anchor: anchor,
+      )) {
+    final expectedIndex = anchor.expectedIndex;
+    if (expectedIndex >= 0 &&
+        expectedIndex < queueItems.length &&
+        queueItems[expectedIndex].id == anchor.mediaItem.id) {
+      return NavisResolvedQueueMetadata(
+        mediaItem: queueItems[expectedIndex],
+        currentIndex: expectedIndex,
+      );
+    }
+
+    final anchoredIndex = queueItems.indexWhere(
+      (item) => item.id == anchor.mediaItem.id,
+    );
+    if (anchoredIndex >= 0) {
+      return NavisResolvedQueueMetadata(
+        mediaItem: queueItems[anchoredIndex],
+        currentIndex: anchoredIndex,
+      );
+    }
+  }
+
+  if (backendCurrentIndex == null ||
+      backendCurrentIndex < 0 ||
+      backendCurrentIndex >= queueItems.length) {
+    return NavisResolvedQueueMetadata(
+      mediaItem: fallbackMediaItem,
+      currentIndex: null,
+    );
+  }
+
+  return NavisResolvedQueueMetadata(
+    mediaItem: queueItems[backendCurrentIndex],
+    currentIndex: backendCurrentIndex,
+  );
 }
 
 @visibleForTesting

@@ -47,15 +47,14 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
   Future<void> _onTrackTap(
     BuildContext context,
     ResolvedArtistTopTrack track,
+    List<ResolvedArtistTopTrack> availableTracks,
   ) async {
     if (_playing) return;
     setState(() => _playing = true);
     try {
       // Fast path: pre-resolved local song.
       if (track.resolvedSong != null) {
-        await ref.read(queueProvider.notifier).replaceWithSongs([
-          track.resolvedSong!,
-        ]);
+        _playResolvedTrack(track, availableTracks);
         return;
       }
 
@@ -106,6 +105,41 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
     }
   }
 
+  void _playResolvedTrack(
+    ResolvedArtistTopTrack track,
+    List<ResolvedArtistTopTrack> availableTracks,
+  ) {
+    final tappedSong = track.resolvedSong;
+    if (tappedSong == null) return;
+
+    final queueTopTracks = ref.read(albumQueueEnabledProvider);
+    final queueController = ref.read(queueProvider.notifier);
+    final queueSongs = availableTracks
+        .map((candidate) => candidate.resolvedSong)
+        .nonNulls
+        .toList(growable: false);
+
+    if (queueTopTracks && queueSongs.length > 1) {
+      final startIndex = queueSongs.indexWhere(
+        (song) => song.id == tappedSong.id,
+      );
+      queueController.fireAndForget(
+        () => queueController.replaceWithSongs(
+          queueSongs,
+          startIndex: startIndex < 0 ? 0 : startIndex,
+          autoPlay: true,
+        ),
+        label: 'playNow',
+      );
+      return;
+    }
+
+    queueController.fireAndForget(
+      () => queueController.replaceWithSongs([tappedSong]),
+      label: 'playNow',
+    );
+  }
+
   void _showNotAvailable(BuildContext context) {
     if (!context.mounted) return;
     showAppNotice(
@@ -149,7 +183,7 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
           playing: _playing,
           l10n: l10n,
           onToggleExpanded: () => setState(() => _expanded = !_expanded),
-          onTrackTap: (track) => _onTrackTap(context, track),
+          onTrackTap: (track) => _onTrackTap(context, track, resolved),
         );
       },
       loading: () => const _TopTracksShimmer(),

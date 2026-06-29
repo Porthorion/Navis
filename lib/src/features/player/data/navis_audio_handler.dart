@@ -148,6 +148,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   final List<MediaItem> _queueItems = <MediaItem>[];
   MediaItem? _currentMediaItem;
+  NavisQueueReplacementMetadataAnchor? _queueReplacementMetadataAnchor;
 
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
   Timer? _positionPersistTimer;
@@ -741,6 +742,7 @@ class NavisAudioHandler extends BaseAudioHandler
     bool isLoading = false,
     String? loadingSongId,
   }) {
+    _clearQueueReplacementMetadataAnchor();
     _queueLane.cancelCurrent();
     _queueLane = _SupersedingLane();
     final generation = ++_loadGeneration;
@@ -753,6 +755,37 @@ class NavisAudioHandler extends BaseAudioHandler
 
   bool _isActiveLoadGeneration(int generation) =>
       generation == _activeLoadGeneration;
+
+  void _clearQueueReplacementMetadataAnchor() {
+    _queueReplacementMetadataAnchor = null;
+  }
+
+  void _setQueueReplacementMetadataAnchor({
+    required int expectedIndex,
+    required MediaItem mediaItem,
+  }) {
+    _queueReplacementMetadataAnchor = NavisQueueReplacementMetadataAnchor(
+      expectedIndex: expectedIndex,
+      mediaItem: mediaItem,
+    );
+  }
+
+  NavisResolvedQueueMetadata _resolveCurrentQueueMetadata() {
+    final backendCurrentIndex = _player.currentIndex;
+    if (navisIsQueueReplacementMetadataAnchorConfirmed(
+      queueItems: _queueItems,
+      backendCurrentIndex: backendCurrentIndex,
+      anchor: _queueReplacementMetadataAnchor,
+    )) {
+      _clearQueueReplacementMetadataAnchor();
+    }
+    return navisResolveQueueMetadata(
+      queueItems: _queueItems,
+      backendCurrentIndex: backendCurrentIndex,
+      fallbackMediaItem: _currentMediaItem,
+      anchor: _queueReplacementMetadataAnchor,
+    );
+  }
 
   void _checkQueueWorkCurrent(OperationToken token, int generation) {
     token.checkCancelled();
@@ -1071,7 +1104,20 @@ class NavisAudioHandler extends BaseAudioHandler
     );
 
     _currentIndexSubscription = _player.currentIndexStream.listen((index) {
-      final item = _mediaItemForIndex(index);
+      if (navisIsQueueReplacementMetadataAnchorConfirmed(
+        queueItems: _queueItems,
+        backendCurrentIndex: index,
+        anchor: _queueReplacementMetadataAnchor,
+      )) {
+        _clearQueueReplacementMetadataAnchor();
+      }
+      final resolved = navisResolveQueueMetadata(
+        queueItems: _queueItems,
+        backendCurrentIndex: index,
+        fallbackMediaItem: _currentMediaItem,
+        anchor: _queueReplacementMetadataAnchor,
+      );
+      final item = resolved.mediaItem;
       if (item != null) {
         _setCurrentMediaItem(item);
       } else if (_queueItems.isEmpty ||
@@ -1080,7 +1126,7 @@ class NavisAudioHandler extends BaseAudioHandler
         // known item during transient index gaps so UI metadata stays stable.
         _setCurrentMediaItem(null);
       }
-      _updateScrobbleSession(item);
+      _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
       _applyReplayGainVolume();
       _broadcastPlaybackState();
       _emitSnapshot();
@@ -1778,13 +1824,6 @@ class NavisAudioHandler extends BaseAudioHandler
     AppLogger.debug('Cross-fade metric: ${metric.toDebugString()}');
   }
 
-  MediaItem? _mediaItemForIndex(int? index) {
-    if (index == null || index < 0 || index >= _queueItems.length) {
-      return null;
-    }
-    return _queueItems[index];
-  }
-
   Future<void> _restoreQueueFromDisk() async {
     final queueState = await _playQueueDao.getQueueState();
     final queuedSongs = await _playQueueDao.getQueueItems();
@@ -2324,6 +2363,12 @@ class NavisAudioHandler extends BaseAudioHandler
     // album track.  Phase 2 will insert/append the remaining items.
     _queueItems.clear();
     _queueItems.add(startItem.mediaItem);
+    if (songs.length > 1) {
+      _setQueueReplacementMetadataAnchor(
+        expectedIndex: clampedIndex,
+        mediaItem: startItem.mediaItem,
+      );
+    }
 
     // Set a single audio source on the player and start playback.
     _checkQueueWorkCurrent(token, generation);
@@ -2364,6 +2409,12 @@ class NavisAudioHandler extends BaseAudioHandler
       _queueItems
         ..clear()
         ..add(startItem.mediaItem);
+      if (songs.length > 1) {
+        _setQueueReplacementMetadataAnchor(
+          expectedIndex: clampedIndex,
+          mediaItem: startItem.mediaItem,
+        );
+      }
       await _setAudioSourcesWithFallback(
         audioSources: <AudioSource>[startItem.audioSource],
         preload: true,
@@ -2432,10 +2483,9 @@ class NavisAudioHandler extends BaseAudioHandler
     // the playbackEventStream fires position ticks on every event loop turn,
     // and any _emitSnapshot() call between _queueItems.insert() and the player
     // acknowledging the new currentIndex would produce a stale snapshot.
-    // Keeping _queueItems=[startSong] throughout Phase 2 means
-    // _mediaItemForIndex returns null for out-of-bounds indices, which falls
-    // back to _currentMediaItem (= startSong, set in Phase 1) — always correct.
-    // _queueItems is rebuilt atomically from allPrepared at the very end.
+    // Keeping _queueItems=[startSong] throughout Phase 2 lets the metadata
+    // anchor keep the display on the tapped song until _queueItems is rebuilt
+    // atomically from allPrepared at the very end.
     for (var i = 0; i < beforeStart.length; i += batchSize) {
       _checkQueueWorkCurrent(token, generation);
       final batchEnd = math.min(i + batchSize, beforeStart.length);
@@ -2514,10 +2564,9 @@ class NavisAudioHandler extends BaseAudioHandler
     );
 
     // Atomically update _queueItems from the fully resolved list.  This is
-    // the first point at which _queueItems reflects the complete queue, so
-    // _mediaItemForIndex(currentIndex) now returns the correct start song
-    // rather than null (which was causing the fallback to _currentMediaItem
-    // throughout Phase 2 — intentionally, to keep the display stable).
+    // the first point at which _queueItems reflects the complete queue, so the
+    // metadata anchor can resolve the tapped song at its final queue index
+    // even if the backend still reports the old temporary index.
     _queueItems
       ..clear()
       ..addAll(allPrepared.map((p) => p.mediaItem));
@@ -3545,7 +3594,8 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final index = _player.currentIndex;
+    final resolved = _resolveCurrentQueueMetadata();
+    final index = resolved.currentIndex;
     if (index == null || index < 0 || index >= _queueItems.length) {
       unawaited(_player.setVolume(base));
       return;
@@ -3602,6 +3652,7 @@ class NavisAudioHandler extends BaseAudioHandler
         ManualTrackChangeDirection.next,
         fromSongId: _snapshot.currentSongId,
       );
+      _clearQueueReplacementMetadataAnchor();
       await navisRunTransportWithPersistence(
         transportOperation: _player.seekToNext,
         persistOperation: _persistQueueState,
@@ -3625,6 +3676,7 @@ class NavisAudioHandler extends BaseAudioHandler
         case NavisPreviousTrackAction.none:
           return;
         case NavisPreviousTrackAction.restartCurrent:
+          _clearQueueReplacementMetadataAnchor();
           await _seekWithRecovery(Duration.zero);
           await _persistSafely(
             _persistPosition,
@@ -3636,6 +3688,7 @@ class NavisAudioHandler extends BaseAudioHandler
             ManualTrackChangeDirection.previous,
             fromSongId: _snapshot.currentSongId,
           );
+          _clearQueueReplacementMetadataAnchor();
           await navisRunTransportWithPersistence(
             transportOperation: _player.seekToPrevious,
             persistOperation: _persistQueueState,
@@ -3772,10 +3825,13 @@ class NavisAudioHandler extends BaseAudioHandler
     final positionMs = includePosition
         ? _player.position.inMilliseconds
         : _snapshot.position.inMilliseconds;
+    final resolvedCurrentIndex = _radioStation == null
+        ? _resolveCurrentQueueMetadata().currentIndex
+        : null;
 
     if (includeQueueItems) {
       await _playQueueDao.saveQueue(
-        currentIndex: _player.currentIndex,
+        currentIndex: resolvedCurrentIndex,
         songIds: _queueItems.map((item) => item.id).toList(growable: false),
         shuffleMode: shuffleMode,
         repeatMode: repeatMode,
@@ -3785,7 +3841,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     await _playQueueDao.savePlaybackState(
-      currentIndex: _player.currentIndex,
+      currentIndex: resolvedCurrentIndex,
       shuffleMode: shuffleMode,
       repeatMode: repeatMode,
       positionMs: positionMs,
@@ -3794,10 +3850,12 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _broadcastPlaybackState() {
     final processingState = _mapProcessingState(_player.processingState);
-    final currentItem = _mediaItemForIndex(_player.currentIndex);
+    final resolved = _resolveCurrentQueueMetadata();
+    final currentItem = resolved.mediaItem;
+    final currentIndex = resolved.currentIndex;
     final capabilities = navisOsControlCapabilities(
       queueLength: _radioStation == null ? _queueItems.length : 0,
-      currentIndex: _radioStation == null ? _player.currentIndex : null,
+      currentIndex: _radioStation == null ? currentIndex : null,
       isRadioMode: _radioStation != null,
       duration: _player.duration ?? currentItem?.duration ?? Duration.zero,
       processingState: processingState,
@@ -3817,7 +3875,7 @@ class NavisAudioHandler extends BaseAudioHandler
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
-      queueIndex: _player.currentIndex,
+      queueIndex: _radioStation == null ? currentIndex : null,
       repeatMode: _mapRepeatMode(_player.loopMode),
       shuffleMode: _player.shuffleModeEnabled
           ? AudioServiceShuffleMode.all
@@ -3868,8 +3926,9 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final currentItem = _mediaItemForIndex(_player.currentIndex);
-    _updateScrobbleSession(currentItem);
+    final resolved = _resolveCurrentQueueMetadata();
+    final currentItem = resolved.mediaItem;
+    _updateScrobbleSession(currentItem, currentIndex: resolved.currentIndex);
 
     if (!_player.playing) {
       return;
@@ -3946,11 +4005,9 @@ class NavisAudioHandler extends BaseAudioHandler
     }
   }
 
-  void _updateScrobbleSession(MediaItem? currentItem) {
+  void _updateScrobbleSession(MediaItem? currentItem, {int? currentIndex}) {
     final songId = currentItem?.id;
-    final queueToken = songId == null
-        ? null
-        : '${_player.currentIndex ?? -1}:$songId';
+    final queueToken = songId == null ? null : '${currentIndex ?? -1}:$songId';
 
     if (queueToken == _activeScrobbleQueueToken) {
       return;
@@ -3989,15 +4046,15 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _emitSnapshot() {
-    final currentItem =
-        _mediaItemForIndex(_player.currentIndex) ?? _currentMediaItem;
+    final resolved = _resolveCurrentQueueMetadata();
+    final currentItem = resolved.mediaItem;
     final isLiked = currentItem?.extras?['liked'] as bool? ?? false;
     _snapshot = PlaybackSnapshot(
       queueSongIds: _radioStation != null
           ? const <String>[]
           : _queueItems.map((item) => item.id).toList(growable: false),
       currentSongId: _radioStation != null ? null : currentItem?.id,
-      currentIndex: _radioStation != null ? null : _player.currentIndex,
+      currentIndex: _radioStation != null ? null : resolved.currentIndex,
       playing: _player.playing,
       processingState: _mapProcessingState(_player.processingState),
       position: _player.position,
@@ -4072,7 +4129,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> _rebuildQueueForSeekRecovery(Duration position) async {
-    final currentIndex = _player.currentIndex;
+    final currentIndex = _resolveCurrentQueueMetadata().currentIndex;
     if (currentIndex == null ||
         currentIndex < 0 ||
         currentIndex >= _queueItems.length) {
@@ -4131,7 +4188,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   String? get _currentSourceKind {
-    final index = _player.currentIndex;
+    final index = _resolveCurrentQueueMetadata().currentIndex;
     if (index == null || index < 0 || index >= _queueItems.length) {
       return null;
     }
@@ -4373,7 +4430,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _toggleCurrentSongLike() async {
     await _ready;
-    final index = _player.currentIndex;
+    final index = _resolveCurrentQueueMetadata().currentIndex;
     if (index == null || index < 0 || index >= _queueItems.length) {
       return;
     }
@@ -4803,6 +4860,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool persist,
     int generation = 0,
   }) async {
+    _clearQueueReplacementMetadataAnchor();
     _queueItems.clear();
     if (generation > 0) {
       await _runTimedPlayerOperation(

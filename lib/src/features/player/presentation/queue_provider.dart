@@ -187,6 +187,18 @@ class QueueController extends Notifier<List<String>> {
         )) {
       return;
     }
+    final db = ref.read(navisDatabaseProvider);
+    final persistedSongs = await db.libraryDao.getSongsByIds(ids);
+    if (persistedSongs.length == ids.length) {
+      await replaceWithTableData(
+        persistedSongs,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: expandMatchFlows,
+        syncGroupListening: false,
+      );
+      return;
+    }
     await replace(
       ids,
       startIndex: startIndex,

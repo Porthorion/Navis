@@ -14,6 +14,7 @@ import '../../../../helpers/test_database.dart';
 
 class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   int replaceQueueCalls = 0;
+  int replaceQueueWithDataCalls = 0;
   int playCalls = 0;
   List<String> lastQueue = const <String>[];
   int? lastStartIndex;
@@ -72,6 +73,7 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
     bool expandMatchFlows = true,
   }) async {
     replaceQueueCalls += 1;
+    replaceQueueWithDataCalls += 1;
     lastQueue = songs.map((s) => s.id).toList();
     lastStartIndex = startIndex;
     lastAutoPlay = autoPlay;
@@ -226,6 +228,7 @@ void main() {
       );
 
       expect(handler.replaceQueueCalls, 1);
+      expect(handler.replaceQueueWithDataCalls, 1);
       expect(handler.playCalls, 1);
       expect(handler.lastQueue, <String>['remote-song-1']);
       expect(handler.lastExpandMatchFlows, isFalse);

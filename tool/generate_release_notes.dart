@@ -57,6 +57,14 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.0.6', [
     _Entry(
+      'Artist Top Tracks now honor Album Queue by queueing the resolved ranked top tracks and starting at the tapped song',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Now Playing and queue metadata stay on the tapped song while album-style queues finish filling in the background',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Fixed album art loading stalling after a few covers when cached or missing artwork responses were not fully drained',
       type: _EntryType.fix,
     ),

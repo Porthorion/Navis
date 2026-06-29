@@ -620,6 +620,88 @@ void main() {
       );
     });
 
+    group('queue replacement metadata resolver', () {
+      final queue = <MediaItem>[
+        const MediaItem(id: 'song-1', title: 'First Song'),
+        const MediaItem(id: 'song-2', title: 'Second Song'),
+        const MediaItem(id: 'song-3', title: 'Third Song'),
+      ];
+
+      test(
+        'stale backend index resolves to anchored song and final queue index',
+        () {
+          final resolved = navisResolveQueueMetadata(
+            queueItems: queue,
+            backendCurrentIndex: 0,
+            fallbackMediaItem: queue[1],
+            anchor: NavisQueueReplacementMetadataAnchor(
+              expectedIndex: 1,
+              mediaItem: queue[1],
+            ),
+          );
+
+          expect(resolved.mediaItem?.id, 'song-2');
+          expect(resolved.currentIndex, 1);
+        },
+      );
+
+      test(
+        'matching backend index confirms anchor and uses normal metadata',
+        () {
+          final anchor = NavisQueueReplacementMetadataAnchor(
+            expectedIndex: 1,
+            mediaItem: queue[1],
+          );
+
+          expect(
+            navisIsQueueReplacementMetadataAnchorConfirmed(
+              queueItems: queue,
+              backendCurrentIndex: 1,
+              anchor: anchor,
+            ),
+            isTrue,
+          );
+
+          final resolved = navisResolveQueueMetadata(
+            queueItems: queue,
+            backendCurrentIndex: 1,
+            fallbackMediaItem: queue.first,
+            anchor: anchor,
+          );
+
+          expect(resolved.mediaItem?.id, 'song-2');
+          expect(resolved.currentIndex, 1);
+        },
+      );
+
+      test('no anchor preserves backend index behavior', () {
+        final resolved = navisResolveQueueMetadata(
+          queueItems: queue,
+          backendCurrentIndex: 0,
+          fallbackMediaItem: queue[1],
+          anchor: null,
+        );
+
+        expect(resolved.mediaItem?.id, 'song-1');
+        expect(resolved.currentIndex, 0);
+      });
+
+      test('invalid anchor falls back safely', () {
+        final resolved = navisResolveQueueMetadata(
+          queueItems: queue,
+          backendCurrentIndex: 0,
+          fallbackMediaItem: queue[1],
+          anchor: const NavisQueueReplacementMetadataAnchor(
+            expectedIndex: 8,
+            mediaItem: MediaItem(id: 'missing-song', title: 'Missing Song'),
+          ),
+        );
+
+        expect(resolved.mediaItem?.id, 'song-1');
+        expect(resolved.currentIndex, 0);
+      });
+    });
+
     group('previous track action helper', () {
       test('no current index returns none', () {
         expect(
