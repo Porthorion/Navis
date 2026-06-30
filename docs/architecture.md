@@ -377,6 +377,13 @@ The Last.fm API key used by "Same Vibes" instant mix mode is injected at build t
 5. Audio handler updates `playbackSnapshotProvider`
 6. UI reacts to snapshot changes
 
+Album-style queue replacement is lazy: the active transport queue prepares the
+tapped song first, then fills the remaining sources in phase 2. While phase 2
+is loading, `PlaybackSnapshot.queueSongIds` can represent the pending logical
+queue rather than the prepared transport queue, with
+`hasPendingLogicalQueue == true`. Queue UIs should display those IDs but avoid
+remove, reorder, or play-index actions until the transport queue catches up.
+
 ### Sync Flow
 
 1. App launch or periodic timer → `LibrarySyncController.syncIfStale()`

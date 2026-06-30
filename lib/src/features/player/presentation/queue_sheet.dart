@@ -8,7 +8,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart'
-    show songByIdProvider, subsonicApiProvider;
+    show playerStateProvider, songByIdProvider, subsonicApiProvider;
 import 'package:navis/src/routing/navigation_service.dart';
 
 /// A queue panel. Slide animation and swipe-to-dismiss are driven entirely
@@ -41,12 +41,18 @@ class QueueSheet extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final queueIds = ref.watch(queueProvider);
     final currentSongId = ref.watch(currentQueueSongIdProvider);
+    final actionsDisabled = ref.watch(
+      playerStateProvider.select(
+        (snapshot) => snapshot.isLoading && snapshot.hasPendingLogicalQueue,
+      ),
+    );
     final close = onClose ?? () => Navigator.of(context).pop();
 
     final body = Column(
       children: <Widget>[
         _QueueSheetHeader(
           queueIds: queueIds,
+          actionsDisabled: actionsDisabled,
           onClose: close,
           // The _CompactWideOverlaySheet already draws a drag pill at the
           // top of the panel, so suppress the header's own pill in embedded
@@ -70,6 +76,7 @@ class QueueSheet extends ConsumerWidget {
                   onReorderStart: (_) => onReorderDragChanged?.call(true),
                   onReorderEnd: (_) => onReorderDragChanged?.call(false),
                   onReorder: (oldIndex, newIndex) async {
+                    if (actionsDisabled) return;
                     await ref.read(reorderQueueProvider)(
                       oldIndex,
                       newIndex,
@@ -84,9 +91,11 @@ class QueueSheet extends ConsumerWidget {
                       songId: songId,
                       index: index,
                       isCurrentSong: isCurrentSong,
+                      actionsDisabled: actionsDisabled,
                       sheetDragActive: sheetDragActive,
                       onSwipeActiveChanged: onItemSwipeActiveChanged,
                       onRemove: () {
+                        if (actionsDisabled) return;
                         ref
                             .read(queueProvider.notifier)
                             .fireAndForget(
@@ -97,6 +106,7 @@ class QueueSheet extends ConsumerWidget {
                             );
                       },
                       onTap: () async {
+                        if (actionsDisabled) return;
                         await ref
                             .read(queueProvider.notifier)
                             .playFromIndex(
@@ -140,11 +150,13 @@ class QueueSheet extends ConsumerWidget {
 class _QueueSheetHeader extends ConsumerWidget {
   const _QueueSheetHeader({
     required this.queueIds,
+    required this.actionsDisabled,
     required this.onClose,
     this.showDragPill = true,
   });
 
   final List<String> queueIds;
+  final bool actionsDisabled;
   final VoidCallback onClose;
   final bool showDragPill;
 
@@ -205,29 +217,31 @@ class _QueueSheetHeader extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.clear_all),
                   tooltip: l10n.queueClearAction,
-                  onPressed: () async {
-                    final confirmed = await showDialog<bool?>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(l10n.queueClearConfirmTitle),
-                        content: Text(l10n.queueClearConfirmMessage),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(false),
-                            child: Text(l10n.cancelAction),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.of(ctx).pop(true),
-                            child: Text(l10n.queueClearAction),
-                          ),
-                        ],
-                      ),
-                    );
+                  onPressed: actionsDisabled
+                      ? null
+                      : () async {
+                          final confirmed = await showDialog<bool?>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: Text(l10n.queueClearConfirmTitle),
+                              content: Text(l10n.queueClearConfirmMessage),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: Text(l10n.cancelAction),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: Text(l10n.queueClearAction),
+                                ),
+                              ],
+                            ),
+                          );
 
-                    if ((confirmed ?? false) && context.mounted) {
-                      await ref.read(queueProvider.notifier).clear();
-                    }
-                  },
+                          if ((confirmed ?? false) && context.mounted) {
+                            await ref.read(queueProvider.notifier).clear();
+                          }
+                        },
                 ),
             ],
           ),
@@ -319,6 +333,7 @@ class _QueueItem extends ConsumerStatefulWidget {
     required this.songId,
     required this.index,
     required this.isCurrentSong,
+    required this.actionsDisabled,
     required this.onRemove,
     required this.onTap,
     this.sheetDragActive = false,
@@ -328,6 +343,7 @@ class _QueueItem extends ConsumerStatefulWidget {
   final String songId;
   final int index;
   final bool isCurrentSong;
+  final bool actionsDisabled;
   final VoidCallback onRemove;
   final VoidCallback onTap;
   final bool sheetDragActive;
@@ -375,7 +391,7 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
         return Dismissible(
           key: widget.key!,
           // Lock dismiss when the sheet is being dragged vertically.
-          direction: widget.sheetDragActive
+          direction: widget.sheetDragActive || widget.actionsDisabled
               ? DismissDirection.none
               : DismissDirection.endToStart,
           // No blunt threshold — intent is detected via onUpdate.
@@ -416,25 +432,39 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
               children: <Widget>[
                 IconButton(
                   tooltip: l10n.commonRemove,
-                  onPressed: widget.onRemove,
+                  onPressed: widget.actionsDisabled ? null : widget.onRemove,
                   icon: const Icon(Icons.delete_outline),
                 ),
-                ReorderableDragStartListener(
-                  index: widget.index,
-                  child: SizedBox(
-                    width: 28,
-                    child: Center(
-                      child: Icon(
-                        Icons.drag_indicator_rounded,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                SizedBox(
+                  width: 28,
+                  child: Center(
+                    child: widget.actionsDisabled
+                        ? Icon(
+                            Icons.drag_indicator_rounded,
+                            size: 18,
+                            color:
+                                Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant.withValues(
+                                  alpha: 0.38,
+                                ),
+                          )
+                        : ReorderableDragStartListener(
+                            index: widget.index,
+                            child: Icon(
+                              Icons.drag_indicator_rounded,
+                              size: 18,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                   ),
                 ),
               ],
             ),
-            onTap: widget.onTap,
+            enabled: !widget.actionsDisabled,
+            onTap: widget.actionsDisabled ? null : widget.onTap,
           ),
         );
       },

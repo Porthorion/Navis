@@ -165,6 +165,7 @@ bool navisIsQueueReplacementMetadataAnchorConfirmed({
 @visibleForTesting
 NavisResolvedQueueMetadata navisResolveQueueMetadata({
   required List<MediaItem> queueItems,
+  List<String>? logicalQueueSongIds,
   required int? backendCurrentIndex,
   required MediaItem? fallbackMediaItem,
   required NavisQueueReplacementMetadataAnchor? anchor,
@@ -181,6 +182,17 @@ NavisResolvedQueueMetadata navisResolveQueueMetadata({
         queueItems[expectedIndex].id == anchor.mediaItem.id) {
       return NavisResolvedQueueMetadata(
         mediaItem: queueItems[expectedIndex],
+        currentIndex: expectedIndex,
+      );
+    }
+
+    final logicalQueue = logicalQueueSongIds;
+    if (logicalQueue != null &&
+        expectedIndex >= 0 &&
+        expectedIndex < logicalQueue.length &&
+        logicalQueue[expectedIndex] == anchor.mediaItem.id) {
+      return NavisResolvedQueueMetadata(
+        mediaItem: anchor.mediaItem,
         currentIndex: expectedIndex,
       );
     }

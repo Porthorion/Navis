@@ -227,6 +227,13 @@ User action → queueProvider (QueueController)
 
 Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-cache)** → **Stream**
 
+Queue replacement is two-phase for album-style queues: phase 1 prepares only
+the tapped song in the transport queue so playback starts quickly; phase 2
+fills the remaining audio sources. During phase 2, `PlaybackSnapshot.queueSongIds`
+may expose a pending logical queue so the UI can show the full requested order
+before every transport item is prepared. Queue mutation UI must treat
+`PlaybackSnapshot.hasPendingLogicalQueue` as read-only/loading state.
+
 ### Library sync data policy
 
 - Automatic library sync is **low-data by default** after initial sync.

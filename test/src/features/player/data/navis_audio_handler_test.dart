@@ -646,6 +646,25 @@ void main() {
       );
 
       test(
+        'pending logical queue resolves anchored song before transport catches up',
+        () {
+          final resolved = navisResolveQueueMetadata(
+            queueItems: <MediaItem>[queue[1]],
+            logicalQueueSongIds: const <String>['song-1', 'song-2', 'song-3'],
+            backendCurrentIndex: 0,
+            fallbackMediaItem: queue[1],
+            anchor: NavisQueueReplacementMetadataAnchor(
+              expectedIndex: 1,
+              mediaItem: queue[1],
+            ),
+          );
+
+          expect(resolved.mediaItem?.id, 'song-2');
+          expect(resolved.currentIndex, 1);
+        },
+      );
+
+      test(
         'matching backend index confirms anchor and uses normal metadata',
         () {
           final anchor = NavisQueueReplacementMetadataAnchor(

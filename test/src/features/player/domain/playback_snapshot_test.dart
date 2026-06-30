@@ -106,6 +106,7 @@ void main() {
     test('idle snapshot defaults load state fields', () {
       const snapshot = PlaybackSnapshot.idle();
       expect(snapshot.isLoading, isFalse);
+      expect(snapshot.hasPendingLogicalQueue, isFalse);
       expect(snapshot.loadingSongId, isNull);
       expect(snapshot.lastFailedSongId, isNull);
     });

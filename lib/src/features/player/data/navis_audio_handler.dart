@@ -147,6 +147,7 @@ class NavisAudioHandler extends BaseAudioHandler
       StreamController<PlaybackLoadFailure>.broadcast();
 
   final List<MediaItem> _queueItems = <MediaItem>[];
+  List<String>? _pendingLogicalQueueSongIds;
   MediaItem? _currentMediaItem;
   NavisQueueReplacementMetadataAnchor? _queueReplacementMetadataAnchor;
 
@@ -741,8 +742,12 @@ class NavisAudioHandler extends BaseAudioHandler
   int _supersedeQueueWork({
     bool isLoading = false,
     String? loadingSongId,
+    List<String>? pendingLogicalQueueSongIds,
   }) {
     _clearQueueReplacementMetadataAnchor();
+    _pendingLogicalQueueSongIds = pendingLogicalQueueSongIds == null
+        ? null
+        : List<String>.unmodifiable(pendingLogicalQueueSongIds);
     _queueLane.cancelCurrent();
     _queueLane = _SupersedingLane();
     final generation = ++_loadGeneration;
@@ -758,6 +763,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _clearQueueReplacementMetadataAnchor() {
     _queueReplacementMetadataAnchor = null;
+  }
+
+  void _clearPendingLogicalQueue() {
+    _pendingLogicalQueueSongIds = null;
   }
 
   void _setQueueReplacementMetadataAnchor({
@@ -781,6 +790,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     return navisResolveQueueMetadata(
       queueItems: _queueItems,
+      logicalQueueSongIds: _pendingLogicalQueueSongIds,
       backendCurrentIndex: backendCurrentIndex,
       fallbackMediaItem: _currentMediaItem,
       anchor: _queueReplacementMetadataAnchor,
@@ -804,6 +814,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _isLoading = false;
     _loadingSongId = null;
+    _clearPendingLogicalQueue();
     if (loadingSongId != null && failed) {
       _lastFailedSongId = loadingSongId;
     }
@@ -2317,12 +2328,39 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
+  Future<_PreparedQueueItem?> _prepareSingleItemForQueueFill(
+    SongsTableData song,
+  ) async {
+    try {
+      return await _prepareSingleItem(song, preferLockCaching: true);
+    } on OperationCancelledException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Queue fill lock-cached source failed for song=${song.id}. '
+        'Retrying with direct stream. $error\n$stackTrace',
+      );
+    }
+
+    try {
+      return await _prepareSingleItem(song, preferLockCaching: false);
+    } on OperationCancelledException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Queue fill source unavailable for song=${song.id}; skipping. '
+        '$error\n$stackTrace',
+      );
+      return null;
+    }
+  }
+
   /// Phase 1 of two-phase queue replacement: resolve *only* the target song,
   /// set a single audio source on the player, and start playback immediately.
   /// Returns the list of all songs (for Phase 2) and the prepared start item.
   ///
-  /// The [_queueItems] list is populated with placeholder [MediaItem]s for
-  /// all songs so the UI can display the full queue immediately.
+  /// While phase 1 prepares the transport queue with only the start item, the
+  /// pending logical queue lets snapshots expose the full requested order.
   Future<_PreparedQueueItem?> _replaceQueuePhase1({
     required List<SongsTableData> songs,
     required int startIndex,
@@ -2477,6 +2515,15 @@ class NavisAudioHandler extends BaseAudioHandler
     // We need to rebuild the player's audio source list to include all songs
     // in the correct order.  First, resolve sources for the remaining songs.
     const batchSize = 5;
+    final preparedByIndex = <int, _PreparedQueueItem>{
+      clampedIndex: startItem,
+    };
+    final skippedSongIds = <String>[];
+
+    AppLogger.debug(
+      'Queue replacement phase 2 start: requested=${songs.length} '
+      'startIndex=$clampedIndex song=${startItem.song.id}',
+    );
 
     // Resolve songs before the start index and insert them before the current
     // position.  _queueItems is intentionally NOT updated during these inserts:
@@ -2486,23 +2533,35 @@ class NavisAudioHandler extends BaseAudioHandler
     // Keeping _queueItems=[startSong] throughout Phase 2 lets the metadata
     // anchor keep the display on the tapped song until _queueItems is rebuilt
     // atomically from allPrepared at the very end.
+    var insertedBeforeCount = 0;
     for (var i = 0; i < beforeStart.length; i += batchSize) {
       _checkQueueWorkCurrent(token, generation);
       final batchEnd = math.min(i + batchSize, beforeStart.length);
       final batch = beforeStart.sublist(i, batchEnd);
-      final prepared = await Future.wait(
-        batch.map((s) => _prepareSingleItem(s, preferLockCaching: true)),
-      );
+      final prepared = <_PreparedQueueItem>[];
+      for (var j = 0; j < batch.length; j++) {
+        final originalIndex = i + j;
+        final item = await _prepareSingleItemForQueueFill(batch[j]);
+        if (item == null) {
+          skippedSongIds.add(batch[j].id);
+          continue;
+        }
+        preparedByIndex[originalIndex] = item;
+        prepared.add(item);
+      }
 
       _checkQueueWorkCurrent(token, generation);
       for (var j = 0; j < prepared.length; j++) {
         await _runTimedPlayerOperation(
           generation: generation,
           operation: 'replace queue insert before',
-          action: () =>
-              _player.insertAudioSource(i + j, prepared[j].audioSource),
+          action: () => _player.insertAudioSource(
+            insertedBeforeCount,
+            prepared[j].audioSource,
+          ),
           songId: prepared[j].song.id,
         );
+        insertedBeforeCount++;
         _checkQueueWorkCurrent(token, generation);
       }
       _observeLockCacheForPrepared(prepared);
@@ -2513,9 +2572,17 @@ class NavisAudioHandler extends BaseAudioHandler
       _checkQueueWorkCurrent(token, generation);
       final batchEnd = math.min(i + batchSize, afterStart.length);
       final batch = afterStart.sublist(i, batchEnd);
-      final prepared = await Future.wait(
-        batch.map((s) => _prepareSingleItem(s, preferLockCaching: true)),
-      );
+      final prepared = <_PreparedQueueItem>[];
+      for (var j = 0; j < batch.length; j++) {
+        final originalIndex = clampedIndex + 1 + i + j;
+        final item = await _prepareSingleItemForQueueFill(batch[j]);
+        if (item == null) {
+          skippedSongIds.add(batch[j].id);
+          continue;
+        }
+        preparedByIndex[originalIndex] = item;
+        prepared.add(item);
+      }
 
       _checkQueueWorkCurrent(token, generation);
       for (var j = 0; j < prepared.length; j++) {
@@ -2530,34 +2597,23 @@ class NavisAudioHandler extends BaseAudioHandler
       _observeLockCacheForPrepared(prepared);
     }
 
-    // Build the full prepared list in album order for two purposes:
+    // Build the prepared list in album order for two purposes:
     // (a) syncing the crossfade inactive deck, and
     // (b) atomically rebuilding _queueItems now that all inserts are done.
-    // Resolving again is cheap — cache hit for all sources already inserted.
     final allPrepared = <_PreparedQueueItem>[];
     for (var i = 0; i < songs.length; i++) {
-      if (i == clampedIndex) {
-        allPrepared.add(startItem);
-      } else {
-        try {
-          _checkQueueWorkCurrent(token, generation);
-          allPrepared.add(
-            await _prepareSingleItem(songs[i], preferLockCaching: true),
-          );
-        } on OperationCancelledException {
-          rethrow;
-        } on Object {
-          allPrepared.add(
-            await _prepareSingleItem(songs[i], preferLockCaching: false),
-          );
-        }
-      }
+      final prepared = preparedByIndex[i];
+      if (prepared != null) allPrepared.add(prepared);
     }
+    final preparedStartIndex = allPrepared.indexWhere(
+      (item) => item.song.id == startItem.song.id,
+    );
+    final finalStartIndex = preparedStartIndex < 0 ? 0 : preparedStartIndex;
 
     _checkQueueWorkCurrent(token, generation);
     await _setInactiveDeckAudioSources(
       prepared: allPrepared,
-      initialIndex: clampedIndex,
+      initialIndex: finalStartIndex,
       initialPosition: _player.position,
       generation: generation,
       songId: startItem.song.id,
@@ -2570,10 +2626,27 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueItems
       ..clear()
       ..addAll(allPrepared.map((p) => p.mediaItem));
+    _clearPendingLogicalQueue();
+    if (_queueItems.length > 1 &&
+        finalStartIndex >= 0 &&
+        finalStartIndex < _queueItems.length) {
+      _setQueueReplacementMetadataAnchor(
+        expectedIndex: finalStartIndex,
+        mediaItem: startItem.mediaItem,
+      );
+    } else {
+      _clearQueueReplacementMetadataAnchor();
+    }
 
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _broadcastPlaybackState();
     _emitSnapshot();
+
+    AppLogger.debug(
+      'Queue replacement phase 2 complete: requested=${songs.length} '
+      'prepared=${allPrepared.length} skipped=${skippedSongIds.length} '
+      'skippedIds=${skippedSongIds.join(',')}',
+    );
 
     if (persist) {
       await _persistSafely(
@@ -2875,6 +2948,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final generation = _supersedeQueueWork(
       isLoading: songIds.isNotEmpty,
       loadingSongId: loadingSongId,
+      pendingLogicalQueueSongIds: songIds.length > 1 ? songIds : null,
     );
     return _queueLane.run((token) async {
       try {
@@ -2886,6 +2960,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
         final songs = await _libraryDao.getSongsByIds(songIds);
         if (songs.isEmpty) {
+          _clearPendingLogicalQueue();
           await _clearQueueInternal(persist: true);
           _completeQueueLoad(generation);
           return;
@@ -2994,6 +3069,9 @@ class NavisAudioHandler extends BaseAudioHandler
     final generation = _supersedeQueueWork(
       isLoading: songs.isNotEmpty,
       loadingSongId: loadingSongId,
+      pendingLogicalQueueSongIds: songs.length > 1
+          ? songs.map((song) => song.id).toList(growable: false)
+          : null,
     );
     if (songs.isEmpty) {
       return _queueLane.run((token) async {
@@ -4052,7 +4130,8 @@ class NavisAudioHandler extends BaseAudioHandler
     _snapshot = PlaybackSnapshot(
       queueSongIds: _radioStation != null
           ? const <String>[]
-          : _queueItems.map((item) => item.id).toList(growable: false),
+          : _pendingLogicalQueueSongIds ??
+                _queueItems.map((item) => item.id).toList(growable: false),
       currentSongId: _radioStation != null ? null : currentItem?.id,
       currentIndex: _radioStation != null ? null : resolved.currentIndex,
       playing: _player.playing,
@@ -4067,6 +4146,8 @@ class NavisAudioHandler extends BaseAudioHandler
       isCurrentSongLiked: _radioStation == null && isLiked,
       radioStation: _radioStation,
       isLoading: _isLoading,
+      hasPendingLogicalQueue:
+          _radioStation == null && _pendingLogicalQueueSongIds != null,
       loadingSongId: _loadingSongId,
       lastFailedSongId: _lastFailedSongId,
     );

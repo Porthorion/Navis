@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
+import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -94,7 +95,11 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
         return;
       }
 
-      await ref.read(queueProvider.notifier).replaceWithSongs([playable]);
+      await _replaceTopTrackQueue(
+        tappedSong: playable,
+        availableTracks: availableTracks,
+        fallbackTrack: track,
+      );
     } on SubsonicConnectionException {
       if (context.mounted) _showNotAvailable(context);
     } on Object catch (e) {
@@ -112,32 +117,55 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
     final tappedSong = track.resolvedSong;
     if (tappedSong == null) return;
 
-    final queueTopTracks = ref.read(albumQueueEnabledProvider);
     final queueController = ref.read(queueProvider.notifier);
+    queueController.fireAndForget(
+      () => _replaceTopTrackQueue(
+        tappedSong: tappedSong,
+        availableTracks: availableTracks,
+        fallbackTrack: track,
+      ),
+      label: 'playNow',
+    );
+  }
+
+  Future<void> _replaceTopTrackQueue({
+    required Song tappedSong,
+    required List<ResolvedArtistTopTrack> availableTracks,
+    required ResolvedArtistTopTrack fallbackTrack,
+  }) async {
+    final queueTopTracks = ref.read(albumQueueEnabledProvider);
     final queueSongs = availableTracks
-        .map((candidate) => candidate.resolvedSong)
+        .map((candidate) {
+          if (candidate.rank == fallbackTrack.rank &&
+              candidate.title == fallbackTrack.title &&
+              candidate.artist == fallbackTrack.artist) {
+            return candidate.resolvedSong ?? tappedSong;
+          }
+          return candidate.resolvedSong;
+        })
         .nonNulls
         .toList(growable: false);
+    final queueController = ref.read(queueProvider.notifier);
 
     if (queueTopTracks && queueSongs.length > 1) {
       final startIndex = queueSongs.indexWhere(
         (song) => song.id == tappedSong.id,
       );
-      queueController.fireAndForget(
-        () => queueController.replaceWithSongs(
-          queueSongs,
-          startIndex: startIndex < 0 ? 0 : startIndex,
-          autoPlay: true,
-        ),
-        label: 'playNow',
+      final normalizedStartIndex = startIndex < 0 ? 0 : startIndex;
+      AppLogger.debug(
+        'ArtistTopTracksSection: Album Queue enabled for top tracks. '
+        'tapped=${tappedSong.id} queueLength=${queueSongs.length} '
+        'startIndex=$normalizedStartIndex',
+      );
+      await queueController.replaceWithSongs(
+        queueSongs,
+        startIndex: normalizedStartIndex,
+        autoPlay: true,
       );
       return;
     }
 
-    queueController.fireAndForget(
-      () => queueController.replaceWithSongs([tappedSong]),
-      label: 'playNow',
-    );
+    await queueController.replaceWithSongs([tappedSong]);
   }
 
   void _showNotAvailable(BuildContext context) {

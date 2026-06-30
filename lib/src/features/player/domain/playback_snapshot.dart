@@ -77,6 +77,7 @@ class PlaybackSnapshot {
     this.isCurrentSongLiked = false,
     this.radioStation,
     this.isLoading = false,
+    this.hasPendingLogicalQueue = false,
     this.loadingSongId,
     this.lastFailedSongId,
   });
@@ -95,6 +96,7 @@ class PlaybackSnapshot {
       isCurrentSongLiked = false,
       radioStation = null,
       isLoading = false,
+      hasPendingLogicalQueue = false,
       loadingSongId = null,
       lastFailedSongId = null;
 
@@ -115,6 +117,10 @@ class PlaybackSnapshot {
 
   /// True while the handler is actively switching/loading a target source.
   final bool isLoading;
+
+  /// True when `queueSongIds` represents the requested logical queue while
+  /// the transport queue is still preparing audio sources.
+  final bool hasPendingLogicalQueue;
 
   /// Song id currently being loaded, if known.
   final String? loadingSongId;
@@ -144,6 +150,7 @@ class PlaybackSnapshot {
     bool? isCurrentSongLiked,
     RadioStationMetadata? radioStation,
     bool? isLoading,
+    bool? hasPendingLogicalQueue,
     String? loadingSongId,
     String? lastFailedSongId,
   }) {
@@ -161,6 +168,8 @@ class PlaybackSnapshot {
       isCurrentSongLiked: isCurrentSongLiked ?? this.isCurrentSongLiked,
       radioStation: radioStation ?? this.radioStation,
       isLoading: isLoading ?? this.isLoading,
+      hasPendingLogicalQueue:
+          hasPendingLogicalQueue ?? this.hasPendingLogicalQueue,
       loadingSongId: loadingSongId ?? this.loadingSongId,
       lastFailedSongId: lastFailedSongId ?? this.lastFailedSongId,
     );
@@ -181,6 +190,7 @@ class PlaybackSnapshot {
       repeatMode: repeatMode,
       isCurrentSongLiked: isCurrentSongLiked,
       isLoading: isLoading,
+      hasPendingLogicalQueue: hasPendingLogicalQueue,
       loadingSongId: loadingSongId,
       lastFailedSongId: lastFailedSongId,
     );

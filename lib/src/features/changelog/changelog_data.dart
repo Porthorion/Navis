@@ -34,6 +34,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Artist Top Tracks with Album Queue now show the full ranked queue immediately on Android while playback finishes preparing in the background',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Retired Listen Together and Voyage settings are cleared during migration, including stored custom Voyage servers',
         type: ChangelogEntryType.improvement,
       ),
