@@ -15,7 +15,6 @@ Options:
   --package=<zip|exe>      Windows package mode (default: zip)
   --channel=<stable|dev>   Update channel (default: stable)
   --lastfm-key=<key>       Optional Last.fm API key dart-define
-  --voyage-servers=<raw>   Optional bundled Voyage server dart-define payload
   --remote-dir=<path>      Remote working dir relative to remote HOME
                            (default: .navis/remote-windows-build)
   --repo-root=<path>       Local repo root (default: script/..)
@@ -28,7 +27,6 @@ ASSET_PREFIX="navis"
 PACKAGE_MODE="zip"
 UPDATE_CHANNEL="stable"
 LASTFM_API_KEY=""
-VOYAGE_SERVERS=""
 REMOTE_DIR=".navis/remote-windows-build"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -41,7 +39,6 @@ for arg in "$@"; do
     --package=*) PACKAGE_MODE="${arg#--package=}" ;;
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}" ;;
     --lastfm-key=*) LASTFM_API_KEY="${arg#--lastfm-key=}" ;;
-    --voyage-servers=*) VOYAGE_SERVERS="${arg#--voyage-servers=}" ;;
     --remote-dir=*) REMOTE_DIR="${arg#--remote-dir=}" ;;
     --repo-root=*) REPO_ROOT="${arg#--repo-root=}" ;;
     -h|--help)
@@ -154,7 +151,6 @@ param(
   [Parameter(Mandatory = $true)][string]$AssetPrefix,
   [Parameter(Mandatory = $true)][ValidateSet('stable', 'dev')][string]$UpdateChannel,
   [string]$LastFmApiKey = '',
-  [string]$VoyageServers = '',
   [string]$PubCacheArchiveName = '',
   [string]$Sqlite3DllName = ''
 )
@@ -385,9 +381,6 @@ $buildArgs = @(
 if ($LastFmApiKey -ne '') {
   $buildArgs += "--dart-define=NAVIS_LASTFM_API_KEY=$LastFmApiKey"
 }
-if ($VoyageServers -ne '') {
-  $buildArgs += "--dart-define=NAVIS_VOYAGE_SERVERS=$VoyageServers"
-}
 
 # Run flutter build inside a VS Developer Command Prompt so that every child
 # process (cmake → MSBuild → cargokit → cargo) inherits link.exe/cl.exe from
@@ -476,17 +469,12 @@ _lastfm_arg=""
 if [[ -n "${LASTFM_API_KEY}" ]]; then
   _lastfm_arg="-LastFmApiKey ${LASTFM_API_KEY}"
 fi
-_voyage_servers_arg=""
-if [[ -n "${VOYAGE_SERVERS}" ]]; then
-  _voyage_servers_escaped="${VOYAGE_SERVERS//\"/\\\"}"
-  _voyage_servers_arg="-VoyageServers \"${_voyage_servers_escaped}\""
-fi
 _sqlite3_dll_arg=""
 if [[ -n "${_sqlite3_dll_name}" ]]; then
   _sqlite3_dll_arg="-Sqlite3DllName ${_sqlite3_dll_name}"
 fi
 ssh "${SSH_TARGET}" \
-  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PubCacheArchiveName pub_cache.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_lastfm_arg} ${_voyage_servers_arg} ${_sqlite3_dll_arg}"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PubCacheArchiveName pub_cache.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_lastfm_arg} ${_sqlite3_dll_arg}"
 
 asset_name="$(ssh "${SSH_TARGET}" "powershell -NoProfile -Command \"Get-Content -Raw -Path (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'asset_name.txt')\"")"
 asset_name="${asset_name//$'\r'/}"

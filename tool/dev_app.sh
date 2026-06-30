@@ -48,9 +48,6 @@ export NAVIS_SELF_UPDATE=true
 if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
 fi
-if [[ -n "${NAVIS_VOYAGE_SERVERS:-}" ]]; then
-  DART_DEFINE_ARGS+=("--dart-define=NAVIS_VOYAGE_SERVERS=${NAVIS_VOYAGE_SERVERS}")
-fi
 
 echo "==> Dev app identity"
 echo "    NAVIS_APP_ID_SUFFIX=${NAVIS_APP_ID_SUFFIX}"
@@ -61,12 +58,6 @@ if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
 else
   echo "    NAVIS_LASTFM_API_KEY=missing (Same Vibes will fallback)"
 fi
-if [[ -n "${NAVIS_VOYAGE_SERVERS:-}" ]]; then
-  echo "    NAVIS_VOYAGE_SERVERS=provided"
-else
-  echo "    NAVIS_VOYAGE_SERVERS=missing (Listen Together stays manual-only)"
-fi
-
 # NAVIS_SELF_UPDATE=true enables the Gradle "sideload" product flavor. Flutter
 # must target it explicitly; otherwise it can install a stale legacy app-debug.apk
 # (wrong package id + old version) instead of app-sideload-*.apk.

@@ -376,8 +376,6 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                             : null,
                                       ),
                                     ),
-                                  if (!ultraCompact)
-                                    const GroupListeningSessionButton(),
                                 ];
                                 return SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,

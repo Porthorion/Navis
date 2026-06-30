@@ -41,8 +41,9 @@ Run before each commit/PR:
 Checks performed:
 - Dart formatting (`dart format --set-exit-if-changed .`)
 - code generation (`build_runner`)
-- static analysis (`flutter analyze`)
-- tests (`flutter test`)
+- static analysis (`flutter analyze --no-fatal-infos`)
+- migration and critical regression suites
+- full tests (`flutter test`)
 
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
 

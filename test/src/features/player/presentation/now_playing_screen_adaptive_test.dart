@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -137,7 +136,7 @@ void main() {
   });
 
   testWidgets(
-    'fullscreen action row shows Listen Together next to queue when enabled',
+    'fullscreen action row hides retired Listen Together control',
     (
       tester,
     ) async {
@@ -145,39 +144,27 @@ void main() {
         return;
       }
       setAdaptiveTestViewport(tester, const Size(390, 844));
-      final container = _createContainer(
-        overrides: <Override>[
-          groupListeningSettingsProvider.overrideWithValue(
-            const GroupListeningSettings(enabled: true, autoFollowHost: true),
-          ),
-        ],
-      );
+      final container = _createContainer();
       container.read(_testPlaybackProvider.notifier).state = _songPlayback;
       await _pumpNowPlaying(tester, container);
 
       expect(find.byTooltip('Queue'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('groupListeningSessionButton')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'compact-wide player moves Listen Together into settings without overflow',
+    'compact-wide player hides retired Listen Together settings entry',
     (tester) async {
       if (!sqliteAvailable) {
         return;
       }
       setAdaptiveTestViewport(tester, const Size(560, 360));
-      final container = _createContainer(
-        overrides: <Override>[
-          groupListeningSettingsProvider.overrideWithValue(
-            const GroupListeningSettings(enabled: true, autoFollowHost: true),
-          ),
-        ],
-      );
+      final container = _createContainer();
       container.read(_testPlaybackProvider.notifier).state = _songPlayback;
 
       await tester.pumpWidget(
@@ -208,7 +195,7 @@ void main() {
       await tester.tap(find.byTooltip('Settings').first);
       await tester.pumpAndSettle();
 
-      expect(find.text('Listen Together'), findsOneWidget);
+      expect(find.text('Listen Together'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

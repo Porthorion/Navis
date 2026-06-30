@@ -14,8 +14,6 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -62,16 +60,6 @@ class _StaticLibrarySyncController extends LibrarySyncController {
 class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
   @override
   int build() => 0;
-}
-
-class _StaticGroupListeningSessionController
-    extends GroupListeningSessionController {
-  _StaticGroupListeningSessionController(this._state);
-
-  final GroupListeningSessionState _state;
-
-  @override
-  GroupListeningSessionState build() => _state;
 }
 
 ProviderContainer _createContainerWithDatabase({
@@ -149,89 +137,6 @@ const PlaybackSnapshot _activePlayback = PlaybackSnapshot(
   shuffleMode: AudioServiceShuffleMode.none,
   repeatMode: AudioServiceRepeatMode.none,
 );
-
-final GroupListeningSessionState _activeGroupListeningSession =
-    GroupListeningSessionState(
-      availability: GroupListeningAvailability.ready,
-      status: GroupListeningSessionStatus.connected,
-      connection: GroupListeningConnectionState(
-        status: GroupListeningConnectionStatus.connected,
-        clientConnectionId: 'conn-1',
-        connectedAt: DateTime.utc(2026, 4, 21, 12),
-      ),
-      configuration: GroupListeningClientConfiguration(
-        voyageBaseUrl: Uri.parse('https://voyage.example.com'),
-        sourceServerOrigin: 'https://example.com',
-        sourceServerFingerprint: 'fingerprint',
-        displayName: 'alice',
-        deviceLabel: 'Desktop',
-        autoFollowHost: true,
-      ),
-      room: GroupListeningRoomState(
-        protocolVersion: voyageProtocolVersion,
-        roomId: 'room-1',
-        roomStatus: GroupListeningRoomStatus.active,
-        roomVersion: 1,
-        presenceVersion: 1,
-        authVersion: 1,
-        serverTime: DateTime.utc(2026, 4, 21, 12),
-        sourceServerFingerprint: 'fingerprint',
-        hostMemberId: 'member-1',
-        self: const GroupListeningSelfState(
-          memberId: 'member-1',
-          role: GroupListeningMemberRole.host,
-          canControl: true,
-          authVersion: 1,
-        ),
-        members: <GroupListeningMemberState>[
-          GroupListeningMemberState(
-            memberId: 'member-1',
-            displayName: 'Alice',
-            deviceLabel: 'Desktop',
-            role: GroupListeningMemberRole.host,
-            presenceState: GroupListeningMemberPresenceState.active,
-            joinedAt: DateTime.utc(2026, 4, 21, 12),
-            lastSeenAt: DateTime.utc(2026, 4, 21, 12),
-          ),
-          GroupListeningMemberState(
-            memberId: 'member-2',
-            displayName: 'Bob',
-            deviceLabel: 'Phone',
-            role: GroupListeningMemberRole.member,
-            presenceState: GroupListeningMemberPresenceState.active,
-            joinedAt: DateTime.utc(2026, 4, 21, 12, 0, 2),
-            lastSeenAt: DateTime.utc(2026, 4, 21, 12, 0, 2),
-          ),
-        ],
-        queue: GroupListeningQueueState(
-          queueVersion: 1,
-          currentIndex: 0,
-          entries: <GroupListeningQueueEntry>[
-            GroupListeningQueueEntry(
-              queueEntryId: 'entry-1',
-              songId: 'song-1',
-              addedByMemberId: 'member-1',
-              addedAt: DateTime.utc(2026, 4, 21, 12),
-            ),
-          ],
-        ),
-        playbackAnchor: GroupListeningPlaybackAnchor(
-          roomVersion: 1,
-          queueVersion: 1,
-          currentIndex: 0,
-          currentQueueEntryId: 'entry-1',
-          currentSongId: 'song-1',
-          playbackState: GroupListeningPlaybackStatus.playing,
-          position: const Duration(seconds: 42),
-          capturedAt: DateTime.utc(2026, 4, 21, 12),
-          playbackRate: 1,
-          reason: GroupListeningPlaybackAnchorReason.snapshot,
-          issuedByMemberId: 'member-1',
-        ),
-      ),
-      lastAppliedRoomVersion: 1,
-      lastSnapshotAt: DateTime.utc(2026, 4, 21, 12),
-    );
 
 void main() {
   Future<void> focusDesktopQueueButton(WidgetTester tester) async {
@@ -523,65 +428,6 @@ void main() {
     expect(container.read(playerSheetExpandedProvider), isTrue);
     expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
   });
-
-  testWidgets(
-    'shows a badge on the Settings nav and Listen Together sheet when in a group listening session',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(599, 1000);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
-      final container = _createContainerWithDatabase(
-        overrides: <Override>[
-          ..._authenticatedShellOverrides(),
-          groupListeningSessionControllerProvider.overrideWith(
-            () => _StaticGroupListeningSessionController(
-              _activeGroupListeningSession,
-            ),
-          ),
-          groupListeningVoyageConnectionStatusProvider.overrideWithValue(
-            const GroupListeningVoyageConnectionStatus(
-              state: GroupListeningVoyageConnectionState.connected,
-              message: 'Connected',
-            ),
-          ),
-        ],
-      );
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const NavisApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // A badge dot should appear on the Settings nav destination.
-      expect(
-        find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.byType(Badge),
-        ),
-        findsOneWidget,
-      );
-
-      // Tapping Settings navigates to the canonical Configuration entry;
-      // Listen Together setup no longer appears as a separate settings row.
-      await tester.tap(
-        find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.byIcon(Icons.settings_outlined),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Listen Together'), findsNothing);
-      expect(find.text('Configuration'), findsOneWidget);
-    },
-  );
 
   testWidgets(
     'keeps deep settings route stable while resizing across layouts',

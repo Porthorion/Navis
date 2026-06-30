@@ -27,7 +27,6 @@ Minimum tested versions:
 - Synced/unsynced lyrics with full-screen now playing
 - Offline cache plus permanent download modes
 - Adaptive layouts that scale from phone to tablet/desktop
-- Listen Together group sessions backed by Voyage: collaborative default-room playback and queue control, host-only room admin actions, reconnect-aware sync, placeholder room-mode settings, compact session button in the player bar with live state icon, Settings nav badge, and join/leave toasts
 - Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, and guarded transport actions while typing
 - Desktop volume controls in the bottom player and desktop-wide now playing surfaces
 - Channel-aware updater behavior for stable/dev release tracks
@@ -106,29 +105,11 @@ Full setup and builder requirements:
 
 This builds a side-by-side dev app (`.dev` suffix, `Navis Dev`) and pins update checks to the `dev` channel.
 
-## Listen Together / Voyage
+## Retired Features
 
-Navis can bundle one or more Voyage backends at build time for the Listen
-Together feature.
-
-Set `NAVIS_VOYAGE_SERVERS` as a `--dart-define` value, or place it in
-`tool/release.env` when using the repo scripts:
-
-```bash
-NAVIS_VOYAGE_SERVERS="Primary Voyage|https://voyage.example.com,Backup Voyage|https://voyage-backup.example.com"
-```
-
-Format rules:
-
-- separate entries with commas or newlines
-- use `Label|URL` when you want a friendly server name in the UI
-- use a plain URL when the host name is enough as the label
-
-When one bundled server is present, Settings exposes a simple enable/health
-check flow. When multiple are present, Settings lets the user pick a server
-before enabling Listen Together. Users can also add and delete custom Voyage
-servers from Settings; bundled servers remain selectable but cannot be edited.
-Custom server URLs are normalized and validated before they are stored.
+Listen Together / Voyage is currently retired. Its backend integration, queue
+synchronization, settings, and user-visible entry points are disabled while a
+future implementation is reconsidered.
 
 ## External Scrobbling
 
@@ -161,22 +142,6 @@ and uploads it through the Google Play Developer Publishing API when
 `PLAY_SERVICE_ACCOUNT_JSON` is set in local `tool/release.env`. Track aliases
 are `internal`, `closed` (`alpha`), `open` (`beta`), and `production`; staged
 rollouts use `--play-status=inProgress --play-user-fraction=<fraction>`.
-
-### Listen Together UI
-
-- A compact **session button** appears in the player bar on every surface
-  (desktop bar, rail mini-player, landscape strip, portrait strip). The icon
-  reflects the current state: idle (outlined people icon), hosting
-  (`headset_mic`), listening as a member (filled people icon), or needs
-  attention (`sync_problem_outlined` in error colour). Tapping always opens
-  the Listen Together bottom sheet.
-- A **Settings nav badge** appears when you are in an active room, so you can
-  always navigate back to the session panel even when the player is not
-  visible.
-- **Join/leave toasts** confirm room transitions without covering up the UI.
-- Active rooms expose a **Room settings** section with disabled placeholders for
-  Shotgun Mode, Host-Only, and Protected while the default collaborative mode
-  remains active.
 
 ## Documentation Index
 

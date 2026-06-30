@@ -41,6 +41,10 @@ const List<ChangelogVersion> changelogs = [
         'Fixed album art loading stalling after a few covers when cached or missing artwork responses were not fully drained',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Listen Together is retired for now: Voyage backend sync has been removed and visible app entry points are hidden until the feature is redesigned',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

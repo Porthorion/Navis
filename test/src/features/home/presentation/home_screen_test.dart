@@ -10,8 +10,6 @@ import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -95,19 +93,6 @@ class _PendingRefreshLibrarySyncController extends LibrarySyncController {
   }
 }
 
-class _StaticGroupListeningSessionController
-    extends GroupListeningSessionController {
-  _StaticGroupListeningSessionController(this._state);
-
-  final GroupListeningSessionState _state;
-
-  @override
-  GroupListeningSessionState build() => _state;
-}
-
-const _disabledGroupListeningSessionState =
-    GroupListeningSessionState.disabled();
-
 class _QueueSpyController extends QueueController {
   List<String>? lastReplaceIds;
   int? lastStartIndex;
@@ -123,7 +108,6 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     lastReplaceIds = List<String>.unmodifiable(ids);
     lastStartIndex = startIndex;
@@ -138,7 +122,6 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
@@ -154,7 +137,6 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
@@ -286,11 +268,6 @@ Future<void> _pumpHomeWithSyncState(
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
-          groupListeningSessionControllerProvider.overrideWith(
-            () => _StaticGroupListeningSessionController(
-              _disabledGroupListeningSessionState,
-            ),
-          ),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData<ServerConfigModel?>(null),
           ),
@@ -352,11 +329,6 @@ Future<void> _pumpHomeWithControllerOverride(
         overrides: [
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
-          ),
-          groupListeningSessionControllerProvider.overrideWith(
-            () => _StaticGroupListeningSessionController(
-              _disabledGroupListeningSessionState,
-            ),
           ),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData<ServerConfigModel?>(null),
@@ -420,11 +392,6 @@ Future<void> _pumpRandomSectionHome(
             homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
             homeSectionsHidden: <String>[],
           ),
-        ),
-      ),
-      groupListeningSessionControllerProvider.overrideWith(
-        () => _StaticGroupListeningSessionController(
-          _disabledGroupListeningSessionState,
         ),
       ),
       serverConfigStateProvider.overrideWithValue(
@@ -494,11 +461,6 @@ Future<void> _pumpHomeWithAppSettings(
         database,
         overrides: <Override>[
           appSettingsProvider.overrideWithValue(AsyncData(appSettings)),
-          groupListeningSessionControllerProvider.overrideWith(
-            () => _StaticGroupListeningSessionController(
-              _disabledGroupListeningSessionState,
-            ),
-          ),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData<ServerConfigModel?>(null),
           ),
@@ -596,11 +558,6 @@ void main() {
           overrides: [
             appSettingsProvider.overrideWithValue(
               const AsyncData(AppSettingsModel.defaults()),
-            ),
-            groupListeningSessionControllerProvider.overrideWith(
-              () => _StaticGroupListeningSessionController(
-                _disabledGroupListeningSessionState,
-              ),
             ),
             serverConfigStateProvider.overrideWithValue(
               const AsyncData<ServerConfigModel?>(null),
@@ -738,11 +695,6 @@ void main() {
           overrides: [
             appSettingsProvider.overrideWithValue(
               const AsyncData(AppSettingsModel.defaults()),
-            ),
-            groupListeningSessionControllerProvider.overrideWith(
-              () => _StaticGroupListeningSessionController(
-                _disabledGroupListeningSessionState,
-              ),
             ),
             serverConfigStateProvider.overrideWithValue(
               const AsyncData<ServerConfigModel?>(null),
@@ -953,11 +905,6 @@ void main() {
               appSettingsProvider.overrideWithValue(
                 const AsyncData(AppSettingsModel.defaults()),
               ),
-              groupListeningSessionControllerProvider.overrideWith(
-                () => _StaticGroupListeningSessionController(
-                  _disabledGroupListeningSessionState,
-                ),
-              ),
               serverConfigStateProvider.overrideWithValue(
                 const AsyncData<ServerConfigModel?>(null),
               ),
@@ -1032,11 +979,6 @@ void main() {
                   homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
                   homeSectionsHidden: <String>[],
                 ),
-              ),
-            ),
-            groupListeningSessionControllerProvider.overrideWith(
-              () => _StaticGroupListeningSessionController(
-                _disabledGroupListeningSessionState,
               ),
             ),
             librarySyncControllerProvider.overrideWith(
@@ -1341,11 +1283,6 @@ void main() {
                     homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
                     homeSectionsHidden: <String>[],
                   ),
-                ),
-              ),
-              groupListeningSessionControllerProvider.overrideWith(
-                () => _StaticGroupListeningSessionController(
-                  _disabledGroupListeningSessionState,
                 ),
               ),
               serverConfigStateProvider.overrideWithValue(

@@ -20,7 +20,6 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_playback_sync_bridge.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -42,9 +41,6 @@ import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/listenbrainz_feedback_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
@@ -99,7 +95,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     debugLabel: 'desktopQuickSearch',
   );
   bool _didCheckBatteryOptimizationPrompt = false;
-  bool _coldStartResumeAttempted = false;
   bool Function()? _nowPlayingBackInterceptor;
   bool _compactWideInternalOverlayActive = false;
   VoidCallback? _compactWideQueueRequestHandler;
@@ -532,7 +527,6 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
-    ref.watch(groupListeningPlaybackSyncBridgeProvider);
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(listenBrainzFeedbackDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);
@@ -697,53 +691,12 @@ class _AppShellState extends ConsumerState<AppShell> {
         _scheduleQueueCoverArtPrefetch();
       },
     );
-    ref.listen<GroupListeningSessionState>(
-      groupListeningSessionControllerProvider,
-      (prev, next) {
-        if (!mounted) return;
-        final prevHad = prev?.hasActiveRoom ?? false;
-        final nextHad = next.hasActiveRoom;
-        if (!prevHad && nextHad) {
-          final isHost = next.room?.self.role == GroupListeningMemberRole.host;
-          _appNoticeController.show(
-            message: isHost
-                ? 'Hosting a Listen Together session'
-                : 'Joined a Listen Together session',
-            level: AppNoticeLevel.success,
-          );
-        } else if (prevHad && !nextHad) {
-          _appNoticeController.show(
-            message: 'Left the Listen Together session',
-          );
-        }
-        if (!_coldStartResumeAttempted &&
-            !next.hasActiveRoom &&
-            next.hasStoredSession &&
-            next.availability == GroupListeningAvailability.ready) {
-          _coldStartResumeAttempted = true;
-          unawaited(
-            ref
-                .read(groupListeningSessionControllerProvider.notifier)
-                .attemptValidatedColdStartAutoRejoin(),
-          );
-        }
-        if (next.syncHealth == GroupListeningSyncHealth.catchingUp &&
-            prev?.syncHealth != GroupListeningSyncHealth.catchingUp) {
-          _appNoticeController.show(
-            message: 'Listen Together is catching up…',
-          );
-        }
-      },
-    );
     final isAuthenticated =
         ref.watch(serverConfigStateProvider).asData?.value != null;
     final reachability = ref.watch(serverReachabilityControllerProvider);
     final showOfflineBanner =
         isAuthenticated &&
         reachability.status == ServerReachabilityStatus.offline;
-    final groupListeningSession = ref.watch(
-      groupListeningSessionControllerProvider,
-    );
     final appNoticeTopOffset = showOfflineBanner ? 66.0 : 12.0;
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
@@ -1935,11 +1888,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   label: railDestinations[2].label,
                                 ),
                                 NavigationDestination(
-                                  icon: Badge(
-                                    isLabelVisible:
-                                        groupListeningSession.hasActiveRoom,
-                                    child: Icon(railDestinations[3].icon),
-                                  ),
+                                  icon: Icon(railDestinations[3].icon),
                                   label: railDestinations[3].label,
                                 ),
                               ],

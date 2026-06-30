@@ -116,10 +116,6 @@ class _RailSidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final iconsOnly = navbarStyle == 'icons';
     final compact = navbarStyle == 'compact';
-    final groupListeningSession = ref.watch(
-      groupListeningSessionControllerProvider,
-    );
-    final hasActiveGroupSession = groupListeningSession.hasActiveRoom;
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
       child: Column(
@@ -195,7 +191,7 @@ class _RailSidebar extends ConsumerWidget {
                         onTap: () => onDestinationSelected(i),
                         iconsOnly: iconsOnly,
                         compact: compact,
-                        showBadge: i == 3 && hasActiveGroupSession,
+                        showBadge: false,
                       ),
                     ),
                     if (showLibrarySectionsInline && i == 1) ...<Widget>[

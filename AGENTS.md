@@ -42,7 +42,7 @@ Navis is a multi-platform **Subsonic/OpenSubsonic** music client built with Flut
 | **Hosting** | Forgejo at `https://git.porthorion.com/khalifa/Navis` — **`gh` CLI does not work** |
 | **Current version** | See `pubspec.yaml` (`version:` field) |
 
-**Major capabilities:** gapless/background playback, offline rolling cache + permanent downloads, adaptive UI (phone → tablet → desktop), synced/unsynced lyrics, server scrobbling, external Last.fm/ListenBrainz scrobbling, smart queue / instant mix, Listen Together group sessions (Voyage), Match Flow, Android Auto, AudioMuse integration, channel-aware updater (stable/dev).
+**Major capabilities:** gapless/background playback, offline rolling cache + permanent downloads, adaptive UI (phone → tablet → desktop), synced/unsynced lyrics, server scrobbling, external Last.fm/ListenBrainz scrobbling, smart queue / instant mix, Match Flow, Android Auto, AudioMuse integration, channel-aware updater (stable/dev).
 
 ---
 
@@ -100,16 +100,15 @@ flutter test test/path/to/foo_test.dart
 2. `dart format --set-exit-if-changed .`
 3. `dart run build_runner build --delete-conflicting-outputs`
 4. `flutter analyze --no-fatal-infos`
-5. Listen Together size guardrail (`tool/check_group_listening_sizes.sh`) — **warning only** (does not fail check)
-6. Migration tests: `test/src/database/migrations/navis_migration_test.dart`
-7. Critical reliability suite (5 files):
+5. Migration tests: `test/src/database/migrations/navis_migration_test.dart`
+6. Critical reliability suite (5 files):
    - `test/src/routing/app_router_test.dart`
    - `test/src/providers/app_providers_test.dart`
    - `test/src/features/player/data/playback_source_resolver_test.dart`
    - `test/src/features/player/data/navis_audio_handler_test.dart`
    - `test/src/features/library/presentation/library_sync_provider_test.dart`
-8. Full `flutter test`
-9. Coverage when `CI=true`
+7. Full `flutter test`
+8. Coverage when `CI=true`
 
 ### Hard-fail test output patterns
 
@@ -185,7 +184,7 @@ presentation/ # screens, widgets, *_provider.dart files
 | `search` | `lib/src/features/search/` | Desktop quick-search shortcut |
 | `home` | `lib/src/features/home/` | Adaptive layout breakpoints matter |
 | `settings` | `lib/src/features/settings/` | Scrobble credentials in secure storage |
-| `group_listening` | `lib/src/features/group_listening/` | Listen Together / Voyage v4; 800-line file guardrail |
+| `group_listening` | `lib/src/features/group_listening/` | Retired Listen Together placeholder UI only; no Voyage backend/session code |
 | `match_flow` | `lib/src/features/match_flow/` | Collaborative guessing game; `MatchFlowDao` in DB |
 | `auto` | `lib/src/features/auto/` | Android Auto — see `docs/android-auto-testing.md` |
 | `audiomuse` | `lib/src/features/audiomuse/` | AI integration |
@@ -243,21 +242,15 @@ Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-ca
   `requiredLibrarySyncModelVersionProvider` only when a storage/sync contract
   change truly requires a one-time repair.
 
-### Listen Together / Voyage
+### Listen Together
 
-- Active protocol is `voyage-sync.v4alpha1`; old V2/V3 branches should not be
-  reintroduced into the active path.
-- WebSocket sessions send `connection.init` first and expect `connection.ready`
-  before replay, snapshot, or live frames. There is no `connection.welcome`
-  path.
-- User gestures and intentional queue operations send `command` frames with
-  `command_id`, `client_connection_id`, `client_seq`, and `base_event_id`.
-- Passive position, buffering, readiness, unavailable-track, RTT, and clock
-  samples are sent as `member.status`, never as playback seek commands.
-- Playback anchors are applied against estimated server time using
-  `apply_at_server_ms`.
-- Keep `lib/src/features/group_listening/` files under the size guardrail by
-  splitting transport, wire codec, reducers, bridge, and UI concerns.
+- Listen Together / Voyage is retired for now. Do not wire Voyage networking,
+  session controllers, queue synchronization, settings, or visible player
+  entry points back into the app unless explicitly requested.
+- `lib/src/features/group_listening/` is kept only for hidden placeholder UI
+  surfaces that may be useful for a future implementation.
+- Legacy Drift columns for Voyage settings remain for compatibility, but app
+  settings map them to disabled/empty values and save them as disabled.
 
 ### Routing (`lib/src/routing/app_router.dart`)
 
@@ -399,7 +392,6 @@ Set via `--dart-define` or in `tool/release.env` (gitignored; see `tool/release.
 |--------|---------|
 | `NAVIS_LASTFM_API_KEY` | Last.fm integration |
 | `NAVIS_UPDATE_CHANNEL` | `stable` or `dev` (`dev_app.sh` pins `dev`) |
-| `NAVIS_VOYAGE_SERVERS` | Listen Together backends (`Label\|URL`, comma-separated) |
 | `NAVIS_ENABLE_MEDIA_KIT_DEBUG` | Force media_kit on macOS debug builds |
 | `NAVIS_APP_ID_SUFFIX` | Dev sidecar app ID suffix (default `.dev`) |
 | `NAVIS_APP_NAME` | Dev sidecar display name (default `Navis Dev`) |
@@ -444,7 +436,7 @@ Commits reference issues as `fix(#N):` or `(issue #N)`.
 | **Windows** | SMTC via `smtc_windows` |
 | **Android** | `audio_service` media session; Android Auto in `features/auto/` |
 | **iOS** | CarPlay and media-session parity under audit |
-| **Listen Together** | Optional Voyage sibling repo at `../Voyage`; 800-line file limit in `group_listening/` |
+| **Listen Together** | Retired; placeholder UI files remain hidden and no Voyage sibling repo is required |
 
 ---
 
@@ -473,7 +465,6 @@ Agents must avoid:
 | `docs/troubleshooting.md` | Runtime issues, codec matrix | |
 | `docs/dev-testing-builds.md` | Dev sidecar app | |
 | `docs/android-auto-testing.md` | Android Auto QA | |
-| `docs/listen-together-soak-checklist.md` | Listen Together soak testing | |
 | `docs/release-*.md` | Platform release guides | |
 | `DEVELOPMENT_PLAN.md` | Roadmap only | Claims `@riverpod` codegen; mobile-only intro; verify against code |
 | `PROGRESS.md` | Task checkboxes | Update with date + evidence when completing work |

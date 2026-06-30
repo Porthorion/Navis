@@ -256,9 +256,6 @@ DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
 if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
 fi
-if [[ -n "${NAVIS_VOYAGE_SERVERS:-}" ]]; then
-  DART_DEFINE_ARGS+=("--dart-define=NAVIS_VOYAGE_SERVERS=${NAVIS_VOYAGE_SERVERS}")
-fi
 
 # ─── Clean tree ─────────────────────────────────────────────────────────────
 if [[ -n "$(git status --porcelain)" ]]; then
@@ -557,7 +554,6 @@ CONTROL
       --package="${LINUX_PACKAGE_MODE}" \
       --channel="${UPDATE_CHANNEL}" \
       --lastfm-key="${NAVIS_LASTFM_API_KEY:-}" \
-      --voyage-servers="${NAVIS_VOYAGE_SERVERS:-}" \
       --remote-dir="${LINUX_REMOTE_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."
 
@@ -653,7 +649,6 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       --package="${WINDOWS_PACKAGE_MODE}" \
       --channel="${UPDATE_CHANNEL}" \
       --lastfm-key="${NAVIS_LASTFM_API_KEY:-}" \
-      --voyage-servers="${NAVIS_VOYAGE_SERVERS:-}" \
       --remote-dir="${WINDOWS_REMOTE_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."
     if [[ ! -f "${WINDOWS_ASSET}" ]]; then

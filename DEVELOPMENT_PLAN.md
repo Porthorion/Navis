@@ -3,10 +3,10 @@
 A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and iOS, built primarily with agentic AI assistance. Licensed under GPL-3.0.
 
 Status note: this file is roadmap history and may lag the implementation. For
-current agent guidance use `AGENTS.md`. Listen Together now uses Voyage
-`voyage-sync.v4alpha1`; older `voyage-sync.v1alpha1` and `connection.welcome`
-sections are superseded by the v4 client under
-`lib/src/features/group_listening/` and Voyage's `docs/api-and-realtime.md`.
+current agent guidance use `AGENTS.md`. Listen Together / Voyage is retired as
+of 2026-06-29: visible app entry points are hidden, Navis-side Voyage backend
+and session code has been removed, and `lib/src/features/group_listening/`
+contains only hidden placeholder UI for a possible future implementation.
 
 ---
 
@@ -2310,6 +2310,10 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 ---
 
 ## Phase 32: Group Listening & Voyage Integration
+
+Retired 2026-06-29. This section is retained as historical planning context
+only. Do not use it as active implementation guidance unless Listen Together is
+explicitly reintroduced; use `AGENTS.md` for the current feature boundary.
 
 **Priority**: P1 (major cross-repo feature; execute as a dedicated program, not as incidental polish)
 

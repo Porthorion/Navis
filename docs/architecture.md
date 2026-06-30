@@ -71,6 +71,14 @@ Located in `lib/src/providers/app_providers.dart`:
 **server_reachability_provider.dart**:
 - `serverReachabilityControllerProvider` - Server reachability state
 
+#### Retired Listen Together Feature (`lib/src/features/group_listening/`)
+
+Listen Together / Voyage is retired for now. The feature directory only keeps
+hidden placeholder widgets so future implementations have stable UI anchors.
+There are no active Voyage HTTP, websocket, session, playback sync, or queue
+sync providers, and routes to the old settings entry redirect away from the
+retired surface.
+
 ### Import Guidelines
 
 1. **Feature code should import from feature providers first**:
@@ -85,7 +93,7 @@ Located in `lib/src/providers/app_providers.dart`:
 
 3. **Avoid circular dependencies**:
    - Feature providers can import from `app_providers.dart`
-   - `app_providers.dart` should NOT import from feature providers
+   - `app_providers.dart` may import feature modules for dependency injection
    - Use exports in feature `*_providers.dart` files for convenience
 
 ### Provider Lifecycle
@@ -215,6 +223,9 @@ Routes are defined in `lib/src/routing/app_router.dart`:
 - `/settings/about` - About / update checker
 - `/settings/desktop-window` - Desktop window settings
 - `/settings/shortcuts` - Keyboard shortcuts reference
+
+The retired `/settings/group-listening` path redirects to Configuration and is
+not shown in navigation.
 
 ### Shell Routes
 

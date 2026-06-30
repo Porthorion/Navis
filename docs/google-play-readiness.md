@@ -65,15 +65,11 @@ non-Android assets.
 - Setup screens catch Last.fm/ListenBrainz credential and network failures and
   show redacted user-facing notices.
 
-## Voyage Servers
+## Retired Listen Together
 
-- `NAVIS_VOYAGE_SERVERS` remains the build-time bundled default list.
-- Users can add/delete custom Voyage servers in settings.
-- Bundled and custom servers are merged in the selector.
-- Bundled servers are selectable only.
-- Custom server entries are non-sensitive Drift settings data.
-- Custom server URLs are normalized and accepted only when the Voyage transport
-  policy allows them.
+- Listen Together / Voyage is not exposed in the Play build.
+- There is no `NAVIS_VOYAGE_SERVERS` build-time configuration.
+- Legacy stored Voyage settings are ignored and saved back as disabled.
 
 ## Play Console Work
 

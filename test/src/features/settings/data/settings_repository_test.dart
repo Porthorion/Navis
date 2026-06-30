@@ -22,7 +22,7 @@ void main() {
     });
 
     test(
-      'persists only active group listening settings via app settings model',
+      'normalizes retired group listening settings to disabled',
       () async {
         final settings = const AppSettingsModel.defaults().copyWith(
           groupListeningEnabled: true,
@@ -35,8 +35,8 @@ void main() {
         await repository.saveSettings(settings);
         final saved = await repository.getSettings();
 
-        expect(saved.groupListeningEnabled, isTrue);
-        expect(saved.voyageServerUrl, 'https://voyage.example.com');
+        expect(saved.groupListeningEnabled, isFalse);
+        expect(saved.voyageServerUrl, isNull);
         expect(saved.voyageDisplayName, isNull);
         expect(saved.voyageDeviceLabel, isNull);
         expect(

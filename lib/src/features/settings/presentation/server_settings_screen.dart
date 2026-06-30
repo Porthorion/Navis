@@ -11,15 +11,6 @@ import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
-import 'package:navis/src/features/group_listening/data/group_listening_configuration.dart'
-    show
-        buildGroupListeningClientConfiguration,
-        isVoyageTransportAllowed,
-        normalizeVoyageBaseUri;
-import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -38,29 +29,17 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   bool _isSigningOut = false;
   bool _isSavingApiKey = false;
   bool _isListenBrainzBusy = false;
-  bool _isVoyageChecking = false;
 
   final _lastFmApiKeyController = TextEditingController();
   final _listenBrainzTokenController = TextEditingController();
-  final _voyageServerUrlController = TextEditingController();
-  final _customVoyageLabelController = TextEditingController();
-  final _customVoyageUrlController = TextEditingController();
   bool _lastFmKeyInitialized = false;
   bool _externalCredentialsHydrated = false;
-  bool _groupListeningInitialized = false;
   bool _obscureApiKey = true;
   bool _obscureListenBrainzToken = true;
-  bool _groupListeningEnabled = false;
-  String? _selectedVoyageServerUrl;
   String? _lastFmApiKeyError;
   String? _lastFmApiKeySuccess;
   String? _listenBrainzError;
   String? _listenBrainzSuccess;
-  GroupListeningVoyageConnectionStatus _voyageStatus =
-      const GroupListeningVoyageConnectionStatus(
-        state: GroupListeningVoyageConnectionState.disabled,
-        message: 'Listen Together is off.',
-      );
 
   bool get _isBusy => _isTestingConnection || _isSigningOut;
 
@@ -82,9 +61,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     _listenBrainzTokenController.removeListener(_onApiKeyTextChanged);
     _lastFmApiKeyController.dispose();
     _listenBrainzTokenController.dispose();
-    _voyageServerUrlController.dispose();
-    _customVoyageLabelController.dispose();
-    _customVoyageUrlController.dispose();
     super.dispose();
   }
 
@@ -111,35 +87,12 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     });
   }
 
-  void _initGroupListeningSettings(
-    AppSettingsModel settings, {
-    required String? resolvedVoyageServerUrl,
-  }) {
-    if (_groupListeningInitialized) return;
-    _groupListeningInitialized = true;
-    _groupListeningEnabled = settings.groupListeningEnabled;
-    final configuredUrl = settings.voyageServerUrl?.trim();
-    final initialServerUrl = resolvedVoyageServerUrl ?? configuredUrl;
-    _selectedVoyageServerUrl = initialServerUrl;
-    _voyageServerUrlController.text = initialServerUrl ?? '';
-    _voyageStatus = _statusForVoyageUrl(
-      enabled: _groupListeningEnabled,
-      voyageServerUrl: initialServerUrl,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final configAsync = ref.watch(serverConfigStateProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
     final isBundled = ref.watch(lastFmBundledKeyProvider);
-    final voyageServers = ref.watch(
-      groupListeningVoyageServersProvider,
-    );
-    final resolvedVoyageServerUrl = ref.watch(
-      groupListeningResolvedVoyageServerUrlProvider,
-    );
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -162,21 +115,9 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           settingsAsync.whenData((settings) {
             _initLastFmKey(settings);
             unawaited(_hydrateExternalCredentials(settings));
-            _initGroupListeningSettings(
-              settings,
-              resolvedVoyageServerUrl: resolvedVoyageServerUrl,
-            );
           });
           final currentSettings =
               settingsAsync.asData?.value ?? const AppSettingsModel.defaults();
-          final selectedVoyageServerUrl =
-              _selectedVoyageServerUrl ??
-              (voyageServers.isEmpty ? null : voyageServers.first.url);
-          if (voyageServers.isNotEmpty &&
-              selectedVoyageServerUrl != null &&
-              _voyageServerUrlController.text != selectedVoyageServerUrl) {
-            _voyageServerUrlController.text = selectedVoyageServerUrl;
-          }
 
           return SafeArea(
             child: SingleChildScrollView(
@@ -303,75 +244,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                     onEnabledChanged: (value) =>
                         _setListenBrainzEnabled(currentSettings, value),
                   ),
-                  const SizedBox(height: 32),
-
-                  // ── Listen Together section ─────────────────────────
-                  const _SectionHeader(title: 'Listen Together'),
-                  const SizedBox(height: 8),
-                  _ListenTogetherCard(
-                    enabled: _groupListeningEnabled,
-                    bundledServers: voyageServers,
-                    customServers:
-                        settingsAsync.asData?.value.customVoyageServers ??
-                        const <CustomVoyageServer>[],
-                    selectedServerUrl: selectedVoyageServerUrl,
-                    voyageServerUrlController: _voyageServerUrlController,
-                    customVoyageLabelController: _customVoyageLabelController,
-                    customVoyageUrlController: _customVoyageUrlController,
-                    connectionStatus: _voyageStatus,
-                    isChecking: _isVoyageChecking,
-                    onEnabledChanged: (value) {
-                      setState(() {
-                        _groupListeningEnabled = value;
-                        if (value &&
-                            voyageServers.isNotEmpty &&
-                            (_selectedVoyageServerUrl == null ||
-                                _selectedVoyageServerUrl!.isEmpty)) {
-                          _selectedVoyageServerUrl = voyageServers.first.url;
-                          _voyageServerUrlController.text =
-                              voyageServers.first.url;
-                        }
-                      });
-                      unawaited(
-                        _checkAndSaveGroupListeningSettings(
-                          config: config,
-                          voyageServers: voyageServers,
-                        ),
-                      );
-                    },
-                    onServerSelected: (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _selectedVoyageServerUrl = value;
-                        _voyageServerUrlController.text = value;
-                      });
-                      unawaited(
-                        _checkAndSaveGroupListeningSettings(
-                          config: config,
-                          voyageServers: voyageServers,
-                        ),
-                      );
-                    },
-                    onManualServerChanged: (_) => setState(() {
-                      _voyageStatus = _statusForVoyageUrl(
-                        enabled: _groupListeningEnabled,
-                        voyageServerUrl: _voyageServerUrlController.text,
-                      );
-                    }),
-                    onManualServerSubmitted: (_) =>
-                        _checkAndSaveGroupListeningSettings(
-                          config: config,
-                          voyageServers: voyageServers,
-                        ),
-                    onTestServer: () => _checkAndSaveGroupListeningSettings(
-                      config: config,
-                      voyageServers: voyageServers,
-                    ),
-                    onAddCustomServer: () => _addCustomVoyageServer(config),
-                    onDeleteCustomServer: _deleteCustomVoyageServer,
-                  ),
-                  const SizedBox(height: 12),
-                  _VoyageConnectionStatusCard(status: _voyageStatus),
                 ],
               ),
             ),
@@ -650,207 +522,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     });
   }
 
-  Future<void> _checkAndSaveGroupListeningSettings({
-    required ServerConfigModel config,
-    required List<GroupListeningVoyageServerOption> voyageServers,
-  }) async {
-    final voyageServerUrl = _selectedVoyageUrl(voyageServers);
-    final initialStatus = _statusForVoyageUrl(
-      enabled: _groupListeningEnabled,
-      voyageServerUrl: voyageServerUrl,
-    );
-    setState(() => _voyageStatus = initialStatus);
-    if (!_groupListeningEnabled) {
-      await _saveGroupListeningSettings(
-        voyageServers,
-        voyageServerUrl: voyageServerUrl,
-      );
-      return;
-    }
-    if (voyageServerUrl == null ||
-        initialStatus.state == GroupListeningVoyageConnectionState.failed) {
-      return;
-    }
-    setState(() {
-      _isVoyageChecking = true;
-      _voyageStatus = GroupListeningVoyageConnectionStatus(
-        state: GroupListeningVoyageConnectionState.checking,
-        message: 'Checking Voyage connection...',
-        userActionMessage: voyageServerUrl,
-      );
-    });
-    try {
-      final configuration = buildGroupListeningClientConfiguration(
-        enabled: true,
-        voyageServerUrl: voyageServerUrl,
-        activeServer: config,
-      );
-      if (configuration == null) {
-        throw const FormatException('Invalid Voyage configuration.');
-      }
-      final discovery = await ref
-          .read(groupListeningRepositoryProvider)
-          .discover(configuration);
-      if (!discovery.supportsCurrentProtocol) {
-        throw const GroupListeningRepositoryException(
-          GroupListeningErrorState(
-            code: GroupListeningErrorCode.unsupportedProtocolVersion,
-            message: 'Voyage protocol is not compatible.',
-          ),
-        );
-      }
-      await _saveGroupListeningSettings(
-        voyageServers,
-        voyageServerUrl: voyageServerUrl,
-      );
-      if (!mounted) return;
-      setState(() {
-        _voyageStatus = const GroupListeningVoyageConnectionStatus(
-          state: GroupListeningVoyageConnectionState.connected,
-          message: 'Successfully connected to Voyage.',
-        );
-      });
-    } on Object catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _voyageStatus = GroupListeningVoyageConnectionStatus(
-          state: GroupListeningVoyageConnectionState.failed,
-          message: 'Not connected to Voyage.',
-          userActionMessage: _voyageFailureMessage(error),
-        );
-      });
-    } finally {
-      if (mounted) setState(() => _isVoyageChecking = false);
-    }
-  }
-
-  Future<void> _saveGroupListeningSettings(
-    List<GroupListeningVoyageServerOption> voyageServers, {
-    required String? voyageServerUrl,
-  }) async {
-    final repository = ref.read(settingsRepositoryProvider);
-    final current =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
-    final normalizedUrl = voyageServerUrl?.trim() ?? '';
-
-    await repository.saveSettings(
-      current.copyWith(
-        groupListeningEnabled: _groupListeningEnabled,
-        voyageServerUrl: normalizedUrl.isEmpty ? null : normalizedUrl,
-        voyageDisplayName: null,
-        voyageDeviceLabel: null,
-        voyageAutoFollowHost: true,
-        clearVoyageServerUrl: normalizedUrl.isEmpty,
-        clearVoyageDisplayName: true,
-        clearVoyageDeviceLabel: true,
-      ),
-    );
-  }
-
-  Future<void> _addCustomVoyageServer(ServerConfigModel config) async {
-    final label = _customVoyageLabelController.text.trim();
-    final url = _customVoyageUrlController.text.trim();
-    if (url.isEmpty) {
-      return;
-    }
-    final normalizedUri = normalizeVoyageBaseUri(url);
-    if (normalizedUri == null || !isVoyageTransportAllowed(normalizedUri)) {
-      if (!mounted) {
-        return;
-      }
-      showAppNotice(
-        context,
-        message: 'Enter a valid http or https Voyage server URL.',
-        level: AppNoticeLevel.error,
-      );
-      return;
-    }
-    final normalizedUrl = normalizedUri.toString();
-    setState(() {
-      _isVoyageChecking = true;
-      _voyageStatus = GroupListeningVoyageConnectionStatus(
-        state: GroupListeningVoyageConnectionState.checking,
-        message: 'Checking Voyage connection...',
-        userActionMessage: normalizedUrl,
-      );
-    });
-    try {
-      final configuration = buildGroupListeningClientConfiguration(
-        enabled: true,
-        voyageServerUrl: normalizedUrl,
-        activeServer: config,
-      );
-      if (configuration == null) {
-        throw const FormatException('Invalid Voyage configuration.');
-      }
-      final discovery = await ref
-          .read(groupListeningRepositoryProvider)
-          .discover(configuration);
-      if (!discovery.supportsCurrentProtocol) {
-        throw const GroupListeningRepositoryException(
-          GroupListeningErrorState(
-            code: GroupListeningErrorCode.unsupportedProtocolVersion,
-            message: 'Voyage protocol is not compatible.',
-          ),
-        );
-      }
-    } on Object catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _voyageStatus = GroupListeningVoyageConnectionStatus(
-          state: GroupListeningVoyageConnectionState.failed,
-          message: 'Not connected to Voyage.',
-          userActionMessage: _voyageFailureMessage(error),
-        );
-      });
-      return;
-    } finally {
-      if (mounted) setState(() => _isVoyageChecking = false);
-    }
-    final repository = ref.read(settingsRepositoryProvider);
-    final current =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
-    final existing = current.customVoyageServers
-        .where((server) => server.url != normalizedUrl)
-        .toList();
-    existing.add(
-      CustomVoyageServer(
-        label: label.isEmpty ? normalizedUrl : label,
-        url: normalizedUrl,
-      ),
-    );
-    await repository.saveSettings(
-      current.copyWith(customVoyageServers: existing),
-    );
-    _customVoyageLabelController.clear();
-    _customVoyageUrlController.clear();
-    setState(() {
-      _selectedVoyageServerUrl = normalizedUrl;
-      _voyageServerUrlController.text = normalizedUrl;
-      _voyageStatus = const GroupListeningVoyageConnectionStatus(
-        state: GroupListeningVoyageConnectionState.connected,
-        message: 'Successfully connected to Voyage.',
-      );
-    });
-  }
-
-  Future<void> _deleteCustomVoyageServer(CustomVoyageServer server) async {
-    final repository = ref.read(settingsRepositoryProvider);
-    final current =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
-    await repository.saveSettings(
-      current.copyWith(
-        customVoyageServers: current.customVoyageServers
-            .where((entry) => entry.url != server.url)
-            .toList(),
-        clearVoyageServerUrl: current.voyageServerUrl == server.url,
-      ),
-    );
-  }
-
   Future<void> _openLastFmApiPage() async {
     final uri = Uri.parse('https://www.last.fm/api/accounts');
     if (await canLaunchUrl(uri)) {
@@ -873,93 +544,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
       return 'Last.fm is rate limiting validation. Try again later.';
     }
     return result.message ?? 'Could not validate this Last.fm API key.';
-  }
-
-  String? _selectedVoyageUrl(List<GroupListeningVoyageServerOption> servers) {
-    final raw = servers.isEmpty
-        ? _voyageServerUrlController.text.trim()
-        : (_selectedVoyageServerUrl ??
-                  (servers.isEmpty ? null : servers.first.url) ??
-                  '')
-              .trim();
-    return normalizeVoyageBaseUri(raw)?.toString();
-  }
-
-  GroupListeningVoyageConnectionStatus _statusForVoyageUrl({
-    required bool enabled,
-    required String? voyageServerUrl,
-  }) {
-    if (!enabled) {
-      return const GroupListeningVoyageConnectionStatus(
-        state: GroupListeningVoyageConnectionState.disabled,
-        message: 'Listen Together is off.',
-      );
-    }
-    final uri = normalizeVoyageBaseUri(voyageServerUrl);
-    if (uri == null) {
-      return const GroupListeningVoyageConnectionStatus(
-        state: GroupListeningVoyageConnectionState.unconfigured,
-        message: 'Not connected to Voyage.',
-        userActionMessage: 'Enter a valid Voyage server URL.',
-      );
-    }
-    if (!isVoyageTransportAllowed(uri)) {
-      return const GroupListeningVoyageConnectionStatus(
-        state: GroupListeningVoyageConnectionState.failed,
-        message: 'Not connected to Voyage.',
-        userActionMessage:
-            'Use HTTPS for Voyage, or a local HTTP server in debug builds.',
-      );
-    }
-    return GroupListeningVoyageConnectionStatus(
-      state: GroupListeningVoyageConnectionState.unconfigured,
-      message: 'Voyage server ready to test.',
-      userActionMessage: uri.toString(),
-    );
-  }
-
-  String? _voyageFailureMessage(Object error) {
-    final failure = error is GroupListeningRepositoryException
-        ? error.failure
-        : null;
-    if (failure == null) {
-      return 'Voyage is unavailable. Check the URL and try again.';
-    }
-    return switch (failure.code) {
-      GroupListeningErrorCode.unsupportedProtocolVersion => () {
-        final expected = failure.details['expected_protocol_version'];
-        final received = failure.details['received_protocol_version'];
-        if (expected is String &&
-            expected.isNotEmpty &&
-            received is String &&
-            received.isNotEmpty) {
-          return 'Voyage protocol mismatch: server sent $received; '
-              'Navis expects $expected. Update Voyage or Navis.';
-        }
-        final supported = failure.details['supported_protocol_versions'];
-        if (expected is String &&
-            expected.isNotEmpty &&
-            supported is List &&
-            supported.isNotEmpty) {
-          return 'Voyage does not advertise $expected '
-              '(server supports: ${supported.join(', ')}). '
-              'Update Voyage or Navis.';
-        }
-        return 'Update Navis or choose a Voyage server with a compatible '
-            'protocol ($voyageProtocolVersion).';
-      }(),
-      GroupListeningErrorCode.validationFailed =>
-        'Check the Voyage server configuration and try again.',
-      GroupListeningErrorCode.insecureTransport =>
-        'Use HTTPS for Voyage, or a local HTTP server in debug builds.',
-      GroupListeningErrorCode.transportUnavailable
-          when failure.message.isNotEmpty =>
-        failure.message,
-      _ =>
-        failure.message.isNotEmpty
-            ? failure.message
-            : 'Voyage is unavailable. Check the URL and try again.',
-    };
   }
 
   String _toUserMessage(Object error, AppLocalizations l10n) {
@@ -1021,264 +605,6 @@ class _ServerInfoRow extends StatelessWidget {
           ),
           Expanded(
             child: Text(value, style: theme.textTheme.bodyMedium),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ListenTogetherCard extends StatelessWidget {
-  const _ListenTogetherCard({
-    required this.enabled,
-    required this.bundledServers,
-    required this.customServers,
-    required this.selectedServerUrl,
-    required this.voyageServerUrlController,
-    required this.customVoyageLabelController,
-    required this.customVoyageUrlController,
-    required this.connectionStatus,
-    required this.isChecking,
-    required this.onEnabledChanged,
-    required this.onServerSelected,
-    required this.onManualServerChanged,
-    required this.onManualServerSubmitted,
-    required this.onTestServer,
-    required this.onAddCustomServer,
-    required this.onDeleteCustomServer,
-  });
-
-  final bool enabled;
-  final List<GroupListeningVoyageServerOption> bundledServers;
-  final List<CustomVoyageServer> customServers;
-  final String? selectedServerUrl;
-  final TextEditingController voyageServerUrlController;
-  final TextEditingController customVoyageLabelController;
-  final TextEditingController customVoyageUrlController;
-  final GroupListeningVoyageConnectionStatus connectionStatus;
-  final bool isChecking;
-  final ValueChanged<bool> onEnabledChanged;
-  final ValueChanged<String?> onServerSelected;
-  final ValueChanged<String> onManualServerChanged;
-  final ValueChanged<String> onManualServerSubmitted;
-  final VoidCallback onTestServer;
-  final VoidCallback onAddCustomServer;
-  final ValueChanged<CustomVoyageServer> onDeleteCustomServer;
-
-  String get _enableSubtitle {
-    if (enabled) {
-      return connectionStatus.message;
-    }
-    if (bundledServers.isEmpty) {
-      return 'Enable Listen Together and connect Navis to a Voyage server.';
-    }
-    if (bundledServers.length == 1) {
-      return 'Enable Listen Together and verify the bundled Voyage server.';
-    }
-    return 'Enable Listen Together and choose which bundled Voyage server to use.';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Column(
-        children: <Widget>[
-          SwitchListTile(
-            key: const ValueKey('groupListeningEnabledSwitch'),
-            secondary: enabled ? const Icon(Icons.headset_mic_outlined) : null,
-            title: const Text('Enable Listen Together'),
-            subtitle: Text(_enableSubtitle),
-            value: enabled,
-            onChanged: onEnabledChanged,
-          ),
-          if (bundledServers.length == 1)
-            ListTile(
-              leading: const Icon(Icons.cloud_outlined),
-              title: const Text('Voyage server'),
-              subtitle: Text(bundledServers.single.label),
-            ),
-          if (bundledServers.length > 1)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: DropdownButtonFormField<String>(
-                key: const ValueKey('groupListeningVoyageServerDropdown'),
-                value: selectedServerUrl,
-                decoration: const InputDecoration(
-                  labelText: 'Voyage server',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.cloud_outlined),
-                ),
-                items: bundledServers
-                    .map(
-                      (server) => DropdownMenuItem<String>(
-                        value: server.url,
-                        child: Text(server.label),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: onServerSelected,
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: <Widget>[
-                if (bundledServers.isEmpty) ...<Widget>[
-                  TextField(
-                    key: const ValueKey('groupListeningVoyageServerUrlField'),
-                    controller: voyageServerUrlController,
-                    keyboardType: TextInputType.url,
-                    decoration: const InputDecoration(
-                      labelText: 'Voyage server URL',
-                      hintText: 'https://voyage.example.com',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.link),
-                    ),
-                    onChanged: onManualServerChanged,
-                    onSubmitted: onManualServerSubmitted,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                TextField(
-                  controller: customVoyageLabelController,
-                  decoration: const InputDecoration(
-                    labelText: 'Custom server label',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.label_outline),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  key: const ValueKey(
-                    'groupListeningCustomVoyageServerUrlField',
-                  ),
-                  controller: customVoyageUrlController,
-                  keyboardType: TextInputType.url,
-                  decoration: const InputDecoration(
-                    labelText: 'Custom server URL',
-                    hintText: 'https://voyage.example.com',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.add_link_outlined),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.end,
-                    children: <Widget>[
-                      OutlinedButton.icon(
-                        onPressed: isChecking ? null : onTestServer,
-                        icon: isChecking
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.wifi_tethering),
-                        label: const Text('Test server'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: isChecking ? null : onAddCustomServer,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add custom server'),
-                      ),
-                    ],
-                  ),
-                ),
-                for (final server in customServers)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.cloud_queue_outlined),
-                    title: Text(server.label),
-                    subtitle: Text(server.url),
-                    trailing: IconButton(
-                      tooltip: 'Delete custom server',
-                      onPressed: () => onDeleteCustomServer(server),
-                      icon: const Icon(Icons.delete_outline),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _VoyageConnectionStatusCard extends StatelessWidget {
-  const _VoyageConnectionStatusCard({required this.status});
-
-  final GroupListeningVoyageConnectionStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    late final Color background;
-    late final Color foreground;
-    late final IconData icon;
-    switch (status.state) {
-      case GroupListeningVoyageConnectionState.connected:
-        background = scheme.primaryContainer;
-        foreground = scheme.onPrimaryContainer;
-        icon = Icons.verified_outlined;
-        break;
-      case GroupListeningVoyageConnectionState.failed:
-        background = scheme.errorContainer;
-        foreground = scheme.onErrorContainer;
-        icon = Icons.cloud_off_outlined;
-        break;
-      case GroupListeningVoyageConnectionState.checking:
-        background = scheme.secondaryContainer;
-        foreground = scheme.onSecondaryContainer;
-        icon = Icons.sync_outlined;
-        break;
-      case GroupListeningVoyageConnectionState.disabled:
-      case GroupListeningVoyageConnectionState.unconfigured:
-        background = scheme.surfaceContainerHighest;
-        foreground = scheme.onSurfaceVariant;
-        icon = Icons.info_outline;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icon, color: foreground),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  status.message,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: foreground,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (status.userActionMessage != null) ...<Widget>[
-                  const SizedBox(height: 4),
-                  Text(
-                    status.userActionMessage!,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: foreground),
-                  ),
-                ],
-              ],
-            ),
           ),
         ],
       ),

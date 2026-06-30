@@ -23,7 +23,6 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     final ids = songs.map((song) => song.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);

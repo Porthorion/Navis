@@ -9,11 +9,10 @@ this file conflicts with code or newer docs.
 
 Navis is a multi-platform Subsonic/OpenSubsonic music client (Android, iOS, macOS, Linux, Windows) built with Flutter. Key features: gapless audio playback, offline cache + permanent downloads, adaptive UI (phone/tablet/desktop), synced lyrics, scrobbling, and smart queue generation.
 
-Listen Together is backed by the sibling Voyage service using
-`voyage-sync.v4alpha1`: `connection.init` -> `connection.ready` -> replay or
-snapshot -> live frames. User actions send `command`; passive local playback,
-buffering, readiness, RTT, and unavailable-track observations send
-`member.status`.
+Listen Together / Voyage is retired for now. Do not wire Voyage networking,
+session state, playback sync, queue sync, settings controls, or visible entry
+points unless the feature is explicitly reintroduced. The remaining
+`lib/src/features/group_listening/` files are hidden placeholders only.
 
 ## Commands
 
@@ -25,7 +24,7 @@ buffering, readiness, RTT, and unavailable-track observations send
 make gen                  # or: dart run build_runner build --delete-conflicting-outputs
 make gen-watch            # watch mode
 
-# Quality gate (format → codegen → analyze → lint → tests)
+# Quality gate (format → codegen → analyze → migration/critical tests → full tests)
 ./tool/check.sh           # or: make check
 
 # Individual checks

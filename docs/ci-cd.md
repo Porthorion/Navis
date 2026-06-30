@@ -11,10 +11,14 @@ Run before every commit (automatically enforced if the pre-commit hook is enable
 ```
 
 Checks performed (in order, fail-fast):
-1. `dart format --set-exit-if-changed .`
-2. `dart run build_runner build --delete-conflicting-outputs`
-3. `flutter analyze`
-4. `flutter test`
+1. `/tmp` disk-space preflight
+2. `dart format --set-exit-if-changed .`
+3. `dart run build_runner build --delete-conflicting-outputs`
+4. `flutter analyze --no-fatal-infos`
+5. Drift migration tests
+6. Critical routing/provider/playback/library sync test suite
+7. Full `flutter test`
+8. Coverage when `CI=true`
 
 The script also checks `/tmp` disk space before starting to prevent misleading test hangs.
 
@@ -73,7 +77,7 @@ make release VERSION=v0.2.0
 
 ### What it does
 
-1. Runs `./tool/check.sh` (format, analyze, lint, tests) unless `--skip-checks` is passed.
+1. Runs `./tool/check.sh` unless `--skip-checks` is passed.
 2. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
 2.1 For Linux target, can output either portable `bundle` (tar.gz) or `.deb` (`--linux-package=deb`).
 2.2 Debian package output is architecture-aware (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.

@@ -41,7 +41,6 @@ class _FakeQueueController extends QueueController {
   Future<void> addWithSongs(
     List<Song> songs, {
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     throw StateError('Same Vibes should insert recommendations with playNext');
   }
@@ -50,7 +49,6 @@ class _FakeQueueController extends QueueController {
   Future<void> playNextWithSongs(
     List<Song> songs, {
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     throw StateError('Same Vibes should use insertMixTracksAfterCurrent');
   }

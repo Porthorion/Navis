@@ -833,7 +833,6 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: <Widget>[
-                            const GroupListeningSessionButton(),
                             if (!playback.isRadioMode)
                               IconButton(
                                 tooltip: l10n.nowPlayingLyrics,

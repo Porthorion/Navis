@@ -29,8 +29,6 @@ import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
@@ -4267,9 +4265,6 @@ class _HomeActionRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
-    final listenTogetherEnabled = ref.watch(
-      groupListeningSettingsProvider.select((settings) => settings.enabled),
-    );
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final downloadedSongIds = downloadedOnly
@@ -4343,12 +4338,6 @@ class _HomeActionRow extends ConsumerWidget {
             color: downloadedOnly ? colorScheme.primary : null,
             onPressed: toggleDownloadedOnly,
           ),
-          if (listenTogetherEnabled)
-            GroupListeningSessionButton(
-              constraints: variant == _HomeActionRowVariant.compactWide
-                  ? iconConstraints
-                  : null,
-            ),
           IconButton(
             tooltip: 'Instant Radio',
             constraints: variant == _HomeActionRowVariant.compactWide
@@ -4387,13 +4376,6 @@ class _HomeActionRow extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: <Widget>[
-                if (listenTogetherEnabled) ...<Widget>[
-                  GroupListeningSessionButton(
-                    variant: GroupListeningSessionButtonVariant.filledTonal,
-                    constraints: iconConstraints,
-                  ),
-                  const SizedBox(width: 8),
-                ],
                 Flexible(
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(

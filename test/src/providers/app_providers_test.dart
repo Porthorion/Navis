@@ -13,8 +13,6 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -27,13 +25,6 @@ import 'package:navis/src/utils/connectivity.dart';
 import '../../helpers/test_database.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
-
-class _DisabledGroupListeningSessionController
-    extends GroupListeningSessionController {
-  @override
-  GroupListeningSessionState build() =>
-      const GroupListeningSessionState.disabled();
-}
 
 class _FakePlaybackHandler implements NavisPlaybackHandler {
   final StreamController<PlaybackSnapshot> _controller =
@@ -589,9 +580,6 @@ void main() {
         overrides: [
           settingsRepositoryProvider.overrideWithValue(repository),
           audioHandlerProvider.overrideWithValue(handler),
-          groupListeningSessionControllerProvider.overrideWith(
-            _DisabledGroupListeningSessionController.new,
-          ),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
@@ -640,9 +628,6 @@ void main() {
           overrides: [
             settingsRepositoryProvider.overrideWithValue(repository),
             audioHandlerProvider.overrideWithValue(handler),
-            groupListeningSessionControllerProvider.overrideWith(
-              _DisabledGroupListeningSessionController.new,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(playbackSpeed: 1.5),
@@ -674,9 +659,6 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             audioHandlerProvider.overrideWithValue(handler),
-            groupListeningSessionControllerProvider.overrideWith(
-              _DisabledGroupListeningSessionController.new,
-            ),
           ],
         );
         addTearDown(() async {
@@ -721,9 +703,6 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           audioHandlerProvider.overrideWithValue(handler),
-          groupListeningSessionControllerProvider.overrideWith(
-            _DisabledGroupListeningSessionController.new,
-          ),
         ],
       );
       addTearDown(() async {
@@ -749,9 +728,6 @@ void main() {
           overrides: [
             navisDatabaseProvider.overrideWithValue(database),
             audioHandlerProvider.overrideWithValue(handler),
-            groupListeningSessionControllerProvider.overrideWith(
-              _DisabledGroupListeningSessionController.new,
-            ),
           ],
         );
         addTearDown(() async {
@@ -806,11 +782,7 @@ void main() {
       'queueProvider throws explicit unavailable error when handler missing',
       () async {
         final container = ProviderContainer(
-          overrides: [
-            groupListeningSessionControllerProvider.overrideWith(
-              _DisabledGroupListeningSessionController.new,
-            ),
-          ],
+          overrides: [],
         );
         addTearDown(container.dispose);
 

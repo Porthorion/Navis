@@ -11,15 +11,13 @@ class SettingsRepository {
 
   Stream<AppSettingsModel> watchSettings() {
     return _dao.watchSettings().asyncMap((row) async {
-      final groupListening = await _dao.getGroupListeningSettings();
-      return _mapOrDefault(row, groupListening: groupListening);
+      return _mapOrDefault(row);
     });
   }
 
   Future<AppSettingsModel> getSettings() async {
     final row = await _dao.getSettings();
-    final groupListening = await _dao.getGroupListeningSettings();
-    return _mapOrDefault(row, groupListening: groupListening);
+    return _mapOrDefault(row);
   }
 
   Future<void> saveSettings(AppSettingsModel settings) async {
@@ -87,13 +85,11 @@ class SettingsRepository {
       listenBrainzScrobblingEnabled: settings.listenBrainzScrobblingEnabled,
       listenBrainzTokenValid: settings.listenBrainzTokenValid,
       listenBrainzUserName: settings.listenBrainzUserName,
-      customVoyageServers: _encodeCustomVoyageServers(
-        settings.customVoyageServers,
-      ),
+      customVoyageServers: null,
     );
     await _dao.saveGroupListeningSettings(
-      groupListeningEnabled: settings.groupListeningEnabled,
-      voyageServerUrl: settings.voyageServerUrl,
+      groupListeningEnabled: false,
+      voyageServerUrl: null,
       voyageDisplayName: null,
       voyageDeviceLabel: null,
       voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
@@ -102,22 +98,10 @@ class SettingsRepository {
 
   Future<void> resetDefaults() => _dao.resetDefaults();
 
-  AppSettingsModel _mapOrDefault(
-    AppSettingsTableData? row, {
-    GroupListeningSettingsRecord? groupListening,
-  }) {
+  AppSettingsModel _mapOrDefault(AppSettingsTableData? row) {
     if (row == null) {
       return const AppSettingsModel.defaults();
     }
-    final effectiveGroupListening =
-        groupListening ??
-        (
-          groupListeningEnabled: false,
-          voyageServerUrl: null,
-          voyageDisplayName: null,
-          voyageDeviceLabel: null,
-          voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
-        );
     return AppSettingsModel(
       wifiMaxBitRate: row.wifiMaxBitRate,
       wifiFormat: row.wifiFormat,
@@ -180,11 +164,9 @@ class SettingsRepository {
       listenBrainzScrobblingEnabled: row.listenBrainzScrobblingEnabled,
       listenBrainzTokenValid: row.listenBrainzTokenValid,
       listenBrainzUserName: row.listenBrainzUserName,
-      customVoyageServers: _decodeCustomVoyageServers(
-        row.customVoyageServers,
-      ),
-      groupListeningEnabled: effectiveGroupListening.groupListeningEnabled,
-      voyageServerUrl: effectiveGroupListening.voyageServerUrl,
+      customVoyageServers: const <CustomVoyageServer>[],
+      groupListeningEnabled: false,
+      voyageServerUrl: null,
       voyageDisplayName: null,
       voyageDeviceLabel: null,
       voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
@@ -235,31 +217,6 @@ class SettingsRepository {
       return decoded.cast<String>().toList(growable: false);
     } on FormatException {
       return null;
-    }
-  }
-
-  String? _encodeCustomVoyageServers(List<CustomVoyageServer> values) {
-    if (values.isEmpty) {
-      return null;
-    }
-    return jsonEncode(values.map((server) => server.toJson()).toList());
-  }
-
-  List<CustomVoyageServer> _decodeCustomVoyageServers(String? raw) {
-    if (raw == null || raw.trim().isEmpty) {
-      return const <CustomVoyageServer>[];
-    }
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) {
-        return const <CustomVoyageServer>[];
-      }
-      return decoded
-          .map(CustomVoyageServer.fromJson)
-          .whereType<CustomVoyageServer>()
-          .toList(growable: false);
-    } on FormatException {
-      return const <CustomVoyageServer>[];
     }
   }
 }

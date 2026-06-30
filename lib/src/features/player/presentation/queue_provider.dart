@@ -1,21 +1,14 @@
 import 'dart:async';
-import 'dart:collection';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_track_ref_factory.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_user_intent.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
-import 'package:uuid/uuid.dart';
 
 /// Global broadcast stream for playback action errors.
 ///
@@ -44,8 +37,6 @@ final currentQueueSongIdProvider = Provider<String?>((ref) {
 });
 
 class QueueController extends Notifier<List<String>> {
-  static const Uuid _uuid = Uuid();
-
   @override
   List<String> build() {
     final snapshot = ref.watch(playbackSnapshotProvider).asData?.value;
@@ -58,18 +49,9 @@ class QueueController extends Notifier<List<String>> {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     final handler = _requireHandler();
     final normalized = _normalizeSongIds(ids);
-    if (syncGroupListening &&
-        await _sendGroupListeningQueueReplace(
-          normalized,
-          startIndex: startIndex,
-          autoPlay: autoPlay,
-        )) {
-      return;
-    }
     if (normalized.isEmpty) {
       await handler.clearQueue();
       return;
@@ -95,17 +77,8 @@ class QueueController extends Notifier<List<String>> {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     final handler = _requireHandler();
-    if (syncGroupListening &&
-        await _sendGroupListeningQueueReplace(
-          songs.map((song) => song.id),
-          startIndex: startIndex,
-          autoPlay: autoPlay,
-        )) {
-      return;
-    }
     if (songs.isEmpty) {
       await handler.clearQueue();
       return;
@@ -123,28 +96,18 @@ class QueueController extends Notifier<List<String>> {
     );
   }
 
-  Future<void> add(String id, {bool syncGroupListening = true}) async {
+  Future<void> add(String id) async {
     final normalizedId = id.trim();
     if (normalizedId.isEmpty) {
-      return;
-    }
-    if (syncGroupListening && await _sendGroupListeningQueueAdd(normalizedId)) {
       return;
     }
     final handler = _requireHandler();
     await handler.addToQueue(<String>[normalizedId]);
   }
 
-  Future<void> playNext(String id, {bool syncGroupListening = true}) async {
+  Future<void> playNext(String id) async {
     final normalizedId = id.trim();
     if (normalizedId.isEmpty) {
-      return;
-    }
-    if (syncGroupListening &&
-        await _sendGroupListeningQueueAdd(
-          normalizedId,
-          insertIndex: _nextGroupListeningInsertIndex(),
-        )) {
       return;
     }
     final handler = _requireHandler();
@@ -161,32 +124,14 @@ class QueueController extends Notifier<List<String>> {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     if (songs.isEmpty) {
       final handler = _requireHandler();
-      if (syncGroupListening &&
-          await _sendGroupListeningQueueReplace(
-            const <String>[],
-            startIndex: startIndex,
-            autoPlay: autoPlay,
-          )) {
-        return;
-      }
       await handler.clearQueue();
       return;
     }
     await _ensureSongsInDatabase(songs);
     final ids = songs.map((s) => s.id).toList(growable: false);
-    if (syncGroupListening &&
-        await _sendGroupListeningQueueReplace(
-          ids,
-          startIndex: startIndex,
-          autoPlay: autoPlay,
-          songs: songs,
-        )) {
-      return;
-    }
     final db = ref.read(navisDatabaseProvider);
     final persistedSongs = await db.libraryDao.getSongsByIds(ids);
     if (persistedSongs.length == ids.length) {
@@ -195,7 +140,6 @@ class QueueController extends Notifier<List<String>> {
         startIndex: startIndex,
         autoPlay: autoPlay,
         expandMatchFlows: expandMatchFlows,
-        syncGroupListening: false,
       );
       return;
     }
@@ -204,21 +148,13 @@ class QueueController extends Notifier<List<String>> {
       startIndex: startIndex,
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
-      syncGroupListening: false,
     );
   }
 
   /// Like [add], but accepts a [Song] API model object.
-  Future<void> addWithSong(
-    Song song, {
-    bool syncGroupListening = true,
-  }) async {
+  Future<void> addWithSong(Song song) async {
     await _ensureSongsInDatabase(<Song>[song]);
-    if (syncGroupListening &&
-        await _sendGroupListeningQueueAdd(song.id, song: song)) {
-      return;
-    }
-    return add(song.id, syncGroupListening: syncGroupListening);
+    return add(song.id);
   }
 
   /// Like [add], but accepts multiple [Song] API model objects and queues
@@ -226,7 +162,6 @@ class QueueController extends Notifier<List<String>> {
   Future<void> addWithSongs(
     List<Song> songs, {
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     if (songs.isEmpty) {
       return;
@@ -239,15 +174,6 @@ class QueueController extends Notifier<List<String>> {
     if (ids.isEmpty) {
       return;
     }
-    if (syncGroupListening &&
-        await _sendGroupListeningQueueReplace(
-          <String>[...state, ...ids],
-          startIndex: _currentGroupListeningIndex() ?? 0,
-          autoPlay: ref.read(audioHandlerProvider)?.snapshot.playing ?? false,
-          songs: songs,
-        )) {
-      return;
-    }
     final handler = _requireHandler();
     await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
   }
@@ -258,7 +184,6 @@ class QueueController extends Notifier<List<String>> {
   Future<void> playNextWithSongs(
     List<Song> songs, {
     bool expandMatchFlows = true,
-    bool syncGroupListening = true,
   }) async {
     final normalizedSongs = songs
         .map((song) {
@@ -272,55 +197,14 @@ class QueueController extends Notifier<List<String>> {
     }
     await _ensureSongsInDatabase(normalizedSongs);
     final ids = normalizedSongs.map((song) => song.id).toList(growable: false);
-    if (syncGroupListening) {
-      final insertIndex = _nextGroupListeningInsertIndex();
-      final existing = state;
-      final nextQueue = <String>[
-        ...existing.take(insertIndex),
-        ...ids,
-        ...existing.skip(insertIndex),
-      ];
-      if (await _sendGroupListeningQueueReplace(
-        nextQueue,
-        startIndex: _currentGroupListeningIndex() ?? 0,
-        autoPlay: ref.read(audioHandlerProvider)?.snapshot.playing ?? false,
-        songs: normalizedSongs,
-      )) {
-        return;
-      }
-    }
     final handler = _requireHandler();
     await handler.playNext(ids, expandMatchFlows: expandMatchFlows);
   }
 
   /// Like [playNext], but accepts a [Song] API model object.
-  Future<void> playNextWithSong(
-    Song song, {
-    bool syncGroupListening = true,
-  }) async {
+  Future<void> playNextWithSong(Song song) async {
     await _ensureSongsInDatabase(<Song>[song]);
-    if (syncGroupListening &&
-        await _sendGroupListeningQueueAdd(
-          song.id,
-          song: song,
-          insertIndex: _nextGroupListeningInsertIndex(),
-        )) {
-      return;
-    }
-    return playNext(song.id, syncGroupListening: syncGroupListening);
-  }
-
-  Future<void> cacheGroupListeningQueueMetadata(
-    List<GroupListeningQueueEntry> entries,
-  ) async {
-    final songs = entries
-        .where((entry) => entry.hasMetadata)
-        .map(_songFromGroupListeningQueueEntry)
-        .toList(growable: false);
-    if (songs.isEmpty) {
-      return;
-    }
-    await _ensureSongsInDatabase(songs);
+    return playNext(song.id);
   }
 
   /// Persists [Song] rows locally so [NavisAudioHandler] can resolve them.
@@ -328,8 +212,8 @@ class QueueController extends Notifier<List<String>> {
     await _ensureSongsInDatabase(songs);
   }
 
-  /// Inserts mix/refill tracks after the current item without Listen Together
-  /// sync. Persists metadata first, then delegates to the audio handler.
+  /// Inserts mix/refill tracks after the current item. Persists metadata first,
+  /// then delegates to the audio handler.
   Future<int> insertMixTracksAfterCurrent(
     List<Song> songs, {
     bool expandMatchFlows = false,
@@ -478,72 +362,12 @@ class QueueController extends Notifier<List<String>> {
     await db.libraryDao.upsertSongs(companions);
   }
 
-  Song _songFromGroupListeningQueueEntry(GroupListeningQueueEntry entry) {
-    final replayGain =
-        entry.replayGainTrackGain != null ||
-            entry.replayGainAlbumGain != null ||
-            entry.replayGainTrackPeak != null ||
-            entry.replayGainAlbumPeak != null
-        ? ReplayGain(
-            trackGain: entry.replayGainTrackGain,
-            albumGain: entry.replayGainAlbumGain,
-            trackPeak: entry.replayGainTrackPeak,
-            albumPeak: entry.replayGainAlbumPeak,
-          )
-        : null;
-    return Song(
-      id: entry.songId,
-      title: entry.title ?? entry.songId,
-      album: entry.album,
-      albumId: entry.albumId,
-      artist: entry.artist,
-      artistId: entry.artistId,
-      track: entry.track,
-      discNumber: entry.discNumber,
-      year: entry.year,
-      duration: entry.durationSeconds,
-      bitRate: entry.bitRate,
-      sampleRate: entry.sampleRate,
-      contentType: entry.contentType,
-      suffix: entry.suffix,
-      size: entry.size,
-      coverArt: entry.coverArt,
-      replayGain: replayGain,
-    );
-  }
-
-  Future<void> reorder(
-    int oldIndex,
-    int newIndex, {
-    bool syncGroupListening = true,
-  }) async {
-    if (syncGroupListening) {
-      final nextQueue = List<String>.of(state);
-      if (oldIndex >= 0 &&
-          oldIndex < nextQueue.length &&
-          newIndex >= 0 &&
-          newIndex <= nextQueue.length) {
-        final songId = nextQueue.removeAt(oldIndex);
-        final adjustedIndex = (newIndex > oldIndex ? newIndex - 1 : newIndex)
-            .clamp(0, nextQueue.length);
-        nextQueue.insert(adjustedIndex, songId);
-        if (await _sendGroupListeningQueueReplace(
-          nextQueue,
-          startIndex: _currentGroupListeningIndex() ?? 0,
-          autoPlay: ref.read(audioHandlerProvider)?.snapshot.playing ?? false,
-        )) {
-          return;
-        }
-      }
-    }
+  Future<void> reorder(int oldIndex, int newIndex) async {
     final handler = _requireHandler();
     await handler.reorderQueue(oldIndex, newIndex);
   }
 
-  Future<void> removeAt(int index, {bool syncGroupListening = true}) async {
-    if (syncGroupListening && await _sendGroupListeningQueueRemoveAt(index)) {
-      return;
-    }
+  Future<void> removeAt(int index) async {
     final handler = _requireHandler();
     await handler.removeAt(index);
   }
@@ -553,16 +377,8 @@ class QueueController extends Notifier<List<String>> {
     await handler.playFromIndex(index);
   }
 
-  Future<void> clear({bool syncGroupListening = true}) async {
+  Future<void> clear() async {
     final handler = _requireHandler();
-    if (syncGroupListening &&
-        await _sendGroupListeningQueueReplace(
-          const <String>[],
-          startIndex: 0,
-          autoPlay: false,
-        )) {
-      return;
-    }
     await handler.clearQueue();
     final settings =
         ref.read(appSettingsProvider).asData?.value ??
@@ -603,212 +419,6 @@ class QueueController extends Notifier<List<String>> {
     );
   }
 
-  bool _canSyncGroupListeningQueue(GroupListeningSessionState session) {
-    final room = session.room;
-    final configuration = session.configuration;
-    return room != null &&
-        configuration != null &&
-        session.availability == GroupListeningAvailability.ready &&
-        session.connection.isConnected &&
-        !session.snapshotRequired &&
-        room.roomStatus == GroupListeningRoomStatus.active &&
-        room.self.canControl &&
-        room.sourceServerFingerprint == configuration.sourceServerFingerprint;
-  }
-
-  int? _currentGroupListeningIndex() {
-    final session = ref.read(groupListeningSessionControllerProvider);
-    return session.room?.queue.currentIndex;
-  }
-
-  int _nextGroupListeningInsertIndex() {
-    final session = ref.read(groupListeningSessionControllerProvider);
-    final room = session.room;
-    if (room == null) {
-      return state.length;
-    }
-    final currentIndex = room.queue.currentIndex;
-    if (currentIndex == null || currentIndex < 0) {
-      return room.queue.entries.length;
-    }
-    return (currentIndex + 1).clamp(0, room.queue.entries.length);
-  }
-
-  Future<bool> _sendGroupListeningQueueAdd(
-    String songId, {
-    Song? song,
-    int? insertIndex,
-  }) async {
-    final session = ref.read(groupListeningSessionControllerProvider);
-    if (!_canSyncGroupListeningQueue(session)) {
-      return false;
-    }
-    final room = session.room!;
-    final entry = _queueEntryForSong(
-      songId: songId,
-      room: room,
-      song: song,
-    );
-    final mutationId = await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .sendMutation(
-          type: GroupListeningMutationType.queueAdd,
-          queue: GroupListeningQueueState(
-            queueVersion: room.queue.queueVersion,
-            currentIndex: room.queue.currentIndex,
-            entries: <GroupListeningQueueEntry>[entry],
-          ),
-          targetQueueEntryId: entry.queueEntryId,
-          insertIndex: insertIndex,
-        );
-    if (mutationId != null && mutationId.isNotEmpty) {
-      ref
-          .read(groupListeningUserIntentProvider.notifier)
-          .record(UserPlaybackIntent.queueAdd);
-    }
-    return mutationId != null && mutationId.isNotEmpty;
-  }
-
-  GroupListeningQueueEntry _queueEntryForSong({
-    required String songId,
-    required GroupListeningRoomState room,
-    Song? song,
-  }) {
-    return GroupListeningQueueEntry(
-      queueEntryId: _uuid.v4(),
-      songId: songId,
-      addedByMemberId: room.self.memberId,
-      addedAt: DateTime.now(),
-      title: song?.title,
-      artist: song?.artist,
-      artistId: song?.artistId,
-      album: song?.album,
-      albumId: song?.albumId,
-      durationSeconds: song?.duration,
-      track: song?.track,
-      discNumber: song?.discNumber,
-      year: song?.year,
-      coverArt: song?.coverArt,
-      contentType: song?.contentType,
-      suffix: song?.suffix,
-      bitRate: song?.bitRate,
-      sampleRate: song?.sampleRate,
-      size: song?.size,
-      replayGainTrackGain: song?.replayGain?.trackGain,
-      replayGainAlbumGain: song?.replayGain?.albumGain,
-      replayGainTrackPeak: song?.replayGain?.trackPeak,
-      replayGainAlbumPeak: song?.replayGain?.albumPeak,
-      trackRef: song == null ? null : buildTrackRefForSong(song),
-      playability: song == null
-          ? playabilityForSongId(songId)
-          : playabilityForSongId(song.id),
-    );
-  }
-
-  Future<bool> _sendGroupListeningQueueRemoveAt(int index) async {
-    final session = ref.read(groupListeningSessionControllerProvider);
-    if (!_canSyncGroupListeningQueue(session)) {
-      return false;
-    }
-    final entries = session.room!.queue.entries;
-    if (index < 0 || index >= entries.length) {
-      return false;
-    }
-    final mutationId = await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .sendMutation(
-          type: GroupListeningMutationType.queueRemove,
-          targetQueueEntryId: entries[index].queueEntryId,
-        );
-    if (mutationId != null && mutationId.isNotEmpty) {
-      ref
-          .read(groupListeningUserIntentProvider.notifier)
-          .record(UserPlaybackIntent.queueRemove);
-    }
-    return mutationId != null && mutationId.isNotEmpty;
-  }
-
-  Future<bool> _sendGroupListeningQueueReplace(
-    Iterable<String> ids, {
-    required int startIndex,
-    required bool autoPlay,
-    List<Song> songs = const <Song>[],
-  }) async {
-    final session = ref.read(groupListeningSessionControllerProvider);
-    if (!_canSyncGroupListeningQueue(session)) {
-      return false;
-    }
-
-    final normalized = _normalizeSongIds(ids);
-    final room = session.room!;
-    final currentIndex = normalized.isEmpty
-        ? null
-        : startIndex.clamp(0, normalized.length - 1);
-    final queue = GroupListeningQueueState(
-      queueVersion: room.queue.queueVersion,
-      currentIndex: currentIndex,
-      entries: _queueEntriesForIds(room, normalized, songs),
-    );
-    final anchor = _playbackAnchorForQueueReplace(
-      session: session,
-      queue: queue,
-      autoPlay: autoPlay,
-    );
-    final mutationId = await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .sendMutation(
-          type: GroupListeningMutationType.queueReplace,
-          queue: queue,
-          playbackAnchor: anchor,
-        );
-    if (mutationId != null && mutationId.isNotEmpty) {
-      ref
-          .read(groupListeningUserIntentProvider.notifier)
-          .record(UserPlaybackIntent.queueReplace);
-      if (autoPlay && normalized.isNotEmpty) {
-        unawaited(
-          _applyOptimisticLocalQueuePlayback(
-            normalized,
-            startIndex: currentIndex ?? 0,
-            songs: songs,
-          ),
-        );
-      }
-    }
-    return mutationId != null && mutationId.isNotEmpty;
-  }
-
-  Future<void> _applyOptimisticLocalQueuePlayback(
-    List<String> ids, {
-    required int startIndex,
-    List<Song> songs = const <Song>[],
-  }) async {
-    try {
-      if (songs.isNotEmpty) {
-        await _ensureSongsInDatabase(songs);
-      }
-      final handler = ref.read(audioHandlerProvider);
-      if (handler == null) {
-        return;
-      }
-      final normalizedStartIndex = startIndex.clamp(0, ids.length - 1);
-      await handler.replaceQueue(
-        ids,
-        startIndex: normalizedStartIndex,
-        autoPlay: true,
-        expandMatchFlows: false,
-      );
-      await _ensurePlayingAfterAutoPlay(
-        autoPlay: true,
-        songId: ids[normalizedStartIndex],
-      );
-    } on Object catch (error) {
-      AppLogger.debug(
-        'Listen Together optimistic queue replace playback failed: $error',
-      );
-    }
-  }
-
   Future<void> _ensurePlayingAfterAutoPlay({
     required bool autoPlay,
     String? songId,
@@ -828,98 +438,6 @@ class QueueController extends Notifier<List<String>> {
     if (!handler.snapshot.playing) {
       await handler.play();
     }
-  }
-
-  List<GroupListeningQueueEntry> _queueEntriesForIds(
-    GroupListeningRoomState room,
-    List<String> ids,
-    List<Song> songs,
-  ) {
-    final existingEntriesBySongId =
-        <String, ListQueue<GroupListeningQueueEntry>>{};
-    for (final entry in room.queue.entries) {
-      existingEntriesBySongId
-          .putIfAbsent(entry.songId, ListQueue<GroupListeningQueueEntry>.new)
-          .add(entry);
-    }
-    final songsById = <String, ListQueue<Song>>{};
-    for (final song in songs) {
-      songsById.putIfAbsent(song.id, ListQueue<Song>.new).add(song);
-    }
-
-    final now = DateTime.now();
-    return ids
-        .map((songId) {
-          final existingEntries = existingEntriesBySongId[songId];
-          if (existingEntries != null && existingEntries.isNotEmpty) {
-            return existingEntries.removeFirst();
-          }
-          final songQueue = songsById[songId];
-          final song = songQueue != null && songQueue.isNotEmpty
-              ? songQueue.removeFirst()
-              : null;
-          return GroupListeningQueueEntry(
-            queueEntryId: _uuid.v4(),
-            songId: songId,
-            addedByMemberId: room.self.memberId,
-            addedAt: now,
-            title: song?.title,
-            artist: song?.artist,
-            artistId: song?.artistId,
-            album: song?.album,
-            albumId: song?.albumId,
-            durationSeconds: song?.duration,
-            track: song?.track,
-            discNumber: song?.discNumber,
-            year: song?.year,
-            coverArt: song?.coverArt,
-            contentType: song?.contentType,
-            suffix: song?.suffix,
-            bitRate: song?.bitRate,
-            sampleRate: song?.sampleRate,
-            size: song?.size,
-            replayGainTrackGain: song?.replayGain?.trackGain,
-            replayGainAlbumGain: song?.replayGain?.albumGain,
-            replayGainTrackPeak: song?.replayGain?.trackPeak,
-            replayGainAlbumPeak: song?.replayGain?.albumPeak,
-          );
-        })
-        .toList(growable: false);
-  }
-
-  GroupListeningPlaybackAnchor? _playbackAnchorForQueueReplace({
-    required GroupListeningSessionState session,
-    required GroupListeningQueueState queue,
-    required bool autoPlay,
-  }) {
-    if (queue.entries.isEmpty) {
-      return null;
-    }
-    final handler = ref.read(audioHandlerProvider);
-    final snapshot = handler?.snapshot;
-    final settings =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
-    final currentEntry = queue.currentEntry;
-    final position = currentEntry?.songId == snapshot?.currentSongId
-        ? snapshot?.position ?? Duration.zero
-        : Duration.zero;
-    return GroupListeningPlaybackAnchor(
-      roomVersion: session.lastAppliedRoomVersion,
-      queueVersion: queue.queueVersion,
-      currentIndex: queue.currentIndex,
-      currentQueueEntryId: currentEntry?.queueEntryId,
-      currentSongId: currentEntry?.songId,
-      playbackState: autoPlay || (snapshot?.playing ?? false)
-          ? GroupListeningPlaybackStatus.playing
-          : GroupListeningPlaybackStatus.paused,
-      position: position,
-      capturedAt: DateTime.now(),
-      playbackRate: settings.playbackSpeed,
-      reason: GroupListeningPlaybackAnchorReason.trackChange,
-      issuedByMemberId: session.room?.self.memberId,
-      issuedByConnectionId: session.connection.clientConnectionId,
-    );
   }
 
   void _emitError(Object error, {String? action}) {
@@ -947,37 +465,6 @@ class QueueController extends Notifier<List<String>> {
         }
       }),
     );
-  }
-
-  Future<void> skipUnresolvableGroupListening({
-    required String queueEntryId,
-  }) async {
-    final session = ref.read(groupListeningSessionControllerProvider);
-    final room = session.room;
-    if (room == null) {
-      return;
-    }
-    final index = room.queue.entries.indexWhere(
-      (entry) => entry.queueEntryId == queueEntryId,
-    );
-    if (index < 0) {
-      return;
-    }
-    final handler = ref.read(audioHandlerProvider);
-    if (handler == null) {
-      return;
-    }
-    final snapshot = handler.snapshot;
-    final currentIndex = snapshot.currentIndex ?? room.queue.currentIndex ?? 0;
-    if (index != currentIndex) {
-      return;
-    }
-    final nextIndex = index + 1;
-    if (nextIndex < state.length) {
-      await handler.playFromIndex(nextIndex);
-      return;
-    }
-    await handler.pause();
   }
 }
 

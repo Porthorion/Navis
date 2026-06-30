@@ -40,14 +40,6 @@ class PrivacyScreen extends StatelessWidget {
                 'cache data from Settings.',
           ),
           _PrivacySection(
-            title: 'Voyage servers',
-            body:
-                'Group listening uses the Voyage server you select or add. Navis '
-                'sends room, device, and playback coordination data needed for '
-                'that shared session. Custom Voyage server entries are stored as '
-                'non-secret app settings.',
-          ),
-          _PrivacySection(
             title: 'Diagnostics',
             body:
                 'Navis avoids logging raw credentials and redacts sensitive '

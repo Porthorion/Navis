@@ -12,7 +12,6 @@ class _ActionRow extends ConsumerStatefulWidget {
     this.onOpenSettingsPanel,
     this.onOpenSettingsSheet,
     this.onOpenMixPanel,
-    this.showListenTogetherButton = true,
   });
 
   final SongsTableData? song;
@@ -25,7 +24,6 @@ class _ActionRow extends ConsumerStatefulWidget {
   final VoidCallback? onOpenSettingsPanel;
   final VoidCallback? onOpenSettingsSheet;
   final VoidCallback? onOpenMixPanel;
-  final bool showListenTogetherButton;
 
   @override
   ConsumerState<_ActionRow> createState() => _ActionRowState();
@@ -69,9 +67,6 @@ class _ActionRowState extends ConsumerState<_ActionRow>
     final instantMix = ref.watch(instantMixProvider);
     final sameVibes = ref.watch(sameVibesProvider);
     final preferredMixMode = ref.watch(preferredMixModeProvider);
-    final showListenTogether = ref.watch(
-      groupListeningSettingsProvider.select((settings) => settings.enabled),
-    );
     final mixActive = preferredMixMode == PreferredMixMode.legacyInstantMix
         ? instantMix.active
         : sameVibes.active;
@@ -114,8 +109,6 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             ? widget.onOpenQueuePanel
             : () => NavService.showQueue(context, ref),
       ),
-      if (showListenTogether && widget.showListenTogetherButton)
-        const GroupListeningSessionButton(),
       _NowPlayingActionButton(
         icon: mixIcon,
         label: preferredMixMode == PreferredMixMode.legacyInstantMix

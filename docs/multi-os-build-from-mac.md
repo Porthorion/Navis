@@ -29,7 +29,6 @@ the repository root, and uploads them to the Forgejo release.
   - `FORGEJO_REPO`
   - `FORGEJO_TOKEN`
   - optional `NAVIS_LASTFM_API_KEY`
-  - optional `NAVIS_VOYAGE_SERVERS`
 - SSH key access to each builder without interactive prompts.
 
 Do not store secrets on the remote builders unless the platform build itself

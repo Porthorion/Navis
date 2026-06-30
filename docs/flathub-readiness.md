@@ -18,7 +18,7 @@ or Arch official repositories.
   packages for Forgejo releases.
 - Navis uses Linux desktop media integration through MPRIS.
 - Navis needs network access for Subsonic/OpenSubsonic, Last.fm, ListenBrainz,
-  LRCLIB, Voyage, artwork, and optional update/release checks on non-Flatpak
+  LRCLIB, artwork, and optional update/release checks on non-Flatpak
   desktop builds.
 
 ## Submission Shape
@@ -147,7 +147,7 @@ Before submission:
 2. Build locally with `flatpak-builder --force-clean`.
 3. Run the Flatpak build locally.
 4. Test login, playback, artwork, downloads/cache, Last.fm auth browser launch,
-   ListenBrainz validation, lyrics, and Voyage connection.
+   ListenBrainz validation, and lyrics.
 5. Test MPRIS/media keys from a desktop shell.
 6. Inspect permissions:
    `flatpak info --show-permissions com.navis.app.navis`

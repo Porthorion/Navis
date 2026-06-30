@@ -285,25 +285,23 @@ class AppSettingsModel {
   /// MusicBrainz username returned by ListenBrainz token validation.
   final String? listenBrainzUserName;
 
-  /// User-managed Voyage servers stored in Drift as non-sensitive JSON.
+  /// Legacy retired Listen Together data retained for schema compatibility.
+  /// Runtime settings always expose this as empty.
   final List<CustomVoyageServer> customVoyageServers;
 
-  /// Whether group listening / Voyage integration is enabled locally.
+  /// Legacy retired Listen Together flag. Runtime settings always expose false.
   final bool groupListeningEnabled;
 
-  /// Voyage base URL. Non-sensitive and safe to persist in Drift.
+  /// Legacy retired Voyage base URL. Runtime settings always expose null.
   final String? voyageServerUrl;
 
-  /// Compatibility-only persisted field. Runtime display name is always the
-  /// active Subsonic username.
+  /// Legacy retired display name. Runtime settings always expose null.
   final String? voyageDisplayName;
 
-  /// Compatibility-only persisted field. Runtime device label is derived from
-  /// the local device name.
+  /// Legacy retired device label. Runtime settings always expose null.
   final String? voyageDeviceLabel;
 
-  /// Compatibility-only persisted field. Runtime room playback is always
-  /// synchronized.
+  /// Legacy retired follow-host setting. Runtime settings expose the default.
   final bool voyageAutoFollowHost;
 
   AppSettingsModel copyWith({
