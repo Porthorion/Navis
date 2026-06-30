@@ -27,6 +27,19 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.7',
+    entries: [
+      ChangelogEntry(
+        'Released a fresh stable version so older 1.0.6 installs detect the Listen Together retirement update correctly',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Retired Listen Together and Voyage settings are cleared during migration, including stored custom Voyage servers',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.6',
     entries: [
       ChangelogEntry(

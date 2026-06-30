@@ -273,6 +273,38 @@ void main() {
     expect(find.text('Get Token'), findsOneWidget);
   });
 
+  testWidgets('does not render retired Listen Together configuration', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _buildTestApp(
+        configNotifier: _TestServerConfigNotifier(initialConfig),
+        connectionService: _FakeServerConnectionService(),
+        signOutService: _FakeSignOutService(),
+        initialSettings: const AppSettingsModel.defaults().copyWith(
+          groupListeningEnabled: true,
+          voyageServerUrl: 'https://voyage.example.com',
+          voyageDisplayName: 'Living Room',
+          voyageDeviceLabel: 'Desktop',
+          customVoyageServers: [
+            CustomVoyageServer(
+              label: 'Custom Voyage',
+              url: 'https://custom-voyage.example.com',
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Listen Together'), findsNothing);
+    expect(find.textContaining('Voyage'), findsNothing);
+    expect(find.text('Custom Voyage'), findsNothing);
+    expect(find.text('https://custom-voyage.example.com'), findsNothing);
+    expect(find.text('Last.fm'), findsOneWidget);
+    expect(find.text('ListenBrainz'), findsOneWidget);
+  });
+
   testWidgets('failed Last.fm API validation shows field error', (
     tester,
   ) async {

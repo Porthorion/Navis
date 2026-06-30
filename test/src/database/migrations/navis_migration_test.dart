@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 52);
-    expect(pragmaRow.read<int>('user_version'), 52);
+    expect(database.schemaVersion, 53);
+    expect(pragmaRow.read<int>('user_version'), 53);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -129,7 +129,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 52);
+      expect(versionRow.read<int>('user_version'), 53);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -222,7 +222,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 52);
+      expect(versionRow.read<int>('user_version'), 53);
 
       final now = DateTime.utc(2026, 1, 1, 1);
       await migrated.scrobbleDao.enqueue(
@@ -305,7 +305,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 52);
+      expect(versionRow.read<int>('user_version'), 53);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -424,7 +424,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 52);
+      expect(versionRow.read<int>('user_version'), 53);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -494,6 +494,59 @@ CREATE TABLE scrobble_queue (
           .get();
       final indexNames = indexes.map((row) => row.read<String>('name')).toSet();
       expect(indexNames, contains('idx_match_flow_unique_master'));
+      final groupListening = await migrated.appSettingsDao
+          .getGroupListeningSettings();
+      expect(groupListening.groupListeningEnabled, isFalse);
+      expect(groupListening.voyageServerUrl, isNull);
+      expect(groupListening.voyageDisplayName, isNull);
+      expect(groupListening.voyageDeviceLabel, isNull);
+      expect(groupListening.voyageAutoFollowHost, isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'migrates v52 schema to v53 clearing retired Listen Together settings',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v53_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase.appSettingsDao.getSettings();
+      await seedDatabase.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute('''
+UPDATE app_settings
+SET group_listening_enabled = 1,
+    voyage_server_url = 'https://voyage.example.com',
+    voyage_display_name = 'Living Room',
+    voyage_device_label = 'Pixel Tablet',
+    voyage_auto_follow_host = 0,
+    custom_voyage_servers = '[{"label":"Custom","url":"https://custom.example.com"}]';
+''');
+        raw.execute('PRAGMA user_version = 52;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final versionRow = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(versionRow.read<int>('user_version'), 53);
+
+      final settings = await migrated.appSettingsDao.getSettings();
+      expect(settings?.customVoyageServers, isNull);
+
       final groupListening = await migrated.appSettingsDao
           .getGroupListeningSettings();
       expect(groupListening.groupListeningEnabled, isFalse);

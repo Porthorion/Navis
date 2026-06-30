@@ -73,11 +73,9 @@ Located in `lib/src/providers/app_providers.dart`:
 
 #### Retired Listen Together Feature (`lib/src/features/group_listening/`)
 
-Listen Together / Voyage is retired for now. The feature directory only keeps
-hidden placeholder widgets so future implementations have stable UI anchors.
-There are no active Voyage HTTP, websocket, session, playback sync, or queue
-sync providers, and routes to the old settings entry redirect away from the
-retired surface.
+Listen Together / Voyage is retired for now. There are no active Listen
+Together UI entry points and no active Voyage HTTP, websocket, session,
+playback sync, or queue coordination paths.
 
 ### Import Guidelines
 

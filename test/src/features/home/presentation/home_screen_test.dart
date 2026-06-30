@@ -540,6 +540,31 @@ void main() {
     await database.close();
   });
 
+  testWidgets('home does not show retired Listen Together entry point', (
+    tester,
+  ) async {
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      appSettings: const AppSettingsModel.defaults().copyWith(
+        groupListeningEnabled: true,
+        voyageServerUrl: 'https://voyage.example.com',
+        voyageDisplayName: 'Living Room',
+        voyageDeviceLabel: 'Desktop',
+        customVoyageServers: [
+          CustomVoyageServer(
+            label: 'Custom Voyage',
+            url: 'https://custom-voyage.example.com',
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('Listen Together'), findsNothing);
+    expect(find.textContaining('Voyage'), findsNothing);
+    expect(find.text('Custom Voyage'), findsNothing);
+  });
+
   testWidgets('home cards avoid RenderFlex overflow on constrained layouts', (
     tester,
   ) async {

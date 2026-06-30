@@ -837,12 +837,12 @@ class _PlaybackSettingsScreenState
         listenBrainzScrobblingEnabled:
             currentSettings.listenBrainzScrobblingEnabled,
         listenBrainzTokenValid: currentSettings.listenBrainzTokenValid,
-        customVoyageServers: currentSettings.customVoyageServers,
-        groupListeningEnabled: currentSettings.groupListeningEnabled,
-        voyageServerUrl: currentSettings.voyageServerUrl,
-        voyageDisplayName: currentSettings.voyageDisplayName,
-        voyageDeviceLabel: currentSettings.voyageDeviceLabel,
-        voyageAutoFollowHost: currentSettings.voyageAutoFollowHost,
+        customVoyageServers: const <CustomVoyageServer>[],
+        groupListeningEnabled: false,
+        voyageServerUrl: null,
+        voyageDisplayName: null,
+        voyageDeviceLabel: null,
+        voyageAutoFollowHost: true,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

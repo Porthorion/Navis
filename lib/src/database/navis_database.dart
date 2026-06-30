@@ -91,7 +91,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 52;
+  int get schemaVersion => 53;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -268,6 +268,9 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 52 && to >= 52) {
       await from51To52(migrator);
     }
+    if (from < 53 && to >= 53) {
+      await from52To53(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -384,6 +387,32 @@ class NavisDatabase extends _$NavisDatabase {
     if (!await _tableExists('listenbrainz_weekly_cache')) {
       await migrator.createTable(listenBrainzWeeklyCacheTable);
     }
+  }
+
+  Future<void> from52To53(Migrator _) async {
+    await _clearRetiredGroupListeningSettings();
+  }
+
+  Future<void> _clearRetiredGroupListeningSettings() async {
+    if (!await _tableExists('app_settings')) {
+      return;
+    }
+    await _ensureGroupListeningColumns();
+    if (!await _columnExists('app_settings', 'custom_voyage_servers')) {
+      await customStatement('''
+        ALTER TABLE app_settings
+        ADD COLUMN custom_voyage_servers TEXT;
+      ''');
+    }
+    await customStatement('''
+      UPDATE app_settings
+      SET group_listening_enabled = 0,
+          voyage_server_url = NULL,
+          voyage_display_name = NULL,
+          voyage_device_label = NULL,
+          voyage_auto_follow_host = 1,
+          custom_voyage_servers = NULL;
+    ''');
   }
 
   Future<void> _rebuildScrobbleQueueForProviders() async {

@@ -68,6 +68,7 @@ Builds selected release artifacts, tags the commit, creates a Forgejo release, a
 ./tool/release.sh v0.2.0 --targets=windows --windows-package=exe
 ./tool/release.sh v0.2.0 --targets=macos --macos-notarize
 ./tool/release.sh v0.2.0 --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
+./tool/release.sh v0.2.0 --allow-existing-version
 ```
 
 Or via Makefile:
@@ -77,18 +78,26 @@ make release VERSION=v0.2.0
 
 ### What it does
 
-1. Runs `./tool/check.sh` unless `--skip-checks` is passed.
-2. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
-2.1 For Linux target, can output either portable `bundle` (tar.gz) or `.deb` (`--linux-package=deb`).
-2.2 Debian package output is architecture-aware (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
-2.3 For Windows target, can output `.zip` (default) or Inno Setup `.exe` installer (`--windows-package=exe`).
-2.4 For macOS target, can optionally sign + notarize + staple before packaging (`--macos-notarize`).
-2.5 On non-Linux/non-Windows hosts, Linux/Windows desktop builds can be delegated to remote SSH builders (`--linux-ssh`, `--windows-ssh`).
-3. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.
-4. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
-5. Creates an annotated git tag and pushes main/current branch/tag.
-6. Creates a Forgejo release with `prerelease=true` for dev channel (or when `--prerelease` is passed).
-7. Uploads all built assets to the release.
+1. Fails if `pubspec.yaml` already has the exact requested `version: <semver>+<build>` value, unless `--allow-existing-version` is passed for an intentional rebuild or retry.
+2. Runs `./tool/check.sh` unless `--skip-checks` is passed.
+3. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
+   Linux target can output either portable `bundle` (tar.gz) or `.deb`
+   (`--linux-package=deb`). Debian package output is architecture-aware
+   (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
+   Windows target can output `.zip` (default) or Inno Setup `.exe` installer
+   (`--windows-package=exe`). macOS target can optionally sign + notarize +
+   staple before packaging (`--macos-notarize`). On non-Linux/non-Windows
+   hosts, Linux/Windows desktop builds can be delegated to remote SSH builders
+   (`--linux-ssh`, `--windows-ssh`).
+4. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.
+5. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
+6. Creates an annotated git tag and pushes main/current branch/tag.
+7. Creates a Forgejo release with `prerelease=true` for dev channel (or when `--prerelease` is passed).
+8. Uploads all built assets to the release.
+
+Use `--allow-existing-version` only when intentionally rebuilding the same
+release version, such as retrying failed artifact publication. Normal releases
+must advance the semver/build so installed apps can detect updates.
 
 ### Release channels
 

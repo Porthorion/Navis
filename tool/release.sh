@@ -21,6 +21,7 @@
 #   --macos-notarize           Sign + notarize macOS app bundle before packaging
 #   --channel=<stable|dev>     Release/update channel (default: stable)
 #   --prerelease               Force prerelease=true on Forgejo release
+#   --allow-existing-version   Allow rebuilding when pubspec already has this version
 #
 # Examples:
 #   ./tool/release.sh v0.3.0
@@ -52,6 +53,7 @@ WINDOWS_REMOTE_DIR=""
 MACOS_NOTARIZE=false
 UPDATE_CHANNEL="stable"
 FORCE_PRERELEASE=false
+ALLOW_EXISTING_VERSION=false
 
 for arg in "$@"; do
   case "${arg}" in
@@ -68,17 +70,18 @@ for arg in "$@"; do
     --macos-notarize) MACOS_NOTARIZE=true ;;
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}" ;;
     --prerelease) FORCE_PRERELEASE=true ;;
+    --allow-existing-version) ALLOW_EXISTING_VERSION=true ;;
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease]"
+      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version]"
       exit 1
       ;;
   esac
 done
 
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease]"
+  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--linux-ssh=<user@host>] [--windows-ssh=<user@host>] [--linux-remote-dir=<path>] [--windows-remote-dir=<path>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease] [--allow-existing-version]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
 fi
@@ -266,6 +269,16 @@ fi
 
 CURRENT_BRANCH="$(git branch --show-current)"
 
+# ─── Existing version guard ─────────────────────────────────────────────────
+PUBSPEC="${SCRIPT_DIR}/../pubspec.yaml"
+REQUESTED_PUBSPEC_VERSION="${SEMVER}+${BUILD_NUMBER}"
+CURRENT_PUBSPEC_VERSION="$(sed -n 's/^version: //p' "${PUBSPEC}" | head -1)"
+if [[ "${CURRENT_PUBSPEC_VERSION}" == "${REQUESTED_PUBSPEC_VERSION}" && "${ALLOW_EXISTING_VERSION}" == "false" ]]; then
+  echo "Error: pubspec.yaml already has version ${REQUESTED_PUBSPEC_VERSION}."
+  echo "Use a new release version, or pass --allow-existing-version for an intentional rebuild/retry."
+  exit 1
+fi
+
 # ─── Checks ─────────────────────────────────────────────────────────────────
 if [[ "${SKIP_CHECKS}" == "false" ]]; then
   echo "==> Running quality checks (./tool/check.sh)..."
@@ -275,7 +288,6 @@ else
 fi
 
 # ─── Version bump ───────────────────────────────────────────────────────────
-PUBSPEC="${SCRIPT_DIR}/../pubspec.yaml"
 echo "==> Bumping pubspec.yaml to ${SEMVER}+${BUILD_NUMBER}..."
 sed -i.bak "s/^version: .*/version: ${SEMVER}+${BUILD_NUMBER}/" "${PUBSPEC}"
 rm -f "${PUBSPEC}.bak"

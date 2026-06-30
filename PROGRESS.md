@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-06-29
+Last updated: 2026-06-30
 
 ---
 
@@ -14,7 +14,8 @@ Last updated: 2026-06-29
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
-- [x] Retired Listen Together / Voyage from the active app surface (removed Navis-side Voyage backend/session/sync code, disabled visible frontend entry points, kept hidden placeholder widgets, removed build-time Voyage config, and updated docs/changelog) — 2026-06-29 (evidence: `lib/src/features/group_listening/`, `lib/src/features/player/presentation/queue_provider.dart`, `lib/src/features/settings/presentation/server_settings_screen.dart`, `lib/src/routing/app_shell.dart`, `tool/release.sh`, `AGENTS.md`, `README.md`)
+- [x] Navis 1.0.7 Listen Together retirement hotfix (version bump to `1.0.7+10007`, schema v53 stale Voyage settings cleanup, retired settings screens removed, release script exact-version guard added, and regression tests/docs updated) — 2026-06-30 (evidence: `pubspec.yaml`, `lib/src/database/navis_database.dart`, `test/src/database/migrations/navis_migration_test.dart`, `tool/release.sh`, `./tool/check.sh`)
+- [x] Retired Listen Together / Voyage from the active app surface (removed Navis-side Voyage backend/session/sync code, disabled visible frontend entry points, removed placeholder widgets, removed build-time Voyage config, and updated docs/changelog) — 2026-06-29 (evidence: `lib/src/features/group_listening/`, `lib/src/features/player/presentation/queue_provider.dart`, `lib/src/features/settings/presentation/server_settings_screen.dart`, `lib/src/routing/app_shell.dart`, `tool/release.sh`, `AGENTS.md`, `README.md`)
 - [x] Low-data library sync optimization (automatic sync stays incremental after initial sync, noisy indexes are fingerprinted/bounded, auxiliary metadata refresh is throttled, and app build changes no longer force full resync) — 2026-06-28 (evidence: `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/features/library/presentation/library_sync_provider.dart`, `test/src/features/library/data/library_sync_engine_test.dart`, `test/src/features/library/presentation/library_sync_provider_test.dart`, `flutter test test/src/features/library/data/library_sync_engine_test.dart test/src/features/library/presentation/library_sync_provider_test.dart`)
 - [x] ACP M0 documentation bootstrap (phase + trackers + baseline evidence capture) — 2026-03-23 (evidence: `DEVELOPMENT_PLAN.md`, `PROGRESS.md`, `docs/multi-os-release-implementation-progress.md`)
 - [x] ACP M1+M2 shell stabilization slice (adaptive context + window-size-first shell + overflow fixes + shortcut guard coverage) — 2026-03-25 (evidence: `lib/src/routing/desktop_layout.dart`, `lib/src/routing/app_shell.dart`, `test/src/routing/desktop_layout_test.dart`, `test/src/routing/desktop_commands_test.dart`, `test/src/routing/app_shell_navigation_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart`)

@@ -55,6 +55,16 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.7', [
+    _Entry(
+      'Released a fresh stable version so older 1.0.6 installs detect the Listen Together retirement update correctly',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Retired Listen Together and Voyage settings are cleared during migration, including stored custom Voyage servers',
+      type: _EntryType.improvement,
+    ),
+  ]),
   _Version('1.0.6', [
     _Entry(
       'Artist Top Tracks now honor Album Queue by queueing the resolved ranked top tracks and starting at the tapped song',

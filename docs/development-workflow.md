@@ -126,6 +126,10 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 
 This runs the full quality gate, builds a release APK, tags the commit, creates a Forgejo release, and uploads the APK. See [ci-cd.md](ci-cd.md) for setup details.
 
+`tool/release.sh` fails when `pubspec.yaml` already contains the exact requested
+release version. Use a new version for normal releases; reserve
+`--allow-existing-version` for intentional rebuilds or failed-release retries.
+
 Advanced release packaging options:
 
 ```bash

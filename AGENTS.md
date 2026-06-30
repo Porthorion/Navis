@@ -92,6 +92,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/release.sh v1.2.3
 ./tool/release.sh v1.2.3 --targets=android,ios,macos
 ./tool/release.sh v1.2.3 --all-platforms
+./tool/release.sh v1.2.3 --allow-existing-version  # intentional rebuild only
 ```
 
 ### `check.sh` pipeline (ordered)
@@ -184,7 +185,7 @@ presentation/ # screens, widgets, *_provider.dart files
 | `search` | `lib/src/features/search/` | Desktop quick-search shortcut |
 | `home` | `lib/src/features/home/` | Adaptive layout breakpoints matter |
 | `settings` | `lib/src/features/settings/` | Scrobble credentials in secure storage |
-| `group_listening` | `lib/src/features/group_listening/` | Retired Listen Together placeholder UI only; no Voyage backend/session code |
+| `group_listening` | `lib/src/features/group_listening/` | Retired Listen Together; no active UI, Voyage backend, or session code |
 | `match_flow` | `lib/src/features/match_flow/` | Collaborative guessing game; `MatchFlowDao` in DB |
 | `auto` | `lib/src/features/auto/` | Android Auto — see `docs/android-auto-testing.md` |
 | `audiomuse` | `lib/src/features/audiomuse/` | AI integration |
@@ -247,8 +248,8 @@ Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-ca
 - Listen Together / Voyage is retired for now. Do not wire Voyage networking,
   session controllers, queue synchronization, settings, or visible player
   entry points back into the app unless explicitly requested.
-- `lib/src/features/group_listening/` is kept only for hidden placeholder UI
-  surfaces that may be useful for a future implementation.
+- There are no active Listen Together UI entry points. Do not add placeholder
+  controls or settings screens unless the feature is explicitly redesigned.
 - Legacy Drift columns for Voyage settings remain for compatibility, but app
   settings map them to disabled/empty values and save them as disabled.
 
@@ -294,7 +295,7 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 52 |
+| **Schema version** | 53 |
 | **Tables** | 23 |
 | **DAOs** | 13 |
 
@@ -436,7 +437,7 @@ Commits reference issues as `fix(#N):` or `(issue #N)`.
 | **Windows** | SMTC via `smtc_windows` |
 | **Android** | `audio_service` media session; Android Auto in `features/auto/` |
 | **iOS** | CarPlay and media-session parity under audit |
-| **Listen Together** | Retired; placeholder UI files remain hidden and no Voyage sibling repo is required |
+| **Listen Together** | Retired; no active UI files remain and no Voyage sibling repo is required |
 
 ---
 
