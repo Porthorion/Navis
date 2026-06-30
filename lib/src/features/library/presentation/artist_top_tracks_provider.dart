@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/features/library/data/lastfm_artist_cache.dart';
-import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -14,26 +14,20 @@ import 'package:navis/src/utils/app_logger.dart';
 // Constants
 // ---------------------------------------------------------------------------
 
-/// Hard maximum tracks fetched from Last.fm (supports the "show 10" view).
-const int kArtistTopTracksMax = 10;
+/// Hard maximum tracks fetched from Last.fm for the full artist playlist.
+const int kArtistTopTracksPlaylistMax = 50;
+
+/// Maximum tracks shown in the artist detail Top Tracks section.
+const int kArtistTopTracksSectionMax = 10;
 
 /// Minimum tracks visible before "Show more".
 const int kArtistTopTracksCollapsed = 5;
 
-/// search3 songs per query — fetch more candidates so studio and live
-/// versions of the same song are both available for comparison.
+/// search3 songs per query; local library matching runs first.
 const int _kSearchSongCount = 10;
-
-/// Minimum combined title+artist score to accept a local Subsonic song
-/// as a match for a Last.fm top track.
-const double _kMinimumMatchScore = 0.55;
 
 /// Maximum parallel search3 requests when resolving tracks.
 const int _kResolutionParallelism = 4;
-
-/// Score penalty applied to candidates that look like live or concert
-/// recordings, to prefer studio album / EP / single versions.
-const double _kLivePenalty = 0.20;
 
 // ---------------------------------------------------------------------------
 // Domain model
@@ -67,22 +61,19 @@ class ResolvedArtistTopTrack {
 // Provider
 // ---------------------------------------------------------------------------
 
-/// Fetches, caches, and resolves the top tracks for [artistName].
+/// Fetches, caches, and resolves the top tracks for an artist name.
 ///
 /// - Guard: returns an empty list immediately when no Last.fm API key is
 ///   configured at build time.
-/// - Cache: raw Last.fm metadata is persisted to disk with a day-boundary
-///   expiry (entries become stale when the calendar date changes in local
-///   time).  The Subsonic resolution is always re-computed in-memory, so
-///   stale song IDs can never accumulate on disk.
-/// - Resolution: for each Last.fm track, a `search3` query is run against
-///   the Subsonic server to find the best-matching local song.  Tracks that
-///   cannot be matched above [_kMinimumMatchScore] are returned with
-///   `resolvedSong == null` and resolved lazily at tap time by the UI.
+/// - Cache: raw Last.fm metadata is persisted to disk with a rolling 24-hour
+///   expiry. The Subsonic resolution is always re-computed in-memory, so stale
+///   song IDs can never accumulate on disk.
+/// - Resolution: Last.fm tracks are matched against the local song snapshot
+///   first. A bounded `search3` pass only runs for unresolved tracks.
 ///
 /// Keyed by the artist's display name as stored in the Subsonic library.
-final artistTopTracksProvider = FutureProvider.autoDispose
-    .family<List<ResolvedArtistTopTrack>, String>(
+final artistTopTracksRawProvider = FutureProvider.autoDispose
+    .family<List<LastFmArtistTopTrack>, String>(
       (ref, artistName) async {
         // Keep resolved data alive for 5 minutes after the last listener
         // drops — prevents the section from re-fetching every time it scrolls
@@ -107,192 +98,218 @@ final artistTopTracksProvider = FutureProvider.autoDispose
         final trimmedArtist = artistName.trim();
         if (trimmedArtist.isEmpty) return const [];
 
-        // 1. Try the day-boundary disk cache first.
-        final cached = await LastFmArtistCache.readCache(trimmedArtist);
-        late final List<LastFmArtistTopTrack> rawTracks;
+        // 1. Try the rolling 24-hour disk cache first.
+        final cached = await LastFmArtistCache.readCache(
+          trimmedArtist,
+          limit: kArtistTopTracksPlaylistMax,
+        );
         if (cached != null && cached.isNotEmpty) {
-          rawTracks = cached;
-        } else {
-          // 2. Fetch from Last.fm.
-          final client = ref.read(lastFmApiClientProvider);
-          if (client == null) return const [];
-          final fetched = await client.getArtistTopTracks(
-            artist: trimmedArtist,
-            limit: kArtistTopTracksMax,
-          );
-          if (fetched.isEmpty) return const [];
-          await LastFmArtistCache.writeCache(trimmedArtist, fetched);
-          rawTracks = fetched;
+          return cached;
         }
 
-        // 3. Resolve each track against the Subsonic server library.
-        final api = ref.read(subsonicApiProvider);
-        if (api == null) {
-          // No active session — return unresolved so the list still renders.
-          return rawTracks
-              .map(
-                (t) => ResolvedArtistTopTrack(
-                  rank: t.rank,
-                  title: t.title,
-                  artist: t.artist,
-                  listeners: t.listeners,
-                ),
-              )
-              .toList(growable: false);
-        }
-
-        final resolved = List<ResolvedArtistTopTrack?>.filled(
-          rawTracks.length,
-          null,
+        // 2. Fetch from Last.fm.
+        final client = ref.read(lastFmApiClientProvider);
+        if (client == null) return const [];
+        final fetched = await client.getArtistTopTracks(
+          artist: trimmedArtist,
+          limit: kArtistTopTracksPlaylistMax,
         );
-
-        // Fan out in bounded batches to avoid saturating the server.
-        for (
-          var batchStart = 0;
-          batchStart < rawTracks.length;
-          batchStart += _kResolutionParallelism
-        ) {
-          final batchEnd = math.min(
-            rawTracks.length,
-            batchStart + _kResolutionParallelism,
-          );
-          final batchFutures =
-              Iterable<int>.generate(
-                batchEnd - batchStart,
-                (i) => batchStart + i,
-              ).map((idx) async {
-                final track = rawTracks[idx];
-                Song? bestSong;
-                try {
-                  final query = '${track.title} ${track.artist}'.trim();
-                  final result = await api.search3(
-                    query: query,
-                    artistCount: 0,
-                    albumCount: 0,
-                    songCount: _kSearchSongCount,
-                  );
-                  bestSong = pickBestArtistTopTrackMatch(
-                    track: track,
-                    candidates: result.songs,
-                  );
-                } on Object catch (e) {
-                  AppLogger.debug(
-                    'artistTopTracksProvider: resolution error for '
-                    '"${track.title}" by "${track.artist}": $e',
-                  );
-                }
-                resolved[idx] = ResolvedArtistTopTrack(
-                  rank: track.rank,
-                  title: track.title,
-                  artist: track.artist,
-                  listeners: track.listeners,
-                  resolvedSong: bestSong,
-                );
-              });
-
-          await Future.wait(batchFutures);
-        }
-
-        final localCount = resolved
-            .whereType<ResolvedArtistTopTrack>()
-            .where((t) => t.isLocallyResolved)
-            .length;
-        AppLogger.debug(
-          'artistTopTracksProvider: resolved $localCount/'
-          '${rawTracks.length} tracks locally for "$trimmedArtist"',
+        if (fetched.isEmpty) return const [];
+        await LastFmArtistCache.writeCache(
+          trimmedArtist,
+          fetched,
+          limit: kArtistTopTracksPlaylistMax,
         );
-        return resolved.whereType<ResolvedArtistTopTrack>().toList(
-          growable: false,
+        return fetched;
+      },
+    );
+
+final artistTopTracksProvider = FutureProvider.autoDispose
+    .family<List<ResolvedArtistTopTrack>, String>(
+      (ref, artistName) async {
+        final resolvedTracks = await ref.watch(
+          _artistTopTracksResolvedAllProvider(artistName).future,
+        );
+        return resolvedTracks
+            .take(kArtistTopTracksSectionMax)
+            .toList(growable: false);
+      },
+    );
+
+final artistTopTracksPlaylistProvider = FutureProvider.autoDispose
+    .family<List<ResolvedArtistTopTrack>, String>(
+      (ref, artistName) async {
+        return ref.watch(
+          _artistTopTracksResolvedAllProvider(artistName).future,
         );
       },
     );
 
+final _artistTopTracksResolvedAllProvider = FutureProvider.autoDispose
+    .family<List<ResolvedArtistTopTrack>, String>(
+      (ref, artistName) async {
+        final rawTracks = await ref.watch(
+          artistTopTracksRawProvider(artistName).future,
+        );
+        return _resolveArtistTopTracks(ref, artistName, rawTracks);
+      },
+    );
+
+Future<List<ResolvedArtistTopTrack>> _resolveArtistTopTracks(
+  Ref ref,
+  String artistName,
+  List<LastFmArtistTopTrack> rawTracks,
+) async {
+  if (rawTracks.isEmpty) return const [];
+
+  final api = ref.read(subsonicApiProvider);
+  final resolved = rawTracks
+      .map(
+        (track) => ResolvedArtistTopTrack(
+          rank: track.rank,
+          title: track.title,
+          artist: track.artist,
+          listeners: track.listeners,
+        ),
+      )
+      .toList(growable: true);
+
+  try {
+    final songs = await ref
+        .read(navisDatabaseProvider)
+        .libraryDao
+        .getAllSongs();
+    final snapshot = await LocalTrackMatchSnapshot.fromSongsAsync(songs);
+    for (var index = 0; index < rawTracks.length; index++) {
+      final track = rawTracks[index];
+      final match = pickBestTrackMatch(
+        track: _artistTopTrackMatchQuery(track),
+        candidates: _rankArtistCandidates(
+          snapshot.candidatesFor(_artistTopTrackMatchQuery(track)),
+        ),
+      );
+      if (match.isMatched) {
+        resolved[index] = _resolvedTrack(track, match.song);
+      }
+    }
+  } on Object catch (e) {
+    AppLogger.debug(
+      'artistTopTracksProvider: local snapshot resolution failed for '
+      '"${artistName.trim()}": $e',
+    );
+  }
+
+  if (api == null) {
+    return List<ResolvedArtistTopTrack>.unmodifiable(resolved);
+  }
+
+  final unresolvedIndexes = <int>[
+    for (var index = 0; index < resolved.length; index++)
+      if (!resolved[index].isLocallyResolved) index,
+  ];
+
+  // Fan out unresolved tracks in bounded batches to avoid saturating the server.
+  for (
+    var batchStart = 0;
+    batchStart < unresolvedIndexes.length;
+    batchStart += _kResolutionParallelism
+  ) {
+    final batchEnd = math.min(
+      unresolvedIndexes.length,
+      batchStart + _kResolutionParallelism,
+    );
+    final batchFutures =
+        Iterable<int>.generate(
+          batchEnd - batchStart,
+          (i) => unresolvedIndexes[batchStart + i],
+        ).map((index) async {
+          final track = rawTracks[index];
+          Song? bestSong;
+          try {
+            final query = '${track.title} ${track.artist}'.trim();
+            final result = await api.search3(
+              query: query,
+              artistCount: 0,
+              albumCount: 0,
+              songCount: _kSearchSongCount,
+            );
+            bestSong = pickBestArtistTopTrackMatch(
+              track: track,
+              candidates: result.songs,
+            );
+          } on Object catch (e) {
+            AppLogger.debug(
+              'artistTopTracksProvider: resolution error for '
+              '"${track.title}" by "${track.artist}": $e',
+            );
+          }
+          if (bestSong != null) {
+            resolved[index] = _resolvedTrack(track, bestSong);
+          }
+        });
+
+    await Future.wait(batchFutures);
+  }
+
+  final localCount = resolved
+      .whereType<ResolvedArtistTopTrack>()
+      .where((t) => t.isLocallyResolved)
+      .length;
+  AppLogger.debug(
+    'artistTopTracksProvider: resolved $localCount/'
+    '${rawTracks.length} tracks locally for "${artistName.trim()}"',
+  );
+  return List<ResolvedArtistTopTrack>.unmodifiable(resolved);
+}
+
 // ---------------------------------------------------------------------------
-// Matching helpers (package-private — also used by the widget for live
-// fallback resolution at tap time).
+// Matching helpers (also used by widgets for live fallback resolution).
 // ---------------------------------------------------------------------------
 
-/// Returns the best-matching [Song] from [candidates] for [track], or `null`
-/// when no candidate exceeds [_kMinimumMatchScore].
-///
-/// Scoring priority: Albums / EPs / Singles > anything else > live recordings.
-/// Two candidates with the same title/artist score are ranked by release type
-/// via a penalty applied to live/concert/unplugged versions.
+ResolvedArtistTopTrack _resolvedTrack(
+  LastFmArtistTopTrack track,
+  Song? song,
+) {
+  return ResolvedArtistTopTrack(
+    rank: track.rank,
+    title: track.title,
+    artist: track.artist,
+    listeners: track.listeners,
+    resolvedSong: song,
+  );
+}
+
+TrackMatchQuery _artistTopTrackMatchQuery(LastFmArtistTopTrack track) {
+  return TrackMatchQuery(
+    title: track.title,
+    artist: track.artist,
+  );
+}
+
 Song? pickBestArtistTopTrackMatch({
   required LastFmArtistTopTrack track,
   required List<Song> candidates,
 }) {
-  if (candidates.isEmpty) return null;
-
-  final expectedTitle = normalizeMetadata(track.title);
-  final expectedArtist = normalizeMetadata(track.artist);
-  if (expectedTitle.isEmpty || expectedArtist.isEmpty) return null;
-
-  Song? best;
-  var bestScore = 0.0;
-
-  for (final candidate in candidates) {
-    final candidateTitle = normalizeMetadata(candidate.title);
-    final candidateArtist = normalizeMetadata(candidate.artist ?? '');
-    if (candidateTitle.isEmpty || candidateArtist.isEmpty) continue;
-
-    final titleScore = _fieldScore(
-      expected: expectedTitle,
-      actual: candidateTitle,
-      exactWeight: 0.58,
-      partialWeight: 0.42,
-      tokenWeight: 0.42,
-    );
-    final artistScore = _fieldScore(
-      expected: expectedArtist,
-      actual: candidateArtist,
-      exactWeight: 0.42,
-      partialWeight: 0.30,
-      tokenWeight: 0.30,
-    );
-
-    // Require at least some artist name overlap.  A perfect title match with
-    // zero artist overlap (e.g. "Heart Attack" by Demi Lovato when searching
-    // for a Pokelawls track of the same name) must be rejected — the combined
-    // score (0.58 + 0 = 0.58) would otherwise exceed _kMinimumMatchScore.
-    if (artistScore == 0.0) continue;
-
-    var score = math.max(0.0, math.min(1.0, titleScore + artistScore));
-
-    // Penalise live / concert / unplugged recordings so that studio album
-    // versions (Albums, EPs, Singles) are selected when available.
-    if (_isLiveVersion(candidate)) score = math.max(0.0, score - _kLivePenalty);
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = candidate;
-    }
-  }
-
-  if (best == null || bestScore < _kMinimumMatchScore) return null;
-  return best;
+  final match = pickBestTrackMatch(
+    track: _artistTopTrackMatchQuery(track),
+    candidates: _rankArtistCandidates(
+      candidates.map(TrackMatchCandidate.fromSong).toList(growable: false),
+    ),
+  );
+  return match.song;
 }
 
-double _fieldScore({
-  required String expected,
-  required String actual,
-  required double exactWeight,
-  required double partialWeight,
-  required double tokenWeight,
-}) {
-  if (expected == actual) return exactWeight;
-  if (expected.contains(actual) || actual.contains(expected)) {
-    return partialWeight;
-  }
-  return _tokenOverlap(expected, actual) * tokenWeight;
-}
-
-double _tokenOverlap(String a, String b) {
-  final aTokens = a.split(' ').where((t) => t.isNotEmpty).toSet();
-  final bTokens = b.split(' ').where((t) => t.isNotEmpty).toSet();
-  if (aTokens.isEmpty || bTokens.isEmpty) return 0;
-  final overlap = aTokens.intersection(bTokens).length;
-  return overlap / math.max(aTokens.length, bTokens.length);
+List<TrackMatchCandidate> _rankArtistCandidates(
+  List<TrackMatchCandidate> candidates,
+) {
+  final ranked = candidates.toList(growable: false);
+  ranked.sort((a, b) {
+    final aLive = _isLiveVersion(a.song);
+    final bLive = _isLiveVersion(b.song);
+    if (aLive == bLive) return 0;
+    return aLive ? 1 : -1;
+  });
+  return ranked;
 }
 
 /// Returns true when [song] appears to be a live recording or special

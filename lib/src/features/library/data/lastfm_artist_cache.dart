@@ -7,30 +7,46 @@ import 'package:path_provider/path_provider.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
-/// Disk-backed, day-boundary cache for Last.fm artist top-track metadata.
+/// Disk-backed, rolling 24-hour cache for Last.fm artist top-track metadata.
 ///
 /// Cache files are stored in the application support directory under the name
 /// `lastfm_top_<hash>.json` where `<hash>` is a truncated SHA-256 of the
 /// normalised artist name.  A cache entry is valid only for the current
-/// calendar day (year/month/day in local time) **and** must match the
-/// requested artist name.  Either condition failing causes a cache miss so a
-/// fresh API call is made.
+/// 24 hours of the fetch timestamp **and** must match the requested artist
+/// name.  Either condition failing causes a cache miss so a fresh API call is
+/// made.
 class LastFmArtistCache {
+  static const Duration freshnessWindow = Duration(hours: 24);
+
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
 
-  /// Returns the cached tracks for [artist] if the entry is still valid for
-  /// today and belongs to the same artist, or `null` when the entry is
-  /// absent / stale / mismatched.
-  static Future<List<LastFmArtistTopTrack>?> readCache(String artist) async {
+  /// Returns the cached tracks for [artist] if the entry is younger than
+  /// [freshnessWindow], belongs to the same artist, and was fetched with [limit], or
+  /// `null` when the entry is absent / stale / mismatched.
+  static Future<List<LastFmArtistTopTrack>?> readCache(
+    String artist, {
+    int limit = 10,
+  }) async {
     try {
       final file = await _cacheFile(artist);
       if (!file.existsSync()) return null;
 
       final raw = file.readAsStringSync();
       final json = jsonDecode(raw) as Map<String, dynamic>;
-      if (json['date'] != _todayString()) {
+      final fetchedAt = DateTime.tryParse(json['fetchedAt'] as String? ?? '');
+      if (fetchedAt == null ||
+          DateTime.now().difference(fetchedAt) >= freshnessWindow) {
+        return null;
+      }
+
+      final cachedLimit = (json['limit'] as num?)?.toInt();
+      if (cachedLimit != limit) {
+        AppLogger.debug(
+          'LastFmArtistCache: limit mismatch — '
+          'requested=$limit cached=$cachedLimit — discarding',
+        );
         return null;
       }
 
@@ -71,20 +87,22 @@ class LastFmArtistCache {
     }
   }
 
-  /// Writes [tracks] to disk for [artist] tagged with today's date.
+  /// Writes [tracks] to disk for [artist] tagged with the current timestamp.
   ///
   /// Failures are silently swallowed — a missing cache file just triggers a
   /// fresh API call on the next load.
   static Future<void> writeCache(
     String artist,
-    List<LastFmArtistTopTrack> tracks,
-  ) async {
+    List<LastFmArtistTopTrack> tracks, {
+    int limit = 10,
+  }) async {
     if (tracks.isEmpty) return;
     try {
       final file = await _cacheFile(artist);
       final json = <String, dynamic>{
-        'date': _todayString(),
+        'fetchedAt': DateTime.now().toIso8601String(),
         'artist': artist.trim(),
+        'limit': limit,
         'tracks': tracks
             .map(
               (t) => <String, dynamic>{
@@ -131,13 +149,5 @@ class LastFmArtistCache {
   /// artist-name comparison.
   static String _normalizeArtist(String artist) {
     return artist.toLowerCase().trim();
-  }
-
-  /// Returns today's date as `"yyyy-MM-dd"` in local time.
-  static String _todayString() {
-    final now = DateTime.now();
-    final month = now.month.toString().padLeft(2, '0');
-    final day = now.day.toString().padLeft(2, '0');
-    return '${now.year}-$month-$day';
   }
 }

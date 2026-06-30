@@ -8,6 +8,7 @@ import 'package:navis/src/features/downloads/presentation/downloads_screen.dart'
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_screen.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_song_search_screen.dart';
@@ -117,6 +118,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         artistId: state.pathParameters['id']!,
                       ),
                     ),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'top-tracks',
+                        pageBuilder: (context, state) => _slideFadePage(
+                          key: state.pageKey,
+                          child: ArtistTopTracksPlaylistDetailScreen(
+                            artistId: state.pathParameters['id']!,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'albums/:id',

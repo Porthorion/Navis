@@ -244,10 +244,11 @@ class _TrackList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visibleCount =
-        (expanded ? kArtistTopTracksMax : kArtistTopTracksCollapsed).clamp(
-          0,
-          tracks.length,
-        );
+        (expanded ? kArtistTopTracksSectionMax : kArtistTopTracksCollapsed)
+            .clamp(
+              0,
+              tracks.length,
+            );
     final visible = tracks.take(visibleCount).toList(growable: false);
     final canExpand = tracks.length > kArtistTopTracksCollapsed;
 

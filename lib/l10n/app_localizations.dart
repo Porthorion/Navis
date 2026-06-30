@@ -1899,6 +1899,42 @@ abstract class AppLocalizations {
   /// **'Could not play track. Try again.'**
   String get artistTopTracksPlayError;
 
+  /// No description provided for @artistTopTracksPlaylistTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This is {artist}'**
+  String artistTopTracksPlaylistTitle(String artist);
+
+  /// No description provided for @artistTopTracksPlaylistUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available in your library'**
+  String get artistTopTracksPlaylistUnavailable;
+
+  /// No description provided for @artistTopTracksPlaylistSearchAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get artistTopTracksPlaylistSearchAction;
+
+  /// No description provided for @artistTopTracksPlaylistEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No top tracks'**
+  String get artistTopTracksPlaylistEmptyTitle;
+
+  /// No description provided for @artistTopTracksPlaylistEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm did not return tracks for this artist.'**
+  String get artistTopTracksPlaylistEmptySubtitle;
+
+  /// No description provided for @artistTopTracksPlaylistErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load top tracks'**
+  String get artistTopTracksPlaylistErrorTitle;
+
   /// No description provided for @albumDetailTitle.
   ///
   /// In en, this message translates to:

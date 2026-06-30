@@ -14,13 +14,13 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/app_logger.dart';
-import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
 enum HomeRandomShowcaseSource { likedDiscovery, serverRandom, localFallback }
@@ -159,7 +159,6 @@ const int _listenBrainzDiscoverPlaylistDetailParallelism = 2;
 const int _listenBrainzDiscoverSearchParallelism = 6;
 const int _listenBrainzDiscoverAutomaticSearchParallelism = 2;
 const int _listenBrainzDiscoverSearchEmitBatchSize = 6;
-const int _listenBrainzDiscoverLocalSnapshotYieldChunkSize = 1500;
 const int _listenBrainzDiscoverLocalMatchYieldBatchSize = 4;
 const Duration _listenBrainzDiscoverDefaultStartupIdleDelay = Duration(
   minutes: 2,
@@ -167,9 +166,6 @@ const Duration _listenBrainzDiscoverDefaultStartupIdleDelay = Duration(
 const Duration _listenBrainzDiscoverStartupIdlePollInterval = Duration(
   milliseconds: 50,
 );
-const double _listenBrainzDiscoverMinimumScore = 0.75;
-const double _listenBrainzDiscoverMinimumFieldScore = 0.75;
-const double _listenBrainzDiscoverAmbiguousDelta = 0.03;
 const List<String> _listenBrainzShowcaseSourcePatches = <String>[
   'weekly-exploration',
   'weekly-jams',
@@ -1137,7 +1133,9 @@ _resolveListenBrainzTracksFromLocalSnapshot({
     }
     final localMatch = _pickListenBrainzTrackMatch(
       recommendation.track,
-      localCandidates.candidatesFor(recommendation.track),
+      localCandidates.candidatesFor(
+        _listenBrainzTrackMatchQuery(recommendation.track),
+      ),
     );
     if (localMatch.isPlayable) {
       _listenBrainzDiscoverMatchCache[cacheKey] = localMatch;
@@ -1349,179 +1347,39 @@ ListenBrainzResolvedRecommendation _pickListenBrainzTrackMatch(
   ListenBrainzPlaylistTrack track,
   List<_ListenBrainzSongCandidate> candidates,
 ) {
-  final expectedTitle = normalizeMetadata(track.title);
-  final expectedArtist = normalizeMetadata(track.creator ?? '');
-  if (expectedTitle.isEmpty || expectedArtist.isEmpty || candidates.isEmpty) {
-    return ListenBrainzResolvedRecommendation(
-      track: track,
-      status: ListenBrainzRecommendationMatchStatus.unmatched,
-    );
-  }
-
-  final expectedRecordingMbid = track.recordingMbid?.trim().toLowerCase();
-  var candidatesToScore = candidates;
-  if (expectedRecordingMbid != null && expectedRecordingMbid.isNotEmpty) {
-    final mbidMatches = candidates
-        .where(
-          (candidate) =>
-              candidate.recordingMbid?.trim().toLowerCase() ==
-              expectedRecordingMbid,
-        )
-        .toList(growable: false);
-    if (mbidMatches.length == 1) {
-      return ListenBrainzResolvedRecommendation(
-        track: track,
-        status: ListenBrainzRecommendationMatchStatus.matched,
-        song: mbidMatches.single.song,
-        tableSong: mbidMatches.single.tableSong,
-      );
-    }
-    if (mbidMatches.length > 1) {
-      candidatesToScore = mbidMatches;
-    }
-  }
-
-  final scored = <({Song song, double score, double albumScore})>[];
-  final tableSongsById = <String, SongsTableData>{};
-  final expectedAlbum = normalizeMetadata(track.album ?? '');
-  for (final candidate in candidatesToScore) {
-    final candidateTitle = candidate.normalizedTitle;
-    final candidateArtist = candidate.normalizedArtist;
-    if (candidateTitle.isEmpty || candidateArtist.isEmpty) {
-      continue;
-    }
-    final titleScore = _listenBrainzFieldScore(expectedTitle, candidateTitle);
-    final artistScore = _listenBrainzFieldScore(
-      expectedArtist,
-      candidateArtist,
-    );
-    if (titleScore < _listenBrainzDiscoverMinimumFieldScore ||
-        artistScore < _listenBrainzDiscoverMinimumFieldScore) {
-      continue;
-    }
-    var score = (titleScore * 0.58) + (artistScore * 0.32);
-    var albumScore = 0.0;
-    final candidateAlbum = candidate.normalizedAlbum;
-    if (expectedAlbum.isNotEmpty && candidateAlbum.isNotEmpty) {
-      albumScore = _listenBrainzFieldScore(expectedAlbum, candidateAlbum);
-      score += albumScore * 0.06;
-    }
-    final expectedDuration = track.durationSeconds;
-    final candidateDuration = candidate.song.duration;
-    if (expectedDuration != null && candidateDuration != null) {
-      final diff = (expectedDuration - candidateDuration).abs();
-      if (diff <= 3) {
-        score += 0.04;
-      } else if (diff > 15) {
-        score -= 0.08;
-      }
-    }
-    scored.add((
-      song: candidate.song,
-      score: score.clamp(0.0, 1.0),
-      albumScore: albumScore,
-    ));
-    final tableSong = candidate.tableSong;
-    if (tableSong != null) {
-      tableSongsById[candidate.song.id] = tableSong;
-    }
-  }
-
-  scored.sort((a, b) => b.score.compareTo(a.score));
+  final query = _listenBrainzTrackMatchQuery(track);
+  final match = pickBestTrackMatch(track: query, candidates: candidates);
   AppLogger.debug(
     'ListenBrainz discover match scoring: title="${track.title}" '
     'artist="${track.creator ?? ''}" candidates=${candidates.length} '
-    'scored=${scored.length} bestScore='
-    '${scored.isEmpty ? 'none' : scored.first.score.toStringAsFixed(3)}.',
+    'status=${match.status.name}.',
   );
-  if (scored.isEmpty ||
-      scored.first.score < _listenBrainzDiscoverMinimumScore) {
-    return ListenBrainzResolvedRecommendation(
+  return switch (match.status) {
+    TrackMatchStatus.matched => ListenBrainzResolvedRecommendation(
       track: track,
-      status: ListenBrainzRecommendationMatchStatus.unmatched,
-    );
-  }
-  if (scored.length > 1 &&
-      scored.first.score - scored[1].score <
-          _listenBrainzDiscoverAmbiguousDelta &&
-      (scored.first.albumScore - scored[1].albumScore).abs() <
-          _listenBrainzDiscoverAmbiguousDelta &&
-      scored.first.song.id != scored[1].song.id) {
-    if (_listenBrainzCanChooseEquivalentTopMatch(
-      track: track,
-      first: scored.first.song,
-      second: scored[1].song,
-    )) {
-      return ListenBrainzResolvedRecommendation(
-        track: track,
-        status: ListenBrainzRecommendationMatchStatus.matched,
-        song: scored.first.song,
-        tableSong: tableSongsById[scored.first.song.id],
-      );
-    }
-    return ListenBrainzResolvedRecommendation(
+      status: ListenBrainzRecommendationMatchStatus.matched,
+      song: match.song,
+      tableSong: match.tableSong,
+    ),
+    TrackMatchStatus.ambiguous => ListenBrainzResolvedRecommendation(
       track: track,
       status: ListenBrainzRecommendationMatchStatus.ambiguous,
-    );
-  }
-  return ListenBrainzResolvedRecommendation(
-    track: track,
-    status: ListenBrainzRecommendationMatchStatus.matched,
-    song: scored.first.song,
-    tableSong: tableSongsById[scored.first.song.id],
-  );
+    ),
+    TrackMatchStatus.unmatched => ListenBrainzResolvedRecommendation(
+      track: track,
+      status: ListenBrainzRecommendationMatchStatus.unmatched,
+    ),
+  };
 }
 
-bool _listenBrainzCanChooseEquivalentTopMatch({
-  required ListenBrainzPlaylistTrack track,
-  required Song first,
-  required Song second,
-}) {
-  final expectedTitle = normalizeMetadata(track.title);
-  final expectedArtist = normalizeMetadata(track.creator ?? '');
-  if (expectedTitle.isEmpty || expectedArtist.isEmpty) {
-    return false;
-  }
-
-  final firstTitle = normalizeMetadata(first.title);
-  final secondTitle = normalizeMetadata(second.title);
-  final firstArtist = normalizeMetadata(first.artist ?? '');
-  final secondArtist = normalizeMetadata(second.artist ?? '');
-  if (firstTitle != expectedTitle ||
-      secondTitle != expectedTitle ||
-      firstArtist != expectedArtist ||
-      secondArtist != expectedArtist) {
-    return false;
-  }
-
-  final expectedAlbum = normalizeMetadata(track.album ?? '');
-  if (expectedAlbum.isNotEmpty) {
-    final firstAlbum = normalizeMetadata(first.album ?? '');
-    final secondAlbum = normalizeMetadata(second.album ?? '');
-    if (firstAlbum == expectedAlbum && secondAlbum != expectedAlbum) {
-      return true;
-    }
-    if (secondAlbum == expectedAlbum && firstAlbum != expectedAlbum) {
-      return false;
-    }
-  }
-
-  final expectedDuration = track.durationSeconds;
-  if (expectedDuration != null) {
-    final firstDuration = first.duration;
-    final secondDuration = second.duration;
-    final firstDiff = firstDuration == null
-        ? 1 << 20
-        : (firstDuration - expectedDuration).abs();
-    final secondDiff = secondDuration == null
-        ? 1 << 20
-        : (secondDuration - expectedDuration).abs();
-    if ((firstDiff - secondDiff).abs() > 3) {
-      return firstDiff < secondDiff;
-    }
-  }
-
-  return true;
+TrackMatchQuery _listenBrainzTrackMatchQuery(ListenBrainzPlaylistTrack track) {
+  return TrackMatchQuery(
+    title: track.title,
+    artist: track.creator ?? '',
+    album: track.album,
+    durationSeconds: track.durationSeconds,
+    recordingMbid: track.recordingMbid,
+  );
 }
 
 Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
@@ -1666,157 +1524,11 @@ SongsTableCompanion _listenBrainzSongCompanion(Song song) {
   );
 }
 
-typedef _ListenBrainzSongCandidate = ({
-  Song song,
-  String? recordingMbid,
-  SongsTableData? tableSong,
-  String normalizedTitle,
-  String normalizedArtist,
-  String normalizedAlbum,
-});
-
-class _ListenBrainzLocalCandidateSnapshot {
-  _ListenBrainzLocalCandidateSnapshot._({
-    required this.all,
-    required this.byNormalizedTitle,
-  });
-
-  static Future<_ListenBrainzLocalCandidateSnapshot> fromSongsAsync(
-    List<SongsTableData> songs,
-  ) async {
-    final all = <_ListenBrainzSongCandidate>[];
-    for (var index = 0; index < songs.length; index++) {
-      all.add(_listenBrainzLocalCandidate(songs[index]));
-      if ((index + 1) % _listenBrainzDiscoverLocalSnapshotYieldChunkSize == 0) {
-        await Future<void>.delayed(Duration.zero);
-      }
-    }
-    final byTitle = <String, List<_ListenBrainzSongCandidate>>{};
-    for (var index = 0; index < all.length; index++) {
-      final candidate = all[index];
-      final title = candidate.normalizedTitle;
-      if (title.isEmpty) {
-        continue;
-      }
-      byTitle
-          .putIfAbsent(title, () => <_ListenBrainzSongCandidate>[])
-          .add(
-            candidate,
-          );
-      if ((index + 1) % _listenBrainzDiscoverLocalSnapshotYieldChunkSize == 0) {
-        await Future<void>.delayed(Duration.zero);
-      }
-    }
-    return _ListenBrainzLocalCandidateSnapshot._(
-      all: List<_ListenBrainzSongCandidate>.unmodifiable(all),
-      byNormalizedTitle: {
-        for (final entry in byTitle.entries)
-          entry.key: List<_ListenBrainzSongCandidate>.unmodifiable(
-            entry.value,
-          ),
-      },
-    );
-  }
-
-  final List<_ListenBrainzSongCandidate> all;
-  final Map<String, List<_ListenBrainzSongCandidate>> byNormalizedTitle;
-
-  List<_ListenBrainzSongCandidate> candidatesFor(
-    ListenBrainzPlaylistTrack track,
-  ) {
-    final title = normalizeMetadata(track.title);
-    final exactTitleCandidates = byNormalizedTitle[title];
-    if (exactTitleCandidates != null && exactTitleCandidates.isNotEmpty) {
-      return exactTitleCandidates;
-    }
-
-    final expectedArtist = normalizeMetadata(track.creator ?? '');
-    if (expectedArtist.isEmpty) {
-      return const <_ListenBrainzSongCandidate>[];
-    }
-
-    final expectedArtistTokens = expectedArtist
-        .split(' ')
-        .where((t) => t.length > 1)
-        .toSet();
-    if (expectedArtistTokens.isEmpty) {
-      return const <_ListenBrainzSongCandidate>[];
-    }
-
-    return all
-        .where((candidate) {
-          final candidateArtist = candidate.normalizedArtist;
-          if (candidateArtist.isEmpty) return false;
-          if (candidateArtist == expectedArtist) return true;
-          if (candidateArtist.contains(expectedArtist) ||
-              expectedArtist.contains(candidateArtist)) {
-            return true;
-          }
-          final candidateArtistTokens = candidateArtist
-              .split(' ')
-              .where((t) => t.length > 1)
-              .toSet();
-          return expectedArtistTokens
-              .intersection(candidateArtistTokens)
-              .isNotEmpty;
-        })
-        .toList(growable: false);
-  }
-}
-
-_ListenBrainzSongCandidate _listenBrainzLocalCandidate(SongsTableData song) {
-  final songObj = Song(
-    id: song.id,
-    title: song.title,
-    album: song.albumName,
-    albumId: song.albumId,
-    artist: song.artistName,
-    artistId: song.artistId,
-    track: song.track,
-    discNumber: song.discNumber,
-    duration: song.duration,
-    bitRate: song.bitRate,
-    sampleRate: song.sampleRate,
-    contentType: song.contentType,
-    suffix: song.suffix,
-    size: song.size,
-    coverArt: song.coverArt,
-    starred: song.starred,
-    userRating: song.userRating,
-    playCount: song.playCount,
-    created: song.createdAt,
-    replayGain:
-        song.replayGainTrackGain == null &&
-            song.replayGainAlbumGain == null &&
-            song.replayGainTrackPeak == null &&
-            song.replayGainAlbumPeak == null
-        ? null
-        : ReplayGain(
-            trackGain: song.replayGainTrackGain,
-            albumGain: song.replayGainAlbumGain,
-            trackPeak: song.replayGainTrackPeak,
-            albumPeak: song.replayGainAlbumPeak,
-          ),
-  );
-  return (
-    song: songObj,
-    recordingMbid: song.recordingMbid,
-    tableSong: song,
-    normalizedTitle: normalizeMetadata(song.title),
-    normalizedArtist: normalizeMetadata(song.artistName ?? ''),
-    normalizedAlbum: normalizeMetadata(song.albumName ?? ''),
-  );
-}
+typedef _ListenBrainzSongCandidate = TrackMatchCandidate;
+typedef _ListenBrainzLocalCandidateSnapshot = LocalTrackMatchSnapshot;
 
 _ListenBrainzSongCandidate _listenBrainzRemoteCandidate(Song song) {
-  return (
-    song: song,
-    recordingMbid: null,
-    tableSong: null,
-    normalizedTitle: normalizeMetadata(song.title),
-    normalizedArtist: normalizeMetadata(song.artist ?? ''),
-    normalizedAlbum: normalizeMetadata(song.album ?? ''),
-  );
+  return TrackMatchCandidate.fromSong(song);
 }
 
 String _listenBrainzMatchCacheKey(

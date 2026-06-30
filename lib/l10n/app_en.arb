@@ -471,6 +471,19 @@
   },
   "artistTopTracksNotAvailable": "Track not available in your library.",
   "artistTopTracksPlayError": "Could not play track. Try again.",
+  "artistTopTracksPlaylistTitle": "This is {artist}",
+  "@artistTopTracksPlaylistTitle": {
+    "placeholders": {
+      "artist": {
+        "type": "String"
+      }
+    }
+  },
+  "artistTopTracksPlaylistUnavailable": "Not available in your library",
+  "artistTopTracksPlaylistSearchAction": "Search",
+  "artistTopTracksPlaylistEmptyTitle": "No top tracks",
+  "artistTopTracksPlaylistEmptySubtitle": "Last.fm did not return tracks for this artist.",
+  "artistTopTracksPlaylistErrorTitle": "Failed to load top tracks",
   "albumDetailTitle": "Album",
   "albumDetailNotFoundTitle": "Album not found",
   "albumDetailNotFoundSubtitle": "This album is not available in local data.",

@@ -16,7 +16,9 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
+import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -196,6 +198,14 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
               // ── Top Tracks (Last.fm, gated by build-time API key) ────────
               if (ref.watch(hasLastFmApiKeyProvider))
                 ArtistTopTracksSection(artistName: artistData.name),
+              if (ref.watch(hasLastFmApiKeyProvider))
+                _ArtistTopTracksPlaylistCard(
+                  artistId: artistData.id,
+                  artistName: artistData.name,
+                  imageUrl:
+                      artistInfo.asData?.value?.largeImageUrl ??
+                      artistInfo.asData?.value?.mediumImageUrl,
+                ),
               // ── Play / Shuffle buttons ────────────────────────────────
               if ((songs.asData?.value ?? const []).isNotEmpty)
                 Padding(
@@ -564,6 +574,79 @@ class _ArtistInfoSection extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ArtistTopTracksPlaylistCard extends ConsumerWidget {
+  const _ArtistTopTracksPlaylistCard({
+    required this.artistId,
+    required this.artistName,
+    required this.imageUrl,
+  });
+
+  final String artistId;
+  final String artistName;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tracks = ref.watch(artistTopTracksPlaylistProvider(artistName));
+    return tracks.when(
+      skipLoadingOnReload: true,
+      data: (playlistTracks) {
+        if (playlistTracks.isEmpty) return const SizedBox.shrink();
+        final coverArtIds = playlistTracks
+            .map((track) => track.resolvedSong?.coverArt)
+            .nonNulls
+            .toList(growable: false);
+        final l10n = AppLocalizations.of(context)!;
+        final colorScheme = Theme.of(context).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+          child: Material(
+            color: colorScheme.secondaryContainer.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => NavService.openArtistTopTracksPlaylist(
+                context,
+                ref,
+                artistId,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: <Widget>[
+                    ArtistVirtualPlaylistArtwork(
+                      coverArtIds: coverArtIds,
+                      imageUrl: imageUrl,
+                      size: 64,
+                      borderRadius: 6,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        l10n.artistTopTracksPlaylistTitle(artistName),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: colorScheme.onSecondaryContainer,
+                            ),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }

@@ -48,6 +48,16 @@ abstract final class NavService {
     unawaited(context.push<void>('/library/artists/$artistId'));
   }
 
+  /// Open an artist's virtual top-tracks playlist from the current context.
+  static void openArtistTopTracksPlaylist(
+    BuildContext context,
+    WidgetRef ref,
+    String artistId,
+  ) {
+    _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
+    unawaited(context.push<void>('/library/artists/$artistId/top-tracks'));
+  }
+
   /// Open a playlist detail from the current context, preserving back.
   static void openPlaylistDetail(
     BuildContext context,

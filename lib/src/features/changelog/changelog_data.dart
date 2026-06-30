@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.9',
+    entries: [
+      ChangelogEntry(
+        'Artist pages now include a virtual "This is" playlist powered by up to 50 Last.fm top tracks, with unmatched tracks kept visible for search',
+        type: ChangelogEntryType.newFeature,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.8',
     entries: [
       ChangelogEntry(

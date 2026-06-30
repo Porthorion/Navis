@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.9', [
+    _Entry(
+      'Artist pages now include a virtual "This is" playlist powered by up to 50 Last.fm top tracks, with unmatched tracks kept visible for search',
+      type: _EntryType.newFeature,
+    ),
+  ]),
   _Version('1.0.8', [
     _Entry(
       'Android stable releases now clean stale build outputs and verify APK contents before publishing so self-updates install the current app code',

@@ -103,28 +103,72 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // Stale date rejection
+  // Stale timestamp rejection
   // ---------------------------------------------------------------------------
 
-  test('readCache rejects entry when date is stale', () async {
+  test(
+    'readCache rejects entry when fetchedAt is older than 24 hours',
+    () async {
+      await LastFmArtistCache.writeCache('Queen', [
+        const LastFmArtistTopTrack(
+          rank: 1,
+          title: 'Bohemian Rhapsody',
+          artist: 'Queen',
+          listeners: 2000000,
+        ),
+      ]);
+
+      final files = tempDir.listSync().whereType<File>();
+      final cacheFile = files.first;
+      final json =
+          jsonDecode(cacheFile.readAsStringSync()) as Map<String, dynamic>;
+      json['fetchedAt'] = DateTime.now()
+          .subtract(const Duration(hours: 24, minutes: 1))
+          .toIso8601String();
+      cacheFile.writeAsStringSync(jsonEncode(json));
+
+      final result = await LastFmArtistCache.readCache('Queen');
+      expect(result, isNull);
+    },
+  );
+
+  test('readCache accepts entry within rolling 24-hour freshness', () async {
     await LastFmArtistCache.writeCache('Queen', [
       const LastFmArtistTopTrack(
         rank: 1,
         title: 'Bohemian Rhapsody',
         artist: 'Queen',
-        listeners: 2000000,
       ),
     ]);
 
-    // Tamper the date to yesterday.
     final files = tempDir.listSync().whereType<File>();
     final cacheFile = files.first;
     final json =
         jsonDecode(cacheFile.readAsStringSync()) as Map<String, dynamic>;
-    json['date'] = '1999-01-01';
+    json['fetchedAt'] = DateTime.now()
+        .subtract(const Duration(hours: 23, minutes: 59))
+        .toIso8601String();
     cacheFile.writeAsStringSync(jsonEncode(json));
 
     final result = await LastFmArtistCache.readCache('Queen');
+    expect(result, isNotNull);
+    expect(result!.first.title, 'Bohemian Rhapsody');
+  });
+
+  test('readCache rejects entry when requested limit differs', () async {
+    await LastFmArtistCache.writeCache(
+      'Queen',
+      [
+        const LastFmArtistTopTrack(
+          rank: 1,
+          title: 'Bohemian Rhapsody',
+          artist: 'Queen',
+        ),
+      ],
+      limit: 10,
+    );
+
+    final result = await LastFmArtistCache.readCache('Queen', limit: 50);
     expect(result, isNull);
   });
 

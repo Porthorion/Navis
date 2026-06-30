@@ -1026,6 +1026,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistTopTracksPlayError => 'Could not play track. Try again.';
 
   @override
+  String artistTopTracksPlaylistTitle(String artist) {
+    return 'This is $artist';
+  }
+
+  @override
+  String get artistTopTracksPlaylistUnavailable =>
+      'Not available in your library';
+
+  @override
+  String get artistTopTracksPlaylistSearchAction => 'Search';
+
+  @override
+  String get artistTopTracksPlaylistEmptyTitle => 'No top tracks';
+
+  @override
+  String get artistTopTracksPlaylistEmptySubtitle =>
+      'Last.fm did not return tracks for this artist.';
+
+  @override
+  String get artistTopTracksPlaylistErrorTitle => 'Failed to load top tracks';
+
+  @override
   String get albumDetailTitle => 'Album';
 
   @override
