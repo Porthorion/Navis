@@ -126,6 +126,11 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 
 This runs the full quality gate, builds a release APK, tags the commit, creates a Forgejo release, and uploads the APK. See [ci-cd.md](ci-cd.md) for setup details.
 
+For Android releases, `tool/release.sh` cleans stale APK build outputs before
+building, removes an existing same-name root release asset before copying, and
+fails publication if the final APK metadata/signature or release string
+sentinels do not match the expected release.
+
 `tool/release.sh` fails when `pubspec.yaml` already contains the exact requested
 release version. Use a new version for normal releases; reserve
 `--allow-existing-version` for intentional rebuilds or failed-release retries.

@@ -27,6 +27,23 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.8',
+    entries: [
+      ChangelogEntry(
+        'Android stable releases now clean stale build outputs and verify APK contents before publishing so self-updates install the current app code',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Retired Listen Together and Voyage configuration strings are blocked from active Android release artifacts',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Artist Top Tracks with Album Queue keeps the ranked resolved queue and starts playback from the tapped track',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.7',
     entries: [
       ChangelogEntry(

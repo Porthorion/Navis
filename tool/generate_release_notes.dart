@@ -55,6 +55,20 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.8', [
+    _Entry(
+      'Android stable releases now clean stale build outputs and verify APK contents before publishing so self-updates install the current app code',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Retired Listen Together and Voyage configuration strings are blocked from active Android release artifacts',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Artist Top Tracks with Album Queue keeps the ranked resolved queue and starts playback from the tapped track',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.7', [
     _Entry(
       'Released a fresh stable version so older 1.0.6 installs detect the Listen Together retirement update correctly',

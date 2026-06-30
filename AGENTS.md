@@ -95,6 +95,10 @@ flutter test test/path/to/foo_test.dart
 ./tool/release.sh v1.2.3 --allow-existing-version  # intentional rebuild only
 ```
 
+Android release builds remove stale Flutter/Gradle APK outputs before building,
+remove any same-name root release asset before copying, and validate the final
+APK package/version/signature plus release string sentinels before upload.
+
 ### `check.sh` pipeline (ordered)
 
 1. `/tmp` disk space ≥ 256 MB

@@ -175,6 +175,10 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
     echo "Error: 'keytool' is required for Android signing validation."
     exit 1
   fi
+  if ! command -v unzip &>/dev/null; then
+    echo "Error: 'unzip' is required for Android APK string validation."
+    exit 1
+  fi
 fi
 
 # ─── Root ───────────────────────────────────────────────────────────────────
@@ -242,6 +246,73 @@ to_windows_host_path() {
   echo "${path}"
 }
 
+remove_release_asset() {
+  local asset_path="$1"
+  if [[ -f "${asset_path}" ]]; then
+    rm -f "${asset_path}"
+  fi
+}
+
+clean_android_release_outputs() {
+  echo "==> Cleaning stale Android release outputs..."
+  rm -rf "${SCRIPT_DIR}/../.dart_tool/flutter_build"
+  rm -rf "${SCRIPT_DIR}/../build/app"
+  rm -rf "${SCRIPT_DIR}/../build/flutter_assets"
+  rm -rf "${SCRIPT_DIR}/../build/lib"
+  rm -rf "${SCRIPT_DIR}/../build/app/outputs/flutter-apk"
+  rm -rf "${SCRIPT_DIR}/../build/app/intermediates/flutter/sideloadRelease"
+  rm -rf "${SCRIPT_DIR}/../build/app/intermediates/assets/sideloadRelease"
+  rm -rf "${SCRIPT_DIR}/../build/app/intermediates/merged_assets/sideloadRelease"
+}
+
+validate_apk_strings() {
+  local apk_path="$1"
+  local extracted_dir
+  local apk_strings
+  extracted_dir="$(mktemp -d)"
+  apk_strings="$(mktemp)"
+  unzip -qq "${apk_path}" -d "${extracted_dir}"
+  find "${extracted_dir}" -type f -print0 | xargs -0 strings > "${apk_strings}"
+
+  local retired_substrings=(
+    "Enable Listen Together"
+    "Paste a Voyage invite"
+    "Listen Together optimistic queue replace playback failed"
+  )
+  local retired_string
+  for retired_string in "${retired_substrings[@]}"; do
+    if grep -F -q -- "${retired_string}" "${apk_strings}"; then
+      rm -rf "${extracted_dir}"
+      rm -f "${apk_strings}"
+      echo "Error: APK contains retired active Listen Together/Voyage string: ${retired_string}"
+      exit 1
+    fi
+  done
+
+  local retired_exact_strings=(
+    "Voyage servers"
+  )
+  for retired_string in "${retired_exact_strings[@]}"; do
+    if grep -F -x -q -- "${retired_string}" "${apk_strings}"; then
+      rm -rf "${extracted_dir}"
+      rm -f "${apk_strings}"
+      echo "Error: APK contains retired active Listen Together/Voyage string: ${retired_string}"
+      exit 1
+    fi
+  done
+
+  local required_marker="Album Queue enabled for top tracks"
+  if ! grep -F -q -- "${required_marker}" "${apk_strings}"; then
+    rm -rf "${extracted_dir}"
+    rm -f "${apk_strings}"
+    echo "Error: APK is missing expected Artist Top Tracks Album Queue marker: ${required_marker}"
+    exit 1
+  fi
+
+  rm -rf "${extracted_dir}"
+  rm -f "${apk_strings}"
+}
+
 # ─── Channel defaults ───────────────────────────────────────────────────────
 ASSET_PREFIX="navis"
 RELEASE_PRERELEASE=false
@@ -300,6 +371,7 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   echo "==> Building Android APK..."
   export NAVIS_SELF_UPDATE=true
   DART_DEFINE_ARGS+=("--dart-define=NAVIS_SELF_UPDATE=true")
+  clean_android_release_outputs
   ANDROID_OBFUSCATION_DIR="${SCRIPT_DIR}/../build/obfuscation/android/${VERSION}"
   mkdir -p "${ANDROID_OBFUSCATION_DIR}"
   _apk_define_args="${DART_DEFINE_ARGS[*]}"
@@ -321,6 +393,7 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   APK_PATH="${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-sideload-release.apk"
   APK_ASSET_NAME="${ASSET_PREFIX}-${VERSION}.apk"
   APK_ASSET="${SCRIPT_DIR}/../${APK_ASSET_NAME}"
+  remove_release_asset "${APK_ASSET}"
 
   if [[ ! -f "${APK_PATH}" ]]; then
     echo "Error: APK not found at ${APK_PATH}"
@@ -397,7 +470,10 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
     fi
   fi
 
-  echo "    APK metadata/signing OK"
+  echo "==> Validating APK release strings..."
+  validate_apk_strings "${APK_ASSET}"
+
+  echo "    APK metadata/signing/strings OK"
 fi
 
 if [[ "${BUILD_IOS}" == "true" ]]; then
@@ -413,6 +489,7 @@ if [[ "${BUILD_IOS}" == "true" ]]; then
 
   IPA_ASSET_NAME="${ASSET_PREFIX}-${VERSION}.ipa"
   IPA_ASSET="${SCRIPT_DIR}/../${IPA_ASSET_NAME}"
+  remove_release_asset "${IPA_ASSET}"
   cp "${FOUND_IPA}" "${IPA_ASSET}"
   ASSET_FILES+=("${IPA_ASSET}")
   ASSET_NAMES+=("${IPA_ASSET_NAME}")
@@ -432,6 +509,7 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
 
   MACOS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-macos.zip"
   MACOS_ASSET="${SCRIPT_DIR}/../${MACOS_ASSET_NAME}"
+  remove_release_asset "${MACOS_ASSET}"
   if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
     echo "==> Notarizing macOS app..."
     "${SCRIPT_DIR}/macos_notarize.sh" \
@@ -541,6 +619,7 @@ CONTROL
 
       DEB_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-linux-${DEB_ARCH}.deb"
       DEB_ASSET="${SCRIPT_DIR}/../${DEB_ASSET_NAME}"
+      remove_release_asset "${DEB_ASSET}"
       dpkg-deb --root-owner-group --build "${DEB_STAGE_DIR}" "${DEB_ASSET}" >/dev/null
       rm -rf "${DEB_STAGE_DIR}"
 
@@ -550,6 +629,7 @@ CONTROL
     else
       LINUX_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-linux.tar.gz"
       LINUX_ASSET="${SCRIPT_DIR}/../${LINUX_ASSET_NAME}"
+      remove_release_asset "${LINUX_ASSET}"
       tar -czf "${LINUX_ASSET}" -C "${LINUX_BUNDLE_DIR}" .
       ASSET_FILES+=("${LINUX_ASSET}")
       ASSET_NAMES+=("${LINUX_ASSET_NAME}")
@@ -607,6 +687,7 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
     if [[ "${WINDOWS_PACKAGE_MODE}" == "exe" ]]; then
       WINDOWS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-windows-installer.exe"
       WINDOWS_ASSET="${SCRIPT_DIR}/../${WINDOWS_ASSET_NAME}"
+      remove_release_asset "${WINDOWS_ASSET}"
       WINDOWS_INSTALLER_SCRIPT="${SCRIPT_DIR}/windows/build_inno_installer.ps1"
       if [[ ! -f "${WINDOWS_INSTALLER_SCRIPT}" ]]; then
         echo "Error: Installer script not found at ${WINDOWS_INSTALLER_SCRIPT}"
@@ -636,6 +717,7 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
     else
       WINDOWS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-windows.zip"
       WINDOWS_ASSET="${SCRIPT_DIR}/../${WINDOWS_ASSET_NAME}"
+      remove_release_asset "${WINDOWS_ASSET}"
       if command -v powershell.exe &>/dev/null; then
         powershell.exe -NoProfile -Command "Compress-Archive -Path '${WINDOWS_RELEASE_DIR//\//\\}\\*' -DestinationPath '${WINDOWS_ASSET//\//\\}' -Force" >/dev/null
       elif command -v zip &>/dev/null; then

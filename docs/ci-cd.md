@@ -81,6 +81,9 @@ make release VERSION=v0.2.0
 1. Fails if `pubspec.yaml` already has the exact requested `version: <semver>+<build>` value, unless `--allow-existing-version` is passed for an intentional rebuild or retry.
 2. Runs `./tool/check.sh` unless `--skip-checks` is passed.
 3. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
+   Android release builds clean stale Flutter/Gradle APK outputs before
+   building and remove any same-name root release asset before copying the new
+   APK.
    Linux target can output either portable `bundle` (tar.gz) or `.deb`
    (`--linux-package=deb`). Debian package output is architecture-aware
    (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
@@ -89,11 +92,14 @@ make release VERSION=v0.2.0
    staple before packaging (`--macos-notarize`). On non-Linux/non-Windows
    hosts, Linux/Windows desktop builds can be delegated to remote SSH builders
    (`--linux-ssh`, `--windows-ssh`).
-4. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.
-5. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
-6. Creates an annotated git tag and pushes main/current branch/tag.
-7. Creates a Forgejo release with `prerelease=true` for dev channel (or when `--prerelease` is passed).
-8. Uploads all built assets to the release.
+4. Validates Android APK package name, version name/code, signing certificate,
+   retired active Listen Together/Voyage string absence, and the Artist Top
+   Tracks Album Queue marker before upload.
+5. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.
+6. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
+7. Creates an annotated git tag and pushes main/current branch/tag.
+8. Creates a Forgejo release with `prerelease=true` for dev channel (or when `--prerelease` is passed).
+9. Uploads all built assets to the release.
 
 Use `--allow-existing-version` only when intentionally rebuilding the same
 release version, such as retrying failed artifact publication. Normal releases
