@@ -195,17 +195,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 ),
                 error: (_, _) => const SizedBox.shrink(),
               ),
-              // ── Top Tracks (Last.fm, gated by build-time API key) ────────
-              if (ref.watch(hasLastFmApiKeyProvider))
-                ArtistTopTracksSection(artistName: artistData.name),
-              if (ref.watch(hasLastFmApiKeyProvider))
-                _ArtistTopTracksPlaylistCard(
-                  artistId: artistData.id,
-                  artistName: artistData.name,
-                  imageUrl:
-                      artistInfo.asData?.value?.largeImageUrl ??
-                      artistInfo.asData?.value?.mediumImageUrl,
-                ),
               // ── Play / Shuffle buttons ────────────────────────────────
               if ((songs.asData?.value ?? const []).isNotEmpty)
                 Padding(
@@ -232,6 +221,17 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                       ),
                     ],
                   ),
+                ),
+              // ── Top Tracks (Last.fm, gated by build-time API key) ────────
+              if (ref.watch(hasLastFmApiKeyProvider))
+                ArtistTopTracksSection(artistName: artistData.name),
+              if (ref.watch(hasLastFmApiKeyProvider))
+                _ArtistTopTracksPlaylistCard(
+                  artistId: artistData.id,
+                  artistName: artistData.name,
+                  imageUrl:
+                      artistInfo.asData?.value?.largeImageUrl ??
+                      artistInfo.asData?.value?.mediumImageUrl,
                 ),
               albumSections.when(
                 data: (sections) {
