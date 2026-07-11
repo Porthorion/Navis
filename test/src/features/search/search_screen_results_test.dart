@@ -12,6 +12,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
@@ -246,6 +247,41 @@ void main() {
 
       expect(find.byType(ShimmerListPage), findsNothing);
       expect(find.text('Remote Artist'), findsOneWidget);
+    });
+
+    testWidgets('songs filter hides mixed artist and album API results', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+
+      final database = createTestDatabase();
+      final container = _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient(
+          (_) async => const SearchResult3(
+            artists: <Artist>[
+              Artist(id: 'remote-artist', name: 'Remote Artist'),
+            ],
+            albums: <Album>[Album(id: 'remote-album', name: 'Remote Album')],
+            songs: <Song>[Song(id: 'remote-song', title: 'Remote Song')],
+          ),
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      container
+          .read(searchFilterProvider.notifier)
+          .select(SearchResultType.songs);
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'Remote');
+      await _pumpUntilFound(tester, find.text('Remote Song'));
+
+      expect(find.text('Remote Song'), findsOneWidget);
+      expect(find.text('Remote Artist'), findsNothing);
+      expect(find.text('Remote Album'), findsNothing);
     });
   });
 }

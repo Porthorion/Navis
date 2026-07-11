@@ -106,9 +106,12 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
 
     final filter = ref.watch(searchFilterProvider);
     final isOffline = ref.watch(searchIsOfflineProvider);
-    final localResult = _rankByRelevance(
-      await _searchLocal(ref, query, filter),
-      query,
+    final localResult = _filterResultByType(
+      _rankByRelevance(
+        await _searchLocal(ref, query, filter),
+        query,
+      ),
+      filter,
     );
 
     if (isOffline) {
@@ -141,24 +144,30 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
     );
 
     try {
-      final apiResult = _rankByRelevance(
-        await api.search3(
-          query: query,
-          artistCount: filter == null || filter == SearchResultType.artists
-              ? defaultCount
-              : 0,
-          albumCount: filter == null || filter == SearchResultType.albums
-              ? defaultCount
-              : 0,
-          songCount: filter == null || filter == SearchResultType.songs
-              ? defaultCount
-              : 0,
-          cancelToken: cancelToken,
+      final apiResult = _filterResultByType(
+        _rankByRelevance(
+          await api.search3(
+            query: query,
+            artistCount: filter == null || filter == SearchResultType.artists
+                ? defaultCount
+                : 0,
+            albumCount: filter == null || filter == SearchResultType.albums
+                ? defaultCount
+                : 0,
+            songCount: filter == null || filter == SearchResultType.songs
+                ? defaultCount
+                : 0,
+            cancelToken: cancelToken,
+          ),
+          query,
         ),
-        query,
+        filter,
       );
       yield SearchResultsState(
-        result: _mergeCacheFirst(localResult, apiResult),
+        result: _filterResultByType(
+          _mergeCacheFirst(localResult, apiResult),
+          filter,
+        ),
         isWaitingForApi: false,
         isLocalOnly: false,
       );
@@ -190,6 +199,22 @@ SearchResult3 _mergeCacheFirst(SearchResult3 local, SearchResult3 remote) {
     albums: merge(local.albums, remote.albums, (album) => album.id),
     songs: merge(local.songs, remote.songs, (song) => song.id),
   );
+}
+
+SearchResult3 _filterResultByType(
+  SearchResult3 result,
+  SearchResultType? filter,
+) {
+  switch (filter) {
+    case null:
+      return result;
+    case SearchResultType.artists:
+      return SearchResult3(artists: result.artists);
+    case SearchResultType.albums:
+      return SearchResult3(albums: result.albums);
+    case SearchResultType.songs:
+      return SearchResult3(songs: result.songs);
+  }
 }
 
 /// Perform a local (offline) search using Drift LIKE queries.
@@ -364,22 +389,27 @@ final expandedSearchProvider = FutureProvider.autoDispose
 
       const pageSize = 20;
 
-      return _rankByRelevance(
-        await api.search3(
-          query: params.query,
-          artistCount: params.type == SearchResultType.artists ? pageSize : 0,
-          albumCount: params.type == SearchResultType.albums ? pageSize : 0,
-          songCount: params.type == SearchResultType.songs ? pageSize : 0,
-          artistOffset: params.type == SearchResultType.artists
-              ? params.offset
-              : 0,
-          albumOffset: params.type == SearchResultType.albums
-              ? params.offset
-              : 0,
-          songOffset: params.type == SearchResultType.songs ? params.offset : 0,
-          cancelToken: cancelToken,
+      return _filterResultByType(
+        _rankByRelevance(
+          await api.search3(
+            query: params.query,
+            artistCount: params.type == SearchResultType.artists ? pageSize : 0,
+            albumCount: params.type == SearchResultType.albums ? pageSize : 0,
+            songCount: params.type == SearchResultType.songs ? pageSize : 0,
+            artistOffset: params.type == SearchResultType.artists
+                ? params.offset
+                : 0,
+            albumOffset: params.type == SearchResultType.albums
+                ? params.offset
+                : 0,
+            songOffset: params.type == SearchResultType.songs
+                ? params.offset
+                : 0,
+            cancelToken: cancelToken,
+          ),
+          params.query,
         ),
-        params.query,
+        params.type,
       );
     });
 

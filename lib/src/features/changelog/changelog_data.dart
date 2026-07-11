@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.10',
+    entries: [
+      ChangelogEntry(
+        'Search category filters now show only matching results, so Songs no longer includes albums or artists when cached and server results are mixed',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.9',
     entries: [
       ChangelogEntry(

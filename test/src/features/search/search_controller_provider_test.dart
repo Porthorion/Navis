@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meta/meta.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -37,7 +38,7 @@ class _FakeSearchApiClient extends SubsonicApiClient {
         enableLogging: false,
       );
 
-  final Future<SearchResult3> Function(String query) _handler;
+  final Future<SearchResult3> Function(_Search3Call call) _handler;
 
   @override
   Future<SearchResult3> search3({
@@ -50,8 +51,39 @@ class _FakeSearchApiClient extends SubsonicApiClient {
     int songOffset = 0,
     CancelToken? cancelToken,
   }) {
-    return _handler(query);
+    return _handler(
+      _Search3Call(
+        query: query,
+        artistCount: artistCount,
+        albumCount: albumCount,
+        songCount: songCount,
+        artistOffset: artistOffset,
+        albumOffset: albumOffset,
+        songOffset: songOffset,
+      ),
+    );
   }
+}
+
+@immutable
+class _Search3Call {
+  const _Search3Call({
+    required this.query,
+    required this.artistCount,
+    required this.albumCount,
+    required this.songCount,
+    required this.artistOffset,
+    required this.albumOffset,
+    required this.songOffset,
+  });
+
+  final String query;
+  final int artistCount;
+  final int albumCount;
+  final int songCount;
+  final int artistOffset;
+  final int albumOffset;
+  final int songOffset;
 }
 
 ProviderContainer _createContainer(
@@ -278,6 +310,108 @@ void main() {
         <String>['artist-local', 'artist-remote'],
       );
     });
+
+    for (final scenario
+        in <
+          ({
+            SearchResultType filter,
+            List<String> expectedArtists,
+            List<String> expectedAlbums,
+            List<String> expectedSongs,
+            int expectedArtistCount,
+            int expectedAlbumCount,
+            int expectedSongCount,
+          })
+        >[
+          (
+            filter: SearchResultType.artists,
+            expectedArtists: <String>['artist-local', 'artist-remote'],
+            expectedAlbums: <String>[],
+            expectedSongs: <String>[],
+            expectedArtistCount: 20,
+            expectedAlbumCount: 0,
+            expectedSongCount: 0,
+          ),
+          (
+            filter: SearchResultType.albums,
+            expectedArtists: <String>[],
+            expectedAlbums: <String>['album-local', 'album-remote'],
+            expectedSongs: <String>[],
+            expectedArtistCount: 0,
+            expectedAlbumCount: 20,
+            expectedSongCount: 0,
+          ),
+          (
+            filter: SearchResultType.songs,
+            expectedArtists: <String>[],
+            expectedAlbums: <String>[],
+            expectedSongs: <String>['song-local', 'song-remote'],
+            expectedArtistCount: 0,
+            expectedAlbumCount: 0,
+            expectedSongCount: 20,
+          ),
+        ]) {
+      test(
+        '${scenario.filter.name} filter removes other result categories',
+        () async {
+          if (!sqliteAvailable) return;
+
+          final database = createTestDatabase();
+          await _insertArtist(
+            database,
+            id: 'artist-local',
+            name: 'Cache Artist',
+          );
+          await _insertAlbum(database, id: 'album-local', name: 'Cache Album');
+          await _insertSong(database, id: 'song-local', title: 'Cache Song');
+
+          _Search3Call? apiCall;
+          final container = _createContainer(
+            database,
+            api: _FakeSearchApiClient((call) async {
+              apiCall = call;
+              return const SearchResult3(
+                artists: <Artist>[
+                  Artist(id: 'artist-remote', name: 'Cache Remote Artist'),
+                ],
+                albums: <Album>[
+                  Album(id: 'album-remote', name: 'Cache Remote Album'),
+                ],
+                songs: <Song>[
+                  Song(id: 'song-remote', title: 'Cache Remote Song'),
+                ],
+              );
+            }),
+          );
+          addTearDown(() async {
+            container.dispose();
+            await database.close();
+          });
+
+          final emissions = <SearchResultsState>[];
+          final subscription = _listenToSearch(container, emissions);
+          addTearDown(subscription.close);
+
+          container.read(searchFilterProvider.notifier).select(scenario.filter);
+          container.read(searchQueryProvider.notifier).submit('Cache');
+          await _waitForEmissions(emissions, 2);
+
+          final result = emissions.last.result;
+          expect(
+            result.artists.map((artist) => artist.id),
+            scenario.expectedArtists,
+          );
+          expect(
+            result.albums.map((album) => album.id),
+            scenario.expectedAlbums,
+          );
+          expect(result.songs.map((song) => song.id), scenario.expectedSongs);
+          expect(apiCall?.artistCount, scenario.expectedArtistCount);
+          expect(apiCall?.albumCount, scenario.expectedAlbumCount);
+          expect(apiCall?.songCount, scenario.expectedSongCount);
+        },
+      );
+    }
 
     test('offline mode emits only local results', () async {
       if (!sqliteAvailable) return;

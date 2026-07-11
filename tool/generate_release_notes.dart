@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.10', [
+    _Entry(
+      'Search category filters now show only matching results, so Songs no longer includes albums or artists when cached and server results are mixed',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.9', [
     _Entry(
       'Artist pages now include a virtual "This is" playlist powered by up to 50 Last.fm top tracks, with unmatched tracks kept visible for search',
