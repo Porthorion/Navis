@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -11,9 +12,12 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import '../../../helpers/test_database.dart';
 
 class _MockCacheManager extends Mock implements BaseCacheManager {}
+
+class _MockLrclibClient extends Mock implements LrclibClient {}
 
 void main() {
   group('DownloadService', () {
@@ -319,6 +323,115 @@ void main() {
         );
         expect(cached?.plainLyrics, 'verse one');
         expect(cached?.syncedLyrics, isNull); // No upgrade happened (no API).
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'start() backfill caches LRCLIB search results for downloaded songs',
+      () async {
+        final lrclib = _MockLrclibClient();
+        final serverCalls = <String>[];
+        when(
+          () => lrclib.searchLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        ).thenAnswer(
+          (_) async => const <LrclibLyrics>[
+            LrclibLyrics(
+              artistName: 'Evanescence',
+              trackName: 'Bring Me To Life',
+              duration: 235,
+              syncedLyrics: '[00:01.00]wake me up',
+            ),
+          ],
+        );
+        when(
+          () => lrclib.getLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+            album: any(named: 'album'),
+            duration: any(named: 'duration'),
+          ),
+        ).thenAnswer((_) async => null);
+        final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              serverCalls.add(options.path);
+              handler.reject(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.badResponse,
+                ),
+              );
+            },
+          ),
+        );
+        final apiClient = SubsonicApiClient(
+          baseUrl: 'https://example.com',
+          authConfig: const SubsonicAuthConfig(
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+          dio: dio,
+          enableLogging: false,
+        );
+        final lrclibFirstService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => apiClient,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: lrclib,
+          readCoverArtCacheManager: _MockCacheManager.new,
+        );
+        addTearDown(lrclibFirstService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-lrclib',
+            title: 'Bring Me To Life',
+            artistName: const Value('Evanescence'),
+            duration: const Value(235),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-lrclib',
+            filePath: '/fake/song-lrclib.mp3',
+            fileSize: 500,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await expectLater(lrclibFirstService.start(), completes);
+
+        ExternalLyricsCacheTableData? cached;
+        for (var i = 0; i < 20; i++) {
+          cached = await database.libraryDao.getExternalLyricsCache(
+            'song-lrclib',
+          );
+          if (cached != null) {
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+
+        expect(cached, isNotNull);
+        expect(cached!.source, LyricsSource.lrclibSynced.name);
+        expect(cached.syncedLyrics, '[00:01.00]wake me up');
+        expect(cached.ttlSeconds, 31536000);
+        expect(serverCalls, isEmpty);
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );

@@ -53,15 +53,23 @@ class LrclibClient {
     String? album,
     int? duration,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/api/get',
-      queryParameters: {
-        'artist_name': artist,
-        'track_name': title,
-        if (album != null && album.trim().isNotEmpty) 'album_name': album,
-        if (duration != null && duration > 0) 'duration': duration,
-      },
-    );
+    final Response<Map<String, dynamic>> response;
+    try {
+      response = await _dio.get<Map<String, dynamic>>(
+        '/api/get',
+        queryParameters: {
+          'artist_name': artist,
+          'track_name': title,
+          if (album != null && album.trim().isNotEmpty) 'album_name': album,
+          if (duration != null && duration > 0) 'duration': duration,
+        },
+      );
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) {
+        return null;
+      }
+      rethrow;
+    }
     final data = response.data;
     if (data == null || data.isEmpty) {
       return null;

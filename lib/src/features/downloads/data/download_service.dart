@@ -6,9 +6,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:navis/src/api/lrclib_client.dart';
-import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
@@ -19,6 +17,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     show BaseCacheManager;
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
+import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
@@ -909,128 +908,30 @@ class DownloadService {
     SubsonicApiClient api,
   ) async {
     try {
-      // Skip only if synced lyrics are already cached — best possible quality.
-      final existing = await _libraryDao.getExternalLyricsCache(songId);
-      if (existing != null && existing.syncedLyrics != null) {
-        AppLogger.debug(
-          'DownloadService: Synced lyrics already cached for $songId, skipping.',
-        );
-        return;
-      }
-      // If only plain lyrics exist, continue and try to upgrade to synced.
-      final hasOnlyPlain = existing != null && existing.plainLyrics != null;
-
-      // 1. Try server synced lyrics (OpenSubsonic getLyricsBySongId).
-      try {
-        final serverLyrics = await api.getLyricsBySongId(songId);
-        final synced = serverLyrics.structuredLyrics
-            .where((s) => s.synced == true && s.line.isNotEmpty)
-            .firstOrNull;
-        final unsynced = synced == null
-            ? serverLyrics.structuredLyrics
-                  .where((s) => s.synced == false && s.line.isNotEmpty)
-                  .firstOrNull
-            : null;
-
-        if (synced != null) {
-          await _libraryDao.upsertExternalLyricsCache(
-            songId: songId,
-            source: 'serverSynced',
-            syncedLyrics: _structuredLyricsToLrc(synced.line),
-            ttlSeconds: 30 * 24 * 3600, // 30 days for downloaded tracks
-          );
-          AppLogger.info(
-            'DownloadService: Cached server synced lyrics for $songId',
-          );
-          return;
-        }
-
-        // Only store plain lyrics if we don't already have them.
-        if (unsynced != null && !hasOnlyPlain) {
-          final plainText = unsynced.line.map((l) => l.value ?? '').join('\n');
-          if (plainText.trim().isNotEmpty) {
-            await _libraryDao.upsertExternalLyricsCache(
-              songId: songId,
-              source: 'serverPlain',
-              plainLyrics: plainText,
-              ttlSeconds: 30 * 24 * 3600,
+      final settings = await _appSettingsDao.getSettings();
+      final metadata = song.artistName == null || song.title.trim().isEmpty
+          ? null
+          : (
+              artist: song.artistName!,
+              title: song.title,
+              album: song.albumName,
+              durationSeconds: song.duration,
             );
-            AppLogger.info(
-              'DownloadService: Cached server plain lyrics for $songId',
-            );
-            return;
-          }
-        }
-
-        // getLyricsBySongId succeeded but returned no usable lyrics — fall
-        // through to legacy getLyrics.
-      } on SubsonicNotFoundException {
-        // Server doesn't have lyrics for this song — continue.
-      } on SubsonicApiException {
-        // Server error — continue to lrclib fallback.
-      } on SubsonicConnectionException {
-        // Offline — skip server entirely, try lrclib.
-      }
-
-      // 2. Try legacy getLyrics endpoint (plain text only — skip if we already
-      // have plain lyrics and are only looking for an upgrade to synced).
-      if (!hasOnlyPlain && song.artistName != null && song.title.isNotEmpty) {
-        try {
-          final legacy = await api.getLyrics(
-            artist: song.artistName,
-            title: song.title,
-          );
-          final plain = legacy.value;
-          if (plain != null && plain.trim().isNotEmpty) {
-            await _libraryDao.upsertExternalLyricsCache(
-              songId: songId,
-              source: 'serverPlain',
-              plainLyrics: plain,
-              ttlSeconds: 30 * 24 * 3600,
-            );
-            AppLogger.info(
-              'DownloadService: Cached legacy server lyrics for $songId',
-            );
-            return;
-          }
-        } on SubsonicException {
-          // Continue to lrclib.
-        }
-      }
-
-      // 3. Fall back to LRCLIB.
-      if (song.artistName == null ||
-          song.artistName!.isEmpty ||
-          song.title.isEmpty) {
-        return;
-      }
-      final lrclibResult = await _lrclibClient.getLyrics(
-        artist: song.artistName!,
-        title: song.title,
-        album: song.albumName,
-        duration: song.duration,
+      final resolver = LyricsResolver(
+        libraryDao: _libraryDao,
+        lrclibClient: _lrclibClient,
+        apiClient: api,
       );
-      if (lrclibResult == null) return;
-
-      // Only store a plain LrcLib result if we don't already have plain lyrics;
-      // always store if LrcLib found synced lyrics.
-      if (!lrclibResult.hasSynced && hasOnlyPlain) {
-        AppLogger.debug(
-          'DownloadService: LrcLib plain lyrics for $songId already covered, skipping.',
-        );
-        return;
-      }
-
-      await _libraryDao.upsertExternalLyricsCache(
+      final resolution = await resolver.resolve(
         songId: songId,
-        source: lrclibResult.hasSynced ? 'lrclibSynced' : 'lrclibPlain',
-        syncedLyrics: lrclibResult.syncedLyrics,
-        plainLyrics: lrclibResult.plainLyrics,
-        ttlSeconds: 30 * 24 * 3600,
+        metadata: metadata,
+        useLrclib: settings?.useLrclib ?? true,
+        lyricsCacheTtlSeconds: permanentLyricsCacheTtlSeconds,
+        cacheServerLyrics: true,
       );
       AppLogger.info(
-        'DownloadService: Cached LRCLIB lyrics for $songId '
-        '(synced=${lrclibResult.hasSynced})',
+        'DownloadService: Lyrics prefetch resolved ${resolution.source.name} '
+        'for $songId',
       );
     } on Object catch (e) {
       // Never let a lyrics error abort or surface through the download flow.
@@ -1038,25 +939,6 @@ class DownloadService {
         'DownloadService: Lyrics prefetch failed for $songId: $e',
       );
     }
-  }
-
-  /// Serialises a list of [LyricLine]s into LRC format.
-  ///
-  /// Example output line: `[02:15.30] Some lyrics text`
-  static String _structuredLyricsToLrc(List<LyricLine> lines) {
-    final buf = StringBuffer();
-    for (final line in lines) {
-      final ms = line.start ?? 0;
-      final mins = ms ~/ 60000;
-      final secs = (ms % 60000) ~/ 1000;
-      final cents = (ms % 1000) ~/ 10;
-      final timestamp =
-          '${mins.toString().padLeft(2, '0')}'
-          ':${secs.toString().padLeft(2, '0')}'
-          '.${cents.toString().padLeft(2, '0')}';
-      buf.writeln('[$timestamp]${line.value ?? ''}');
-    }
-    return buf.toString().trimRight();
   }
 
   Future<void> _normalizePermanentDownloads() async {

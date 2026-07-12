@@ -36,6 +36,10 @@ final currentQueueSongIdProvider = Provider<String?>((ref) {
   return ref.watch(currentSongProvider);
 });
 
+final lyricsPrewarmProvider = Provider<Future<void> Function(String)>((ref) {
+  return (songId) => ref.read(lyricsProvider(songId).future).then<void>((_) {});
+});
+
 class QueueController extends Notifier<List<String>> {
   @override
   List<String> build() {
@@ -67,6 +71,10 @@ class QueueController extends Notifier<List<String>> {
       autoPlay: autoPlay,
       songId: normalized[normalizedStartIndex],
     );
+    _prewarmLyricsForIds(
+      normalized,
+      priorityId: normalized[normalizedStartIndex],
+    );
   }
 
   /// Like [replace] but accepts pre-fetched [SongsTableData] rows so the
@@ -94,6 +102,10 @@ class QueueController extends Notifier<List<String>> {
       autoPlay: autoPlay,
       songId: songs[normalizedStartIndex].id,
     );
+    _prewarmLyricsForIds(
+      songs.map((song) => song.id),
+      priorityId: songs[normalizedStartIndex].id,
+    );
   }
 
   Future<void> add(String id) async {
@@ -103,6 +115,7 @@ class QueueController extends Notifier<List<String>> {
     }
     final handler = _requireHandler();
     await handler.addToQueue(<String>[normalizedId]);
+    _prewarmLyricsForIds(<String>[normalizedId]);
   }
 
   Future<void> playNext(String id) async {
@@ -112,6 +125,7 @@ class QueueController extends Notifier<List<String>> {
     }
     final handler = _requireHandler();
     await handler.playNext(<String>[normalizedId]);
+    _prewarmLyricsForIds(<String>[normalizedId]);
   }
 
   /// Like [replace], but accepts [Song] API model objects and ensures they
@@ -176,6 +190,7 @@ class QueueController extends Notifier<List<String>> {
     }
     final handler = _requireHandler();
     await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
+    _prewarmLyricsForIds(ids);
   }
 
   /// Like [playNext], but accepts multiple [Song] API model objects and
@@ -199,6 +214,7 @@ class QueueController extends Notifier<List<String>> {
     final ids = normalizedSongs.map((song) => song.id).toList(growable: false);
     final handler = _requireHandler();
     await handler.playNext(ids, expandMatchFlows: expandMatchFlows);
+    _prewarmLyricsForIds(ids);
   }
 
   /// Like [playNext], but accepts a [Song] API model object.
@@ -233,6 +249,7 @@ class QueueController extends Notifier<List<String>> {
     final handler = _requireHandler();
     final before = handler.snapshot.queueSongIds;
     await handler.playNext(ids, expandMatchFlows: expandMatchFlows);
+    _prewarmLyricsForIds(ids);
     final after = handler.snapshot.queueSongIds;
     final inserted = _countInsertedSongIds(before: before, after: after);
     return inserted > 0 ? inserted : normalizedSongs.length;
@@ -438,6 +455,44 @@ class QueueController extends Notifier<List<String>> {
     if (!handler.snapshot.playing) {
       await handler.play();
     }
+  }
+
+  void _prewarmLyricsForIds(
+    Iterable<String> ids, {
+    String? priorityId,
+  }) {
+    final normalized = _normalizeSongIds(ids);
+    if (normalized.isEmpty) {
+      return;
+    }
+    final priority = priorityId?.trim();
+    final ordered = <String>[
+      if (priority != null && priority.isNotEmpty) priority,
+      ...normalized.where((id) => id != priority),
+    ];
+    final tasks = <({String id, Future<void> future})>[];
+    final prewarmLyrics = ref.read(lyricsPrewarmProvider);
+    for (final id in ordered) {
+      try {
+        tasks.add((id: id, future: prewarmLyrics(id)));
+      } on Object catch (error) {
+        AppLogger.debug('Lyrics prewarm skipped for $id: $error');
+      }
+    }
+    if (tasks.isEmpty) {
+      return;
+    }
+    unawaited(
+      Future<void>(() async {
+        for (final task in tasks) {
+          try {
+            await task.future;
+          } on Object catch (error) {
+            AppLogger.debug('Lyrics prewarm skipped for ${task.id}: $error');
+          }
+        }
+      }),
+    );
   }
 
   void _emitError(Object error, {String? action}) {

@@ -7,6 +7,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -15,6 +16,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -25,6 +27,10 @@ import 'package:navis/src/utils/connectivity.dart';
 import '../../helpers/test_database.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
+
+class _MockLrclibClient extends Mock implements LrclibClient {}
+
+class _MockSubsonicApiClient extends Mock implements SubsonicApiClient {}
 
 class _FakePlaybackHandler implements NavisPlaybackHandler {
   final StreamController<PlaybackSnapshot> _controller =
@@ -580,9 +586,11 @@ void main() {
         overrides: [
           settingsRepositoryProvider.overrideWithValue(repository),
           audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
+          currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
         ],
       );
       addTearDown(() async {
@@ -613,6 +621,89 @@ void main() {
     });
 
     test(
+      'queueProvider prewarms lyrics without blocking replacement',
+      () async {
+        final database = NavisDatabase(NativeDatabase.memory());
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Bring Me To Life',
+            artistName: const Value('Evanescence'),
+          ),
+        ]);
+        final handler = _FakePlaybackHandler();
+        final lrclib = _MockLrclibClient();
+        final searchStarted = Completer<void>();
+        final releaseSearch = Completer<void>();
+        when(
+          () => lrclib.searchLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        ).thenAnswer((_) async {
+          if (!searchStarted.isCompleted) {
+            searchStarted.complete();
+          }
+          await releaseSearch.future;
+          return const <LrclibLyrics>[
+            LrclibLyrics(
+              artistName: 'Evanescence',
+              trackName: 'Bring Me To Life',
+              syncedLyrics: '[00:01.00]wake me up',
+            ),
+          ];
+        });
+        when(
+          () => lrclib.getLyrics(
+            artist: 'Evanescence',
+            title: 'Bring Me To Life',
+            album: 'Fallen',
+            duration: 235,
+          ),
+        ).thenAnswer((_) async => null);
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            audioHandlerProvider.overrideWithValue(handler),
+            lrclibClientProvider.overrideWithValue(lrclib),
+            subsonicApiProvider.overrideWithValue(null),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(AppSettingsModel.defaults()),
+            ),
+            currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
+          ],
+        );
+        addTearDown(() async {
+          if (!releaseSearch.isCompleted) {
+            releaseSearch.complete();
+          }
+          container.dispose();
+          await handler.dispose();
+          await database.close();
+        });
+
+        await container
+            .read(queueProvider.notifier)
+            .replace(<String>['song-1'])
+            .timeout(const Duration(seconds: 1));
+
+        expect(handler.snapshot.queueSongIds, <String>['song-1']);
+        await searchStarted.future.timeout(const Duration(seconds: 1));
+        releaseSearch.complete();
+        ExternalLyricsCacheTableData? cached;
+        for (var i = 0; i < 20; i++) {
+          cached = await database.libraryDao.getExternalLyricsCache('song-1');
+          if (cached != null) {
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(cached?.source, LyricsSource.lrclibSynced.name);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'queueProvider clear resets persisted playback speed to 1.0',
       () async {
         final repository = _MockSettingsRepository();
@@ -628,6 +719,7 @@ void main() {
           overrides: [
             settingsRepositoryProvider.overrideWithValue(repository),
             audioHandlerProvider.overrideWithValue(handler),
+            lyricsPrewarmProvider.overrideWithValue((_) async {}),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(playbackSpeed: 1.5),
@@ -659,6 +751,7 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             audioHandlerProvider.overrideWithValue(handler),
+            lyricsPrewarmProvider.overrideWithValue((_) async {}),
           ],
         );
         addTearDown(() async {
@@ -703,6 +796,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
         ],
       );
       addTearDown(() async {
@@ -728,6 +822,7 @@ void main() {
           overrides: [
             navisDatabaseProvider.overrideWithValue(database),
             audioHandlerProvider.overrideWithValue(handler),
+            lyricsPrewarmProvider.overrideWithValue((_) async {}),
           ],
         );
         addTearDown(() async {
@@ -1083,6 +1178,256 @@ void main() {
 
       expect(metadata, isNull);
     });
+  });
+
+  group('lyricsProvider LRCLIB-first resolution', () {
+    Future<NavisDatabase> createLyricsDatabase() async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'album-1',
+          name: 'Fallen',
+          artistName: const Value('Evanescence'),
+        ),
+      ]);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'Bring Me To Life',
+          albumId: const Value('album-1'),
+          artistName: const Value('Evanescence'),
+          albumName: const Value('Fallen'),
+          duration: const Value(235),
+        ),
+      ]);
+      return database;
+    }
+
+    test('searches LRCLIB before server when enabled', () async {
+      final database = await createLyricsDatabase();
+      final lrclib = _MockLrclibClient();
+      final api = _MockSubsonicApiClient();
+      when(
+        () => lrclib.searchLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+        ),
+      ).thenAnswer(
+        (_) async => const <LrclibLyrics>[
+          LrclibLyrics(
+            artistName: 'Evanescence',
+            trackName: 'Bring Me To Life',
+            albumName: 'Fallen',
+            duration: 235,
+            syncedLyrics: '[00:01.00]wake me up',
+          ),
+        ],
+      );
+      when(
+        () => lrclib.getLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+          album: any(named: 'album'),
+          duration: any(named: 'duration'),
+        ),
+      ).thenAnswer((_) async => null);
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          lrclibClientProvider.overrideWithValue(lrclib),
+          subsonicApiProvider.overrideWithValue(api),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final resolution = await container.read(lyricsProvider('song-1').future);
+
+      expect(resolution.source, LyricsSource.lrclibSynced);
+      verifyNever(() => api.getLyricsBySongId(any()));
+      verify(
+        () => lrclib.searchLyrics(
+          artist: 'Evanescence',
+          title: 'Bring Me To Life',
+        ),
+      ).called(1);
+      verifyNever(
+        () => lrclib.getLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+          album: any(named: 'album'),
+          duration: any(named: 'duration'),
+        ),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('falls back to server lyrics when LRCLIB throws', () async {
+      final database = await createLyricsDatabase();
+      final lrclib = _MockLrclibClient();
+      final api = _MockSubsonicApiClient();
+      when(
+        () => lrclib.searchLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+        ),
+      ).thenThrow(DioException(requestOptions: RequestOptions()));
+      when(
+        () => api.getLyricsBySongId('song-1'),
+      ).thenAnswer((_) async => const LyricsList(value: 'server lyric'));
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          lrclibClientProvider.overrideWithValue(lrclib),
+          subsonicApiProvider.overrideWithValue(api),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final resolution = await container.read(lyricsProvider('song-1').future);
+
+      expect(resolution.source, LyricsSource.serverPlain);
+      verify(() => api.getLyricsBySongId('song-1')).called(1);
+    }, skip: !sqliteAvailable);
+
+    test('returns cached synced lyrics before LRCLIB lookup', () async {
+      final database = await createLyricsDatabase();
+      final lrclib = _MockLrclibClient();
+      final api = _MockSubsonicApiClient();
+      await database.libraryDao.upsertExternalLyricsCache(
+        songId: 'song-1',
+        source: LyricsSource.lrclibSynced.name,
+        syncedLyrics: '[00:01.00]cached synced',
+      );
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          lrclibClientProvider.overrideWithValue(lrclib),
+          subsonicApiProvider.overrideWithValue(api),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final resolution = await container.read(lyricsProvider('song-1').future);
+
+      expect(resolution.source, LyricsSource.lrclibSynced);
+      expect(
+        resolution.lyrics.structuredLyrics.single.line.single.value,
+        'cached synced',
+      );
+      verifyNever(() => api.getLyricsBySongId(any()));
+      verifyNever(
+        () => lrclib.searchLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+        ),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('does not call LRCLIB when disabled', () async {
+      final database = await createLyricsDatabase();
+      final lrclib = _MockLrclibClient();
+      final api = _MockSubsonicApiClient();
+      when(
+        () => api.getLyricsBySongId('song-1'),
+      ).thenAnswer((_) async => const LyricsList(value: 'server lyric'));
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          lrclibClientProvider.overrideWithValue(lrclib),
+          subsonicApiProvider.overrideWithValue(api),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(useLrclib: false),
+            ),
+          ),
+          currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final resolution = await container.read(lyricsProvider('song-1').future);
+
+      expect(resolution.source, LyricsSource.serverPlain);
+      verify(() => api.getLyricsBySongId('song-1')).called(1);
+      verifyNever(
+        () => lrclib.searchLyrics(
+          artist: any(named: 'artist'),
+          title: any(named: 'title'),
+        ),
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'LRCLIB disabled prefers available server lyrics over LRCLIB cache',
+      () async {
+        final database = await createLyricsDatabase();
+        final lrclib = _MockLrclibClient();
+        final api = _MockSubsonicApiClient();
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song-1',
+          source: LyricsSource.lrclibSynced.name,
+          syncedLyrics: '[00:01.00]cached lrclib',
+        );
+        when(
+          () => api.getLyricsBySongId('song-1'),
+        ).thenAnswer((_) async => const LyricsList(value: 'server lyric'));
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            lrclibClientProvider.overrideWithValue(lrclib),
+            subsonicApiProvider.overrideWithValue(api),
+            appSettingsProvider.overrideWithValue(
+              AsyncData(
+                const AppSettingsModel.defaults().copyWith(useLrclib: false),
+              ),
+            ),
+            currentMediaItemProvider.overrideWithValue(const AsyncData(null)),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        final resolution = await container.read(
+          lyricsProvider('song-1').future,
+        );
+
+        expect(resolution.source, LyricsSource.serverPlain);
+        expect(resolution.lyrics.value, 'server lyric');
+        verify(() => api.getLyricsBySongId('song-1')).called(1);
+        verifyNever(
+          () => lrclib.searchLyrics(
+            artist: any(named: 'artist'),
+            title: any(named: 'title'),
+          ),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
   });
 
   group('preferredMixModeProvider', () {

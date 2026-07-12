@@ -33,6 +33,10 @@ const List<ChangelogVersion> changelogs = [
         'Search category filters now show only matching results, so Songs no longer includes albums or artists when cached and server results are mixed',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'LRCLIB lyrics now prewarm first when songs play or enter the queue, with server lyrics used as fallback when LRCLIB has no match',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

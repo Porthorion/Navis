@@ -60,6 +60,10 @@ const List<_Version> _changelogs = [
       'Search category filters now show only matching results, so Songs no longer includes albums or artists when cached and server results are mixed',
       type: _EntryType.fix,
     ),
+    _Entry(
+      'LRCLIB lyrics now prewarm first when songs play or enter the queue, with server lyrics used as fallback when LRCLIB has no match',
+      type: _EntryType.fix,
+    ),
   ]),
   _Version('1.0.9', [
     _Entry(

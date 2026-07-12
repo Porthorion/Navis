@@ -14,7 +14,6 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
@@ -27,11 +26,11 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
-import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
+import 'package:navis/src/features/player/data/lyrics_resolver.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
-import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
@@ -1743,13 +1742,6 @@ final playbackVolumeProvider =
       PlaybackVolumeController.new,
     );
 
-typedef LyricsLookupMetadata = ({
-  String artist,
-  String title,
-  String? album,
-  int? durationSeconds,
-});
-
 @visibleForTesting
 LyricsLookupMetadata? navisResolveLyricsLookupMetadata({
   required String songId,
@@ -1761,8 +1753,8 @@ LyricsLookupMetadata? navisResolveLyricsLookupMetadata({
       ? currentMediaItem
       : null;
 
-  final title = _preferNonEmpty(song?.title, matchingMediaItem?.title);
-  final artist = _preferNonEmpty(song?.artistName, matchingMediaItem?.artist);
+  final title = preferNonEmpty(song?.title, matchingMediaItem?.title);
+  final artist = preferNonEmpty(song?.artistName, matchingMediaItem?.artist);
   if (title == null || artist == null) {
     return null;
   }
@@ -1770,7 +1762,7 @@ LyricsLookupMetadata? navisResolveLyricsLookupMetadata({
   return (
     artist: artist,
     title: title,
-    album: _preferNonEmpty(song?.albumName, matchingMediaItem?.album),
+    album: preferNonEmpty(song?.albumName, matchingMediaItem?.album),
     durationSeconds: song?.duration ?? matchingMediaItem?.duration?.inSeconds,
   );
 }
@@ -1780,7 +1772,8 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   songId,
 ) async {
   final api = ref.watch(subsonicApiProvider);
-  final dao = ref.read(navisDatabaseProvider).libraryDao;
+  final database = ref.read(navisDatabaseProvider);
+  final dao = database.libraryDao;
   final song = (await dao.getSongsByIds(<String>[songId])).firstOrNull;
   final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
   final lookupMetadata = navisResolveLyricsLookupMetadata(
@@ -1788,177 +1781,20 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     song: song,
     currentMediaItem: currentMediaItem,
   );
-
-  // 1) Server synced -> server plain
-  if (api != null) {
-    try {
-      final serverLyrics = await api.getLyricsBySongId(songId);
-      final source = _resolveServerLyricsSource(serverLyrics);
-      if (source != null) {
-        return LyricsResolution(lyrics: serverLyrics, source: source);
-      }
-    } on SubsonicNotFoundException {
-      // Continue fallback chain.
-    } on SubsonicApiException {
-      // Continue fallback chain.
-    } on SubsonicConnectionException {
-      // Continue fallback chain to allow cache hits.
-    }
-
-    if (lookupMetadata != null) {
-      try {
-        final legacy = await api.getLyrics(
-          artist: lookupMetadata.artist,
-          title: lookupMetadata.title,
-        );
-        if (_hasAnyLyrics(legacy)) {
-          return LyricsResolution(
-            lyrics: legacy,
-            source: LyricsSource.serverPlain,
-          );
-        }
-      } on SubsonicException {
-        // Continue fallback chain.
-      }
-    }
-  }
-
-  // 2) External cache.
-  // Return immediately only if synced lyrics are already cached — best quality.
-  // If only plain lyrics are cached, continue to step 3 to try upgrading to
-  // synced via LrcLib.
-  final cached = await dao.getExternalLyricsCache(songId);
-  final cachedResolution = cached == null
-      ? null
-      : _lyricsResolutionFromExternalCache(cached);
-  final hasOnlyCachedPlain =
-      cached != null &&
-      cached.syncedLyrics == null &&
-      cached.plainLyrics != null;
-  if (cachedResolution != null && !hasOnlyCachedPlain) {
-    return cachedResolution;
-  }
-
-  // 3) LRCLIB synced -> LRCLIB plain (opt-in; default true per product decision).
-  if (!ref.read(useLrclibProvider) || lookupMetadata == null) {
-    if (cachedResolution != null) return cachedResolution;
-    return const LyricsResolution(
-      lyrics: LyricsList(),
-      source: LyricsSource.serverPlain,
-    );
-  }
-
-  final now = DateTime.now();
-  if (cached != null &&
-      cached.lastFailedAt != null &&
-      now.isBefore(
-        cached.lastFailedAt!.add(_externalLyricsBackoff(cached.failureCount)),
-      )) {
-    if (cachedResolution != null) return cachedResolution;
-    return const LyricsResolution(
-      lyrics: LyricsList(),
-      source: LyricsSource.lrclibPlain,
-    );
-  }
-
-  final expected = LrclibMatchCandidate(
-    artist: lookupMetadata.artist,
-    title: lookupMetadata.title,
-    album: lookupMetadata.album,
-    durationSeconds: lookupMetadata.durationSeconds,
+  final cachedTrack = await database.cacheDao.getCachedTrack(songId);
+  final resolver = LyricsResolver(
+    libraryDao: dao,
+    lrclibClient: ref.read(lrclibClientProvider),
+    apiClient: api,
   );
-  final lrclib = ref.read(lrclibClientProvider);
-
-  try {
-    LrclibLyrics? best;
-    var bestScore = 0.0;
-
-    final direct = await lrclib.getLyrics(
-      artist: lookupMetadata.artist,
-      title: lookupMetadata.title,
-      album: lookupMetadata.album,
-      duration: lookupMetadata.durationSeconds,
-    );
-    if (direct != null) {
-      final score = scoreCandidate(
-        expected: expected,
-        candidate: LrclibMatchCandidate(
-          artist: direct.artistName,
-          title: direct.trackName,
-          album: direct.albumName,
-          durationSeconds: direct.duration,
-        ),
-      ).value;
-      if (score >= 0.7) {
-        best = direct;
-        bestScore = score;
-      }
-    }
-
-    if (best == null) {
-      final candidates = await lrclib.searchLyrics(
-        artist: lookupMetadata.artist,
-        title: lookupMetadata.title,
-      );
-      for (final candidate in candidates) {
-        final score = scoreCandidate(
-          expected: expected,
-          candidate: LrclibMatchCandidate(
-            artist: candidate.artistName,
-            title: candidate.trackName,
-            album: candidate.albumName,
-            durationSeconds: candidate.duration,
-          ),
-        ).value;
-        if (score > bestScore && score >= 0.7) {
-          best = candidate;
-          bestScore = score;
-        }
-      }
-    }
-
-    if (best == null) {
-      if (cachedResolution == null) {
-        await dao.recordExternalLyricsFailure(songId);
-      }
-      if (cachedResolution != null) return cachedResolution;
-      return const LyricsResolution(
-        lyrics: LyricsList(),
-        source: LyricsSource.lrclibPlain,
-      );
-    }
-
-    final parsedSynced = _tryParseLrc(best.syncedLyrics);
-    // If LrcLib only has plain and we already have plain cached, skip the write
-    // and return the existing cache — no upgrade available.
-    if (parsedSynced == null && cachedResolution != null) {
-      AppLogger.debug(
-        'Lyrics: LrcLib has no synced lyrics for $songId; keeping existing plain cache.',
-      );
-      return cachedResolution;
-    }
-    final source = parsedSynced != null
-        ? LyricsSource.lrclibSynced
-        : LyricsSource.lrclibPlain;
-    final resolvedLyrics = parsedSynced ?? LyricsList(value: best.plainLyrics);
-
-    await dao.upsertExternalLyricsCache(
-      songId: songId,
-      source: source.name,
-      syncedLyrics: best.syncedLyrics,
-      plainLyrics: best.plainLyrics,
-      ttlSeconds: 31536000,
-      failureCount: 0,
-      lastFailedAt: null,
-    );
-    AppLogger.info('Lyrics source resolved: ${source.name} for song=$songId');
-    return LyricsResolution(lyrics: resolvedLyrics, source: source);
-  } on Object {
-    // If we already have plain lyrics cached, return them rather than throwing.
-    if (cachedResolution != null) return cachedResolution;
-    await dao.recordExternalLyricsFailure(songId);
-    throw const LyricsNetworkException();
-  }
+  return resolver.resolve(
+    songId: songId,
+    metadata: lookupMetadata,
+    useLrclib: ref.read(useLrclibProvider),
+    lyricsCacheTtlSeconds: cachedTrack?.cacheType == CacheType.permanent
+        ? permanentLyricsCacheTtlSeconds
+        : normalLyricsCacheTtlSeconds,
+  );
 });
 
 final albumInfoProvider = FutureProvider.family<AlbumInfo?, String>((
@@ -2607,140 +2443,6 @@ final audioMuseSongRecommendationsProvider = FutureProvider.autoDispose
       if (repo == null) return const [];
       return repo.getRecommendations(seedSongId: seedSongId);
     });
-
-LyricsSource? _resolveServerLyricsSource(LyricsList lyrics) {
-  if (lyrics.structuredLyrics.isNotEmpty) {
-    final first = lyrics.structuredLyrics.first;
-    final hasSynced = first.line.any((line) => line.start != null);
-    if (hasSynced) {
-      return LyricsSource.serverSynced;
-    }
-    final hasUnsyncedLine = first.line.any(
-      (line) => (line.value ?? '').trim().isNotEmpty,
-    );
-    if (hasUnsyncedLine) {
-      return LyricsSource.serverPlain;
-    }
-  }
-  if ((lyrics.value ?? '').trim().isNotEmpty) {
-    return LyricsSource.serverPlain;
-  }
-  return null;
-}
-
-bool _hasAnyLyrics(LyricsList lyrics) {
-  return _resolveServerLyricsSource(lyrics) != null;
-}
-
-Duration _externalLyricsBackoff(int failureCount) {
-  if (failureCount <= 0) {
-    return Duration.zero;
-  }
-  final minutes = failureCount * failureCount;
-  final cappedMinutes = minutes > 1440 ? 1440 : minutes;
-  return Duration(minutes: cappedMinutes);
-}
-
-String? _preferNonEmpty(String? primary, String? fallback) {
-  final trimmedPrimary = primary?.trim();
-  if (trimmedPrimary != null && trimmedPrimary.isNotEmpty) {
-    return trimmedPrimary;
-  }
-  final trimmedFallback = fallback?.trim();
-  if (trimmedFallback != null && trimmedFallback.isNotEmpty) {
-    return trimmedFallback;
-  }
-  return null;
-}
-
-LyricsResolution? _lyricsResolutionFromExternalCache(
-  ExternalLyricsCacheTableData cache,
-) {
-  final source = switch (cache.source) {
-    'lrclibSynced' || 'lrclib_synced' => LyricsSource.lrclibSynced,
-    'lrclibPlain' || 'lrclib_plain' => LyricsSource.lrclibPlain,
-    'serverSynced' => LyricsSource.serverSynced,
-    'serverPlain' => LyricsSource.serverPlain,
-    _ => null,
-  };
-  if (source == null) {
-    return null;
-  }
-
-  // For synced sources (server or lrclib), try the LRC column first.
-  if (source == LyricsSource.serverSynced ||
-      source == LyricsSource.lrclibSynced) {
-    final synced = _tryParseLrc(cache.syncedLyrics);
-    if (synced != null) {
-      return LyricsResolution(lyrics: synced, source: source);
-    }
-  }
-
-  // Fall back to plain text for any source.
-  final plain = cache.plainLyrics;
-  if (plain != null && plain.trim().isNotEmpty) {
-    return LyricsResolution(
-      lyrics: LyricsList(value: plain),
-      source:
-          source == LyricsSource.serverSynced ||
-              source == LyricsSource.serverPlain
-          ? LyricsSource.serverPlain
-          : LyricsSource.lrclibPlain,
-    );
-  }
-  return null;
-}
-
-LyricsList? _tryParseLrc(String? lrc) {
-  if (lrc == null || lrc.trim().isEmpty) {
-    return null;
-  }
-  final regex = RegExp(r'^\[(\d{1,2}):(\d{2})(?:[\.:](\d{1,3}))?\](.*)$');
-  final parsed = <LyricLine>[];
-
-  for (final raw in lrc.split('\n')) {
-    final line = raw.trim();
-    final match = regex.firstMatch(line);
-    if (match == null) {
-      continue;
-    }
-
-    final minutes = int.tryParse(match.group(1) ?? '') ?? 0;
-    final seconds = int.tryParse(match.group(2) ?? '') ?? 0;
-    final fractionText = match.group(3);
-    final fraction = int.tryParse(fractionText ?? '') ?? 0;
-    final millis = fractionText == null
-        ? 0
-        : fractionText.length == 3
-        ? fraction
-        : fraction * 10;
-    final start = minutes * 60000 + seconds * 1000 + millis;
-    parsed.add(LyricLine(start: start, value: (match.group(4) ?? '').trim()));
-  }
-
-  if (parsed.isEmpty) {
-    return null;
-  }
-
-  parsed.sort((a, b) => (a.start ?? 0).compareTo(b.start ?? 0));
-  final lines = <LyricLine>[];
-  for (var i = 0; i < parsed.length; i++) {
-    final current = parsed[i];
-    final nextStart = i + 1 < parsed.length ? parsed[i + 1].start : null;
-    final duration = (current.start != null && nextStart != null)
-        ? (nextStart - current.start!).clamp(0, 60000)
-        : null;
-    lines.add(
-      LyricLine(start: current.start, duration: duration, value: current.value),
-    );
-  }
-
-  return LyricsList(
-    structuredLyrics: <StructuredLyrics>[
-      StructuredLyrics(synced: true, line: lines),
-    ],
-  );
-}
 
 List<AlbumYearSection> _buildAlbumYearSections(List<AlbumsTableData> albums) {
   if (albums.isEmpty) {
