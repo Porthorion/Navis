@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:navis/src/app.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/auth/data/server_connection_service.dart';
@@ -19,6 +18,7 @@ import 'package:navis/src/features/player/presentation/scrobble_dispatch_provide
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/test_theme.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -123,7 +123,7 @@ Widget _buildTestApp({
       ),
       ...overrides.cast(),
     ],
-    child: const NavisApp(),
+    child: testNavisApp,
   );
 }
 

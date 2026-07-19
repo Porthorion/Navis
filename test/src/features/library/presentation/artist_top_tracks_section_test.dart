@@ -9,6 +9,8 @@ import 'package:navis/src/features/library/presentation/artist_top_tracks_sectio
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
+import '../../../../helpers/test_theme.dart';
+
 class _QueueSpyController extends QueueController {
   List<String>? lastReplaceIds;
   int? lastStartIndex;
@@ -23,6 +25,7 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    bool notifyMixSessionReset = true,
   }) async {
     final ids = songs.map((song) => song.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
@@ -71,10 +74,11 @@ Future<_QueueSpyController> _pumpTopTracksSection(
         ),
         subsonicApiProvider.overrideWithValue(null),
       ],
-      child: const MaterialApp(
+      child: MaterialApp(
+        theme: testTheme(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
+        home: const Scaffold(
           body: ArtistTopTracksSection(artistName: 'Test Artist'),
         ),
       ),

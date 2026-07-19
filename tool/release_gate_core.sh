@@ -90,7 +90,7 @@ tmp_log_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_log_dir}"' EXIT
 
 run_step "format check" dart format --set-exit-if-changed .
-run_step "code generation" dart run build_runner build --delete-conflicting-outputs
+run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze
 
 run_step_capture \
@@ -114,4 +114,3 @@ if [[ "${RUN_FULL_TESTS}" == "true" ]]; then
 fi
 
 echo "[release-gate] Core gate passed."
-

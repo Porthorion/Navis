@@ -113,6 +113,9 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   }) async {}
 
   @override
+  Future<void> retainCurrentSongAsQueue(String songId) async {}
+
+  @override
   Future<void> removeAt(int index) async {}
 
   @override
@@ -188,6 +191,7 @@ void main() {
           ...withTestDatabase(db),
           networkTypeProvider.overrideWith((_) => NetworkType.wifi),
           audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData(
               ServerConfigModel(
@@ -250,6 +254,7 @@ void main() {
       overrides: [
         ...withTestDatabase(db),
         audioHandlerProvider.overrideWithValue(handler),
+        lyricsPrewarmProvider.overrideWithValue((_) async {}),
       ],
     );
     addTearDown(container.dispose);
@@ -280,6 +285,7 @@ void main() {
         overrides: [
           ...withTestDatabase(db),
           audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
         ],
       );
       addTearDown(container.dispose);

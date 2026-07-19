@@ -252,6 +252,27 @@ bool navisShouldUseLockCachingForSong({
 }
 
 @visibleForTesting
+int? navisResumeIndexAfterQueueInsertion({
+  required bool wasPlayingBeforeMutation,
+  required bool queueWasCompletedBeforeMutation,
+  required ProcessingState processingStateAfterMutation,
+  required int firstInsertedIndex,
+  required int queueLength,
+}) {
+  if (!wasPlayingBeforeMutation) {
+    return null;
+  }
+  if (!queueWasCompletedBeforeMutation &&
+      processingStateAfterMutation != ProcessingState.completed) {
+    return null;
+  }
+  if (firstInsertedIndex < 0 || firstInsertedIndex >= queueLength) {
+    return null;
+  }
+  return firstInsertedIndex;
+}
+
+@visibleForTesting
 bool navisIsAndroidDspInitializationFailure(
   Object error, {
   required bool isAndroidRuntime,

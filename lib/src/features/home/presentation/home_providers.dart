@@ -1551,22 +1551,6 @@ void _clearListenBrainzPlaylistMatchCache(ListenBrainzPlaylist playlist) {
   _listenBrainzDiscoverMatchCache.removeWhere((key, _) => keys.contains(key));
 }
 
-double _listenBrainzFieldScore(String expected, String actual) {
-  if (expected == actual) {
-    return 1;
-  }
-  if (actual.contains(expected) || expected.contains(actual)) {
-    return 0.82;
-  }
-  final expectedTokens = expected.split(' ').where((t) => t.length > 1).toSet();
-  final actualTokens = actual.split(' ').where((t) => t.length > 1).toSet();
-  if (expectedTokens.isEmpty || actualTokens.isEmpty) {
-    return 0;
-  }
-  final overlap = expectedTokens.intersection(actualTokens).length;
-  return overlap / expectedTokens.length;
-}
-
 Future<_ListenBrainzLocalCandidateSnapshot>
 _loadListenBrainzLocalCandidateSnapshot(
   List<SongsTableData> songs,

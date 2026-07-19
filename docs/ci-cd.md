@@ -13,7 +13,7 @@ Run before every commit (automatically enforced if the pre-commit hook is enable
 Checks performed (in order, fail-fast):
 1. `/tmp` disk-space preflight
 2. `dart format --set-exit-if-changed .`
-3. `dart run build_runner build --delete-conflicting-outputs`
+3. `dart run build_runner build`
 4. `flutter analyze --no-fatal-infos`
 5. Drift migration tests
 6. Critical routing/provider/playback/library sync test suite

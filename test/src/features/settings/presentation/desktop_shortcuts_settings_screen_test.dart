@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/settings/presentation/desktop_shortcuts_settings_screen.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 
+import '../../../../helpers/test_theme.dart';
+
 void main() {
   testWidgets('captured shortcut saves on Enter', (tester) async {
     final container = ProviderContainer();
@@ -13,8 +15,9 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(
-          home: DesktopShortcutsSettingsScreen(),
+        child: MaterialApp(
+          theme: testTheme(),
+          home: const DesktopShortcutsSettingsScreen(),
         ),
       ),
     );
@@ -53,8 +56,9 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(
-          home: DesktopShortcutsSettingsScreen(),
+        child: MaterialApp(
+          theme: testTheme(),
+          home: const DesktopShortcutsSettingsScreen(),
         ),
       ),
     );

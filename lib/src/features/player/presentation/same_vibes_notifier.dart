@@ -53,10 +53,17 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   DateTime? _nextRefillAllowedAt;
   int _consecutiveTransientFailures = 0;
   int? _mixSegmentEndIndex;
+  bool _activationInProgress = false;
+  bool _suppressActivationSeedSnapshot = false;
 
   @override
   SameVibesState build() {
     ref.listen<PlaybackSnapshot>(playerStateProvider, _onSnapshotChanged);
+    ref.listen<int>(regularQueueReplacementEpochProvider, (prev, next) {
+      if (state.active) {
+        deactivate();
+      }
+    });
     ref.onDispose(() {
       _retryTimer?.cancel();
       _retryTimer = null;
@@ -65,11 +72,37 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   }
 
   Future<void> activate(String seedSongId) async {
+    final normalizedSeedSongId = seedSongId.trim();
+    if (normalizedSeedSongId.isEmpty) {
+      return;
+    }
     _mixSegmentEndIndex = null;
+    _activationInProgress = true;
+    _suppressActivationSeedSnapshot = true;
     state = SameVibesState(
       active: true,
-      seedSongId: seedSongId,
+      seedSongId: normalizedSeedSongId,
     );
+    try {
+      await ref
+          .read(queueProvider.notifier)
+          .retainCurrentAsQueue(normalizedSeedSongId);
+    } on Object catch (error, stackTrace) {
+      AppLogger.debug(
+        'SameVibes seed queue reset failed: $error\n$stackTrace',
+      );
+      _retryTimer?.cancel();
+      _retryTimer = null;
+      _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
+      _activationInProgress = false;
+      _suppressActivationSeedSnapshot = false;
+      state = const SameVibesState(error: SameVibesError.networkError);
+      return;
+    }
+    _activationInProgress = false;
+    if (!state.active) {
+      return;
+    }
     await _refill(isInitial: true);
   }
 
@@ -79,6 +112,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _nextRefillAllowedAt = null;
     _consecutiveTransientFailures = 0;
     _mixSegmentEndIndex = null;
+    _activationInProgress = false;
+    _suppressActivationSeedSnapshot = false;
     state = const SameVibesState.inactive();
   }
 
@@ -104,6 +139,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
+    if (_activationInProgress) return;
+    if (_consumeActivationSeedSnapshot(next)) return;
     if (next.isRadioMode) return;
     if (state.refilling || state.error != null) {
       return;
@@ -123,6 +160,25 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     if (remaining <= _kRefillThreshold) {
       unawaited(_refill());
     }
+  }
+
+  bool _consumeActivationSeedSnapshot(PlaybackSnapshot snapshot) {
+    if (!_suppressActivationSeedSnapshot) {
+      return false;
+    }
+    final seedSongId = state.seedSongId;
+    final isRetainedSeedQueue =
+        seedSongId != null &&
+        snapshot.queueSongIds.length == 1 &&
+        snapshot.queueSongIds.first == seedSongId &&
+        (snapshot.currentSongId == null ||
+            snapshot.currentSongId == seedSongId) &&
+        (snapshot.currentIndex == null || snapshot.currentIndex == 0);
+    if (!isRetainedSeedQueue) {
+      return false;
+    }
+    _suppressActivationSeedSnapshot = false;
+    return true;
   }
 
   Future<void> _refill({bool isInitial = false}) async {
@@ -401,15 +457,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       final songsToQueue = <Song>[...mappedSongs, ...fallbackSongs];
       var totalQueued = 0;
       if (songsToQueue.isNotEmpty) {
-        final currentIndex = ref.read(playerStateProvider).currentIndex ?? 0;
+        final queueLengthBeforeAppend = ref
+            .read(playerStateProvider)
+            .queueSongIds
+            .length;
         totalQueued = await ref
             .read(queueProvider.notifier)
-            .insertMixTracksAfterCurrent(
+            .appendMixTracks(
               songsToQueue,
               expandMatchFlows: false,
             );
         if (totalQueued > 0) {
-          _mixSegmentEndIndex = currentIndex + 1 + totalQueued;
+          _mixSegmentEndIndex = queueLengthBeforeAppend + totalQueued;
         }
       }
 

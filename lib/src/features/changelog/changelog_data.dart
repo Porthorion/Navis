@@ -27,6 +27,23 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.11',
+    entries: [
+      ChangelogEntry(
+        'Instant Mix and Same Vibes now start from a fresh queue rooted at the current song, then keep recommendations appending at the bottom',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Adding songs near the end of playback no longer leaves the player paused or stuck at the seek position when advancing to the next track',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Opening the queue during active playback no longer triggers a provider rebuild error',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.10',
     entries: [
       ChangelogEntry(

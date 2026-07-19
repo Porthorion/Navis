@@ -40,12 +40,10 @@ class QueueSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final queueIds = ref.watch(queueProvider);
-    final currentSongId = ref.watch(currentQueueSongIdProvider);
-    final actionsDisabled = ref.watch(
-      playerStateProvider.select(
-        (snapshot) => snapshot.isLoading && snapshot.hasPendingLogicalQueue,
-      ),
-    );
+    final playerSnapshot = ref.watch(playerStateProvider);
+    final currentSongId = playerSnapshot.currentSongId;
+    final actionsDisabled =
+        playerSnapshot.isLoading && playerSnapshot.hasPendingLogicalQueue;
     final close = onClose ?? () => Navigator.of(context).pop();
 
     final body = Column(

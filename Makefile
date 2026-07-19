@@ -7,10 +7,10 @@ check:
 	./tool/check.sh
 
 gen:
-	dart run build_runner build --delete-conflicting-outputs
+	dart run build_runner build
 
 gen-watch:
-	dart run build_runner watch --delete-conflicting-outputs
+	dart run build_runner watch
 
 test:
 	flutter test

@@ -28,17 +28,25 @@ class _MockSubsonicApiClient extends Mock implements SubsonicApiClient {}
 class _MockAudioMuseRepository extends Mock implements AudioMuseRepository {}
 
 class _FakeQueueController extends QueueController {
-  _FakeQueueController({this.insertedCount, this.error});
+  _FakeQueueController({this.insertedCount, this.error, this.onRetain});
 
   final List<List<Song>> mixTrackBatches = <List<Song>>[];
+  final List<String> retainedSongIds = <String>[];
   final int? insertedCount;
   final Exception? error;
+  final void Function(String id)? onRetain;
 
   @override
   List<String> build() => const <String>[];
 
   @override
-  Future<int> insertMixTracksAfterCurrent(
+  Future<void> retainCurrentAsQueue(String id) async {
+    retainedSongIds.add(id);
+    onRetain?.call(id);
+  }
+
+  @override
+  Future<int> appendMixTracks(
     List<Song> songs, {
     bool expandMatchFlows = false,
   }) async {
@@ -98,6 +106,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+        queueProvider.overrideWith(_FakeQueueController.new),
         audioHandlerProvider.overrideWithValue(null),
         subsonicApiProvider.overrideWith((_) => null),
         audioMuseRepositoryProvider.overrideWith((_) => null),
@@ -132,6 +141,43 @@ void main() {
     expect(state.seedSongId, isNull);
   });
 
+  test('deactivates when a regular queue replacement starts', () async {
+    final snapshotState =
+        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+          _SnapshotController.new,
+        );
+
+    final container = ProviderContainer(
+      overrides: [
+        playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+        queueProvider.overrideWith(_FakeQueueController.new),
+        subsonicApiProvider.overrideWith((_) => null),
+        audioMuseRepositoryProvider.overrideWith((_) => null),
+        appSettingsProvider.overrideWithValue(
+          const AsyncData(AppSettingsModel.defaults()),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container
+        .read(snapshotState.notifier)
+        .emitSnapshot(
+          snapshot(
+            queueSongIds: const <String>['seed'],
+            currentSongId: 'seed',
+            currentIndex: 0,
+          ),
+        );
+    await container.read(instantMixProvider.notifier).activate('seed');
+    expect(container.read(instantMixProvider).active, isTrue);
+
+    container.read(regularQueueReplacementEpochProvider.notifier).bump();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(instantMixProvider).active, isFalse);
+  });
+
   test(
     'legacy activation inserts 50 Subsonic instant-mix tracks',
     () async {
@@ -148,10 +194,25 @@ void main() {
         ),
       ).thenAnswer((_) async => songs(50));
 
-      final container = ProviderContainer(
+      late final ProviderContainer container;
+      container = ProviderContainer(
         overrides: [
           playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-          queueProvider.overrideWith(_FakeQueueController.new),
+          queueProvider.overrideWith(
+            () => _FakeQueueController(
+              onRetain: (id) {
+                container
+                    .read(snapshotState.notifier)
+                    .emitSnapshot(
+                      snapshot(
+                        queueSongIds: <String>[id],
+                        currentSongId: id,
+                        currentIndex: 0,
+                      ),
+                    );
+              },
+            ),
+          ),
           subsonicApiProvider.overrideWithValue(api),
           audioMuseRepositoryProvider.overrideWith((_) => null),
           lastFmApiKeyProvider.overrideWithValue('test-key'),
@@ -180,9 +241,11 @@ void main() {
 
       final queue =
           container.read(queueProvider.notifier) as _FakeQueueController;
+      expect(queue.retainedSongIds, <String>['seed']);
       expect(queue.mixTrackBatches, hasLength(1));
       expect(queue.mixTrackBatches.single, hasLength(50));
       expect(queue.mixTrackBatches.single.first.id, 'rec-0');
+      expect(container.read(instantMixProvider).pendingSnackbar, '50');
       verify(() => api.getInstantMix('seed', count: 50)).called(1);
       verifyNever(
         () => api.getSimilarSongs(
@@ -255,6 +318,7 @@ void main() {
       final queue =
           container.read(queueProvider.notifier) as _FakeQueueController;
       final state = container.read(instantMixProvider);
+      expect(queue.retainedSongIds, <String>['seed']);
       expect(queue.mixTrackBatches, hasLength(1));
       expect(state.active, isTrue);
       expect(state.error, isNull);
@@ -394,7 +458,7 @@ void main() {
     },
   );
 
-  test('AudioMuse recommendations insert with playNextWithSongs', () async {
+  test('AudioMuse recommendations append to the queue', () async {
     final snapshotState =
         NotifierProvider<_SnapshotController, PlaybackSnapshot>(
           _SnapshotController.new,
@@ -456,6 +520,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+        queueProvider.overrideWith(_FakeQueueController.new),
         audioHandlerProvider.overrideWithValue(null),
         subsonicApiProvider.overrideWith((_) => null),
         audioMuseRepositoryProvider.overrideWith((_) => null),
@@ -503,6 +568,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+        queueProvider.overrideWith(_FakeQueueController.new),
         audioHandlerProvider.overrideWithValue(null),
         subsonicApiProvider.overrideWith((_) => null),
         audioMuseRepositoryProvider.overrideWith((_) => null),

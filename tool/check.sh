@@ -59,7 +59,7 @@ assert_no_blocking_warnings() {
 }
 
 run_step "format check" dart format --set-exit-if-changed .
-run_step "code generation" dart run build_runner build --delete-conflicting-outputs
+run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze --no-fatal-infos
 # custom_lint is temporarily disabled pending analyzer/riverpod_lint compatibility
 # run_step "custom lint" dart run custom_lint

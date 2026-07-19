@@ -21,10 +21,12 @@ class NavisApp extends ConsumerStatefulWidget {
     super.key,
     this.requirePlaybackBootstrap = false,
     this.schedulePlaybackBootstrap = true,
+    this.splashFactory,
   });
 
   final bool requirePlaybackBootstrap;
   final bool schedulePlaybackBootstrap;
+  final InteractiveInkFeatureFactory? splashFactory;
 
   @override
   ConsumerState<NavisApp> createState() => _NavisAppState();
@@ -72,8 +74,12 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: appLocale,
-      theme: buildLightTheme(seedColor),
-      darkTheme: isOled ? buildOledTheme(seedColor) : buildDarkTheme(seedColor),
+      theme: buildLightTheme(seedColor).copyWith(
+        splashFactory: widget.splashFactory,
+      ),
+      darkTheme:
+          (isOled ? buildOledTheme(seedColor) : buildDarkTheme(seedColor))
+              .copyWith(splashFactory: widget.splashFactory),
       themeMode: resolvedThemeMode,
       builder: (context, child) {
         var content = _wrapWithDesktopInputBoundary(

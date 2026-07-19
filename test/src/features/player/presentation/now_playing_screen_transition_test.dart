@@ -11,6 +11,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/test_theme.dart';
 
 const PlaybackSnapshot _song1Playback = PlaybackSnapshot(
   queueSongIds: <String>['song-1', 'song-2'],
@@ -125,10 +126,11 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
+          child: MaterialApp(
+            theme: testTheme(),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: NowPlayingScreen()),
+            home: const Scaffold(body: NowPlayingScreen()),
           ),
         ),
       );
@@ -176,10 +178,11 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
+          child: MaterialApp(
+            theme: testTheme(),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: NowPlayingScreen()),
+            home: const Scaffold(body: NowPlayingScreen()),
           ),
         ),
       );

@@ -82,7 +82,7 @@ flutter run -d linux
 Always run generation before commit:
 
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build
 ```
 
 Then verify no diff:

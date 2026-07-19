@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_screen.dart';
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/test_theme.dart';
 
 void main() {
   group('MatchFlowScreen', () {
@@ -128,6 +129,7 @@ Widget _buildTestApp(NavisDatabase database) {
   return ProviderScope(
     overrides: withTestDatabase(database),
     child: MaterialApp(
+      theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const MatchFlowScreen(),

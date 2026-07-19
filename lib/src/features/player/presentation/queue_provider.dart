@@ -40,6 +40,20 @@ final lyricsPrewarmProvider = Provider<Future<void> Function(String)>((ref) {
   return (songId) => ref.read(lyricsProvider(songId).future).then<void>((_) {});
 });
 
+final regularQueueReplacementEpochProvider =
+    NotifierProvider<RegularQueueReplacementEpoch, int>(
+      RegularQueueReplacementEpoch.new,
+    );
+
+class RegularQueueReplacementEpoch extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() {
+    state += 1;
+  }
+}
+
 class QueueController extends Notifier<List<String>> {
   @override
   List<String> build() {
@@ -53,11 +67,13 @@ class QueueController extends Notifier<List<String>> {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    bool notifyMixSessionReset = true,
   }) async {
     final handler = _requireHandler();
     final normalized = _normalizeSongIds(ids);
     if (normalized.isEmpty) {
       await handler.clearQueue();
+      _markRegularQueueReplacement(notify: notifyMixSessionReset);
       return;
     }
     final normalizedStartIndex = startIndex.clamp(0, normalized.length - 1);
@@ -75,6 +91,7 @@ class QueueController extends Notifier<List<String>> {
       normalized,
       priorityId: normalized[normalizedStartIndex],
     );
+    _markRegularQueueReplacement(notify: notifyMixSessionReset);
   }
 
   /// Like [replace] but accepts pre-fetched [SongsTableData] rows so the
@@ -85,10 +102,12 @@ class QueueController extends Notifier<List<String>> {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    bool notifyMixSessionReset = true,
   }) async {
     final handler = _requireHandler();
     if (songs.isEmpty) {
       await handler.clearQueue();
+      _markRegularQueueReplacement(notify: notifyMixSessionReset);
       return;
     }
     final normalizedStartIndex = startIndex.clamp(0, songs.length - 1);
@@ -106,6 +125,7 @@ class QueueController extends Notifier<List<String>> {
       songs.map((song) => song.id),
       priorityId: songs[normalizedStartIndex].id,
     );
+    _markRegularQueueReplacement(notify: notifyMixSessionReset);
   }
 
   Future<void> add(String id) async {
@@ -138,10 +158,12 @@ class QueueController extends Notifier<List<String>> {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    bool notifyMixSessionReset = true,
   }) async {
     if (songs.isEmpty) {
       final handler = _requireHandler();
       await handler.clearQueue();
+      _markRegularQueueReplacement(notify: notifyMixSessionReset);
       return;
     }
     await _ensureSongsInDatabase(songs);
@@ -154,6 +176,7 @@ class QueueController extends Notifier<List<String>> {
         startIndex: startIndex,
         autoPlay: autoPlay,
         expandMatchFlows: expandMatchFlows,
+        notifyMixSessionReset: notifyMixSessionReset,
       );
       return;
     }
@@ -162,6 +185,7 @@ class QueueController extends Notifier<List<String>> {
       startIndex: startIndex,
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
+      notifyMixSessionReset: notifyMixSessionReset,
     );
   }
 
@@ -228,9 +252,19 @@ class QueueController extends Notifier<List<String>> {
     await _ensureSongsInDatabase(songs);
   }
 
-  /// Inserts mix/refill tracks after the current item. Persists metadata first,
-  /// then delegates to the audio handler.
-  Future<int> insertMixTracksAfterCurrent(
+  Future<void> retainCurrentAsQueue(String id) async {
+    final normalizedId = id.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    final handler = _requireHandler();
+    await handler.retainCurrentSongAsQueue(normalizedId);
+    _prewarmLyricsForIds(<String>[normalizedId], priorityId: normalizedId);
+  }
+
+  /// Appends mix/refill tracks to the bottom of the queue. Persists metadata
+  /// first, then delegates to the audio handler.
+  Future<int> appendMixTracks(
     List<Song> songs, {
     bool expandMatchFlows = false,
   }) async {
@@ -248,11 +282,18 @@ class QueueController extends Notifier<List<String>> {
     final ids = normalizedSongs.map((song) => song.id).toList(growable: false);
     final handler = _requireHandler();
     final before = handler.snapshot.queueSongIds;
-    await handler.playNext(ids, expandMatchFlows: expandMatchFlows);
+    await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
     _prewarmLyricsForIds(ids);
     final after = handler.snapshot.queueSongIds;
     final inserted = _countInsertedSongIds(before: before, after: after);
     return inserted > 0 ? inserted : normalizedSongs.length;
+  }
+
+  void _markRegularQueueReplacement({required bool notify}) {
+    if (!notify) {
+      return;
+    }
+    ref.read(regularQueueReplacementEpochProvider.notifier).bump();
   }
 
   int _countInsertedSongIds({

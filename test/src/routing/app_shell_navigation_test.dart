@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:navis/src/app.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -29,6 +28,7 @@ import 'package:navis/src/routing/app_router.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
+import '../../helpers/test_theme.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -164,7 +164,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -185,7 +185,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -208,7 +208,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -230,7 +230,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -275,7 +275,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -301,7 +301,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -331,7 +331,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -365,7 +365,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -391,7 +391,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -418,7 +418,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -446,7 +446,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -488,7 +488,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -532,7 +532,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -578,7 +578,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -629,7 +629,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -666,7 +666,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -690,7 +690,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -720,7 +720,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -759,7 +759,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -800,7 +800,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -831,7 +831,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -868,7 +868,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -910,7 +910,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -968,7 +968,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -1007,7 +1007,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -1041,7 +1041,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const NavisApp()),
+      UncontrolledProviderScope(container: container, child: testNavisApp),
     );
     await tester.pumpAndSettle();
 
@@ -1083,7 +1083,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();
@@ -1121,7 +1121,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const NavisApp(),
+          child: testNavisApp,
         ),
       );
       await tester.pumpAndSettle();

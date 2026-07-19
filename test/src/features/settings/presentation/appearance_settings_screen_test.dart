@@ -9,6 +9,7 @@ import 'package:navis/src/theme/navis_theme.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/test_theme.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -46,7 +47,7 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          theme: buildLightTheme(defaultColorSchemeSeedColor),
+          theme: testTheme(buildLightTheme(defaultColorSchemeSeedColor)),
           home: const AppearanceSettingsScreen(),
         ),
       ),

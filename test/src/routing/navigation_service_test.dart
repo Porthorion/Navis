@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
+import '../../helpers/test_theme.dart';
+
 void main() {
   testWidgets('album drill-in from search returns to search on system back', (
     tester,
@@ -162,6 +164,7 @@ Future<void> _pumpRouter(WidgetTester tester, GoRouter router) {
   return tester.pumpWidget(
     ProviderScope(
       child: MaterialApp.router(
+        theme: testTheme(),
         routerConfig: router,
       ),
     ),

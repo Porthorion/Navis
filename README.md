@@ -43,18 +43,18 @@ Minimum tested versions:
 | Layer | Package | Version |
 |---|---|---|
 | UI framework | Flutter | ≥ 3.44.0 |
-| Language | Dart | ^3.11.0 |
+| Language | Dart | ^3.12.0 |
 | State management | flutter_riverpod | ^3.3.1 |
 | Navigation | go_router | ^17.1.0 |
 | Local database | drift + drift_flutter | ^2.32.1 |
 | Audio playback | just_audio + audio_service | ^0.10.5 / ^0.18.18 |
-| Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.11.0 |
+| Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.12.0 |
 | Linux desktop media | audio_service_mpris | ^0.2.1 |
-| Windows desktop media | smtc_windows | latest |
+| Windows desktop media | smtc_windows | ^1.1.0 |
 
 ## Dependency Maintenance
 
-A comprehensive dependency sweep was completed in March 2026 (13 packages upgraded across 5 phases; `riverpod_lint` removed as its runner was already disabled). The current `flutter pub outdated` backlog contains packages that are hard-blocked by transitive constraints from other indirect dependencies and cannot be upgraded without corresponding upstream changes.
+A comprehensive dependency sweep was completed on July 18, 2026. Flutter was updated within the 3.44 stable line, direct package constraints were kept to stable resolvable versions, and the remaining `flutter pub outdated` backlog is blocked by SDK/toolchain or transitive package constraints rather than local overrides.
 
 ## Quick Start
 

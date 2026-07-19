@@ -8,6 +8,8 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
 
+import '../../../../helpers/test_theme.dart';
+
 class _FakeLibrarySyncController extends LibrarySyncController {
   _FakeLibrarySyncController({
     required this.stateValue,
@@ -64,6 +66,7 @@ void main() {
           ),
         ],
         child: MaterialApp(
+          theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SyncSettingsScreen(),

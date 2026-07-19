@@ -258,6 +258,10 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   }) => _delegate.playNext(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
+  Future<void> retainCurrentSongAsQueue(String songId) =>
+      _delegate.retainCurrentSongAsQueue(songId);
+
+  @override
   Future<void> playFromIndex(int index) => _delegate.playFromIndex(index);
 
   @override
@@ -435,6 +439,10 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     bool expandMatchFlows = true,
   }) => _delegate.playNext(songIds, expandMatchFlows: expandMatchFlows);
+
+  @override
+  Future<void> retainCurrentSongAsQueue(String songId) =>
+      _delegate.retainCurrentSongAsQueue(songId);
 
   @override
   Future<void> playFromIndex(int index) => _delegate.playFromIndex(index);

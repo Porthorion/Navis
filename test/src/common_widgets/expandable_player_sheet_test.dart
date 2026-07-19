@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 
+import '../../helpers/test_theme.dart';
+
 class _SheetHarness extends StatefulWidget {
   const _SheetHarness({
     required this.expandCalls,
@@ -23,6 +25,7 @@ class _SheetHarnessState extends State<_SheetHarness> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      theme: testTheme(),
       home: Scaffold(
         body: Column(
           children: <Widget>[

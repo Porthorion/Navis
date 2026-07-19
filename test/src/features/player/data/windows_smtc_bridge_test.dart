@@ -345,6 +345,9 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }) async {}
 
   @override
+  Future<void> retainCurrentSongAsQueue(String songId) async {}
+
+  @override
   Future<void> playRadioStream({
     required String stationId,
     required String stationName,

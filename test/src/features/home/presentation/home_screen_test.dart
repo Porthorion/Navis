@@ -23,6 +23,7 @@ import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/test_theme.dart';
 
 class _StaticLibrarySyncController extends LibrarySyncController {
   @override
@@ -108,6 +109,7 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    bool notifyMixSessionReset = true,
   }) async {
     lastReplaceIds = List<String>.unmodifiable(ids);
     lastStartIndex = startIndex;
@@ -122,6 +124,7 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    bool notifyMixSessionReset = true,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
@@ -137,6 +140,7 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    bool notifyMixSessionReset = true,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
@@ -304,7 +308,7 @@ Future<void> _pumpHomeWithSyncState(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: theme,
+        theme: testTheme(theme),
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
           child: child!,
@@ -362,6 +366,7 @@ Future<void> _pumpHomeWithControllerOverride(
         ],
       ),
       child: MaterialApp(
+        theme: testTheme(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
@@ -429,7 +434,7 @@ Future<void> _pumpRandomSectionHome(
     ProviderScope(
       overrides: sectionOverrides,
       child: MaterialApp(
-        theme: ThemeData(splashFactory: NoSplash.splashFactory),
+        theme: testTheme(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
@@ -516,6 +521,7 @@ Future<void> _pumpHomeWithAppSettings(
         ],
       ),
       child: MaterialApp(
+        theme: testTheme(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
@@ -676,6 +682,7 @@ void main() {
           ],
         ),
         child: MaterialApp(
+          theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
@@ -755,6 +762,7 @@ void main() {
           ],
         ),
         child: MaterialApp(
+          theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (ctx, child) => MediaQuery(
@@ -964,6 +972,7 @@ void main() {
             ],
           ),
           child: MaterialApp(
+            theme: testTheme(),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (ctx, child) => MediaQuery(
@@ -1048,6 +1057,7 @@ void main() {
           ],
         ),
         child: MaterialApp(
+          theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (ctx, child) => MediaQuery(
@@ -1363,6 +1373,7 @@ void main() {
             ],
           ),
           child: MaterialApp(
+            theme: testTheme(),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (ctx, child) => MediaQuery(

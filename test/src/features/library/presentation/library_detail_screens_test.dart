@@ -18,6 +18,7 @@ import 'package:navis/src/features/library/presentation/artist_detail_screen.dar
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/test_theme.dart';
 
 class _DelayedReplaceHandler implements NavisPlaybackHandler {
   _DelayedReplaceHandler({required this.gate});
@@ -88,6 +89,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     bool expandMatchFlows = true,
   }) async {}
+
+  @override
+  Future<void> retainCurrentSongAsQueue(String songId) async {}
 
   @override
   Future<void> playFromIndex(int index) async {}
@@ -185,6 +189,7 @@ Widget _buildApp({
       ...overrides.cast(),
     ],
     child: MaterialApp(
+      theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: adaptiveContext == null

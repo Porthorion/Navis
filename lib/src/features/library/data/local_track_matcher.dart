@@ -97,12 +97,6 @@ class TrackMatchCandidate {
 }
 
 class TrackMatchResult {
-  const TrackMatchResult._({
-    required this.status,
-    this.song,
-    this.tableSong,
-  });
-
   const TrackMatchResult.matched({
     required Song this.song,
     this.tableSong,

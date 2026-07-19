@@ -90,6 +90,8 @@ class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
   int build() => 0;
 }
 
+const _testApp = NavisApp(splashFactory: NoSplash.splashFactory);
+
 ProviderContainer _createContainerWithDatabase({
   List<Override> overrides = const <Override>[],
 }) {
@@ -118,7 +120,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const NavisApp(),
+        child: _testApp,
       ),
     );
     await tester.pumpAndSettle();
@@ -144,7 +146,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const NavisApp(),
+        child: _testApp,
       ),
     );
     await tester.pumpAndSettle();
@@ -197,7 +199,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const NavisApp(),
+        child: _testApp,
       ),
     );
     await tester.pumpAndSettle();
@@ -247,7 +249,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const NavisApp(),
+        child: _testApp,
       ),
     );
     await tester.pumpAndSettle();
@@ -297,7 +299,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const NavisApp(),
+        child: _testApp,
       ),
     );
     await tester.pumpAndSettle();
@@ -422,7 +424,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const NavisApp(),
+        child: _testApp,
       ),
     );
     await tester.pumpAndSettle();

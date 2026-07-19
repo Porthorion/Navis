@@ -20,6 +20,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
+import '../../../../helpers/test_theme.dart';
+
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
 class _FakeServerConnectionService extends ServerConnectionService {
@@ -482,10 +484,11 @@ Widget _buildTestApp({
 
   return ProviderScope(
     overrides: overrides,
-    child: const MaterialApp(
+    child: MaterialApp(
+      theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: ServerSettingsScreen(),
+      home: const ServerSettingsScreen(),
     ),
   );
 }

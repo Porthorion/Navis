@@ -39,6 +39,8 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   /// Refill is based on tracks within this segment, not the pre-mix queue tail.
   int? _mixSegmentEndIndex;
   DateTime? _nextRefillAllowedAt;
+  bool _activationInProgress = false;
+  bool _suppressActivationSeedSnapshot = false;
 
   @override
   InstantMixState build() {
@@ -46,22 +48,52 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       playerStateProvider,
       _onSnapshotChanged,
     );
+    ref.listen<int>(regularQueueReplacementEpochProvider, (prev, next) {
+      if (state.active) {
+        deactivate();
+      }
+    });
     return const InstantMixState.inactive();
   }
 
   Future<void> activate(String seedSongId) async {
+    final normalizedSeedSongId = seedSongId.trim();
+    if (normalizedSeedSongId.isEmpty) {
+      return;
+    }
     _mixSegmentEndIndex = null;
     _nextRefillAllowedAt = null;
+    _activationInProgress = true;
+    _suppressActivationSeedSnapshot = true;
     state = InstantMixState(
       active: true,
-      seedSongId: seedSongId,
+      seedSongId: normalizedSeedSongId,
     );
-    await _refill(seedSongId, isInitial: true);
+    try {
+      await ref
+          .read(queueProvider.notifier)
+          .retainCurrentAsQueue(normalizedSeedSongId);
+    } on Object catch (error, stackTrace) {
+      AppLogger.debug(
+        'InstantMix seed queue reset failed: $error\n$stackTrace',
+      );
+      _activationInProgress = false;
+      _suppressActivationSeedSnapshot = false;
+      state = const InstantMixState(error: InstantMixError.networkError);
+      return;
+    }
+    _activationInProgress = false;
+    if (!state.active) {
+      return;
+    }
+    await _refill(normalizedSeedSongId, isInitial: true);
   }
 
   void deactivate() {
     _mixSegmentEndIndex = null;
     _nextRefillAllowedAt = null;
+    _activationInProgress = false;
+    _suppressActivationSeedSnapshot = false;
     state = const InstantMixState.inactive();
   }
 
@@ -87,6 +119,8 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
+    if (_activationInProgress) return;
+    if (_consumeActivationSeedSnapshot(next)) return;
     if (next.isRadioMode) return;
     if (state.refilling || state.error != null) return;
 
@@ -118,6 +152,25 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       return mixEnd - currentIndex - 1;
     }
     return snapshot.queueSongIds.length - currentIndex - 1;
+  }
+
+  bool _consumeActivationSeedSnapshot(PlaybackSnapshot snapshot) {
+    if (!_suppressActivationSeedSnapshot) {
+      return false;
+    }
+    final seedSongId = state.seedSongId;
+    final isRetainedSeedQueue =
+        seedSongId != null &&
+        snapshot.queueSongIds.length == 1 &&
+        snapshot.queueSongIds.first == seedSongId &&
+        (snapshot.currentSongId == null ||
+            snapshot.currentSongId == seedSongId) &&
+        (snapshot.currentIndex == null || snapshot.currentIndex == 0);
+    if (!isRetainedSeedQueue) {
+      return false;
+    }
+    _suppressActivationSeedSnapshot = false;
+    return true;
   }
 
   Future<void> _refill(String seedSongId, {bool isInitial = false}) async {
@@ -275,16 +328,19 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     if (songs.isEmpty) {
       return 0;
     }
-    final currentIndex = ref.read(playerStateProvider).currentIndex ?? 0;
+    final queueLengthBeforeAppend = ref
+        .read(playerStateProvider)
+        .queueSongIds
+        .length;
     try {
       final queuedCount = await ref
           .read(queueProvider.notifier)
-          .insertMixTracksAfterCurrent(
+          .appendMixTracks(
             songs,
             expandMatchFlows: false,
           );
       if (queuedCount > 0) {
-        _mixSegmentEndIndex = currentIndex + 1 + queuedCount;
+        _mixSegmentEndIndex = queueLengthBeforeAppend + queuedCount;
         _nextRefillAllowedAt = DateTime.now().add(_kMinimumRefillInterval);
       }
       return queuedCount;

@@ -55,6 +55,20 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.11', [
+    _Entry(
+      'Instant Mix and Same Vibes now start from a fresh queue rooted at the current song, then keep recommendations appending at the bottom',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Adding songs near the end of playback no longer leaves the player paused or stuck at the seek position when advancing to the next track',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Opening the queue during active playback no longer triggers a provider rebuild error',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.10', [
     _Entry(
       'Search category filters now show only matching results, so Songs no longer includes albums or artists when cached and server results are mixed',

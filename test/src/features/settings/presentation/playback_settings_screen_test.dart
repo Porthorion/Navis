@@ -8,6 +8,8 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
+import '../../../../helpers/test_theme.dart';
+
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
 void main() {
@@ -294,6 +296,7 @@ void main() {
 
 Widget _buildTestApp() {
   return MaterialApp(
+    theme: testTheme(),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: const PlaybackSettingsScreen(),

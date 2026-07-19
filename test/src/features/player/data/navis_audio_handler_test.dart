@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -170,6 +171,43 @@ void main() {
         expect(capabilities.canPause, isFalse);
         expect(capabilities.canSeek, isTrue);
         expect(capabilities.canStop, isTrue);
+      });
+
+      test('completed queue insertion resumes from inserted item', () {
+        expect(
+          navisResumeIndexAfterQueueInsertion(
+            wasPlayingBeforeMutation: true,
+            queueWasCompletedBeforeMutation: true,
+            processingStateAfterMutation: ProcessingState.ready,
+            firstInsertedIndex: 1,
+            queueLength: 2,
+          ),
+          1,
+        );
+
+        expect(
+          navisResumeIndexAfterQueueInsertion(
+            wasPlayingBeforeMutation: true,
+            queueWasCompletedBeforeMutation: false,
+            processingStateAfterMutation: ProcessingState.completed,
+            firstInsertedIndex: 2,
+            queueLength: 3,
+          ),
+          2,
+        );
+      });
+
+      test('queue insertion does not resume when playback was paused', () {
+        expect(
+          navisResumeIndexAfterQueueInsertion(
+            wasPlayingBeforeMutation: false,
+            queueWasCompletedBeforeMutation: true,
+            processingStateAfterMutation: ProcessingState.completed,
+            firstInsertedIndex: 1,
+            queueLength: 2,
+          ),
+          isNull,
+        );
       });
 
       test('unknown duration media is treated as non-seekable live media', () {

@@ -7,6 +7,8 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
+import 'helpers/test_theme.dart';
+
 /// Overrides that prevent Drift streams (and their periodic timers) from being
 /// subscribed in widget tests.  Without these, `tester.pump()` enters an
 /// infinite loop servicing Drift's internal change-check timer.
@@ -54,7 +56,7 @@ void main() {
             serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           ],
         ),
-        child: const NavisApp(),
+        child: testNavisApp,
       ),
     );
     await tester.pump();
@@ -84,7 +86,10 @@ void main() {
             ),
           ],
         ),
-        child: const NavisApp(requirePlaybackBootstrap: true),
+        child: const NavisApp(
+          requirePlaybackBootstrap: true,
+          splashFactory: NoSplash.splashFactory,
+        ),
       ),
     );
     await tester.pump();
@@ -109,7 +114,10 @@ void main() {
             ),
           ],
         ),
-        child: const NavisApp(requirePlaybackBootstrap: true),
+        child: const NavisApp(
+          requirePlaybackBootstrap: true,
+          splashFactory: NoSplash.splashFactory,
+        ),
       ),
     );
     await tester.pump();

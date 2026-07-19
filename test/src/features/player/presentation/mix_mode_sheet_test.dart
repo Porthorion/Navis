@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 
+import '../../../../helpers/test_theme.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -12,6 +14,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
+          theme: testTheme(),
           home: Builder(
             builder: (context) => Scaffold(
               body: Center(

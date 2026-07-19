@@ -64,11 +64,11 @@ Navis is a multi-platform **Subsonic/OpenSubsonic** music client built with Flut
 ## 3. Commands and quality gates
 
 ```bash
-# Bootstrap (Flutter ≥ 3.41, pub get)
+# Bootstrap (Flutter ≥ 3.44, pub get)
 ./tool/bootstrap.sh          # or: make bootstrap
 
 # Code generation (after Freezed / Drift / JSON model changes)
-make gen                     # dart run build_runner build --delete-conflicting-outputs
+make gen                     # dart run build_runner build
 make gen-watch               # watch mode
 
 # Full quality gate (pre-commit hook runs this)
@@ -103,7 +103,7 @@ APK package/version/signature plus release string sentinels before upload.
 
 1. `/tmp` disk space ≥ 256 MB
 2. `dart format --set-exit-if-changed .`
-3. `dart run build_runner build --delete-conflicting-outputs`
+3. `dart run build_runner build`
 4. `flutter analyze --no-fatal-infos`
 5. Migration tests: `test/src/database/migrations/navis_migration_test.dart`
 6. Critical reliability suite (5 files):
@@ -133,7 +133,7 @@ These strings in test output cause `check.sh` to fail:
 | Layer | Package | Version constraint |
 |-------|---------|-------------------|
 | Flutter | flutter | ≥ 3.44.0 |
-| Dart | sdk | ^3.11.0 |
+| Dart | sdk | ^3.12.0 |
 | State | flutter_riverpod | ^3.3.1 |
 | Routing | go_router | ^17.1.0 |
 | Database | drift + drift_flutter | ^2.32.1 |

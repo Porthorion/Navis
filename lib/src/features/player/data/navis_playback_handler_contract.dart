@@ -35,6 +35,7 @@ abstract class NavisPlaybackHandler {
 
   Future<void> addToQueue(List<String> songIds, {bool expandMatchFlows});
   Future<void> playNext(List<String> songIds, {bool expandMatchFlows});
+  Future<void> retainCurrentSongAsQueue(String songId);
   Future<void> playFromIndex(int index);
   Future<void> removeAt(int index);
   Future<void> reorderQueue(int oldIndex, int newIndex);

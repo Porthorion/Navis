@@ -25,6 +25,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/test_theme.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
   _FakeLibrarySyncController(this._initialState, {this.onSyncNow});
@@ -72,6 +73,7 @@ class _QueueSpyController extends QueueController {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
+    bool notifyMixSessionReset = true,
   }) async {
     lastReplaceIds = songs.map((song) => song.id).toList(growable: false);
     lastStartIndex = startIndex;
@@ -172,6 +174,7 @@ Widget _buildLibraryScreen({
       ],
     ),
     child: MaterialApp(
+      theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const LibraryScreen(),
@@ -222,6 +225,7 @@ Widget _buildLibraryScreenRouter({
       ],
     ),
     child: MaterialApp.router(
+      theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
@@ -763,6 +767,7 @@ void main() {
             ],
           ),
           child: MaterialApp(
+            theme: testTheme(),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const LibraryScreen(),
@@ -1024,6 +1029,7 @@ void main() {
           UncontrolledProviderScope(
             container: container,
             child: MaterialApp(
+              theme: testTheme(),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const LibraryScreen(),

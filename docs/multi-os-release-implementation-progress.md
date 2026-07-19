@@ -256,7 +256,7 @@ This document is the detailed execution log for preparing Navis as a native app 
     - `test/src/routing/desktop_layout_test.dart`
     - `test/src/routing/desktop_commands_test.dart`
 - Evidence:
-  - Codegen: `flutter pub run build_runner build --delete-conflicting-outputs`
+  - Codegen: `dart run build_runner build`
   - Analyzer (focused paths): `flutter analyze ...`
 
 ### P. ACP M4-04 Focus Player Mode implementation

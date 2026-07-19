@@ -37,6 +37,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
       StreamController<PlaybackSnapshot>.broadcast();
   final List<List<String>> addToQueueCalls = <List<String>>[];
   final List<List<String>> playNextCalls = <List<String>>[];
+  final List<String> retainCurrentSongCalls = <String>[];
   final List<bool> addToQueueExpandFlags = <bool>[];
   final List<bool> playNextExpandFlags = <bool>[];
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
@@ -118,6 +119,17 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     final insertAt = currentIndex + 1;
     queue.insertAll(insertAt, songIds);
     _snapshot = _snapshot.copyWith(queueSongIds: queue);
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> retainCurrentSongAsQueue(String songId) async {
+    retainCurrentSongCalls.add(songId);
+    _snapshot = _snapshot.copyWith(
+      queueSongIds: <String>[songId],
+      currentSongId: songId,
+      currentIndex: 0,
+    );
     _controller.add(_snapshot);
   }
 
@@ -620,6 +632,31 @@ void main() {
       expect(handler.snapshot.queueSongIds, isEmpty);
     });
 
+    test('queueProvider replacement reset signal can be suppressed', () async {
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
+
+      expect(container.read<int>(regularQueueReplacementEpochProvider), 0);
+
+      await container.read(queueProvider.notifier).replace(
+        <String>['seed'],
+        notifyMixSessionReset: false,
+      );
+      expect(container.read<int>(regularQueueReplacementEpochProvider), 0);
+
+      await container.read(queueProvider.notifier).replace(<String>['new']);
+      expect(container.read<int>(regularQueueReplacementEpochProvider), 1);
+    });
+
     test(
       'queueProvider prewarms lyrics without blocking replacement',
       () async {
@@ -869,6 +906,52 @@ void main() {
         ]);
         expect(persisted.first.artistId, 'remote-artist');
         expect(persisted.first.albumId, 'remote-album');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'queueProvider appendMixTracks persists songs and delegates to addToQueue',
+      () async {
+        final database = NavisDatabase(NativeDatabase.memory());
+        final handler = _FakePlaybackHandler();
+        await handler.replaceQueue(<String>['seed']);
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            audioHandlerProvider.overrideWithValue(handler),
+            lyricsPrewarmProvider.overrideWithValue((_) async {}),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+          await database.close();
+        });
+
+        final inserted = await container
+            .read(queueProvider.notifier)
+            .appendMixTracks(
+              const <Song>[
+                Song(
+                  id: ' rec-1 ',
+                  title: 'Recommendation 1',
+                  artist: 'Remote Artist',
+                  artistId: 'remote-artist',
+                  album: 'Remote Album',
+                  albumId: 'remote-album',
+                ),
+              ],
+              expandMatchFlows: false,
+            );
+
+        expect(inserted, 1);
+        expect(handler.addToQueueCalls, <List<String>>[
+          <String>['rec-1'],
+        ]);
+        expect(handler.addToQueueExpandFlags, <bool>[false]);
+        expect(handler.playNextCalls, isEmpty);
+        expect(handler.snapshot.queueSongIds, <String>['seed', 'rec-1']);
       },
       skip: !sqliteAvailable,
     );
