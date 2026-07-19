@@ -339,6 +339,8 @@ hooks:
         $_dillDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'hooks_runner', 'sqlite3')
         if (Test-Path $_dillDir) { Remove-Item -Recurse -Force $_dillDir 2>$null }
         $ErrorActionPreference = 'Stop'
+        flutter pub get --offline
+        if ($LASTEXITCODE -ne 0) { throw "flutter pub get --offline after sqlite3 hook config failed with exit code $LASTEXITCODE" }
     }
 }
 
@@ -400,6 +402,7 @@ if ([System.IO.File]::Exists($_runBuildToolCmd)) {
 
 $buildArgs = @(
   '--release',
+  '--no-pub',
   "--dart-define=NAVIS_UPDATE_CHANNEL=$UpdateChannel"
 )
 if ($LastFmApiKey -ne '') {
