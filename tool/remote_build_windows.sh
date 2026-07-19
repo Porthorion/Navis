@@ -295,10 +295,13 @@ if ([System.IO.File]::Exists($_resolvePs1)) {
 # Priority: use the bundled DLL shipped with the source archive; fall back to
 # any cached DLL from a prior local build on this machine.
 $_sqlite3SharedDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'hooks_runner', 'shared', 'sqlite3', 'build', 'download-bundled')
+$_sqlite3OfflineDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'offline_native_assets', 'sqlite3')
 New-Item -ItemType Directory -Force -Path $_sqlite3SharedDir | Out-Null
+New-Item -ItemType Directory -Force -Path $_sqlite3OfflineDir | Out-Null
 $_sqlite3Seeded = $false
 if ($Sqlite3DllName -ne '' -and (Test-Path (Join-Path $baseDir $Sqlite3DllName))) {
     Copy-Item (Join-Path $baseDir $Sqlite3DllName) (Join-Path $_sqlite3SharedDir 'sqlite3.dll') -Force
+    Copy-Item (Join-Path $baseDir $Sqlite3DllName) (Join-Path $_sqlite3OfflineDir 'sqlite3.x64.windows.dll') -Force
     Write-Host "[remote-windows] Pre-seeded sqlite3 native asset from bundled DLL"
     $_sqlite3Seeded = $true
 }
@@ -310,10 +313,31 @@ if (-not $_sqlite3Seeded) {
             $_srcFile = Join-Path $_.FullName 'sqlite3.dll'
             if ((Test-Path $_srcFile) -and -not $_sqlite3Seeded) {
                 Copy-Item $_srcFile (Join-Path $_sqlite3SharedDir 'sqlite3.dll') -Force
+                Copy-Item $_srcFile (Join-Path $_sqlite3OfflineDir 'sqlite3.x64.windows.dll') -Force
                 Write-Host "[remote-windows] Pre-seeded sqlite3 native asset from $_srcFile"
                 $_sqlite3Seeded = $true
             }
         }
+        $ErrorActionPreference = 'Stop'
+    }
+}
+
+if ($_sqlite3Seeded) {
+    $_pubspecPath = Join-Path $workspaceDir 'pubspec.yaml'
+    $_pubspecContent = [System.IO.File]::ReadAllText($_pubspecPath)
+    if ($_pubspecContent -notmatch '(?m)^hooks:') {
+        Add-Content -Path $_pubspecPath -Value @'
+
+hooks:
+  user_defines:
+    sqlite3:
+      source: test-sqlite3
+      directory: .dart_tool/offline_native_assets/sqlite3/
+'@
+        Write-Host "[remote-windows] Configured sqlite3 native hook to use bundled DLL"
+        $ErrorActionPreference = 'Continue'
+        $_dillDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'hooks_runner', 'sqlite3')
+        if (Test-Path $_dillDir) { Remove-Item -Recurse -Force $_dillDir 2>$null }
         $ErrorActionPreference = 'Stop'
     }
 }
