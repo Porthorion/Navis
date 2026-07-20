@@ -475,6 +475,10 @@ class DownloadService {
         lastAccessedAt: DateTime.now(),
       ),
     );
+    final api = _readApiClient();
+    if (song != null && api != null) {
+      unawaited(_precacheCoverArt(song, api));
+    }
     return true;
   }
 
@@ -651,21 +655,7 @@ class DownloadService {
         await _downloadQueueDao.remove(item.id);
 
         // Pre-cache cover art alongside the audio file (best-effort).
-        final coverArtId = song.coverArt;
-        if (coverArtId != null && coverArtId.isNotEmpty) {
-          final artUrl = api
-              .getCoverArtUrl(id: coverArtId, size: 300)
-              .toString();
-          unawaited(
-            _readCoverArtCacheManager()
-                .downloadFile(
-                  artUrl,
-                  key: coverArtImageCacheKey(coverArtId, 300),
-                )
-                .then((_) {})
-                .catchError((_) {}),
-          );
-        }
+        unawaited(_precacheCoverArt(song, api));
 
         unawaited(DownloadNotifier.dismissProgress().catchError((_) {}));
         unawaited(
@@ -758,6 +748,31 @@ class DownloadService {
     }
 
     return false;
+  }
+
+  Future<void> _precacheCoverArt(
+    SongsTableData song,
+    SubsonicApiClient api,
+  ) async {
+    final coverArtId = song.coverArt?.trim();
+    if (coverArtId == null || coverArtId.isEmpty) {
+      return;
+    }
+
+    try {
+      final artUrl = api
+          .getCoverArtUrl(id: coverArtId, size: kCoverArtStandardSize)
+          .toString();
+      await _readCoverArtCacheManager().downloadFile(
+        artUrl,
+        key: coverArtImageCacheKey(coverArtId, kCoverArtStandardSize),
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'DownloadService: Cover art pre-cache failed for '
+        'song=${song.id} coverArt=$coverArtId: $error\n$stackTrace',
+      );
+    }
   }
 
   /// Handle a download failure with automatic retry logic.

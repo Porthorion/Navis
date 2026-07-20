@@ -55,7 +55,7 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
-  _Version('1.0.11', [
+  _Version('1.0.12', [
     _Entry(
       'Instant Mix and Same Vibes now start from a fresh queue rooted at the current song, then keep recommendations appending at the bottom',
       type: _EntryType.fix,
@@ -67,6 +67,18 @@ const List<_Version> _changelogs = [
     _Entry(
       'Opening the queue during active playback no longer triggers a provider rebuild error',
       type: _EntryType.fix,
+    ),
+    _Entry(
+      'Queued remote tracks now recover from stream stalls by falling back to direct playback or skipping the failed track instead of staying stuck',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Downloaded songs now pre-cache standard-size cover art so offline album and track artwork is available more reliably',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'The offline server banner now switches to a quiet offline mode after repeated retry failures while continuing background checks',
+      type: _EntryType.improvement,
     ),
   ]),
   _Version('1.0.10', [

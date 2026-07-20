@@ -377,6 +377,13 @@ The Last.fm API key used by "Same Vibes" instant mix mode is injected at build t
 5. Audio handler updates `playbackSnapshotProvider`
 6. UI reacts to snapshot changes
 
+Remote stream recovery is layered. If a lock-cached remote source stalls or
+fails at runtime, the audio handler marks that song as bypassed for the session
+and rebuilds playback with direct streams at the current index/position. If a
+direct stream fails, the song is marked as failed and playback advances to the
+next playable queue item when available. Background phase-2 queue fill failures
+must not clear the active start item.
+
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. While phase 2
 is loading, `PlaybackSnapshot.queueSongIds` can represent the pending logical
@@ -403,7 +410,9 @@ remove, reorder, or play-index actions until the transport queue catches up.
 2. On completion → `RollingCacheManager.registerTrack()`
 3. Cache manager enforces budget via LRU eviction
 4. User pins content → Download to permanent cache
-5. Playback prefers permanent → rolling → stream
+5. Permanent download completion and rolling→permanent promotion pre-cache
+   cover art using `kCoverArtStandardSize`
+6. Playback prefers permanent → rolling → stream
 
 ## Testing Strategy
 

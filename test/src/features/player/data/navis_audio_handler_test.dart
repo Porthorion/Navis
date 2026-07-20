@@ -486,6 +486,37 @@ void main() {
       },
     );
 
+    test('remote playback stall watcher only tracks remote loading states', () {
+      expect(
+        navisShouldWatchRemotePlaybackForStall(
+          sourceKind: PlaybackSourceKind.lockCachedStream.name,
+          processingState: AudioProcessingState.buffering,
+        ),
+        isTrue,
+      );
+      expect(
+        navisShouldWatchRemotePlaybackForStall(
+          sourceKind: PlaybackSourceKind.directStream.name,
+          processingState: AudioProcessingState.loading,
+        ),
+        isTrue,
+      );
+      expect(
+        navisShouldWatchRemotePlaybackForStall(
+          sourceKind: PlaybackSourceKind.file.name,
+          processingState: AudioProcessingState.buffering,
+        ),
+        isFalse,
+      );
+      expect(
+        navisShouldWatchRemotePlaybackForStall(
+          sourceKind: PlaybackSourceKind.directStream.name,
+          processingState: AudioProcessingState.ready,
+        ),
+        isFalse,
+      );
+    });
+
     test('crossfade handoff seek helper seeks on index mismatch', () {
       expect(
         navisShouldSeekCrossfadeHandoff(

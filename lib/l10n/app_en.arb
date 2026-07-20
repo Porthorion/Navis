@@ -32,6 +32,7 @@
     }
   },
   "serverOfflineBanner": "Server unreachable. Retrying every 30s.",
+  "serverOfflineQuietBanner": "Offline mode",
   "settingsTitle": "Settings",
   "settingsServerTitle": "Configuration",
   "settingsServerSubtitle": "Server connection, account, and external services.",

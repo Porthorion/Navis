@@ -14,6 +14,10 @@ final reachabilityRetryIntervalProvider = Provider<Duration>((ref) {
   return const Duration(seconds: 30);
 });
 
+final reachabilityVisibleRetryLimitProvider = Provider<int>((ref) {
+  return 3;
+});
+
 final pingServerProvider = Provider<PingServer?>((ref) {
   final api = ref.watch(subsonicApiProvider);
   if (api == null) {
@@ -45,7 +49,7 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
         : _toSessionFingerprint(configState);
 
     if (_hasAuthenticatedSession) {
-      Future<void>.microtask(_checkReachability);
+      unawaited(Future<void>.microtask(_checkReachability));
     }
 
     ref.listen<AsyncValue<ServerConfigModel?>>(
@@ -58,6 +62,14 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
       (_, next) {
         if (!_hasAuthenticatedSession || next.isLoading) {
           return;
+        }
+        if (state.status == ServerReachabilityStatus.offline) {
+          state = state.copyWith(
+            status: ServerReachabilityStatus.checking,
+            consecutiveFailureCount: 0,
+            showRetryBanner: true,
+            clearErrorMessage: true,
+          );
         }
         unawaited(_checkReachability());
       },
@@ -94,6 +106,8 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
     _cancelRetryTimer();
     state = state.copyWith(
       status: ServerReachabilityStatus.checking,
+      consecutiveFailureCount: 0,
+      showRetryBanner: true,
       clearErrorMessage: true,
     );
     unawaited(_checkReachability());
@@ -118,6 +132,10 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
         status: ServerReachabilityStatus.offline,
         lastCheckedAt: now,
         lastErrorMessage: 'Missing authenticated session.',
+        consecutiveFailureCount: state.consecutiveFailureCount + 1,
+        showRetryBanner: _shouldShowRetryBanner(
+          state.consecutiveFailureCount + 1,
+        ),
       );
       _scheduleRetryTimer();
       return;
@@ -134,6 +152,8 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
         status: ServerReachabilityStatus.online,
         lastCheckedAt: now,
         lastOnlineAt: now,
+        consecutiveFailureCount: 0,
+        showRetryBanner: true,
         clearErrorMessage: true,
       );
       _cancelRetryTimer();
@@ -146,6 +166,10 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
         status: ServerReachabilityStatus.offline,
         lastCheckedAt: now,
         lastErrorMessage: _toUserSafeError(error),
+        consecutiveFailureCount: state.consecutiveFailureCount + 1,
+        showRetryBanner: _shouldShowRetryBanner(
+          state.consecutiveFailureCount + 1,
+        ),
       );
       _scheduleRetryTimer();
     } finally {
@@ -175,6 +199,11 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
   void _cancelRetryTimer() {
     _retryTimer?.cancel();
     _retryTimer = null;
+  }
+
+  bool _shouldShowRetryBanner(int consecutiveFailureCount) {
+    final visibleLimit = ref.read(reachabilityVisibleRetryLimitProvider);
+    return consecutiveFailureCount <= visibleLimit;
   }
 
   String _toUserSafeError(Object error) {

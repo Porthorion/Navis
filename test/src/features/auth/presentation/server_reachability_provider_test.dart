@@ -113,6 +113,45 @@ void main() {
     await connectivityController.close();
   });
 
+  test('hides visible retry banner after repeated failures', () async {
+    final authStateProvider =
+        NotifierProvider<_AuthStateController, AsyncValue<ServerConfigModel?>>(
+          () => _AuthStateController(const AsyncData(authenticatedConfig)),
+        );
+    final connectivityController = StreamController<List<ConnectivityResult>>();
+    var pingCalls = 0;
+
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigStateProvider.overrideWith((ref) {
+          return ref.watch(authStateProvider);
+        }),
+        connectivityProvider.overrideWith((ref) {
+          return connectivityController.stream;
+        }),
+        reachabilityRetryIntervalProvider.overrideWithValue(
+          const Duration(milliseconds: 10),
+        ),
+        pingServerProvider.overrideWithValue(() async {
+          pingCalls++;
+          throw const SubsonicConnectionException('offline');
+        }),
+      ],
+    );
+
+    container.read(serverReachabilityControllerProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 45));
+
+    final state = container.read(serverReachabilityControllerProvider);
+    expect(state.status, ServerReachabilityStatus.offline);
+    expect(pingCalls, greaterThan(3));
+    expect(state.consecutiveFailureCount, greaterThan(3));
+    expect(state.showRetryBanner, isFalse);
+
+    container.dispose();
+    await connectivityController.close();
+  });
+
   test(
     'connectivity changes trigger re-check but do not set status directly',
     () async {

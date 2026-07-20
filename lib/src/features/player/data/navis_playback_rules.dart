@@ -486,6 +486,20 @@ bool navisShouldRecoverSeekToDirectStream({
 }
 
 @visibleForTesting
+bool navisShouldWatchRemotePlaybackForStall({
+  required String? sourceKind,
+  required AudioProcessingState processingState,
+}) {
+  final isRemoteSource =
+      sourceKind == PlaybackSourceKind.lockCachedStream.name ||
+      sourceKind == PlaybackSourceKind.directStream.name;
+  final isWaitingForRemoteData =
+      processingState == AudioProcessingState.loading ||
+      processingState == AudioProcessingState.buffering;
+  return isRemoteSource && isWaitingForRemoteData;
+}
+
+@visibleForTesting
 bool navisShouldSeekCrossfadeHandoff({
   required int? handoffTargetIndex,
   required int? currentIndex,

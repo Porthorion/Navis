@@ -262,6 +262,12 @@ abstract class AppLocalizations {
   /// **'Server unreachable. Retrying every 30s.'**
   String get serverOfflineBanner;
 
+  /// No description provided for @serverOfflineQuietBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline mode'**
+  String get serverOfflineQuietBanner;
+
   /// No description provided for @settingsTitle.
   ///
   /// In en, this message translates to:

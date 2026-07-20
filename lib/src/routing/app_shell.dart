@@ -697,6 +697,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final showOfflineBanner =
         isAuthenticated &&
         reachability.status == ServerReachabilityStatus.offline;
+    final offlineBannerText = reachability.showRetryBanner
+        ? l10n.serverOfflineBanner
+        : l10n.serverOfflineQuietBanner;
     final appNoticeTopOffset = showOfflineBanner ? 66.0 : 12.0;
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
@@ -1243,7 +1246,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         selectedIndex: selectedIndex,
                         destinations: railDestinations,
                         showOfflineBanner: showOfflineBanner,
-                        offlineBannerText: l10n.serverOfflineBanner,
+                        offlineBannerText: offlineBannerText,
                         showPlayer: showPlayer,
                         showQueueOverlay: showQueueOverlay,
                         hasPlayerOverlay: hasPlayerOverlay,
@@ -1444,7 +1447,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                     const SizedBox(width: 10),
                                                     Expanded(
                                                       child: Text(
-                                                        l10n.serverOfflineBanner,
+                                                        offlineBannerText,
                                                         style: TextStyle(
                                                           color: Theme.of(context)
                                                               .colorScheme
@@ -1706,7 +1709,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        l10n.serverOfflineBanner,
+                                        offlineBannerText,
                                         style: TextStyle(
                                           color: Theme.of(
                                             context,

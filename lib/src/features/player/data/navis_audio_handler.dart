@@ -166,6 +166,11 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, StreamSubscription<double>> _cacheProgressSubscriptions =
       <String, StreamSubscription<double>>{};
   final Set<String> _lockCachingBypassedSongIds = <String>{};
+  Timer? _remotePlaybackStallTimer;
+  String? _remotePlaybackStallSongId;
+  Duration? _remotePlaybackStallPosition;
+  Duration? _remotePlaybackStallBufferedPosition;
+  bool _remotePlaybackRecoveryInProgress = false;
   bool _isDucked = false;
   // The most-recently requested user volume (0–1). Used as the reference level
   // for ducking and crossfade restoration so track changes never override the
@@ -212,6 +217,7 @@ class NavisAudioHandler extends BaseAudioHandler
   bool _disposeHandlerStarted = false;
   bool _disposeHandlerCompleted = false;
   static const Duration _playerLoadTimeout = Duration(seconds: 12);
+  static const Duration _remotePlaybackStallTimeout = Duration(seconds: 12);
   static const Duration _playerResetTimeout = Duration(seconds: 4);
   static const Duration _playerControlTimeout = Duration(seconds: 4);
   int _loadGeneration = 0;
@@ -1065,6 +1071,7 @@ class NavisAudioHandler extends BaseAudioHandler
         _handleScrobbleSignals();
         _broadcastPlaybackState();
         _emitSnapshot();
+        _syncRemotePlaybackStallWatchdog();
       },
       onError: (Object error, StackTrace stackTrace) {
         AppLogger.error('Playback event stream error.', error, stackTrace);
@@ -1109,6 +1116,14 @@ class NavisAudioHandler extends BaseAudioHandler
                 );
               }
             }),
+          );
+        } else {
+          unawaited(
+            _recoverCurrentSongFromRemotePlaybackFailure(
+              reason: 'playback event stream error',
+              error: error,
+              stackTrace: stackTrace,
+            ),
           );
         }
       },
@@ -2557,15 +2572,40 @@ class NavisAudioHandler extends BaseAudioHandler
 
       _checkQueueWorkCurrent(token, generation);
       for (var j = 0; j < prepared.length; j++) {
-        await _runTimedPlayerOperation(
-          generation: generation,
-          operation: 'replace queue insert before',
-          action: () => _player.insertAudioSource(
-            insertedBeforeCount,
-            prepared[j].audioSource,
-          ),
-          songId: prepared[j].song.id,
-        );
+        final positionBeforeMutation = _player.position;
+        final wasPlayingBeforeMutation = _player.playing;
+        try {
+          await _runTimedPlayerOperation(
+            generation: generation,
+            operation: 'replace queue insert before',
+            action: () => _player.insertAudioSource(
+              insertedBeforeCount,
+              prepared[j].audioSource,
+            ),
+            songId: prepared[j].song.id,
+          );
+        } on PlaybackLoadTimeoutException catch (error) {
+          skippedSongIds.add(prepared[j].song.id);
+          await _restoreStartItemAfterQueueFillTimeout(
+            startItem: startItem,
+            position: positionBeforeMutation,
+            autoPlay: wasPlayingBeforeMutation,
+            generation: generation,
+            failedSongId: error.songId ?? prepared[j].song.id,
+          );
+          return;
+        } on Object catch (error, stackTrace) {
+          skippedSongIds.add(prepared[j].song.id);
+          _markSongLockCachingBypassed(
+            prepared[j].song.id,
+            reason: 'queue fill insert failed',
+          );
+          AppLogger.warning(
+            'Queue fill insert failed for song=${prepared[j].song.id}; '
+            'skipping. $error\n$stackTrace',
+          );
+          continue;
+        }
         insertedBeforeCount++;
         _checkQueueWorkCurrent(token, generation);
       }
@@ -2591,12 +2631,37 @@ class NavisAudioHandler extends BaseAudioHandler
 
       _checkQueueWorkCurrent(token, generation);
       for (var j = 0; j < prepared.length; j++) {
-        await _runTimedPlayerOperation(
-          generation: generation,
-          operation: 'replace queue append after',
-          action: () => _player.addAudioSource(prepared[j].audioSource),
-          songId: prepared[j].song.id,
-        );
+        final positionBeforeMutation = _player.position;
+        final wasPlayingBeforeMutation = _player.playing;
+        try {
+          await _runTimedPlayerOperation(
+            generation: generation,
+            operation: 'replace queue append after',
+            action: () => _player.addAudioSource(prepared[j].audioSource),
+            songId: prepared[j].song.id,
+          );
+        } on PlaybackLoadTimeoutException catch (error) {
+          skippedSongIds.add(prepared[j].song.id);
+          await _restoreStartItemAfterQueueFillTimeout(
+            startItem: startItem,
+            position: positionBeforeMutation,
+            autoPlay: wasPlayingBeforeMutation,
+            generation: generation,
+            failedSongId: error.songId ?? prepared[j].song.id,
+          );
+          return;
+        } on Object catch (error, stackTrace) {
+          skippedSongIds.add(prepared[j].song.id);
+          _markSongLockCachingBypassed(
+            prepared[j].song.id,
+            reason: 'queue fill append failed',
+          );
+          AppLogger.warning(
+            'Queue fill append failed for song=${prepared[j].song.id}; '
+            'skipping. $error\n$stackTrace',
+          );
+          continue;
+        }
         _checkQueueWorkCurrent(token, generation);
       }
       _observeLockCacheForPrepared(prepared);
@@ -2676,6 +2741,48 @@ class NavisAudioHandler extends BaseAudioHandler
         );
       }
     }
+  }
+
+  Future<void> _restoreStartItemAfterQueueFillTimeout({
+    required _PreparedQueueItem startItem,
+    required Duration position,
+    required bool autoPlay,
+    required int generation,
+    required String failedSongId,
+  }) async {
+    _lastFailedSongId = failedSongId;
+    _clearPendingLogicalQueue();
+    _clearQueueReplacementMetadataAnchor();
+    _queueItems
+      ..clear()
+      ..add(startItem.mediaItem);
+    await _setAudioSourcesWithFallback(
+      audioSources: <AudioSource>[
+        startItem.source.asClonedAudioSource(tag: startItem.mediaItem),
+      ],
+      preload: true,
+      initialIndex: 0,
+      initialPosition: position,
+      generation: generation,
+      songId: startItem.song.id,
+    );
+    queue.add(List<MediaItem>.unmodifiable(_queueItems));
+    _setCurrentMediaItem(startItem.mediaItem);
+    if (autoPlay) {
+      unawaited(_player.play());
+    } else {
+      await _player.pause();
+    }
+    _broadcastPlaybackState();
+    _emitSnapshot();
+    await _persistSafely(
+      () => _persistQueueState(includeQueueItems: true),
+      context: 'queue fill timeout restore',
+    );
+    AppLogger.warning(
+      'Queue fill timed out for song=$failedSongId. Restored active start '
+      'song=${startItem.song.id} so playback does not remain stuck.',
+    );
   }
 
   Future<void> _applyPreparedQueue(
@@ -4423,6 +4530,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _rebuildQueueForSeekRecovery(
     Duration position, {
     required bool autoPlay,
+    String reason = 'seek recovery — switched to direct stream',
   }) async {
     final currentIndex = _resolveCurrentQueueMetadata().currentIndex;
     if (currentIndex == null ||
@@ -4463,7 +4571,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final currentSongId = _queueItems[currentIndex].id;
     _markSongLockCachingBypassed(
       currentSongId,
-      reason: 'seek recovery — switched to direct stream',
+      reason: reason,
     );
 
     final prepared = await _prepareQueueItems(
@@ -4479,6 +4587,142 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     await _player.setLoopMode(previousLoopMode);
     await _player.setShuffleModeEnabled(previousShuffleModeEnabled);
+  }
+
+  void _syncRemotePlaybackStallWatchdog() {
+    if (_radioStation != null || _queueItems.isEmpty) {
+      _cancelRemotePlaybackStallWatchdog();
+      return;
+    }
+
+    final currentSongId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    final shouldWatch = navisShouldWatchRemotePlaybackForStall(
+      sourceKind: _currentSourceKind,
+      processingState: _mapProcessingState(_player.processingState),
+    );
+    if (!shouldWatch || currentSongId == null) {
+      _cancelRemotePlaybackStallWatchdog();
+      return;
+    }
+
+    final position = _player.position;
+    final bufferedPosition = _player.bufferedPosition;
+    final hasProgressed =
+        _remotePlaybackStallSongId != currentSongId ||
+        _remotePlaybackStallPosition != position ||
+        _remotePlaybackStallBufferedPosition != bufferedPosition;
+    if (!hasProgressed && _remotePlaybackStallTimer != null) {
+      return;
+    }
+
+    _cancelRemotePlaybackStallWatchdog();
+    _remotePlaybackStallSongId = currentSongId;
+    _remotePlaybackStallPosition = position;
+    _remotePlaybackStallBufferedPosition = bufferedPosition;
+    _remotePlaybackStallTimer = Timer(_remotePlaybackStallTimeout, () {
+      unawaited(
+        _recoverCurrentSongFromRemotePlaybackFailure(
+          reason: 'remote playback stalled',
+        ),
+      );
+    });
+  }
+
+  void _cancelRemotePlaybackStallWatchdog() {
+    _remotePlaybackStallTimer?.cancel();
+    _remotePlaybackStallTimer = null;
+    _remotePlaybackStallSongId = null;
+    _remotePlaybackStallPosition = null;
+    _remotePlaybackStallBufferedPosition = null;
+  }
+
+  Future<void> _recoverCurrentSongFromRemotePlaybackFailure({
+    required String reason,
+    Object? error,
+    StackTrace? stackTrace,
+  }) async {
+    if (_remotePlaybackRecoveryInProgress || _radioStation != null) {
+      return;
+    }
+    final sourceKind = _currentSourceKind;
+    final currentIndex = _resolveCurrentQueueMetadata().currentIndex;
+    if (currentIndex == null ||
+        currentIndex < 0 ||
+        currentIndex >= _queueItems.length ||
+        (sourceKind != PlaybackSourceKind.lockCachedStream.name &&
+            sourceKind != PlaybackSourceKind.directStream.name)) {
+      return;
+    }
+
+    _remotePlaybackRecoveryInProgress = true;
+    _cancelRemotePlaybackStallWatchdog();
+    final songId = _queueItems[currentIndex].id;
+    final autoPlay = _player.playing;
+    final position = _player.position;
+    _lastFailedSongId = songId;
+    _emitLoadFailure(
+      operation: reason,
+      message: 'Remote playback failed.',
+      songId: songId,
+      isTimeout: reason == 'remote playback stalled',
+    );
+    if (error != null) {
+      AppLogger.warning(
+        'Remote playback recovery for song=$songId sourceKind=$sourceKind '
+        'reason=$reason: $error\n${stackTrace ?? StackTrace.current}',
+      );
+    } else {
+      AppLogger.warning(
+        'Remote playback recovery for song=$songId sourceKind=$sourceKind '
+        'reason=$reason.',
+      );
+    }
+
+    try {
+      if (sourceKind == PlaybackSourceKind.lockCachedStream.name) {
+        try {
+          await _rebuildQueueForSeekRecovery(
+            position,
+            autoPlay: autoPlay,
+            reason: '$reason — switched to direct stream',
+          );
+          return;
+        } on Object catch (rebuildError, rebuildStackTrace) {
+          AppLogger.warning(
+            'Remote playback direct-stream rebuild failed for song=$songId. '
+            '$rebuildError\n$rebuildStackTrace',
+          );
+        }
+      }
+
+      await _skipPastFailedRemoteSong(currentIndex, autoPlay: autoPlay);
+    } finally {
+      _remotePlaybackRecoveryInProgress = false;
+      _emitSnapshot();
+    }
+  }
+
+  Future<void> _skipPastFailedRemoteSong(
+    int failedIndex, {
+    required bool autoPlay,
+  }) async {
+    final nextIndex = _nextPlayableIndexAfterFailure(
+      failedIndex,
+      _queueItems.length,
+    );
+    if (nextIndex != null) {
+      await playFromIndex(nextIndex);
+      return;
+    }
+
+    await _player.pause();
+    if (_player.processingState == ProcessingState.loading ||
+        _player.processingState == ProcessingState.buffering) {
+      await _player.stop();
+    }
+    if (autoPlay) {
+      _broadcastPlaybackState();
+    }
   }
 
   String? get _currentSourceKind {
@@ -4803,6 +5047,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _disposeHandlerStarted = true;
     _artCache?.dispose();
     _cancelCrossfade();
+    _cancelRemotePlaybackStallWatchdog();
     await _disposeInactiveCrossfadeDeck();
     _positionPersistTimer?.cancel();
     _radioStation = null;
@@ -4836,6 +5081,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _disposeHandlerStarted = true;
     _cancelCrossfade();
+    _cancelRemotePlaybackStallWatchdog();
     unawaited(_disposeInactiveCrossfadeDeck());
     _positionPersistTimer?.cancel();
     _radioStation = null;

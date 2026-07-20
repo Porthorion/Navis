@@ -238,6 +238,16 @@ may expose a pending logical queue so the UI can show the full requested order
 before every transport item is prepared. Queue mutation UI must treat
 `PlaybackSnapshot.hasPendingLogicalQueue` as read-only/loading state.
 
+Remote source recovery is layered: lock-cached stream setup or runtime stalls
+must first bypass lock caching and retry direct stream playback for that song;
+direct-stream failures should mark the song failed and advance to the next
+playable queue item when one exists. Phase-2 queue fill failures for non-current
+remote items must not leave the active player empty or stuck.
+
+Permanent downloads and rolling→permanent promotion must pre-cache cover art
+with `kCoverArtStandardSize`; smaller ad hoc sizes create different cache keys
+and can leave offline artwork blank.
+
 ### Library sync data policy
 
 - Automatic library sync is **low-data by default** after initial sync.

@@ -27,7 +27,7 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
-    version: '1.0.11',
+    version: '1.0.12',
     entries: [
       ChangelogEntry(
         'Instant Mix and Same Vibes now start from a fresh queue rooted at the current song, then keep recommendations appending at the bottom',
@@ -40,6 +40,18 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Opening the queue during active playback no longer triggers a provider rebuild error',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Queued remote tracks now recover from stream stalls by falling back to direct playback or skipping the failed track instead of staying stuck',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Downloaded songs now pre-cache standard-size cover art so offline album and track artwork is available more reliably',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The offline server banner now switches to a quiet offline mode after repeated retry failures while continuing background checks',
+        type: ChangelogEntryType.improvement,
       ),
     ],
   ),

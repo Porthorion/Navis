@@ -3,12 +3,14 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
+import 'package:file/memory.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -19,10 +21,20 @@ class _MockCacheManager extends Mock implements BaseCacheManager {}
 
 class _MockLrclibClient extends Mock implements LrclibClient {}
 
+class _MockDio extends Mock implements Dio {}
+
 void main() {
   group('DownloadService', () {
     late NavisDatabase database;
     late DownloadService service;
+
+    setUpAll(() {
+      registerFallbackValue(
+        Uri.parse('https://example.com/rest/download.view'),
+      );
+      registerFallbackValue(CancelToken());
+      registerFallbackValue(Options());
+    });
 
     setUp(() {
       database = NavisDatabase(NativeDatabase.memory());
@@ -596,6 +608,202 @@ void main() {
         expect(cached?.cacheType, CacheType.permanent);
         expect(File(cached!.filePath).existsSync(), isTrue);
         expect(rollingFile.existsSync(), isFalse);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'rolling promotion pre-caches standard-size cover art',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_support_',
+        );
+        final rollingDir = await Directory.systemTemp.createTemp(
+          'navis_rolling_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        addTearDown(() => rollingDir.delete(recursive: true));
+
+        final cacheManager = _MockCacheManager();
+        final artFile = MemoryFileSystem.test().file('art.jpg')
+          ..writeAsBytesSync(<int>[9, 9, 9]);
+        when(
+          () => cacheManager.downloadFile(
+            any(),
+            key: any(named: 'key'),
+          ),
+        ).thenAnswer(
+          (invocation) async => FileInfo(
+            artFile,
+            FileSource.Online,
+            DateTime.now().add(const Duration(days: 1)),
+            invocation.positionalArguments.first as String,
+          ),
+        );
+        final apiClient = SubsonicApiClient(
+          baseUrl: 'https://example.com',
+          authConfig: const SubsonicAuthConfig(
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final rollingFile = File('${rollingDir.path}/song-1.mp3')
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+        final rollingService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => apiClient,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: () => cacheManager,
+          readApplicationSupportDirectory: () async => supportDir,
+        );
+        addTearDown(rollingService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Cached Song',
+            artistName: const Value('Cached Artist'),
+            coverArt: const Value('cover-1'),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: rollingFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            bitRate: const Value(320),
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            quality: const Value('128'),
+            format: const Value('mp3'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+
+        await rollingService.processQueuedDownloads();
+
+        verify(
+          () => cacheManager.downloadFile(
+            any(that: contains('size=600')),
+            key: coverArtImageCacheKey('cover-1', kCoverArtStandardSize),
+          ),
+        ).called(1);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'completed download pre-caches standard-size cover art',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_support_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+
+        final dio = _MockDio();
+        when(
+          () => dio.downloadUri(
+            any<Uri>(),
+            any<dynamic>(),
+            cancelToken: any<CancelToken?>(named: 'cancelToken'),
+            onReceiveProgress: any<ProgressCallback?>(
+              named: 'onReceiveProgress',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          final savePath = invocation.positionalArguments[1] as String;
+          await File(savePath).parent.create(recursive: true);
+          await File(savePath).writeAsBytes(<int>[1, 2, 3, 4]);
+          return Response<void>(
+            requestOptions: RequestOptions(path: 'download'),
+            statusCode: 200,
+          );
+        });
+
+        final cacheManager = _MockCacheManager();
+        final artFile = MemoryFileSystem.test().file('art.jpg')
+          ..writeAsBytesSync(<int>[8, 8, 8]);
+        when(
+          () => cacheManager.downloadFile(
+            any(),
+            key: any(named: 'key'),
+          ),
+        ).thenAnswer(
+          (invocation) async => FileInfo(
+            artFile,
+            FileSource.Online,
+            DateTime.now().add(const Duration(days: 1)),
+            invocation.positionalArguments.first as String,
+          ),
+        );
+        final apiClient = SubsonicApiClient(
+          baseUrl: 'https://example.com',
+          authConfig: const SubsonicAuthConfig(
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final downloadService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => apiClient,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: () => cacheManager,
+          readApplicationSupportDirectory: () async => supportDir,
+          dio: dio,
+        );
+        addTearDown(downloadService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Downloaded Song',
+            artistName: const Value('Downloaded Artist'),
+            suffix: const Value('mp3'),
+            coverArt: const Value('cover-1'),
+          ),
+        ]);
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+
+        await downloadService.processQueuedDownloads();
+
+        verify(
+          () => cacheManager.downloadFile(
+            any(that: contains('size=600')),
+            key: coverArtImageCacheKey('cover-1', kCoverArtStandardSize),
+          ),
+        ).called(1);
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );

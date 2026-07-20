@@ -98,6 +98,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverOfflineBanner => 'Server unreachable. Retrying every 30s.';
 
   @override
+  String get serverOfflineQuietBanner => 'Offline mode';
+
+  @override
   String get settingsTitle => 'Settings';
 
   @override

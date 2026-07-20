@@ -10,18 +10,24 @@ class ServerReachabilityState {
     this.lastCheckedAt,
     this.lastOnlineAt,
     this.lastErrorMessage,
+    this.consecutiveFailureCount = 0,
+    this.showRetryBanner = true,
   });
 
   final ServerReachabilityStatus status;
   final DateTime? lastCheckedAt;
   final DateTime? lastOnlineAt;
   final String? lastErrorMessage;
+  final int consecutiveFailureCount;
+  final bool showRetryBanner;
 
   ServerReachabilityState copyWith({
     ServerReachabilityStatus? status,
     DateTime? lastCheckedAt,
     DateTime? lastOnlineAt,
     String? lastErrorMessage,
+    int? consecutiveFailureCount,
+    bool? showRetryBanner,
     bool clearErrorMessage = false,
   }) {
     return ServerReachabilityState(
@@ -31,6 +37,9 @@ class ServerReachabilityState {
       lastErrorMessage: clearErrorMessage
           ? null
           : lastErrorMessage ?? this.lastErrorMessage,
+      consecutiveFailureCount:
+          consecutiveFailureCount ?? this.consecutiveFailureCount,
+      showRetryBanner: showRetryBanner ?? this.showRetryBanner,
     );
   }
 }
