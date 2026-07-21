@@ -53,6 +53,10 @@ const List<ChangelogVersion> changelogs = [
         'The offline server banner now switches to a quiet offline mode after repeated retry failures while continuing background checks',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'The update changelog dialog now labels bug-fix-only releases clearly and always links to the full changelog in About',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

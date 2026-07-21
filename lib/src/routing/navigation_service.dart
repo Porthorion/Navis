@@ -133,6 +133,12 @@ abstract final class NavService {
     context.go('/search');
   }
 
+  /// Open the full changelog in Settings > About.
+  static void openAboutChangelog(BuildContext context) {
+    clearExitPrompt();
+    context.go('/settings/about/changelog');
+  }
+
   /// Switch to the Home tab.
   static void switchToHome(
     BuildContext context,

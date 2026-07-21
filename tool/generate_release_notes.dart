@@ -80,6 +80,10 @@ const List<_Version> _changelogs = [
       'The offline server banner now switches to a quiet offline mode after repeated retry failures while continuing background checks',
       type: _EntryType.improvement,
     ),
+    _Entry(
+      'The update changelog dialog now labels bug-fix-only releases clearly and always links to the full changelog in About',
+      type: _EntryType.improvement,
+    ),
   ]),
   _Version('1.0.10', [
     _Entry(

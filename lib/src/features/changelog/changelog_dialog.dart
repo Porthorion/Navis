@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_entry_tile.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 /// Shows a dismissable changelog dialog for the given [version].
 ///
@@ -14,26 +18,44 @@ Future<void> showChangelogDialog(
   return showDialog<void>(
     context: context,
     barrierDismissible: true,
-    builder: (_) => _ChangelogDialog(version: version),
+    builder: (dialogContext) => _ChangelogDialog(
+      version: version,
+      onViewFullChangelog: () {
+        unawaited(markChangelogSeen(version.version));
+        Navigator.of(dialogContext).pop();
+        if (context.mounted) {
+          NavService.openAboutChangelog(context);
+        }
+      },
+    ),
   );
 }
 
 class _ChangelogDialog extends StatelessWidget {
-  const _ChangelogDialog({required this.version});
+  const _ChangelogDialog({
+    required this.version,
+    required this.onViewFullChangelog,
+  });
 
   final ChangelogVersion version;
+  final VoidCallback onViewFullChangelog;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     final highlights = version.entries
         .where((e) => e.type != ChangelogEntryType.fix)
         .toList();
+    final hasHighlights = highlights.isNotEmpty;
     final hasFixes = version.entries.any(
       (e) => e.type == ChangelogEntryType.fix,
     );
+    final titleText = !hasHighlights && hasFixes
+        ? l10n.changelogDialogBugFixesTitle
+        : l10n.whatsNewTitle;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -43,7 +65,9 @@ class _ChangelogDialog extends StatelessWidget {
       title: Row(
         children: [
           Icon(
-            Icons.celebration_outlined,
+            !hasHighlights && hasFixes
+                ? Icons.build_circle_outlined
+                : Icons.celebration_outlined,
             color: colorScheme.primary,
             size: 28,
           ),
@@ -53,7 +77,7 @@ class _ChangelogDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "What's New",
+                  titleText,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -89,7 +113,9 @@ class _ChangelogDialog extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '& Other Bug Fixes',
+                        hasHighlights
+                            ? l10n.changelogDialogOtherBugFixes
+                            : l10n.changelogDialogBugFixesTitle,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -102,12 +128,16 @@ class _ChangelogDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: onViewFullChangelog,
+          child: Text(l10n.changelogDialogViewAll),
+        ),
         FilledButton(
           onPressed: () {
-            markChangelogSeen(version.version);
+            unawaited(markChangelogSeen(version.version));
             Navigator.of(context).pop();
           },
-          child: const Text('Got it'),
+          child: Text(l10n.changelogDialogGotIt),
         ),
       ],
     );

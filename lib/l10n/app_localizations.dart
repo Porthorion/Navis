@@ -3540,13 +3540,13 @@ abstract class AppLocalizations {
   /// No description provided for @aboutChangelog.
   ///
   /// In en, this message translates to:
-  /// **'What\'s New'**
+  /// **'Changelog'**
   String get aboutChangelog;
 
   /// No description provided for @aboutChangelogSub.
   ///
   /// In en, this message translates to:
-  /// **'See what changed in this version.'**
+  /// **'See every version\'s changes and bug fixes.'**
   String get aboutChangelogSub;
 
   /// No description provided for @whatsNewTitle.
@@ -3554,6 +3554,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'What\'s New'**
   String get whatsNewTitle;
+
+  /// No description provided for @changelogDialogBugFixesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bug fixes'**
+  String get changelogDialogBugFixesTitle;
+
+  /// No description provided for @changelogDialogOtherBugFixes.
+  ///
+  /// In en, this message translates to:
+  /// **'Other bug fixes'**
+  String get changelogDialogOtherBugFixes;
+
+  /// No description provided for @changelogDialogViewAll.
+  ///
+  /// In en, this message translates to:
+  /// **'View full changelog'**
+  String get changelogDialogViewAll;
+
+  /// No description provided for @changelogDialogGotIt.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get changelogDialogGotIt;
 
   /// No description provided for @changelogEmpty.
   ///
