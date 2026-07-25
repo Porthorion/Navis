@@ -209,6 +209,7 @@ SongsTableData _song({
   String? artistId,
 }) {
   return SongsTableData(
+    isProvisional: false,
     id: id,
     title: title,
     albumId: albumId,

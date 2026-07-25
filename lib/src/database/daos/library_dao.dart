@@ -33,6 +33,18 @@ class ArtistAlbumBuckets {
   bool get isEmpty => primaryAlbums.isEmpty && featuredInAlbums.isEmpty;
 }
 
+class PreservedProvisionalTree {
+  const PreservedProvisionalTree({
+    this.artistIds = const <String>{},
+    this.albumIds = const <String>{},
+    this.songIds = const <String>{},
+  });
+
+  final Set<String> artistIds;
+  final Set<String> albumIds;
+  final Set<String> songIds;
+}
+
 @DriftAccessor(
   tables: [
     ArtistsTable,
@@ -52,6 +64,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<ArtistsTableData>> watchArtists({bool likedOnly = false}) {
     final query = select(artistsTable)
+      ..where((table) => table.isProvisional.equals(false))
       ..orderBy([(table) => OrderingTerm.asc(table.name)]);
     if (likedOnly) {
       query.where((table) => table.starred.isNotNull());
@@ -79,9 +92,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         WHERE al.starred IS NOT NULL
         GROUP BY al.artist_id
       ) album_likes ON album_likes.artist_id = a.id
-      WHERE a.starred IS NOT NULL
-        OR song_likes.song_starred IS NOT NULL
-        OR album_likes.album_starred IS NOT NULL
+      WHERE a.is_provisional = 0
+        AND (
+          a.starred IS NOT NULL
+          OR song_likes.song_starred IS NOT NULL
+          OR album_likes.album_starred IS NOT NULL
+        )
       ORDER BY MAX(
         IFNULL(a.starred, 0),
         IFNULL(song_likes.song_starred, 0),
@@ -100,13 +116,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       '''
       SELECT al.*
       FROM albums al
-      WHERE al.artist_id = ?1
-         OR (
-           (al.artist_id IS NULL OR al.artist_id = '')
-           AND LOWER(COALESCE(al.artist_name, '')) = LOWER(
-             COALESCE((SELECT name FROM artists WHERE id = ?1 LIMIT 1), '')
+      WHERE al.is_provisional = 0
+        AND (
+          al.artist_id = ?1
+          OR (
+            (al.artist_id IS NULL OR al.artist_id = '')
+            AND LOWER(COALESCE(al.artist_name, '')) = LOWER(
+              COALESCE((SELECT name FROM artists WHERE id = ?1 LIMIT 1), '')
+            )
            )
-         )
+        )
       ORDER BY
         al.year IS NULL ASC,
         al.year DESC,
@@ -152,13 +171,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       onError: controller.addError,
     );
 
-    final albumsSub = select(albumsTable).watch().listen(
-      (albums) {
-        currentAlbums = albums;
-        emitBuckets();
-      },
-      onError: controller.addError,
-    );
+    final albumsSub =
+        (select(
+          albumsTable,
+        )..where((table) => table.isProvisional.equals(false))).watch().listen(
+          (albums) {
+            currentAlbums = albums;
+            emitBuckets();
+          },
+          onError: controller.addError,
+        );
 
     final songsSub = watchSongsByArtist(id).listen(
       (songs) {
@@ -223,7 +245,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return customSelect(
       '''
       SELECT albums.* FROM albums
-      WHERE ${_likedAlbumPredicate('albums')}
+      WHERE albums.is_provisional = 0
+        AND ${_likedAlbumPredicate('albums')}
       ORDER BY
         albums.starred DESC NULLS LAST,
         albums.name ASC,
@@ -241,14 +264,17 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Stream<int> watchAlbumCount({bool likedOnly = false}) {
     if (!likedOnly) {
       final countExpression = albumsTable.id.count();
-      final query = selectOnly(albumsTable)..addColumns([countExpression]);
+      final query = selectOnly(albumsTable)
+        ..where(albumsTable.isProvisional.equals(false))
+        ..addColumns([countExpression]);
       return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
     }
     return customSelect(
       '''
       SELECT COUNT(*) AS count
       FROM albums
-      WHERE ${_likedAlbumPredicate('albums')}
+      WHERE albums.is_provisional = 0
+        AND ${_likedAlbumPredicate('albums')}
       ''',
       readsFrom: {albumsTable, songsTable},
     ).watchSingle().map((row) => row.read<int>('count'));
@@ -316,7 +342,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<SongsTableData>> watchSongsByAlbum(String albumId) {
     final query = select(songsTable)
-      ..where((table) => table.albumId.equals(albumId))
+      ..where(
+        (table) =>
+            table.albumId.equals(albumId) &
+            table.isProvisional.equals(false) &
+            table.serverDeletedAt.isNull(),
+      )
       ..orderBy([
         (table) => OrderingTerm.asc(table.discNumber),
         (table) => OrderingTerm.asc(table.track),
@@ -331,6 +362,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       FROM songs s
       LEFT JOIN albums al ON al.id = s.album_id
       WHERE s.artist_id = ?1
+        AND s.is_provisional = 0
+        AND s.server_deleted_at IS NULL
       ORDER BY
         al.year IS NULL ASC,
         al.year ASC,
@@ -370,7 +403,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<SongsTableData>> watchSongsSorted(SongSortOrder sort) {
     final query = select(songsTable)
-      ..where((table) => table.serverDeletedAt.isNull());
+      ..where(
+        (table) =>
+            table.serverDeletedAt.isNull() & table.isProvisional.equals(false),
+      );
     switch (sort) {
       case SongSortOrder.newest:
         query.orderBy([
@@ -403,7 +439,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<AlbumsTableData>> watchAlbumsByGenre(String genre) {
     final query = select(albumsTable)
-      ..where((table) => table.genre.equals(genre))
+      ..where(
+        (table) =>
+            table.genre.equals(genre) & table.isProvisional.equals(false),
+      )
       ..orderBy([
         (table) => OrderingTerm.desc(table.year),
         (table) => OrderingTerm.asc(table.name),
@@ -419,7 +458,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
               albumsTable.id.equalsExp(songsTable.albumId),
             ),
           ])
-          ..where(albumsTable.genre.equals(genre))
+          ..where(
+            albumsTable.genre.equals(genre) &
+                albumsTable.isProvisional.equals(false) &
+                songsTable.isProvisional.equals(false) &
+                songsTable.serverDeletedAt.isNull(),
+          )
           ..orderBy([
             OrderingTerm.asc(songsTable.artistName),
             OrderingTerm.asc(songsTable.albumName),
@@ -445,13 +489,43 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
     await batch((batch) {
       for (final artist in artists) {
+        final canonicalArtist = artist.copyWith(
+          isProvisional: const Value(false),
+        );
         batch.insert(
           artistsTable,
-          artist,
-          mode: InsertMode.insertOrReplace,
+          canonicalArtist,
+          onConflict: DoUpdate(
+            (old) => canonicalArtist,
+            target: [artistsTable.id],
+          ),
         );
       }
     });
+  }
+
+  Future<void> upsertProvisionalArtists(
+    List<ArtistsTableCompanion> artists,
+  ) async {
+    for (final artist in artists) {
+      if (!artist.id.present) {
+        continue;
+      }
+      final existing = await getArtistById(artist.id.value);
+      if (existing != null && !existing.isProvisional) {
+        continue;
+      }
+      final provisionalArtist = artist.copyWith(
+        isProvisional: Value(existing?.isProvisional ?? true),
+      );
+      await into(artistsTable).insert(
+        provisionalArtist,
+        onConflict: DoUpdate(
+          (old) => provisionalArtist,
+          target: [artistsTable.id],
+        ),
+      );
+    }
   }
 
   Future<void> replaceAlbums(List<AlbumsTableCompanion> albums) async {
@@ -473,11 +547,15 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final now = DateTime.now();
     await batch((batch) {
       for (final album in albums) {
+        final canonicalAlbum = album.copyWith(
+          syncedAt: Value(now),
+          isProvisional: const Value(false),
+        );
         batch.insert(
           albumsTable,
-          album.copyWith(syncedAt: Value(now)),
+          canonicalAlbum,
           onConflict: DoUpdate(
-            (old) => album, // album.syncedAt is absent → preserves existing
+            (old) => canonicalAlbum,
             target: [albumsTable.id],
           ),
         );
@@ -489,6 +567,32 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     await (update(albumsTable)..where((t) => t.syncedAt.isNull())).write(
       AlbumsTableCompanion(syncedAt: Value(now)),
     );
+  }
+
+  Future<void> upsertProvisionalAlbums(
+    List<AlbumsTableCompanion> albums,
+  ) async {
+    final now = DateTime.now();
+    for (final album in albums) {
+      if (!album.id.present) {
+        continue;
+      }
+      final existing = await getAlbumById(album.id.value);
+      if (existing != null && !existing.isProvisional) {
+        continue;
+      }
+      final provisionalAlbum = album.copyWith(
+        syncedAt: Value(now),
+        isProvisional: Value(existing?.isProvisional ?? true),
+      );
+      await into(albumsTable).insert(
+        provisionalAlbum,
+        onConflict: DoUpdate(
+          (old) => provisionalAlbum,
+          target: [albumsTable.id],
+        ),
+      );
+    }
   }
 
   Future<void> replaceSongs(List<SongsTableCompanion> songs) async {
@@ -536,14 +640,21 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           .map((row) => row.id.value)
           .toSet();
       final removedRows = existingRows
-          .where((row) => !incomingIds.contains(row.id))
+          .where(
+            (row) => !row.isProvisional && !incomingIds.contains(row.id),
+          )
           .toList(growable: false);
 
       await _handleRemovedServerSongs(removedRows);
 
       final currentSongs = songsByAlbumId.values
           .expand((rows) => rows)
-          .map((song) => song.copyWith(serverDeletedAt: const Value(null)))
+          .map(
+            (song) => song.copyWith(
+              serverDeletedAt: const Value(null),
+              isProvisional: const Value(false),
+            ),
+          )
           .toList(growable: false);
       if (currentSongs.isEmpty) {
         return;
@@ -553,7 +664,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           batch.insert(
             songsTable,
             song,
-            mode: InsertMode.insertOrReplace,
+            onConflict: DoUpdate(
+              (old) => song,
+              target: [songsTable.id],
+            ),
           );
         }
       });
@@ -566,13 +680,45 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
     await batch((batch) {
       for (final song in songs) {
+        final canonicalSong = song.copyWith(
+          serverDeletedAt: const Value(null),
+          isProvisional: const Value(false),
+        );
         batch.insert(
           songsTable,
-          song.copyWith(serverDeletedAt: const Value(null)),
-          mode: InsertMode.insertOrReplace,
+          canonicalSong,
+          onConflict: DoUpdate(
+            (old) => canonicalSong,
+            target: [songsTable.id],
+          ),
         );
       }
     });
+  }
+
+  Future<void> upsertProvisionalSongs(
+    List<SongsTableCompanion> songs,
+  ) async {
+    for (final song in songs) {
+      if (!song.id.present) {
+        continue;
+      }
+      final existing = await getSongById(song.id.value);
+      if (existing != null && !existing.isProvisional) {
+        continue;
+      }
+      final provisionalSong = song.copyWith(
+        serverDeletedAt: const Value(null),
+        isProvisional: Value(existing?.isProvisional ?? true),
+      );
+      await into(songsTable).insert(
+        provisionalSong,
+        onConflict: DoUpdate(
+          (old) => provisionalSong,
+          target: [songsTable.id],
+        ),
+      );
+    }
   }
 
   Future<void> replaceGenres(List<GenresTableCompanion> genres) async {
@@ -839,7 +985,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// (most recently starred first).
   Stream<List<SongsTableData>> watchStarredSongs({int limit = 5}) {
     final query = select(songsTable)
-      ..where((t) => t.starred.isNotNull() & t.serverDeletedAt.isNull())
+      ..where(
+        (t) =>
+            t.starred.isNotNull() &
+            t.serverDeletedAt.isNull() &
+            t.isProvisional.equals(false),
+      )
       ..orderBy([(t) => OrderingTerm.desc(t.starred)])
       ..limit(limit);
     return query.watch();
@@ -848,7 +999,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// Watch all starred songs (no limit) for the full liked-tracks view.
   Stream<List<SongsTableData>> watchAllStarredSongs() {
     final query = select(songsTable)
-      ..where((t) => t.starred.isNotNull() & t.serverDeletedAt.isNull())
+      ..where(
+        (t) =>
+            t.starred.isNotNull() &
+            t.serverDeletedAt.isNull() &
+            t.isProvisional.equals(false),
+      )
       ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
     return query.watch();
   }
@@ -865,6 +1021,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       INNER JOIN albums al ON al.id = s.album_id
       WHERE ${_likedAlbumPredicate('al')}
         AND s.server_deleted_at IS NULL
+        AND al.is_provisional = 0
+        AND s.is_provisional = 0
       ORDER BY
         al.starred DESC NULLS LAST,
         LOWER(COALESCE(al.name, '')) ASC,
@@ -887,7 +1045,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Stream<List<SongsTableData>> watchMostPlayedSongs({int? limit = 5}) {
     final query = select(songsTable)
       ..where(
-        (t) => t.playCount.isBiggerThanValue(0) & t.serverDeletedAt.isNull(),
+        (t) =>
+            t.playCount.isBiggerThanValue(0) &
+            t.serverDeletedAt.isNull() &
+            t.isProvisional.equals(false),
       )
       ..orderBy([(t) => OrderingTerm.desc(t.playCount)]);
     if (limit != null) {
@@ -897,7 +1058,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<List<ArtistsTableData>> getAllArtists() {
-    return select(artistsTable).get();
+    final query = select(artistsTable)
+      ..where((table) => table.isProvisional.equals(false));
+    return query.get();
   }
 
   Future<ArtistsTableData?> findOneExactNormalizedArtistByName(
@@ -918,19 +1081,26 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<int> countArtists() async {
     final countExpression = artistsTable.id.count();
-    final query = selectOnly(artistsTable)..addColumns([countExpression]);
+    final query = selectOnly(artistsTable)
+      ..where(artistsTable.isProvisional.equals(false))
+      ..addColumns([countExpression]);
     final row = await query.getSingle();
     return row.read(countExpression) ?? 0;
   }
 
   Future<List<SongsTableData>> getAllSongs() {
     final query = select(songsTable)
-      ..where((table) => table.serverDeletedAt.isNull());
+      ..where(
+        (table) =>
+            table.serverDeletedAt.isNull() & table.isProvisional.equals(false),
+      );
     return query.get();
   }
 
   Future<Set<String>> getArtistIds() async {
-    final query = selectOnly(artistsTable)..addColumns([artistsTable.id]);
+    final query = selectOnly(artistsTable)
+      ..where(artistsTable.isProvisional.equals(false))
+      ..addColumns([artistsTable.id]);
     final rows = await query.get();
     return rows
         .map((row) => row.read(artistsTable.id))
@@ -939,7 +1109,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<List<AlbumsTableData>> getAllAlbums() {
-    return select(albumsTable).get();
+    final query = select(albumsTable)
+      ..where((table) => table.isProvisional.equals(false));
+    return query.get();
   }
 
   Future<AlbumsTableData?> findOneExactNormalizedAlbumByName(
@@ -1002,7 +1174,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       '''
       SELECT albums.*
       FROM albums
-      WHERE ${_likedAlbumPredicate('albums')}
+      WHERE albums.is_provisional = 0
+        AND ${_likedAlbumPredicate('albums')}
       ORDER BY albums.year DESC, albums.name ASC, albums.id ASC
       ''',
       readsFrom: {albumsTable, songsTable},
@@ -1014,7 +1187,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<List<SongsTableData>> getAllStarredSongs() {
     final query = select(songsTable)
-      ..where((t) => t.starred.isNotNull())
+      ..where(
+        (t) => t.starred.isNotNull() & t.isProvisional.equals(false),
+      )
       ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
     return query.get();
   }
@@ -1207,6 +1382,102 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  Future<PreservedProvisionalTree> preserveCachedLegacyRowsAsProvisional({
+    required Iterable<String> staleArtistIds,
+    required Iterable<String> staleAlbumIds,
+  }) async {
+    final artistIds = staleArtistIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    final albumIds = staleAlbumIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    if (artistIds.isEmpty && albumIds.isEmpty) {
+      return const PreservedProvisionalTree();
+    }
+
+    final artistPlaceholders = List.filled(artistIds.length, '?').join(',');
+    final albumPlaceholders = List.filled(albumIds.length, '?').join(',');
+    final predicates = <String>[
+      if (artistIds.isNotEmpty) 's.artist_id IN ($artistPlaceholders)',
+      if (albumIds.isNotEmpty) 's.album_id IN ($albumPlaceholders)',
+    ];
+    final rows = await customSelect(
+      '''
+      SELECT DISTINCT s.id, s.album_id, s.artist_id
+      FROM songs s
+      INNER JOIN cached_tracks c ON c.song_id = s.id
+      WHERE c.download_status = 'complete'
+        AND (${predicates.join(' OR ')});
+      ''',
+      variables: <Variable<Object>>[
+        ...artistIds.map(Variable<String>.new),
+        ...albumIds.map(Variable<String>.new),
+      ],
+      readsFrom: {songsTable, cachedTracksTable},
+    ).get();
+    final cachedProtectedSongIds = rows
+        .map((row) => row.read<String>('id'))
+        .toSet();
+    final protectedAlbumIds = rows
+        .map((row) => row.readNullable<String>('album_id'))
+        .whereType<String>()
+        .toSet();
+    final protectedArtistIds = rows
+        .map((row) => row.readNullable<String>('artist_id'))
+        .whereType<String>()
+        .toSet();
+    if (cachedProtectedSongIds.isEmpty) {
+      return const PreservedProvisionalTree();
+    }
+
+    final protectedSongRows =
+        await (select(songsTable)..where(
+              (table) =>
+                  table.id.isIn(cachedProtectedSongIds.toList()) |
+                  (protectedAlbumIds.isNotEmpty
+                      ? table.albumId.isIn(protectedAlbumIds.toList())
+                      : const Constant(false)) |
+                  (protectedArtistIds.isNotEmpty
+                      ? table.artistId.isIn(protectedArtistIds.toList())
+                      : const Constant(false)),
+            ))
+            .get();
+    final protectedSongIds = protectedSongRows.map((song) => song.id).toSet();
+
+    await transaction(() async {
+      await (update(songsTable)..where(
+            (table) => table.id.isIn(protectedSongIds.toList()),
+          ))
+          .write(
+            const SongsTableCompanion(isProvisional: Value(true)),
+          );
+      if (protectedAlbumIds.isNotEmpty) {
+        await (update(albumsTable)..where(
+              (table) => table.id.isIn(protectedAlbumIds.toList()),
+            ))
+            .write(
+              const AlbumsTableCompanion(isProvisional: Value(true)),
+            );
+      }
+      if (protectedArtistIds.isNotEmpty) {
+        await (update(artistsTable)..where(
+              (table) => table.id.isIn(protectedArtistIds.toList()),
+            ))
+            .write(
+              const ArtistsTableCompanion(isProvisional: Value(true)),
+            );
+      }
+    });
+    return PreservedProvisionalTree(
+      artistIds: protectedArtistIds,
+      albumIds: protectedAlbumIds,
+      songIds: protectedSongIds,
+    );
+  }
+
   Future<void> deleteLocalOnlySong(String songId) async {
     final id = songId.trim();
     if (id.isEmpty) {
@@ -1291,7 +1562,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final pattern = '%${query.toLowerCase()}%';
     return (select(artistsTable)
           ..where(
-            (t) => t.name.lower().like(pattern),
+            (t) => t.name.lower().like(pattern) & t.isProvisional.equals(false),
           )
           ..orderBy([(t) => OrderingTerm.asc(t.name)])
           ..limit(limit))
@@ -1307,8 +1578,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return (select(albumsTable)
           ..where(
             (t) =>
-                t.name.lower().like(pattern) |
-                t.artistName.lower().like(pattern),
+                (t.name.lower().like(pattern) |
+                    t.artistName.lower().like(pattern)) &
+                t.isProvisional.equals(false),
           )
           ..orderBy([
             (t) => OrderingTerm.desc(t.year),
@@ -1338,8 +1610,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return (select(songsTable)
             ..where(
               (t) => includeLocalOnly
-                  ? const Constant<bool>(true)
-                  : t.serverDeletedAt.isNull(),
+                  ? _searchableSongPredicate()
+                  : t.serverDeletedAt.isNull() & _searchableSongPredicate(),
             )
             ..orderBy([
               (t) => OrderingTerm.asc(t.title),
@@ -1353,8 +1625,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         await (select(songsTable)
               ..where(
                 (t) => includeLocalOnly
-                    ? const Constant<bool>(true)
-                    : t.serverDeletedAt.isNull(),
+                    ? _searchableSongPredicate()
+                    : t.serverDeletedAt.isNull() & _searchableSongPredicate(),
               )
               ..orderBy([
                 (t) => OrderingTerm.asc(t.title),
@@ -1576,7 +1848,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   SimpleSelectStatement<$AlbumsTableTable, AlbumsTableData> _orderedAlbumsQuery(
     AlbumSortOrder sort,
   ) {
-    final query = select(albumsTable);
+    final query = select(albumsTable)
+      ..where((table) => table.isProvisional.equals(false));
     switch (sort) {
       case AlbumSortOrder.recentlyAdded:
         // Sort by when the album was added to the server (serverCreatedAt),
@@ -1620,9 +1893,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     int? offset,
     bool includeUnknownYearsLast = false,
   }) {
-    final sql = StringBuffer('SELECT albums.* FROM albums');
+    final sql = StringBuffer(
+      'SELECT albums.* FROM albums WHERE albums.is_provisional = 0',
+    );
     if (likedOnly) {
-      sql.write(' WHERE ${_likedAlbumPredicate('albums')}');
+      sql.write(' AND ${_likedAlbumPredicate('albums')}');
     }
     sql.write(' ORDER BY ${_albumOrderSql(sort, includeUnknownYearsLast)}');
     final variables = <Variable<Object>>[];
@@ -1647,6 +1922,50 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   String _likedAlbumPredicate(String albumAlias) {
     // Only explicitly starred albums — liked songs have their own section.
     return '$albumAlias.starred IS NOT NULL';
+  }
+
+  Expression<bool> _searchableSongPredicate() {
+    return const CustomExpression<bool>(
+      '''
+      (
+        songs.is_provisional = 0
+        OR EXISTS (
+          SELECT 1
+          FROM cached_tracks c
+          WHERE c.song_id = songs.id
+            AND c.download_status = 'complete'
+        )
+        OR EXISTS (
+          SELECT 1 FROM play_queue_items q WHERE q.song_id = songs.id
+        )
+        OR EXISTS (
+          SELECT 1 FROM playlist_songs p WHERE p.song_id = songs.id
+        )
+        OR EXISTS (
+          SELECT 1 FROM play_history h WHERE h.song_id = songs.id
+        )
+        OR EXISTS (
+          SELECT 1 FROM download_queue d WHERE d.song_id = songs.id
+        )
+        OR EXISTS (
+          SELECT 1 FROM match_flow_songs m WHERE m.song_id = songs.id
+        )
+        OR EXISTS (
+          SELECT 1 FROM scrobble_queue s WHERE s.song_id = songs.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM listenbrainz_feedback_queue f
+          WHERE f.song_id = songs.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM star_sync_queue st
+          WHERE st.item_type = 'song' AND st.item_id = songs.id
+        )
+      )
+      ''',
+    );
   }
 
   String _albumOrderSql(AlbumSortOrder sort, bool includeUnknownYearsLast) {

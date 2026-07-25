@@ -40,10 +40,7 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   Future<LibrarySyncState> syncIfStale() async => _initialState;
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    bool preferIncremental = false,
-  }) async {
+  Future<LibrarySyncState> syncNow() async {
     onSyncNow?.call();
     return _initialState;
   }
@@ -88,6 +85,7 @@ AlbumsTableData _likedAlbum({
   String artistName = 'Artist',
 }) {
   return AlbumsTableData(
+    isProvisional: false,
     id: id,
     name: name,
     artistName: artistName,
@@ -105,6 +103,7 @@ SongsTableData _likedSong({
   int track = 1,
 }) {
   return SongsTableData(
+    isProvisional: false,
     id: id,
     title: title,
     albumId: albumId,
@@ -315,6 +314,7 @@ void main() {
             artistsProvider.overrideWithValue(
               const AsyncData(<ArtistsTableData>[
                 ArtistsTableData(
+                  isProvisional: false,
                   id: 'artist-1',
                   name: 'Artist 1',
                   albumCount: 1,
@@ -326,6 +326,7 @@ void main() {
               (ref, request) => Stream.value(
                 const <AlbumsTableData>[
                   AlbumsTableData(
+                    isProvisional: false,
                     id: 'album-1',
                     name: 'Album 1',
                     artistName: 'Artist 1',
@@ -436,6 +437,7 @@ void main() {
           artistsProvider.overrideWithValue(
             const AsyncData(<ArtistsTableData>[
               ArtistsTableData(
+                isProvisional: false,
                 id: 'artist-1',
                 name: 'Artist 1',
                 albumCount: 1,
@@ -511,6 +513,7 @@ void main() {
         final artists = <ArtistsTableData>[
           for (var i = 0; i < 26; i++)
             ArtistsTableData(
+              isProvisional: false,
               id: 'artist-$i',
               name: '${String.fromCharCode(65 + i)} Artist',
               albumCount: 1,
@@ -566,6 +569,7 @@ void main() {
         final artists = <ArtistsTableData>[
           for (var i = 0; i < 10; i++)
             ArtistsTableData(
+              isProvisional: false,
               id: 'artist-$i',
               name: '${String.fromCharCode(65 + i)} Artist',
               albumCount: 1,
@@ -617,11 +621,13 @@ void main() {
       ) async {
         final artists = <ArtistsTableData>[
           const ArtistsTableData(
+            isProvisional: false,
             id: 'artist-a',
             name: 'A Artist',
             albumCount: 1,
           ),
           const ArtistsTableData(
+            isProvisional: false,
             id: 'artist-m',
             name: 'M Artist',
             albumCount: 1,
@@ -658,6 +664,7 @@ void main() {
       final artists = <ArtistsTableData>[
         for (var i = 0; i < 26; i++)
           ArtistsTableData(
+            isProvisional: false,
             id: 'artist-$i',
             name: '${String.fromCharCode(65 + i)} Artist',
             albumCount: 1,
@@ -699,6 +706,7 @@ void main() {
         final artists = <ArtistsTableData>[
           for (var i = 0; i < 26; i++)
             ArtistsTableData(
+              isProvisional: false,
               id: 'artist-$i',
               name: '${String.fromCharCode(65 + i)} Artist',
               albumCount: 1,
@@ -1082,6 +1090,7 @@ void main() {
             likedSongsProvider.overrideWithValue(
               const AsyncData(<SongsTableData>[
                 SongsTableData(
+                  isProvisional: false,
                   id: 'liked-song-1',
                   title: 'Desktop Liked Song',
                   artistName: 'Desktop Artist',

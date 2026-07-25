@@ -34,9 +34,7 @@ class GenreDetailScreen extends ConsumerWidget {
     final albums = ref.watch(albumsByGenreProvider(genreName));
     final songs = ref.watch(songsByGenreProvider(genreName));
     Future<void> refresh() {
-      return ref
-          .read(librarySyncControllerProvider.notifier)
-          .syncNow(preferIncremental: true);
+      return ref.read(librarySyncControllerProvider.notifier).syncNow();
     }
 
     return DefaultTabController(

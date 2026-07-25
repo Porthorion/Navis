@@ -254,15 +254,26 @@ and can leave offline artwork blank.
 - Do not reintroduce periodic/daily full rebaseline scans from `syncIfStale()`.
   Full library repair belongs behind explicit Force Full Sync or a dedicated
   sync-model migration gate.
-- Incremental sync uses `getIndexes(ifModifiedSince)`. Unsupported or noisy
-  all-artist index responses must stay bounded or skip safely; they should not
-  fall back to whole-library `getArtists`/`getAlbumList2` scans automatically.
+- Incremental sync uses the server-provided `getIndexes.lastModified` cursor.
+  Local completion time is only for scheduling/UI; do not advance the server
+  cursor until every candidate in the response has been verified.
+- A returned index is a gated artist snapshot, not a changed-artist feed.
+  Persist continuation state and drain it in bounded passes (160 artists on
+  non-cellular networks, 24 for a manual cellular refresh).
+- Run the bounded newest-album health probe every 12 hours. Servers with
+  unsupported or unreliable indexes use bounded artist/newest-album
+  verification on normal non-cellular syncs and retry `getIndexes` daily.
 - Starred content, genres, and playlists are auxiliary metadata. Do not fetch
   them on every hourly no-op metadata probe; refresh them on manual sync, real
   metadata changes, or the longer auxiliary sync window.
 - App version/build changes do not imply a full resync. Use
   `requiredLibrarySyncModelVersionProvider` only when a storage/sync contract
   change truly requires a one-time repair.
+- Search, recommendation, instant-mix, and queue metadata is provisional until
+  authoritative sync confirms it. Keep provisional parents out of normal
+  browsing and reconcile song IDs only by same ID, one unique recording MBID,
+  or one unique exact metadata match with compatible track/disc and duration
+  within three seconds. Ambiguous matches must remain local.
 
 ### Listen Together
 
@@ -316,11 +327,11 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 53 |
-| **Tables** | 23 |
-| **DAOs** | 13 |
+| **Schema version** | 54 |
+| **Tables** | 24 |
+| **DAOs** | 14 |
 
-DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `PlaylistDao`, `CacheDao`, `DownloadQueueDao`, `HistoryDao`, `PlayQueueDao`, `MatchFlowDao`, `ScrobbleDao`, `StarSyncDao`, `ListenBrainzFeedbackDao`, `NetworkUsageDao`.
+DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `SongIdentityDao`, `PlaylistDao`, `CacheDao`, `DownloadQueueDao`, `HistoryDao`, `PlayQueueDao`, `MatchFlowDao`, `ScrobbleDao`, `StarSyncDao`, `ListenBrainzFeedbackDao`, `NetworkUsageDao`.
 
 - Stepwise migrations in `navis_database.dart`.
 - **Always** update `test/src/database/migrations/navis_migration_test.dart` when changing schema.

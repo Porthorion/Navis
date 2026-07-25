@@ -4738,6 +4738,21 @@ class $ArtistsTableTable extends ArtistsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isProvisionalMeta = const VerificationMeta(
+    'isProvisional',
+  );
+  @override
+  late final GeneratedColumn<bool> isProvisional = GeneratedColumn<bool>(
+    'is_provisional',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_provisional" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4745,6 +4760,7 @@ class $ArtistsTableTable extends ArtistsTable
     albumCount,
     coverArt,
     starred,
+    isProvisional,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4789,6 +4805,15 @@ class $ArtistsTableTable extends ArtistsTable
         starred.isAcceptableOrUnknown(data['starred']!, _starredMeta),
       );
     }
+    if (data.containsKey('is_provisional')) {
+      context.handle(
+        _isProvisionalMeta,
+        isProvisional.isAcceptableOrUnknown(
+          data['is_provisional']!,
+          _isProvisionalMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4818,6 +4843,10 @@ class $ArtistsTableTable extends ArtistsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
       ),
+      isProvisional: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_provisional'],
+      )!,
     );
   }
 
@@ -4834,12 +4863,17 @@ class ArtistsTableData extends DataClass
   final int? albumCount;
   final String? coverArt;
   final DateTime? starred;
+
+  /// True for lightweight parent rows created from online search/playback
+  /// results before the authoritative library sync has observed the artist.
+  final bool isProvisional;
   const ArtistsTableData({
     required this.id,
     required this.name,
     this.albumCount,
     this.coverArt,
     this.starred,
+    required this.isProvisional,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4855,6 +4889,7 @@ class ArtistsTableData extends DataClass
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
     }
+    map['is_provisional'] = Variable<bool>(isProvisional);
     return map;
   }
 
@@ -4871,6 +4906,7 @@ class ArtistsTableData extends DataClass
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
+      isProvisional: Value(isProvisional),
     );
   }
 
@@ -4885,6 +4921,7 @@ class ArtistsTableData extends DataClass
       albumCount: serializer.fromJson<int?>(json['albumCount']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
+      isProvisional: serializer.fromJson<bool>(json['isProvisional']),
     );
   }
   @override
@@ -4896,6 +4933,7 @@ class ArtistsTableData extends DataClass
       'albumCount': serializer.toJson<int?>(albumCount),
       'coverArt': serializer.toJson<String?>(coverArt),
       'starred': serializer.toJson<DateTime?>(starred),
+      'isProvisional': serializer.toJson<bool>(isProvisional),
     };
   }
 
@@ -4905,12 +4943,14 @@ class ArtistsTableData extends DataClass
     Value<int?> albumCount = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
+    bool? isProvisional,
   }) => ArtistsTableData(
     id: id ?? this.id,
     name: name ?? this.name,
     albumCount: albumCount.present ? albumCount.value : this.albumCount,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     starred: starred.present ? starred.value : this.starred,
+    isProvisional: isProvisional ?? this.isProvisional,
   );
   ArtistsTableData copyWithCompanion(ArtistsTableCompanion data) {
     return ArtistsTableData(
@@ -4921,6 +4961,9 @@ class ArtistsTableData extends DataClass
           : this.albumCount,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
       starred: data.starred.present ? data.starred.value : this.starred,
+      isProvisional: data.isProvisional.present
+          ? data.isProvisional.value
+          : this.isProvisional,
     );
   }
 
@@ -4931,13 +4974,15 @@ class ArtistsTableData extends DataClass
           ..write('name: $name, ')
           ..write('albumCount: $albumCount, ')
           ..write('coverArt: $coverArt, ')
-          ..write('starred: $starred')
+          ..write('starred: $starred, ')
+          ..write('isProvisional: $isProvisional')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, albumCount, coverArt, starred);
+  int get hashCode =>
+      Object.hash(id, name, albumCount, coverArt, starred, isProvisional);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4946,7 +4991,8 @@ class ArtistsTableData extends DataClass
           other.name == this.name &&
           other.albumCount == this.albumCount &&
           other.coverArt == this.coverArt &&
-          other.starred == this.starred);
+          other.starred == this.starred &&
+          other.isProvisional == this.isProvisional);
 }
 
 class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
@@ -4955,6 +5001,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
   final Value<int?> albumCount;
   final Value<String?> coverArt;
   final Value<DateTime?> starred;
+  final Value<bool> isProvisional;
   final Value<int> rowid;
   const ArtistsTableCompanion({
     this.id = const Value.absent(),
@@ -4962,6 +5009,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     this.albumCount = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
+    this.isProvisional = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ArtistsTableCompanion.insert({
@@ -4970,6 +5018,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     this.albumCount = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
+    this.isProvisional = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -4979,6 +5028,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     Expression<int>? albumCount,
     Expression<String>? coverArt,
     Expression<DateTime>? starred,
+    Expression<bool>? isProvisional,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4987,6 +5037,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
       if (albumCount != null) 'album_count': albumCount,
       if (coverArt != null) 'cover_art': coverArt,
       if (starred != null) 'starred': starred,
+      if (isProvisional != null) 'is_provisional': isProvisional,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4997,6 +5048,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     Value<int?>? albumCount,
     Value<String?>? coverArt,
     Value<DateTime?>? starred,
+    Value<bool>? isProvisional,
     Value<int>? rowid,
   }) {
     return ArtistsTableCompanion(
@@ -5005,6 +5057,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
       albumCount: albumCount ?? this.albumCount,
       coverArt: coverArt ?? this.coverArt,
       starred: starred ?? this.starred,
+      isProvisional: isProvisional ?? this.isProvisional,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5027,6 +5080,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
     }
+    if (isProvisional.present) {
+      map['is_provisional'] = Variable<bool>(isProvisional.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5041,6 +5097,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
           ..write('albumCount: $albumCount, ')
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
+          ..write('isProvisional: $isProvisional, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5228,6 +5285,21 @@ class $AlbumsTableTable extends AlbumsTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _isProvisionalMeta = const VerificationMeta(
+    'isProvisional',
+  );
+  @override
+  late final GeneratedColumn<bool> isProvisional = GeneratedColumn<bool>(
+    'is_provisional',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_provisional" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5246,6 +5318,7 @@ class $AlbumsTableTable extends AlbumsTable
     playCount,
     syncedAt,
     serverCreatedAt,
+    isProvisional,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5356,6 +5429,15 @@ class $AlbumsTableTable extends AlbumsTable
         ),
       );
     }
+    if (data.containsKey('is_provisional')) {
+      context.handle(
+        _isProvisionalMeta,
+        isProvisional.isAcceptableOrUnknown(
+          data['is_provisional']!,
+          _isProvisionalMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -5431,6 +5513,10 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}server_created_at'],
       ),
+      isProvisional: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_provisional'],
+      )!,
     );
   }
 
@@ -5473,6 +5559,10 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   /// Populated from the `created` field in `getAlbumList2` responses.
   /// More accurate than [syncedAt] for "Recently Added" ordering.
   final DateTime? serverCreatedAt;
+
+  /// True for lightweight parent rows created from online search/playback
+  /// results before the authoritative library sync has observed the album.
+  final bool isProvisional;
   const AlbumsTableData({
     required this.id,
     required this.name,
@@ -5490,6 +5580,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.playCount,
     this.syncedAt,
     this.serverCreatedAt,
+    required this.isProvisional,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5538,6 +5629,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     if (!nullToAbsent || serverCreatedAt != null) {
       map['server_created_at'] = Variable<DateTime>(serverCreatedAt);
     }
+    map['is_provisional'] = Variable<bool>(isProvisional);
     return map;
   }
 
@@ -5581,6 +5673,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       serverCreatedAt: serverCreatedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(serverCreatedAt),
+      isProvisional: Value(isProvisional),
     );
   }
 
@@ -5606,6 +5699,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       playCount: serializer.fromJson<int?>(json['playCount']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
       serverCreatedAt: serializer.fromJson<DateTime?>(json['serverCreatedAt']),
+      isProvisional: serializer.fromJson<bool>(json['isProvisional']),
     );
   }
   @override
@@ -5628,6 +5722,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'playCount': serializer.toJson<int?>(playCount),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
       'serverCreatedAt': serializer.toJson<DateTime?>(serverCreatedAt),
+      'isProvisional': serializer.toJson<bool>(isProvisional),
     };
   }
 
@@ -5648,6 +5743,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> syncedAt = const Value.absent(),
     Value<DateTime?> serverCreatedAt = const Value.absent(),
+    bool? isProvisional,
   }) => AlbumsTableData(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -5667,6 +5763,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     serverCreatedAt: serverCreatedAt.present
         ? serverCreatedAt.value
         : this.serverCreatedAt,
+    isProvisional: isProvisional ?? this.isProvisional,
   );
   AlbumsTableData copyWithCompanion(AlbumsTableCompanion data) {
     return AlbumsTableData(
@@ -5694,6 +5791,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       serverCreatedAt: data.serverCreatedAt.present
           ? data.serverCreatedAt.value
           : this.serverCreatedAt,
+      isProvisional: data.isProvisional.present
+          ? data.isProvisional.value
+          : this.isProvisional,
     );
   }
 
@@ -5715,7 +5815,8 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
-          ..write('serverCreatedAt: $serverCreatedAt')
+          ..write('serverCreatedAt: $serverCreatedAt, ')
+          ..write('isProvisional: $isProvisional')
           ..write(')'))
         .toString();
   }
@@ -5738,6 +5839,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     playCount,
     syncedAt,
     serverCreatedAt,
+    isProvisional,
   );
   @override
   bool operator ==(Object other) =>
@@ -5758,7 +5860,8 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.userRating == this.userRating &&
           other.playCount == this.playCount &&
           other.syncedAt == this.syncedAt &&
-          other.serverCreatedAt == this.serverCreatedAt);
+          other.serverCreatedAt == this.serverCreatedAt &&
+          other.isProvisional == this.isProvisional);
 }
 
 class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
@@ -5778,6 +5881,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<int?> playCount;
   final Value<DateTime?> syncedAt;
   final Value<DateTime?> serverCreatedAt;
+  final Value<bool> isProvisional;
   final Value<int> rowid;
   const AlbumsTableCompanion({
     this.id = const Value.absent(),
@@ -5796,6 +5900,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
+    this.isProvisional = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AlbumsTableCompanion.insert({
@@ -5815,6 +5920,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
+    this.isProvisional = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -5835,6 +5941,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<int>? playCount,
     Expression<DateTime>? syncedAt,
     Expression<DateTime>? serverCreatedAt,
+    Expression<bool>? isProvisional,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5854,6 +5961,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (playCount != null) 'play_count': playCount,
       if (syncedAt != null) 'synced_at': syncedAt,
       if (serverCreatedAt != null) 'server_created_at': serverCreatedAt,
+      if (isProvisional != null) 'is_provisional': isProvisional,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5875,6 +5983,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<int?>? playCount,
     Value<DateTime?>? syncedAt,
     Value<DateTime?>? serverCreatedAt,
+    Value<bool>? isProvisional,
     Value<int>? rowid,
   }) {
     return AlbumsTableCompanion(
@@ -5894,6 +6003,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       playCount: playCount ?? this.playCount,
       syncedAt: syncedAt ?? this.syncedAt,
       serverCreatedAt: serverCreatedAt ?? this.serverCreatedAt,
+      isProvisional: isProvisional ?? this.isProvisional,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5951,6 +6061,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     if (serverCreatedAt.present) {
       map['server_created_at'] = Variable<DateTime>(serverCreatedAt.value);
     }
+    if (isProvisional.present) {
+      map['is_provisional'] = Variable<bool>(isProvisional.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5976,6 +6089,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
+          ..write('isProvisional: $isProvisional, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6216,6 +6330,21 @@ class $SongsTableTable extends SongsTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _isProvisionalMeta = const VerificationMeta(
+    'isProvisional',
+  );
+  @override
+  late final GeneratedColumn<bool> isProvisional = GeneratedColumn<bool>(
+    'is_provisional',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_provisional" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _replayGainTrackGainMeta =
       const VerificationMeta('replayGainTrackGain');
   @override
@@ -6283,6 +6412,7 @@ class $SongsTableTable extends SongsTable
     playCount,
     createdAt,
     serverDeletedAt,
+    isProvisional,
     replayGainTrackGain,
     replayGainAlbumGain,
     replayGainTrackPeak,
@@ -6436,6 +6566,15 @@ class $SongsTableTable extends SongsTable
         ),
       );
     }
+    if (data.containsKey('is_provisional')) {
+      context.handle(
+        _isProvisionalMeta,
+        isProvisional.isAcceptableOrUnknown(
+          data['is_provisional']!,
+          _isProvisionalMeta,
+        ),
+      );
+    }
     if (data.containsKey('replay_gain_track_gain')) {
       context.handle(
         _replayGainTrackGainMeta,
@@ -6565,6 +6704,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}server_deleted_at'],
       ),
+      isProvisional: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_provisional'],
+      )!,
       replayGainTrackGain: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}replay_gain_track_gain'],
@@ -6616,6 +6759,10 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   /// because a complete permanent download still exists on disk.
   final DateTime? serverDeletedAt;
 
+  /// True when the row was persisted only to make an online search result
+  /// playable and has not yet been confirmed by authoritative library sync.
+  final bool isProvisional;
+
   /// ReplayGain track gain in dB (from OpenSubsonic replayGain object).
   final double? replayGainTrackGain;
 
@@ -6649,6 +6796,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.playCount,
     this.createdAt,
     this.serverDeletedAt,
+    required this.isProvisional,
     this.replayGainTrackGain,
     this.replayGainAlbumGain,
     this.replayGainTrackPeak,
@@ -6716,6 +6864,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     if (!nullToAbsent || serverDeletedAt != null) {
       map['server_deleted_at'] = Variable<DateTime>(serverDeletedAt);
     }
+    map['is_provisional'] = Variable<bool>(isProvisional);
     if (!nullToAbsent || replayGainTrackGain != null) {
       map['replay_gain_track_gain'] = Variable<double>(replayGainTrackGain);
     }
@@ -6790,6 +6939,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       serverDeletedAt: serverDeletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(serverDeletedAt),
+      isProvisional: Value(isProvisional),
       replayGainTrackGain: replayGainTrackGain == null && nullToAbsent
           ? const Value.absent()
           : Value(replayGainTrackGain),
@@ -6832,6 +6982,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       playCount: serializer.fromJson<int?>(json['playCount']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       serverDeletedAt: serializer.fromJson<DateTime?>(json['serverDeletedAt']),
+      isProvisional: serializer.fromJson<bool>(json['isProvisional']),
       replayGainTrackGain: serializer.fromJson<double?>(
         json['replayGainTrackGain'],
       ),
@@ -6871,6 +7022,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'playCount': serializer.toJson<int?>(playCount),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'serverDeletedAt': serializer.toJson<DateTime?>(serverDeletedAt),
+      'isProvisional': serializer.toJson<bool>(isProvisional),
       'replayGainTrackGain': serializer.toJson<double?>(replayGainTrackGain),
       'replayGainAlbumGain': serializer.toJson<double?>(replayGainAlbumGain),
       'replayGainTrackPeak': serializer.toJson<double?>(replayGainTrackPeak),
@@ -6900,6 +7052,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
     Value<DateTime?> serverDeletedAt = const Value.absent(),
+    bool? isProvisional,
     Value<double?> replayGainTrackGain = const Value.absent(),
     Value<double?> replayGainAlbumGain = const Value.absent(),
     Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -6930,6 +7083,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     serverDeletedAt: serverDeletedAt.present
         ? serverDeletedAt.value
         : this.serverDeletedAt,
+    isProvisional: isProvisional ?? this.isProvisional,
     replayGainTrackGain: replayGainTrackGain.present
         ? replayGainTrackGain.value
         : this.replayGainTrackGain,
@@ -6980,6 +7134,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       serverDeletedAt: data.serverDeletedAt.present
           ? data.serverDeletedAt.value
           : this.serverDeletedAt,
+      isProvisional: data.isProvisional.present
+          ? data.isProvisional.value
+          : this.isProvisional,
       replayGainTrackGain: data.replayGainTrackGain.present
           ? data.replayGainTrackGain.value
           : this.replayGainTrackGain,
@@ -7019,6 +7176,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
           ..write('serverDeletedAt: $serverDeletedAt, ')
+          ..write('isProvisional: $isProvisional, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
@@ -7050,6 +7208,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     playCount,
     createdAt,
     serverDeletedAt,
+    isProvisional,
     replayGainTrackGain,
     replayGainAlbumGain,
     replayGainTrackPeak,
@@ -7080,6 +7239,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.playCount == this.playCount &&
           other.createdAt == this.createdAt &&
           other.serverDeletedAt == this.serverDeletedAt &&
+          other.isProvisional == this.isProvisional &&
           other.replayGainTrackGain == this.replayGainTrackGain &&
           other.replayGainAlbumGain == this.replayGainAlbumGain &&
           other.replayGainTrackPeak == this.replayGainTrackPeak &&
@@ -7108,6 +7268,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<int?> playCount;
   final Value<DateTime?> createdAt;
   final Value<DateTime?> serverDeletedAt;
+  final Value<bool> isProvisional;
   final Value<double?> replayGainTrackGain;
   final Value<double?> replayGainAlbumGain;
   final Value<double?> replayGainTrackPeak;
@@ -7135,6 +7296,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.serverDeletedAt = const Value.absent(),
+    this.isProvisional = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
@@ -7163,6 +7325,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.serverDeletedAt = const Value.absent(),
+    this.isProvisional = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
@@ -7192,6 +7355,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<int>? playCount,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? serverDeletedAt,
+    Expression<bool>? isProvisional,
     Expression<double>? replayGainTrackGain,
     Expression<double>? replayGainAlbumGain,
     Expression<double>? replayGainTrackPeak,
@@ -7220,6 +7384,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (playCount != null) 'play_count': playCount,
       if (createdAt != null) 'created_at': createdAt,
       if (serverDeletedAt != null) 'server_deleted_at': serverDeletedAt,
+      if (isProvisional != null) 'is_provisional': isProvisional,
       if (replayGainTrackGain != null)
         'replay_gain_track_gain': replayGainTrackGain,
       if (replayGainAlbumGain != null)
@@ -7254,6 +7419,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<int?>? playCount,
     Value<DateTime?>? createdAt,
     Value<DateTime?>? serverDeletedAt,
+    Value<bool>? isProvisional,
     Value<double?>? replayGainTrackGain,
     Value<double?>? replayGainAlbumGain,
     Value<double?>? replayGainTrackPeak,
@@ -7282,6 +7448,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       playCount: playCount ?? this.playCount,
       createdAt: createdAt ?? this.createdAt,
       serverDeletedAt: serverDeletedAt ?? this.serverDeletedAt,
+      isProvisional: isProvisional ?? this.isProvisional,
       replayGainTrackGain: replayGainTrackGain ?? this.replayGainTrackGain,
       replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
       replayGainTrackPeak: replayGainTrackPeak ?? this.replayGainTrackPeak,
@@ -7356,6 +7523,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (serverDeletedAt.present) {
       map['server_deleted_at'] = Variable<DateTime>(serverDeletedAt.value);
     }
+    if (isProvisional.present) {
+      map['is_provisional'] = Variable<bool>(isProvisional.value);
+    }
     if (replayGainTrackGain.present) {
       map['replay_gain_track_gain'] = Variable<double>(
         replayGainTrackGain.value,
@@ -7406,6 +7576,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
           ..write('serverDeletedAt: $serverDeletedAt, ')
+          ..write('isProvisional: $isProvisional, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
@@ -15541,6 +15712,348 @@ class NetworkUsageTableCompanion
   }
 }
 
+class $SongIdentityAliasesTableTable extends SongIdentityAliasesTable
+    with
+        TableInfo<
+          $SongIdentityAliasesTableTable,
+          SongIdentityAliasesTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SongIdentityAliasesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _oldSongIdMeta = const VerificationMeta(
+    'oldSongId',
+  );
+  @override
+  late final GeneratedColumn<String> oldSongId = GeneratedColumn<String>(
+    'old_song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _canonicalSongIdMeta = const VerificationMeta(
+    'canonicalSongId',
+  );
+  @override
+  late final GeneratedColumn<String> canonicalSongId = GeneratedColumn<String>(
+    'canonical_song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _matchReasonMeta = const VerificationMeta(
+    'matchReason',
+  );
+  @override
+  late final GeneratedColumn<String> matchReason = GeneratedColumn<String>(
+    'match_reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _matchedAtMeta = const VerificationMeta(
+    'matchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> matchedAt = GeneratedColumn<DateTime>(
+    'matched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    oldSongId,
+    canonicalSongId,
+    matchReason,
+    matchedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'song_identity_aliases';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SongIdentityAliasesTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('old_song_id')) {
+      context.handle(
+        _oldSongIdMeta,
+        oldSongId.isAcceptableOrUnknown(data['old_song_id']!, _oldSongIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_oldSongIdMeta);
+    }
+    if (data.containsKey('canonical_song_id')) {
+      context.handle(
+        _canonicalSongIdMeta,
+        canonicalSongId.isAcceptableOrUnknown(
+          data['canonical_song_id']!,
+          _canonicalSongIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_canonicalSongIdMeta);
+    }
+    if (data.containsKey('match_reason')) {
+      context.handle(
+        _matchReasonMeta,
+        matchReason.isAcceptableOrUnknown(
+          data['match_reason']!,
+          _matchReasonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_matchReasonMeta);
+    }
+    if (data.containsKey('matched_at')) {
+      context.handle(
+        _matchedAtMeta,
+        matchedAt.isAcceptableOrUnknown(data['matched_at']!, _matchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_matchedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {oldSongId};
+  @override
+  SongIdentityAliasesTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SongIdentityAliasesTableData(
+      oldSongId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}old_song_id'],
+      )!,
+      canonicalSongId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}canonical_song_id'],
+      )!,
+      matchReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}match_reason'],
+      )!,
+      matchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}matched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SongIdentityAliasesTableTable createAlias(String alias) {
+    return $SongIdentityAliasesTableTable(attachedDatabase, alias);
+  }
+}
+
+class SongIdentityAliasesTableData extends DataClass
+    implements Insertable<SongIdentityAliasesTableData> {
+  final String oldSongId;
+  final String canonicalSongId;
+  final String matchReason;
+  final DateTime matchedAt;
+  const SongIdentityAliasesTableData({
+    required this.oldSongId,
+    required this.canonicalSongId,
+    required this.matchReason,
+    required this.matchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['old_song_id'] = Variable<String>(oldSongId);
+    map['canonical_song_id'] = Variable<String>(canonicalSongId);
+    map['match_reason'] = Variable<String>(matchReason);
+    map['matched_at'] = Variable<DateTime>(matchedAt);
+    return map;
+  }
+
+  SongIdentityAliasesTableCompanion toCompanion(bool nullToAbsent) {
+    return SongIdentityAliasesTableCompanion(
+      oldSongId: Value(oldSongId),
+      canonicalSongId: Value(canonicalSongId),
+      matchReason: Value(matchReason),
+      matchedAt: Value(matchedAt),
+    );
+  }
+
+  factory SongIdentityAliasesTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SongIdentityAliasesTableData(
+      oldSongId: serializer.fromJson<String>(json['oldSongId']),
+      canonicalSongId: serializer.fromJson<String>(json['canonicalSongId']),
+      matchReason: serializer.fromJson<String>(json['matchReason']),
+      matchedAt: serializer.fromJson<DateTime>(json['matchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'oldSongId': serializer.toJson<String>(oldSongId),
+      'canonicalSongId': serializer.toJson<String>(canonicalSongId),
+      'matchReason': serializer.toJson<String>(matchReason),
+      'matchedAt': serializer.toJson<DateTime>(matchedAt),
+    };
+  }
+
+  SongIdentityAliasesTableData copyWith({
+    String? oldSongId,
+    String? canonicalSongId,
+    String? matchReason,
+    DateTime? matchedAt,
+  }) => SongIdentityAliasesTableData(
+    oldSongId: oldSongId ?? this.oldSongId,
+    canonicalSongId: canonicalSongId ?? this.canonicalSongId,
+    matchReason: matchReason ?? this.matchReason,
+    matchedAt: matchedAt ?? this.matchedAt,
+  );
+  SongIdentityAliasesTableData copyWithCompanion(
+    SongIdentityAliasesTableCompanion data,
+  ) {
+    return SongIdentityAliasesTableData(
+      oldSongId: data.oldSongId.present ? data.oldSongId.value : this.oldSongId,
+      canonicalSongId: data.canonicalSongId.present
+          ? data.canonicalSongId.value
+          : this.canonicalSongId,
+      matchReason: data.matchReason.present
+          ? data.matchReason.value
+          : this.matchReason,
+      matchedAt: data.matchedAt.present ? data.matchedAt.value : this.matchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SongIdentityAliasesTableData(')
+          ..write('oldSongId: $oldSongId, ')
+          ..write('canonicalSongId: $canonicalSongId, ')
+          ..write('matchReason: $matchReason, ')
+          ..write('matchedAt: $matchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(oldSongId, canonicalSongId, matchReason, matchedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SongIdentityAliasesTableData &&
+          other.oldSongId == this.oldSongId &&
+          other.canonicalSongId == this.canonicalSongId &&
+          other.matchReason == this.matchReason &&
+          other.matchedAt == this.matchedAt);
+}
+
+class SongIdentityAliasesTableCompanion
+    extends UpdateCompanion<SongIdentityAliasesTableData> {
+  final Value<String> oldSongId;
+  final Value<String> canonicalSongId;
+  final Value<String> matchReason;
+  final Value<DateTime> matchedAt;
+  final Value<int> rowid;
+  const SongIdentityAliasesTableCompanion({
+    this.oldSongId = const Value.absent(),
+    this.canonicalSongId = const Value.absent(),
+    this.matchReason = const Value.absent(),
+    this.matchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SongIdentityAliasesTableCompanion.insert({
+    required String oldSongId,
+    required String canonicalSongId,
+    required String matchReason,
+    required DateTime matchedAt,
+    this.rowid = const Value.absent(),
+  }) : oldSongId = Value(oldSongId),
+       canonicalSongId = Value(canonicalSongId),
+       matchReason = Value(matchReason),
+       matchedAt = Value(matchedAt);
+  static Insertable<SongIdentityAliasesTableData> custom({
+    Expression<String>? oldSongId,
+    Expression<String>? canonicalSongId,
+    Expression<String>? matchReason,
+    Expression<DateTime>? matchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (oldSongId != null) 'old_song_id': oldSongId,
+      if (canonicalSongId != null) 'canonical_song_id': canonicalSongId,
+      if (matchReason != null) 'match_reason': matchReason,
+      if (matchedAt != null) 'matched_at': matchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SongIdentityAliasesTableCompanion copyWith({
+    Value<String>? oldSongId,
+    Value<String>? canonicalSongId,
+    Value<String>? matchReason,
+    Value<DateTime>? matchedAt,
+    Value<int>? rowid,
+  }) {
+    return SongIdentityAliasesTableCompanion(
+      oldSongId: oldSongId ?? this.oldSongId,
+      canonicalSongId: canonicalSongId ?? this.canonicalSongId,
+      matchReason: matchReason ?? this.matchReason,
+      matchedAt: matchedAt ?? this.matchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (oldSongId.present) {
+      map['old_song_id'] = Variable<String>(oldSongId.value);
+    }
+    if (canonicalSongId.present) {
+      map['canonical_song_id'] = Variable<String>(canonicalSongId.value);
+    }
+    if (matchReason.present) {
+      map['match_reason'] = Variable<String>(matchReason.value);
+    }
+    if (matchedAt.present) {
+      map['matched_at'] = Variable<DateTime>(matchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SongIdentityAliasesTableCompanion(')
+          ..write('oldSongId: $oldSongId, ')
+          ..write('canonicalSongId: $canonicalSongId, ')
+          ..write('matchReason: $matchReason, ')
+          ..write('matchedAt: $matchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -15587,6 +16100,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $ListenBrainzWeeklyCacheTableTable(this);
   late final $NetworkUsageTableTable networkUsageTable =
       $NetworkUsageTableTable(this);
+  late final $SongIdentityAliasesTableTable songIdentityAliasesTable =
+      $SongIdentityAliasesTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -15605,6 +16120,9 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final ListenBrainzFeedbackDao listenBrainzFeedbackDao =
       ListenBrainzFeedbackDao(this as NavisDatabase);
   late final NetworkUsageDao networkUsageDao = NetworkUsageDao(
+    this as NavisDatabase,
+  );
+  late final SongIdentityDao songIdentityDao = SongIdentityDao(
     this as NavisDatabase,
   );
   @override
@@ -15635,6 +16153,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     listenBrainzFeedbackQueueTable,
     listenBrainzWeeklyCacheTable,
     networkUsageTable,
+    songIdentityAliasesTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -17572,6 +18091,7 @@ typedef $$ArtistsTableTableCreateCompanionBuilder =
       Value<int?> albumCount,
       Value<String?> coverArt,
       Value<DateTime?> starred,
+      Value<bool> isProvisional,
       Value<int> rowid,
     });
 typedef $$ArtistsTableTableUpdateCompanionBuilder =
@@ -17581,6 +18101,7 @@ typedef $$ArtistsTableTableUpdateCompanionBuilder =
       Value<int?> albumCount,
       Value<String?> coverArt,
       Value<DateTime?> starred,
+      Value<bool> isProvisional,
       Value<int> rowid,
     });
 
@@ -17657,6 +18178,11 @@ class $$ArtistsTableTableFilterComposer
 
   ColumnFilters<DateTime> get starred => $composableBuilder(
     column: $table.starred,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17744,6 +18270,11 @@ class $$ArtistsTableTableOrderingComposer
     column: $table.starred,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ArtistsTableTableAnnotationComposer
@@ -17771,6 +18302,11 @@ class $$ArtistsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get starred =>
       $composableBuilder(column: $table.starred, builder: (column) => column);
+
+  GeneratedColumn<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
+    builder: (column) => column,
+  );
 
   Expression<T> albumsTableRefs<T extends Object>(
     Expression<T> Function($$AlbumsTableTableAnnotationComposer a) f,
@@ -17856,6 +18392,7 @@ class $$ArtistsTableTableTableManager
                 Value<int?> albumCount = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
+                Value<bool> isProvisional = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ArtistsTableCompanion(
                 id: id,
@@ -17863,6 +18400,7 @@ class $$ArtistsTableTableTableManager
                 albumCount: albumCount,
                 coverArt: coverArt,
                 starred: starred,
+                isProvisional: isProvisional,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -17872,6 +18410,7 @@ class $$ArtistsTableTableTableManager
                 Value<int?> albumCount = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
+                Value<bool> isProvisional = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ArtistsTableCompanion.insert(
                 id: id,
@@ -17879,6 +18418,7 @@ class $$ArtistsTableTableTableManager
                 albumCount: albumCount,
                 coverArt: coverArt,
                 starred: starred,
+                isProvisional: isProvisional,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -17982,6 +18522,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
+      Value<bool> isProvisional,
       Value<int> rowid,
     });
 typedef $$AlbumsTableTableUpdateCompanionBuilder =
@@ -18002,6 +18543,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
+      Value<bool> isProvisional,
       Value<int> rowid,
     });
 
@@ -18128,6 +18670,11 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<DateTime> get serverCreatedAt => $composableBuilder(
     column: $table.serverCreatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18264,6 +18811,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ArtistsTableTableOrderingComposer get artistId {
     final $$ArtistsTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -18347,6 +18899,11 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get serverCreatedAt => $composableBuilder(
     column: $table.serverCreatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
     builder: (column) => column,
   );
 
@@ -18443,6 +19000,7 @@ class $$AlbumsTableTableTableManager
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
+                Value<bool> isProvisional = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AlbumsTableCompanion(
                 id: id,
@@ -18461,6 +19019,7 @@ class $$AlbumsTableTableTableManager
                 playCount: playCount,
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
+                isProvisional: isProvisional,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -18481,6 +19040,7 @@ class $$AlbumsTableTableTableManager
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
+                Value<bool> isProvisional = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AlbumsTableCompanion.insert(
                 id: id,
@@ -18499,6 +19059,7 @@ class $$AlbumsTableTableTableManager
                 playCount: playCount,
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
+                isProvisional: isProvisional,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -18611,6 +19172,7 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<int?> playCount,
       Value<DateTime?> createdAt,
       Value<DateTime?> serverDeletedAt,
+      Value<bool> isProvisional,
       Value<double?> replayGainTrackGain,
       Value<double?> replayGainAlbumGain,
       Value<double?> replayGainTrackPeak,
@@ -18640,6 +19202,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<int?> playCount,
       Value<DateTime?> createdAt,
       Value<DateTime?> serverDeletedAt,
+      Value<bool> isProvisional,
       Value<double?> replayGainTrackGain,
       Value<double?> replayGainAlbumGain,
       Value<double?> replayGainTrackPeak,
@@ -18905,6 +19468,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<DateTime> get serverDeletedAt => $composableBuilder(
     column: $table.serverDeletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -19208,6 +19776,11 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get replayGainTrackGain => $composableBuilder(
     column: $table.replayGainTrackGain,
     builder: (column) => ColumnOrderings(column),
@@ -19352,6 +19925,11 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get serverDeletedAt => $composableBuilder(
     column: $table.serverDeletedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isProvisional => $composableBuilder(
+    column: $table.isProvisional,
     builder: (column) => column,
   );
 
@@ -19611,6 +20189,7 @@ class $$SongsTableTableTableManager
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> serverDeletedAt = const Value.absent(),
+                Value<bool> isProvisional = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -19638,6 +20217,7 @@ class $$SongsTableTableTableManager
                 playCount: playCount,
                 createdAt: createdAt,
                 serverDeletedAt: serverDeletedAt,
+                isProvisional: isProvisional,
                 replayGainTrackGain: replayGainTrackGain,
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
@@ -19667,6 +20247,7 @@ class $$SongsTableTableTableManager
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> serverDeletedAt = const Value.absent(),
+                Value<bool> isProvisional = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -19694,6 +20275,7 @@ class $$SongsTableTableTableManager
                 playCount: playCount,
                 createdAt: createdAt,
                 serverDeletedAt: serverDeletedAt,
+                isProvisional: isProvisional,
                 replayGainTrackGain: replayGainTrackGain,
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
@@ -25550,6 +26132,210 @@ typedef $$NetworkUsageTableTableProcessedTableManager =
       NetworkUsageTableData,
       PrefetchHooks Function()
     >;
+typedef $$SongIdentityAliasesTableTableCreateCompanionBuilder =
+    SongIdentityAliasesTableCompanion Function({
+      required String oldSongId,
+      required String canonicalSongId,
+      required String matchReason,
+      required DateTime matchedAt,
+      Value<int> rowid,
+    });
+typedef $$SongIdentityAliasesTableTableUpdateCompanionBuilder =
+    SongIdentityAliasesTableCompanion Function({
+      Value<String> oldSongId,
+      Value<String> canonicalSongId,
+      Value<String> matchReason,
+      Value<DateTime> matchedAt,
+      Value<int> rowid,
+    });
+
+class $$SongIdentityAliasesTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $SongIdentityAliasesTableTable> {
+  $$SongIdentityAliasesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get oldSongId => $composableBuilder(
+    column: $table.oldSongId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get canonicalSongId => $composableBuilder(
+    column: $table.canonicalSongId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get matchReason => $composableBuilder(
+    column: $table.matchReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get matchedAt => $composableBuilder(
+    column: $table.matchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SongIdentityAliasesTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $SongIdentityAliasesTableTable> {
+  $$SongIdentityAliasesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get oldSongId => $composableBuilder(
+    column: $table.oldSongId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get canonicalSongId => $composableBuilder(
+    column: $table.canonicalSongId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get matchReason => $composableBuilder(
+    column: $table.matchReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get matchedAt => $composableBuilder(
+    column: $table.matchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SongIdentityAliasesTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $SongIdentityAliasesTableTable> {
+  $$SongIdentityAliasesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get oldSongId =>
+      $composableBuilder(column: $table.oldSongId, builder: (column) => column);
+
+  GeneratedColumn<String> get canonicalSongId => $composableBuilder(
+    column: $table.canonicalSongId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get matchReason => $composableBuilder(
+    column: $table.matchReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get matchedAt =>
+      $composableBuilder(column: $table.matchedAt, builder: (column) => column);
+}
+
+class $$SongIdentityAliasesTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $SongIdentityAliasesTableTable,
+          SongIdentityAliasesTableData,
+          $$SongIdentityAliasesTableTableFilterComposer,
+          $$SongIdentityAliasesTableTableOrderingComposer,
+          $$SongIdentityAliasesTableTableAnnotationComposer,
+          $$SongIdentityAliasesTableTableCreateCompanionBuilder,
+          $$SongIdentityAliasesTableTableUpdateCompanionBuilder,
+          (
+            SongIdentityAliasesTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $SongIdentityAliasesTableTable,
+              SongIdentityAliasesTableData
+            >,
+          ),
+          SongIdentityAliasesTableData,
+          PrefetchHooks Function()
+        > {
+  $$SongIdentityAliasesTableTableTableManager(
+    _$NavisDatabase db,
+    $SongIdentityAliasesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SongIdentityAliasesTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SongIdentityAliasesTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SongIdentityAliasesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> oldSongId = const Value.absent(),
+                Value<String> canonicalSongId = const Value.absent(),
+                Value<String> matchReason = const Value.absent(),
+                Value<DateTime> matchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SongIdentityAliasesTableCompanion(
+                oldSongId: oldSongId,
+                canonicalSongId: canonicalSongId,
+                matchReason: matchReason,
+                matchedAt: matchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String oldSongId,
+                required String canonicalSongId,
+                required String matchReason,
+                required DateTime matchedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => SongIdentityAliasesTableCompanion.insert(
+                oldSongId: oldSongId,
+                canonicalSongId: canonicalSongId,
+                matchReason: matchReason,
+                matchedAt: matchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SongIdentityAliasesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $SongIdentityAliasesTableTable,
+      SongIdentityAliasesTableData,
+      $$SongIdentityAliasesTableTableFilterComposer,
+      $$SongIdentityAliasesTableTableOrderingComposer,
+      $$SongIdentityAliasesTableTableAnnotationComposer,
+      $$SongIdentityAliasesTableTableCreateCompanionBuilder,
+      $$SongIdentityAliasesTableTableUpdateCompanionBuilder,
+      (
+        SongIdentityAliasesTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $SongIdentityAliasesTableTable,
+          SongIdentityAliasesTableData
+        >,
+      ),
+      SongIdentityAliasesTableData,
+      PrefetchHooks Function()
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -25611,4 +26397,9 @@ class $NavisDatabaseManager {
       );
   $$NetworkUsageTableTableTableManager get networkUsageTable =>
       $$NetworkUsageTableTableTableManager(_db, _db.networkUsageTable);
+  $$SongIdentityAliasesTableTableTableManager get songIdentityAliasesTable =>
+      $$SongIdentityAliasesTableTableTableManager(
+        _db,
+        _db.songIdentityAliasesTable,
+      );
 }

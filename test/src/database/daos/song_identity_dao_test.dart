@@ -1,0 +1,292 @@
+import 'dart:io';
+
+import 'package:drift/drift.dart' show Value, Variable;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
+import '../../../helpers/test_database.dart';
+
+void main() {
+  late NavisDatabase database;
+  late Directory tempDirectory;
+
+  setUp(() async {
+    database = createTestDatabase();
+    tempDirectory = await Directory.systemTemp.createTemp(
+      'navis_song_identity_test_',
+    );
+    await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+      ArtistsTableCompanion.insert(id: 'artist', name: 'Artist'),
+    ]);
+    await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+      AlbumsTableCompanion.insert(
+        id: 'album',
+        name: 'Album',
+        artistId: const Value('artist'),
+      ),
+    ]);
+    await database.libraryDao.upsertProvisionalSongs(<SongsTableCompanion>[
+      SongsTableCompanion.insert(
+        id: 'remote-song',
+        title: 'Track',
+        albumId: const Value('album'),
+        artistId: const Value('artist'),
+      ),
+    ]);
+    await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+      SongsTableCompanion.insert(
+        id: 'server-song',
+        title: 'Track',
+        albumId: const Value('album'),
+        artistId: const Value('artist'),
+      ),
+    ]);
+  });
+
+  tearDown(() async {
+    await database.close();
+    await tempDirectory.delete(recursive: true);
+  });
+
+  test(
+    'transactionally remaps every persisted song reference',
+    () async {
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      await database.customStatement(
+        "INSERT INTO playlists (id, name) VALUES ('playlist', 'Playlist');",
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO playlist_songs (playlist_id, song_id, sort_order)
+      VALUES ('playlist', 'remote-song', 0);
+      ''',
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO play_queue (
+        id,
+        current_index,
+        shuffle_mode,
+        repeat_mode,
+        position_ms,
+        updated_at
+      ) VALUES (1, 0, 'off', 'off', 0, ?);
+      ''',
+        <Object?>[now],
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO play_queue_items (queue_id, song_id, sort_order)
+      VALUES (1, 'remote-song', 0);
+      ''',
+      );
+      await database.customStatement(
+        'INSERT INTO play_history (song_id, played_at) VALUES (?, ?);',
+        <Object?>['remote-song', now],
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO match_flows (id, name, enabled, created_at, updated_at)
+      VALUES ('flow', 'Flow', 1, ?, ?);
+      ''',
+        <Object?>[now, now],
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO match_flow_songs (flow_id, song_id, sort_order, added_at)
+      VALUES ('flow', 'remote-song', 0, ?);
+      ''',
+        <Object?>[now],
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO download_queue (
+        song_id,
+        status,
+        progress,
+        added_at,
+        priority,
+        retry_count
+      ) VALUES ('remote-song', 'queued', 0, ?, 0, 0);
+      ''',
+        <Object?>[now],
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO external_lyrics_cache (
+        song_id,
+        source,
+        fetched_at,
+        ttl_seconds,
+        failure_count
+      ) VALUES ('remote-song', 'lrclib', ?, 86400, 0);
+      ''',
+        <Object?>[now],
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO scrobble_queue (
+        song_id,
+        provider,
+        submission,
+        created_at,
+        next_attempt_at,
+        attempts,
+        expires_at,
+        session_key
+      ) VALUES (
+        'remote-song',
+        'subsonic',
+        1,
+        ?,
+        ?,
+        0,
+        ?,
+        'session'
+      );
+      ''',
+        <Object?>[now, now, now + 3600],
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO listenbrainz_feedback_queue (
+        song_id,
+        score,
+        title,
+        artist,
+        attempts,
+        queued_at,
+        next_attempt_at
+      ) VALUES ('remote-song', 1, 'Track', 'Artist', 0, ?, ?);
+      ''',
+        <Object?>[now, now],
+      );
+      await database.customStatement(
+        '''
+      INSERT INTO star_sync_queue (item_id, item_type, action, queued_at)
+      VALUES ('remote-song', 'song', 'star', ?);
+      ''',
+        <Object?>[now],
+      );
+
+      final cacheFile = File('${tempDirectory.path}/remote.audio')
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'remote-song',
+          filePath: cacheFile.path,
+          fileSize: cacheFile.lengthSync(),
+          format: 'mp3',
+          lastAccessedAt: DateTime.now(),
+          cacheType: CacheType.rolling,
+          downloadStatus: DownloadStatus.complete,
+        ),
+      );
+
+      final result = await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'exactMetadata',
+      );
+
+      expect(result.alias.oldSongId, 'remote-song');
+      expect(
+        await database.libraryDao.getSongById('remote-song'),
+        isNull,
+      );
+      expect(
+        (await database.libraryDao.getSongById('server-song'))?.isProvisional,
+        isFalse,
+      );
+      expect(
+        (await database.cacheDao.getCachedTrack('server-song'))?.filePath,
+        cacheFile.path,
+      );
+      expect(await cacheFile.exists(), isTrue);
+
+      for (final table in <String>[
+        'download_queue',
+        'play_queue_items',
+        'play_history',
+        'playlist_songs',
+        'match_flow_songs',
+        'external_lyrics_cache',
+        'scrobble_queue',
+        'listenbrainz_feedback_queue',
+      ]) {
+        expect(await _count(database, table, 'remote-song'), 0, reason: table);
+        expect(await _count(database, table, 'server-song'), 1, reason: table);
+      }
+      final starRows = await database
+          .customSelect(
+            "SELECT item_id FROM star_sync_queue WHERE item_type = 'song';",
+          )
+          .get();
+      expect(starRows.single.read<String>('item_id'), 'server-song');
+      expect(
+        await database.songIdentityDao.resolveCanonicalId('remote-song'),
+        'server-song',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'cache collision keeps a valid permanent canonical entry',
+    () async {
+      final remoteFile = File('${tempDirectory.path}/remote.audio')
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      final permanentFile = File('${tempDirectory.path}/permanent.audio')
+        ..writeAsBytesSync(<int>[4, 5, 6, 7]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'remote-song',
+          filePath: remoteFile.path,
+          fileSize: remoteFile.lengthSync(),
+          format: 'mp3',
+          lastAccessedAt: DateTime.now(),
+          cacheType: CacheType.rolling,
+          downloadStatus: DownloadStatus.complete,
+        ),
+      );
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'server-song',
+          filePath: permanentFile.path,
+          fileSize: permanentFile.lengthSync(),
+          format: 'flac',
+          lastAccessedAt: DateTime.now(),
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+        ),
+      );
+
+      await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+      );
+
+      final retained = await database.cacheDao.getCachedTrack('server-song');
+      expect(retained?.cacheType, CacheType.permanent);
+      expect(retained?.filePath, permanentFile.path);
+      expect(await permanentFile.exists(), isTrue);
+      expect(await remoteFile.exists(), isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+}
+
+Future<int> _count(
+  NavisDatabase database,
+  String table,
+  String songId,
+) async {
+  final row = await database
+      .customSelect(
+        'SELECT COUNT(*) AS count FROM $table WHERE song_id = ?;',
+        variables: <Variable<Object>>[Variable<String>(songId)],
+      )
+      .getSingle();
+  return row.read<int>('count');
+}

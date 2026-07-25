@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
+import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -36,11 +37,14 @@ abstract class RollingCacheManager {
 class DriftRollingCacheManager implements RollingCacheManager {
   DriftRollingCacheManager({
     required CacheDao cacheDao,
+    SongIdentityDao? songIdentityDao,
     DateTime Function()? now,
   }) : _cacheDao = cacheDao,
+       _songIdentityDao = songIdentityDao,
        _now = now ?? DateTime.now;
 
   final CacheDao _cacheDao;
+  final SongIdentityDao? _songIdentityDao;
   final DateTime Function() _now;
 
   @override
@@ -96,22 +100,24 @@ class DriftRollingCacheManager implements RollingCacheManager {
 
     final candidates = await _cacheDao.getRollingEntriesOrderedByLastAccessed();
     final evictedIds = <String>[];
+    var actualBytesFreed = 0;
 
     for (final entry in candidates) {
       if (totalBytes <= maxBytes) {
         break;
       }
 
-      await _deleteCacheFileSet(entry.filePath);
+      actualBytesFreed += await _deleteCacheFileSet(entry.filePath);
       evictedIds.add(entry.songId);
       totalBytes -= entry.fileSize;
     }
 
     if (evictedIds.isNotEmpty) {
       await _cacheDao.deleteCachedTracksBySongIds(evictedIds);
+      await _garbageCollectProvisionalMetadata();
       AppLogger.debug(
         'Rolling cache eviction: removed ${evictedIds.length} track(s), '
-        'freed ${(totalBytes - maxBytes).abs()} bytes',
+        'freed $actualBytesFreed bytes',
       );
     }
   }
@@ -130,6 +136,7 @@ class DriftRollingCacheManager implements RollingCacheManager {
 
     if (staleIds.isNotEmpty) {
       await _cacheDao.deleteCachedTracksBySongIds(staleIds);
+      await _garbageCollectProvisionalMetadata();
     }
   }
 
@@ -151,6 +158,7 @@ class DriftRollingCacheManager implements RollingCacheManager {
 
     if (staleIds.isNotEmpty) {
       await _cacheDao.deleteCachedTracksBySongIds(staleIds);
+      await _garbageCollectProvisionalMetadata();
       AppLogger.info(
         'Pruned ${staleIds.length} permanent cache entries with missing files.',
       );
@@ -197,6 +205,19 @@ class DriftRollingCacheManager implements RollingCacheManager {
         }
 
         if (path.endsWith('.mime')) {
+          final audioPath = path.substring(0, path.length - '.mime'.length);
+          if (knownPaths.contains(audioPath) || File(audioPath).existsSync()) {
+            continue;
+          }
+          try {
+            entity.deleteSync();
+            removed += 1;
+          } on FileSystemException catch (error, stackTrace) {
+            AppLogger.warning(
+              'Failed to delete orphaned MIME sidecar "$path": '
+              '$error\n$stackTrace',
+            );
+          }
           continue;
         }
         if (knownPaths.contains(path)) {
@@ -216,13 +237,14 @@ class DriftRollingCacheManager implements RollingCacheManager {
     }
   }
 
-  Future<void> _deleteCacheFileSet(String filePath) async {
+  Future<int> _deleteCacheFileSet(String filePath) async {
     // Never delete '.part' files: they belong to just_audio's
     // LockCachingAudioSource while a download is in flight. Deleting one
     // causes a PathNotFoundException when just_audio tries to rename it to the
     // final path after the download completes. Stale '.part' files are handled
     // separately by cleanupOrphanedRollingFiles with an age gate.
     final paths = <String>[filePath, '$filePath.mime'];
+    var bytesFreed = 0;
 
     for (final path in paths) {
       final file = File(path);
@@ -230,12 +252,26 @@ class DriftRollingCacheManager implements RollingCacheManager {
         continue;
       }
       try {
+        bytesFreed += file.lengthSync();
         file.deleteSync();
       } on FileSystemException catch (error, stackTrace) {
         AppLogger.warning(
           'Failed to delete rolling cache file "$path": $error\n$stackTrace',
         );
       }
+    }
+    return bytesFreed;
+  }
+
+  Future<void> _garbageCollectProvisionalMetadata() async {
+    final result = await _songIdentityDao
+        ?.garbageCollectUnreferencedProvisionalMetadata();
+    if (result != null &&
+        (result.songs > 0 || result.albums > 0 || result.artists > 0)) {
+      AppLogger.info(
+        'Provisional cache cleanup: songs=${result.songs} '
+        'albums=${result.albums} artists=${result.artists}.',
+      );
     }
   }
 

@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -9,18 +11,33 @@ import 'package:path/path.dart' as p;
 import '../../../../helpers/test_database.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const pathProviderChannel = MethodChannel(
+    'plugins.flutter.io/path_provider',
+  );
+
   group('DriftRollingCacheManager', () {
     late NavisDatabase database;
     late DriftRollingCacheManager manager;
     late Directory tempDir;
 
-    setUp(() {
+    setUp(() async {
       database = NavisDatabase(NativeDatabase.memory());
-      manager = DriftRollingCacheManager(cacheDao: database.cacheDao);
       tempDir = Directory.systemTemp.createTempSync('navis_rolling_cache_');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            pathProviderChannel,
+            (call) async => tempDir.path,
+          );
+      manager = DriftRollingCacheManager(
+        cacheDao: database.cacheDao,
+        songIdentityDao: database.songIdentityDao,
+      );
     });
 
     tearDown(() async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathProviderChannel, null);
       await database.close();
       if (tempDir.existsSync()) {
         tempDir.deleteSync(recursive: true);
@@ -157,6 +174,93 @@ void main() {
       expect(row, isNotNull);
       expect(row!.lastAccessedAt.isAfter(oldDate), isTrue);
     }, skip: !sqliteAvailable);
+
+    test(
+      'cleanup removes orphaned MIME sidecars without audio or DB rows',
+      () async {
+        final rollingDirectory = Directory(
+          p.join(tempDir.path, 'audio', 'rolling'),
+        )..createSync(recursive: true);
+        final orphanSidecar = File(
+          p.join(rollingDirectory.path, 'orphan.audio.mime'),
+        )..writeAsStringSync('audio/mpeg');
+        final retainedAudio = File(
+          p.join(rollingDirectory.path, 'retained.audio'),
+        )..writeAsBytesSync(<int>[1]);
+        final retainedSidecar = File('${retainedAudio.path}.mime')
+          ..writeAsStringSync('audio/mpeg');
+        await _insertSong(database, 'retained-song');
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'retained-song',
+            filePath: retainedAudio.path,
+            fileSize: 1,
+            format: 'mp3',
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await manager.cleanupOrphanedRollingFiles();
+
+        expect(orphanSidecar.existsSync(), isFalse);
+        expect(retainedSidecar.existsSync(), isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'eviction garbage-collects unreferenced provisional metadata',
+      () async {
+        await database.libraryDao.upsertProvisionalArtists(
+          <ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(id: 'remote-artist', name: 'Artist'),
+          ],
+        );
+        await database.libraryDao.upsertProvisionalAlbums(
+          <AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'remote-album',
+              name: 'Album',
+              artistId: const Value('remote-artist'),
+            ),
+          ],
+        );
+        await database.libraryDao.upsertProvisionalSongs(
+          <SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'remote-song',
+              title: 'Song',
+              albumId: const Value('remote-album'),
+              artistId: const Value('remote-artist'),
+            ),
+          ],
+        );
+        final file = await _writeFile(tempDir, 'remote.mp3', 100);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'remote-song',
+            filePath: file.path,
+            fileSize: 100,
+            format: 'mp3',
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await manager.enforceBudget(maxBytes: 1);
+
+        expect(await database.libraryDao.getSongById('remote-song'), isNull);
+        expect(await database.libraryDao.getAlbumById('remote-album'), isNull);
+        expect(
+          await database.libraryDao.getArtistById('remote-artist'),
+          isNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }
 

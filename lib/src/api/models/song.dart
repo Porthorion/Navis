@@ -24,6 +24,7 @@ abstract class Song with _$Song {
     int? size,
     String? coverArt,
     DateTime? starred,
+    String? musicBrainzId,
     int? userRating,
     int? playCount,
     DateTime? created,

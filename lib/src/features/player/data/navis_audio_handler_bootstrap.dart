@@ -88,7 +88,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required PlaybackSourceResolver sourceResolver,
   required SubsonicApiClient? Function() readApiClient,
   required RollingCacheManager rollingCacheManager,
-  required int rollingCacheBudgetBytes,
+  required int Function() readRollingCacheBudgetBytes,
   required ScrobbleService scrobbleService,
   required ListenBrainzFeedbackService listenBrainzFeedbackService,
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
@@ -110,7 +110,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       sourceResolver: sourceResolver,
       readApiClient: readApiClient,
       rollingCacheManager: rollingCacheManager,
-      rollingCacheBudgetBytes: rollingCacheBudgetBytes,
+      readRollingCacheBudgetBytes: readRollingCacheBudgetBytes,
       scrobbleService: scrobbleService,
       listenBrainzFeedbackService: listenBrainzFeedbackService,
       readRuntimeSettings: readRuntimeSettings,
@@ -311,6 +311,10 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   Future<void> applyRuntimeSettings() => _delegate.applyRuntimeSettings();
 
   @override
+  Future<void> applySongIdentityAliases(Map<String, String> aliases) =>
+      _delegate.applySongIdentityAliases(aliases);
+
+  @override
   Future<void> toggleLike() => _delegate.toggleLike();
 
   @override
@@ -492,6 +496,10 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> applyRuntimeSettings() => _delegate.applyRuntimeSettings();
+
+  @override
+  Future<void> applySongIdentityAliases(Map<String, String> aliases) =>
+      _delegate.applySongIdentityAliases(aliases);
 
   @override
   Future<void> toggleLike() => _delegate.toggleLike();

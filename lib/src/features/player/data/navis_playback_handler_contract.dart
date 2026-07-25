@@ -51,6 +51,11 @@ abstract class NavisPlaybackHandler {
   Future<void> setPlaybackSpeed(double speed);
   Future<void> setVolume(double volume);
   Future<void> applyRuntimeSettings();
+
+  /// Remap retired provisional song IDs in the logical queue after library
+  /// sync without replacing or interrupting the active audio source.
+  Future<void> applySongIdentityAliases(Map<String, String> aliases);
+
   Future<void> toggleLike();
 
   /// Synchronise the liked state of every queue item whose id matches

@@ -48,6 +48,7 @@ const _pendingSnapshot = PlaybackSnapshot(
 
 SongsTableData _song(String id, String title) {
   return SongsTableData(
+    isProvisional: false,
     id: id,
     title: title,
     albumId: 'album',

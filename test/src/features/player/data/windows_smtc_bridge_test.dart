@@ -318,6 +318,9 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> applyRuntimeSettings() async {}
 
   @override
+  Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
+
+  @override
   Future<void> clearQueue() async {}
 
   @override

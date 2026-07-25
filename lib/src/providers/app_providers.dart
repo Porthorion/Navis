@@ -26,6 +26,8 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
+import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -536,7 +538,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       ),
       readApiClient: () => ref.read(subsonicApiProvider),
       rollingCacheManager: ref.read(rollingCacheManagerProvider),
-      rollingCacheBudgetBytes: ref.read(rollingCacheBudgetBytesProvider),
+      readRollingCacheBudgetBytes: () =>
+          ref.read(rollingCacheBudgetBytesProvider),
       scrobbleService: ref.read(scrobbleServiceProvider),
       listenBrainzFeedbackService: ref.read(
         listenBrainzFeedbackServiceProvider,
@@ -1047,6 +1050,7 @@ Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
               size: Value(song.size),
               coverArt: Value(song.coverArt),
               starred: Value(song.starred),
+              recordingMbid: Value(song.musicBrainzId),
               userRating: Value(song.userRating),
               playCount: Value(song.playCount),
               createdAt: Value(song.created),
@@ -1058,9 +1062,50 @@ Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
           )
           .toList(growable: false),
     );
+    await reconcileCanonicalSongHydration(
+      ref,
+      detail.songs.map((song) => song.id),
+    );
   }
 
   await db.libraryDao.markAlbumSongsHydrated(detail.id);
+}
+
+Future<void> reconcileCanonicalSongHydration(
+  Ref ref,
+  Iterable<String> canonicalSongIds,
+) async {
+  final ids = canonicalSongIds
+      .map((id) => id.trim())
+      .where((id) => id.isNotEmpty)
+      .toSet();
+  if (ids.isEmpty) {
+    return;
+  }
+  final database = ref.read(navisDatabaseProvider);
+  final canonicalSongs = await database.libraryDao.getSongsByIds(ids);
+  final summary = await SongIdentityReconciler(
+    database.songIdentityDao,
+  ).reconcileCanonicalSongs(canonicalSongs);
+  if (summary.aliases.isNotEmpty) {
+    SongIdentityCacheEpoch.invalidate();
+    await ref.read(audioHandlerProvider)?.applySongIdentityAliases(
+      <String, String>{
+        for (final alias in summary.aliases)
+          alias.oldSongId: alias.canonicalSongId,
+      },
+    );
+  }
+  if (summary.aliases.isNotEmpty ||
+      summary.ambiguousMatchCount > 0 ||
+      summary.retainedProvisionalCount > 0) {
+    AppLogger.info(
+      'On-demand song identity reconciliation: '
+      'canonicalized=${summary.aliases.length} '
+      'ambiguous=${summary.ambiguousMatchCount} '
+      'retainedProvisional=${summary.retainedProvisionalCount}.',
+    );
+  }
 }
 
 Future<void> _refreshAlbumInfoFromServer(Ref ref, String albumId) async {
@@ -1614,8 +1659,11 @@ final rollingCacheBudgetBytesProvider = Provider<int>((ref) {
 });
 
 final rollingCacheManagerProvider = Provider<RollingCacheManager>((ref) {
-  final cacheDao = ref.watch(navisDatabaseProvider).cacheDao;
-  return DriftRollingCacheManager(cacheDao: cacheDao);
+  final database = ref.watch(navisDatabaseProvider);
+  return DriftRollingCacheManager(
+    cacheDao: database.cacheDao,
+    songIdentityDao: database.songIdentityDao,
+  );
 });
 
 final playbackSnapshotProvider = StreamProvider<PlaybackSnapshot>((ref) async* {

@@ -30,6 +30,18 @@ const List<ChangelogVersion> changelogs = [
     version: '1.0.13',
     entries: [
       ChangelogEntry(
+        'Library refreshes now use the server sync cursor, verify newest albums, and continue large updates in bounded batches instead of requiring Force Full Sync',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Cached remote songs now move to their verified server identity when an exact match becomes available, preventing duplicate local entries without risky fuzzy matching',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Sync Settings now includes Check for updates and reports whether metadata is current, still being verified, or needs repair',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Previous track now reliably restarts the current song when there is no earlier queue item, including fullscreen artwork swipes and system media controls',
         type: ChangelogEntryType.fix,
       ),

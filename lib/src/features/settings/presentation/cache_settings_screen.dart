@@ -242,7 +242,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
       final syncState = await ref
           .read(librarySyncControllerProvider.notifier)
-          .syncNow(forceFull: true);
+          .forceFullSync();
 
       if (!mounted) return;
       setState(() => _coverArtStorageBytes = 0);

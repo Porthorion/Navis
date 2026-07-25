@@ -163,6 +163,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsStatusFailed => 'Last sync failed';
 
   @override
+  String get syncSettingsCheckForUpdates => 'Check for updates';
+
+  @override
+  String get syncSettingsFreshnessCurrent => 'Current';
+
+  @override
+  String get syncSettingsFreshnessPending => 'Verification pending';
+
+  @override
+  String get syncSettingsFreshnessRepair => 'Repair recommended';
+
+  @override
+  String syncSettingsRemainingVerification(Object count) {
+    return '$count artists remain to verify';
+  }
+
+  @override
+  String syncSettingsIdentitySummary(Object canonicalized, Object ambiguous) {
+    return '$canonicalized cached songs canonicalized; $ambiguous ambiguous matches retained';
+  }
+
+  @override
   String get syncSettingsIntervalLabel => 'Auto-sync interval';
 
   @override

@@ -95,6 +95,9 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   Future<void> applyRuntimeSettings() async {}
 
   @override
+  Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
+
+  @override
   Future<void> clearQueue() async {}
 
   @override
@@ -294,6 +297,7 @@ void main() {
       await queue.replaceWithTableData(
         const <SongsTableData>[
           SongsTableData(
+            isProvisional: false,
             id: 'song-1',
             title: 'Song 1',
             albumId: 'album-1',
@@ -301,6 +305,7 @@ void main() {
             artistName: 'Artist',
           ),
           SongsTableData(
+            isProvisional: false,
             id: 'song-2',
             title: 'Song 2',
             albumId: 'album-1',

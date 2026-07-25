@@ -900,9 +900,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<void> _runHomeRefresh() async {
     ref.read(homeRandomShowcaseShuffleSeedProvider.notifier).reshuffle();
-    await ref
-        .read(librarySyncControllerProvider.notifier)
-        .syncNow(preferIncremental: true);
+    await ref.read(librarySyncControllerProvider.notifier).syncNow();
     ref.invalidate(homeRecentlyAddedProvider);
     ref.invalidate(homeRandomAlbumsProvider);
     ref.invalidate(homeDownloadedRandomAlbumsProvider);

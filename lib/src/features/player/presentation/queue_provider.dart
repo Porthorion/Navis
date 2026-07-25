@@ -348,7 +348,7 @@ class QueueController extends Notifier<List<String>> {
               ),
             )
             .toList(growable: false);
-        await db.libraryDao.upsertArtists(artistCompanions);
+        await db.libraryDao.upsertProvisionalArtists(artistCompanions);
       }
 
       // 2. Upsert referenced albums (deduplicated).
@@ -372,7 +372,7 @@ class QueueController extends Notifier<List<String>> {
               ),
             )
             .toList(growable: false);
-        await db.libraryDao.upsertAlbums(albumCompanions);
+        await db.libraryDao.upsertProvisionalAlbums(albumCompanions);
       }
 
       // 3. Upsert the song rows themselves.
@@ -408,6 +408,7 @@ class QueueController extends Notifier<List<String>> {
             size: Value(song.size),
             coverArt: Value(song.coverArt),
             starred: Value(song.starred),
+            recordingMbid: Value(song.musicBrainzId),
             playCount: Value(song.playCount),
             createdAt: Value(song.created),
             replayGainTrackGain: Value(song.replayGain?.trackGain),
@@ -417,7 +418,7 @@ class QueueController extends Notifier<List<String>> {
           ),
         )
         .toList(growable: false);
-    await db.libraryDao.upsertSongs(companions);
+    await db.libraryDao.upsertProvisionalSongs(companions);
   }
 
   Future<void> reorder(int oldIndex, int newIndex) async {

@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-06-30
+Last updated: 2026-07-26
 
 ---
 
@@ -14,6 +14,7 @@ Last updated: 2026-06-30
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Reliable library sync and cache identity reconciliation (server `lastModified` cursors, persisted bounded verification, 12-hour newest-album health probes, unsupported-index fallback, schema v54 provisional metadata and identity aliases, transactional song-reference/cache remapping, playback alias propagation, dynamic rolling-cache budgets, provisional garbage collection, and sync freshness UI) — 2026-07-26 (evidence: `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/database/daos/song_identity_dao.dart`, `lib/src/features/library/data/song_identity_reconciler.dart`, `lib/src/features/cache/data/rolling_cache_manager.dart`, `test/src/features/library/data/library_sync_engine_test.dart`, `test/src/database/daos/song_identity_dao_test.dart`, `test/src/features/library/data/song_identity_reconciler_test.dart`, `test/src/database/migrations/navis_migration_test.dart`, `./tool/check.sh`)
 - [x] Navis 1.0.7 Listen Together retirement hotfix (version bump to `1.0.7+10007`, schema v53 stale Voyage settings cleanup, retired settings screens removed, release script exact-version guard added, and regression tests/docs updated) — 2026-06-30 (evidence: `pubspec.yaml`, `lib/src/database/navis_database.dart`, `test/src/database/migrations/navis_migration_test.dart`, `tool/release.sh`, `./tool/check.sh`)
 - [x] Retired Listen Together / Voyage from the active app surface (removed Navis-side Voyage backend/session/sync code, disabled visible frontend entry points, removed placeholder widgets, removed build-time Voyage config, and updated docs/changelog) — 2026-06-29 (evidence: `lib/src/features/group_listening/`, `lib/src/features/player/presentation/queue_provider.dart`, `lib/src/features/settings/presentation/server_settings_screen.dart`, `lib/src/routing/app_shell.dart`, `tool/release.sh`, `AGENTS.md`, `README.md`)
 - [x] Low-data library sync optimization (automatic sync stays incremental after initial sync, noisy indexes are fingerprinted/bounded, auxiliary metadata refresh is throttled, and app build changes no longer force full resync) — 2026-06-28 (evidence: `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/features/library/presentation/library_sync_provider.dart`, `test/src/features/library/data/library_sync_engine_test.dart`, `test/src/features/library/presentation/library_sync_provider_test.dart`, `flutter test test/src/features/library/data/library_sync_engine_test.dart test/src/features/library/presentation/library_sync_provider_test.dart`)

@@ -382,6 +382,42 @@ abstract class AppLocalizations {
   /// **'Last sync failed'**
   String get syncSettingsStatusFailed;
 
+  /// No description provided for @syncSettingsCheckForUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get syncSettingsCheckForUpdates;
+
+  /// No description provided for @syncSettingsFreshnessCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get syncSettingsFreshnessCurrent;
+
+  /// No description provided for @syncSettingsFreshnessPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Verification pending'**
+  String get syncSettingsFreshnessPending;
+
+  /// No description provided for @syncSettingsFreshnessRepair.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair recommended'**
+  String get syncSettingsFreshnessRepair;
+
+  /// No description provided for @syncSettingsRemainingVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} artists remain to verify'**
+  String syncSettingsRemainingVerification(Object count);
+
+  /// No description provided for @syncSettingsIdentitySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{canonicalized} cached songs canonicalized; {ambiguous} ambiguous matches retained'**
+  String syncSettingsIdentitySummary(Object canonicalized, Object ambiguous);
+
   /// No description provided for @syncSettingsIntervalLabel.
   ///
   /// In en, this message translates to:

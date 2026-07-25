@@ -57,6 +57,18 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.0.13', [
     _Entry(
+      'Library refreshes now use the server sync cursor, verify newest albums, and continue large updates in bounded batches instead of requiring Force Full Sync',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Cached remote songs now move to their verified server identity when an exact match becomes available, preventing duplicate local entries without risky fuzzy matching',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Sync Settings now includes Check for updates and reports whether metadata is current, still being verified, or needs repair',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Previous track now reliably restarts the current song when there is no earlier queue item, including fullscreen artwork swipes and system media controls',
       type: _EntryType.fix,
     ),

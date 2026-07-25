@@ -14,6 +14,7 @@ import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:navis/src/database/daos/server_dao.dart';
+import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
@@ -38,6 +39,7 @@ import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
+import 'package:navis/src/database/tables/song_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 
 part 'navis_database.g.dart';
@@ -67,6 +69,7 @@ part 'navis_database.g.dart';
     ListenBrainzFeedbackQueueTable,
     ListenBrainzWeeklyCacheTable,
     NetworkUsageTable,
+    SongIdentityAliasesTable,
   ],
   daos: [
     AppSettingsDao,
@@ -82,6 +85,7 @@ part 'navis_database.g.dart';
     StarSyncDao,
     ListenBrainzFeedbackDao,
     NetworkUsageDao,
+    SongIdentityDao,
   ],
 )
 class NavisDatabase extends _$NavisDatabase {
@@ -91,7 +95,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 53;
+  int get schemaVersion => 54;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -271,6 +275,9 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 53 && to >= 53) {
       await from52To53(migrator);
     }
+    if (from < 54 && to >= 54) {
+      await from53To54(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -391,6 +398,21 @@ class NavisDatabase extends _$NavisDatabase {
 
   Future<void> from52To53(Migrator _) async {
     await _clearRetiredGroupListeningSettings();
+  }
+
+  Future<void> from53To54(Migrator migrator) async {
+    if (!await _columnExists('artists', 'is_provisional')) {
+      await migrator.addColumn(artistsTable, artistsTable.isProvisional);
+    }
+    if (!await _columnExists('albums', 'is_provisional')) {
+      await migrator.addColumn(albumsTable, albumsTable.isProvisional);
+    }
+    if (!await _columnExists('songs', 'is_provisional')) {
+      await migrator.addColumn(songsTable, songsTable.isProvisional);
+    }
+    if (!await _tableExists('song_identity_aliases')) {
+      await migrator.createTable(songIdentityAliasesTable);
+    }
   }
 
   Future<void> _clearRetiredGroupListeningSettings() async {
@@ -1163,6 +1185,9 @@ FROM scrobble_queue;
       'CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name);',
     );
     await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_artists_provisional ON artists(is_provisional, name);',
+    );
+    await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_albums_artist_year ON albums(artist_id, year);',
     );
     await customStatement(
@@ -1175,6 +1200,9 @@ FROM scrobble_queue;
       'CREATE INDEX IF NOT EXISTS idx_albums_songs_hydrated ON albums(songs_hydrated, id);',
     );
     await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_albums_provisional ON albums(is_provisional, id);',
+    );
+    await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_album_track ON songs(album_id, track);',
     );
     await customStatement(
@@ -1182,6 +1210,9 @@ FROM scrobble_queue;
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_server_deleted_at ON songs(server_deleted_at, id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_provisional ON songs(is_provisional, id);',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_playlist_songs_order ON playlist_songs(playlist_id, sort_order);',
@@ -1206,6 +1237,9 @@ FROM scrobble_queue;
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_listenbrainz_weekly_cache_fetched_at ON listenbrainz_weekly_cache(fetched_at);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_song_identity_aliases_canonical ON song_identity_aliases(canonical_song_id);',
     );
   }
 

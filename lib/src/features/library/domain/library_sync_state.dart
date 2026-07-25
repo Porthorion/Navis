@@ -2,11 +2,12 @@ import 'package:flutter/foundation.dart';
 
 enum LibrarySyncStatus { idle, running, succeeded, skipped, failed }
 
-enum LibrarySyncMode {
-  fullInitial,
-  incremental,
-  forceFull,
-  rebaselineFull,
+enum LibrarySyncMode { fullInitial, incremental, forceFull }
+
+enum LibrarySyncFreshness {
+  current,
+  verificationPending,
+  repairRecommended,
 }
 
 enum LibrarySyncStage {
@@ -45,14 +46,21 @@ class LibrarySyncState {
     this.averageLatencyMs,
     this.dbWriteBatches = 0,
     this.hydrationThroughputAlbumsPerSecond,
+    this.freshness = LibrarySyncFreshness.verificationPending,
+    this.remainingVerificationCount = 0,
+    this.canonicalizedSongCount = 0,
+    this.ambiguousMatchCount = 0,
   });
 
-  const LibrarySyncState.idle({DateTime? lastSyncedAt})
-    : this(
-        status: LibrarySyncStatus.idle,
-        stage: LibrarySyncStage.idle,
-        lastSyncedAt: lastSyncedAt,
-      );
+  const LibrarySyncState.idle({
+    DateTime? lastSyncedAt,
+    LibrarySyncFreshness freshness = LibrarySyncFreshness.verificationPending,
+  }) : this(
+         status: LibrarySyncStatus.idle,
+         stage: LibrarySyncStage.idle,
+         lastSyncedAt: lastSyncedAt,
+         freshness: freshness,
+       );
 
   final LibrarySyncStatus status;
   final LibrarySyncStage stage;
@@ -74,6 +82,10 @@ class LibrarySyncState {
   final int? averageLatencyMs;
   final int dbWriteBatches;
   final double? hydrationThroughputAlbumsPerSecond;
+  final LibrarySyncFreshness freshness;
+  final int remainingVerificationCount;
+  final int canonicalizedSongCount;
+  final int ambiguousMatchCount;
 
   bool get isRunning => status == LibrarySyncStatus.running;
 
@@ -109,6 +121,10 @@ class LibrarySyncState {
     int? dbWriteBatches,
     double? hydrationThroughputAlbumsPerSecond,
     bool clearHydrationThroughput = false,
+    LibrarySyncFreshness? freshness,
+    int? remainingVerificationCount,
+    int? canonicalizedSongCount,
+    int? ambiguousMatchCount,
   }) {
     return LibrarySyncState(
       status: status ?? this.status,
@@ -144,6 +160,12 @@ class LibrarySyncState {
           ? null
           : hydrationThroughputAlbumsPerSecond ??
                 this.hydrationThroughputAlbumsPerSecond,
+      freshness: freshness ?? this.freshness,
+      remainingVerificationCount:
+          remainingVerificationCount ?? this.remainingVerificationCount,
+      canonicalizedSongCount:
+          canonicalizedSongCount ?? this.canonicalizedSongCount,
+      ambiguousMatchCount: ambiguousMatchCount ?? this.ambiguousMatchCount,
     );
   }
 }

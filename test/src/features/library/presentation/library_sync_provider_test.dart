@@ -71,14 +71,22 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
 
   @override
   Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    bool preferIncremental = false,
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) {
     nowCalls++;
-    forceFullCalls.add(forceFull);
-    return _handlerNow(forceFull: forceFull, onProgress: onProgress);
+    forceFullCalls.add(false);
+    return _handlerNow(forceFull: false, onProgress: onProgress);
+  }
+
+  @override
+  Future<LibrarySyncState> forceFullSync({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    nowCalls++;
+    forceFullCalls.add(true);
+    return _handlerNow(forceFull: true, onProgress: onProgress);
   }
 }
 
@@ -89,7 +97,7 @@ void main() {
     test('startup trigger runs once when authenticated', () async {
       final database = createTestDatabase();
       addTearDown(database.close);
-      await database.appSettingsDao.setLastFullSyncAppBuild('1.0.0+1');
+      await database.appSettingsDao.setLastFullSyncAppBuild('54');
       final engine = _FakeLibrarySyncEngine(
         ({
           onProgress,
@@ -278,7 +286,7 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        await database.appSettingsDao.setLastFullSyncAppBuild('1.0.0+1');
+        await database.appSettingsDao.setLastFullSyncAppBuild('54');
         final engine = _FakeLibrarySyncEngine(
           ({
             onProgress,

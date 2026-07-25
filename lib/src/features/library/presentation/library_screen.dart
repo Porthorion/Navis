@@ -231,9 +231,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   Future<void> _refreshLibrary() {
-    return ref
-        .read(librarySyncControllerProvider.notifier)
-        .syncNow(preferIncremental: true);
+    return ref.read(librarySyncControllerProvider.notifier).syncNow();
   }
 
   void _updateDownloadedOnly(bool value) {

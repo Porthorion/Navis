@@ -58,6 +58,11 @@ class SongsTable extends Table {
   /// because a complete permanent download still exists on disk.
   DateTimeColumn get serverDeletedAt => dateTime().nullable()();
 
+  /// True when the row was persisted only to make an online search result
+  /// playable and has not yet been confirmed by authoritative library sync.
+  BoolColumn get isProvisional =>
+      boolean().withDefault(const Constant(false))();
+
   /// ReplayGain track gain in dB (from OpenSubsonic replayGain object).
   RealColumn get replayGainTrackGain => real().nullable()();
 

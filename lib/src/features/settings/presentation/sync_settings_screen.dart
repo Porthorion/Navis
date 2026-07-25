@@ -52,6 +52,26 @@ class SyncSettingsScreen extends ConsumerWidget {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
+                  if (syncState.remainingVerificationCount > 0) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsRemainingVerification(
+                        syncState.remainingVerificationCount,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (syncState.canonicalizedSongCount > 0 ||
+                      syncState.ambiguousMatchCount > 0) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsIdentitySummary(
+                        syncState.canonicalizedSongCount,
+                        syncState.ambiguousMatchCount,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -69,9 +89,9 @@ class SyncSettingsScreen extends ConsumerWidget {
               subtitle: Text(
                 lastSynced == null
                     ? l10n.syncSettingsNeverSynced
-                    : MaterialLocalizations.of(context).formatFullDate(
-                        lastSynced,
-                      ),
+                    : '${MaterialLocalizations.of(context).formatFullDate(lastSynced)} '
+                          '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(lastSynced))}'
+                          ' • ${_freshnessLabel(l10n, syncState.freshness)}',
               ),
             ),
           ),
@@ -124,14 +144,23 @@ class SyncSettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // ---- Force full sync button ----
+          OutlinedButton.icon(
+            onPressed: isRunning
+                ? null
+                : () => ref
+                      .read(librarySyncControllerProvider.notifier)
+                      .syncNow(),
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.syncSettingsCheckForUpdates),
+          ),
+          const SizedBox(height: 8),
           FilledButton.icon(
             onPressed: isRunning
                 ? null
                 : () async {
                     await ref
                         .read(librarySyncControllerProvider.notifier)
-                        .syncNow(forceFull: true);
+                        .forceFullSync();
                   },
             icon: const Icon(Icons.sync),
             label: Text(
@@ -175,6 +204,19 @@ class SyncSettingsScreen extends ConsumerWidget {
       LibrarySyncStatus.failed => l10n.syncSettingsStatusFailed,
       LibrarySyncStatus.skipped => l10n.syncSettingsStatusIdle,
       LibrarySyncStatus.idle => l10n.syncSettingsStatusIdle,
+    };
+  }
+
+  String _freshnessLabel(
+    AppLocalizations l10n,
+    LibrarySyncFreshness freshness,
+  ) {
+    return switch (freshness) {
+      LibrarySyncFreshness.current => l10n.syncSettingsFreshnessCurrent,
+      LibrarySyncFreshness.verificationPending =>
+        l10n.syncSettingsFreshnessPending,
+      LibrarySyncFreshness.repairRecommended =>
+        l10n.syncSettingsFreshnessRepair,
     };
   }
 

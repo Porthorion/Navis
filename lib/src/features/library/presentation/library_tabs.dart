@@ -490,9 +490,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
         : null;
 
     Future<void> refresh() {
-      return ref
-          .read(librarySyncControllerProvider.notifier)
-          .syncNow(preferIncremental: true);
+      return ref.read(librarySyncControllerProvider.notifier).syncNow();
     }
 
     return Scaffold(

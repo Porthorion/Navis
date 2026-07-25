@@ -35,10 +35,7 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    bool preferIncremental = false,
-  }) async {
+  Future<LibrarySyncState> syncNow() async {
     return const LibrarySyncState.idle();
   }
 }
@@ -57,10 +54,7 @@ class _FixedLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    bool preferIncremental = false,
-  }) async {
+  Future<LibrarySyncState> syncNow() async {
     return _fixedState;
   }
 }
@@ -78,10 +72,7 @@ class _PendingRefreshLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    bool preferIncremental = false,
-  }) {
+  Future<LibrarySyncState> syncNow() {
     syncNowCalls++;
     return _completer.future;
   }
@@ -228,6 +219,7 @@ SongsTableData _songRow({
   int? track,
 }) {
   return SongsTableData(
+    isProvisional: false,
     id: id,
     title: title,
     albumId: albumId,
@@ -247,6 +239,7 @@ AlbumWithSongs _albumWithSongs(
 ) {
   return AlbumWithSongs(
     album: AlbumsTableData(
+      isProvisional: false,
       id: albumId,
       name: albumName,
       artistName: 'Album Artist',
@@ -600,6 +593,7 @@ void main() {
             homeLikedSongsProvider.overrideWithValue(
               const AsyncData(<SongsTableData>[
                 SongsTableData(
+                  isProvisional: false,
                   id: 'song-1',
                   title:
                       'A very long song title that should ellipsize correctly',
@@ -627,6 +621,7 @@ void main() {
             homeRecentlyPlayedAlbumsProvider.overrideWithValue(
               const AsyncData(<AlbumsTableData>[
                 AlbumsTableData(
+                  isProvisional: false,
                   id: 'album-2',
                   name: 'Another very long album title for recent section',
                   artistName: 'Overflow Tester',
@@ -660,6 +655,7 @@ void main() {
             homeMostPlayedSongsProvider.overrideWithValue(
               const AsyncData(<SongsTableData>[
                 SongsTableData(
+                  isProvisional: false,
                   id: 'song-2',
                   title: 'A very long most-played song title to stress layout',
                   artistName: 'Overflow Tester',
@@ -670,6 +666,7 @@ void main() {
             likedAlbumsRecentProvider.overrideWithValue(
               const AsyncData(<AlbumsTableData>[
                 AlbumsTableData(
+                  isProvisional: false,
                   id: 'album-4',
                   name: 'Liked album title',
                   artistName: 'Favorite Artist',

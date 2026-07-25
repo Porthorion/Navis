@@ -1159,16 +1159,12 @@ class _AppShellState extends ConsumerState<AppShell> {
           return;
         case DesktopCommandAction.refreshLibrary:
           unawaited(
-            ref
-                .read(librarySyncControllerProvider.notifier)
-                .syncNow(preferIncremental: true),
+            ref.read(librarySyncControllerProvider.notifier).syncNow(),
           );
           return;
         case DesktopCommandAction.forceRescanLibrary:
           unawaited(
-            ref
-                .read(librarySyncControllerProvider.notifier)
-                .syncNow(forceFull: true),
+            ref.read(librarySyncControllerProvider.notifier).forceFullSync(),
           );
           return;
       }

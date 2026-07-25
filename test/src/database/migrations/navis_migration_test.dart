@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 53);
-    expect(pragmaRow.read<int>('user_version'), 53);
+    expect(database.schemaVersion, 54);
+    expect(pragmaRow.read<int>('user_version'), 54);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -129,7 +129,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 53);
+      expect(versionRow.read<int>('user_version'), 54);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -222,7 +222,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 53);
+      expect(versionRow.read<int>('user_version'), 54);
 
       final now = DateTime.utc(2026, 1, 1, 1);
       await migrated.scrobbleDao.enqueue(
@@ -305,7 +305,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 53);
+      expect(versionRow.read<int>('user_version'), 54);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -424,7 +424,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 53);
+      expect(versionRow.read<int>('user_version'), 54);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -542,7 +542,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 53);
+      expect(versionRow.read<int>('user_version'), 54);
 
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings?.customVoyageServers, isNull);
@@ -554,6 +554,102 @@ SET group_listening_enabled = 1,
       expect(groupListening.voyageDisplayName, isNull);
       expect(groupListening.voyageDeviceLabel, isNull);
       expect(groupListening.voyageAutoFollowHost, isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'migrates v53 schema to v54 with canonical provenance and aliases',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v54_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase.libraryDao.upsertArtists(
+        <ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ],
+      );
+      await seedDatabase.libraryDao.upsertAlbums(
+        <AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: const Value('artist-1'),
+          ),
+        ],
+      );
+      await seedDatabase.libraryDao.upsertSongs(
+        <SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song 1',
+            albumId: const Value('album-1'),
+            artistId: const Value('artist-1'),
+          ),
+        ],
+      );
+      await seedDatabase.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute('DROP INDEX IF EXISTS idx_artists_provisional;');
+        raw.execute('DROP INDEX IF EXISTS idx_albums_provisional;');
+        raw.execute('DROP INDEX IF EXISTS idx_songs_provisional;');
+        raw.execute(
+          'DROP INDEX IF EXISTS idx_song_identity_aliases_canonical;',
+        );
+        raw.execute('DROP TABLE IF EXISTS song_identity_aliases;');
+        raw.execute('ALTER TABLE artists DROP COLUMN is_provisional;');
+        raw.execute('ALTER TABLE albums DROP COLUMN is_provisional;');
+        raw.execute('ALTER TABLE songs DROP COLUMN is_provisional;');
+        raw.execute('PRAGMA user_version = 53;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final versionRow = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(versionRow.read<int>('user_version'), 54);
+
+      for (final table in <String>['artists', 'albums', 'songs']) {
+        final columns = await migrated
+            .customSelect("PRAGMA table_info('$table');")
+            .get();
+        expect(
+          columns.map((row) => row.read<String>('name')),
+          contains('is_provisional'),
+        );
+      }
+      final aliasTable = await migrated
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name = 'song_identity_aliases';",
+          )
+          .get();
+      expect(aliasTable, isNotEmpty);
+
+      expect(
+        (await migrated.libraryDao.getArtistById('artist-1'))?.isProvisional,
+        isFalse,
+      );
+      expect(
+        (await migrated.libraryDao.getAlbumById('album-1'))?.isProvisional,
+        isFalse,
+      );
+      expect(
+        (await migrated.libraryDao.getSongById('song-1'))?.isProvisional,
+        isFalse,
+      );
     },
     skip: !sqliteAvailable,
   );

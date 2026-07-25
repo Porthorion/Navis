@@ -52,6 +52,23 @@
   "syncSettingsStatusIdle": "Idle",
   "syncSettingsStatusSucceeded": "Last sync succeeded",
   "syncSettingsStatusFailed": "Last sync failed",
+  "syncSettingsCheckForUpdates": "Check for updates",
+  "syncSettingsFreshnessCurrent": "Current",
+  "syncSettingsFreshnessPending": "Verification pending",
+  "syncSettingsFreshnessRepair": "Repair recommended",
+  "syncSettingsRemainingVerification": "{count} artists remain to verify",
+  "@syncSettingsRemainingVerification": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "syncSettingsIdentitySummary": "{canonicalized} cached songs canonicalized; {ambiguous} ambiguous matches retained",
+  "@syncSettingsIdentitySummary": {
+    "placeholders": {
+      "canonicalized": {},
+      "ambiguous": {}
+    }
+  },
   "syncSettingsIntervalLabel": "Auto-sync interval",
   "syncSettingsIntervalManual": "Manual only",
   "syncSettingsIntervalMinutes": "Every {minutes} minutes",

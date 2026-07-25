@@ -55,6 +55,11 @@ class AlbumsTable extends Table {
   /// More accurate than [syncedAt] for "Recently Added" ordering.
   DateTimeColumn get serverCreatedAt => dateTime().nullable()();
 
+  /// True for lightweight parent rows created from online search/playback
+  /// results before the authoritative library sync has observed the album.
+  BoolColumn get isProvisional =>
+      boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

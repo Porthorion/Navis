@@ -14,6 +14,11 @@ class ArtistsTable extends Table {
 
   DateTimeColumn get starred => dateTime().nullable()();
 
+  /// True for lightweight parent rows created from online search/playback
+  /// results before the authoritative library sync has observed the artist.
+  BoolColumn get isProvisional =>
+      boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

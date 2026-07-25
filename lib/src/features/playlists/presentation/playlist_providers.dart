@@ -167,6 +167,7 @@ final playlistDetailSyncProvider = FutureProvider.autoDispose
                 size: Value(song.size),
                 coverArt: Value(song.coverArt),
                 starred: Value(song.starred),
+                recordingMbid: Value(song.musicBrainzId),
                 playCount: Value(song.playCount),
                 createdAt: Value(song.created),
                 replayGainTrackGain: Value(song.replayGain?.trackGain),
@@ -177,6 +178,10 @@ final playlistDetailSyncProvider = FutureProvider.autoDispose
             )
             .toList(growable: false);
         await db.libraryDao.upsertSongs(songCompanions);
+        await reconcileCanonicalSongHydration(
+          ref,
+          playlist.entries.map((song) => song.id),
+        );
       }
 
       // Replace the playlist_songs join table

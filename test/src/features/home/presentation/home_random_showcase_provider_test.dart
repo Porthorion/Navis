@@ -2221,26 +2221,31 @@ void main() {
               const AsyncData(
                 <SongsTableData>[
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-1',
                     title: 'Seed 1',
                     albumId: 'liked-a',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-2',
                     title: 'Seed 2',
                     albumId: 'liked-b',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-3',
                     title: 'Seed 3',
                     albumId: 'liked-c',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-4',
                     title: 'Seed 4',
                     albumId: 'liked-d',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-5',
                     title: 'Seed 5',
                     albumId: 'liked-e',
@@ -2339,26 +2344,31 @@ void main() {
               const AsyncData(
                 <SongsTableData>[
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-1',
                     title: 'Seed 1',
                     albumId: 'liked-a',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-2',
                     title: 'Seed 2',
                     albumId: 'liked-b',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-3',
                     title: 'Seed 3',
                     albumId: 'liked-c',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-4',
                     title: 'Seed 4',
                     albumId: 'liked-d',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-5',
                     title: 'Seed 5',
                     albumId: 'liked-e',
@@ -2427,26 +2437,31 @@ void main() {
               const AsyncData(
                 <SongsTableData>[
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-1',
                     title: 'Seed 1',
                     albumId: 'liked-a',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-2',
                     title: 'Seed 2',
                     albumId: 'liked-b',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-3',
                     title: 'Seed 3',
                     albumId: 'liked-c',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-4',
                     title: 'Seed 4',
                     albumId: 'liked-d',
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'seed-5',
                     title: 'Seed 5',
                     albumId: 'liked-e',
@@ -2534,6 +2549,7 @@ void main() {
             AsyncData(
               <SongsTableData>[
                 SongsTableData(
+                  isProvisional: false,
                   id: 'liked-song-1',
                   title: 'Liked Song',
                   albumId: 'liked-song-album',
@@ -2629,12 +2645,14 @@ void main() {
               AsyncData(
                 <SongsTableData>[
                   SongsTableData(
+                    isProvisional: false,
                     id: 'song-a',
                     title: 'Downloaded liked song',
                     albumId: 'album-a',
                     starred: DateTime(2026, 1, 2),
                   ),
                   SongsTableData(
+                    isProvisional: false,
                     id: 'song-b',
                     title: 'Non-downloaded liked song',
                     albumId: 'album-b',

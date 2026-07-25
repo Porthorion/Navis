@@ -50,7 +50,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required PlaybackSourceResolver sourceResolver,
     required SubsonicApiClient? Function() readApiClient,
     required RollingCacheManager rollingCacheManager,
-    required int rollingCacheBudgetBytes,
+    required int Function() readRollingCacheBudgetBytes,
     required ScrobbleService scrobbleService,
     required ListenBrainzFeedbackService listenBrainzFeedbackService,
     required PlaybackRuntimeSettings Function() readRuntimeSettings,
@@ -65,7 +65,7 @@ class NavisAudioHandler extends BaseAudioHandler
        _sourceResolver = sourceResolver,
        _readApiClient = readApiClient,
        _rollingCacheManager = rollingCacheManager,
-       _rollingCacheBudgetBytes = rollingCacheBudgetBytes,
+       _readRollingCacheBudgetBytes = readRollingCacheBudgetBytes,
        _scrobbleService = scrobbleService,
        _listenBrainzFeedbackService = listenBrainzFeedbackService,
        _readRuntimeSettings = readRuntimeSettings,
@@ -117,7 +117,7 @@ class NavisAudioHandler extends BaseAudioHandler
   final PlaybackSourceResolver _sourceResolver;
   final SubsonicApiClient? Function() _readApiClient;
   final RollingCacheManager _rollingCacheManager;
-  final int _rollingCacheBudgetBytes;
+  final int Function() _readRollingCacheBudgetBytes;
   final ScrobbleService _scrobbleService;
   final ListenBrainzFeedbackService _listenBrainzFeedbackService;
   final PlaybackRuntimeSettings Function() _readRuntimeSettings;
@@ -688,7 +688,7 @@ class NavisAudioHandler extends BaseAudioHandler
           await _rollingCacheManager.pruneMissingPermanentFiles();
           await _rollingCacheManager.cleanupOrphanedRollingFiles();
           await _rollingCacheManager.enforceBudget(
-            maxBytes: _rollingCacheBudgetBytes,
+            maxBytes: _readRollingCacheBudgetBytes(),
           );
         } on Object catch (error, stackTrace) {
           AppLogger.warning(
@@ -2112,7 +2112,7 @@ class NavisAudioHandler extends BaseAudioHandler
         bitRate: resolvedSource.metadata.bitRate,
       );
       await _rollingCacheManager.enforceBudget(
-        maxBytes: _rollingCacheBudgetBytes,
+        maxBytes: _readRollingCacheBudgetBytes(),
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
@@ -4191,6 +4191,45 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _persistPosition() {
     return _persistQueueState();
+  }
+
+  @override
+  Future<void> applySongIdentityAliases(Map<String, String> aliases) {
+    final normalized = <String, String>{
+      for (final entry in aliases.entries)
+        if (entry.key.trim().isNotEmpty &&
+            entry.value.trim().isNotEmpty &&
+            entry.key != entry.value)
+          entry.key: entry.value,
+    };
+    if (normalized.isEmpty) {
+      return Future<void>.value();
+    }
+    return _queueLane.run((_) async {
+      MediaItem remap(MediaItem item) {
+        final canonicalId = normalized[item.id];
+        return canonicalId == null ? item : item.copyWith(id: canonicalId);
+      }
+
+      for (var index = 0; index < _queueItems.length; index++) {
+        _queueItems[index] = remap(_queueItems[index]);
+      }
+      final pending = _pendingLogicalQueueSongIds;
+      if (pending != null) {
+        _pendingLogicalQueueSongIds = List<String>.unmodifiable(
+          pending.map((id) => normalized[id] ?? id),
+        );
+      }
+      if (_currentMediaItem != null) {
+        _setCurrentMediaItem(remap(_currentMediaItem!));
+      }
+      queue.add(List<MediaItem>.unmodifiable(_queueItems));
+      _emitSnapshot();
+      await _persistSafely(
+        () => _persistQueueState(includeQueueItems: true),
+        context: 'song identity alias update',
+      );
+    });
   }
 
   Future<void> _persistQueueState({

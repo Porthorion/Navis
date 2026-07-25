@@ -27,7 +27,8 @@ Located in `lib/src/providers/app_providers.dart`:
 
 - **Cache Management**
   - `rollingCacheManagerProvider` - Rolling cache manager
-  - `rollingCacheBudgetBytesProvider` - Cache size budget
+  - `rollingCacheBudgetBytesProvider` - Live cache size budget read for every
+    cache write
   - `rollingCacheStatsProvider` - Cache statistics
   - `permanentCacheStatsProvider` - Permanent cache statistics
   - `cachedSongIdsProvider` - Set of cached song IDs
@@ -395,24 +396,40 @@ remove, reorder, or play-index actions until the transport queue catches up.
 
 1. App launch or periodic timer → `LibrarySyncController.syncIfStale()`
 2. Sync controller checks staleness threshold and skips cellular auto-sync
-3. Sync engine uses incremental `getIndexes(ifModifiedSince)` after the
-   initial sync; automatic daily rebaseline scans are not selected
-4. Noisy or unsupported server indexes are treated as bounded/skip cases;
-   manual Force Full Sync remains the repair path
-5. Starred, genre, and playlist metadata refresh on manual sync, real metadata
+3. Sync engine sends the persisted server `Indexes.lastModified` cursor to
+   `getIndexes(ifModifiedSince)`; local completion time is used only for
+   scheduling and status
+4. A returned index is treated as a gated artist snapshot. Missing artists,
+   album-count changes, and newest-album discrepancies are prioritized, then
+   the remaining artists drain through persisted bounded batches
+5. A newest-album health probe runs every 12 hours. Unsupported or unreliable
+   index servers use bounded artist/newest-album verification and retry the
+   index endpoint daily
+6. The server cursor advances only after every candidate from the response
+   succeeds. Partial batches show verification pending rather than silently
+   claiming current metadata
+7. Search and discovery metadata is written provisionally. Canonical hydration
+   reconciles song identities conservatively and transactionally remaps cache,
+   downloads, queues, history, playlists, lyrics, Match Flow, scrobbles,
+   feedback, and star actions
+8. Starred, genre, and playlist metadata refresh on manual sync, real metadata
    changes, or the longer auxiliary sync window
-6. Sync engine writes to database in transactions, database streams notify
-   providers, and UI updates reactively
+9. Initial sync, a one-time sync-model repair, and explicit Force Full Sync are
+   the only authoritative full-library modes
 
 ### Cache Flow
 
 1. Playback starts → `LockCachingAudioSource` downloads to temp
 2. On completion → `RollingCacheManager.registerTrack()`
-3. Cache manager enforces budget via LRU eviction
+3. Cache manager reads the current budget and enforces it via LRU eviction
 4. User pins content → Download to permanent cache
 5. Permanent download completion and rolling→permanent promotion pre-cache
    cover art using `kCoverArtStandardSize`
-6. Playback prefers permanent → rolling → stream
+6. Identity aliases transfer valid rolling/permanent ownership to a proven
+   canonical server song ID; ambiguous permanent downloads remain local-only
+7. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
+   provisional metadata while preserving active partial files
+8. Playback prefers permanent → rolling → stream
 
 ## Testing Strategy
 

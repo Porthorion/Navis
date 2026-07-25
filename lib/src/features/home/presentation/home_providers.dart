@@ -15,6 +15,7 @@ import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
+import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -181,7 +182,8 @@ final Map<String, ListenBrainzResolvedRecommendation>
 _listenBrainzDiscoverMatchCache =
     <String, ListenBrainzResolvedRecommendation>{};
 _ListenBrainzLocalCandidateSnapshot? _listenBrainzLocalCandidateCache;
-int? _listenBrainzLocalCandidateCacheSongCount;
+String? _listenBrainzLocalCandidateCacheFingerprint;
+int? _listenBrainzMatchCacheIdentityEpoch;
 
 class _BoundedAsyncQueue {
   _BoundedAsyncQueue(this.maxConcurrent)
@@ -217,7 +219,8 @@ void debugResetListenBrainzDiscoverSessionCacheForTests() {
   _listenBrainzDiscoverSessionCacheKey = null;
   _listenBrainzDiscoverMatchCache.clear();
   _listenBrainzLocalCandidateCache = null;
-  _listenBrainzLocalCandidateCacheSongCount = null;
+  _listenBrainzLocalCandidateCacheFingerprint = null;
+  _listenBrainzMatchCacheIdentityEpoch = null;
 }
 
 @visibleForTesting
@@ -558,7 +561,8 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     _listenBrainzDiscoverSessionCacheKey = sessionKey;
     _listenBrainzDiscoverMatchCache.clear();
     _listenBrainzLocalCandidateCache = null;
-    _listenBrainzLocalCandidateCacheSongCount = null;
+    _listenBrainzLocalCandidateCacheFingerprint = null;
+    _listenBrainzMatchCacheIdentityEpoch = null;
   }
 
   final shouldLoadPersistentCache =
@@ -1387,6 +1391,7 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
   List<ListenBrainzDiscoverPlaylist> playlists,
 ) async {
   final songsById = <String, Song>{};
+  final recordingMbidsBySongId = <String, String>{};
   for (final playlist in playlists) {
     for (final recommendation in playlist.recommendations) {
       final song = recommendation.song;
@@ -1396,6 +1401,10 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
         continue;
       }
       songsById[song.id] = song;
+      final recordingMbid = recommendation.track.recordingMbid?.trim();
+      if (recordingMbid != null && recordingMbid.isNotEmpty) {
+        recordingMbidsBySongId[song.id] = recordingMbid;
+      }
     }
   }
   if (songsById.isEmpty) {
@@ -1434,12 +1443,21 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
       );
     }
 
-    songRows.add(_listenBrainzSongCompanion(song));
+    songRows.add(
+      _listenBrainzSongCompanion(
+        song,
+        recordingMbid: recordingMbidsBySongId[song.id],
+      ),
+    );
   }
 
-  await dao.upsertArtists(artistsById.values.toList(growable: false));
-  await dao.upsertAlbums(albumsById.values.toList(growable: false));
-  await dao.upsertSongs(songRows);
+  await dao.upsertProvisionalArtists(
+    artistsById.values.toList(growable: false),
+  );
+  await dao.upsertProvisionalAlbums(
+    albumsById.values.toList(growable: false),
+  );
+  await dao.upsertProvisionalSongs(songRows);
 
   return playlists
       .map(
@@ -1470,6 +1488,7 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
 
 SongsTableData _listenBrainzTableSong(Song song) {
   return SongsTableData(
+    isProvisional: false,
     id: song.id,
     title: song.title,
     albumId: song.albumId,
@@ -1496,7 +1515,10 @@ SongsTableData _listenBrainzTableSong(Song song) {
   );
 }
 
-SongsTableCompanion _listenBrainzSongCompanion(Song song) {
+SongsTableCompanion _listenBrainzSongCompanion(
+  Song song, {
+  String? recordingMbid,
+}) {
   return SongsTableCompanion.insert(
     id: song.id,
     title: song.title,
@@ -1514,6 +1536,7 @@ SongsTableCompanion _listenBrainzSongCompanion(Song song) {
     size: Value(song.size),
     coverArt: Value(song.coverArt),
     starred: Value(song.starred),
+    recordingMbid: Value(recordingMbid ?? song.musicBrainzId),
     userRating: Value(song.userRating),
     playCount: Value(song.playCount),
     createdAt: Value(song.created),
@@ -1535,13 +1558,14 @@ String _listenBrainzMatchCacheKey(
   ListenBrainzPlaylist playlist,
   ListenBrainzPlaylistTrack track,
 ) {
+  _ensureListenBrainzIdentityCacheEpoch();
   final sourcePatch = playlist.sourcePatch?.trim() ?? '';
   final playlistId = playlist.identifier.trim();
   final identity =
       track.recordingMbid?.trim() ??
       track.recordingMsid?.trim() ??
       '${track.title}|${track.creator ?? ''}|${track.album ?? ''}|${track.durationMs ?? ''}';
-  return '$sourcePatch|$playlistId|$identity';
+  return '${SongIdentityCacheEpoch.value}|$sourcePatch|$playlistId|$identity';
 }
 
 void _clearListenBrainzPlaylistMatchCache(ListenBrainzPlaylist playlist) {
@@ -1551,19 +1575,41 @@ void _clearListenBrainzPlaylistMatchCache(ListenBrainzPlaylist playlist) {
   _listenBrainzDiscoverMatchCache.removeWhere((key, _) => keys.contains(key));
 }
 
+void _ensureListenBrainzIdentityCacheEpoch() {
+  final epoch = SongIdentityCacheEpoch.value;
+  if (_listenBrainzMatchCacheIdentityEpoch == epoch) {
+    return;
+  }
+  _listenBrainzDiscoverMatchCache.clear();
+  _listenBrainzLocalCandidateCache = null;
+  _listenBrainzLocalCandidateCacheFingerprint = null;
+  _listenBrainzMatchCacheIdentityEpoch = epoch;
+}
+
 Future<_ListenBrainzLocalCandidateSnapshot>
 _loadListenBrainzLocalCandidateSnapshot(
   List<SongsTableData> songs,
 ) async {
+  _ensureListenBrainzIdentityCacheEpoch();
+  final fingerprint =
+      songs
+          .map(
+            (song) =>
+                '${song.id}\u0000${song.recordingMbid ?? ''}\u0000'
+                '${song.isProvisional ? 1 : 0}',
+          )
+          .toList(growable: false)
+        ..sort();
+  final joinedFingerprint = fingerprint.join('\u0001');
   if (_listenBrainzLocalCandidateCache != null &&
-      _listenBrainzLocalCandidateCacheSongCount == songs.length) {
+      _listenBrainzLocalCandidateCacheFingerprint == joinedFingerprint) {
     return _listenBrainzLocalCandidateCache!;
   }
   final snapshot = await _ListenBrainzLocalCandidateSnapshot.fromSongsAsync(
     songs,
   );
   _listenBrainzLocalCandidateCache = snapshot;
-  _listenBrainzLocalCandidateCacheSongCount = songs.length;
+  _listenBrainzLocalCandidateCacheFingerprint = joinedFingerprint;
   return snapshot;
 }
 

@@ -139,6 +139,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> applyRuntimeSettings() async {}
 
   @override
+  Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
+
+  @override
   Future<void> toggleLike() async {}
 
   @override
@@ -244,6 +247,7 @@ const _desktopContext = AdaptiveContext(
 AlbumWithSongs _albumWithSongs(List<SongsTableData> songs) {
   return AlbumWithSongs(
     album: const AlbumsTableData(
+      isProvisional: false,
       id: 'album-1',
       name: 'Album 1',
       artistName: 'Artist 1',
@@ -312,6 +316,7 @@ ListenBrainzDiscoverPlaylist _listenBrainzMixedPlaylist() {
           artist: 'ListenBrainz Artist',
         ),
         tableSong: SongsTableData(
+          isProvisional: false,
           id: 'matched-track',
           title: 'Matched Track',
           artistName: 'ListenBrainz Artist',
@@ -382,6 +387,7 @@ void main() {
             artistByIdProvider('artist-1').overrideWithValue(
               const AsyncData(
                 ArtistsTableData(
+                  isProvisional: false,
                   id: 'artist-1',
                   name: 'Artist 1',
                   albumCount: 1,
@@ -393,6 +399,7 @@ void main() {
                 ArtistAlbumSections(
                   albums: <AlbumsTableData>[
                     AlbumsTableData(
+                      isProvisional: false,
                       id: 'album-1',
                       name: 'Album 1',
                       artistId: 'artist-1',
@@ -402,6 +409,7 @@ void main() {
                   ],
                   featuredIn: <AlbumsTableData>[
                     AlbumsTableData(
+                      isProvisional: false,
                       id: 'album-2',
                       name: 'Album 2',
                       artistId: 'artist-2',
@@ -447,6 +455,7 @@ void main() {
               artistByIdProvider('artist-only').overrideWithValue(
                 const AsyncData(
                   ArtistsTableData(
+                    isProvisional: false,
                     id: 'artist-only',
                     name: 'Artist Only',
                     albumCount: 1,
@@ -458,6 +467,7 @@ void main() {
                   ArtistAlbumSections(
                     albums: <AlbumsTableData>[
                       AlbumsTableData(
+                        isProvisional: false,
                         id: 'solo-album',
                         name: 'Solo Album',
                         artistId: 'artist-only',
@@ -492,6 +502,7 @@ void main() {
               const AsyncData(
                 AlbumWithSongs(
                   album: AlbumsTableData(
+                    isProvisional: false,
                     id: 'album-1',
                     name: 'Album 1',
                     artistName: 'Artist 1',
@@ -500,7 +511,12 @@ void main() {
                     artists: <ArtistRef>[],
                   ),
                   songs: <SongsTableData>[
-                    SongsTableData(id: 'song-1', title: 'Song 1', track: 1),
+                    SongsTableData(
+                      id: 'song-1',
+                      title: 'Song 1',
+                      track: 1,
+                      isProvisional: false,
+                    ),
                   ],
                 ),
               ),
@@ -531,6 +547,7 @@ void main() {
           album: _albumWithSongs(
             const <SongsTableData>[
               SongsTableData(
+                isProvisional: false,
                 id: 'visible-track',
                 title: 'Visible Track',
                 track: 1,
@@ -613,7 +630,12 @@ void main() {
         adaptiveContext: _mobileContext,
         album: _albumWithSongs(
           const <SongsTableData>[
-            SongsTableData(id: 'mobile-track', title: 'Mobile Track', track: 1),
+            SongsTableData(
+              id: 'mobile-track',
+              title: 'Mobile Track',
+              track: 1,
+              isProvisional: false,
+            ),
           ],
         ),
       );
@@ -641,6 +663,7 @@ void main() {
         album: _albumWithSongs(
           const <SongsTableData>[
             SongsTableData(
+              isProvisional: false,
               id: 'desktop-track',
               title: 'Desktop Track',
               track: 1,
@@ -807,12 +830,14 @@ void main() {
           album: _albumWithSongs(
             <SongsTableData>[
               SongsTableData(
+                isProvisional: false,
                 id: 'liked-track',
                 title: 'Liked Track',
                 track: 1,
                 starred: DateTime(2025),
               ),
               const SongsTableData(
+                isProvisional: false,
                 id: 'downloaded-track',
                 title: 'Downloaded Track',
                 track: 2,
@@ -866,6 +891,7 @@ void main() {
           List<SongsTableData>.generate(
             8,
             (index) => SongsTableData(
+              isProvisional: false,
               id: 'viewport-track-${index + 1}',
               title: 'Viewport Track ${index + 1}',
               track: index + 1,
@@ -921,6 +947,7 @@ void main() {
                 const AsyncData(
                   AlbumWithSongs(
                     album: AlbumsTableData(
+                      isProvisional: false,
                       id: 'album-rapid',
                       name: 'Rapid Album',
                       artistName: 'Artist Rapid',
@@ -930,6 +957,7 @@ void main() {
                     ),
                     songs: <SongsTableData>[
                       SongsTableData(
+                        isProvisional: false,
                         id: 'song-rapid-1',
                         title: 'Rapid Song',
                         track: 1,
@@ -978,6 +1006,7 @@ void main() {
             artistByIdProvider('starred-artist').overrideWithValue(
               AsyncData(
                 ArtistsTableData(
+                  isProvisional: false,
                   id: 'starred-artist',
                   name: 'Starred Artist',
                   albumCount: 0,
@@ -1010,6 +1039,7 @@ void main() {
             artistByIdProvider('unstarred-artist').overrideWithValue(
               const AsyncData(
                 ArtistsTableData(
+                  isProvisional: false,
                   id: 'unstarred-artist',
                   name: 'Unstarred Artist',
                   albumCount: 2,

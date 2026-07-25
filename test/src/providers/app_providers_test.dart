@@ -105,6 +105,9 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> applyRuntimeSettings() async {}
 
   @override
+  Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
+
+  @override
   Future<void> playNext(
     List<String> songIds, {
     bool expandMatchFlows = true,
@@ -1226,6 +1229,7 @@ void main() {
       final metadata = navisResolveLyricsLookupMetadata(
         songId: 'song-1',
         song: const SongsTableData(
+          isProvisional: false,
           id: 'song-1',
           title: 'Track Title',
           artistName: null,

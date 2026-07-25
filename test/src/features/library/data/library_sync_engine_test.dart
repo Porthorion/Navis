@@ -34,7 +34,9 @@ class _FakeCredentialStore implements SecureCredentialStore {
 }
 
 class _FakeLibrarySyncApi implements LibrarySyncApi {
+  static final DateTime defaultIndexesCursor = DateTime.utc(2026, 1, 1);
   final List<String> calls = <String>[];
+  final List<DateTime?> requestedIndexesCursors = <DateTime?>[];
   final List<Artist> artists = <Artist>[];
   final Map<String, Artist> artistDetails = <String, Artist>{};
   final Map<String, Album> albumDetails = <String, Album>{};
@@ -110,6 +112,14 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   }
 
   @override
+  Future<List<Album>> getNewestAlbumListPage({
+    required int size,
+    required int offset,
+  }) {
+    return getAlbumListPage(size: size, offset: offset);
+  }
+
+  @override
   Future<Artist> getArtist(String id) async {
     calls.add('getArtist:$id');
     if (notFoundArtistIds.contains(id)) {
@@ -145,11 +155,14 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   @override
   Future<Indexes> getIndexes({DateTime? ifModifiedSince}) async {
     calls.add('getIndexes');
+    requestedIndexesCursors.add(ifModifiedSince);
     final error = throwOnIndexes;
     if (error != null) {
       throw error;
     }
-    return indexes;
+    return indexes.lastModified == null
+        ? indexes.copyWith(lastModified: defaultIndexesCursor)
+        : indexes;
   }
 
   @override
@@ -282,7 +295,7 @@ void main() {
           Playlist(id: 'playlist-1', name: 'Favorites', songCount: 2),
         ];
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(state.mode, LibrarySyncMode.forceFull);
@@ -317,6 +330,13 @@ void main() {
       () async {
         await saveSession();
         api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.artistDetails['artist-1'] = const Artist(
+          id: 'artist-1',
+          name: 'Artist 1',
+          albums: <Album>[
+            Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
+          ],
+        );
         api.fastPathPages[0] = const <Album>[
           Album(
             id: 'album-1',
@@ -338,7 +358,7 @@ void main() {
           ],
         );
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
         final songRows = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -410,8 +430,7 @@ void main() {
         );
 
         final progress = <LibrarySyncState>[];
-        await localEngine.syncNow(
-          forceFull: true,
+        await localEngine.forceFullSync(
           onProgress: progress.add,
         );
 
@@ -454,7 +473,7 @@ void main() {
           songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
         );
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('getArtist:artist-1'));
@@ -487,7 +506,7 @@ void main() {
           ),
         );
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -559,8 +578,7 @@ void main() {
         );
 
         final progress = <LibrarySyncState>[];
-        await bulkEngine.syncNow(
-          forceFull: true,
+        await bulkEngine.forceFullSync(
           onProgress: progress.add,
         );
 
@@ -614,7 +632,7 @@ void main() {
           isolateThreshold: 1,
         );
 
-        final state = await isolateEngine.syncNow(forceFull: true);
+        final state = await isolateEngine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -670,7 +688,7 @@ void main() {
           isolateThreshold: 1,
         );
 
-        final state = await isolateEngine.syncNow(forceFull: true);
+        final state = await isolateEngine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -712,7 +730,7 @@ void main() {
           );
         }
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(
@@ -752,7 +770,7 @@ void main() {
           ),
         ];
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('searchSongsPage::0:1'));
@@ -834,7 +852,7 @@ void main() {
           isolateThreshold: 1000,
         );
 
-        final state = await bulkEnabledEngine.syncNow(forceFull: true);
+        final state = await bulkEnabledEngine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -913,7 +931,7 @@ void main() {
           ),
         ];
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -963,7 +981,7 @@ void main() {
           ],
         );
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -1040,6 +1058,169 @@ void main() {
     );
 
     test(
+      'server cursor survives clock skew and advances only after completion',
+      () async {
+        final serverCursor = DateTime.utc(2020, 1, 2);
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        api.indexes = Indexes(lastModified: serverCursor);
+
+        final state = await engine.syncNow();
+        final config = await serverConfigRepository.getActiveServer();
+        final capabilities =
+            jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
+        final navis = capabilities['navis'] as Map<String, dynamic>;
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.requestedIndexesCursors.single, isNull);
+        expect(
+          DateTime.parse(navis['libraryIndexesCursor'] as String).toUtc(),
+          serverCursor,
+        );
+        expect(config.lastSynced!.isAfter(serverCursor), isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'full index snapshot drains across bounded verification passes',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        final artists = List<Artist>.generate(
+          170,
+          (index) => Artist(
+            id: 'artist-${index + 1}',
+            name: 'Artist ${index + 1}',
+          ),
+        );
+        api.indexes = Indexes(
+          lastModified: DateTime.utc(2026, 2, 1),
+          indexes: <IndexesIndex>[
+            IndexesIndex(name: 'A', artists: artists),
+          ],
+        );
+        for (final artist in artists) {
+          api.artistDetails[artist.id] = artist;
+        }
+
+        final first = await engine.syncNow();
+        final firstArtistCalls = api.calls
+            .where((call) => call.startsWith('getArtist:'))
+            .length;
+
+        expect(first.status, LibrarySyncStatus.succeeded);
+        expect(firstArtistCalls, 160);
+        expect(first.remainingVerificationCount, 10);
+        expect(first.freshness, LibrarySyncFreshness.verificationPending);
+        var config = await serverConfigRepository.getActiveServer();
+        var navis =
+            (jsonDecode(config!.capabilitiesJson!)['navis']
+                as Map<String, dynamic>);
+        expect(navis['libraryIndexesCursor'], isNull);
+
+        api.calls.clear();
+        final second = await engine.syncNow();
+
+        expect(second.status, LibrarySyncStatus.succeeded);
+        expect(
+          api.calls.where((call) => call.startsWith('getArtist:')).length,
+          10,
+        );
+        expect(second.remainingVerificationCount, 0);
+        expect(second.freshness, LibrarySyncFreshness.current);
+        config = await serverConfigRepository.getActiveServer();
+        navis =
+            (jsonDecode(config!.capabilitiesJson!)['navis']
+                as Map<String, dynamic>);
+        expect(navis['libraryIndexesCursor'], isNotNull);
+        expect(api.requestedIndexesCursors, everyElement(isNull));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('failed candidate does not advance server cursor', () async {
+      final previousLastSynced = DateTime.now().subtract(
+        const Duration(hours: 2),
+      );
+      await saveSession(
+        lastSynced: previousLastSynced,
+        lastFullSyncedAt: DateTime.now(),
+      );
+      final storedLastSynced =
+          (await serverConfigRepository.getActiveServer())!.lastSynced;
+      api.indexes = Indexes(
+        lastModified: DateTime.utc(2026, 3, 1),
+        indexes: const <IndexesIndex>[
+          IndexesIndex(
+            artists: <Artist>[
+              Artist(id: 'missing-detail', name: 'Missing Detail'),
+            ],
+          ),
+        ],
+      );
+
+      final state = await engine.syncNow();
+      final config = await serverConfigRepository.getActiveServer();
+      final navis =
+          (jsonDecode(config!.capabilitiesJson!)['navis']
+              as Map<String, dynamic>);
+
+      expect(state.status, LibrarySyncStatus.failed);
+      expect(navis['libraryIndexesCursor'], isNull);
+      expect(config.lastSynced, storedLastSynced);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'newest-album health probe repairs a faulty unchanged index',
+      () async {
+        final cursor = _FakeLibrarySyncApi.defaultIndexesCursor;
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'libraryIndexesCursor': cursor.toIso8601String(),
+              'libraryHealthCheckedAt': DateTime.now()
+                  .subtract(const Duration(hours: 13))
+                  .toUtc()
+                  .toIso8601String(),
+            },
+          }),
+        );
+        api.indexes = Indexes(lastModified: cursor);
+        api.fastPathPages[0] = const <Album>[
+          Album(id: 'album-new', name: 'New Album', artistId: 'artist-new'),
+        ];
+        api.artistDetails['artist-new'] = const Artist(
+          id: 'artist-new',
+          name: 'New Artist',
+          albums: <Album>[
+            Album(id: 'album-new', name: 'New Album', artistId: 'artist-new'),
+          ],
+        );
+        api.albumDetails['album-new'] = const Album(
+          id: 'album-new',
+          name: 'New Album',
+          artistId: 'artist-new',
+          songs: <Song>[Song(id: 'song-new', title: 'New Song')],
+        );
+
+        final state = await engine.syncNow();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('getAlbumListPage:0:100'));
+        expect(api.calls, contains('getArtist:artist-new'));
+        expect(await database.libraryDao.getAlbumById('album-new'), isNotNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'incremental sync persists play-count-only album metadata changes',
       () async {
         await saveSession(
@@ -1103,7 +1284,7 @@ void main() {
     );
 
     test(
-      'incremental mode skips full scan when indexes are unsupported',
+      'incremental mode uses bounded verification when indexes are unsupported',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
@@ -1113,6 +1294,13 @@ void main() {
           message: 'missing',
         );
         api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.artistDetails['artist-1'] = const Artist(
+          id: 'artist-1',
+          name: 'Artist 1',
+          albums: <Album>[
+            Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
+          ],
+        );
         api.fastPathPages[0] = const <Album>[
           Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
         ];
@@ -1127,7 +1315,8 @@ void main() {
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(state.mode, LibrarySyncMode.incremental);
         expect(api.calls, contains('getIndexes'));
-        expect(api.calls, isNot(contains('getArtists')));
+        expect(api.calls, contains('getArtists'));
+        expect(api.calls, contains('getAlbumListPage:0:100'));
         expect(api.calls, isNot(contains('getAlbumListPage:0:500')));
       },
       skip: !sqliteAvailable,
@@ -1166,7 +1355,7 @@ void main() {
         expect(api.calls, contains('getIndexes'));
         expect(
           api.calls.where((call) => call.startsWith('getArtist:')).length,
-          48,
+          49,
         );
         expect(api.calls, isNot(contains('getArtists')));
         expect(api.calls, isNot(contains('getAlbumListPage:0:500')));
@@ -1195,6 +1384,11 @@ void main() {
               'libraryIndexesFingerprint': _testIndexesFingerprint(
                 noisyArtistIds,
               ),
+              'libraryIndexesCursor': _FakeLibrarySyncApi.defaultIndexesCursor
+                  .toIso8601String(),
+              'libraryHealthCheckedAt': DateTime.now()
+                  .toUtc()
+                  .toIso8601String(),
             },
           }),
         );
@@ -1284,6 +1478,13 @@ void main() {
           lastFullSyncedAt: DateTime.now().subtract(const Duration(hours: 30)),
         );
         api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.artistDetails['artist-1'] = const Artist(
+          id: 'artist-1',
+          name: 'Artist 1',
+          albums: <Album>[
+            Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
+          ],
+        );
         api.fastPathPages[0] = const <Album>[
           Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
         ];
@@ -1407,7 +1608,7 @@ void main() {
           isolateThreshold: 1000,
         );
 
-        final state = await adaptiveEngine.syncNow(forceFull: true);
+        final state = await adaptiveEngine.forceFullSync();
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.maxConcurrentAlbumRequests, greaterThan(2));
@@ -1428,7 +1629,7 @@ void main() {
       );
       api.transientAlbumFailures['album-1'] = 2;
 
-      final state = await engine.syncNow(forceFull: true);
+      final state = await engine.forceFullSync();
 
       expect(state.status, LibrarySyncStatus.succeeded);
       expect(
@@ -1493,7 +1694,7 @@ void main() {
         ];
         // Intentionally omit api.albumDetails['album-1'] so hydration fails.
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.failed);
@@ -1646,7 +1847,7 @@ void main() {
           ],
         );
 
-        final state = await engine.syncNow(forceFull: true);
+        final state = await engine.forceFullSync();
         final artists = await database.select(database.artistsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
@@ -1663,8 +1864,8 @@ void main() {
         final completer = Completer<List<Artist>>();
         api.artistsCompleter = completer;
 
-        final first = engine.syncNow(forceFull: true);
-        final second = engine.syncNow(forceFull: true);
+        final first = engine.forceFullSync();
+        final second = engine.forceFullSync();
 
         completer.complete(const <Artist>[]);
         final firstState = await first;

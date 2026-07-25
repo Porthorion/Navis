@@ -26,11 +26,14 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   Future<LibrarySyncState> syncIfStale() async => stateValue;
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    bool preferIncremental = false,
-  }) async {
-    onSyncNow?.call(forceFull: forceFull);
+  Future<LibrarySyncState> syncNow() async {
+    onSyncNow?.call(forceFull: false);
+    return stateValue;
+  }
+
+  @override
+  Future<LibrarySyncState> forceFullSync() async {
+    onSyncNow?.call(forceFull: true);
     return stateValue;
   }
 }
@@ -77,6 +80,7 @@ void main() {
 
     expect(find.text('Sync Settings'), findsOneWidget);
     expect(find.text('Server last synced'), findsOneWidget);
+    expect(find.text('Check for updates'), findsOneWidget);
     expect(find.text('Force Full Sync'), findsOneWidget);
 
     await tester.tap(find.text('Force Full Sync'));

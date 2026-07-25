@@ -127,9 +127,8 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         final isStarred = _isStarred || artistData.starred != null;
 
         return RefreshIndicator(
-          onRefresh: () => ref
-              .read(librarySyncControllerProvider.notifier)
-              .syncNow(preferIncremental: true),
+          onRefresh: () =>
+              ref.read(librarySyncControllerProvider.notifier).syncNow(),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.zero,

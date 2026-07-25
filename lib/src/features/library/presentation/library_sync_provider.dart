@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -55,9 +57,7 @@ final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
 
 @visibleForTesting
 final requiredLibrarySyncModelVersionProvider = Provider<String?>((ref) {
-  // Keep automatic startup sync low-data by default.  Override this only when a
-  // future library-sync storage contract change needs a one-time repair pass.
-  return null;
+  return '54';
 });
 
 final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
@@ -163,25 +163,25 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     _schedulePeriodicSync(intervalMinutes);
 
     Future<void>.microtask(_maybeRunStartupSync);
-    return LibrarySyncState.idle(lastSyncedAt: serverConfig?.lastSynced);
+    return LibrarySyncState.idle(
+      lastSyncedAt: serverConfig?.lastSynced,
+      freshness: _readPersistedFreshness(serverConfig?.capabilitiesJson),
+    );
   }
 
   Future<LibrarySyncState> syncIfStale() {
     if (_shouldForceRetryAfterFailure()) {
-      return syncNow(preferIncremental: true);
+      return syncNow();
     }
     return _runSync(force: false);
   }
 
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    bool preferIncremental = false,
-  }) {
-    return _runSync(
-      force: true,
-      forceFull: forceFull,
-      preferIncremental: preferIncremental,
-    );
+  Future<LibrarySyncState> syncNow() {
+    return _runSync(force: true);
+  }
+
+  Future<LibrarySyncState> forceFullSync() {
+    return _runSync(force: true, forceFull: true);
   }
 
   /// Cancel a running sync.  The sync will complete with [LibrarySyncStatus.failed]
@@ -227,9 +227,35 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = fingerprint;
       _priorityAlbumIds.clear();
-      state = LibrarySyncState.idle(lastSyncedAt: serverConfig.lastSynced);
+      state = LibrarySyncState.idle(
+        lastSyncedAt: serverConfig.lastSynced,
+        freshness: _readPersistedFreshness(serverConfig.capabilitiesJson),
+      );
     }
     _maybeRunStartupSync();
+  }
+
+  LibrarySyncFreshness _readPersistedFreshness(String? capabilitiesJson) {
+    if (capabilitiesJson == null || capabilitiesJson.trim().isEmpty) {
+      return LibrarySyncFreshness.verificationPending;
+    }
+    try {
+      final root = jsonDecode(capabilitiesJson);
+      if (root is! Map<String, dynamic>) {
+        return LibrarySyncFreshness.verificationPending;
+      }
+      final navis = root['navis'];
+      if (navis is! Map<String, dynamic>) {
+        return LibrarySyncFreshness.verificationPending;
+      }
+      final value = navis['libraryFreshness'];
+      return LibrarySyncFreshness.values.firstWhere(
+        (freshness) => freshness.name == value,
+        orElse: () => LibrarySyncFreshness.verificationPending,
+      );
+    } on FormatException {
+      return LibrarySyncFreshness.verificationPending;
+    }
   }
 
   void _onReachabilityChanged(ServerReachabilityState next) {
@@ -286,7 +312,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     unawaited(
       (requiresSyncModelRepair && !deferFullResyncOnMobile
-              ? syncNow(forceFull: true)
+              ? forceFullSync()
               : syncIfStale())
           .then((result) {
             final completedStartupPass =
@@ -315,7 +341,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   Future<LibrarySyncState> _runSync({
     required bool force,
     bool forceFull = false,
-    bool preferIncremental = false,
   }) async {
     if (state.isRunning) {
       return state;
@@ -337,7 +362,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       engine: engine,
       force: force,
       forceFull: forceFull,
-      preferIncremental: preferIncremental,
       onProgressExternal: (progress) {
         if (progress.status == LibrarySyncStatus.running) {
           unawaited(notifier.showProgress(progress));
@@ -346,6 +370,21 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     if (!ref.mounted) {
       return result;
+    }
+    if (result.status == LibrarySyncStatus.succeeded &&
+        result.startedAt != null) {
+      final aliases = await ref
+          .read(navisDatabaseProvider)
+          .songIdentityDao
+          .getAliasesMatchedSince(result.startedAt!);
+      if (aliases.isNotEmpty) {
+        SongIdentityCacheEpoch.invalidate();
+        await ref.read(audioHandlerProvider)?.applySongIdentityAliases(
+          <String, String>{
+            for (final alias in aliases) alias.oldSongId: alias.canonicalSongId,
+          },
+        );
+      }
     }
 
     switch (result.status) {
@@ -389,7 +428,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required LibrarySyncEngine engine,
     required bool force,
     required bool forceFull,
-    bool preferIncremental = false,
     required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
     void updateProgress(LibrarySyncState progress) {
@@ -400,12 +438,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
 
     return force
-        ? engine.syncNow(
-            forceFull: forceFull,
-            preferIncremental: preferIncremental,
-            priorityAlbumIds: _priorityAlbumIds,
-            onProgress: updateProgress,
-          )
+        ? forceFull
+              ? engine.forceFullSync(
+                  priorityAlbumIds: _priorityAlbumIds,
+                  onProgress: updateProgress,
+                )
+              : engine.syncNow(
+                  priorityAlbumIds: _priorityAlbumIds,
+                  onProgress: updateProgress,
+                )
         : engine.syncIfStale(
             priorityAlbumIds: _priorityAlbumIds,
             onProgress: updateProgress,
@@ -502,7 +543,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       if (!ref.mounted || state.isRunning) {
         return;
       }
-      unawaited(syncNow(preferIncremental: true));
+      unawaited(syncNow());
     });
   }
 
