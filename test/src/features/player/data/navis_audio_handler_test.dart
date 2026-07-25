@@ -762,6 +762,21 @@ void main() {
         },
       );
 
+      test(
+        'fallback media item recovers queue index when backend is unset',
+        () {
+          final resolved = navisResolveQueueMetadata(
+            queueItems: queue,
+            backendCurrentIndex: null,
+            fallbackMediaItem: queue[1],
+            anchor: null,
+          );
+
+          expect(resolved.mediaItem?.id, 'song-2');
+          expect(resolved.currentIndex, 1);
+        },
+      );
+
       test('no anchor preserves backend index behavior', () {
         final resolved = navisResolveQueueMetadata(
           queueItems: queue,
@@ -840,6 +855,17 @@ void main() {
             position: const Duration(seconds: 3),
           ),
           NavisPreviousTrackAction.skipToPrevious,
+        );
+      });
+
+      test('no previous item restarts at or below threshold', () {
+        expect(
+          navisResolvePreviousTrackAction(
+            queueLength: 2,
+            currentIndex: 0,
+            position: navisPreviousTrackRestartThreshold,
+          ),
+          NavisPreviousTrackAction.restartCurrent,
         );
       });
     });

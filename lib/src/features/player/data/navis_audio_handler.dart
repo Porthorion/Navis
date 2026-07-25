@@ -4030,9 +4030,11 @@ class NavisAudioHandler extends BaseAudioHandler
     return _playbackLane.run(() async {
       await _ready;
       _cancelCrossfade();
+      final currentIndex =
+          _resolveCurrentQueueMetadata().currentIndex ?? _player.currentIndex;
       if (!navisCanSkipQueueItem(
         queueLength: _queueItems.length,
-        currentIndex: _player.currentIndex,
+        currentIndex: currentIndex,
         forward: true,
       )) {
         return;
@@ -4056,9 +4058,11 @@ class NavisAudioHandler extends BaseAudioHandler
     return _playbackLane.run(() async {
       await _ready;
       _cancelCrossfade();
+      final currentIndex =
+          _resolveCurrentQueueMetadata().currentIndex ?? _player.currentIndex;
       final action = navisResolvePreviousTrackAction(
         queueLength: _queueItems.length,
-        currentIndex: _player.currentIndex,
+        currentIndex: currentIndex,
         position: _player.position,
       );
       switch (action) {

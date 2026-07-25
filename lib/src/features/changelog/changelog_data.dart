@@ -27,8 +27,12 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
-    version: '1.0.12',
+    version: '1.0.13',
     entries: [
+      ChangelogEntry(
+        'Previous track now reliably restarts the current song when there is no earlier queue item, including fullscreen artwork swipes and system media controls',
+        type: ChangelogEntryType.fix,
+      ),
       ChangelogEntry(
         'Instant Mix and Same Vibes now start from a fresh queue rooted at the current song, then keep recommendations appending at the bottom',
         type: ChangelogEntryType.fix,

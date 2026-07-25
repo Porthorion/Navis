@@ -55,7 +55,11 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
-  _Version('1.0.12', [
+  _Version('1.0.13', [
+    _Entry(
+      'Previous track now reliably restarts the current song when there is no earlier queue item, including fullscreen artwork swipes and system media controls',
+      type: _EntryType.fix,
+    ),
     _Entry(
       'Instant Mix and Same Vibes now start from a fresh queue rooted at the current song, then keep recommendations appending at the bottom',
       type: _EntryType.fix,

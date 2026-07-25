@@ -211,6 +211,17 @@ NavisResolvedQueueMetadata navisResolveQueueMetadata({
   if (backendCurrentIndex == null ||
       backendCurrentIndex < 0 ||
       backendCurrentIndex >= queueItems.length) {
+    if (fallbackMediaItem != null) {
+      final fallbackIndex = queueItems.indexWhere(
+        (item) => item.id == fallbackMediaItem.id,
+      );
+      if (fallbackIndex >= 0) {
+        return NavisResolvedQueueMetadata(
+          mediaItem: queueItems[fallbackIndex],
+          currentIndex: fallbackIndex,
+        );
+      }
+    }
     return NavisResolvedQueueMetadata(
       mediaItem: fallbackMediaItem,
       currentIndex: null,
@@ -594,24 +605,38 @@ bool navisCanSkipQueueItem({
 }
 
 @visibleForTesting
+bool navisCanRestartCurrentQueueItem({
+  required int queueLength,
+  required int? currentIndex,
+}) {
+  return queueLength > 0 &&
+      currentIndex != null &&
+      currentIndex >= 0 &&
+      currentIndex < queueLength;
+}
+
 NavisPreviousTrackAction navisResolvePreviousTrackAction({
   required int queueLength,
   required int? currentIndex,
   required Duration position,
 }) {
-  if (queueLength <= 0 || currentIndex == null) {
+  if (!navisCanRestartCurrentQueueItem(
+    queueLength: queueLength,
+    currentIndex: currentIndex,
+  )) {
     return NavisPreviousTrackAction.none;
-  }
-  if (currentIndex < 0 || currentIndex >= queueLength) {
-    return NavisPreviousTrackAction.none;
-  }
-  if (currentIndex == 0) {
-    return NavisPreviousTrackAction.restartCurrent;
   }
   if (position > navisPreviousTrackRestartThreshold) {
     return NavisPreviousTrackAction.restartCurrent;
   }
-  return NavisPreviousTrackAction.skipToPrevious;
+  if (navisCanSkipQueueItem(
+    queueLength: queueLength,
+    currentIndex: currentIndex,
+    forward: false,
+  )) {
+    return NavisPreviousTrackAction.skipToPrevious;
+  }
+  return NavisPreviousTrackAction.restartCurrent;
 }
 
 @visibleForTesting

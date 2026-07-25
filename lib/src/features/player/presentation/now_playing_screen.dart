@@ -12,6 +12,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
@@ -1324,10 +1325,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     }
     var nextIndex = currentIndex + 1;
     if (nextIndex >= ids.length) {
-      if (playback.repeatMode != AudioServiceRepeatMode.all) {
-        return null;
-      }
-      nextIndex = 0;
+      return null;
     }
     return ids[nextIndex];
   }
@@ -1346,10 +1344,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     }
     var previousIndex = currentIndex - 1;
     if (previousIndex < 0) {
-      if (playback.repeatMode != AudioServiceRepeatMode.all) {
-        return null;
-      }
-      previousIndex = ids.length - 1;
+      return null;
     }
     return ids[previousIndex];
   }
@@ -1365,7 +1360,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       ManualTrackChangeDirection.next =>
         _resolveNextSongIdForPrefetch(playback) != null,
       ManualTrackChangeDirection.previous =>
-        _resolvePreviousSongIdForSwipe(playback) != null,
+        navisResolvePreviousTrackAction(
+              queueLength: playback.queueSongIds.length,
+              currentIndex: playback.currentIndex,
+              position: playback.position,
+            ) !=
+            NavisPreviousTrackAction.none,
     };
   }
 
