@@ -22,9 +22,10 @@ Checks performed (in order, fail-fast):
 
 The script also checks `/tmp` disk space before starting to prevent misleading test hangs.
 
-### Core Gate (No custom_lint dependency)
+### Core Gate
 
-Use when `custom_lint` is unavailable on the release host:
+Use for the focused release checks when the full development test matrix is not
+required:
 
 ```bash
 ./tool/release_gate_core.sh

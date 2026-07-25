@@ -19,7 +19,7 @@ test-coverage:
 	flutter test --coverage
 
 lint:
-	flutter analyze && dart run custom_lint
+	flutter analyze --no-fatal-infos
 
 format:
 	dart format .

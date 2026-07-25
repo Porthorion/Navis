@@ -59,8 +59,7 @@ Required work:
 - Ensure `flutter build linux --release` works inside `flatpak-builder`.
 - Ensure native Flutter plugin dependencies are available in the runtime or
   built as Flatpak modules.
-- Verify `audio_service_mpris` and any DBus/MPRIS integration works inside the
-  sandbox.
+- Verify the app-owned DBus/MPRIS bridge works inside the sandbox.
 - Verify secure storage behavior under Flatpak. If the current secure-storage
   plugin cannot use the host keyring from sandboxed execution, provide a
   Flatpak-compatible path or document the limitation before submission.
@@ -111,7 +110,7 @@ Likely needed:
 
 - `--share=network`
 - audio output access through the runtime/audio stack
-- MPRIS/DBus permissions needed by `audio_service_mpris`
+- MPRIS/DBus permissions needed by the app-owned Linux bridge
 - notification portal support, if notifications are used
 - URI opening portal support for Last.fm auth, external links, and help pages
 

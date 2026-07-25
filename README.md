@@ -34,7 +34,8 @@ Minimum tested versions:
 ## Media Integration Status
 
 - Android: media session and notification metadata are handled through `audio_service`.
-- Linux: desktop now-playing and media-key integration are exposed through MPRIS via `audio_service_mpris`.
+- Linux: desktop now-playing and media-key integration use the app-owned
+  MPRIS bridge over `dbus`.
 - Windows: system media transport controls are bridged through `smtc_windows`.
 - macOS: desktop runtime is supported, but native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` integration is still planned work.
 
@@ -49,12 +50,16 @@ Minimum tested versions:
 | Local database | drift + drift_flutter | ^2.32.1 |
 | Audio playback | just_audio + audio_service | ^0.10.5 / ^0.18.18 |
 | Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.12.0 |
-| Linux desktop media | audio_service_mpris | ^0.2.1 |
+| Linux desktop media | dbus | ^0.7.10 |
 | Windows desktop media | smtc_windows | ^1.1.0 |
 
 ## Dependency Maintenance
 
-A comprehensive dependency sweep was completed on July 18, 2026. Flutter was updated within the 3.44 stable line, direct package constraints were kept to stable resolvable versions, and the remaining `flutter pub outdated` backlog is blocked by SDK/toolchain or transitive package constraints rather than local overrides.
+A dependency sweep was completed on July 26, 2026. Direct resolvable updates
+were applied, direct imports were declared explicitly, and the unused
+`audio_service_mpris` dependency was removed after Linux MPRIS moved to the
+app-owned `dbus` bridge. Remaining `pub outdated` entries are blocked by
+SDK/toolchain or upstream constraints rather than local overrides.
 
 ## Quick Start
 

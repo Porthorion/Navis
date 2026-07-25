@@ -47,9 +47,10 @@ Checks performed:
 
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
 
-## Core Release Gate (No custom_lint dependency)
+## Core Release Gate
 
-Use this gate when `custom_lint` is unavailable but you still need a strict release-ready check:
+Use this focused release-ready gate when the full development test matrix is
+not required:
 
 ```bash
 ./tool/release_gate_core.sh

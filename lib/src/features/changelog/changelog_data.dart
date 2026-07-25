@@ -73,6 +73,10 @@ const List<ChangelogVersion> changelogs = [
         'The update changelog dialog now labels bug-fix-only releases clearly and always links to the full changelog in About',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Refreshed core networking, connectivity, caching, and notification components and simplified Linux desktop media integration',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

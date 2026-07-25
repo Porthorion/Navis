@@ -78,6 +78,19 @@ Last updated: 2026-07-26
 - [x] Future planning pass for Spotify-style desktop widescreen UX and deferred Discovery system roadmap — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` Phase 26 scope update + Phase 30 addition; `PROGRESS.md` Phase 26.2 + Phase 30 updates)
 - [x] Flutter 3.41.4 / Dart 3.11 upgrade + dependency refresh — 2026-07-07 (SDK constraints updated to `sdk: ^3.11.0`, `flutter: ">=3.41.0"`; `tool/bootstrap.sh` minimum bumped to 3.41.0; removed unused `cupertino_icons`; bumped `flutter_local_notifications` 20→21, `flutter_riverpod` 3.0→3.2.1, `dio` 5.9.0→5.9.2, `build_runner` 2.9→2.12.2, `riverpod_lint` 3.0→3.1.3, `drift`/`drift_dev` to 2.31.0; `custom_lint` temporarily disabled due to analyzer ^8.0.0 conflict with riverpod_lint 3.1+; migrated 3 `Image.network` sites to `CachedNetworkImage` in now_playing_screen, app_shell, artist_detail_screen; code regenerated; version bumped to 0.4.13+413; evidence: `flutter analyze` — 0 errors, `flutter test` — 218/218 pass, fat APK 72.4 MB)
 - [x] Built-in Kotlin Phase 1 package upgrades — 2026-06-27 (evidence: `pubspec.yaml` `sdk: ^3.12.0`, `flutter: ">=3.44.0"`; `package_info_plus` 10.1.0→10.2.0, `url_launcher_android` 6.3.30→6.3.32, `connectivity_plus` 7.1.1→7.2.0, `very_good_analysis` 10.2.0→10.3.0; kept `file_picker` ^12.0.0-beta.7; `tool/bootstrap.sh` min 3.44.0; `./tool/check.sh`; `flutter build apk --flavor sideload` KGP warning lists only `audio_session`)
+- [x] Safe dependency refresh and Linux MPRIS cleanup — 2026-07-26
+  (`connectivity_plus` 7.3.1, `dio` 5.11.0,
+  `flutter_cache_manager` 3.4.2, and `flutter_local_notifications` 22.2.0;
+  direct production/test imports declared; unused `audio_service_mpris` and
+  obsolete registration helper removed in favor of the existing app-owned
+  `dbus` bridge; `custom_lint` configuration fully removed; evidence:
+  `pubspec.yaml`, `pubspec.lock`, `Makefile`, `analysis_options.yaml`,
+  `lib/src/features/player/data/navis_audio_handler_bootstrap.dart`,
+  `lib/src/features/changelog/changelog_data.dart`,
+  `tool/generate_release_notes.dart`,
+  `dart pub outdated --json --show-all`, focused package integration tests,
+  `./tool/check.sh`, `flutter build linux --release`, and
+  `flutter build apk --flavor sideload`)
 - [x] Scrobble compliance fix: pass `time` (ms since epoch) to Subsonic `scrobble.view` — 2026-04-12 (`SubsonicApiClient.scrobble()` now accepts an optional `DateTime? time` parameter encoded as Unix milliseconds; `DriftScrobbleService.flushDue()` passes `event.createdAt` so the server records the actual listen time rather than the delivery time — critical for offline-queued events and Navidrome's Last.fm forwarding; playback settings scrobble toggle subtitle updated to mention anonymous-listening use case; evidence: `lib/src/api/subsonic_api_client.dart`, `lib/src/features/player/data/scrobble_service.dart`, `test/src/features/player/data/scrobble_service_test.dart`, `lib/l10n/app_en.arb`, commit a925a03)
 - [x] Last.fm artist top-tracks wrong-artist fix — 2026-04-12 (`getArtistTopTracks` was passing `autocorrect: 1` to Last.fm, causing the API to silently substitute a completely different artist (e.g. "Pokelawls" → "Aurora") for any artist not in their database; fixed by setting `autocorrect: 0` so unknown artists return an error (empty list) instead of misleading results; added defence-in-depth `@attr.artist` response validation — if the resolved artist name doesn't match the requested name the result is discarded; 4 new unit tests added; evidence: `lib/src/api/lastfm_api_client.dart`, `test/src/api/lastfm_api_client_test.dart`)
 - [x] User-configurable Last.fm API key + Configuration screen — 2026-04-12 (settings "Server" tile/screen renamed to "Configuration"; new External Services section in that screen with a Last.fm card; when a build-time `NAVIS_LASTFM_API_KEY` is bundled the card shows a read-only notice; when absent the user can paste their own key with a Save button and a direct "Get API Key" link to last.fm/api/accounts; key stored in `app_settings` (schema v40, `last_fm_api_key` column, idempotent migration); `lastFmApiKeyProvider` is now reactive — prefers bundled key, falls back to user-saved DB value; `lastFmBundledKeyProvider` exposes bundled status as a `bool` for UI; evidence: `lib/src/features/settings/presentation/server_settings_screen.dart`, `lib/src/database/navis_database.dart`, `lib/src/providers/app_providers.dart`, `test/src/features/settings/presentation/server_settings_screen_test.dart`, schema v40, commit 8a15a18)
@@ -858,9 +871,14 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - [x] ACP-M4-05 Polish overlapping keyboard/input systems across desktop surfaces — 2026-03-27 (evidence: quick-search overlay filter selection and priority handling in `lib/src/routing/app_shell.dart`; type-to-filter conflict guards and all-results filtering in `lib/src/features/library/presentation/library_screen.dart`; cross-platform shortcut assertions in `test/src/routing/desktop_commands_test.dart`)
 
 ### 31.5 — M5 Platform Capability Layer
-- [ ] ACP-M5-01 Centralize desktop media capability checks (`audio_service`, `audio_service_mpris`, `smtc_windows`) — status: backlog
+- [ ] ACP-M5-01 Centralize desktop media capability checks (`audio_service`, Linux `dbus` bridge, `smtc_windows`) — status: backlog
 - [ ] ACP-M5-02 Harden graceful unsupported-feature fallbacks — status: backlog
-- [ ] ACP-M5-03 Evaluate `audio_service_mpris` version alignment and compatibility — status: backlog
+- [x] ACP-M5-03 Remove superseded `audio_service_mpris` after validating the
+  app-owned Linux `dbus` bridge — 2026-07-26 (evidence: `pubspec.yaml`,
+  `lib/src/features/player/data/linux_mpris_bridge.dart`,
+  `lib/src/features/player/data/navis_audio_handler_bootstrap.dart`,
+  `test/src/features/player/data/navis_audio_handler_test.dart`,
+  `./tool/check.sh`)
 - [ ] ACP-M5-04 Extend system media API parity to macOS native Control Centre / remote-command handling and audit iOS media-session parity — partial: 2026-03-27 (evidence: documentation and backlog updates in `README.md`, `DEVELOPMENT_PLAN.md`, `docs/multi-os-release-implementation-progress.md`; remaining: native implementation and runtime validation)
 - [x] ACP-M5-05 Run dependency hygiene sweep for desktop/audio/adaptive packages — 2026-03-28 (evidence: 13 packages upgraded across 5 phases; `riverpod_lint` removed (its runner `custom_lint` was already disabled, zero rules firing); drift stack unblocked; `flutter analyze` 228 info hints, `flutter test` +342 -14, both unchanged from pre-sweep baseline; commits `cda82a4` through `6c0d2b2`)
 

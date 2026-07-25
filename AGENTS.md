@@ -124,7 +124,8 @@ These strings in test output cause `check.sh` to fail:
 
 ### Lint note
 
-`custom_lint` / `riverpod_lint` are **disabled** in `pubspec.yaml` and skipped in `check.sh`. `make lint` still references `custom_lint` and may fail — use `flutter analyze --no-fatal-infos` instead.
+`custom_lint` / `riverpod_lint` are not dependencies. `make lint` and
+`check.sh` use `flutter analyze --no-fatal-infos`.
 
 ---
 
@@ -140,7 +141,7 @@ These strings in test output cause `check.sh` to fail:
 | Audio | just_audio + audio_service | ^0.10.5 / ^0.18.18 |
 | Models | freezed + json_serializable | ^3.1.0 / ^6.13.1 |
 | Desktop audio | just_audio_media_kit | ^2.1.0 |
-| Linux media | audio_service_mpris | ^0.2.1 |
+| Linux media | dbus | ^0.7.10 |
 | Windows media | smtc_windows | ^1.1.0 |
 
 **Providers are hand-written** (`NotifierProvider`, `Provider`, `StreamProvider`, etc.) — **not** `@riverpod` codegen. `riverpod_generator` is not in `pubspec.yaml`.
@@ -465,7 +466,7 @@ Commits reference issues as `fix(#N):` or `(issue #N)`.
 |----------|-------|
 | **macOS debug** | `just_audio_media_kit` skipped unless `NAVIS_ENABLE_MEDIA_KIT_DEBUG=true` |
 | **macOS release** | Native Control Centre bridge (`MPRemoteCommandCenter`) still pending |
-| **Linux** | MPRIS via `audio_service_mpris` |
+| **Linux** | MPRIS via the app-owned `dbus` bridge |
 | **Windows** | SMTC via `smtc_windows` |
 | **Android** | `audio_service` media session; Android Auto in `features/auto/` |
 | **iOS** | CarPlay and media-session parity under audit |

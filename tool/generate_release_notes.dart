@@ -100,6 +100,10 @@ const List<_Version> _changelogs = [
       'The update changelog dialog now labels bug-fix-only releases clearly and always links to the full changelog in About',
       type: _EntryType.improvement,
     ),
+    _Entry(
+      'Refreshed core networking, connectivity, caching, and notification components and simplified Linux desktop media integration',
+      type: _EntryType.improvement,
+    ),
   ]),
   _Version('1.0.10', [
     _Entry(

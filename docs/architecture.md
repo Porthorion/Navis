@@ -24,6 +24,8 @@ Located in `lib/src/providers/app_providers.dart`:
   - `audioHandlerStateProvider` - Audio handler state controller
   - `playbackSnapshotProvider` - Current playback state stream
   - `playerStateProvider` - Simplified playback state
+  - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses the
+    app-owned SMTC bridge; Android, iOS, and macOS use `audio_service`
 
 - **Cache Management**
   - `rollingCacheManagerProvider` - Rolling cache manager

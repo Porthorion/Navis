@@ -10,32 +10,6 @@ class _NavisAudioHandlerInitCacheEntry {
   bool invalidated = false;
 }
 
-typedef NavisRegisterLinuxMpris = void Function();
-
-@visibleForTesting
-bool navisRegisterLinuxMprisIfSupported({
-  required bool isLinuxRuntime,
-  required NavisRegisterLinuxMpris registerMpris,
-  required void Function(String message) logInfo,
-  required void Function(String message) logWarning,
-}) {
-  if (!isLinuxRuntime) {
-    return false;
-  }
-  try {
-    registerMpris();
-    logInfo('Linux MPRIS integration registered via audio_service_mpris.');
-    return true;
-  } on Object catch (error, stackTrace) {
-    logWarning(
-      'Linux MPRIS registration failed. '
-      'Playback will continue without desktop media controls. '
-      '$error\n$stackTrace',
-    );
-    return false;
-  }
-}
-
 Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
   _invalidateNavisAudioHandlerCache(handler);
   if (handler is WindowsNavisPlaybackHandler) {

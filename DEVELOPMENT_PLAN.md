@@ -237,9 +237,8 @@ Run before every commit (enforced via optional pre-commit hook). Steps:
 
 1. `dart format --set-exit-if-changed .` — fail if formatting drift exists.
 2. `dart run build_runner build --delete-conflicting-outputs` — regenerate code.
-3. `flutter analyze` — fail on analyzer issues.
-4. `dart run custom_lint` — fail on custom lint violations.
-5. `flutter test` — fail on test failures.
+3. `flutter analyze --no-fatal-infos` — fail on analyzer errors and warnings.
+4. `flutter test` — fail on test failures.
 
 **Release script** (`tool/release.sh`):
 
@@ -304,7 +303,7 @@ This section is the operational contract for day-to-day implementation, especial
 1. Implement code + tests together (or in the same session before task close-out).
 2. Run local quality gate:
    - Preferred: `./tool/check.sh`
-   - Fallback: `dart format --set-exit-if-changed . && dart run build_runner build --delete-conflicting-outputs && flutter analyze && dart run custom_lint && flutter test`
+   - Fallback: `dart format --set-exit-if-changed . && dart run build_runner build --delete-conflicting-outputs && flutter analyze --no-fatal-infos && flutter test`
 3. Fix all failing checks before moving to another task.
 4. Update `PROGRESS.md` immediately with completion date and evidence note.
 5. Commit one logical change using Conventional Commits.
@@ -378,10 +377,7 @@ A task is complete only when all are true:
 | `freezed` | Immutable model code generation |
 | `json_serializable` | JSON serialization code generation |
 | `drift_dev` | Drift table/DAO code generation |
-| `riverpod_generator` | Provider code generation. Note: v4.x generates code targeting Riverpod 3.x internals. The `@riverpod` annotation syntax is unchanged from v2.x — version jump reflects internal code generation changes, not annotation API changes. |
-| `riverpod_lint` | Riverpod-specific lints and assists |
 | `very_good_analysis` | Comprehensive lint rule set |
-| `custom_lint` | Custom lint runner |
 | `mocktail` | Mocking for unit and widget tests |
 
 ---
@@ -492,7 +488,8 @@ drift_schemas/                             # Exported drift schemas for migratio
 - [ ] Configure `analysis_options.yaml`:
   - Include `very_good_analysis` rules.
   - Disable `public_member_api_docs` (unnecessary overhead for a solo project).
-  - Add `riverpod_lint` as a custom lint plugin.
+  - Use the standard analyzer only; Riverpod providers are hand-written and
+    `custom_lint` / `riverpod_lint` are not dependencies.
 - [ ] Set up `pubspec.yaml` with all dependencies listed in [Core Dependencies](#core-dependencies).
 - [ ] Create the full directory structure under `lib/src/` as shown in [Project Structure](#project-structure).
 - [ ] Configure Android manifest (`android/app/src/main/AndroidManifest.xml`):
@@ -524,7 +521,7 @@ drift_schemas/                             # Exported drift schemas for migratio
   - `gen-watch`: `dart run build_runner watch --delete-conflicting-outputs`
   - `test`: `flutter test`
   - `test-coverage`: `flutter test --coverage`
-  - `lint`: `flutter analyze && dart run custom_lint`
+  - `lint`: `flutter analyze --no-fatal-infos`
   - `format`: `dart format .`
   - `format-check`: `dart format --set-exit-if-changed .`
 - [ ] Add an optional local pre-commit hook that runs at least `format-check` and `flutter analyze` on changed files.
@@ -2090,7 +2087,7 @@ The following product and architecture choices are locked for this phase and sho
 | Android | Keep existing `audio_service` + `just_audio` path | No structural change |
 | iOS | Keep existing `audio_service` + `just_audio` path | No structural change |
 | macOS | Keep existing `audio_service` + `just_audio` path | No structural change |
-| Linux | Keep `audio_service` path and add `audio_service_mpris` plugin | Native MPRIS via federated plugin |
+| Linux | Use a Linux-specific `NavisPlaybackHandler` wrapper and app-owned `dbus` bridge | Full native MPRIS without `AudioService.init()` |
 | Windows | Add Windows-specific handler that implements `NavisPlaybackHandler` using `just_audio` + `smtc_windows`; do not call `AudioService.init()` on Windows | Platform-conditional handler split |
 
 Supporting implementation notes:
@@ -2098,7 +2095,8 @@ Supporting implementation notes:
 - Keep `NavisPlaybackHandler` as the app-level contract for all platforms.
 - Keep `initNavisAudioHandler()` as the single branching point for runtime handler selection.
 - Keep `audio_service` dependency for shared pure-Dart media types used across code (`MediaItem`, shuffle/repeat enums) even when Windows bypasses `AudioService.init()`.
-- Add Linux desktop support through `audio_service_mpris` instead of a custom MPRIS bridge.
+- Use the app-owned `LinuxMprisBridge` for Seek, SetPosition, Shuffle,
+  LoopStatus, transport controls, and metadata.
 - Use `smtc_windows` only on Windows for transport controls and metadata sync.
 - Current implementation status (2026-03-27): Android media session path is active, Linux MPRIS is active, Windows SMTC is active, and macOS still needs a native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` bridge. iOS continues to use the shared `audio_service` path but needs an explicit parity audit for lock-screen/control-center metadata behavior.
 
@@ -2136,7 +2134,7 @@ Distribution baseline by platform:
 Execute in this order to reduce rework:
 
 1. Playback preflight and runtime split
-2. Linux MPRIS enablement via `audio_service_mpris`
+2. Linux MPRIS enablement via the app-owned `dbus` bridge
 3. Windows handler implementation and SMTC bridge
 4. macOS native Control Centre / remote-command bridge and iOS media-session parity audit
 5. Desktop caching-compatibility guards in source resolver
@@ -2150,7 +2148,7 @@ Execute in this order to reduce rework:
 Primary additions for this phase:
 
 - `window_manager`
-- `audio_service_mpris`
+- `dbus`
 - `smtc_windows`
 - `just_audio_media_kit`
 - `media_kit_libs_windows_audio`
@@ -2287,9 +2285,11 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 
 #### M5 — Platform capability layer
 
-- `ACP-M5-01`: centralize desktop media capability checks for `audio_service`, `audio_service_mpris`, and `smtc_windows`.
+- `ACP-M5-01`: centralize desktop media capability checks for `audio_service`,
+  the Linux `dbus` bridge, and `smtc_windows`.
 - `ACP-M5-02`: ensure graceful runtime fallback for unsupported feature surfaces.
-- `ACP-M5-03`: evaluate dependency hygiene for `audio_service_mpris` version alignment.
+- `ACP-M5-03`: remove the superseded `audio_service_mpris` dependency after
+  validating the app-owned Linux `dbus` bridge.
 - `ACP-M5-04`: extend system media API parity to macOS native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` handling and audit iOS media-session parity.
 - `ACP-M5-05`: run a dependency hygiene sweep over desktop/audio/adaptive packages before release hardening.
 
@@ -3093,7 +3093,7 @@ Global verification rule for every phase completion:
 
 | Phase | Criteria |
 |---|---|
-| 0 | `flutter run` launches a blank app. `build_runner build` succeeds. `dart format --set-exit-if-changed .`, `flutter analyze`, `dart run custom_lint`, and `flutter test` all pass. Directory structure in place. Notification channels created on Android. Logger outputs to console in debug mode. `POST_NOTIFICATIONS` permission request flow works on Android 13+ emulator. |
+| 0 | `flutter run` launches a blank app. `build_runner build` succeeds. `dart format --set-exit-if-changed .`, `flutter analyze --no-fatal-infos`, and `flutter test` all pass. Directory structure in place. Notification channels created on Android. Logger outputs to console in debug mode. `POST_NOTIFICATIONS` permission request flow works on Android 13+ emulator. |
 | 1 | Unit tests pass for `SubsonicApiClient` (mock HTTP). Drift DAO tests pass (in-memory DB). `ping()` succeeds against a real Navidrome server. Freezed models serialize/deserialize correctly. Dio retry interceptor retries on timeout (unit test with mock). Play queue DAO reads/writes correctly. Database migration from v1 to current version tested. |
 | 2 | Login flow works end-to-end. Credentials survive app kill + relaunch (auto-login). Sign out clears everything. Offline banner appears when server is unreachable. |
 | 3 | Library populates after sync. Album detail loads from local DB instantly. Pull-to-refresh triggers re-sync. Artists/Albums tabs work. Home screen carousels populate. Context menus function on all items. 10K+ library scrolls at 60fps. |
