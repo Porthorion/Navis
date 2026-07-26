@@ -33,6 +33,14 @@ const List<ChangelogVersion> changelogs = [
         'Clearing the final queue item now closes the fullscreen player smoothly and leaves phone Back navigation responsive immediately',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Syncing while a cached remote song is playing now transfers its verified server identity without interrupting playback or invalidating the active cache file',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library update checks now verify 48 artists per pass and continue quietly, while preserving older unchecked artists when newer server changes arrive',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

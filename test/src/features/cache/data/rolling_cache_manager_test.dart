@@ -63,6 +63,34 @@ void main() {
       expect(row.downloadStatus, DownloadStatus.complete);
     }, skip: !sqliteAvailable);
 
+    test('registerTrack resolves a retired song identity', () async {
+      await database.libraryDao.upsertProvisionalSongs(
+        <SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'remote-song', title: 'Song'),
+        ],
+      );
+      await _insertSong(database, 'server-song');
+      await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+      );
+      final file = File(p.join(tempDir.path, 'remote-song.mp3'));
+      await file.writeAsBytes(List<int>.filled(64, 1));
+
+      await manager.registerTrack(
+        songId: 'remote-song',
+        filePath: file.path,
+        format: 'mp3',
+      );
+
+      expect(await database.cacheDao.getCachedTrack('remote-song'), isNull);
+      expect(
+        (await database.cacheDao.getCachedTrack('server-song'))?.filePath,
+        file.path,
+      );
+    }, skip: !sqliteAvailable);
+
     test('enforceBudget evicts oldest rolling items only', () async {
       await _insertSong(database, 'song-1');
       await _insertSong(database, 'song-2');
@@ -206,6 +234,23 @@ void main() {
 
         expect(orphanSidecar.existsSync(), isFalse);
         expect(retainedSidecar.existsSync(), isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'cleanup protects recently active orphan audio files',
+      () async {
+        final rollingDirectory = Directory(
+          p.join(tempDir.path, 'audio', 'rolling'),
+        )..createSync(recursive: true);
+        final activeOrphan = File(
+          p.join(rollingDirectory.path, 'active.audio'),
+        )..writeAsBytesSync(<int>[1, 2, 3]);
+
+        await manager.cleanupOrphanedRollingFiles();
+
+        expect(activeOrphan.existsSync(), isTrue);
       },
       skip: !sqliteAvailable,
     );

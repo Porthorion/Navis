@@ -62,10 +62,12 @@ class DriftRollingCacheManager implements RollingCacheManager {
 
     final stat = file.statSync();
     final normalizedFormat = _normalizeFormat(format, filePath);
+    final canonicalSongId =
+        await _songIdentityDao?.resolveCanonicalId(songId) ?? songId;
 
     await _cacheDao.upsertRollingCachedTrack(
       CachedTracksTableCompanion.insert(
-        songId: songId,
+        songId: canonicalSongId,
         filePath: filePath,
         fileSize: fileSize ?? stat.size,
         format: normalizedFormat,
@@ -78,8 +80,10 @@ class DriftRollingCacheManager implements RollingCacheManager {
   }
 
   @override
-  Future<void> touchTrack(String songId) {
-    return _cacheDao.touchTrack(songId);
+  Future<void> touchTrack(String songId) async {
+    final canonicalSongId =
+        await _songIdentityDao?.resolveCanonicalId(songId) ?? songId;
+    await _cacheDao.touchTrack(canonicalSongId);
   }
 
   @override
@@ -221,6 +225,10 @@ class DriftRollingCacheManager implements RollingCacheManager {
           continue;
         }
         if (knownPaths.contains(path)) {
+          continue;
+        }
+        final age = _now().difference(entity.statSync().modified);
+        if (age < const Duration(hours: 2)) {
           continue;
         }
         await _deleteCacheFileSet(path);

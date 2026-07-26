@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show Value, Variable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
@@ -31,6 +32,7 @@ void main() {
         title: 'Track',
         albumId: const Value('album'),
         artistId: const Value('artist'),
+        recordingMbid: const Value('recording-mbid'),
       ),
     ]);
     await database.libraryDao.upsertSongs(<SongsTableCompanion>[
@@ -39,6 +41,7 @@ void main() {
         title: 'Track',
         albumId: const Value('album'),
         artistId: const Value('artist'),
+        recordingMbid: const Value('recording-mbid'),
       ),
     ]);
   });
@@ -47,6 +50,55 @@ void main() {
     await database.close();
     await tempDirectory.delete(recursive: true);
   });
+
+  test(
+    'notifies playback before deleting a provisional identity',
+    () async {
+      var callbackObservedProvisionalRow = false;
+      final canonical = await database.libraryDao.getSongById('server-song');
+
+      final summary = await SongIdentityReconciler(
+        database.songIdentityDao,
+        onBeforeRemap: (aliases) async {
+          expect(aliases, <String, String>{
+            'remote-song': 'server-song',
+          });
+          callbackObservedProvisionalRow =
+              await database.libraryDao.getSongById('remote-song') != null;
+        },
+        readActiveSongId: () => 'remote-song',
+      ).reconcileCanonicalSongs(<SongsTableData>[canonical!]);
+
+      expect(callbackObservedProvisionalRow, isTrue);
+      expect(summary.aliases, hasLength(1));
+      expect(await database.libraryDao.getSongById('remote-song'), isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'aborts identity deletion when playback handoff fails',
+    () async {
+      final canonical = await database.libraryDao.getSongById('server-song');
+
+      await expectLater(
+        SongIdentityReconciler(
+          database.songIdentityDao,
+          onBeforeRemap: (_) => Future<void>.error(
+            StateError('playback handoff failed'),
+          ),
+        ).reconcileCanonicalSongs(<SongsTableData>[canonical!]),
+        throwsStateError,
+      );
+
+      expect(
+        await database.libraryDao.getSongById('remote-song'),
+        isNotNull,
+      );
+      expect(await database.songIdentityDao.getAliases(), isEmpty);
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     'transactionally remaps every persisted song reference',
@@ -272,6 +324,52 @@ void main() {
       expect(retained?.filePath, permanentFile.path);
       expect(await permanentFile.exists(), isTrue);
       expect(await remoteFile.exists(), isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'active provisional cache survives a canonical cache collision',
+    () async {
+      final remoteFile = File('${tempDirectory.path}/active-remote.audio')
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      final permanentFile = File('${tempDirectory.path}/active-permanent.audio')
+        ..writeAsBytesSync(<int>[4, 5, 6, 7]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'remote-song',
+          filePath: remoteFile.path,
+          fileSize: remoteFile.lengthSync(),
+          format: 'mp3',
+          lastAccessedAt: DateTime.now(),
+          cacheType: CacheType.rolling,
+          downloadStatus: DownloadStatus.complete,
+        ),
+      );
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'server-song',
+          filePath: permanentFile.path,
+          fileSize: permanentFile.lengthSync(),
+          format: 'flac',
+          lastAccessedAt: DateTime.now(),
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+        ),
+      );
+
+      await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+        retainOldCacheFile: true,
+      );
+
+      expect(await remoteFile.exists(), isTrue);
+      expect(
+        (await database.cacheDao.getCachedTrack('server-song'))?.filePath,
+        permanentFile.path,
+      );
     },
     skip: !sqliteAvailable,
   );

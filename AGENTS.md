@@ -265,8 +265,13 @@ priority or accept input.
   Local completion time is only for scheduling/UI; do not advance the server
   cursor until every candidate in the response has been verified.
 - A returned index is a gated artist snapshot, not a changed-artist feed.
-  Persist continuation state and drain it in bounded passes (160 artists on
-  non-cellular networks, 24 for a manual cellular refresh).
+  Persist continuation state and drain it in bounded passes (48 artists on
+  non-cellular networks, 24 for a manual cellular refresh). Non-cellular
+  continuation passes run quietly while the app remains foregrounded.
+- When a newer server cursor arrives during a pending artist audit, prioritize
+  newly reported/suspicious artists, preserve the untouched tail, and move
+  already-verified artists behind it. A fresh local completion timestamp must
+  not suppress persisted pending verification.
 - Run the bounded newest-album health probe every 12 hours. Servers with
   unsupported or unreliable indexes use bounded artist/newest-album
   verification on normal non-cellular syncs and retry `getIndexes` daily.
@@ -281,6 +286,10 @@ priority or accept input.
   browsing and reconcile song IDs only by same ID, one unique recording MBID,
   or one unique exact metadata match with compatible track/disc and duration
   within three seconds. Ambiguous matches must remain local.
+- Apply proven song-ID aliases to the audio handler before deleting the
+  provisional row. Preserve an active losing cache file, resolve late cache
+  completions through persisted aliases, and replay aliases during audio
+  bootstrap so synchronization cannot invalidate the active remote source.
 
 ### Listen Together
 

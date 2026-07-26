@@ -153,6 +153,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     required String canonicalSongId,
     required String matchReason,
     DateTime? matchedAt,
+    bool retainOldCacheFile = false,
   }) async {
     final oldId = oldSongId.trim();
     final canonicalId = canonicalSongId.trim();
@@ -328,7 +329,11 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     });
 
     final deletedPaths = <String>[];
+    final retainedPath = retainOldCacheFile ? oldCache?.filePath : null;
     for (final path in cacheChoice.losingFilePaths) {
+      if (path == retainedPath) {
+        continue;
+      }
       final file = File(path);
       try {
         if (await file.exists()) {

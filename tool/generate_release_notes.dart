@@ -60,6 +60,14 @@ const List<_Version> _changelogs = [
       'Clearing the final queue item now closes the fullscreen player smoothly and leaves phone Back navigation responsive immediately',
       type: _EntryType.fix,
     ),
+    _Entry(
+      'Syncing while a cached remote song is playing now transfers its verified server identity without interrupting playback or invalidating the active cache file',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Library update checks now verify 48 artists per pass and continue quietly, while preserving older unchecked artists when newer server changes arrive',
+      type: _EntryType.improvement,
+    ),
   ]),
   _Version('1.0.13', [
     _Entry(

@@ -166,6 +166,7 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, StreamSubscription<double>> _cacheProgressSubscriptions =
       <String, StreamSubscription<double>>{};
   final Set<String> _lockCachingBypassedSongIds = <String>{};
+  final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   String? _remotePlaybackStallSongId;
   Duration? _remotePlaybackStallPosition;
@@ -2104,7 +2105,7 @@ class NavisAudioHandler extends BaseAudioHandler
         );
       }
       await _rollingCacheManager.registerTrack(
-        songId: song.id,
+        songId: _canonicalSongId(song.id),
         filePath: cacheFilePath,
         format:
             resolvedSource.metadata.format ??
@@ -3044,6 +3045,7 @@ class NavisAudioHandler extends BaseAudioHandler
     bool autoPlay = true,
     bool expandMatchFlows = true,
   }) async {
+    songIds = songIds.map(_canonicalSongId).toList(growable: false);
     final expansion = await _expandMatchFlowIds(
       songIds,
       startIndex: startIndex,
@@ -3160,6 +3162,21 @@ class NavisAudioHandler extends BaseAudioHandler
     bool autoPlay = true,
     bool expandMatchFlows = true,
   }) async {
+    final canonicalIds = songs
+        .map((song) => _canonicalSongId(song.id))
+        .toList(growable: false);
+    final hasRetiredIdentity = Iterable<int>.generate(
+      songs.length,
+    ).any((index) => canonicalIds[index] != songs[index].id);
+    if (hasRetiredIdentity) {
+      final canonicalSongs = await _libraryDao.getSongsByIds(canonicalIds);
+      return replaceQueueWithData(
+        canonicalSongs,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: expandMatchFlows,
+      );
+    }
     if (expandMatchFlows && songs.isNotEmpty) {
       final expansion = await _expandMatchFlowIds(
         songs.map((song) => song.id).toList(growable: false),
@@ -4206,9 +4223,19 @@ class NavisAudioHandler extends BaseAudioHandler
       return Future<void>.value();
     }
     return _queueLane.run((_) async {
+      await _ready;
+      for (final entry in normalized.entries) {
+        _songIdentityAliases[entry.key] = _canonicalSongId(entry.value);
+      }
+      for (final key in _songIdentityAliases.keys.toList(growable: false)) {
+        _songIdentityAliases[key] = _canonicalSongId(
+          _songIdentityAliases[key]!,
+        );
+      }
+
       MediaItem remap(MediaItem item) {
-        final canonicalId = normalized[item.id];
-        return canonicalId == null ? item : item.copyWith(id: canonicalId);
+        final canonicalId = _canonicalSongId(item.id);
+        return canonicalId == item.id ? item : item.copyWith(id: canonicalId);
       }
 
       for (var index = 0; index < _queueItems.length; index++) {
@@ -4217,7 +4244,7 @@ class NavisAudioHandler extends BaseAudioHandler
       final pending = _pendingLogicalQueueSongIds;
       if (pending != null) {
         _pendingLogicalQueueSongIds = List<String>.unmodifiable(
-          pending.map((id) => normalized[id] ?? id),
+          pending.map(_canonicalSongId),
         );
       }
       if (_currentMediaItem != null) {
@@ -4230,6 +4257,19 @@ class NavisAudioHandler extends BaseAudioHandler
         context: 'song identity alias update',
       );
     });
+  }
+
+  String _canonicalSongId(String songId) {
+    var current = songId;
+    final visited = <String>{};
+    while (visited.add(current)) {
+      final next = _songIdentityAliases[current];
+      if (next == null || next == current) {
+        return current;
+      }
+      current = next;
+    }
+    return current;
   }
 
   Future<void> _persistQueueState({

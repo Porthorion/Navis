@@ -36,6 +36,11 @@ final syncIntervalDurationProvider = Provider<Duration?>((ref) {
   return Duration(minutes: minutes);
 });
 
+@visibleForTesting
+final verificationContinuationDelayProvider = Provider<Duration>((ref) {
+  return const Duration(minutes: 2);
+});
+
 final syncStaleAfterProvider = Provider<Duration>((ref) {
   final minutes = ref.watch(syncIntervalMinutesProvider);
   if (minutes <= 0) {
@@ -77,6 +82,12 @@ final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
     serverConfigRepository: repository,
     staleAfter: staleAfter,
     networkType: networkType,
+    onBeforeSongIdentityRemap: (aliases) async {
+      SongIdentityCacheEpoch.invalidate();
+      await ref.read(audioHandlerProvider)?.applySongIdentityAliases(aliases);
+    },
+    readActiveSongId: () =>
+        ref.read(audioHandlerProvider)?.snapshot.currentSongId,
   );
 });
 
@@ -104,8 +115,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
   Timer? _autoRetryTimer;
+  Timer? _verificationContinuationTimer;
   DateTime? _lastFailedSyncAt;
   int _autoRetryCount = 0;
+  bool _retryVerificationContinuation = false;
 
   @override
   LibrarySyncState build() {
@@ -123,6 +136,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _lifecycleListener.dispose();
       _cancelPeriodicSync();
       _cancelAutoRetryTimer();
+      _cancelVerificationContinuation();
     });
 
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
@@ -155,6 +169,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }
       if (becameAvailable || becameWifi) {
         _maybeRunStartupSync();
+        if (state.remainingVerificationCount > 0) {
+          _scheduleVerificationContinuation();
+        }
       }
     });
 
@@ -215,7 +232,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _sessionFingerprint = null;
       _lastFailedSyncAt = null;
       _autoRetryCount = 0;
+      _retryVerificationContinuation = false;
       _cancelAutoRetryTimer();
+      _cancelVerificationContinuation();
       state = const LibrarySyncState.idle();
       _priorityAlbumIds.clear();
       return;
@@ -271,7 +290,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<void> _maybeRunStartupSync() async {
-    if (_startupSyncInFlight) {
+    if (!ref.mounted || _startupSyncInFlight) {
       return;
     }
 
@@ -297,6 +316,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     final lastSyncModelVersion = await database.appSettingsDao
         .getLastFullSyncAppBuild();
+    if (!ref.mounted) {
+      _startupSyncInFlight = false;
+      return;
+    }
     final requiresSyncModelRepair =
         requiredSyncModelVersion != null &&
         lastSyncModelVersion != requiredSyncModelVersion;
@@ -315,6 +338,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
               ? forceFullSync()
               : syncIfStale())
           .then((result) {
+            if (!ref.mounted) {
+              return;
+            }
             final completedStartupPass =
                 result.status == LibrarySyncStatus.succeeded ||
                 (!deferFullResyncOnMobile &&
@@ -341,6 +367,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   Future<LibrarySyncState> _runSync({
     required bool force,
     bool forceFull = false,
+    bool verificationContinuation = false,
   }) async {
     if (state.isRunning) {
       return state;
@@ -362,8 +389,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       engine: engine,
       force: force,
       forceFull: forceFull,
+      verificationContinuation: verificationContinuation,
       onProgressExternal: (progress) {
-        if (progress.status == LibrarySyncStatus.running) {
+        if (!verificationContinuation &&
+            progress.status == LibrarySyncStatus.running) {
           unawaited(notifier.showProgress(progress));
         }
       },
@@ -387,16 +416,28 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }
     }
 
+    state = result;
     switch (result.status) {
       case LibrarySyncStatus.succeeded:
         _lastFailedSyncAt = null;
         _autoRetryCount = 0;
+        _retryVerificationContinuation = false;
         _cancelAutoRetryTimer();
-        unawaited(notifier.showComplete(result));
+        if (!verificationContinuation) {
+          unawaited(notifier.showComplete(result));
+        }
+        if (result.remainingVerificationCount > 0) {
+          _scheduleVerificationContinuation();
+        } else {
+          _cancelVerificationContinuation();
+        }
       case LibrarySyncStatus.failed:
         _lastFailedSyncAt = DateTime.now();
+        _retryVerificationContinuation = verificationContinuation;
         _scheduleAutoRetry();
-        unawaited(notifier.showFailed(result));
+        if (!verificationContinuation) {
+          unawaited(notifier.showFailed(result));
+        }
       case LibrarySyncStatus.skipped:
       case LibrarySyncStatus.idle:
         unawaited(notifier.dismissProgress());
@@ -404,7 +445,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         break;
     }
 
-    state = result;
     return result;
   }
 
@@ -428,6 +468,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required LibrarySyncEngine engine,
     required bool force,
     required bool forceFull,
+    required bool verificationContinuation,
     required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
     void updateProgress(LibrarySyncState progress) {
@@ -437,6 +478,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       onProgressExternal(progress);
     }
 
+    if (verificationContinuation) {
+      return engine.continueVerification(
+        priorityAlbumIds: _priorityAlbumIds,
+        onProgress: updateProgress,
+      );
+    }
     return force
         ? forceFull
               ? engine.forceFullSync(
@@ -455,6 +502,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _onAppBackgrounded() {
     _isForeground = false;
+    _cancelVerificationContinuation();
   }
 
   void _onAppResumed() {
@@ -477,6 +525,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         } else {
           unawaited(syncIfStale());
         }
+      }
+      if (state.remainingVerificationCount > 0) {
+        _scheduleVerificationContinuation();
       }
     }
   }
@@ -534,6 +585,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     final delayIndex = _autoRetryCount.clamp(0, _autoRetryDelays.length - 1);
     final delay = _autoRetryDelays[delayIndex];
+    final retryVerificationContinuation = _retryVerificationContinuation;
     _autoRetryCount++;
     AppLogger.debug(
       'Scheduling library sync auto-retry #$_autoRetryCount in '
@@ -543,12 +595,54 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       if (!ref.mounted || state.isRunning) {
         return;
       }
-      unawaited(syncNow());
+      unawaited(
+        retryVerificationContinuation
+            ? _runSync(force: true, verificationContinuation: true)
+            : syncNow(),
+      );
     });
   }
 
   void _cancelAutoRetryTimer() {
     _autoRetryTimer?.cancel();
     _autoRetryTimer = null;
+  }
+
+  void _scheduleVerificationContinuation() {
+    _cancelVerificationContinuation();
+    if (!_isForeground ||
+        ref.read(serverConfigStateProvider).asData?.value == null ||
+        ref.read(networkTypeProvider) == NetworkType.cellular ||
+        ref.read(networkTypeProvider) == NetworkType.offline) {
+      return;
+    }
+    final delay = ref.read(verificationContinuationDelayProvider);
+    AppLogger.debug(
+      'Scheduling artist verification continuation in '
+      '${delay.inSeconds}s (${state.remainingVerificationCount} remaining).',
+    );
+    _verificationContinuationTimer = Timer(delay, () {
+      if (!ref.mounted || !_isForeground) {
+        return;
+      }
+      final networkType = ref.read(networkTypeProvider);
+      if (state.isRunning ||
+          networkType == NetworkType.cellular ||
+          networkType == NetworkType.offline) {
+        _scheduleVerificationContinuation();
+        return;
+      }
+      unawaited(
+        _runSync(
+          force: true,
+          verificationContinuation: true,
+        ),
+      );
+    });
+  }
+
+  void _cancelVerificationContinuation() {
+    _verificationContinuationTimer?.cancel();
+    _verificationContinuationTimer = null;
   }
 }

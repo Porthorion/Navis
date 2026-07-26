@@ -55,9 +55,15 @@ class SongIdentityReconciliationSummary {
 }
 
 class SongIdentityReconciler {
-  const SongIdentityReconciler(this._identityDao);
+  const SongIdentityReconciler(
+    this._identityDao, {
+    this.onBeforeRemap,
+    this.readActiveSongId,
+  });
 
   final SongIdentityDao _identityDao;
+  final Future<void> Function(Map<String, String> aliases)? onBeforeRemap;
+  final String? Function()? readActiveSongId;
 
   SongIdentityMatchResult matchCanonicalSong({
     required SongsTableData canonicalSong,
@@ -173,10 +179,16 @@ class SongIdentityReconciler {
           if (result.reason == SongIdentityMatchReason.sameId) {
             await _identityDao.markCanonical(canonicalSong.id);
           } else {
+            final oldSongId = result.provisionalSong.id;
+            final wasActive = readActiveSongId?.call() == oldSongId;
+            await onBeforeRemap?.call(<String, String>{
+              oldSongId: canonicalSong.id,
+            });
             final remap = await _identityDao.remapSongIdentity(
-              oldSongId: result.provisionalSong.id,
+              oldSongId: oldSongId,
               canonicalSongId: canonicalSong.id,
               matchReason: result.reason.name,
+              retainOldCacheFile: wasActive,
             );
             aliases.add(remap.alias);
           }

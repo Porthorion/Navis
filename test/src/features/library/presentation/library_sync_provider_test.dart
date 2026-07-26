@@ -58,6 +58,7 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
 
   int staleCalls = 0;
   int nowCalls = 0;
+  int continuationCalls = 0;
   final List<bool> forceFullCalls = <bool>[];
 
   @override
@@ -76,6 +77,15 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
   }) {
     nowCalls++;
     forceFullCalls.add(false);
+    return _handlerNow(forceFull: false, onProgress: onProgress);
+  }
+
+  @override
+  Future<LibrarySyncState> continueVerification({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    continuationCalls++;
     return _handlerNow(forceFull: false, onProgress: onProgress);
   }
 
@@ -125,7 +135,6 @@ void main() {
           return state;
         },
       );
-
       final container = ProviderContainer(
         overrides: [
           _manualSyncInterval,
@@ -618,6 +627,8 @@ void main() {
           );
         },
       );
+      final database = createTestDatabase();
+      addTearDown(database.close);
 
       final container = ProviderContainer(
         overrides: [
@@ -639,6 +650,8 @@ void main() {
               ),
             ),
           ),
+          requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+          navisDatabaseProvider.overrideWithValue(database),
           librarySyncEngineProvider.overrideWithValue(engine),
         ],
       );
@@ -660,5 +673,83 @@ void main() {
         LibrarySyncStatus.succeeded,
       );
     });
+
+    test(
+      'pending artist verification continues in short foreground passes',
+      () async {
+        var boundedPass = 0;
+        final engine = _FakeLibrarySyncEngine(
+          ({
+            onProgress,
+          }) async {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          },
+          ({
+            forceFull = false,
+            onProgress,
+          }) async {
+            boundedPass++;
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+              remainingVerificationCount: boundedPass == 1 ? 12 : 0,
+              freshness: boundedPass == 1
+                  ? LibrarySyncFreshness.verificationPending
+                  : LibrarySyncFreshness.current,
+            );
+          },
+        );
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            verificationContinuationDelayProvider.overrideWithValue(
+              const Duration(milliseconds: 10),
+            ),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
+              ),
+            ),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            networkTypeProvider.overrideWithValue(NetworkType.wifi),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final notifier = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await notifier.syncNow();
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+
+        expect(engine.nowCalls, 1);
+        expect(engine.continuationCalls, 1);
+        expect(
+          container.read(librarySyncControllerProvider).freshness,
+          LibrarySyncFreshness.current,
+        );
+      },
+    );
   });
 }

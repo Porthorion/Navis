@@ -1025,6 +1025,7 @@ void main() {
             ),
           ],
         );
+        api.notFoundArtistIds.add('artist-old');
         api.artistDetails['artist-1'] = const Artist(
           id: 'artist-1',
           name: 'Artist 1',
@@ -1051,7 +1052,7 @@ void main() {
         expect(state.mode, LibrarySyncMode.incremental);
         expect(api.calls, contains('getIndexes'));
         expect(api.calls, contains('getArtist:artist-1'));
-        expect(api.calls, isNot(contains('getArtist:artist-old')));
+        expect(api.calls, contains('getArtist:artist-old'));
         expect(api.calls, contains('getAlbum:album-1'));
       },
       skip: !sqliteAvailable,
@@ -1114,8 +1115,8 @@ void main() {
             .length;
 
         expect(first.status, LibrarySyncStatus.succeeded);
-        expect(firstArtistCalls, 160);
-        expect(first.remainingVerificationCount, 10);
+        expect(firstArtistCalls, 48);
+        expect(first.remainingVerificationCount, 122);
         expect(first.freshness, LibrarySyncFreshness.verificationPending);
         var config = await serverConfigRepository.getActiveServer();
         var navis =
@@ -1123,22 +1124,81 @@ void main() {
                 as Map<String, dynamic>);
         expect(navis['libraryIndexesCursor'], isNull);
 
-        api.calls.clear();
-        final second = await engine.syncNow();
+        var next = first;
+        final continuationCallCounts = <int>[];
+        while (next.remainingVerificationCount > 0) {
+          api.calls.clear();
+          next = await engine.syncIfStale();
+          continuationCallCounts.add(
+            api.calls.where((call) => call.startsWith('getArtist:')).length,
+          );
+        }
 
-        expect(second.status, LibrarySyncStatus.succeeded);
-        expect(
-          api.calls.where((call) => call.startsWith('getArtist:')).length,
-          10,
-        );
-        expect(second.remainingVerificationCount, 0);
-        expect(second.freshness, LibrarySyncFreshness.current);
+        expect(continuationCallCounts, <int>[48, 48, 26]);
+        expect(next.status, LibrarySyncStatus.succeeded);
+        expect(next.remainingVerificationCount, 0);
+        expect(next.freshness, LibrarySyncFreshness.current);
         config = await serverConfigRepository.getActiveServer();
         navis =
             (jsonDecode(config!.capabilitiesJson!)['navis']
                 as Map<String, dynamic>);
         expect(navis['libraryIndexesCursor'], isNotNull);
         expect(api.requestedIndexesCursors, everyElement(isNull));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'new cursor preserves the unverified artist tail before restarting audit',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        final artists = List<Artist>.generate(
+          100,
+          (index) => Artist(
+            id: 'artist-${index.toString().padLeft(3, '0')}',
+            name: 'Artist $index',
+          ),
+        );
+        for (final artist in artists) {
+          api.artistDetails[artist.id] = artist;
+        }
+        api.indexes = Indexes(
+          lastModified: DateTime.utc(2026, 2, 1),
+          indexes: <IndexesIndex>[
+            IndexesIndex(name: 'A', artists: artists),
+          ],
+        );
+
+        final first = await engine.syncNow();
+        final firstIds = api.calls
+            .where((call) => call.startsWith('getArtist:'))
+            .map((call) => call.substring('getArtist:'.length))
+            .toSet();
+        expect(first.remainingVerificationCount, 52);
+
+        const added = Artist(id: 'artist-new', name: 'Artist New');
+        api.artistDetails[added.id] = added;
+        api.indexes = Indexes(
+          lastModified: DateTime.utc(2026, 2, 2),
+          indexes: <IndexesIndex>[
+            IndexesIndex(name: 'A', artists: <Artist>[added, ...artists]),
+          ],
+        );
+        api.calls.clear();
+
+        final second = await engine.continueVerification();
+        final secondIds = api.calls
+            .where((call) => call.startsWith('getArtist:'))
+            .map((call) => call.substring('getArtist:'.length))
+            .toSet();
+
+        expect(second.status, LibrarySyncStatus.succeeded);
+        expect(secondIds, contains(added.id));
+        expect(secondIds.intersection(firstIds), isEmpty);
+        expect(second.remainingVerificationCount, 53);
       },
       skip: !sqliteAvailable,
     );
@@ -1355,8 +1415,9 @@ void main() {
         expect(api.calls, contains('getIndexes'));
         expect(
           api.calls.where((call) => call.startsWith('getArtist:')).length,
-          49,
+          48,
         );
+        expect(state.remainingVerificationCount, 1);
         expect(api.calls, isNot(contains('getArtists')));
         expect(api.calls, isNot(contains('getAlbumListPage:0:500')));
         expect(
@@ -1547,6 +1608,18 @@ void main() {
         );
 
         api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.artistDetails['artist-1'] = const Artist(
+          id: 'artist-1',
+          name: 'Artist 1',
+          albums: <Album>[
+            Album(
+              id: 'album-1',
+              name: 'Album 1',
+              artistId: 'artist-1',
+              artist: 'Artist 1',
+            ),
+          ],
+        );
         api.fastPathPages[0] = const <Album>[
           Album(
             id: 'album-1',

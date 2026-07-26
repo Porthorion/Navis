@@ -410,17 +410,24 @@ remove, reorder, or play-index actions until the transport queue catches up.
    scheduling and status
 4. A returned index is treated as a gated artist snapshot. Missing artists,
    album-count changes, and newest-album discrepancies are prioritized, then
-   the remaining artists drain through persisted bounded batches
+   the remaining artists drain through persisted batches of 48 artists
+   (24 for manual cellular checks). Pending work bypasses the normal staleness
+   gate and continues quietly in the foreground on non-cellular networks
 5. A newest-album health probe runs every 12 hours. Unsupported or unreliable
    index servers use bounded artist/newest-album verification and retry the
    index endpoint daily
 6. The server cursor advances only after every candidate from the response
    succeeds. Partial batches show verification pending rather than silently
-   claiming current metadata
+   claiming current metadata. If a newer cursor arrives mid-audit, newly
+   reported artists lead, the untouched tail keeps priority, and previously
+   checked artists move behind it
 7. Search and discovery metadata is written provisionally. Canonical hydration
    reconciles song identities conservatively and transactionally remaps cache,
    downloads, queues, history, playlists, lyrics, Match Flow, scrobbles,
-   feedback, and star actions
+   feedback, and star actions. Playback receives the alias before the
+   provisional row is removed; late cache completion resolves the canonical ID
+   and an active losing cache file is retained until orphan cleanup can safely
+   reclaim it
 8. Starred, genre, and playlist metadata refresh on manual sync, real metadata
    changes, or the longer auxiliary sync window
 9. Initial sync, a one-time sync-model repair, and explicit Force Full Sync are
@@ -437,7 +444,8 @@ remove, reorder, or play-index actions until the transport queue catches up.
 6. Identity aliases transfer valid rolling/permanent ownership to a proven
    canonical server song ID; ambiguous permanent downloads remain local-only
 7. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
-   provisional metadata while preserving active partial files
+   provisional metadata while preserving active partial files and recent
+   unowned audio files
 8. Playback prefers permanent → rolling → stream
 
 ## Testing Strategy

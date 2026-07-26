@@ -577,6 +577,13 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       },
     );
     await handler.waitUntilReady();
+    final persistedAliases = await database.songIdentityDao.getAliases();
+    if (persistedAliases.isNotEmpty) {
+      await handler.applySongIdentityAliases(<String, String>{
+        for (final alias in persistedAliases)
+          alias.oldSongId: alias.canonicalSongId,
+      });
+    }
 
     try {
       await handler.applyRuntimeSettings();
@@ -1086,16 +1093,13 @@ Future<void> reconcileCanonicalSongHydration(
   final canonicalSongs = await database.libraryDao.getSongsByIds(ids);
   final summary = await SongIdentityReconciler(
     database.songIdentityDao,
+    onBeforeRemap: (aliases) async {
+      SongIdentityCacheEpoch.invalidate();
+      await ref.read(audioHandlerProvider)?.applySongIdentityAliases(aliases);
+    },
+    readActiveSongId: () =>
+        ref.read(audioHandlerProvider)?.snapshot.currentSongId,
   ).reconcileCanonicalSongs(canonicalSongs);
-  if (summary.aliases.isNotEmpty) {
-    SongIdentityCacheEpoch.invalidate();
-    await ref.read(audioHandlerProvider)?.applySongIdentityAliases(
-      <String, String>{
-        for (final alias in summary.aliases)
-          alias.oldSongId: alias.canonicalSongId,
-      },
-    );
-  }
   if (summary.aliases.isNotEmpty ||
       summary.ambiguousMatchCount > 0 ||
       summary.retainedProvisionalCount > 0) {
