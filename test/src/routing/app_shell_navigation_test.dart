@@ -59,6 +59,18 @@ class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
   int build() => 0;
 }
 
+class _MutablePlaybackController extends Notifier<PlaybackSnapshot> {
+  @override
+  PlaybackSnapshot build() => _activePlayback;
+
+  set snapshot(PlaybackSnapshot value) => state = value;
+}
+
+final _mutablePlaybackProvider =
+    NotifierProvider<_MutablePlaybackController, PlaybackSnapshot>(
+      _MutablePlaybackController.new,
+    );
+
 ProviderContainer _createContainerWithDatabase({
   List<Override> overrides = const <Override>[],
 }) {
@@ -739,6 +751,180 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(playerSheetExpandedProvider), isFalse);
+  });
+
+  testWidgets(
+    'final queue item teardown keeps exit visual and releases back immediately',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(599, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          playerStateProvider.overrideWith(
+            (ref) => ref.watch(_mutablePlaybackProvider),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final router = container.read(appRouterProvider);
+      router.go('/settings/cache');
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pumpAndSettle();
+
+      container.read(_mutablePlaybackProvider.notifier).snapshot =
+          const PlaybackSnapshot.idle();
+      await tester.pump();
+
+      expect(container.read(playerOverlayStackProvider), isEmpty);
+      expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
+      expect(
+        tester
+            .widget<IgnorePointer>(
+              find.byKey(const ValueKey<String>('playerExitIgnorePointer')),
+            )
+            .ignoring,
+        isTrue,
+      );
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cache & Storage'), findsNothing);
+      expect(find.byType(ExpandablePlayerSheet), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'idle playback clears queue and now-playing overlays before immediate back',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(599, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          playerStateProvider.overrideWith(
+            (ref) => ref.watch(_mutablePlaybackProvider),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final router = container.read(appRouterProvider);
+      router.go('/settings/cache');
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).showQueue();
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(playerOverlayStackProvider),
+        const <PlayerOverlayRoute>[
+          PlayerOverlayRoute.nowPlaying,
+          PlayerOverlayRoute.queue,
+        ],
+      );
+
+      container.read(_mutablePlaybackProvider.notifier).snapshot =
+          const PlaybackSnapshot.idle();
+      await tester.pump();
+
+      expect(container.read(playerOverlayStackProvider), isEmpty);
+      expect(find.text('Queue'), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cache & Storage'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('radio teardown uses the same retained non-interactive exit', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(599, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(),
+        playerStateProvider.overrideWith(
+          (ref) => ref.watch(_mutablePlaybackProvider),
+        ),
+      ],
+    );
+    container
+        .read(_mutablePlaybackProvider.notifier)
+        .snapshot = const PlaybackSnapshot(
+      queueSongIds: <String>[],
+      currentSongId: null,
+      currentIndex: null,
+      playing: true,
+      processingState: AudioProcessingState.ready,
+      position: Duration.zero,
+      duration: Duration.zero,
+      bufferedPosition: Duration.zero,
+      shuffleMode: AudioServiceShuffleMode.none,
+      repeatMode: AudioServiceRepeatMode.none,
+      radioStation: RadioStationMetadata(
+        stationId: 'radio-1',
+        stationName: 'Test Radio',
+        streamUrl: 'https://example.com/radio',
+      ),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+
+    container.read(_mutablePlaybackProvider.notifier).snapshot =
+        const PlaybackSnapshot.idle();
+    await tester.pump();
+
+    expect(container.read(playerOverlayStackProvider), isEmpty);
+    expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
+    expect(
+      tester
+          .widget<IgnorePointer>(
+            find.byKey(const ValueKey<String>('playerExitIgnorePointer')),
+          )
+          .ignoring,
+      isTrue,
+    );
+
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(find.byType(ExpandablePlayerSheet), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('escape closes queue before collapsing now playing', (

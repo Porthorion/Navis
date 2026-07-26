@@ -141,6 +141,7 @@ class _SlideUpPlayerTransitionState extends State<_SlideUpPlayerTransition>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<Offset> _slideAnimation;
+  Widget? _presentedChild;
 
   @override
   void initState() {
@@ -154,25 +155,42 @@ class _SlideUpPlayerTransitionState extends State<_SlideUpPlayerTransition>
       begin: const Offset(0, 1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _controller.addStatusListener(_handleAnimationStatus);
     if (widget.showPlayer) {
       _controller.value = 1.0;
+      _presentedChild = widget.child;
     }
+  }
+
+  void _handleAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.dismissed ||
+        widget.showPlayer ||
+        _presentedChild == null ||
+        !mounted) {
+      return;
+    }
+    setState(() {
+      _presentedChild = null;
+    });
   }
 
   @override
   void didUpdateWidget(_SlideUpPlayerTransition oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.showPlayer != oldWidget.showPlayer) {
-      if (widget.showPlayer) {
+    if (widget.showPlayer) {
+      _presentedChild = widget.child;
+      if (!oldWidget.showPlayer) {
         _controller.forward();
-      } else {
-        _controller.reverse();
       }
+    } else if (oldWidget.showPlayer) {
+      _presentedChild = oldWidget.child;
+      _controller.reverse();
     }
   }
 
   @override
   void dispose() {
+    _controller.removeStatusListener(_handleAnimationStatus);
     _controller.dispose();
     super.dispose();
   }
@@ -181,19 +199,20 @@ class _SlideUpPlayerTransitionState extends State<_SlideUpPlayerTransition>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (context, child) {
-        if (_controller.isDismissed) {
+      builder: (context, _) {
+        final child = _presentedChild;
+        if (child == null) {
           return const SizedBox.shrink();
         }
         return Positioned.fill(
           left: 0,
           child: IgnorePointer(
+            key: const ValueKey<String>('playerExitIgnorePointer'),
             ignoring: !widget.showPlayer,
             child: SlideTransition(position: _slideAnimation, child: child),
           ),
         );
       },
-      child: widget.child,
     );
   }
 }

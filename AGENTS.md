@@ -249,6 +249,12 @@ Permanent downloads and rolling→permanent promotion must pre-cache cover art
 with `kCoverArtStandardSize`; smaller ad hoc sizes create different cache keys
 and can leave offline artwork blank.
 
+When `PlaybackSnapshot.hasActivePlayback` becomes false, `AppShell` must clear
+its logical player overlay stack immediately so Back targets the underlying
+route. Phone/tablet player chrome may retain the last active presentation only
+for its non-interactive exit animation; retained visuals must never retain back
+priority or accept input.
+
 ### Library sync data policy
 
 - Automatic library sync is **low-data by default** after initial sync.

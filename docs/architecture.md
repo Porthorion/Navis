@@ -249,6 +249,13 @@ Desktop mouse back/forward is powered by `navigation_history_provider.dart`. It 
 normalized GoRouter locations, represents Library root sections as `/library#section`, drops
 duplicate emissions, and truncates forward history after new navigation.
 
+Player overlays are logical shell state, separate from their visual exit
+transition. When playback becomes inactive, the shell clears the queue and
+now-playing overlay stack synchronously, and all back handlers read that live
+state rather than a value captured during an earlier build. On phone and medium
+tablet layouts, the last active player presentation is retained as an
+`IgnorePointer` only until its slide-down animation finishes.
+
 ## Adaptive Shell Architecture
 
 The adaptive shell is the central coordination surface between platform, window size, and input

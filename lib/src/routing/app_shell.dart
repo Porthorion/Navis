@@ -157,6 +157,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     _globalKeyHandlerInstalled = false;
   }
 
+  bool _dismissNowPlayingInternalOverlayIfExpanded() {
+    if (!ref.read(playerSheetExpandedProvider)) {
+      return false;
+    }
+    return _nowPlayingBackInterceptor?.call() ?? false;
+  }
+
   /// The single global key-event handler that replaces the previous
   /// `Shortcuts` / `Actions` / `onKeyEvent` widget-tree wiring.
   ///
@@ -669,6 +676,10 @@ class _AppShellState extends ConsumerState<AppShell> {
           _queueCoverArtPrefetchDebounce?.cancel();
           _playerSheetProgress.value = 0;
           ref.read(playerOverlayStackProvider.notifier).clear();
+          _nowPlayingBackInterceptor = null;
+          _compactWideInternalOverlayActive = false;
+          _compactWideQueueRequestHandler = null;
+          NavService.clearExitPrompt();
         }
       },
     );
@@ -1075,7 +1086,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             _hideQueueWithAnimation();
             return;
           }
-          if (expanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
+          if (_dismissNowPlayingInternalOverlayIfExpanded()) {
             AppLogger.debug(
               '[ACP_INPUT] desktopCommand escape handled by now-playing internal overlay',
             );
@@ -1187,7 +1198,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             if (!(ModalRoute.of(context)?.isCurrent ?? true)) {
               return false;
             }
-            if (isExpanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
+            if (_dismissNowPlayingInternalOverlayIfExpanded()) {
               return true;
             }
             // Primary handler: always delegate to the smart back chain
@@ -1212,7 +1223,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               // without also mutating the shell state underneath.
               if (didPop || !(ModalRoute.of(context)?.isCurrent ?? true))
                 return;
-              if (isExpanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
+              if (_dismissNowPlayingInternalOverlayIfExpanded()) {
                 return;
               }
               NavService.handleSystemBack(
@@ -1277,8 +1288,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         showLyricsOverlay: _showDesktopLyricsOverlay,
                         onToggleLyrics: _toggleDesktopLyricsOverlay,
                         onSystemBack: () {
-                          if (isExpanded &&
-                              (_nowPlayingBackInterceptor?.call() ?? false)) {
+                          if (_dismissNowPlayingInternalOverlayIfExpanded()) {
                             return;
                           }
                           NavService.handleSystemBack(
@@ -1465,10 +1475,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               child: NavigatorPopHandler<Object?>(
                                                 enabled: true,
                                                 onPopWithResult: (result) {
-                                                  if (isExpanded &&
-                                                      (_nowPlayingBackInterceptor
-                                                              ?.call() ??
-                                                          false)) {
+                                                  if (_dismissNowPlayingInternalOverlayIfExpanded()) {
                                                     return;
                                                   }
                                                   NavService.handleSystemBack(
@@ -1727,9 +1734,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                               child: NavigatorPopHandler<Object?>(
                                 enabled: true,
                                 onPopWithResult: (result) {
-                                  if (isExpanded &&
-                                      (_nowPlayingBackInterceptor?.call() ??
-                                          false)) {
+                                  if (_dismissNowPlayingInternalOverlayIfExpanded()) {
                                     return;
                                   }
                                   NavService.handleSystemBack(
@@ -1756,75 +1761,73 @@ class _AppShellState extends ConsumerState<AppShell> {
                     if (!useDesktopShell && !useRailNavigation)
                       _SlideUpPlayerTransition(
                         showPlayer: showPlayer,
-                        child: showPlayer
-                            ? FocusTraversalOrder(
-                                order: const NumericFocusOrder(20),
-                                child: ExpandablePlayerSheet(
-                                  isExpanded: isExpanded,
-                                  onProgressChanged: (value) {
-                                    final clamped = value.clamp(0.0, 1.0);
-                                    if ((_playerSheetProgress.value - clamped)
-                                            .abs() >
-                                        0.001) {
-                                      _playerSheetProgress.value = clamped;
-                                    }
-                                  },
-                                  onExpand: () {
-                                    // Dismiss the keyboard (e.g. search bar) before expanding
-                                    // so the Now Playing screen isn't squished.
-                                    NavService.dismissKeyboard(context);
-                                    ref
-                                        .read(
-                                          playerOverlayStackProvider.notifier,
-                                        )
-                                        .expand();
-                                  },
-                                  onCollapse: () => ref
-                                      .read(playerOverlayStackProvider.notifier)
-                                      .collapse(),
-                                  onSwipeUp: () =>
-                                      NavService.showQueue(context, ref),
-                                  miniPlayer: useRailNavigation
-                                      ? const SizedBox.shrink()
-                                      : _MiniPlayerStrip(
-                                          playback: playback,
-                                          flattenWideStyle:
-                                              useWideMiniPlayerStyle,
-                                          enableVerticalExpandGesture: false,
-                                          songTitle: songTitle,
-                                          songArtist: songArtist,
-                                          coverArtId: coverArtId,
-                                          coverArtUrl: coverArtUrl,
-                                          isRadio: playback.isRadioMode,
-                                          radioArtUrl: playback
-                                              .radioStation
-                                              ?.nowPlayingArtUrl,
-                                          onTap: () {
-                                            // Dismiss keyboard before expanding.
-                                            NavService.dismissKeyboard(context);
-                                            ref
-                                                .read(
-                                                  playerOverlayStackProvider
-                                                      .notifier,
-                                                )
-                                                .expand();
-                                          },
-                                        ),
-                                  fullPlayer: NowPlayingScreen(
-                                    onShowQueue: () =>
-                                        NavService.showQueue(context, ref),
-                                    onCollapse: () => ref
-                                        .read(
-                                          playerOverlayStackProvider.notifier,
-                                        )
-                                        .collapse(),
-                                    onBackInterceptorChanged: (handler) {
-                                      _nowPlayingBackInterceptor = handler;
+                        child: FocusTraversalOrder(
+                          order: const NumericFocusOrder(20),
+                          child: ExpandablePlayerSheet(
+                            isExpanded: isExpanded,
+                            onProgressChanged: (value) {
+                              final clamped = value.clamp(0.0, 1.0);
+                              if ((_playerSheetProgress.value - clamped).abs() >
+                                  0.001) {
+                                _playerSheetProgress.value = clamped;
+                              }
+                            },
+                            onExpand: () {
+                              // Dismiss the keyboard (e.g. search bar) before expanding
+                              // so the Now Playing screen isn't squished.
+                              NavService.dismissKeyboard(context);
+                              ref
+                                  .read(
+                                    playerOverlayStackProvider.notifier,
+                                  )
+                                  .expand();
+                            },
+                            onCollapse: () => ref
+                                .read(playerOverlayStackProvider.notifier)
+                                .collapse(),
+                            onSwipeUp: () => NavService.showQueue(context, ref),
+                            miniPlayer: useRailNavigation
+                                ? const SizedBox.shrink()
+                                : _MiniPlayerStrip(
+                                    playback: playback,
+                                    flattenWideStyle: useWideMiniPlayerStyle,
+                                    enableVerticalExpandGesture: false,
+                                    songTitle: songTitle,
+                                    songArtist: songArtist,
+                                    coverArtId: coverArtId,
+                                    coverArtUrl: coverArtUrl,
+                                    isRadio: playback.isRadioMode,
+                                    radioArtUrl:
+                                        playback.radioStation?.nowPlayingArtUrl,
+                                    onTap: () {
+                                      // Dismiss keyboard before expanding.
+                                      NavService.dismissKeyboard(context);
+                                      ref
+                                          .read(
+                                            playerOverlayStackProvider.notifier,
+                                          )
+                                          .expand();
                                     },
                                   ),
-                                ),
-                              )
-                            : const SizedBox.shrink(),
+                            fullPlayer: ProviderScope(
+                              overrides: [
+                                playerStateProvider.overrideWithValue(playback),
+                              ],
+                              child: NowPlayingScreen(
+                                onShowQueue: () =>
+                                    NavService.showQueue(context, ref),
+                                onCollapse: () => ref
+                                    .read(
+                                      playerOverlayStackProvider.notifier,
+                                    )
+                                    .collapse(),
+                                onBackInterceptorChanged: (handler) {
+                                  _nowPlayingBackInterceptor = handler;
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     if (showPlayer &&
                         !useDesktopShell &&

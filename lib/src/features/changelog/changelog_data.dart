@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.14',
+    entries: [
+      ChangelogEntry(
+        'Clearing the final queue item now closes the fullscreen player smoothly and leaves phone Back navigation responsive immediately',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.13',
     entries: [
       ChangelogEntry(

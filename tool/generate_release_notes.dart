@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.14', [
+    _Entry(
+      'Clearing the final queue item now closes the fullscreen player smoothly and leaves phone Back navigation responsive immediately',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.13', [
     _Entry(
       'Library refreshes now use the server sync cursor, verify newest albums, and continue large updates in bounded batches instead of requiring Force Full Sync',
