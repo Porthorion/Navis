@@ -55,6 +55,16 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.15', [
+    _Entry(
+      'Metadata sync failures now stay failed until the next scheduled check, reconnect, or manual retry instead of repeatedly forcing immediate retries',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Previous-track restarts and end-of-queue Next presses now use distinct replay and boundary feedback instead of looking like a track change',
+      type: _EntryType.improvement,
+    ),
+  ]),
   _Version('1.0.14', [
     _Entry(
       'Clearing the final queue item now closes the fullscreen player smoothly and leaves phone Back navigation responsive immediately',

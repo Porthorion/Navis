@@ -213,4 +213,98 @@ void main() {
       expect(_findNonZeroSlideTransitionAncestors(artShell), findsNothing);
     },
   );
+
+  testWidgets(
+    'queue boundary actions use replay and no-next feedback',
+    (tester) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(880, 1200);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final cueController = StreamController<ManualTrackChangeCue>.broadcast();
+      addTearDown(cueController.close);
+      final container = _createContainer(cueStream: cueController.stream);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: NowPlayingScreen()),
+          ),
+        ),
+      );
+
+      container.read(_testPlaybackProvider.notifier).state = _song1Playback;
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.skip_previous));
+      await tester.pump(const Duration(milliseconds: 48));
+
+      expect(
+        find.byKey(
+          const ValueKey<String>(
+            'track-navigation-feedback-replayCurrent',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.replay_rounded), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(
+          const ValueKey<String>(
+            'track-navigation-feedback-replayCurrent',
+          ),
+        ),
+        findsNothing,
+      );
+
+      container.read(_testPlaybackProvider.notifier).state = _song2Playback
+          .copyWith(position: const Duration(seconds: 42));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.skip_previous));
+      await tester.pump(const Duration(milliseconds: 48));
+
+      expect(
+        find.byKey(
+          const ValueKey<String>(
+            'track-navigation-feedback-replayCurrent',
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.pumpAndSettle();
+      container.read(_testPlaybackProvider.notifier).state = _song2Playback;
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.skip_next).first);
+      await tester.pump(const Duration(milliseconds: 48));
+
+      expect(
+        find.byKey(
+          const ValueKey<String>('track-navigation-feedback-noNext'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(
+          const ValueKey<String>('track-navigation-feedback-noNext'),
+        ),
+        findsNothing,
+      );
+    },
+  );
 }

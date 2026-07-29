@@ -255,9 +255,16 @@ route. Phone/tablet player chrome may retain the last active presentation only
 for its non-interactive exit animation; retained visuals must never retain back
 priority or accept input.
 
+Now Playing uses a full directional artwork transition only when the queue
+actually changes tracks. Restart-current Previous actions and unavailable Next
+actions use a short directional snapback with replay/end-of-queue feedback.
+
 ### Library sync data policy
 
 - Automatic library sync is **low-data by default** after initial sync.
+- A failed automatic sync remains failed until the next configured sync
+  interval, a reconnect, or an explicit manual retry. Do not add short forced
+  retry loops that repeatedly restart the same failing metadata pass.
 - Do not reintroduce periodic/daily full rebaseline scans from `syncIfStale()`.
   Full library repair belongs behind explicit Force Full Sync or a dedicated
   sync-model migration gate.

@@ -104,21 +104,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   bool _isForeground = true;
   final Queue<String> _priorityAlbumIds = Queue<String>();
   static const int _maxPriorityAlbums = 120;
-  @visibleForTesting
-  static const Duration retryAfterFailureWindow = Duration(minutes: 15);
-  static const int _maxAutoRetries = 3;
-  static const List<Duration> _autoRetryDelays = <Duration>[
-    Duration(seconds: 30),
-    Duration(minutes: 2),
-    Duration(minutes: 5),
-  ];
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
-  Timer? _autoRetryTimer;
   Timer? _verificationContinuationTimer;
-  DateTime? _lastFailedSyncAt;
-  int _autoRetryCount = 0;
-  bool _retryVerificationContinuation = false;
 
   @override
   LibrarySyncState build() {
@@ -135,7 +123,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ref.onDispose(() {
       _lifecycleListener.dispose();
       _cancelPeriodicSync();
-      _cancelAutoRetryTimer();
       _cancelVerificationContinuation();
     });
 
@@ -187,9 +174,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<LibrarySyncState> syncIfStale() {
-    if (_shouldForceRetryAfterFailure()) {
-      return syncNow();
-    }
     return _runSync(force: false);
   }
 
@@ -230,10 +214,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _startupSyncInFlight = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = null;
-      _lastFailedSyncAt = null;
-      _autoRetryCount = 0;
-      _retryVerificationContinuation = false;
-      _cancelAutoRetryTimer();
       _cancelVerificationContinuation();
       state = const LibrarySyncState.idle();
       _priorityAlbumIds.clear();
@@ -343,6 +323,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
             }
             final completedStartupPass =
                 result.status == LibrarySyncStatus.succeeded ||
+                result.status == LibrarySyncStatus.failed ||
                 (!deferFullResyncOnMobile &&
                     result.status == LibrarySyncStatus.skipped);
             if (completedStartupPass) {
@@ -419,10 +400,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     state = result;
     switch (result.status) {
       case LibrarySyncStatus.succeeded:
-        _lastFailedSyncAt = null;
-        _autoRetryCount = 0;
-        _retryVerificationContinuation = false;
-        _cancelAutoRetryTimer();
         if (!verificationContinuation) {
           unawaited(notifier.showComplete(result));
         }
@@ -432,9 +409,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
           _cancelVerificationContinuation();
         }
       case LibrarySyncStatus.failed:
-        _lastFailedSyncAt = DateTime.now();
-        _retryVerificationContinuation = verificationContinuation;
-        _scheduleAutoRetry();
         if (!verificationContinuation) {
           unawaited(notifier.showFailed(result));
         }
@@ -565,47 +539,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   void _cancelPeriodicSync() {
     _periodicSyncTimer?.cancel();
     _periodicSyncTimer = null;
-  }
-
-  bool _shouldForceRetryAfterFailure() {
-    final lastFailed = _lastFailedSyncAt;
-    if (lastFailed == null) {
-      return false;
-    }
-    return DateTime.now().difference(lastFailed) < retryAfterFailureWindow;
-  }
-
-  void _scheduleAutoRetry() {
-    _cancelAutoRetryTimer();
-    if (_autoRetryCount >= _maxAutoRetries) {
-      return;
-    }
-    if (ref.read(networkTypeProvider) == NetworkType.offline) {
-      return;
-    }
-    final delayIndex = _autoRetryCount.clamp(0, _autoRetryDelays.length - 1);
-    final delay = _autoRetryDelays[delayIndex];
-    final retryVerificationContinuation = _retryVerificationContinuation;
-    _autoRetryCount++;
-    AppLogger.debug(
-      'Scheduling library sync auto-retry #$_autoRetryCount in '
-      '${delay.inSeconds}s.',
-    );
-    _autoRetryTimer = Timer(delay, () {
-      if (!ref.mounted || state.isRunning) {
-        return;
-      }
-      unawaited(
-        retryVerificationContinuation
-            ? _runSync(force: true, verificationContinuation: true)
-            : syncNow(),
-      );
-    });
-  }
-
-  void _cancelAutoRetryTimer() {
-    _autoRetryTimer?.cancel();
-    _autoRetryTimer = null;
   }
 
   void _scheduleVerificationContinuation() {

@@ -2331,6 +2331,12 @@ abstract class AppLocalizations {
   /// **'Previous'**
   String get nowPlayingPrevious;
 
+  /// No description provided for @nowPlayingRestartCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Restarting current track'**
+  String get nowPlayingRestartCurrent;
+
   /// No description provided for @nowPlayingPlay.
   ///
   /// In en, this message translates to:
@@ -2348,6 +2354,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Next'**
   String get nowPlayingNext;
+
+  /// No description provided for @nowPlayingNoNextTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'No next track'**
+  String get nowPlayingNoNextTrack;
 
   /// No description provided for @nowPlayingRepeatOff.
   ///

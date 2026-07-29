@@ -596,7 +596,7 @@ void main() {
       expect(engine.staleCalls, 0);
     });
 
-    test('syncIfStale forces sync within retry window after failure', () async {
+    test('syncIfStale keeps the stale gate after a failed sync', () async {
       var syncNowAttempts = 0;
       final engine = _FakeLibrarySyncEngine(
         ({
@@ -666,11 +666,11 @@ void main() {
 
       await notifier.syncIfStale();
 
-      expect(syncNowAttempts, 2);
-      expect(engine.staleCalls, 0);
+      expect(syncNowAttempts, 1);
+      expect(engine.staleCalls, 1);
       expect(
         container.read(librarySyncControllerProvider).status,
-        LibrarySyncStatus.succeeded,
+        LibrarySyncStatus.skipped,
       );
     });
 

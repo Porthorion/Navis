@@ -49,6 +49,8 @@ part 'now_playing_wide_panels.dart';
 /// A single artist entry for [_TrackInfo.artistLinks].
 typedef _ArtistLink = ({String name, VoidCallback? onTap});
 
+enum _TrackNavigationFeedback { replayCurrent, noNext }
+
 Widget _songSwapTransitionBuilder(Widget child, Animation<double> animation) {
   final curved = CurvedAnimation(
     parent: animation,
@@ -1006,6 +1008,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   String? _artSwipeFromSongId;
   Timer? _artSwipeResetTimer;
   bool _artSwipeReleaseHandoffScheduled = false;
+  _TrackNavigationFeedback? _trackNavigationFeedback;
 
   bool _dismissInternalOverlaysIfVisible() {
     if (_widePanel != _WideNowPlayingPanel.none) {
@@ -1364,8 +1367,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               queueLength: playback.queueSongIds.length,
               currentIndex: playback.currentIndex,
               position: playback.position,
-            ) !=
-            NavisPreviousTrackAction.none,
+            ) ==
+            NavisPreviousTrackAction.skipToPrevious,
     };
   }
 
@@ -1483,21 +1486,29 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
 
   Future<void> _animateEdgeSnapback(
     ManualTrackChangeDirection direction,
+    _TrackNavigationFeedback feedback,
   ) async {
     final edgeTarget = switch (direction) {
       ManualTrackChangeDirection.next => -0.14,
       ManualTrackChangeDirection.previous => 0.14,
     };
-    await _animateArtSwipeTo(
-      edgeTarget,
-      duration: const Duration(milliseconds: 95),
-      curve: Curves.easeOut,
-    );
-    await _animateArtSwipeTo(
-      0,
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeOutCubic,
-    );
+    setState(() => _trackNavigationFeedback = feedback);
+    try {
+      await _animateArtSwipeTo(
+        edgeTarget,
+        duration: const Duration(milliseconds: 95),
+        curve: Curves.easeOut,
+      );
+      await _animateArtSwipeTo(
+        0,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _trackNavigationFeedback = null);
+      }
+    }
   }
 
   Future<void> _triggerManualSkipWithAnimation(
@@ -1507,8 +1518,31 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     if (_artSwipeAwaitingTrackChange || _artSwipeSettling) {
       return;
     }
-    if (!_canManualSkipDirection(widget.playback, direction)) {
-      await _animateEdgeSnapback(direction);
+    final playback = widget.playback;
+    if (direction == ManualTrackChangeDirection.previous) {
+      final previousAction = navisResolvePreviousTrackAction(
+        queueLength: playback.queueSongIds.length,
+        currentIndex: playback.currentIndex,
+        position: playback.position,
+      );
+      if (previousAction == NavisPreviousTrackAction.none) {
+        return;
+      }
+      if (previousAction == NavisPreviousTrackAction.restartCurrent) {
+        unawaited(HapticFeedback.selectionClick());
+        unawaited(ref.read(audioHandlerProvider)?.skipToPrevious());
+        await _animateEdgeSnapback(
+          direction,
+          _TrackNavigationFeedback.replayCurrent,
+        );
+        return;
+      }
+    } else if (!_canManualSkipDirection(playback, direction)) {
+      unawaited(HapticFeedback.selectionClick());
+      await _animateEdgeSnapback(
+        direction,
+        _TrackNavigationFeedback.noNext,
+      );
       return;
     }
 
@@ -1639,6 +1673,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   ? nextArt
                   : (swipe > 0.001 ? previousArt : null);
               final incomingOffsetX = swipe < 0 ? 1 + swipe : -1 + swipe;
+              final feedback = _trackNavigationFeedback;
+              final feedbackProgress = (absSwipe / 0.14).clamp(0.0, 1.0);
+              final l10n = AppLocalizations.of(context)!;
+              final colorScheme = Theme.of(context).colorScheme;
               return ClipRect(
                 child: Stack(
                   alignment: Alignment.center,
@@ -1659,6 +1697,60 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         child: currentArt,
                       ),
                     ),
+                    if (feedback != null)
+                      Align(
+                        alignment:
+                            feedback == _TrackNavigationFeedback.replayCurrent
+                            ? Alignment.centerLeft
+                            : Alignment.centerRight,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: Opacity(
+                            opacity: feedbackProgress,
+                            child: Transform.scale(
+                              scale: 0.8 + (0.2 * feedbackProgress),
+                              child: Semantics(
+                                liveRegion: true,
+                                label:
+                                    feedback ==
+                                        _TrackNavigationFeedback.replayCurrent
+                                    ? l10n.nowPlayingRestartCurrent
+                                    : l10n.nowPlayingNoNextTrack,
+                                child: DecoratedBox(
+                                  key: ValueKey<String>(
+                                    'track-navigation-feedback-${feedback.name}',
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    shape: BoxShape.circle,
+                                    boxShadow: <BoxShadow>[
+                                      BoxShadow(
+                                        color: colorScheme.shadow.withValues(
+                                          alpha: 0.22,
+                                        ),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: SizedBox.square(
+                                    dimension: 52,
+                                    child: Icon(
+                                      feedback ==
+                                              _TrackNavigationFeedback
+                                                  .replayCurrent
+                                          ? Icons.replay_rounded
+                                          : Icons.skip_next_rounded,
+                                      color: colorScheme.onPrimaryContainer,
+                                      size: 30,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               );

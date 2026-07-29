@@ -401,10 +401,18 @@ queue rather than the prepared transport queue, with
 `hasPendingLogicalQueue == true`. Queue UIs should display those IDs but avoid
 remove, reorder, or play-index actions until the transport queue catches up.
 
+Now Playing commits a full directional artwork transition only for an actual
+queue-index change. Previous actions that restart the current track and Next
+actions at the end of the queue use a short directional snapback with
+replay/end-of-queue feedback instead.
+
 ### Sync Flow
 
 1. App launch or periodic timer → `LibrarySyncController.syncIfStale()`
 2. Sync controller checks staleness threshold and skips cellular auto-sync
+   Failed automatic passes remain failed until the next configured interval,
+   reconnect, or explicit manual retry; they do not start short forced retry
+   loops
 3. Sync engine sends the persisted server `Indexes.lastModified` cursor to
    `getIndexes(ifModifiedSince)`; local completion time is used only for
    scheduling and status

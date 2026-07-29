@@ -1265,6 +1265,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingPrevious => 'Previous';
 
   @override
+  String get nowPlayingRestartCurrent => 'Restarting current track';
+
+  @override
   String get nowPlayingPlay => 'Play';
 
   @override
@@ -1272,6 +1275,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nowPlayingNext => 'Next';
+
+  @override
+  String get nowPlayingNoNextTrack => 'No next track';
 
   @override
   String get nowPlayingRepeatOff => 'Repeat off';

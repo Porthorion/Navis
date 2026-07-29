@@ -27,6 +27,19 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.15',
+    entries: [
+      ChangelogEntry(
+        'Metadata sync failures now stay failed until the next scheduled check, reconnect, or manual retry instead of repeatedly forcing immediate retries',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Previous-track restarts and end-of-queue Next presses now use distinct replay and boundary feedback instead of looking like a track change',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.14',
     entries: [
       ChangelogEntry(
