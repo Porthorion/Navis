@@ -464,6 +464,28 @@ Set<MediaAction> navisSystemActionsForCapabilities(
 }
 
 @visibleForTesting
+PlaybackState navisAndroidAutoPlaybackErrorState(
+  PlaybackState current,
+  String message,
+) {
+  return current.copyWith(
+    processingState: AudioProcessingState.error,
+    playing: false,
+    controls: const <MediaControl>[],
+    androidCompactActionIndices: const <int>[],
+    systemActions: const <MediaAction>{
+      MediaAction.prepare,
+      MediaAction.prepareFromMediaId,
+      MediaAction.prepareFromSearch,
+      MediaAction.playFromMediaId,
+      MediaAction.playFromSearch,
+    },
+    errorCode: 1,
+    errorMessage: message,
+  );
+}
+
+@visibleForTesting
 Duration navisSanitizeSeekPosition(Duration position) {
   if (position < Duration.zero) {
     return Duration.zero;

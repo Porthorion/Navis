@@ -37,6 +37,10 @@ const List<ChangelogVersion> changelogs = [
         'Previous-track restarts and end-of-queue Next presses now use distinct replay and boundary feedback instead of looking like a track change',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Android Auto now preserves playlist order, searches playlists reliably, falls back quickly when the server is unavailable, and rejects unrelated media-browser clients',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

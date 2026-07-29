@@ -350,6 +350,25 @@ void main() {
       });
     });
 
+    test('Android Auto playback failures expose a recoverable error state', () {
+      final state = navisAndroidAutoPlaybackErrorState(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: true,
+          controls: const <MediaControl>[MediaControl.pause],
+        ),
+        'Unable to play this item.',
+      );
+
+      expect(state.processingState, AudioProcessingState.error);
+      expect(state.playing, isFalse);
+      expect(state.errorCode, 1);
+      expect(state.errorMessage, 'Unable to play this item.');
+      expect(state.controls, isEmpty);
+      expect(state.systemActions, contains(MediaAction.playFromMediaId));
+      expect(state.systemActions, contains(MediaAction.playFromSearch));
+    });
+
     test('seek sanitize helper clamps negatives to zero', () {
       expect(
         navisSanitizeSeekPosition(const Duration(seconds: -5)),

@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
@@ -8,6 +14,35 @@ import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 
 import '../../../../helpers/test_database.dart';
+
+class _FakeSearchApiClient extends SubsonicApiClient {
+  _FakeSearchApiClient(this.onSearch)
+    : super(
+        baseUrl: 'https://example.com',
+        authConfig: const SubsonicAuthConfig(
+          username: 'test',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+
+  final Future<SearchResult3> Function() onSearch;
+
+  @override
+  Future<SearchResult3> search3({
+    required String query,
+    int artistCount = 20,
+    int albumCount = 20,
+    int songCount = 20,
+    int artistOffset = 0,
+    int albumOffset = 0,
+    int songOffset = 0,
+    CancelToken? cancelToken,
+  }) {
+    return onSearch();
+  }
+}
 
 void main() {
   late NavisDatabase database;
@@ -32,10 +67,10 @@ void main() {
 
   group('getChildren - root', () {
     test(
-      'returns 5 root items',
+      'returns at most 4 root items for car navigation tabs',
       () async {
         final items = await service.getChildren(AutoMediaRoot.root);
-        expect(items, hasLength(5));
+        expect(items, hasLength(4));
       },
       skip: !sqliteAvailable,
     );
@@ -48,7 +83,6 @@ void main() {
         expect(ids, [
           AutoMediaRoot.albums,
           AutoMediaRoot.recent,
-          AutoMediaRoot.artists,
           AutoMediaRoot.playlists,
           AutoMediaRoot.more,
         ]);
@@ -86,10 +120,10 @@ void main() {
 
   group('getChildren - more', () {
     test(
-      'returns 3 secondary categories',
+      'returns 4 secondary categories',
       () async {
         final items = await service.getChildren(AutoMediaRoot.more);
-        expect(items, hasLength(3));
+        expect(items, hasLength(4));
       },
       skip: !sqliteAvailable,
     );
@@ -99,6 +133,7 @@ void main() {
       () async {
         final items = await service.getChildren(AutoMediaRoot.more);
         final ids = items.map((e) => e.id).toList();
+        expect(ids, contains(AutoMediaRoot.artists));
         expect(ids, contains(AutoMediaRoot.liked));
         expect(ids, contains(AutoMediaRoot.instantMix));
         expect(ids, contains(AutoMediaRoot.instantRadio));
@@ -301,8 +336,13 @@ void main() {
 
         final items = await service.getChildren('album/al1');
         expect(items, hasLength(2));
-        expect(items[0].id, 'song/s1');
-        expect(items[1].id, 'song/s2');
+        expect(
+          AutoMediaId.parse(items[0].id)?.contextType,
+          AutoMediaContextType.album,
+        );
+        expect(AutoMediaId.parse(items[0].id)?.contextId, 'al1');
+        expect(AutoMediaId.songIdFrom(items[0].id), 's1');
+        expect(AutoMediaId.songIdFrom(items[1].id), 's2');
       },
       skip: !sqliteAvailable,
     );
@@ -434,6 +474,15 @@ void main() {
 
         final items = await service.getChildren('playlist/pl1');
         expect(items, hasLength(2));
+        expect(
+          items.map((item) => AutoMediaId.songIdFrom(item.id)),
+          containsAllInOrder(<String?>['s1', 's2']),
+        );
+        for (final item in items) {
+          final parsed = AutoMediaId.parse(item.id);
+          expect(parsed?.contextType, AutoMediaContextType.playlist);
+          expect(parsed?.contextId, 'pl1');
+        }
       },
       skip: !sqliteAvailable,
     );
@@ -519,13 +568,10 @@ void main() {
     );
 
     test(
-      'system recent root returns placeholder when empty',
+      'system recent root returns no resumable item when empty',
       () async {
         final items = await service.getChildren(AudioService.recentRootId);
-        expect(items, hasLength(1));
-        expect(items.single.id, 'empty/${AudioService.recentRootId}');
-        expect(items.single.title, 'No recent plays');
-        expect(items.single.playable, isFalse);
+        expect(items, isEmpty);
       },
       skip: !sqliteAvailable,
     );
@@ -627,6 +673,34 @@ void main() {
         expect(item, isNotNull);
         expect(item!.title, 'The Artist');
         expect(item.playable, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'does not expose provisional album and artist parents',
+      () async {
+        await database.libraryDao.upsertProvisionalAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'provisional-album',
+            name: 'Provisional Album',
+          ),
+        ]);
+        await database.libraryDao.upsertProvisionalArtists([
+          ArtistsTableCompanion.insert(
+            id: 'provisional-artist',
+            name: 'Provisional Artist',
+          ),
+        ]);
+
+        expect(
+          await service.getMediaItem('album/provisional-album'),
+          isNull,
+        );
+        expect(
+          await service.getMediaItem('artist/provisional-artist'),
+          isNull,
+        );
       },
       skip: !sqliteAvailable,
     );
@@ -868,6 +942,86 @@ void main() {
 
         final items = await service.search('bohemian');
         expect(items, hasLength(1));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'remote search merges matching local playlists',
+      () async {
+        await database.playlistDao.upsertPlaylists([
+          PlaylistsTableCompanion.insert(
+            id: 'playlist-1',
+            name: 'Road Trip',
+          ),
+        ]);
+        service = AutoMediaTreeService(
+          libraryDao: database.libraryDao,
+          playlistDao: database.playlistDao,
+          playQueueDao: database.playQueueDao,
+          historyDao: database.historyDao,
+          readApiClient: () => _FakeSearchApiClient(
+            () async => const SearchResult3(),
+          ),
+        );
+
+        final items = await service.search('Road');
+
+        expect(items, hasLength(1));
+        expect(items.single.id, 'playlist/playlist-1');
+        expect(
+          items.single.extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+          'Playlists',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'remote search timeout falls back to local results',
+      () async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'song-1', title: 'Road Song'),
+        ]);
+        service = AutoMediaTreeService(
+          libraryDao: database.libraryDao,
+          playlistDao: database.playlistDao,
+          playQueueDao: database.playQueueDao,
+          historyDao: database.historyDao,
+          readApiClient: () => _FakeSearchApiClient(
+            () => Completer<SearchResult3>().future,
+          ),
+          remoteSearchTimeout: const Duration(milliseconds: 10),
+        );
+
+        final items = await service.search('Road');
+
+        expect(items, hasLength(1));
+        expect(items.single.id, 'song/song-1');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'empty remote search falls back to local results',
+      () async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'song-1', title: 'Road Song'),
+        ]);
+        service = AutoMediaTreeService(
+          libraryDao: database.libraryDao,
+          playlistDao: database.playlistDao,
+          playQueueDao: database.playQueueDao,
+          historyDao: database.historyDao,
+          readApiClient: () => _FakeSearchApiClient(
+            () async => const SearchResult3(),
+          ),
+        );
+
+        final items = await service.search('Road');
+
+        expect(items, hasLength(1));
+        expect(items.single.id, 'song/song-1');
       },
       skip: !sqliteAvailable,
     );

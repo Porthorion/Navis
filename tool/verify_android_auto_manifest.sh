@@ -9,6 +9,10 @@ APK_PATH="${2:-}"
 
 if [[ -z "$MANIFEST_PATH" ]]; then
   for candidate in \
+    build/app/intermediates/merged_manifests/sideloadDebug/processSideloadDebugManifest/AndroidManifest.xml \
+    build/app/intermediates/merged_manifests/playDebug/processPlayDebugManifest/AndroidManifest.xml \
+    build/app/intermediates/merged_manifests/sideloadRelease/processSideloadReleaseManifest/AndroidManifest.xml \
+    build/app/intermediates/merged_manifests/playRelease/processPlayReleaseManifest/AndroidManifest.xml \
     android/app/build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml \
     android/app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml \
     android/app/build/intermediates/merged_manifest/profile/processProfileMainManifest/AndroidManifest.xml \
@@ -81,8 +85,12 @@ require_contains \
   "car app theme metadata exists"
 require_contains \
   "$MANIFEST_PATH" \
+  'android:name="com.navis.app.navis.NavisAudioService"' \
+  "Navis caller-validating MediaBrowserService is declared"
+require_not_contains \
+  "$MANIFEST_PATH" \
   'android:name="com.ryanheise.audioservice.AudioService"' \
-  "audio_service MediaBrowserService is declared"
+  "stock audio_service is not exported directly"
 require_contains \
   "$MANIFEST_PATH" \
   'android:label="@string/app_name"' \
@@ -110,6 +118,10 @@ require_not_contains \
 
 if [[ -z "$APK_PATH" ]]; then
   for candidate in \
+    build/app/outputs/flutter-apk/app-sideload-debug.apk \
+    build/app/outputs/flutter-apk/app-play-debug.apk \
+    build/app/outputs/flutter-apk/app-sideload-release.apk \
+    build/app/outputs/flutter-apk/app-play-release.apk \
     build/app/outputs/flutter-apk/app-debug.apk \
     build/app/outputs/flutter-apk/app-release.apk \
     build/app/outputs/flutter-apk/app-profile.apk; do

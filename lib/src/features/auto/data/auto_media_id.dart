@@ -35,25 +35,54 @@ enum AutoMediaIdType {
   likedSubcategory,
 }
 
+/// Browse container that supplied a playable song leaf.
+enum AutoMediaContextType { album, playlist }
+
 /// A parsed representation of a browse-tree media ID.
 final class ParsedMediaId {
-  const ParsedMediaId({required this.type, this.entityId});
+  const ParsedMediaId({
+    required this.type,
+    this.entityId,
+    this.contextType,
+    this.contextId,
+  });
 
   final AutoMediaIdType type;
 
   /// The entity ID (artist, album, playlist, or song ID).  Null for root and
   /// root-category nodes.
   final String? entityId;
+
+  /// Album or playlist whose browse view supplied this song.
+  final AutoMediaContextType? contextType;
+
+  /// Opaque server ID for [contextType].
+  final String? contextId;
 }
 
 /// Codec for Android Auto media IDs.
 abstract final class AutoMediaId {
+  static final RegExp _invalidPercentEncoding = RegExp(
+    '%(?![0-9A-Fa-f]{2})',
+  );
+
   // ── Encoding ──────────────────────────────────────────────────────────────
 
   static String artist(String artistId) => 'artist/$artistId';
   static String album(String albumId) => 'album/$albumId';
   static String playlist(String playlistId) => 'playlist/$playlistId';
-  static String song(String songId) => 'song/$songId';
+  static String song(
+    String songId, {
+    AutoMediaContextType? contextType,
+    String? contextId,
+  }) {
+    if (contextType == null || contextId == null || contextId.isEmpty) {
+      return 'song/$songId';
+    }
+    return 'song/$songId'
+        '?context=${contextType.name}'
+        '&contextId=${Uri.encodeQueryComponent(contextId)}';
+  }
 
   // ── Decoding ──────────────────────────────────────────────────────────────
 
@@ -79,12 +108,18 @@ abstract final class AutoMediaId {
       return const ParsedMediaId(type: AutoMediaIdType.likedSubcategory);
     }
 
-    // Entity prefixes
-    final slashIndex = mediaId.indexOf('/');
-    if (slashIndex < 1 || slashIndex == mediaId.length - 1) return null;
+    // Entity prefixes. Song leaves may append browse-container context so a
+    // playlist selection can retain playlist order through playFromMediaId.
+    final queryIndex = mediaId.indexOf('?');
+    final path = queryIndex < 0 ? mediaId : mediaId.substring(0, queryIndex);
+    final slashIndex = path.indexOf('/');
+    if (slashIndex < 1 || slashIndex == path.length - 1) return null;
 
-    final prefix = mediaId.substring(0, slashIndex);
-    final id = mediaId.substring(slashIndex + 1);
+    final prefix = path.substring(0, slashIndex);
+    final id = path.substring(slashIndex + 1);
+    final context = prefix == 'song' && queryIndex >= 0
+        ? _parseSongContext(mediaId.substring(queryIndex + 1))
+        : null;
 
     return switch (prefix) {
       'artist' => ParsedMediaId(
@@ -102,6 +137,8 @@ abstract final class AutoMediaId {
       'song' => ParsedMediaId(
         type: AutoMediaIdType.song,
         entityId: id,
+        contextType: context?.type,
+        contextId: context?.id,
       ),
       _ => null,
     };
@@ -135,4 +172,28 @@ abstract final class AutoMediaId {
     AutoMediaRoot.instantMix,
     AutoMediaRoot.more,
   };
+
+  static ({AutoMediaContextType type, String id})? _parseSongContext(
+    String query,
+  ) {
+    if (_invalidPercentEncoding.hasMatch(query)) {
+      return null;
+    }
+    final Map<String, String> parameters;
+    try {
+      parameters = Uri.splitQueryString(query);
+    } on FormatException {
+      return null;
+    }
+    final type = switch (parameters['context']) {
+      'album' => AutoMediaContextType.album,
+      'playlist' => AutoMediaContextType.playlist,
+      _ => null,
+    };
+    final id = parameters['contextId']?.trim();
+    if (type == null || id == null || id.isEmpty) {
+      return null;
+    }
+    return (type: type, id: id);
+  }
 }

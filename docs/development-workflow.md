@@ -228,6 +228,18 @@ Defaults used by this script:
 
 This ensures the dev app can live next to stable and the in-app updater checks dev-channel release assets.
 
+For Android Auto phone-projection work, validate the source or merged manifest
+before starting DHU:
+
+```bash
+./tool/verify_android_auto_manifest.sh
+```
+
+The verifier requires the automotive descriptor, projection metadata, exported
+caller-validating `NavisAudioService`, media-browser intent filter, icon/theme
+metadata, and the absence of the privileged bind permission. If an APK already
+exists, it also confirms that the descriptor was packaged.
+
 When Android SDK/device is not available locally, you can still verify app startup behavior with Linux desktop:
 
 ```bash

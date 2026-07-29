@@ -87,6 +87,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/dev_app.sh linux
 ./tool/dev_app.sh auto       # Android Auto
 ./tool/dev_app.sh dhu        # Desktop Head Unit
+./tool/verify_android_auto_manifest.sh  # Android Auto manifest/APK contract
 
 # Release (runs check unless --skip-checks)
 ./tool/release.sh v1.2.3
@@ -231,6 +232,17 @@ User action → queueProvider (QueueController)
 ```
 
 Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-cache)** → **Stream**
+
+Android Auto is phone projection through the Android `MediaBrowserService`,
+not an app UI rendered on the head unit. `NavisAudioService` subclasses the
+`audio_service` service to validate browser callers before exposing the
+handler-owned `AutoMediaTreeService`. Release builds admit the app itself,
+system clients, and known Android Auto/Google media hosts; debug builds also
+admit UID-verified controller-test clients. Keep the root at four browsable
+tabs (`Albums`, `Recent`, `Playlists`, `More`); `Artists` lives under `More`.
+Song browse IDs may carry album/playlist context, but persisted and transport
+queue IDs remain raw Subsonic song IDs. Projected search must fall back to the
+local database within the Android for Cars 10-second content-load limit.
 
 Queue replacement is two-phase for album-style queues: phase 1 prepares only
 the tapped song in the transport queue so playback starts quickly; phase 2
@@ -496,7 +508,7 @@ Commits reference issues as `fix(#N):` or `(issue #N)`.
 | **macOS release** | Native Control Centre bridge (`MPRemoteCommandCenter`) still pending |
 | **Linux** | MPRIS via the app-owned `dbus` bridge |
 | **Windows** | SMTC via `smtc_windows` |
-| **Android** | `audio_service` media session; Android Auto in `features/auto/` |
+| **Android** | `audio_service` media session; caller-validated Android Auto phone projection in `features/auto/` and `NavisAudioService` |
 | **iOS** | CarPlay and media-session parity under audit |
 | **Listen Together** | Retired; no active UI files remain and no Voyage sibling repo is required |
 

@@ -34,6 +34,17 @@ void main() {
     test('song encodes correctly', () {
       expect(AutoMediaId.song('s1'), 'song/s1');
     });
+
+    test('song encodes playlist browse context', () {
+      expect(
+        AutoMediaId.song(
+          's1',
+          contextType: AutoMediaContextType.playlist,
+          contextId: 'road trip/2026',
+        ),
+        'song/s1?context=playlist&contextId=road+trip%2F2026',
+      );
+    });
   });
 
   group('AutoMediaId.parse', () {
@@ -101,6 +112,35 @@ void main() {
       expect(parsed.entityId, 's1');
     });
 
+    test('parses song browse context', () {
+      final parsed = AutoMediaId.parse(
+        'song/s1?context=playlist&contextId=road+trip%2F2026',
+      );
+      expect(parsed, isNotNull);
+      expect(parsed!.type, AutoMediaIdType.song);
+      expect(parsed.entityId, 's1');
+      expect(parsed.contextType, AutoMediaContextType.playlist);
+      expect(parsed.contextId, 'road trip/2026');
+    });
+
+    test('ignores incomplete song browse context', () {
+      final parsed = AutoMediaId.parse('song/s1?context=playlist');
+      expect(parsed, isNotNull);
+      expect(parsed!.entityId, 's1');
+      expect(parsed.contextType, isNull);
+      expect(parsed.contextId, isNull);
+    });
+
+    test('ignores malformed song browse context', () {
+      final parsed = AutoMediaId.parse(
+        'song/s1?context=playlist&contextId=%invalid',
+      );
+      expect(parsed, isNotNull);
+      expect(parsed!.entityId, 's1');
+      expect(parsed.contextType, isNull);
+      expect(parsed.contextId, isNull);
+    });
+
     test('handles IDs with multiple slashes', () {
       // "song/some/nested/id" → prefix is "song", entityId is "some/nested/id"
       // Current implementation only splits on first slash
@@ -130,6 +170,12 @@ void main() {
   group('AutoMediaId.songIdFrom', () {
     test('accepts prefixed song browse IDs', () {
       expect(AutoMediaId.songIdFrom('song/s1'), 's1');
+      expect(
+        AutoMediaId.songIdFrom(
+          'song/s1?context=playlist&contextId=playlist-1',
+        ),
+        's1',
+      );
     });
 
     test('accepts raw queue song IDs', () {
@@ -179,6 +225,19 @@ void main() {
       final parsed = AutoMediaId.parse(encoded);
       expect(parsed!.type, AutoMediaIdType.song);
       expect(parsed.entityId, id);
+    });
+
+    test('contextual song roundtrips', () {
+      final encoded = AutoMediaId.song(
+        'song-1234',
+        contextType: AutoMediaContextType.album,
+        contextId: 'album/99',
+      );
+      final parsed = AutoMediaId.parse(encoded);
+      expect(parsed!.type, AutoMediaIdType.song);
+      expect(parsed.entityId, 'song-1234');
+      expect(parsed.contextType, AutoMediaContextType.album);
+      expect(parsed.contextId, 'album/99');
     });
   });
 }

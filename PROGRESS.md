@@ -763,16 +763,16 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - [x] Lock execution order (audio preflight before shell/layout implementation) and integrate into canonical phase docs — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` section "26.D Phase 26.2 Implementation Sequence" and this phase section)
 
 ### 26.1 — Android Auto & CarPlay
-- [ ] `AutoMediaLibraryService` — extends `NavisAudioHandler` with `getChildren()` / `getMediaItem()` browsable tree
-- [ ] `autoContentProvider` — Riverpod provider constructing `MediaItem` hierarchy (root -> artists/albums/playlists -> tracks)
-- [ ] Android `AndroidManifest.xml`: `MediaBrowserService` export + `android.hardware.type.automotive` uses-feature
-- [ ] Artists, Albums, Playlists root tabs; drill-down into albums -> tracks
-- [ ] Android Auto: queue operations wired (play/pause/next/previous/seek/search)
+- [x] Handler-owned `AutoMediaTreeService` implements `getChildren()` / `getMediaItem()` / search over the local library — 2026-07-30 (evidence: `lib/src/features/auto/data/auto_media_tree_service.dart`, `test/src/features/auto/data/auto_media_tree_service_test.dart`)
+- [x] Android Auto content hierarchy is constructed inside the shared audio handler, avoiding a second playback/provider graph — 2026-07-30 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `test/src/features/player/data/navis_audio_handler_test.dart`)
+- [x] Android `AndroidManifest.xml`: caller-validating `NavisAudioService` export, projection metadata, and optional automotive uses-feature — 2026-07-30 (evidence: `android/app/src/main/kotlin/com/navis/app/navis/NavisAudioService.kt`, `android/app/src/test/kotlin/com/navis/app/navis/NavisMediaBrowserCallerValidatorTest.kt`, `./gradlew testSideloadDebugUnitTest`, packaged APK verification via `tool/verify_android_auto_manifest.sh`)
+- [x] Four compliant root tabs (Albums, Recent, Playlists, More), Artists under More, and album/playlist track drill-down — 2026-07-30 (evidence: `lib/src/features/auto/data/auto_media_id.dart`, `lib/src/features/auto/data/auto_media_tree_service.dart`, focused Auto media-tree tests)
+- [x] Android Auto queue operations wired (play/pause/next/previous/seek/search), including contextual playlist order and bounded local search fallback — 2026-07-30 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, focused Auto media-ID/tree and audio-handler tests)
 - [ ] `CarPlayController` — Swift platform channel implementing `MPPlayableContentDataSource` + `MPPlayableContentDelegate`
 - [ ] iOS `Runner.entitlements`: `com.apple.developer.carplay-audio` entitlement
 - [ ] Siri Shortcuts `INPlayMediaIntent` integration
 - [ ] l10n keys for Auto/CarPlay content tree root labels
-- [ ] Graceful degradation (inert when not connected, error `MediaItem` on tree load failure)
+- [x] Graceful degradation (inert when not connected, browse placeholders, empty system recent root, and media-session playback errors) — 2026-07-30 (evidence: `lib/src/features/auto/data/auto_media_tree_service.dart`, `lib/src/features/player/data/navis_playback_rules.dart`, focused Auto and playback tests, `./tool/check.sh`)
 
 ### 26.2 — Desktop Support (Windows, macOS, Linux)
 - [x] Add deps for desktop runtime split and integration: `window_manager`, `audio_service_mpris`, `smtc_windows`, `just_audio_media_kit`, `media_kit_libs_windows_audio`, `media_kit_libs_linux` — 2026-03-07 (evidence: `pubspec.yaml`, `flutter pub add ...`)

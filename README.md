@@ -6,7 +6,7 @@ Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library br
 
 | Platform | Status | Notes |
 |---|---|---|
-| Android | Supported | Primary mobile target; `audio_service` media session/notification path active |
+| Android | Supported | Primary mobile target; `audio_service` media session plus caller-validated Android Auto phone projection |
 | iOS | Supported | Built from macOS/Xcode; playback path active, CarPlay and media-session parity still under audit |
 | macOS | Supported | Native desktop build with adaptive shell and shortcuts; native Control Centre bridge still pending |
 | Linux | Supported | Native desktop build with adaptive shell, shortcuts, and MPRIS integration |
@@ -33,7 +33,10 @@ Minimum tested versions:
 
 ## Media Integration Status
 
-- Android: media session and notification metadata are handled through `audio_service`.
+- Android: media session and notification metadata are handled through
+  `audio_service`; Android Auto projects the phone app's four-tab library,
+  search, queue, resume state, and transport controls over a validated media
+  browser connection.
 - Linux: desktop now-playing and media-key integration use the app-owned
   MPRIS bridge over `dbus`.
 - Windows: system media transport controls are bridged through `smtc_windows`.

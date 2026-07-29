@@ -22,6 +22,17 @@ Checks performed (in order, fail-fast):
 
 The script also checks `/tmp` disk space before starting to prevent misleading test hangs.
 
+Android Auto projection manifest validation is available as a focused manual
+gate:
+
+```bash
+./tool/verify_android_auto_manifest.sh
+```
+
+It checks that release discovery metadata and the caller-validating
+`NavisAudioService` are present, the stock plugin service is not exported
+directly, and no privileged media-browser bind permission blocks Android Auto.
+
 ### Core Gate
 
 Use for the focused release checks when the full development test matrix is not

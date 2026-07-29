@@ -27,6 +27,21 @@ Located in `lib/src/providers/app_providers.dart`:
   - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses the
     app-owned SMTC bridge; Android, iOS, and macOS use `audio_service`
 
+- **Android Auto phone projection**
+  - `NavisAudioService` is the exported native `MediaBrowserService`. It
+    validates the caller package against its UID, then delegates accepted
+    clients to the plugin service and the shared `NavisAudioHandler`.
+  - `AutoMediaTreeService` builds the local database-backed browse tree. Its
+    four root tabs are Albums, Recent, Playlists, and More; Artists, Liked,
+    Instant Mix, and Instant Radio are available below More.
+  - Song browse IDs are opaque and can retain album or playlist context.
+    `NavisAudioHandler` uses that context to build the requested queue while
+    keeping raw Subsonic IDs in playback and persisted queues.
+  - Search merges server artists/albums/songs with local playlists, times out
+    server work after eight seconds, and falls back to local results.
+  - See `docs/android-auto-testing.md` for DHU validation and
+    `docs/android_auto_real_car_testing.md` for trusted-store real-car checks.
+
 - **Cache Management**
   - `rollingCacheManagerProvider` - Rolling cache manager
   - `rollingCacheBudgetBytesProvider` - Live cache size budget read for every

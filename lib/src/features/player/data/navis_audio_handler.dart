@@ -280,7 +280,10 @@ class NavisAudioHandler extends BaseAudioHandler
     Map<String, dynamic>? extras,
   ]) async {
     AppLogger.info('Android Auto playFromMediaId mediaId=$mediaId');
-    await _loadFromMediaId(mediaId, autoPlay: true);
+    await _runAndroidAutoLoad(
+      () => _loadFromMediaId(mediaId, autoPlay: true),
+      failureMessage: 'Unable to play this item.',
+    );
   }
 
   @override
@@ -298,7 +301,10 @@ class NavisAudioHandler extends BaseAudioHandler
     Map<String, dynamic>? extras,
   ]) async {
     AppLogger.info('Android Auto prepareFromMediaId mediaId=$mediaId');
-    await _loadFromMediaId(mediaId, autoPlay: false);
+    await _runAndroidAutoLoad(
+      () => _loadFromMediaId(mediaId, autoPlay: false),
+      failureMessage: 'Unable to prepare this item.',
+    );
   }
 
   @override
@@ -307,10 +313,13 @@ class NavisAudioHandler extends BaseAudioHandler
     Map<String, dynamic>? extras,
   ]) async {
     AppLogger.info('Android Auto prepareFromSearch query="$query"');
-    await _loadFromSearch(query, extras, autoPlay: false);
+    await _runAndroidAutoLoad(
+      () => _loadFromSearch(query, extras, autoPlay: false),
+      failureMessage: 'No matching music was found.',
+    );
   }
 
-  Future<void> _loadFromMediaId(
+  Future<bool> _loadFromMediaId(
     String mediaId, {
     required bool autoPlay,
   }) async {
@@ -318,22 +327,19 @@ class NavisAudioHandler extends BaseAudioHandler
     switch (mediaId) {
       case AutoMediaRoot.instantMix:
         if (autoPlay) {
-          await _playInstantMixFromCurrentSong();
+          return _playInstantMixFromCurrentSong();
         }
-        return;
+        return _queueInstantRadioFallback(autoPlay: false);
       case AutoMediaRoot.instantRadio:
         if (autoPlay) {
-          await _playInstantRadio();
-        } else {
-          await _queueInstantRadioFallback(autoPlay: false);
+          return _playInstantRadio();
         }
-        return;
+        return _queueInstantRadioFallback(autoPlay: false);
       case AutoMediaRoot.likedSongs:
         final songs = await _libraryDao.watchAllStarredSongs().first;
-        if (songs.isNotEmpty) {
-          await replaceQueueWithData(songs, autoPlay: autoPlay);
-        }
-        return;
+        if (songs.isEmpty) return false;
+        await replaceQueueWithData(songs, autoPlay: autoPlay);
+        return _queueItems.isNotEmpty;
       case AutoMediaRoot.likedAlbums:
         final albums = await _libraryDao.watchLikedAlbums().first;
         final allSongs = <SongsTableData>[];
@@ -342,18 +348,16 @@ class NavisAudioHandler extends BaseAudioHandler
             await _libraryDao.watchSongsByAlbum(album.id).first,
           );
         }
-        if (allSongs.isNotEmpty) {
-          await replaceQueueWithData(allSongs, autoPlay: autoPlay);
-        }
-        return;
+        if (allSongs.isEmpty) return false;
+        await replaceQueueWithData(allSongs, autoPlay: autoPlay);
+        return _queueItems.isNotEmpty;
       case AutoMediaRoot.recent:
         final songs = await _historyDao
             .watchRecentlyPlayedSongs(limit: 50)
             .first;
-        if (songs.isNotEmpty) {
-          await replaceQueueWithData(songs, autoPlay: autoPlay);
-        }
-        return;
+        if (songs.isEmpty) return false;
+        await replaceQueueWithData(songs, autoPlay: autoPlay);
+        return _queueItems.isNotEmpty;
     }
 
     // Handle entity media IDs (artist/album/playlist/song).
@@ -362,25 +366,46 @@ class NavisAudioHandler extends BaseAudioHandler
       final rawSongId = AutoMediaId.songIdFrom(mediaId);
       if (rawSongId == null) {
         AppLogger.debug('Android Auto mediaId ignored: $mediaId');
-        return;
+        return false;
       }
       final songs = await _libraryDao.getSongsByIds([rawSongId]);
       if (songs.isEmpty) {
         AppLogger.debug('Android Auto raw song mediaId not found: $mediaId');
-        return;
+        return false;
       }
       await replaceQueueWithData(songs, autoPlay: autoPlay);
-      return;
+      return _queueItems.isNotEmpty;
     }
-    if (parsed.entityId == null) return;
+    if (parsed.entityId == null) return false;
 
     switch (parsed.type) {
       case AutoMediaIdType.song:
-        // Load the song's album context only when the user has opted in.
         final songs = await _libraryDao.getSongsByIds([parsed.entityId!]);
-        if (songs.isEmpty) break;
+        if (songs.isEmpty) return false;
         final song = songs.first;
-        final albumId = song.albumId;
+        if (parsed.contextType == AutoMediaContextType.playlist &&
+            parsed.contextId != null) {
+          final playlistSongs = await _playlistDao
+              .watchPlaylistSongs(parsed.contextId!)
+              .first;
+          final startIndex = playlistSongs.indexWhere(
+            (item) => item.id == parsed.entityId,
+          );
+          if (startIndex >= 0) {
+            await replaceQueueWithData(
+              playlistSongs,
+              startIndex: startIndex,
+              autoPlay: autoPlay,
+            );
+            return _queueItems.isNotEmpty;
+          }
+        }
+
+        // Album browse context is explicit when available. The phone setting
+        // still decides whether an album leaf builds the album queue.
+        final albumId = parsed.contextType == AutoMediaContextType.album
+            ? parsed.contextId
+            : song.albumId;
         if (albumId != null && _readRuntimeSettings().albumQueueEnabled) {
           final albumSongs = await _libraryDao.watchSongsByAlbum(albumId).first;
           if (albumSongs.isNotEmpty) {
@@ -392,24 +417,25 @@ class NavisAudioHandler extends BaseAudioHandler
               startIndex: startIndex < 0 ? 0 : startIndex,
               autoPlay: autoPlay,
             );
-            break;
+            return _queueItems.isNotEmpty;
           }
         }
         await replaceQueue([parsed.entityId!], autoPlay: autoPlay);
+        return _queueItems.isNotEmpty;
       case AutoMediaIdType.album:
         final songs = await _libraryDao
             .watchSongsByAlbum(parsed.entityId!)
             .first;
-        if (songs.isNotEmpty) {
-          await replaceQueueWithData(songs, autoPlay: autoPlay);
-        }
+        if (songs.isEmpty) return false;
+        await replaceQueueWithData(songs, autoPlay: autoPlay);
+        return _queueItems.isNotEmpty;
       case AutoMediaIdType.playlist:
         final songs = await _playlistDao
             .watchPlaylistSongs(parsed.entityId!)
             .first;
-        if (songs.isNotEmpty) {
-          await replaceQueueWithData(songs, autoPlay: autoPlay);
-        }
+        if (songs.isEmpty) return false;
+        await replaceQueueWithData(songs, autoPlay: autoPlay);
+        return _queueItems.isNotEmpty;
       case AutoMediaIdType.artist:
         final albums = await _libraryDao
             .watchAlbumsByArtist(parsed.entityId!)
@@ -420,13 +446,13 @@ class NavisAudioHandler extends BaseAudioHandler
             await _libraryDao.watchSongsByAlbum(album.id).first,
           );
         }
-        if (allSongs.isNotEmpty) {
-          await replaceQueueWithData(allSongs, autoPlay: autoPlay);
-        }
+        if (allSongs.isEmpty) return false;
+        await replaceQueueWithData(allSongs, autoPlay: autoPlay);
+        return _queueItems.isNotEmpty;
       case AutoMediaIdType.root:
       case AutoMediaIdType.rootCategory:
       case AutoMediaIdType.likedSubcategory:
-        break;
+        return false;
     }
   }
 
@@ -436,10 +462,13 @@ class NavisAudioHandler extends BaseAudioHandler
     Map<String, dynamic>? extras,
   ]) async {
     AppLogger.info('Android Auto playFromSearch query="$query"');
-    await _loadFromSearch(query, extras, autoPlay: true);
+    await _runAndroidAutoLoad(
+      () => _loadFromSearch(query, extras, autoPlay: true),
+      failureMessage: 'No matching music was found.',
+    );
   }
 
-  Future<void> _loadFromSearch(
+  Future<bool> _loadFromSearch(
     String query,
     Map<String, dynamic>? extras, {
     required bool autoPlay,
@@ -447,11 +476,9 @@ class NavisAudioHandler extends BaseAudioHandler
     final request = navisAndroidAutoSearchRequest(query, extras);
     if (request.type == NavisAndroidAutoSearchType.empty) {
       if (autoPlay) {
-        await _playInstantRadio();
-      } else {
-        await _queueInstantRadioFallback(autoPlay: false);
+        return _playInstantRadio();
       }
-      return;
+      return _queueInstantRadioFallback(autoPlay: false);
     }
 
     switch (request.type) {
@@ -461,59 +488,50 @@ class NavisAudioHandler extends BaseAudioHandler
           limit: 1,
         );
         if (artists.isNotEmpty) {
-          await _loadFromMediaId(
+          return _loadFromMediaId(
             AutoMediaId.artist(artists.first.id),
             autoPlay: autoPlay,
           );
-          return;
         }
-        break;
       case NavisAndroidAutoSearchType.album:
         final albums = await _libraryDao.searchAlbumsLocal(
           request.term,
           limit: 1,
         );
         if (albums.isNotEmpty) {
-          await _loadFromMediaId(
+          return _loadFromMediaId(
             AutoMediaId.album(albums.first.id),
             autoPlay: autoPlay,
           );
-          return;
         }
-        break;
       case NavisAndroidAutoSearchType.playlist:
         final playlists = await _playlistDao.watchPlaylists().first;
         final matches = playlists.where(
           (playlist) => _containsIgnoreCase(playlist.name, request.term),
         );
         if (matches.isNotEmpty) {
-          await _loadFromMediaId(
+          return _loadFromMediaId(
             AutoMediaId.playlist(matches.first.id),
             autoPlay: autoPlay,
           );
-          return;
         }
-        break;
       case NavisAndroidAutoSearchType.genre:
         final songs = await _libraryDao.watchSongsByGenre(request.term).first;
         if (songs.isNotEmpty) {
           await replaceQueueWithData(songs, autoPlay: autoPlay);
-          return;
+          return _queueItems.isNotEmpty;
         }
-        break;
       case NavisAndroidAutoSearchType.title:
         final songs = await _libraryDao.searchSongsLocal(
           request.term,
           limit: 1,
         );
         if (songs.isNotEmpty) {
-          await _loadFromMediaId(
+          return _loadFromMediaId(
             AutoMediaId.song(songs.first.id),
             autoPlay: autoPlay,
           );
-          return;
         }
-        break;
       case NavisAndroidAutoSearchType.general:
       case NavisAndroidAutoSearchType.empty:
         break;
@@ -524,10 +542,33 @@ class NavisAudioHandler extends BaseAudioHandler
     final browsable = results.where(
       (item) => item.extras?[AndroidAutoConstants.isBrowsableKey] == true,
     );
-    if (playable.isEmpty && browsable.isEmpty) return;
+    if (playable.isEmpty && browsable.isEmpty) return false;
 
     final target = playable.isNotEmpty ? playable.first : browsable.first;
-    await _loadFromMediaId(target.id, autoPlay: autoPlay);
+    return _loadFromMediaId(target.id, autoPlay: autoPlay);
+  }
+
+  void _broadcastAndroidAutoPlaybackError(String message) {
+    AppLogger.warning('Android Auto playback request failed: $message');
+    playbackState.add(
+      navisAndroidAutoPlaybackErrorState(playbackState.value, message),
+    );
+  }
+
+  Future<void> _runAndroidAutoLoad(
+    Future<bool> Function() load, {
+    required String failureMessage,
+  }) async {
+    try {
+      if (await load()) {
+        return;
+      }
+    } on Object catch (error) {
+      AppLogger.warning(
+        'Android Auto playback request raised ${error.runtimeType}.',
+      );
+    }
+    _broadcastAndroidAutoPlaybackError(failureMessage);
   }
 
   void _setCurrentMediaItem(MediaItem? item) {
@@ -588,7 +629,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
     AppLogger.debug(
       '_updateArtCacheFile: requesting art cache for '
-      'coverArtId=$coverArtId uri=$artUri',
+      'coverArtId=$coverArtId uri=${artUri.scheme}://${artUri.host}${artUri.path}',
     );
     final localPath = await _artCache!.getOrFetch(coverArtId, artUri);
     AppLogger.debug(
@@ -3844,6 +3885,9 @@ class NavisAudioHandler extends BaseAudioHandler
       final prepared = await _prepareBestAvailableQueueForUserPlay();
       if (!prepared || (_radioStation == null && _queueItems.isEmpty)) {
         AppLogger.info('Android Auto resume: play ignored; queue is empty.');
+        _broadcastAndroidAutoPlaybackError(
+          'No music is available. Open Navis on your phone when safe.',
+        );
         return;
       }
     }
@@ -4852,9 +4896,11 @@ class NavisAudioHandler extends BaseAudioHandler
   ///
   /// Note: the current media item's `id` is a raw Subsonic song ID, not the
   /// `song/{id}` format used in the browse tree.
-  Future<void> _playInstantMixFromCurrentSong() async {
+  Future<bool> _playInstantMixFromCurrentSong() async {
     final current = _currentMediaItem;
-    if (current == null) return;
+    if (current == null) {
+      return _playInstantRadio();
+    }
 
     // The mediaItem id is the raw Subsonic song ID (e.g. "abc123"),
     // NOT the browse-tree "song/abc123" format.
@@ -4864,39 +4910,43 @@ class NavisAudioHandler extends BaseAudioHandler
     if (toggleCb != null) {
       try {
         await toggleCb(seedId);
+        return true;
       } on Object catch (e, st) {
         AppLogger.warning('Instant Mix (toggle) failed for $seedId: $e\n$st');
       }
-      return;
     }
 
     // Fallback to activate-only callback if toggle not yet wired.
     if (_preferredMixCallback != null) {
       try {
         await _preferredMixCallback!(seedId);
+        return true;
       } on Object catch (e, st) {
         AppLogger.warning(
           'Instant Mix (preferred mode) failed for $seedId: $e\n$st',
         );
       }
-      return;
     }
 
     // Last resort: direct API call.
     final api = _readApiClient();
-    if (api == null) return;
-
-    try {
-      final songs = await api.getSimilarSongs(seedId, count: 50);
-      final songIds = songs.map((s) => s.id).toList(growable: false);
-      if (songIds.isNotEmpty) {
-        await replaceQueue(songIds, expandMatchFlows: false);
+    if (api != null) {
+      try {
+        final songs = await api.getSimilarSongs(seedId, count: 50);
+        final songIds = songs.map((s) => s.id).toList(growable: false);
+        if (songIds.isNotEmpty) {
+          await replaceQueue(songIds, expandMatchFlows: false);
+          if (_queueItems.isNotEmpty) {
+            return true;
+          }
+        }
+      } on Object catch (e, st) {
+        AppLogger.warning(
+          'Instant Mix (fallback) failed for song $seedId: $e\n$st',
+        );
       }
-    } on Object catch (e, st) {
-      AppLogger.warning(
-        'Instant Mix (fallback) failed for song $seedId: $e\n$st',
-      );
     }
+    return _playInstantRadio();
   }
 
   /// Starts an Instant Radio seeded from a random liked song.
@@ -4905,19 +4955,19 @@ class NavisAudioHandler extends BaseAudioHandler
   /// random liked (starred) song as the seed and delegates to
   /// [_preferredMixCallback].  Falls back to `getRandomSongs()` when no liked
   /// songs exist or no API client is available.
-  Future<void> _playInstantRadio() async {
+  Future<bool> _playInstantRadio() async {
     final liked = await _libraryDao.watchAllStarredSongs().first;
     if (liked.isNotEmpty) {
       final seed = (List.of(liked)..shuffle()).first;
       if (_preferredMixCallback != null) {
         try {
           await _preferredMixCallback!(seed.id);
+          return true;
         } on Object catch (e, st) {
           AppLogger.warning(
             'Instant Radio (preferred mode) failed for ${seed.id}: $e\n$st',
           );
         }
-        return;
       }
     }
 
@@ -4929,20 +4979,22 @@ class NavisAudioHandler extends BaseAudioHandler
         final songIds = songs.map((s) => s.id).toList(growable: false);
         if (songIds.isNotEmpty) {
           await replaceQueue(songIds, expandMatchFlows: false);
-          return;
+          if (_queueItems.isNotEmpty) {
+            return true;
+          }
         }
       } on Object catch (e, st) {
         AppLogger.warning('Instant Radio API fallback failed: $e\n$st');
       }
     }
     final all = await _libraryDao.watchAllSongs().first;
-    if (all.isNotEmpty) {
-      final shuffled = List.of(all)..shuffle();
-      await replaceQueueWithData(
-        shuffled.take(50).toList(growable: false),
-        expandMatchFlows: false,
-      );
-    }
+    if (all.isEmpty) return false;
+    final shuffled = List.of(all)..shuffle();
+    await replaceQueueWithData(
+      shuffled.take(50).toList(growable: false),
+      expandMatchFlows: false,
+    );
+    return _queueItems.isNotEmpty;
   }
 
   Future<bool> _queueInstantRadioFallback({required bool autoPlay}) async {

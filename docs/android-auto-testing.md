@@ -116,17 +116,19 @@ Once the DHU is running, use these commands in the DHU terminal:
 
 ### Browse Tree — Root Level
 
-- [ ] All 5 root items display: Albums, Recent, Artists, Playlists, More
+- [ ] All 4 root items display: Albums, Recent, Playlists, More
 - [ ] Root items respond to touch within 1 second
 - [ ] Each root item has appropriate text
 
 ### Browse Tree — Artists
 
+- [ ] More → Artists opens the artist list
 - [ ] Artist list loads with names
 - [ ] Artists with cover art show thumbnails
 - [ ] Tapping an artist shows their albums
 - [ ] Tapping an album shows track list
 - [ ] Tapping a song starts playback
+- [ ] Selecting a playlist song keeps the playlist order and starts at that song
 - [ ] Scrolling through large artist list is smooth (>50 artists)
 
 ### Browse Tree — Albums
@@ -190,6 +192,8 @@ Once the DHU is running, use these commands in the DHU terminal:
 - [ ] Text search returns grouped results: Artists, Albums, Playlists, Songs
 - [ ] Tapping a search result starts playback
 - [ ] Empty search / "play music" starts Instant Radio (no crash)
+- [ ] Playlist search works while the server is connected
+- [ ] An unavailable server falls back to local search within 10 seconds
 - [ ] Voice search via `mic` DHU command works for artist, album, playlist, genre, and title requests (requires Google Assistant)
 
 ### Day/Night Mode
@@ -247,14 +251,18 @@ Once the DHU is running, use these commands in the DHU terminal:
    `com.google.android.gms.car.application`,
    `androidx.car.app.TintableAttributionIcon`, and
    `com.google.android.gms.car.application.theme`.
-7. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
+7. Confirm the service class is `NavisAudioService`. Release builds validate
+   the package/UID pair and accept the app, system media clients, and known
+   Android Auto/Google media hosts. Debug builds additionally accept
+   UID-verified Media Controller Test clients.
+8. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
    AudioService** declaration.  That permission has `protectionLevel="signature|privileged"`.
    On devices where Android Auto is installed from the Play Store (not a privileged system
    app), it does not hold that permission and gets `Permission Denial` when binding — which
    prevents Auto from connecting at all.  Caller validation is handled by
    `MediaBrowserServiceCompat.onGetRoot()` returning `null` for unauthorised callers.
-8. Try restarting the head unit server on the phone
-9. Try `adb forward tcp:5277 tcp:5277` again and restart the DHU (Android Auto uses
+9. Try restarting the head unit server on the phone
+10. Try `adb forward tcp:5277 tcp:5277` again and restart the DHU (Android Auto uses
    exponential back-off after repeated connection failures; a fresh DHU session forces
    re-enumeration)
 

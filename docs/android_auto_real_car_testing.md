@@ -90,6 +90,7 @@ The diagnostic script prints:
 - signing certificate digest when `apksigner` or `keytool` is available
 - Android Auto package version
 - `MediaBrowserService` resolver visibility
+- caller-validating `NavisAudioService` manifest registration
 - media session state for Navis
 - filtered Android Auto, AudioService, Flutter, and crash logs
 
@@ -123,8 +124,10 @@ With the Play-installed build and Unknown sources off:
 
 - Navis appears in Android Auto launcher or Customize launcher.
 - Tapping Navis opens the browse tree.
-- Albums, Artists, Playlists, Recent, and More load.
+- Albums, Recent, Playlists, and More load as the four root tabs.
+- More → Artists, Liked, Instant Mix, and Instant Radio load.
 - Tapping a playable item starts playback.
+- Selecting a playlist song preserves playlist order from the selected song.
 - Play, pause, next, previous, and seek work from the head unit.
 - Now-playing metadata and artwork update.
 - Disconnecting and reconnecting the phone preserves playback state.
@@ -143,4 +146,3 @@ To prove the trust gate is the difference:
 
 The sideload can still be valid for DHU/local development. It should not be used
 as evidence that a default real-car install is release-ready.
-
