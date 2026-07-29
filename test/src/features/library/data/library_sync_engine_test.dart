@@ -52,6 +52,8 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   Exception? throwOnIndexes;
   Exception? throwOnSongSearch;
   Exception? throwOnGenres;
+  final Map<String, Object> albumErrors = <String, Object>{};
+  final Map<String, Object> artistErrors = <String, Object>{};
   final Set<String> notFoundAlbumIds = <String>{};
   final Set<String> notFoundArtistIds = <String>{};
   final Set<String> permanentTransientAlbumIds = <String>{};
@@ -80,6 +82,11 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
     if (notFoundAlbumIds.contains(id)) {
       currentAlbumRequests--;
       throw const SubsonicNotFoundException(message: 'Album not found');
+    }
+    final albumError = albumErrors[id];
+    if (albumError != null) {
+      currentAlbumRequests--;
+      throw albumError;
     }
     if (albumDelay > Duration.zero) {
       await Future<void>.delayed(albumDelay);
@@ -124,6 +131,10 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
     calls.add('getArtist:$id');
     if (notFoundArtistIds.contains(id)) {
       throw const SubsonicNotFoundException(message: 'Artist not found');
+    }
+    final artistError = artistErrors[id];
+    if (artistError != null) {
+      throw artistError;
     }
     final artist = artistDetails[id];
     if (artist == null) {
@@ -1203,37 +1214,130 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('failed candidate does not advance server cursor', () async {
-      final previousLastSynced = DateTime.now().subtract(
-        const Duration(hours: 2),
-      );
-      await saveSession(
-        lastSynced: previousLastSynced,
-        lastFullSyncedAt: DateTime.now(),
-      );
-      final storedLastSynced =
-          (await serverConfigRepository.getActiveServer())!.lastSynced;
-      api.indexes = Indexes(
-        lastModified: DateTime.utc(2026, 3, 1),
-        indexes: const <IndexesIndex>[
-          IndexesIndex(
-            artists: <Artist>[
-              Artist(id: 'missing-detail', name: 'Missing Detail'),
-            ],
+    test(
+      'failed artist stays pending without advancing server cursor',
+      () async {
+        final previousLastSynced = DateTime.now().subtract(
+          const Duration(hours: 2),
+        );
+        await saveSession(
+          lastSynced: previousLastSynced,
+          lastFullSyncedAt: DateTime.now(),
+        );
+        final storedLastSynced =
+            (await serverConfigRepository.getActiveServer())!.lastSynced;
+        api.indexes = Indexes(
+          lastModified: DateTime.utc(2026, 3, 1),
+          indexes: const <IndexesIndex>[
+            IndexesIndex(
+              artists: <Artist>[
+                Artist(id: 'missing-detail', name: 'Missing Detail'),
+              ],
+            ),
+          ],
+        );
+
+        final state = await engine.syncNow();
+        final config = await serverConfigRepository.getActiveServer();
+        final navis =
+            jsonDecode(config!.capabilitiesJson!)['navis']
+                as Map<String, dynamic>;
+        final diagnostics =
+            jsonDecode(navis['librarySyncFailureDiagnostics'] as String)
+                as List<dynamic>;
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.freshness, LibrarySyncFreshness.verificationPending);
+        expect(state.remainingVerificationCount, 1);
+        expect(navis['libraryIndexesCursor'], isNull);
+        expect(config.lastSynced, isNot(storedLastSynced));
+        expect(
+          diagnostics.single,
+          containsPair('entityId', 'missing-detail'),
+        );
+        expect(diagnostics.single, containsPair('endpoint', 'getArtist'));
+        expect(diagnostics.single, containsPair('errorType', 'StateError'));
+        expect(diagnostics.single, containsPair('attempts', 1));
+
+        api.artistDetails['missing-detail'] = const Artist(
+          id: 'missing-detail',
+          name: 'Recovered Detail',
+          albums: <Album>[
+            Album(
+              id: 'album-pending',
+              name: 'Pending Album',
+              artistId: 'missing-detail',
+            ),
+          ],
+        );
+        api.albumErrors['album-pending'] = StateError(
+          'malformed album response',
+        );
+        api.calls.clear();
+
+        final artistRecovered = await engine.continueVerification();
+        final artistRecoveredConfig = await serverConfigRepository
+            .getActiveServer();
+        final artistRecoveredNavis =
+            jsonDecode(artistRecoveredConfig!.capabilitiesJson!)['navis']
+                as Map<String, dynamic>;
+
+        expect(artistRecovered.status, LibrarySyncStatus.succeeded);
+        expect(
+          artistRecovered.freshness,
+          LibrarySyncFreshness.verificationPending,
+        );
+        expect(artistRecovered.remainingVerificationCount, 0);
+        expect(artistRecovered.pendingHydrationCount, 1);
+        expect(api.calls.where((call) => call.startsWith('getArtist:')), [
+          'getArtist:missing-detail',
+        ]);
+        expect(artistRecoveredNavis['libraryIndexesCursor'], isNull);
+
+        api.albumErrors.remove('album-pending');
+        api.albumDetails['album-pending'] = const Album(
+          id: 'album-pending',
+          name: 'Pending Album',
+          artistId: 'missing-detail',
+          songs: <Song>[
+            Song(
+              id: 'recovered-song',
+              title: 'Recovered Song',
+              albumId: 'album-pending',
+            ),
+          ],
+        );
+        api.indexes = Indexes(lastModified: DateTime.utc(2026, 4, 1));
+        api.calls.clear();
+
+        final recovered = await engine.continueVerification();
+        final recoveredConfig = await serverConfigRepository.getActiveServer();
+        final recoveredNavis =
+            jsonDecode(recoveredConfig!.capabilitiesJson!)['navis']
+                as Map<String, dynamic>;
+
+        expect(recovered.status, LibrarySyncStatus.succeeded);
+        expect(recovered.freshness, LibrarySyncFreshness.current);
+        expect(recovered.pendingHydrationCount, 0);
+        expect(api.calls.where((call) => call.startsWith('getAlbum:')), [
+          'getAlbum:album-pending',
+        ]);
+        expect(
+          api.calls.any(
+            (call) => call.startsWith('getArtist:') || call == 'getIndexes',
           ),
-        ],
-      );
-
-      final state = await engine.syncNow();
-      final config = await serverConfigRepository.getActiveServer();
-      final navis =
-          (jsonDecode(config!.capabilitiesJson!)['navis']
-              as Map<String, dynamic>);
-
-      expect(state.status, LibrarySyncStatus.failed);
-      expect(navis['libraryIndexesCursor'], isNull);
-      expect(config.lastSynced, storedLastSynced);
-    }, skip: !sqliteAvailable);
+          isFalse,
+        );
+        expect(
+          DateTime.parse(
+            recoveredNavis['libraryIndexesCursor'] as String,
+          ).toUtc(),
+          DateTime.utc(2026, 3, 1),
+        );
+        expect(recoveredNavis['librarySyncFailureDiagnostics'], isNull);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'newest-album health probe repairs a faulty unchanged index',
@@ -1749,7 +1853,7 @@ void main() {
     );
 
     test(
-      'full sync failure does not wipe existing songs table',
+      'full sync keeps failed album pending and preserves existing songs',
       () async {
         await saveSession();
         await database
@@ -1769,12 +1873,75 @@ void main() {
 
         final state = await engine.forceFullSync();
         final songs = await database.select(database.songsTable).get();
+        final pendingAlbums = await database.libraryDao
+            .getPendingHydrationAlbumIds();
 
-        expect(state.status, LibrarySyncStatus.failed);
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.freshness, LibrarySyncFreshness.verificationPending);
+        expect(state.pendingHydrationCount, 1);
+        expect(pendingAlbums, ['album-1']);
         expect(songs.any((song) => song.id == 'existing-song'), isTrue);
+
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          artistId: 'artist-1',
+          songs: <Song>[
+            Song(id: 'song-1', title: 'Song 1', albumId: 'album-1'),
+          ],
+        );
+        api.calls.clear();
+
+        final recovered = await engine.continueVerification();
+        final recoveredSongs = await database.select(database.songsTable).get();
+
+        expect(recovered.status, LibrarySyncStatus.succeeded);
+        expect(recovered.freshness, LibrarySyncFreshness.current);
+        expect(recovered.pendingHydrationCount, 0);
+        expect(api.calls.where((call) => call.startsWith('getAlbum:')), [
+          'getAlbum:album-1',
+        ]);
+        expect(
+          recoveredSongs.map((song) => song.id),
+          containsAll(<String>['existing-song', 'song-1']),
+        );
       },
       skip: !sqliteAvailable,
     );
+
+    test('album authentication failure still fails the sync', () async {
+      await saveSession(
+        lastSynced: DateTime.now(),
+        lastFullSyncedAt: DateTime.now(),
+      );
+      await database.libraryDao.replaceAlbums(
+        <AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            songsHydrated: const Value(false),
+          ),
+        ],
+      );
+      api.albumErrors['album-1'] = const SubsonicAuthException(
+        message: 'expired',
+      );
+
+      final state = await engine.syncIfStale();
+      final pendingAlbums = await database.libraryDao
+          .getPendingHydrationAlbumIds();
+
+      expect(state.status, LibrarySyncStatus.failed);
+      expect(
+        state.errorMessage,
+        'Authentication failed while syncing metadata.',
+      );
+      expect(pendingAlbums, ['album-1']);
+      expect(
+        api.calls.where((call) => call == 'getAlbum:album-1').length,
+        1,
+      );
+    }, skip: !sqliteAvailable);
 
     test(
       '404 on one getAlbum during hydration succeeds and removes stale album',

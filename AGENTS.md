@@ -265,12 +265,18 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 - A failed automatic sync remains failed until the next configured sync
   interval, a reconnect, or an explicit manual retry. Do not add short forced
   retry loops that repeatedly restart the same failing metadata pass.
+- Isolate non-fatal artist and album endpoint failures. Commit usable entities,
+  keep only unfinished IDs pending, and continue them in bounded foreground
+  passes. Authentication, authorization, database, and invariant failures still
+  fail the pass. Persist only safe diagnostics (stage, endpoint, entity ID,
+  exception type, attempts), never exception messages or credentials.
 - Do not reintroduce periodic/daily full rebaseline scans from `syncIfStale()`.
   Full library repair belongs behind explicit Force Full Sync or a dedicated
   sync-model migration gate.
 - Incremental sync uses the server-provided `getIndexes.lastModified` cursor.
   Local completion time is only for scheduling/UI; do not advance the server
-  cursor until every candidate in the response has been verified.
+  cursor until every candidate in the response has been verified and its album
+  hydration has completed.
 - A returned index is a gated artist snapshot, not a changed-artist feed.
   Persist continuation state and drain it in bounded passes (48 artists on
   non-cellular networks, 24 for a manual cellular refresh). Non-cellular

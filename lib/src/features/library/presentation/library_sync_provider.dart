@@ -156,7 +156,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }
       if (becameAvailable || becameWifi) {
         _maybeRunStartupSync();
-        if (state.remainingVerificationCount > 0) {
+        if (_hasPendingVerificationWork) {
           _scheduleVerificationContinuation();
         }
       }
@@ -403,7 +403,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         if (!verificationContinuation) {
           unawaited(notifier.showComplete(result));
         }
-        if (result.remainingVerificationCount > 0) {
+        if (_hasPendingVerificationWork) {
           _scheduleVerificationContinuation();
         } else {
           _cancelVerificationContinuation();
@@ -500,7 +500,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
           unawaited(syncIfStale());
         }
       }
-      if (state.remainingVerificationCount > 0) {
+      if (_hasPendingVerificationWork) {
         _scheduleVerificationContinuation();
       }
     }
@@ -543,16 +543,19 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _scheduleVerificationContinuation() {
     _cancelVerificationContinuation();
-    if (!_isForeground ||
+    if (!_hasPendingVerificationWork ||
+        !_isForeground ||
         ref.read(serverConfigStateProvider).asData?.value == null ||
         ref.read(networkTypeProvider) == NetworkType.cellular ||
         ref.read(networkTypeProvider) == NetworkType.offline) {
       return;
     }
     final delay = ref.read(verificationContinuationDelayProvider);
+    final pendingAlbums = state.pendingHydrationCount ?? 0;
     AppLogger.debug(
-      'Scheduling artist verification continuation in '
-      '${delay.inSeconds}s (${state.remainingVerificationCount} remaining).',
+      'Scheduling metadata verification continuation in '
+      '${delay.inSeconds}s (artists=${state.remainingVerificationCount}, '
+      'albums=$pendingAlbums).',
     );
     _verificationContinuationTimer = Timer(delay, () {
       if (!ref.mounted || !_isForeground) {
@@ -573,6 +576,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       );
     });
   }
+
+  bool get _hasPendingVerificationWork =>
+      state.remainingVerificationCount > 0 ||
+      (state.pendingHydrationCount ?? 0) > 0;
 
   void _cancelVerificationContinuation() {
     _verificationContinuationTimer?.cancel();

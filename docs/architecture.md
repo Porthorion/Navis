@@ -424,21 +424,26 @@ replay/end-of-queue feedback instead.
 5. A newest-album health probe runs every 12 hours. Unsupported or unreliable
    index servers use bounded artist/newest-album verification and retry the
    index endpoint daily
-6. The server cursor advances only after every candidate from the response
-   succeeds. Partial batches show verification pending rather than silently
-   claiming current metadata. If a newer cursor arrives mid-audit, newly
-   reported artists lead, the untouched tail keeps priority, and previously
-   checked artists move behind it
-7. Search and discovery metadata is written provisionally. Canonical hydration
+6. Non-fatal artist and album endpoint failures are isolated to their entity.
+   Successful metadata is committed, unfinished IDs remain queued for bounded
+   foreground continuation, and safe diagnostics record only the stage,
+   endpoint, entity ID, exception type, and attempt count. Authentication,
+   authorization, database, and invariant errors still fail the pass
+7. The server cursor advances only after every candidate from the response and
+   its album hydration succeeds. Partial batches show verification pending
+   rather than silently claiming current metadata. If a newer cursor arrives
+   mid-audit, newly reported artists lead, the untouched tail keeps priority,
+   and previously checked artists move behind it
+8. Search and discovery metadata is written provisionally. Canonical hydration
    reconciles song identities conservatively and transactionally remaps cache,
    downloads, queues, history, playlists, lyrics, Match Flow, scrobbles,
    feedback, and star actions. Playback receives the alias before the
    provisional row is removed; late cache completion resolves the canonical ID
    and an active losing cache file is retained until orphan cleanup can safely
    reclaim it
-8. Starred, genre, and playlist metadata refresh on manual sync, real metadata
+9. Starred, genre, and playlist metadata refresh on manual sync, real metadata
    changes, or the longer auxiliary sync window
-9. Initial sync, a one-time sync-model repair, and explicit Force Full Sync are
+10. Initial sync, a one-time sync-model repair, and explicit Force Full Sync are
    the only authoritative full-library modes
 
 ### Cache Flow

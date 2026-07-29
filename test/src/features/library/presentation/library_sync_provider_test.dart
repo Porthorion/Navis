@@ -675,7 +675,7 @@ void main() {
     });
 
     test(
-      'pending artist verification continues in short foreground passes',
+      'pending album hydration continues in short foreground passes',
       () async {
         var boundedPass = 0;
         final engine = _FakeLibrarySyncEngine(
@@ -696,7 +696,7 @@ void main() {
               status: LibrarySyncStatus.succeeded,
               stage: LibrarySyncStage.completed,
               completedAt: DateTime.now(),
-              remainingVerificationCount: boundedPass == 1 ? 12 : 0,
+              pendingHydrationCount: boundedPass == 1 ? 2 : 0,
               freshness: boundedPass == 1
                   ? LibrarySyncFreshness.verificationPending
                   : LibrarySyncFreshness.current,

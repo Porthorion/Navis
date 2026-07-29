@@ -57,7 +57,7 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.0.15', [
     _Entry(
-      'Metadata sync failures now stay failed until the next scheduled check, reconnect, or manual retry instead of repeatedly forcing immediate retries',
+      'Metadata sync now keeps individual artist and album failures pending, retries only unfinished items, and preserves the server cursor until verification completes',
       type: _EntryType.fix,
     ),
     _Entry(

@@ -30,7 +30,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.0.15',
     entries: [
       ChangelogEntry(
-        'Metadata sync failures now stay failed until the next scheduled check, reconnect, or manual retry instead of repeatedly forcing immediate retries',
+        'Metadata sync now keeps individual artist and album failures pending, retries only unfinished items, and preserves the server cursor until verification completes',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
