@@ -34,9 +34,9 @@ Minimum tested versions:
 ## Media Integration Status
 
 - Android: media session and notification metadata are handled through
-  `audio_service`; Android Auto projects the phone app's four-tab library,
-  search, queue, resume state, and transport controls over a validated media
-  browser connection.
+  `audio_service`; Android Auto projects the phone app's Liked, Recent,
+  Playlists, and Library destinations plus search, downloads, genres, queue
+  resume, and transport controls over a validated media browser connection.
 - Linux: desktop now-playing and media-key integration use the app-owned
   MPRIS bridge over `dbus`.
 - Windows: system media transport controls are bridged through `smtc_windows`.

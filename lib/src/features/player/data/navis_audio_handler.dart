@@ -325,6 +325,16 @@ class NavisAudioHandler extends BaseAudioHandler
   }) async {
     // Handle special root-level playable/browsable nodes by raw ID.
     switch (mediaId) {
+      case AutoMediaRoot.shuffleLiked:
+        final songs = await _libraryDao.watchAllStarredSongs().first;
+        if (songs.isEmpty) return false;
+        final shuffled = List<SongsTableData>.of(songs)..shuffle();
+        await replaceQueueWithData(
+          shuffled,
+          autoPlay: autoPlay,
+          expandMatchFlows: false,
+        );
+        return _queueItems.isNotEmpty;
       case AutoMediaRoot.instantMix:
         if (autoPlay) {
           return _playInstantMixFromCurrentSong();
@@ -338,7 +348,11 @@ class NavisAudioHandler extends BaseAudioHandler
       case AutoMediaRoot.likedSongs:
         final songs = await _libraryDao.watchAllStarredSongs().first;
         if (songs.isEmpty) return false;
-        await replaceQueueWithData(songs, autoPlay: autoPlay);
+        await replaceQueueWithData(
+          songs,
+          autoPlay: autoPlay,
+          expandMatchFlows: false,
+        );
         return _queueItems.isNotEmpty;
       case AutoMediaRoot.likedAlbums:
         final albums = await _libraryDao.watchLikedAlbums().first;
@@ -351,12 +365,37 @@ class NavisAudioHandler extends BaseAudioHandler
         if (allSongs.isEmpty) return false;
         await replaceQueueWithData(allSongs, autoPlay: autoPlay);
         return _queueItems.isNotEmpty;
+      case AutoMediaRoot.resumeQueue:
+        await _restoreQueueFromDisk();
+        if (_queueItems.isEmpty) return false;
+        if (autoPlay) {
+          await play();
+        }
+        return true;
+      case AutoMediaRoot.downloads:
+        final downloadedSongIds = await _rollingCacheManager
+            .getPermanentlyCachedSongIds();
+        if (downloadedSongIds.isEmpty) return false;
+        final songs = (await _libraryDao.watchAllSongs().first)
+            .where((song) => downloadedSongIds.contains(song.id))
+            .toList(growable: false);
+        if (songs.isEmpty) return false;
+        await replaceQueueWithData(
+          songs,
+          autoPlay: autoPlay,
+          expandMatchFlows: false,
+        );
+        return _queueItems.isNotEmpty;
       case AutoMediaRoot.recent:
         final songs = await _historyDao
             .watchRecentlyPlayedSongs(limit: 50)
             .first;
         if (songs.isEmpty) return false;
-        await replaceQueueWithData(songs, autoPlay: autoPlay);
+        await replaceQueueWithData(
+          songs,
+          autoPlay: autoPlay,
+          expandMatchFlows: false,
+        );
         return _queueItems.isNotEmpty;
     }
 
@@ -383,6 +422,38 @@ class NavisAudioHandler extends BaseAudioHandler
         final songs = await _libraryDao.getSongsByIds([parsed.entityId!]);
         if (songs.isEmpty) return false;
         final song = songs.first;
+        final contextualSongs = await switch (parsed.contextType) {
+          AutoMediaContextType.genre when parsed.contextId != null =>
+            _libraryDao.watchSongsByGenre(parsed.contextId!).first,
+          AutoMediaContextType.downloads => () async {
+            final downloadedSongIds = await _rollingCacheManager
+                .getPermanentlyCachedSongIds();
+            return (await _libraryDao.watchAllSongs().first)
+                .where((item) => downloadedSongIds.contains(item.id))
+                .toList(growable: false);
+          }(),
+          AutoMediaContextType.liked =>
+            _libraryDao.watchAllStarredSongs().first,
+          AutoMediaContextType.recent =>
+            _historyDao.watchRecentlyPlayedSongs(limit: 50).first,
+          _ => Future<List<SongsTableData>>.value(
+            const <SongsTableData>[],
+          ),
+        };
+        if (contextualSongs.isNotEmpty) {
+          final startIndex = contextualSongs.indexWhere(
+            (item) => item.id == parsed.entityId,
+          );
+          if (startIndex >= 0) {
+            await replaceQueueWithData(
+              contextualSongs,
+              startIndex: startIndex,
+              autoPlay: autoPlay,
+              expandMatchFlows: false,
+            );
+            return _queueItems.isNotEmpty;
+          }
+        }
         if (parsed.contextType == AutoMediaContextType.playlist &&
             parsed.contextId != null) {
           final playlistSongs = await _playlistDao
@@ -449,6 +520,17 @@ class NavisAudioHandler extends BaseAudioHandler
         if (allSongs.isEmpty) return false;
         await replaceQueueWithData(allSongs, autoPlay: autoPlay);
         return _queueItems.isNotEmpty;
+      case AutoMediaIdType.genre:
+        final songs = await _libraryDao
+            .watchSongsByGenre(parsed.entityId!)
+            .first;
+        if (songs.isEmpty) return false;
+        await replaceQueueWithData(
+          songs,
+          autoPlay: autoPlay,
+          expandMatchFlows: false,
+        );
+        return _queueItems.isNotEmpty;
       case AutoMediaIdType.root:
       case AutoMediaIdType.rootCategory:
       case AutoMediaIdType.likedSubcategory:
@@ -510,8 +592,15 @@ class NavisAudioHandler extends BaseAudioHandler
           (playlist) => _containsIgnoreCase(playlist.name, request.term),
         );
         if (matches.isNotEmpty) {
+          final exactMatches = matches.where(
+            (playlist) => _equalsIgnoreCase(playlist.name, request.term),
+          );
           return _loadFromMediaId(
-            AutoMediaId.playlist(matches.first.id),
+            AutoMediaId.playlist(
+              exactMatches.isNotEmpty
+                  ? exactMatches.first.id
+                  : matches.first.id,
+            ),
             autoPlay: autoPlay,
           );
         }
@@ -533,6 +622,29 @@ class NavisAudioHandler extends BaseAudioHandler
           );
         }
       case NavisAndroidAutoSearchType.general:
+        final songs = await _libraryDao.searchSongsLocal(
+          request.term,
+          limit: 20,
+        );
+        final exactSongs = songs.where(
+          (song) => _equalsIgnoreCase(song.title, request.term),
+        );
+        if (exactSongs.isNotEmpty) {
+          return _loadFromMediaId(
+            AutoMediaId.song(exactSongs.first.id),
+            autoPlay: autoPlay,
+          );
+        }
+        final playlists = await _playlistDao.watchPlaylists().first;
+        final exactPlaylists = playlists.where(
+          (playlist) => _equalsIgnoreCase(playlist.name, request.term),
+        );
+        if (exactPlaylists.isNotEmpty) {
+          return _loadFromMediaId(
+            AutoMediaId.playlist(exactPlaylists.first.id),
+            autoPlay: autoPlay,
+          );
+        }
       case NavisAndroidAutoSearchType.empty:
         break;
     }

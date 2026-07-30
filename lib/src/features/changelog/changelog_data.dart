@@ -41,6 +41,10 @@ const List<ChangelogVersion> changelogs = [
         'Android Auto now preserves playlist order, searches playlists reliably, falls back quickly when the server is unavailable, and rejects unrelated media-browser clients',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Android Auto now opens with Liked, Recent, Playlists, and Library, with liked quick play, queue resume, downloads, genres, and collection-aware playback',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

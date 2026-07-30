@@ -145,6 +145,10 @@ bool _containsIgnoreCase(String value, String query) {
   return value.toLowerCase().contains(query.toLowerCase());
 }
 
+bool _equalsIgnoreCase(String value, String query) {
+  return value.trim().toLowerCase() == query.trim().toLowerCase();
+}
+
 @visibleForTesting
 bool navisIsQueueReplacementMetadataAnchorConfirmed({
   required List<MediaItem> queueItems,

@@ -124,8 +124,12 @@ With the Play-installed build and Unknown sources off:
 
 - Navis appears in Android Auto launcher or Customize launcher.
 - Tapping Navis opens the browse tree.
-- Albums, Recent, Playlists, and More load as the four root tabs.
-- More → Artists, Liked, Instant Mix, and Instant Radio load.
+- Liked, Recent, Playlists, and Library load as the four root destinations.
+- Liked exposes Instant Mix, Instant Radio, Songs, and Albums, plus Shuffle
+  Liked when liked songs exist.
+- Recent conditionally exposes Resume Queue before recent songs.
+- Library exposes Downloads when present, followed by Albums, Artists, and
+  Genres.
 - Tapping a playable item starts playback.
 - Selecting a playlist song preserves playlist order from the selected song.
 - Play, pause, next, previous, and seek work from the head unit.

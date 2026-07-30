@@ -116,13 +116,16 @@ Once the DHU is running, use these commands in the DHU terminal:
 
 ### Browse Tree — Root Level
 
-- [ ] All 4 root items display: Albums, Recent, Playlists, More
+- [ ] All 4 root items display: Liked, Recent, Playlists, Library
 - [ ] Root items respond to touch within 1 second
 - [ ] Each root item has appropriate text
 
-### Browse Tree — Artists
+### Browse Tree — Library
 
-- [ ] More → Artists opens the artist list
+- [ ] Library shows Downloads first when permanent downloads exist
+- [ ] Library → Albums opens the album grid
+- [ ] Library → Artists opens the artist list
+- [ ] Library → Genres opens the genre list
 - [ ] Artist list loads with names
 - [ ] Artists with cover art show thumbnails
 - [ ] Tapping an artist shows their albums
@@ -146,24 +149,32 @@ Once the DHU is running, use these commands in the DHU terminal:
 
 ### Browse Tree — Liked Songs
 
-- [ ] More → Liked → Songs lists all starred songs
+- [ ] Liked shows Instant Mix and Instant Radio first
+- [ ] Shuffle Liked appears first when liked songs exist
+- [ ] Liked → Songs lists all starred songs
 - [ ] Shows appropriate empty state if no starred songs
-- [ ] Tapping a liked song starts playback
+- [ ] Tapping a liked song keeps the liked-song collection order
+- [ ] Shuffle Liked starts a randomized liked-song queue
 
 ### Browse Tree — Liked Albums
 
-- [ ] More → Liked → Albums shows starred albums
+- [ ] Liked → Albums shows starred albums
 - [ ] Drill into album shows its tracks
 
 ### Browse Tree — Recently Played
 
+- [ ] Resume Queue appears first only when a persisted queue exists
+- [ ] Resume Queue restores the saved item and position
 - [ ] Recent songs appear (up to 50)
 - [ ] Most recent plays appear first
-- [ ] Tapping a song starts playback
+- [ ] Tapping a song keeps the recent collection order
 
-### Browse Tree — More Actions
+### Browse Tree — Downloads and Genres
 
-- [ ] More shows Liked, Instant Mix, and Instant Radio
+- [ ] Downloaded songs are available without a network connection
+- [ ] Tapping a download keeps the downloaded-song collection order
+- [ ] Genre songs load in artist/album/track order
+- [ ] Tapping a genre song keeps the genre collection order
 - [ ] Tapping "Instant Mix" starts a seed-based mix when a current/known song is available
 - [ ] Tapping "Instant Radio" starts playback from liked songs, server random songs, or local fallback
 
@@ -189,7 +200,7 @@ Once the DHU is running, use these commands in the DHU terminal:
 ### Search
 
 - [ ] Search icon is available in the DHU toolbar
-- [ ] Text search returns grouped results: Artists, Albums, Playlists, Songs
+- [ ] Text search returns grouped results: Songs, Playlists, Albums, Artists
 - [ ] Tapping a search result starts playback
 - [ ] Empty search / "play music" starts Instant Radio (no crash)
 - [ ] Playlist search works while the server is connected

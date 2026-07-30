@@ -32,13 +32,16 @@ Located in `lib/src/providers/app_providers.dart`:
     validates the caller package against its UID, then delegates accepted
     clients to the plugin service and the shared `NavisAudioHandler`.
   - `AutoMediaTreeService` builds the local database-backed browse tree. Its
-    four root tabs are Albums, Recent, Playlists, and More; Artists, Liked,
-    Instant Mix, and Instant Radio are available below More.
-  - Song browse IDs are opaque and can retain album or playlist context.
-    `NavisAudioHandler` uses that context to build the requested queue while
-    keeping raw Subsonic IDs in playback and persisted queues.
-  - Search merges server artists/albums/songs with local playlists, times out
-    server work after eight seconds, and falls back to local results.
+    four root tabs are Liked, Recent, Playlists, and Library. Liked exposes
+    quick-play actions plus liked songs/albums; Library contains Downloads
+    when available, followed by Albums, Artists, and Genres.
+  - Song browse IDs are opaque and retain album, playlist, liked, recent,
+    download, or genre context. `NavisAudioHandler` uses that context to build
+    the expected collection queue while keeping raw Subsonic IDs in playback
+    and persisted queues.
+  - Search merges server artists/albums/songs with local playlists, prioritizes
+    songs and playlists with exact matches first, times out server work after
+    eight seconds, and falls back to local results.
   - See `docs/android-auto-testing.md` for DHU validation and
     `docs/android_auto_real_car_testing.md` for trusted-store real-car checks.
 

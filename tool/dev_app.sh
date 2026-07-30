@@ -113,7 +113,7 @@ case "${MODE}" in
     fi
     echo ""
     echo "  After launch, open the media app drawer in the emulator to find 'Navis Dev'."
-    echo "  The browse tree (Playlists / Artists / Albums / Liked / Recent / Random Mix)"
+    echo "  The browse tree (Liked / Recent / Playlists / Library)"
     echo "  is served directly via MediaBrowserService — no Desktop Head Unit needed."
     echo ""
     flutter run --debug "${DEVICE_ARGS[@]}" "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"

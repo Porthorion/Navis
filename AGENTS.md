@@ -239,10 +239,13 @@ not an app UI rendered on the head unit. `NavisAudioService` subclasses the
 handler-owned `AutoMediaTreeService`. Release builds admit the app itself,
 system clients, and known Android Auto/Google media hosts; debug builds also
 admit UID-verified controller-test clients. Keep the root at four browsable
-tabs (`Albums`, `Recent`, `Playlists`, `More`); `Artists` lives under `More`.
-Song browse IDs may carry album/playlist context, but persisted and transport
-queue IDs remain raw Subsonic song IDs. Projected search must fall back to the
-local database within the Android for Cars 10-second content-load limit.
+tabs (`Liked`, `Recent`, `Playlists`, `Library`). `Liked` owns quick-play
+actions and liked songs/albums; `Library` owns optional Downloads plus Albums,
+Artists, and Genres. Song browse IDs may carry album, playlist, liked, recent,
+download, or genre context, but persisted and transport queue IDs remain raw
+Subsonic song IDs. Projected search must put songs and playlists first and
+fall back to the local database within the Android for Cars 10-second
+content-load limit.
 
 Queue replacement is two-phase for album-style queues: phase 1 prepares only
 the tapped song in the transport queue so playback starts quickly; phase 2

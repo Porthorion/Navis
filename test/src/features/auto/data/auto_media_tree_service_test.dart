@@ -81,11 +81,37 @@ void main() {
         final items = await service.getChildren(AutoMediaRoot.root);
         final ids = items.map((e) => e.id).toList();
         expect(ids, [
-          AutoMediaRoot.albums,
+          AutoMediaRoot.liked,
           AutoMediaRoot.recent,
           AutoMediaRoot.playlists,
-          AutoMediaRoot.more,
+          AutoMediaRoot.library,
         ]);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'root uses concise labels and list presentation hints',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.root);
+        expect(
+          items.map((item) => item.title),
+          <String>['Liked', 'Recent', 'Playlists', 'Library'],
+        );
+        for (final item in items) {
+          expect(
+            item.extras?[AndroidAutoConstants.contentStyleSupportedKey],
+            isTrue,
+          );
+          expect(
+            item.extras?[AndroidAutoConstants.contentStyleBrowsableHintKey],
+            AndroidAutoConstants.contentStyleList,
+          );
+          expect(
+            item.extras?[AndroidAutoConstants.contentStylePlayableHintKey],
+            AndroidAutoConstants.contentStyleList,
+          );
+        }
       },
       skip: !sqliteAvailable,
     );
@@ -116,51 +142,71 @@ void main() {
     );
   });
 
-  // ── More node ─────────────────────────────────────────────────────────────
+  // ── Library ───────────────────────────────────────────────────────────────
 
-  group('getChildren - more', () {
+  group('getChildren - library', () {
     test(
-      'returns 4 secondary categories',
+      'returns albums, artists, and genres when no downloads exist',
       () async {
-        final items = await service.getChildren(AutoMediaRoot.more);
-        expect(items, hasLength(4));
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'more items have expected IDs',
-      () async {
-        final items = await service.getChildren(AutoMediaRoot.more);
-        final ids = items.map((e) => e.id).toList();
-        expect(ids, contains(AutoMediaRoot.artists));
-        expect(ids, contains(AutoMediaRoot.liked));
-        expect(ids, contains(AutoMediaRoot.instantMix));
-        expect(ids, contains(AutoMediaRoot.instantRadio));
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'Instant Radio is playable',
-      () async {
-        final items = await service.getChildren(AutoMediaRoot.more);
-        final instantRadio = items.firstWhere(
-          (i) => i.id == AutoMediaRoot.instantRadio,
+        final items = await service.getChildren(AutoMediaRoot.library);
+        expect(
+          items.map((item) => item.id),
+          <String>[
+            AutoMediaRoot.albums,
+            AutoMediaRoot.artists,
+            AutoMediaRoot.genres,
+          ],
         );
-        expect(instantRadio.playable, isTrue);
       },
       skip: !sqliteAvailable,
     );
 
     test(
-      'Instant Mix is playable',
+      'uses clear labels and collection-appropriate presentation hints',
       () async {
-        final items = await service.getChildren(AutoMediaRoot.more);
-        final instantMix = items.firstWhere(
-          (i) => i.id == AutoMediaRoot.instantMix,
+        final items = await service.getChildren(AutoMediaRoot.library);
+        expect(
+          items.map((item) => item.title),
+          <String>['Albums', 'Artists', 'Genres'],
         );
-        expect(instantMix.playable, isTrue);
+        expect(
+          items.map(
+            (item) =>
+                item.extras?[AndroidAutoConstants.contentStyleBrowsableHintKey],
+          ),
+          <int>[
+            AndroidAutoConstants.contentStyleGrid,
+            AndroidAutoConstants.contentStyleGrid,
+            AndroidAutoConstants.contentStyleList,
+          ],
+        );
+        expect(
+          items.every(
+            (item) =>
+                item.extras?[AndroidAutoConstants
+                    .contentStylePlayableHintKey] ==
+                AndroidAutoConstants.contentStyleList,
+          ),
+          isTrue,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'puts downloads first when permanent tracks exist',
+      () async {
+        service = AutoMediaTreeService(
+          libraryDao: database.libraryDao,
+          playlistDao: database.playlistDao,
+          playQueueDao: database.playQueueDao,
+          historyDao: database.historyDao,
+          readApiClient: () => null,
+          readDownloadedSongIds: () async => const <String>{'s1'},
+        );
+
+        final items = await service.getChildren(AutoMediaRoot.library);
+        expect(items.first.id, AutoMediaRoot.downloads);
       },
       skip: !sqliteAvailable,
     );
@@ -492,12 +538,58 @@ void main() {
 
   group('getChildren - liked', () {
     test(
-      'returns sub-categories',
+      'returns quick-play actions before liked library categories',
+      () async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 's1',
+            title: 'Liked Song',
+            starred: Value(DateTime(2024)),
+          ),
+        ]);
+        final items = await service.getChildren(AutoMediaRoot.liked);
+        expect(
+          items.map((item) => item.id),
+          <String>[
+            AutoMediaRoot.shuffleLiked,
+            AutoMediaRoot.instantMix,
+            AutoMediaRoot.instantRadio,
+            AutoMediaRoot.likedSongs,
+            AutoMediaRoot.likedAlbums,
+          ],
+        );
+        expect(items.take(3).every((item) => item.playable == true), isTrue);
+        expect(items.skip(3).every((item) => item.playable == false), isTrue);
+        expect(
+          items
+              .take(3)
+              .map(
+                (item) => item
+                    .extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+              ),
+          everyElement('Quick Play'),
+        );
+        expect(
+          items
+              .skip(3)
+              .map(
+                (item) => item
+                    .extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+              ),
+          everyElement('Library'),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'hides Shuffle Liked when no liked songs exist',
       () async {
         final items = await service.getChildren(AutoMediaRoot.liked);
-        expect(items, hasLength(2));
-        expect(items[0].id, AutoMediaRoot.likedSongs);
-        expect(items[1].id, AutoMediaRoot.likedAlbums);
+        expect(
+          items.map((item) => item.id),
+          isNot(contains(AutoMediaRoot.shuffleLiked)),
+        );
       },
       skip: !sqliteAvailable,
     );
@@ -521,6 +613,9 @@ void main() {
         expect(items, hasLength(1));
         expect(items.single.title, 'Liked Song');
         expect(items.single.playable, isTrue);
+        final parsed = AutoMediaId.parse(items.single.id);
+        expect(parsed?.contextType, AutoMediaContextType.liked);
+        expect(parsed?.contextId, AutoMediaRoot.likedSongs);
       },
       skip: !sqliteAvailable,
     );
@@ -563,6 +658,39 @@ void main() {
         expect(items, hasLength(1));
         expect(items.single.title, 'Song 1');
         expect(items.single.playable, isTrue);
+        final parsed = AutoMediaId.parse(items.single.id);
+        expect(parsed?.contextType, AutoMediaContextType.recent);
+        expect(parsed?.contextId, AutoMediaRoot.recent);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'puts Resume Queue before recently played songs when resumable',
+      () async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 's1', title: 'Song 1'),
+          SongsTableCompanion.insert(id: 's2', title: 'Song 2'),
+        ]);
+        await database.playQueueDao.saveQueue(
+          currentIndex: 1,
+          songIds: const <String>['s1', 's2'],
+        );
+        await database.historyDao.addPlayHistory('s1');
+
+        final items = await service.getChildren(AutoMediaRoot.recent);
+        expect(items.first.id, AutoMediaRoot.resumeQueue);
+        expect(items.first.title, 'Resume Queue');
+        expect(items.first.playable, isTrue);
+        expect(items[1].title, 'Song 1');
+        expect(
+          items.first.extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+          'Continue Listening',
+        );
+        expect(
+          items[1].extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+          'Recently Played',
+        );
       },
       skip: !sqliteAvailable,
     );
@@ -593,6 +721,72 @@ void main() {
         expect(items.single.id, 'song/s2');
         expect(items.single.title, 'Song 2');
         expect(items.single.playable, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+  });
+
+  // ── Downloads and genres ──────────────────────────────────────────────────
+
+  group('getChildren - downloads', () {
+    test(
+      'returns only permanently downloaded songs with collection context',
+      () async {
+        service = AutoMediaTreeService(
+          libraryDao: database.libraryDao,
+          playlistDao: database.playlistDao,
+          playQueueDao: database.playQueueDao,
+          historyDao: database.historyDao,
+          readApiClient: () => null,
+          readDownloadedSongIds: () async => const <String>{'s2'},
+        );
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 's1', title: 'Streamed'),
+          SongsTableCompanion.insert(id: 's2', title: 'Downloaded'),
+        ]);
+
+        final items = await service.getChildren(AutoMediaRoot.downloads);
+        expect(items, hasLength(1));
+        expect(items.single.title, 'Downloaded');
+        final parsed = AutoMediaId.parse(items.single.id);
+        expect(parsed?.contextType, AutoMediaContextType.downloads);
+        expect(parsed?.contextId, AutoMediaRoot.downloads);
+      },
+      skip: !sqliteAvailable,
+    );
+  });
+
+  group('getChildren - genres', () {
+    test(
+      'returns genres and preserves genre order for song leaves',
+      () async {
+        await database.libraryDao.replaceGenres([
+          GenresTableCompanion.insert(name: 'R&B / Soul'),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'al1',
+            name: 'Album One',
+            genre: const Value('R&B / Soul'),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 's1',
+            title: 'Song 1',
+            albumId: const Value('al1'),
+          ),
+        ]);
+
+        final genres = await service.getChildren(AutoMediaRoot.genres);
+        expect(genres.single.id, 'genre/R%26B%20%2F%20Soul');
+        expect(genres.single.title, 'R&B / Soul');
+
+        final songs = await service.getChildren(genres.single.id);
+        expect(songs, hasLength(1));
+        final parsed = AutoMediaId.parse(songs.single.id);
+        expect(parsed?.contextType, AutoMediaContextType.genre);
+        expect(parsed?.contextId, 'R&B / Soul');
       },
       skip: !sqliteAvailable,
     );
@@ -831,7 +1025,7 @@ void main() {
     );
 
     test(
-      'local search returns grouped artists, albums, playlists, and songs',
+      'local search groups songs, playlists, albums, and artists',
       () async {
         await database.libraryDao.upsertArtists([
           ArtistsTableCompanion.insert(id: 'artist-1', name: 'Aurora'),
@@ -852,8 +1046,35 @@ void main() {
             (item) =>
                 item.extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
           ),
-          containsAllInOrder(['Artists', 'Albums', 'Playlists', 'Songs']),
+          containsAllInOrder(['Songs', 'Playlists', 'Albums', 'Artists']),
         );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'local search ranks exact song and playlist matches first',
+      () async {
+        await database.playlistDao.upsertPlaylists([
+          PlaylistsTableCompanion.insert(
+            id: 'playlist-1',
+            name: 'Road Trip Extended',
+          ),
+          PlaylistsTableCompanion.insert(id: 'playlist-2', name: 'Road Trip'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Road Trip Reprise',
+          ),
+          SongsTableCompanion.insert(id: 'song-2', title: 'Road Trip'),
+        ]);
+
+        final items = await service.search('Road Trip');
+        expect(items[0].id, 'song/song-2');
+        expect(items[1].id, 'song/song-1');
+        expect(items[2].id, 'playlist/playlist-2');
+        expect(items[3].id, 'playlist/playlist-1');
       },
       skip: !sqliteAvailable,
     );

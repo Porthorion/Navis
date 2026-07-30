@@ -115,16 +115,16 @@ class AutoMediaTreeService {
       AutoMediaRoot.playlists => _getPlaylists(),
       AutoMediaRoot.artists => _getArtists(),
       AutoMediaRoot.albums => _getAlbums(),
-      AutoMediaRoot.more => _getMoreChildren(),
+      AutoMediaRoot.library => _getLibraryChildren(),
       AutoMediaRoot.liked => _getLikedCategories(),
-      // AudioService.recentRootId == 'recent' — the system-level RECENT_ROOT_ID
-      // that AAOS uses for the home screen widget when no session is active.
-      // AutoMediaRoot.recent == 'root/recent' is our own browseable node.
-      AutoMediaRoot.recent || AudioService.recentRootId => _getRecentlyPlayed(
-        parentMediaId,
-      ),
+      AutoMediaRoot.recent => _getRecentChildren(),
+      // AudioService.recentRootId == 'recent' is the system-level
+      // RECENT_ROOT_ID used for resumption when no session is active.
+      AudioService.recentRootId => _getSystemRecentChildren(),
       AutoMediaRoot.likedSongs => _getLikedSongs(),
       AutoMediaRoot.likedAlbums => _getLikedAlbums(),
+      AutoMediaRoot.downloads => _getDownloadedSongs(),
+      AutoMediaRoot.genres => _getGenres(),
       _ => _getEntityChildren(parentMediaId),
     };
   }
@@ -139,9 +139,9 @@ class AutoMediaTreeService {
 
     final children = <MediaItem>[
       _browsableItem(
-        id: AutoMediaRoot.albums,
-        title: 'Albums',
-        extras: AutoContentStyle.gridBrowsableListPlayable,
+        id: AutoMediaRoot.liked,
+        title: 'Liked',
+        extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _browsableItem(
         id: AutoMediaRoot.recent,
@@ -154,8 +154,8 @@ class AutoMediaTreeService {
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _browsableItem(
-        id: AutoMediaRoot.more,
-        title: 'More',
+        id: AutoMediaRoot.library,
+        title: 'Library',
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
     ];
@@ -200,40 +200,68 @@ class AutoMediaTreeService {
         : items;
   }
 
-  Future<List<MediaItem>> _getMoreChildren() async {
+  Future<List<MediaItem>> _getLibraryChildren() async {
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
     return [
+      if (downloadedSongIds.isNotEmpty)
+        _browsableItem(
+          id: AutoMediaRoot.downloads,
+          title: 'Downloads',
+          extras: AutoContentStyle.listBrowsableListPlayable,
+        ),
+      _browsableItem(
+        id: AutoMediaRoot.albums,
+        title: 'Albums',
+        extras: AutoContentStyle.gridBrowsableListPlayable,
+      ),
       _browsableItem(
         id: AutoMediaRoot.artists,
         title: 'Artists',
         extras: AutoContentStyle.gridBrowsableListPlayable,
       ),
       _browsableItem(
-        id: AutoMediaRoot.liked,
-        title: 'Liked',
+        id: AutoMediaRoot.genres,
+        title: 'Genres',
         extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-      _playableItem(
-        id: AutoMediaRoot.instantMix,
-        title: 'Instant Mix',
-      ),
-      _playableItem(
-        id: AutoMediaRoot.instantRadio,
-        title: 'Instant Radio',
       ),
     ];
   }
 
   Future<List<MediaItem>> _getLikedCategories() async {
+    final hasLikedSongs =
+        (await _libraryDao.watchAllStarredSongs().first).isNotEmpty;
     return [
+      if (hasLikedSongs)
+        _playableItem(
+          id: AutoMediaRoot.shuffleLiked,
+          title: 'Shuffle Liked',
+          extras: _statusExtras(groupTitle: 'Quick Play'),
+        ),
+      _playableItem(
+        id: AutoMediaRoot.instantMix,
+        title: 'Instant Mix',
+        extras: _statusExtras(groupTitle: 'Quick Play'),
+      ),
+      _playableItem(
+        id: AutoMediaRoot.instantRadio,
+        title: 'Instant Radio',
+        extras: _statusExtras(groupTitle: 'Quick Play'),
+      ),
       _browsableItem(
         id: AutoMediaRoot.likedSongs,
         title: 'Songs',
-        extras: AutoContentStyle.listBrowsableListPlayable,
+        extras: {
+          ...AutoContentStyle.listBrowsableListPlayable,
+          ..._statusExtras(groupTitle: 'Library'),
+        },
       ),
       _browsableItem(
         id: AutoMediaRoot.likedAlbums,
         title: 'Albums',
-        extras: AutoContentStyle.gridBrowsableListPlayable,
+        extras: {
+          ...AutoContentStyle.gridBrowsableListPlayable,
+          ..._statusExtras(groupTitle: 'Library'),
+        },
       ),
     ];
   }
@@ -244,8 +272,12 @@ class AutoMediaTreeService {
     final items = songs
         .take(_kMaxBrowseItems)
         .map(
-          (song) =>
-              _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
+          (song) => _songToMediaItem(
+            song,
+            downloadedSongIds: downloadedSongIds,
+            contextType: AutoMediaContextType.liked,
+            contextId: AutoMediaRoot.likedSongs,
+          ),
         )
         .toList(
           growable: false,
@@ -268,7 +300,36 @@ class AutoMediaTreeService {
         : items;
   }
 
-  Future<List<MediaItem>> _getRecentlyPlayed(String parentId) async {
+  Future<List<MediaItem>> _getRecentChildren() async {
+    final songs = await _historyDao.watchRecentlyPlayedSongs(limit: 50).first;
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    final items = <MediaItem>[];
+    if ((await _playQueueDao.getQueueItems()).isNotEmpty) {
+      items.add(
+        _playableItem(
+          id: AutoMediaRoot.resumeQueue,
+          title: 'Resume Queue',
+          extras: _statusExtras(groupTitle: 'Continue Listening'),
+        ),
+      );
+    }
+    items.addAll(
+      songs.map(
+        (song) => _songToMediaItem(
+          song,
+          downloadedSongIds: downloadedSongIds,
+          contextType: AutoMediaContextType.recent,
+          contextId: AutoMediaRoot.recent,
+          groupTitle: 'Recently Played',
+        ),
+      ),
+    );
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.recent, 'No recent plays')
+        : items;
+  }
+
+  Future<List<MediaItem>> _getSystemRecentChildren() async {
     final songs = await _historyDao.watchRecentlyPlayedSongs(limit: 50).first;
     final downloadedSongIds = await _readDownloadedSongIdsSafe();
     final items = songs
@@ -280,16 +341,53 @@ class AutoMediaTreeService {
     if (items.isNotEmpty) {
       return items;
     }
-    if (parentId == AudioService.recentRootId) {
-      final resumableItems = await _getResumableQueueFallback(
-        downloadedSongIds: downloadedSongIds,
-      );
-      if (resumableItems.isNotEmpty) {
-        return resumableItems;
-      }
-      return const <MediaItem>[];
+    final resumableItems = await _getResumableQueueFallback(
+      downloadedSongIds: downloadedSongIds,
+    );
+    if (resumableItems.isNotEmpty) {
+      return resumableItems;
     }
-    return _emptyItems(parentId, 'No recent plays');
+    return const <MediaItem>[];
+  }
+
+  Future<List<MediaItem>> _getDownloadedSongs() async {
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    if (downloadedSongIds.isEmpty) {
+      return _emptyItems(AutoMediaRoot.downloads, 'No downloads');
+    }
+    final songs = await _libraryDao.watchAllSongs().first;
+    final items = songs
+        .where((song) => downloadedSongIds.contains(song.id))
+        .take(_kMaxBrowseItems)
+        .map(
+          (song) => _songToMediaItem(
+            song,
+            downloadedSongIds: downloadedSongIds,
+            contextType: AutoMediaContextType.downloads,
+            contextId: AutoMediaRoot.downloads,
+          ),
+        )
+        .toList(growable: false);
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.downloads, 'No downloads')
+        : items;
+  }
+
+  Future<List<MediaItem>> _getGenres() async {
+    final genres = await _libraryDao.watchGenres().first;
+    final items = genres
+        .take(_kMaxBrowseItems)
+        .map(
+          (genre) => _browsableItem(
+            id: AutoMediaId.genre(genre.name),
+            title: genre.name,
+            extras: AutoContentStyle.listBrowsableListPlayable,
+          ),
+        )
+        .toList(growable: false);
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.genres, 'No genres')
+        : items;
   }
 
   Future<List<MediaItem>> _getResumableQueueFallback({
@@ -320,6 +418,7 @@ class AutoMediaTreeService {
     return switch (parsed.type) {
       AutoMediaIdType.artist => _getArtistAlbums(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumSongs(parsed.entityId!),
+      AutoMediaIdType.genre => _getGenreSongs(parsed.entityId!),
       AutoMediaIdType.playlist => _getPlaylistSongs(parsed.entityId!),
       _ => _emptyItems(parentMediaId, 'No content'),
     };
@@ -370,6 +469,25 @@ class AutoMediaTreeService {
         : items;
   }
 
+  Future<List<MediaItem>> _getGenreSongs(String genre) async {
+    final songs = await _libraryDao.watchSongsByGenre(genre).first;
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    final items = songs
+        .take(_kMaxBrowseItems)
+        .map(
+          (song) => _songToMediaItem(
+            song,
+            downloadedSongIds: downloadedSongIds,
+            contextType: AutoMediaContextType.genre,
+            contextId: genre,
+          ),
+        )
+        .toList(growable: false);
+    return items.isEmpty
+        ? _emptyItems(AutoMediaId.genre(genre), 'No songs')
+        : items;
+  }
+
   // ── getMediaItem ──────────────────────────────────────────────────────────
 
   /// Resolves a single [MediaItem] by its media ID.
@@ -401,6 +519,7 @@ class AutoMediaTreeService {
       AutoMediaIdType.song => _getSongMediaItem(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumMediaItem(parsed.entityId!),
       AutoMediaIdType.artist => _getArtistMediaItem(parsed.entityId!),
+      AutoMediaIdType.genre => null,
       AutoMediaIdType.playlist => _getPlaylistMediaItem(parsed.entityId!),
       _ => null,
     };
@@ -509,6 +628,7 @@ class AutoMediaTreeService {
       }
       final downloadedSongIds = await _readDownloadedSongIdsSafe();
       return _mapSearchResults(
+        query,
         result.artists,
         result.albums,
         playlists,
@@ -542,6 +662,7 @@ class AutoMediaTreeService {
         : const <SongsTableData>[];
     final downloadedSongIds = await _readDownloadedSongIdsSafe();
     return _mapLocalSearchResults(
+      query,
       artists,
       albums,
       playlists,
@@ -551,6 +672,7 @@ class AutoMediaTreeService {
   }
 
   List<MediaItem> _mapSearchResults(
+    String query,
     List<api.Artist> artists,
     List<api.Album> albums,
     List<PlaylistsTableData> playlists,
@@ -559,40 +681,7 @@ class AutoMediaTreeService {
   ) {
     final items = <MediaItem>[];
 
-    for (final a in artists) {
-      items.add(
-        _browsableItem(
-          id: AutoMediaId.artist(a.id),
-          title: a.name,
-          artUri: _coverArtUri(a.coverArt),
-          extras: _statusExtras(
-            favorite: a.starred != null,
-            groupTitle: 'Artists',
-          ),
-        ),
-      );
-    }
-
-    for (final a in albums) {
-      items.add(
-        _browsableItem(
-          id: AutoMediaId.album(a.id),
-          title: a.name,
-          artist: a.artist,
-          artUri: _coverArtUri(a.coverArt),
-          extras: _statusExtras(
-            favorite: a.starred != null,
-            groupTitle: 'Albums',
-          ),
-        ),
-      );
-    }
-
-    for (final playlist in playlists) {
-      items.add(_playlistToMediaItem(playlist, groupTitle: 'Playlists'));
-    }
-
-    for (final s in songs) {
+    for (final s in _exactMatchesFirst(songs, query, (song) => song.title)) {
       items.add(
         MediaItem(
           id: AutoMediaId.song(s.id),
@@ -613,10 +702,48 @@ class AutoMediaTreeService {
       );
     }
 
+    for (final playlist in _exactMatchesFirst(
+      playlists,
+      query,
+      (item) => item.name,
+    )) {
+      items.add(_playlistToMediaItem(playlist, groupTitle: 'Playlists'));
+    }
+
+    for (final a in albums) {
+      items.add(
+        _browsableItem(
+          id: AutoMediaId.album(a.id),
+          title: a.name,
+          artist: a.artist,
+          artUri: _coverArtUri(a.coverArt),
+          extras: _statusExtras(
+            favorite: a.starred != null,
+            groupTitle: 'Albums',
+          ),
+        ),
+      );
+    }
+
+    for (final a in artists) {
+      items.add(
+        _browsableItem(
+          id: AutoMediaId.artist(a.id),
+          title: a.name,
+          artUri: _coverArtUri(a.coverArt),
+          extras: _statusExtras(
+            favorite: a.starred != null,
+            groupTitle: 'Artists',
+          ),
+        ),
+      );
+    }
+
     return items.isEmpty ? _emptyItems('search', 'No results') : items;
   }
 
   List<MediaItem> _mapLocalSearchResults(
+    String query,
     List<ArtistsTableData> artists,
     List<AlbumsTableData> albums,
     List<PlaylistsTableData> playlists,
@@ -624,18 +751,22 @@ class AutoMediaTreeService {
     Set<String> downloadedSongIds,
   ) {
     final items = <MediaItem>[
-      for (final artist in artists)
-        _artistToMediaItem(artist, groupTitle: 'Artists'),
-      for (final album in albums)
-        _albumToMediaItem(album, groupTitle: 'Albums'),
-      for (final playlist in playlists)
-        _playlistToMediaItem(playlist, groupTitle: 'Playlists'),
-      for (final song in songs)
+      for (final song in _exactMatchesFirst(songs, query, (item) => item.title))
         _songToMediaItem(
           song,
           downloadedSongIds: downloadedSongIds,
           groupTitle: 'Songs',
         ),
+      for (final playlist in _exactMatchesFirst(
+        playlists,
+        query,
+        (item) => item.name,
+      ))
+        _playlistToMediaItem(playlist, groupTitle: 'Playlists'),
+      for (final album in albums)
+        _albumToMediaItem(album, groupTitle: 'Albums'),
+      for (final artist in artists)
+        _artistToMediaItem(artist, groupTitle: 'Artists'),
     ];
 
     return items.isEmpty ? _emptyItems('search', 'No results') : items;
@@ -739,12 +870,14 @@ class AutoMediaTreeService {
     required String id,
     required String title,
     Uri? artUri,
+    Map<String, dynamic>? extras,
   }) {
     return MediaItem(
       id: id,
       title: title,
       artUri: artUri,
       playable: true,
+      extras: extras,
     );
   }
 
@@ -822,6 +955,23 @@ class AutoMediaTreeService {
 
   bool _containsIgnoreCase(String value, String query) {
     return value.toLowerCase().contains(query.toLowerCase());
+  }
+
+  Iterable<T> _exactMatchesFirst<T>(
+    Iterable<T> items,
+    String query,
+    String Function(T item) readLabel,
+  ) sync* {
+    final normalizedQuery = query.trim().toLowerCase();
+    final remaining = <T>[];
+    for (final item in items) {
+      if (readLabel(item).trim().toLowerCase() == normalizedQuery) {
+        yield item;
+      } else {
+        remaining.add(item);
+      }
+    }
+    yield* remaining;
   }
 }
 

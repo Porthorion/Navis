@@ -10,10 +10,15 @@ void main() {
       expect(AutoMediaRoot.albums, 'root/albums');
       expect(AutoMediaRoot.liked, 'root/liked');
       expect(AutoMediaRoot.recent, 'root/recent');
+      expect(AutoMediaRoot.library, 'root/library');
       expect(AutoMediaRoot.instantRadio, 'root/instant_radio');
       expect(AutoMediaRoot.instantMix, 'root/instant_mix');
+      expect(AutoMediaRoot.shuffleLiked, 'liked/shuffle');
       expect(AutoMediaRoot.likedSongs, 'liked/songs');
       expect(AutoMediaRoot.likedAlbums, 'liked/albums');
+      expect(AutoMediaRoot.resumeQueue, 'recent/resume');
+      expect(AutoMediaRoot.downloads, 'library/downloads');
+      expect(AutoMediaRoot.genres, 'library/genres');
     });
   });
 
@@ -25,6 +30,10 @@ void main() {
 
     test('album encodes correctly', () {
       expect(AutoMediaId.album('456'), 'album/456');
+    });
+
+    test('genre encodes safely', () {
+      expect(AutoMediaId.genre('R&B / Soul'), 'genre/R%26B%20%2F%20Soul');
     });
 
     test('playlist encodes correctly', () {
@@ -62,8 +71,13 @@ void main() {
         AutoMediaRoot.albums,
         AutoMediaRoot.liked,
         AutoMediaRoot.recent,
+        AutoMediaRoot.library,
         AutoMediaRoot.instantRadio,
         AutoMediaRoot.instantMix,
+        AutoMediaRoot.shuffleLiked,
+        AutoMediaRoot.resumeQueue,
+        AutoMediaRoot.downloads,
+        AutoMediaRoot.genres,
       ]) {
         final parsed = AutoMediaId.parse(id);
         expect(parsed, isNotNull, reason: 'Failed to parse: $id');
@@ -96,6 +110,13 @@ void main() {
       expect(parsed, isNotNull);
       expect(parsed!.type, AutoMediaIdType.album);
       expect(parsed.entityId, '456');
+    });
+
+    test('parses encoded genre entity', () {
+      final parsed = AutoMediaId.parse('genre/R%26B%20%2F%20Soul');
+      expect(parsed, isNotNull);
+      expect(parsed!.type, AutoMediaIdType.genre);
+      expect(parsed.entityId, 'R&B / Soul');
     });
 
     test('parses playlist entity', () {
@@ -154,8 +175,12 @@ void main() {
       expect(AutoMediaId.parse(''), isNull);
     });
 
+    test('returns null for malformed genre encoding', () {
+      expect(AutoMediaId.parse('genre/%invalid'), isNull);
+    });
+
     test('returns null for unknown prefix', () {
-      expect(AutoMediaId.parse('genre/rock'), isNull);
+      expect(AutoMediaId.parse('station/rock'), isNull);
     });
 
     test('returns null for prefix-only (no ID)', () {
