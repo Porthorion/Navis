@@ -57,6 +57,42 @@ require_not_contains() {
   pass "$description"
 }
 
+find_aapt() {
+  if command -v aapt >/dev/null 2>&1; then
+    command -v aapt
+    return
+  fi
+
+  local configured_sdk=""
+  if [[ -f android/local.properties ]]; then
+    configured_sdk="$(sed -n 's/^sdk\.dir=//p' android/local.properties | head -n 1)"
+  fi
+
+  local sdk_root
+  for sdk_root in \
+    "${ANDROID_SDK_ROOT:-}" \
+    "${ANDROID_HOME:-}" \
+    "$configured_sdk"; do
+    [[ -d "$sdk_root/build-tools" ]] || continue
+    local candidate
+    candidate="$(
+      find "$sdk_root/build-tools" \
+        -mindepth 2 \
+        -maxdepth 2 \
+        -type f \
+        -name aapt \
+        -perm -u+x \
+        -print |
+        sort -V |
+        tail -n 1
+    )"
+    if [[ -n "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+}
+
 require_file "$MANIFEST_PATH"
 require_file "$AUTOMOTIVE_DESC"
 
@@ -85,12 +121,12 @@ require_contains \
   "car app theme metadata exists"
 require_contains \
   "$MANIFEST_PATH" \
-  'android:name="com.navis.app.navis.NavisAudioService"' \
-  "Navis caller-validating MediaBrowserService is declared"
+  'android:name="com.ryanheise.audioservice.AudioService"' \
+  "audio_service MediaBrowserService is declared"
 require_not_contains \
   "$MANIFEST_PATH" \
-  'android:name="com.ryanheise.audioservice.AudioService"' \
-  "stock audio_service is not exported directly"
+  'android:name="com.navis.app.navis.NavisAudioService"' \
+  "no incompatible custom MediaBrowserService is declared"
 require_contains \
   "$MANIFEST_PATH" \
   'android:label="@string/app_name"' \
@@ -134,13 +170,23 @@ fi
 
 if [[ -n "$APK_PATH" ]]; then
   require_file "$APK_PATH"
-  if command -v unzip >/dev/null 2>&1; then
-    apk_listing="$(unzip -Z1 "$APK_PATH")"
-    grep -Fq 'res/xml/automotive_app_desc.xml' <<<"$apk_listing" \
-      || fail "APK does not package res/xml/automotive_app_desc.xml"
+  aapt_bin="$(find_aapt)"
+  if [[ -n "$aapt_bin" ]]; then
+    apk_resources="$("$aapt_bin" dump resources "$APK_PATH")"
+    grep -Fq ':xml/automotive_app_desc' <<<"$apk_resources" \
+      || fail "APK does not package automotive_app_desc"
     pass "APK packages automotive_app_desc.xml"
+
+    apk_manifest="$("$aapt_bin" dump xmltree "$APK_PATH" AndroidManifest.xml)"
+    grep -Fq 'com.ryanheise.audioservice.AudioService' <<<"$apk_manifest" \
+      || fail "APK does not declare the canonical audio_service component"
+    pass "APK declares the canonical audio_service component"
+    if grep -Fq 'com.navis.app.navis.NavisAudioService' <<<"$apk_manifest"; then
+      fail "APK declares the incompatible custom media-service component"
+    fi
+    pass "APK does not declare the incompatible custom media-service component"
   else
-    echo "WARN: unzip not found; skipping APK resource check" >&2
+    echo "WARN: aapt not found; skipping packaged APK checks" >&2
   fi
 fi
 

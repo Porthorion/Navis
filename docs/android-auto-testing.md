@@ -262,16 +262,15 @@ Once the DHU is running, use these commands in the DHU terminal:
    `com.google.android.gms.car.application`,
    `androidx.car.app.TintableAttributionIcon`, and
    `com.google.android.gms.car.application.theme`.
-7. Confirm the service class is `NavisAudioService`. Release builds validate
-   the package/UID pair and accept the app, system media clients, and known
-   Android Auto/Google media hosts. Debug builds additionally accept
-   UID-verified Media Controller Test clients.
+7. Confirm the service class is
+   `com.ryanheise.audioservice.AudioService`. The plugin binds and starts this
+   exact component during playback initialization; replacing it with an app
+   subclass prevents the phone app from starting playback.
 8. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
    AudioService** declaration.  That permission has `protectionLevel="signature|privileged"`.
    On devices where Android Auto is installed from the Play Store (not a privileged system
    app), it does not hold that permission and gets `Permission Denial` when binding — which
-   prevents Auto from connecting at all.  Caller validation is handled by
-   `MediaBrowserServiceCompat.onGetRoot()` returning `null` for unauthorised callers.
+   prevents Auto from connecting at all.
 9. Try restarting the head unit server on the phone
 10. Try `adb forward tcp:5277 tcp:5277` again and restart the DHU (Android Auto uses
    exponential back-off after repeated connection failures; a fresh DHU session forces

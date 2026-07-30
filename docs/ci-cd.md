@@ -29,9 +29,9 @@ gate:
 ./tool/verify_android_auto_manifest.sh
 ```
 
-It checks that release discovery metadata and the caller-validating
-`NavisAudioService` are present, the stock plugin service is not exported
-directly, and no privileged media-browser bind permission blocks Android Auto.
+It checks that release discovery metadata and the canonical
+`com.ryanheise.audioservice.AudioService` are present and no privileged
+media-browser bind permission blocks Android Auto.
 
 ### Core Gate
 

@@ -28,9 +28,10 @@ Located in `lib/src/providers/app_providers.dart`:
     app-owned SMTC bridge; Android, iOS, and macOS use `audio_service`
 
 - **Android Auto phone projection**
-  - `NavisAudioService` is the exported native `MediaBrowserService`. It
-    validates the caller package against its UID, then delegates accepted
-    clients to the plugin service and the shared `NavisAudioHandler`.
+  - The canonical `com.ryanheise.audioservice.AudioService` is the exported
+    native `MediaBrowserService`. The plugin binds and starts that exact
+    component during playback bootstrap, then delegates browse requests to the
+    shared `NavisAudioHandler`.
   - `AutoMediaTreeService` builds the local database-backed browse tree. Its
     four root tabs are Liked, Recent, Playlists, and Library. Liked exposes
     quick-play actions plus liked songs/albums; Library contains Downloads

@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.16',
+    entries: [
+      ChangelogEntry(
+        'Fixed a launch failure that could prevent playback from initializing on Android',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.15',
     entries: [
       ChangelogEntry(

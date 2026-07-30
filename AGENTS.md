@@ -234,12 +234,11 @@ User action → queueProvider (QueueController)
 Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-cache)** → **Stream**
 
 Android Auto is phone projection through the Android `MediaBrowserService`,
-not an app UI rendered on the head unit. `NavisAudioService` subclasses the
-`audio_service` service to validate browser callers before exposing the
-handler-owned `AutoMediaTreeService`. Release builds admit the app itself,
-system clients, and known Android Auto/Google media hosts; debug builds also
-admit UID-verified controller-test clients. Keep the root at four browsable
-tabs (`Liked`, `Recent`, `Playlists`, `Library`). `Liked` owns quick-play
+not an app UI rendered on the head unit. The manifest must register the
+canonical `com.ryanheise.audioservice.AudioService` component because the
+plugin binds and starts that exact class during playback initialization. The
+service exposes the handler-owned `AutoMediaTreeService`. Keep the root at four
+browsable tabs (`Liked`, `Recent`, `Playlists`, `Library`). `Liked` owns quick-play
 actions and liked songs/albums; `Library` owns optional Downloads plus Albums,
 Artists, and Genres. Song browse IDs may carry album, playlist, liked, recent,
 download, or genre context, but persisted and transport queue IDs remain raw
@@ -511,7 +510,7 @@ Commits reference issues as `fix(#N):` or `(issue #N)`.
 | **macOS release** | Native Control Centre bridge (`MPRemoteCommandCenter`) still pending |
 | **Linux** | MPRIS via the app-owned `dbus` bridge |
 | **Windows** | SMTC via `smtc_windows` |
-| **Android** | `audio_service` media session; caller-validated Android Auto phone projection in `features/auto/` and `NavisAudioService` |
+| **Android** | `audio_service` media session and Android Auto phone projection in `features/auto/`; manifest service class must remain the canonical plugin `AudioService` |
 | **iOS** | CarPlay and media-session parity under audit |
 | **Listen Together** | Retired; no active UI files remain and no Voyage sibling repo is required |
 

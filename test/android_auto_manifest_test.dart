@@ -8,19 +8,15 @@ void main() {
       'android/app/src/main/res/xml/automotive_app_desc.xml';
   const mainActivityPath =
       'android/app/src/main/kotlin/com/navis/app/navis/MainActivity.kt';
-  const audioServicePath =
-      'android/app/src/main/kotlin/com/navis/app/navis/NavisAudioService.kt';
 
   late String manifest;
   late String automotiveDesc;
   late String mainActivity;
-  late String audioService;
 
   setUpAll(() {
     manifest = File(manifestPath).readAsStringSync();
     automotiveDesc = File(automotiveDescPath).readAsStringSync();
     mainActivity = File(mainActivityPath).readAsStringSync();
-    audioService = File(audioServicePath).readAsStringSync();
   });
 
   test('declares Android Auto media app metadata at application level', () {
@@ -45,13 +41,11 @@ void main() {
   test('exports media browser service with car-visible metadata', () {
     expect(
       manifest,
-      contains('android:name="com.navis.app.navis.NavisAudioService"'),
+      contains('android:name="com.ryanheise.audioservice.AudioService"'),
     );
     expect(
       manifest,
-      isNot(
-        contains('android:name="com.ryanheise.audioservice.AudioService"'),
-      ),
+      isNot(contains('android:name="com.navis.app.navis.NavisAudioService"')),
     );
     expect(manifest, contains('android:label="@string/app_name"'));
     expect(manifest, contains('android:icon="@mipmap/ic_launcher"'));
@@ -65,9 +59,6 @@ void main() {
       manifest,
       isNot(contains('android.permission.BIND_MEDIA_BROWSER_SERVICE')),
     );
-    expect(audioService, contains('class NavisAudioService : AudioService()'));
-    expect(audioService, contains('override fun onGetRoot('));
-    expect(audioService, contains('getPackagesForUid(clientUid)'));
   });
 
   test('main activity hosts audio_service media session callbacks', () {

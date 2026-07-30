@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.16', [
+    _Entry(
+      'Fixed a launch failure that could prevent playback from initializing on Android',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.15', [
     _Entry(
       'Metadata sync now keeps individual artist and album failures pending, retries only unfinished items, and preserves the server cursor until verification completes',

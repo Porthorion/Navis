@@ -90,7 +90,7 @@ The diagnostic script prints:
 - signing certificate digest when `apksigner` or `keytool` is available
 - Android Auto package version
 - `MediaBrowserService` resolver visibility
-- caller-validating `NavisAudioService` manifest registration
+- canonical `com.ryanheise.audioservice.AudioService` manifest registration
 - media session state for Navis
 - filtered Android Auto, AudioService, Flutter, and crash logs
 
