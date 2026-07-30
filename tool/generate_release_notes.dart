@@ -65,11 +65,7 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
-      'Android Auto now preserves playlist order, searches playlists reliably, falls back quickly when the server is unavailable, and rejects unrelated media-browser clients',
-      type: _EntryType.fix,
-    ),
-    _Entry(
-      'Android Auto now opens with Liked, Recent, Playlists, and Library, with liked quick play, queue resume, downloads, genres, and collection-aware playback',
+      'Android Auto now opens with Liked, Recent, Playlists, and Library, with reliable search, queue order, resume, downloads, and genre browsing',
       type: _EntryType.improvement,
     ),
   ]),
