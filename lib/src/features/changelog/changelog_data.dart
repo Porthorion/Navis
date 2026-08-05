@@ -30,35 +30,19 @@ const List<ChangelogVersion> changelogs = [
     version: '1.1.0',
     entries: [
       ChangelogEntry(
-        'Sync Settings now limits background library sync to unmetered networks by default, shows when updates are waiting, and offers one-time mobile-data sync or confirmed Repair Library actions',
+        'Background library sync stays on unmetered networks by default, with updates-available notices and one-time mobile-data sync when you need it',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Library sync is now adaptive and resumable, using low-data checks and targeted updates while showing clearer freshness, progress, and repair details',
+        'Library sync is adaptive and resumable: low-data checks, targeted updates, safer full repairs that apply only real changes, and better liked and playlist reconciliation',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'This update performs one library repair; future full refreshes prepare and validate a replacement catalog before applying it without disrupting likes, downloads, cache, or playback',
+        'Desktop playback is more responsive; streamed tracks now fill the rolling cache on Linux, Windows, and macOS',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Fixed interrupted or very large library repairs being able to repeat, lose progress, fail during apply, or leave an incomplete catalog',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Large library repairs now compare catalog pages in the background and apply only real changes, reducing memory use and avoiding long playback or browsing stalls',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Liked content and playlists now reconcile through the resumable sync queue while preserving pending likes and cached playlist tracks',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Desktop playback is more responsive and streamed tracks now populate the rolling cache on Linux, Windows, and macOS, with live cache progress in Settings',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed playback initialization, rapid Play requests, crossfade caching, Home refreshes during sync, and unstable seek or duration updates',
+        'Fixed interrupted library repairs, playback startup glitches, Home refreshes during sync, and unstable seek or duration updates',
         type: ChangelogEntryType.fix,
       ),
     ],

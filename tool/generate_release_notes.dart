@@ -57,34 +57,16 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.1.0', [
     _Entry(
-      'Sync Settings now limits background library sync to unmetered networks by default, shows when updates are waiting, and offers one-time mobile-data sync or confirmed Repair Library actions',
+      'Background library sync stays on unmetered networks by default, with updates-available notices and one-time mobile-data sync when you need it',
     ),
     _Entry(
-      'Library sync is now adaptive and resumable, using low-data checks and targeted updates while showing clearer freshness, progress, and repair details',
-      type: _EntryType.improvement,
+      'Library sync is adaptive and resumable: low-data checks, targeted updates, safer full repairs that apply only real changes, and better liked and playlist reconciliation',
     ),
     _Entry(
-      'This update performs one library repair; future full refreshes prepare and validate a replacement catalog before applying it without disrupting likes, downloads, cache, or playback',
-      type: _EntryType.improvement,
+      'Desktop playback is more responsive; streamed tracks now fill the rolling cache on Linux, Windows, and macOS',
     ),
     _Entry(
-      'Fixed interrupted or very large library repairs being able to repeat, lose progress, fail during apply, or leave an incomplete catalog',
-      type: _EntryType.fix,
-    ),
-    _Entry(
-      'Large library repairs now compare catalog pages in the background and apply only real changes, reducing memory use and avoiding long playback or browsing stalls',
-      type: _EntryType.improvement,
-    ),
-    _Entry(
-      'Liked content and playlists now reconcile through the resumable sync queue while preserving pending likes and cached playlist tracks',
-      type: _EntryType.fix,
-    ),
-    _Entry(
-      'Desktop playback is more responsive and streamed tracks now populate the rolling cache on Linux, Windows, and macOS, with live cache progress in Settings',
-      type: _EntryType.fix,
-    ),
-    _Entry(
-      'Fixed playback initialization, rapid Play requests, crossfade caching, Home refreshes during sync, and unstable seek or duration updates',
+      'Fixed interrupted library repairs, playback startup glitches, Home refreshes during sync, and unstable seek or duration updates',
       type: _EntryType.fix,
     ),
   ]),
