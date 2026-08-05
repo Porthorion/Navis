@@ -55,6 +55,16 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.1.1', [
+    _Entry(
+      'Seeking on desktop no longer hangs while a track is still caching; playback stays on a seekable stream while the rolling cache fills in the background',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Seeking back into already-heard audio on desktop is smoother and no longer forces a full stream rebuild',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.1.0', [
     _Entry(
       'Background library sync stays on unmetered networks by default, with updates-available notices and one-time mobile-data sync when you need it',

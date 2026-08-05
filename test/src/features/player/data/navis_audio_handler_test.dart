@@ -443,14 +443,24 @@ void main() {
           isTrue,
         );
 
-        // Non-lockCachedStream source: never recover.
+        // Non-remote source: never recover.
+        expect(
+          navisShouldRecoverSeekToDirectStream(
+            sourceKind: 'file',
+            requestedPosition: const Duration(seconds: 48),
+            actualPosition: const Duration(milliseconds: 250),
+          ),
+          isFalse,
+        );
+
+        // Direct stream undershoot: recover (desktop/media_kit can no-op).
         expect(
           navisShouldRecoverSeekToDirectStream(
             sourceKind: 'directStream',
             requestedPosition: const Duration(seconds: 48),
             actualPosition: const Duration(milliseconds: 250),
           ),
-          isFalse,
+          isTrue,
         );
 
         // Small seek target (≤ 2s): never recover.

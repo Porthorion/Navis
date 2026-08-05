@@ -548,7 +548,10 @@ bool navisShouldRecoverSeekToDirectStream({
   required Duration requestedPosition,
   required Duration actualPosition,
 }) {
-  if (sourceKind != PlaybackSourceKind.lockCachedStream.name) {
+  final isRemoteSource =
+      sourceKind == PlaybackSourceKind.lockCachedStream.name ||
+      sourceKind == PlaybackSourceKind.directStream.name;
+  if (!isRemoteSource) {
     return false;
   }
   if (requestedPosition <= const Duration(seconds: 2)) {
@@ -701,7 +704,10 @@ Map<String, Object?> navisResolvedPlaybackExtras({
     'coverArtId': song.coverArt,
     'sourceKind': source.kind.name,
     'localSource': source.isLocal,
-    'cachedFilePath': source.cachedFilePath,
+    'cachedFilePath': source.cachedFilePath ?? source.sidecarCacheFilePath,
+    'sidecarCacheFilePath': source.sidecarCacheFilePath,
+    'streamUri':
+        source.uri?.toString() ?? source.lockCachingStreamUri?.toString(),
     'resolvedFormat': source.metadata.format,
     'resolvedBitRate': source.metadata.bitRate,
     'resolvedSampleRate': source.metadata.sampleRate,

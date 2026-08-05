@@ -311,6 +311,68 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'GET' && path == '/v1/playback/status') {
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        final activity = _container.read(rollingCacheActivityProvider);
+        final status = handler.collectPlaybackDiagnostics();
+        status['providerCacheActivity'] = <String, Object?>{
+          'status': activity.status.name,
+          'songId': activity.songId,
+          'progress': activity.progress,
+        };
+        await _respond(request, HttpStatus.ok, status);
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/playback/seek') {
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        final body = await _readJson(request);
+        final positionMs = body['positionMs'];
+        if (positionMs is! num) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'positionMs is required',
+          });
+          return;
+        }
+        final before = handler.collectPlaybackDiagnostics();
+        final started = DateTime.now().toUtc();
+        await handler.seek(Duration(milliseconds: positionMs.round()));
+        final elapsedMs = DateTime.now()
+            .toUtc()
+            .difference(started)
+            .inMilliseconds;
+        final after = handler.collectPlaybackDiagnostics();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'elapsedMs': elapsedMs,
+          'requestedPositionMs': positionMs.round(),
+          'before': before,
+          'after': after,
+        });
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/playback/pause') {
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        await handler.pause();
+        await _respond(
+          request,
+          HttpStatus.ok,
+          handler.collectPlaybackDiagnostics(),
+        );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/playback/play') {
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        await handler.play();
+        await _respond(
+          request,
+          HttpStatus.ok,
+          handler.collectPlaybackDiagnostics(),
+        );
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/diagnostics/report') {
         await _respond(request, HttpStatus.ok, await _buildReport());
         return;

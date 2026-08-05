@@ -27,6 +27,19 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.1.1',
+    entries: [
+      ChangelogEntry(
+        'Seeking on desktop no longer hangs while a track is still caching; playback stays on a seekable stream while the rolling cache fills in the background',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Seeking back into already-heard audio on desktop is smoother and no longer forces a full stream rebuild',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.1.0',
     entries: [
       ChangelogEntry(

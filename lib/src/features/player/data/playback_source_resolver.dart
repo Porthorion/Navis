@@ -38,7 +38,8 @@ class ResolvedPlaybackSource {
     this.cachedFilePath,
   }) : kind = PlaybackSourceKind.file,
        lockCachingStreamUri = null,
-       lockCachingAudioSource = null;
+       lockCachingAudioSource = null,
+       sidecarCacheFilePath = null;
 
   const ResolvedPlaybackSource.lockCachedStream({
     required this.songId,
@@ -47,12 +48,14 @@ class ResolvedPlaybackSource {
     required this.cachedFilePath,
     required this.metadata,
   }) : kind = PlaybackSourceKind.lockCachedStream,
-       uri = null;
+       uri = null,
+       sidecarCacheFilePath = null;
 
   const ResolvedPlaybackSource.directStream({
     required this.songId,
     required this.uri,
     required this.metadata,
+    this.sidecarCacheFilePath,
   }) : kind = PlaybackSourceKind.directStream,
        lockCachingStreamUri = null,
        cachedFilePath = null,
@@ -64,6 +67,11 @@ class ResolvedPlaybackSource {
   final Uri? lockCachingStreamUri;
   final ResolvedPlaybackMetadata metadata;
   final String? cachedFilePath;
+
+  /// Desktop rolling-cache target filled by [RollingCacheSidecarDownloader]
+  /// while playback uses [uri] directly (media_kit cannot seek lock-cache
+  /// proxies reliably).
+  final String? sidecarCacheFilePath;
   // ignore: experimental_member_use, reason: LockCachingAudioSource is intentionally surfaced so the audio handler can subscribe to cache completion.
   final LockCachingAudioSource? lockCachingAudioSource;
 
@@ -118,6 +126,7 @@ class PlaybackSourceResolver {
     bool Function()? readPreferAnyCache,
     bool Function()? readCanStream,
     bool Function()? readSupportsLockCaching,
+    bool Function()? readUsesSidecarRollingCache,
   }) : _cacheDao = cacheDao,
        _libraryDao = libraryDao,
        _rollingCacheManager = rollingCacheManager,
@@ -128,7 +137,8 @@ class PlaybackSourceResolver {
        _readPreferAnyCache = readPreferAnyCache ?? _readFalse,
        _readCanStream = readCanStream ?? _readTrue,
        _readSupportsLockCaching =
-           readSupportsLockCaching ?? _defaultSupportsLockCaching;
+           readSupportsLockCaching ?? _defaultSupportsLockCaching,
+       _readUsesSidecarRollingCache = readUsesSidecarRollingCache ?? _readFalse;
 
   final CacheDao _cacheDao;
   final LibraryDao? _libraryDao;
@@ -140,6 +150,7 @@ class PlaybackSourceResolver {
   final bool Function() _readPreferAnyCache;
   final bool Function() _readCanStream;
   final bool Function() _readSupportsLockCaching;
+  final bool Function() _readUsesSidecarRollingCache;
 
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
@@ -267,6 +278,27 @@ class PlaybackSourceResolver {
       song: song,
       quality: quality,
     );
+
+    // Desktop/media_kit cannot seek LockCachingAudioSource's local proxy.
+    // Play via direct HTTPS (Range-seekable) and fill the rolling cache with a
+    // sidecar download so seeks stay responsive while caching continues.
+    if (_readUsesSidecarRollingCache()) {
+      AppLogger.debug(
+        'Playback source resolved: song=${song.id} '
+        'kind=${PlaybackSourceKind.directStream.name} '
+        'sidecarCache=${cacheFile.path} '
+        'qualityLabel=${quality.label} '
+        'maxBitRate=${quality.maxBitRate?.toString() ?? 'original'} '
+        'format=${quality.format ?? 'original'}',
+      );
+      return ResolvedPlaybackSource.directStream(
+        songId: song.id,
+        uri: streamUri,
+        metadata: streamingMetadata,
+        sidecarCacheFilePath: cacheFile.path,
+      );
+    }
+
     try {
       // ignore: experimental_member_use, reason: just_audio exposes rolling stream caching through this experimental source type.
       final lockCachingSource = LockCachingAudioSource(

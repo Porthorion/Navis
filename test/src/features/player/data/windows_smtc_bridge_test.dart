@@ -442,6 +442,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
+  Map<String, Object?> collectPlaybackDiagnostics() =>
+      const <String, Object?>{};
+
+  @override
   Future<void> setPlaybackSpeed(double speed) async {}
 
   @override

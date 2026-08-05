@@ -243,6 +243,12 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
+  Map<String, Object?> collectPlaybackDiagnostics() => <String, Object?>{
+    'songId': _snapshot.currentSongId,
+    'positionMs': _snapshot.position.inMilliseconds,
+  };
+
+  @override
   Future<void> skipToNext() async {
     final idx = (_snapshot.currentIndex ?? -1) + 1;
     if (idx < _snapshot.queueSongIds.length) {

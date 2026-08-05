@@ -217,6 +217,7 @@ void main() {
         expect(resolved.kind, PlaybackSourceKind.lockCachedStream);
         expect(resolved.isLocal, isFalse);
         expect(resolved.cachedFilePath, isNotNull);
+        expect(resolved.sidecarCacheFilePath, isNull);
         expect(
           p.isWithin(rollingDir.path, resolved.cachedFilePath!),
           isTrue,
@@ -267,6 +268,41 @@ void main() {
 
         expect(resolved.kind, PlaybackSourceKind.directStream);
         expect(resolved.cachedFilePath, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'desktop sidecar mode uses direct stream with rolling cache path',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-sidecar',
+          title: 'Sidecar',
+          suffix: 'mp3',
+          contentType: 'audio/mpeg',
+        );
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
+          readRollingCacheDirectory: () async => rollingDir,
+          readUsesSidecarRollingCache: () => true,
+        );
+
+        final resolved = await resolver.resolveForSong(song);
+
+        expect(resolved.kind, PlaybackSourceKind.directStream);
+        expect(resolved.uri?.path, '/rest/stream.view');
+        expect(resolved.sidecarCacheFilePath, isNotNull);
+        expect(
+          p.isWithin(rollingDir.path, resolved.sidecarCacheFilePath!),
+          isTrue,
+        );
+        expect(resolved.asAudioSource(), isA<UriAudioSource>());
       },
       skip: !sqliteAvailable,
     );

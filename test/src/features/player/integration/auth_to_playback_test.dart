@@ -135,6 +135,10 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   Future<void> seek(Duration position) async {}
 
   @override
+  Map<String, Object?> collectPlaybackDiagnostics() =>
+      const <String, Object?>{};
+
+  @override
   Future<void> setPlaybackSpeed(double speed) async {}
 
   @override

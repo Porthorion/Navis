@@ -441,20 +441,22 @@ The Last.fm API key used by "Same Vibes" instant mix mode is injected at build t
 6. UI reacts to structural snapshots without rebuilding for routine position
    or buffer ticks; timeline widgets subscribe to the lightweight streams
 
-Linux, Windows, and macOS all use `LockCachingAudioSource` for single-pass
-streaming and rolling-cache writes. Ordinary direct HTTPS playback bypasses
-just_audio's request-header proxy on desktop and passes the Navis user agent to
-media-kit; lock-cached sources retain their loopback byte-stream proxy. A
-completed file is registered once and remains the authoritative cache byte and
+Linux, Windows, and macOS play remote audio via direct HTTPS (Range-seekable
+through media_kit/libmpv) and fill the rolling cache with a sidecar download to
+the same quality-keyed path. `LockCachingAudioSource` remains the mobile
+single-pass path; its local byte-stream proxy is not reliably seekable under
+libmpv. Ordinary direct HTTPS playback bypasses just_audio's request-header
+proxy on desktop and passes the Navis user agent to media-kit. A completed
+sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
 Cache & Storage does not look idle before registration.
 
 Remote stream recovery is layered. If a lock-cached remote source stalls or
-fails at runtime, the audio handler marks that song as bypassed for the session
-and rebuilds playback with direct streams at the current index/position. If a
-direct stream fails, the song is marked as failed and playback advances to the
-next playable queue item when available. Background phase-2 queue fill failures
-must not clear the active start item.
+fails at runtime, the audio handler rebuilds playback with a one-shot direct
+stream at the current index/position (without permanently bypassing later
+lock-cache plays). If a direct stream fails, the song is marked as failed and
+playback advances to the next playable queue item when available. Background
+phase-2 queue fill failures must not clear the active start item.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. While phase 2

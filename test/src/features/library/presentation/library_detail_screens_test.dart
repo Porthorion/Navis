@@ -125,6 +125,10 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> seek(Duration position) async {}
 
   @override
+  Map<String, Object?> collectPlaybackDiagnostics() =>
+      const <String, Object?>{};
+
+  @override
   Future<void> skipToNext() async {}
 
   @override

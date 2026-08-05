@@ -21,6 +21,7 @@ import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
@@ -184,6 +185,13 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, RollingCacheActivity> _rollingCacheActivities =
       <String, RollingCacheActivity>{};
   final Set<String> _lockCachingBypassedSongIds = <String>{};
+  final List<Map<String, Object?>> _seekDiagnosticsEvents =
+      <Map<String, Object?>>[];
+  static const int _maxSeekDiagnosticsEvents = 32;
+  final RollingCacheSidecarDownloader _sidecarDownloader =
+      RollingCacheSidecarDownloader();
+  final Map<String, SongsTableData> _sidecarSongsById =
+      <String, SongsTableData>{};
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   String? _remotePlaybackStallSongId;
@@ -722,6 +730,77 @@ class NavisAudioHandler extends BaseAudioHandler
     if (item != null && _artCache != null) {
       unawaited(_updateArtCacheFile(item));
     }
+    _syncSidecarRollingCache(item);
+  }
+
+  void _rememberSidecarSong(SongsTableData song) {
+    _sidecarSongsById[song.id] = song;
+  }
+
+  void _syncSidecarRollingCache(MediaItem? item) {
+    if (!_isDesktopRuntime || _radioStation != null) {
+      unawaited(_sidecarDownloader.cancel());
+      return;
+    }
+    if (item == null) {
+      unawaited(_sidecarDownloader.cancel());
+      return;
+    }
+    final sidecarPath = item.extras?['sidecarCacheFilePath'] as String?;
+    final streamUriRaw = item.extras?['streamUri'] as String?;
+    if (sidecarPath == null ||
+        sidecarPath.isEmpty ||
+        streamUriRaw == null ||
+        streamUriRaw.isEmpty) {
+      unawaited(_sidecarDownloader.cancel());
+      return;
+    }
+    final song = _sidecarSongsById[item.id];
+    if (song == null) {
+      unawaited(_sidecarDownloader.cancel());
+      return;
+    }
+    final streamUri = Uri.tryParse(streamUriRaw);
+    if (streamUri == null) {
+      unawaited(_sidecarDownloader.cancel());
+      return;
+    }
+    unawaited(
+      _sidecarDownloader.start(
+        songId: song.id,
+        uri: streamUri,
+        cacheFilePath: sidecarPath,
+        onProgress: (progress) {
+          _updateRollingCacheActivity(
+            sidecarPath,
+            RollingCacheActivity(
+              status: RollingCacheActivityStatus.caching,
+              songId: song.id,
+              progress: progress.clamp(0, 1),
+            ),
+          );
+        },
+        onComplete: (cacheFile) async {
+          await _registerRollingCacheTrack(
+            song: song,
+            resolvedSource: ResolvedPlaybackSource.directStream(
+              songId: song.id,
+              uri: streamUri,
+              metadata: ResolvedPlaybackMetadata(
+                format: item.extras?['resolvedFormat'] as String?,
+                bitRate: item.extras?['resolvedBitRate'] as int?,
+                sampleRate: item.extras?['resolvedSampleRate'] as int?,
+                isTranscoded:
+                    item.extras?['transcodingApplied'] as bool? ?? false,
+              ),
+              sidecarCacheFilePath: sidecarPath,
+            ),
+            cacheFilePath: cacheFile.path,
+          );
+          _completeRollingCacheActivity(sidecarPath);
+        },
+      ),
+    );
   }
 
   /// Downloads the cover art for [trigger] to a local file and re-emits the
@@ -2619,6 +2698,9 @@ class NavisAudioHandler extends BaseAudioHandler
       artUri: _sourceResolver.resolveArtUri(song),
       extras: navisResolvedPlaybackExtras(song: song, source: source),
     );
+    if (source.sidecarCacheFilePath != null) {
+      _rememberSidecarSong(song);
+    }
     return _PreparedQueueItem(
       song: song,
       source: source,
@@ -4325,6 +4407,92 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
+  Map<String, Object?> collectPlaybackDiagnostics() {
+    final snapshot = _snapshot;
+    final songId = snapshot.currentSongId;
+    final cacheActivity = _rollingCacheActivities.values.lastOrNull;
+    final partialCacheBytes = _partialCacheBytesForSong(songId);
+    return <String, Object?>{
+      'songId': songId,
+      'playing': snapshot.playing,
+      'processingState': snapshot.processingState.name,
+      'isLoading': snapshot.isLoading,
+      'loadingSongId': snapshot.loadingSongId,
+      'positionMs': snapshot.position.inMilliseconds,
+      'bufferedPositionMs': snapshot.bufferedPosition.inMilliseconds,
+      'durationMs': snapshot.duration.inMilliseconds,
+      'sourceKind': _currentSourceKind,
+      'lockCachingBypassed': songId != null
+          ? _lockCachingBypassedSongIds.contains(songId)
+          : false,
+      'lockCachingBypassedSongIds': _lockCachingBypassedSongIds.toList(
+        growable: false,
+      ),
+      'cacheActivity': cacheActivity == null
+          ? null
+          : <String, Object?>{
+              'status': cacheActivity.status.name,
+              'songId': cacheActivity.songId,
+              'progress': cacheActivity.progress,
+            },
+      'partialCacheBytes': partialCacheBytes,
+      'sidecarCacheActiveSongId': _sidecarDownloader.activeSongId,
+      'playerPositionMs': _player.position.inMilliseconds,
+      'playerBufferedPositionMs': _player.bufferedPosition.inMilliseconds,
+      'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
+    };
+  }
+
+  int? _partialCacheBytesForSong(String? songId) {
+    if (songId == null) {
+      return null;
+    }
+    for (final entry in _rollingCacheActivities.entries) {
+      if (entry.value.songId != songId) {
+        continue;
+      }
+      final partFile = File('${entry.key}.part');
+      if (partFile.existsSync()) {
+        return partFile.lengthSync();
+      }
+      final completed = File(entry.key);
+      if (completed.existsSync()) {
+        return completed.lengthSync();
+      }
+    }
+    String? cachedPath;
+    for (final item in _queueItems) {
+      if (item.id != songId) {
+        continue;
+      }
+      cachedPath = item.extras?['cachedFilePath'] as String?;
+      break;
+    }
+    if (cachedPath == null || cachedPath.isEmpty) {
+      return null;
+    }
+    final partFile = File('$cachedPath.part');
+    if (partFile.existsSync()) {
+      return partFile.lengthSync();
+    }
+    final completed = File(cachedPath);
+    if (completed.existsSync()) {
+      return completed.lengthSync();
+    }
+    return null;
+  }
+
+  void _recordSeekDiagnosticsEvent(Map<String, Object?> event) {
+    _seekDiagnosticsEvents.add(event);
+    if (_seekDiagnosticsEvents.length > _maxSeekDiagnosticsEvents) {
+      _seekDiagnosticsEvents.removeRange(
+        0,
+        _seekDiagnosticsEvents.length - _maxSeekDiagnosticsEvents,
+      );
+    }
+  }
+
+  @override
   Future<void> skipToNext() {
     _supersedeTransportIntent();
     return _playbackLane.run(() async {
@@ -4865,6 +5033,11 @@ class NavisAudioHandler extends BaseAudioHandler
     required int transportGeneration,
   }) async {
     final autoPlayAfterRecovery = _player.playing;
+    final startedAt = DateTime.now().toUtc();
+    final beforeBuffered = _player.bufferedPosition;
+    final beforePosition = _player.position;
+    final beforeSourceKind = _currentSourceKind;
+    var path = 'direct';
     // Proactive path: if the seek target clearly exceeds the buffered range on
     // a lock-cached stream, skip the doomed seek and rebuild immediately.
     // This avoids the 200 ms stutter from the reactive path below.
@@ -4874,6 +5047,7 @@ class NavisAudioHandler extends BaseAudioHandler
       final buffered = _player.bufferedPosition;
       if (buffered > Duration.zero &&
           position > buffered + const Duration(seconds: 1)) {
+        path = 'proactive_rebuild';
         AppLogger.warning(
           'Seek target $position exceeds buffered position $buffered on a '
           'lock-cached source. Proactively rebuilding with direct streams.',
@@ -4884,6 +5058,24 @@ class NavisAudioHandler extends BaseAudioHandler
           token: token,
           transportGeneration: transportGeneration,
         );
+        _recordSeekDiagnosticsEvent(<String, Object?>{
+          'at': startedAt.toIso8601String(),
+          'path': path,
+          'requestedPositionMs': position.inMilliseconds,
+          'beforePositionMs': beforePosition.inMilliseconds,
+          'beforeBufferedMs': beforeBuffered.inMilliseconds,
+          'beforeSourceKind': beforeSourceKind,
+          'afterPositionMs': _player.position.inMilliseconds,
+          'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
+          'afterSourceKind': _currentSourceKind,
+          'elapsedMs': DateTime.now()
+              .toUtc()
+              .difference(startedAt)
+              .inMilliseconds,
+          'lockCachingBypassed': _snapshot.currentSongId == null
+              ? false
+              : _lockCachingBypassedSongIds.contains(_snapshot.currentSongId!),
+        });
         return;
       }
     }
@@ -4893,23 +5085,99 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!_isCurrentTransportIntent(transportGeneration)) {
       return;
     }
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    // Local files seek reliably. Remote Subsonic streams (direct or
+    // lock-cached) can no-op under libmpv; briefly probe then reload at the
+    // requested position when the seek undershoots.
+    final sourceKind = _currentSourceKind;
+    final isRemoteSource =
+        sourceKind == PlaybackSourceKind.lockCachedStream.name ||
+        sourceKind == PlaybackSourceKind.directStream.name;
+    if (!isRemoteSource) {
+      _recordSeekDiagnosticsEvent(<String, Object?>{
+        'at': startedAt.toIso8601String(),
+        'path': path,
+        'requestedPositionMs': position.inMilliseconds,
+        'beforePositionMs': beforePosition.inMilliseconds,
+        'beforeBufferedMs': beforeBuffered.inMilliseconds,
+        'beforeSourceKind': beforeSourceKind,
+        'afterPositionMs': _player.position.inMilliseconds,
+        'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
+        'afterSourceKind': _currentSourceKind,
+        'elapsedMs': DateTime.now()
+            .toUtc()
+            .difference(startedAt)
+            .inMilliseconds,
+        'lockCachingBypassed': _snapshot.currentSongId == null
+            ? false
+            : _lockCachingBypassedSongIds.contains(_snapshot.currentSongId!),
+      });
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 120));
     token.checkCancelled();
     if (!_isCurrentTransportIntent(transportGeneration)) {
       return;
     }
     final actualPosition = _player.position;
     if (!navisShouldRecoverSeekToDirectStream(
-      sourceKind: _currentSourceKind,
+      sourceKind: sourceKind,
       requestedPosition: position,
       actualPosition: actualPosition,
     )) {
+      _recordSeekDiagnosticsEvent(<String, Object?>{
+        'at': startedAt.toIso8601String(),
+        'path': path,
+        'requestedPositionMs': position.inMilliseconds,
+        'beforePositionMs': beforePosition.inMilliseconds,
+        'beforeBufferedMs': beforeBuffered.inMilliseconds,
+        'beforeSourceKind': beforeSourceKind,
+        'afterPositionMs': actualPosition.inMilliseconds,
+        'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
+        'afterSourceKind': _currentSourceKind,
+        'elapsedMs': DateTime.now()
+            .toUtc()
+            .difference(startedAt)
+            .inMilliseconds,
+        'lockCachingBypassed': _snapshot.currentSongId == null
+            ? false
+            : _lockCachingBypassedSongIds.contains(_snapshot.currentSongId!),
+      });
       return;
     }
 
+    // Prefer a completed sidecar/local cache file — those seek without a
+    // network round-trip and avoid progressive-stream seek failures.
+    if (await _trySeekViaCompletedSidecarFile(
+      position,
+      autoPlay: autoPlayAfterRecovery,
+      token: token,
+      transportGeneration: transportGeneration,
+    )) {
+      path = 'sidecar_file';
+      _recordSeekDiagnosticsEvent(<String, Object?>{
+        'at': startedAt.toIso8601String(),
+        'path': path,
+        'requestedPositionMs': position.inMilliseconds,
+        'beforePositionMs': beforePosition.inMilliseconds,
+        'beforeBufferedMs': beforeBuffered.inMilliseconds,
+        'beforeSourceKind': beforeSourceKind,
+        'landedPositionMs': actualPosition.inMilliseconds,
+        'afterPositionMs': _player.position.inMilliseconds,
+        'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
+        'afterSourceKind': _currentSourceKind,
+        'elapsedMs': DateTime.now()
+            .toUtc()
+            .difference(startedAt)
+            .inMilliseconds,
+        'lockCachingBypassed': false,
+      });
+      return;
+    }
+
+    path = 'reactive_rebuild';
     AppLogger.warning(
-      'Seek landed at $actualPosition instead of $position on a lock-cached '
-      'source. Rebuilding the active queue with direct streams and retrying.',
+      'Seek landed at $actualPosition instead of $position on a remote '
+      'source. Reloading the active item at the requested position.',
     );
     await _rebuildQueueForSeekRecovery(
       position,
@@ -4917,6 +5185,111 @@ class NavisAudioHandler extends BaseAudioHandler
       token: token,
       transportGeneration: transportGeneration,
     );
+    _recordSeekDiagnosticsEvent(<String, Object?>{
+      'at': startedAt.toIso8601String(),
+      'path': path,
+      'requestedPositionMs': position.inMilliseconds,
+      'beforePositionMs': beforePosition.inMilliseconds,
+      'beforeBufferedMs': beforeBuffered.inMilliseconds,
+      'beforeSourceKind': beforeSourceKind,
+      'landedPositionMs': actualPosition.inMilliseconds,
+      'afterPositionMs': _player.position.inMilliseconds,
+      'afterBufferedMs': _player.bufferedPosition.inMilliseconds,
+      'afterSourceKind': _currentSourceKind,
+      'elapsedMs': DateTime.now().toUtc().difference(startedAt).inMilliseconds,
+      'lockCachingBypassed': _snapshot.currentSongId == null
+          ? false
+          : _lockCachingBypassedSongIds.contains(_snapshot.currentSongId!),
+    });
+  }
+
+  Future<bool> _trySeekViaCompletedSidecarFile(
+    Duration position, {
+    required bool autoPlay,
+    required OperationToken token,
+    required int transportGeneration,
+  }) async {
+    final item = _currentMediaItem;
+    if (item == null) {
+      return false;
+    }
+    final sidecarPath = item.extras?['sidecarCacheFilePath'] as String?;
+    if (sidecarPath == null || sidecarPath.isEmpty) {
+      return false;
+    }
+    final cacheFile = File(sidecarPath);
+    if (!cacheFile.existsSync() || cacheFile.lengthSync() <= 0) {
+      return false;
+    }
+    final song = _sidecarSongsById[item.id];
+    if (song == null) {
+      return false;
+    }
+
+    final mediaItem = item;
+    final fileSource = AudioSource.uri(
+      Uri.file(cacheFile.path),
+      tag: mediaItem,
+    );
+    final previousLoopMode = _player.loopMode;
+    final previousShuffle = _player.shuffleModeEnabled;
+    final queueGeneration = _supersedeQueueWork(
+      isLoading: true,
+      loadingSongId: song.id,
+    );
+    try {
+      await _queueLane.run((queueToken) async {
+        _checkQueueWorkCurrent(queueToken, queueGeneration);
+        token.checkCancelled();
+        if (!_isCurrentTransportIntent(transportGeneration)) {
+          return;
+        }
+        await _setAudioSourcesWithFallback(
+          audioSources: <AudioSource>[fileSource],
+          preload: true,
+          initialIndex: 0,
+          initialPosition: position,
+          generation: queueGeneration,
+          songId: song.id,
+        );
+        _queueItems
+          ..clear()
+          ..add(
+            mediaItem.copyWith(
+              extras: <String, Object?>{
+                ...?mediaItem.extras,
+                'sourceKind': PlaybackSourceKind.file.name,
+                'localSource': true,
+                'cachedFilePath': cacheFile.path,
+              },
+            ),
+          );
+        queue.add(List<MediaItem>.unmodifiable(_queueItems));
+        _setCurrentMediaItem(_queueItems.first);
+      });
+    } on Object catch (error, stackTrace) {
+      AppLogger.debug(
+        'Sidecar file seek fallback failed for ${song.id}: '
+        '$error\n$stackTrace',
+      );
+      _completeQueueLoad(queueGeneration, loadingSongId: song.id, failed: true);
+      return false;
+    }
+    token.checkCancelled();
+    if (!_isCurrentTransportIntent(transportGeneration)) {
+      return true;
+    }
+    await _player.setLoopMode(previousLoopMode);
+    await _player.setShuffleModeEnabled(previousShuffle);
+    final landed = _player.position;
+    if ((position - landed).abs() >= const Duration(seconds: 2)) {
+      await _player.seek(position);
+    }
+    if (autoPlay) {
+      unawaited(_player.play());
+    }
+    _completeQueueLoad(queueGeneration);
+    return true;
   }
 
   Future<void> _rebuildQueueForSeekRecovery(
@@ -4959,14 +5332,10 @@ class NavisAudioHandler extends BaseAudioHandler
     final previousLoopMode = _player.loopMode;
     final previousShuffleModeEnabled = _player.shuffleModeEnabled;
 
-    // Mark the current song as bypassed so that any future queue rebuild in
-    // this session also uses directStream for it, rather than re-trying
-    // LockCachingAudioSource and hitting the same seek failure again.
+    // Prefer a one-shot direct-stream rebuild for this seek. Do not permanently
+    // bypass lock-caching for the song: desktop now uses sidecar caching with
+    // native HTTPS seeks, and mobile lock-cache can still serve later plays.
     final currentSongId = _queueItems[currentIndex].id;
-    _markSongLockCachingBypassed(
-      currentSongId,
-      reason: reason,
-    );
 
     token.checkCancelled();
     if (!_isCurrentTransportIntent(transportGeneration)) {
@@ -5003,6 +5372,15 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     await _player.setLoopMode(previousLoopMode);
     await _player.setShuffleModeEnabled(previousShuffleModeEnabled);
+    // media_kit can drop initialPosition; correct before resuming playback.
+    final landed = _player.position;
+    if ((position - landed).abs() >= const Duration(seconds: 2)) {
+      await _player.seek(position);
+      token.checkCancelled();
+      if (!_isCurrentTransportIntent(transportGeneration)) {
+        return;
+      }
+    }
     if (autoPlay) {
       unawaited(_player.play());
     }
@@ -5519,6 +5897,8 @@ class NavisAudioHandler extends BaseAudioHandler
     _transportPersistTimer?.cancel();
     _radioStation = null;
     _radioMetadataService.dispose();
+    await _sidecarDownloader.dispose();
+    _sidecarSongsById.clear();
     await _interruptionSubscription?.cancel();
     await _becomingNoisySubscription?.cancel();
     await _disposePlayerListeners();

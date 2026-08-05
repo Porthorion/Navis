@@ -270,6 +270,10 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   Future<void> seek(Duration position) => _delegate.seek(position);
 
   @override
+  Map<String, Object?> collectPlaybackDiagnostics() =>
+      _delegate.collectPlaybackDiagnostics();
+
+  @override
   Future<void> skipToNext() => _delegate.skipToNext();
 
   @override
@@ -462,6 +466,10 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> seek(Duration position) => _delegate.seek(position);
+
+  @override
+  Map<String, Object?> collectPlaybackDiagnostics() =>
+      _delegate.collectPlaybackDiagnostics();
 
   @override
   Future<void> skipToNext() => _delegate.skipToNext();

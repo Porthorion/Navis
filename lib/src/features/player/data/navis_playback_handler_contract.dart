@@ -46,6 +46,10 @@ abstract class NavisPlaybackHandler {
   Future<void> pause();
   Future<void> stop();
   Future<void> seek(Duration position);
+
+  /// Structured playback state for the Linux sync-diagnostics API.
+  Map<String, Object?> collectPlaybackDiagnostics();
+
   Future<void> skipToNext();
   Future<void> skipToPrevious();
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode);

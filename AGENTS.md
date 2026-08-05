@@ -238,13 +238,13 @@ User action → queueProvider (QueueController)
 
 Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-cache)** → **Stream**
 
-Native desktop playback on Linux, Windows, and macOS uses the same single-pass
-`LockCachingAudioSource` path: bytes consumed by playback are written into the
-rolling cache without a second download. Ordinary direct HTTPS fallbacks bypass
-just_audio's request-header proxy on desktop; lock-cached sources retain their
-required loopback byte-stream proxy. Completed files remain the authoritative
-cache byte/count totals, while `rollingCacheActivityProvider` exposes an active
-write before registration finishes.
+Native desktop playback on Linux, Windows, and macOS uses direct HTTPS for the
+active deck (Range-seekable under media_kit) plus a sidecar rolling-cache
+download to the quality-keyed cache path. Mobile keeps single-pass
+`LockCachingAudioSource`. Ordinary direct HTTPS playback bypasses just_audio's
+request-header proxy on desktop. Completed sidecar files remain the
+authoritative cache byte/count totals, while `rollingCacheActivityProvider`
+exposes an active write before registration finishes.
 
 `PlaybackSnapshot` is a structural stream: track, queue, playing/processing,
 duration, repeat/shuffle, loading, and liked changes are broadcast, but routine
@@ -280,9 +280,11 @@ Transport intent is user-prioritized. Play and pause do not wait behind queue
 fill or seek-recovery work; seeks are last-write-wins, and newer seeks, skips,
 selections, or pauses invalidate stale recovery/autoplay. Position persistence
 runs through a coalescing background scheduler after the transport effect.
-Lock-cache seek recovery loads the active song directly at the requested
-position, then restores the logical queue in cancellable background phase-2
-batches. Keep `loadingSongId` visible as soon as selection begins.
+On mobile, lock-cache seek recovery loads the active song as a direct stream at
+the requested position, then restores the logical queue in cancellable
+background phase-2 batches, without permanently bypassing later lock-cache
+plays. Desktop seeks use the direct HTTPS source and skip that recovery path.
+Keep `loadingSongId` visible as soon as selection begins.
 
 The secondary audio deck is lazy. Create and synchronize it only while
 crossfade is enabled; disabling crossfade must cancel the transition and

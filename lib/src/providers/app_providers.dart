@@ -620,6 +620,9 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
             ref.read(networkTypeProvider) == NetworkType.cellular,
         readCanStream: () =>
             ref.read(networkTypeProvider) != NetworkType.offline,
+        // media_kit cannot seek LockCachingAudioSource's local proxy; desktop
+        // plays via direct HTTPS and fills the rolling cache with a sidecar.
+        readUsesSidecarRollingCache: () => isDesktopRuntime,
       ),
       readApiClient: () => ref.read(subsonicApiProvider),
       rollingCacheManager: ref.read(rollingCacheManagerProvider),
