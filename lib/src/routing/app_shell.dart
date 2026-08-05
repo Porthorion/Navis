@@ -35,6 +35,7 @@ import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
 import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
+import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';

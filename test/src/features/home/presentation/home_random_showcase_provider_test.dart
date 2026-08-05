@@ -13,6 +13,7 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -28,6 +29,15 @@ Future<List<HomeRandomShowcaseItem>> readHomeRandomShowcase(
 ) async {
   await container.read(homeRandomAlbumShowcaseProvider(filters).future);
   return container.read(homeRandomShowcaseProvider(filters)).requireValue;
+}
+
+class _MutableLibrarySyncController extends LibrarySyncController {
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  set value(LibrarySyncState next) {
+    state = next;
+  }
 }
 
 Future<void> _insertAlbum(
@@ -374,6 +384,75 @@ Future<List<ListenBrainzDiscoverPlaylist>> _firstListenBrainzEmission(
 
 void main() {
   setUp(debugResetListenBrainzDiscoverSessionCacheForTests);
+
+  test('startup sync projection ignores same-stage progress updates', () async {
+    final controller = _MutableLibrarySyncController();
+    final container = ProviderContainer(
+      overrides: <Override>[
+        librarySyncControllerProvider.overrideWith(() => controller),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final observed = <LibrarySyncState>[];
+    final subscription = container.listen(
+      listenBrainzDiscoverStartupSyncStateProvider,
+      (_, next) => observed.add(next),
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    controller.value = const LibrarySyncState(
+      status: LibrarySyncStatus.running,
+      stage: LibrarySyncStage.fetchingSongs,
+      processed: 1,
+      total: 100,
+    );
+    await Future<void>.delayed(Duration.zero);
+    controller.value = const LibrarySyncState(
+      status: LibrarySyncStatus.running,
+      stage: LibrarySyncStage.fetchingSongs,
+      processed: 2,
+      total: 100,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(observed, hasLength(2));
+    expect(observed.last.status, LibrarySyncStatus.running);
+    expect(observed.last.stage, LibrarySyncStage.fetchingSongs);
+  });
+
+  test(
+    'library sync bridge defers ListenBrainz refresh invalidation',
+    () async {
+      final controller = _MutableLibrarySyncController();
+      final container = ProviderContainer(
+        overrides: <Override>[
+          librarySyncControllerProvider.overrideWith(() => controller),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzTokenValid: true,
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(listenBrainzLibrarySyncRefreshBridgeProvider);
+      expect(container.read(listenBrainzDiscoverRefreshEpochProvider), 0);
+
+      controller.value = const LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.idle,
+      );
+
+      expect(container.read(listenBrainzDiscoverRefreshEpochProvider), 0);
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(listenBrainzDiscoverRefreshEpochProvider), 1);
+    },
+  );
 
   test('ListenBrainz weekly detail requests start concurrently', () async {
     final database = createTestDatabase();

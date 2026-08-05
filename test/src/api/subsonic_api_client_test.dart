@@ -598,5 +598,63 @@ void main() {
       expect(cover.queryParameters['id'], 'cover-1');
       expect(cover.queryParameters['size'], '500');
     });
+
+    test('rejects responses that exceed the byte budget', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                headers: Headers.fromMap(<String, List<String>>{
+                  Headers.contentLengthHeader: <String>['2048'],
+                }),
+                data: ok(<String, dynamic>{
+                  'album': <String, dynamic>{
+                    'id': 'a1',
+                    'name': 'Album',
+                    'song': const <Map<String, dynamic>>[],
+                  },
+                }),
+              ),
+            );
+          },
+        ),
+      );
+
+      await expectLater(
+        client.getAlbum('a1', maxResponseBytes: 1024),
+        throwsA(isA<SubsonicResponseBudgetExceededException>()),
+      );
+    });
+
+    test('disables transport retries when requested', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+      var calls = 0;
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            calls++;
+            expect(options.extra['navisDisableRetry'], isTrue);
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionTimeout,
+              ),
+            );
+          },
+        ),
+      );
+
+      await expectLater(
+        client.getIndexes(disableRetry: true),
+        throwsA(isA<SubsonicConnectionException>()),
+      );
+      expect(calls, 1);
+    });
   });
 }

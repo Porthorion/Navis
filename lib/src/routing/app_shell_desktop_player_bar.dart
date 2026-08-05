@@ -57,6 +57,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
             (widget.songArtist ?? '').trim().isNotEmpty);
 
     final livePosition = ref.watch(playbackPositionProvider).asData?.value;
+    final bufferState =
+        ref.watch(playbackBufferStateProvider).asData?.value ??
+        const PlaybackBufferState.idle();
     final position = livePosition ?? playback.position;
     final duration = playback.duration;
     final durationMs = duration.inMilliseconds;
@@ -68,6 +71,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     final sliderValue = canSeek
         ? ((_dragSliderValue ?? positionMs).clamp(0.0, sliderMax))
         : 0.0;
+    final bufferedValue = resolveBufferedSeekValue(
+      currentSongId: playback.currentSongId,
+      bufferState: bufferState,
+      duration: duration,
+    );
     final seekPreviewPosition = Duration(milliseconds: sliderValue.round());
     final progress = duration.inMilliseconds > 0
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
@@ -560,6 +568,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                   ),
                                               child: Slider(
                                                 value: sliderValue,
+                                                secondaryTrackValue:
+                                                    bufferedValue,
+                                                secondaryActiveColor:
+                                                    resolveBufferedSeekColor(
+                                                      context,
+                                                    ),
                                                 max: sliderMax,
                                                 onChangeStart: (value) {
                                                   setState(() {

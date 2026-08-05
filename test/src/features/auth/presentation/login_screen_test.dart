@@ -98,7 +98,9 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> syncNow() async {
+  Future<LibrarySyncState> syncNow({
+    bool allowMeteredBroadOverride = false,
+  }) async {
     return const LibrarySyncState.idle();
   }
 }

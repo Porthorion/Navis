@@ -5,7 +5,11 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 typedef NetworkUsageReporter =
-    void Function({required NetworkUsageCategory category, required int bytes});
+    void Function({
+      required NetworkUsageCategory category,
+      required int bytes,
+      String? operation,
+    });
 
 enum NetworkUsageCategory {
   audioStream('audio_stream'),
@@ -71,6 +75,7 @@ class NetworkUsageMeter {
   void record({
     required NetworkUsageCategory category,
     required int bytes,
+    String? operation,
     int requestCount = 1,
     NetworkType? networkType,
   }) {
@@ -88,6 +93,7 @@ class NetworkUsageMeter {
       _dao
           .recordUsage(
             category: category.key,
+            operation: operation,
             networkType: resolvedNetwork.name,
             bytes: bytes,
             requestCount: requestCount,

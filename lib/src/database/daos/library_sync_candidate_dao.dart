@@ -1,0 +1,882 @@
+import 'package:drift/drift.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/albums_table.dart';
+import 'package:navis/src/database/tables/artists_table.dart';
+import 'package:navis/src/database/tables/library_sync_candidate_albums_table.dart';
+import 'package:navis/src/database/tables/library_sync_candidate_artists_table.dart';
+import 'package:navis/src/database/tables/library_sync_candidate_songs_table.dart';
+import 'package:navis/src/database/tables/songs_table.dart';
+
+part 'library_sync_candidate_dao.g.dart';
+
+abstract final class LibraryCandidateApplyState {
+  static const unchanged = 0;
+  static const changed = 1;
+}
+
+class CandidateApplyCounts {
+  const CandidateApplyCounts({
+    required this.changed,
+    required this.unchanged,
+    required this.unclassified,
+  });
+
+  final int changed;
+  final int unchanged;
+  final int unclassified;
+}
+
+@DriftAccessor(
+  tables: [
+    LibrarySyncCandidateArtistsTable,
+    LibrarySyncCandidateAlbumsTable,
+    LibrarySyncCandidateSongsTable,
+    ArtistsTable,
+    AlbumsTable,
+    SongsTable,
+  ],
+)
+class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
+    with _$LibrarySyncCandidateDaoMixin {
+  LibrarySyncCandidateDao(super.attachedDatabase);
+
+  static const _candidateWritePageSize = 384;
+  static const _candidateCleanupPageSize = 512;
+
+  Future<void> clearAll() async {
+    await transaction(() async {
+      await delete(librarySyncCandidateSongsTable).go();
+      await delete(librarySyncCandidateAlbumsTable).go();
+      await delete(librarySyncCandidateArtistsTable).go();
+    });
+  }
+
+  Future<void> clearThroughGeneration({
+    required int serverId,
+    required int generation,
+  }) async {
+    for (final tableName in const <String>[
+      'library_sync_candidate_songs',
+      'library_sync_candidate_albums',
+      'library_sync_candidate_artists',
+    ]) {
+      await _clearCandidateRowsPaged(
+        tableName: tableName,
+        serverId: serverId,
+        generation: generation,
+        generationOperator: '<=',
+      );
+    }
+  }
+
+  Future<void> clearGeneration({
+    required int serverId,
+    required int generation,
+  }) async {
+    for (final tableName in const <String>[
+      'library_sync_candidate_songs',
+      'library_sync_candidate_albums',
+      'library_sync_candidate_artists',
+    ]) {
+      await _clearCandidateRowsPaged(
+        tableName: tableName,
+        serverId: serverId,
+        generation: generation,
+        generationOperator: '=',
+      );
+    }
+  }
+
+  Future<void> _clearCandidateRowsPaged({
+    required String tableName,
+    required int serverId,
+    required int generation,
+    required String generationOperator,
+  }) async {
+    while (true) {
+      final deleted = await customUpdate(
+        'DELETE FROM $tableName WHERE rowid IN ( '
+        'SELECT rowid FROM $tableName '
+        'WHERE server_id = ?1 AND generation $generationOperator ?2 '
+        'LIMIT $_candidateCleanupPageSize)',
+        variables: <Variable<Object>>[
+          Variable<int>(serverId),
+          Variable<int>(generation),
+        ],
+      );
+      if (deleted == 0) break;
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
+  Future<void> replaceArtists({
+    required int serverId,
+    required int generation,
+    required List<ArtistsTableCompanion> artists,
+  }) async {
+    await _clearCandidateRowsPaged(
+      tableName: 'library_sync_candidate_artists',
+      serverId: serverId,
+      generation: generation,
+      generationOperator: '=',
+    );
+    for (
+      var offset = 0;
+      offset < artists.length;
+      offset += _candidateWritePageSize
+    ) {
+      final end = (offset + _candidateWritePageSize).clamp(0, artists.length);
+      await batch((batch) {
+        for (final artist in artists.sublist(offset, end)) {
+          batch.insert(
+            librarySyncCandidateArtistsTable,
+            LibrarySyncCandidateArtistsTableCompanion.insert(
+              serverId: serverId,
+              generation: generation,
+              id: artist.id.value,
+              name: artist.name.value,
+              albumCount: artist.albumCount,
+              coverArt: artist.coverArt,
+              starred: artist.starred,
+            ),
+          );
+        }
+      });
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
+  Future<void> upsertAlbums({
+    required int serverId,
+    required int generation,
+    required List<AlbumsTableCompanion> albums,
+  }) async {
+    if (albums.isEmpty) {
+      return;
+    }
+    for (
+      var offset = 0;
+      offset < albums.length;
+      offset += _candidateWritePageSize
+    ) {
+      final end = (offset + _candidateWritePageSize).clamp(0, albums.length);
+      await batch((batch) {
+        for (final album in albums.sublist(offset, end)) {
+          final candidate = LibrarySyncCandidateAlbumsTableCompanion.insert(
+            serverId: serverId,
+            generation: generation,
+            id: album.id.value,
+            name: album.name.value,
+            artistId: album.artistId,
+            artistName: album.artistName,
+            artists: album.artists,
+            songCount: album.songCount,
+            duration: album.duration,
+            year: album.year,
+            genre: album.genre,
+            coverArt: album.coverArt,
+            songsHydrated: album.songsHydrated,
+            starred: album.starred,
+            userRating: album.userRating,
+            playCount: album.playCount,
+            syncedAt: album.syncedAt,
+            serverCreatedAt: album.serverCreatedAt,
+          );
+          batch.insert(
+            librarySyncCandidateAlbumsTable,
+            candidate,
+            onConflict: DoUpdate(
+              (old) => candidate.copyWith(
+                songsHydrated: const Value.absent(),
+                carriedForward: const Value.absent(),
+                applyState: const Value(null),
+              ),
+              target: [
+                librarySyncCandidateAlbumsTable.serverId,
+                librarySyncCandidateAlbumsTable.generation,
+                librarySyncCandidateAlbumsTable.id,
+              ],
+            ),
+          );
+        }
+      });
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
+  Future<void> replaceSongsForAlbums({
+    required int serverId,
+    required int generation,
+    required Map<String, List<SongsTableCompanion>> songsByAlbum,
+  }) async {
+    if (songsByAlbum.isEmpty) {
+      return;
+    }
+    var chunk = <String, List<SongsTableCompanion>>{};
+    var songCount = 0;
+    for (final entry in songsByAlbum.entries) {
+      final exceedsBound =
+          chunk.isNotEmpty &&
+          (chunk.length >= 24 ||
+              songCount + entry.value.length > _candidateWritePageSize);
+      if (exceedsBound) {
+        await _replaceSongsForAlbumsChunk(serverId, generation, chunk);
+        await Future<void>.delayed(Duration.zero);
+        chunk = <String, List<SongsTableCompanion>>{};
+        songCount = 0;
+      }
+      chunk[entry.key] = entry.value;
+      songCount += entry.value.length;
+    }
+    if (chunk.isNotEmpty) {
+      await _replaceSongsForAlbumsChunk(serverId, generation, chunk);
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
+  Future<void> _replaceSongsForAlbumsChunk(
+    int serverId,
+    int generation,
+    Map<String, List<SongsTableCompanion>> songsByAlbum,
+  ) async {
+    final albumIds = songsByAlbum.keys.toSet();
+    await transaction(() async {
+      await (delete(librarySyncCandidateSongsTable)..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.albumId.isIn(albumIds),
+          ))
+          .go();
+      await batch((batch) {
+        for (final song in songsByAlbum.values.expand((rows) => rows)) {
+          batch.insert(
+            librarySyncCandidateSongsTable,
+            _candidateSong(serverId, generation, song),
+            onConflict: DoUpdate(
+              (old) => _candidateSong(serverId, generation, song),
+              target: [
+                librarySyncCandidateSongsTable.serverId,
+                librarySyncCandidateSongsTable.generation,
+                librarySyncCandidateSongsTable.id,
+              ],
+            ),
+          );
+        }
+      });
+    });
+  }
+
+  Future<void> markAlbumsHydrated({
+    required int serverId,
+    required int generation,
+    required Iterable<String> albumIds,
+  }) async {
+    final ids = albumIds.toSet();
+    if (ids.isEmpty) {
+      return;
+    }
+    await (update(librarySyncCandidateAlbumsTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.generation.equals(generation) &
+              table.id.isIn(ids),
+        ))
+        .write(
+          const LibrarySyncCandidateAlbumsTableCompanion(
+            songsHydrated: Value(true),
+            carriedForward: Value(false),
+          ),
+        );
+  }
+
+  Future<List<String>> getPendingAlbumIds({
+    required int serverId,
+    required int generation,
+    int? limit,
+    Iterable<String>? preferredIds,
+  }) async {
+    final preferred = preferredIds?.toSet() ?? const <String>{};
+    if (preferred.isNotEmpty) {
+      final query = selectOnly(librarySyncCandidateAlbumsTable)
+        ..addColumns([librarySyncCandidateAlbumsTable.id])
+        ..where(
+          librarySyncCandidateAlbumsTable.serverId.equals(serverId) &
+              librarySyncCandidateAlbumsTable.generation.equals(generation) &
+              librarySyncCandidateAlbumsTable.songsHydrated.equals(false) &
+              librarySyncCandidateAlbumsTable.id.isIn(preferred),
+        );
+      if (limit != null) {
+        query.limit(limit);
+      }
+      final rows = await query.get();
+      if (rows.isNotEmpty) {
+        return rows
+            .map((row) => row.read(librarySyncCandidateAlbumsTable.id)!)
+            .toList(growable: false);
+      }
+    }
+    final query = selectOnly(librarySyncCandidateAlbumsTable)
+      ..addColumns([librarySyncCandidateAlbumsTable.id])
+      ..where(
+        librarySyncCandidateAlbumsTable.serverId.equals(serverId) &
+            librarySyncCandidateAlbumsTable.generation.equals(generation) &
+            librarySyncCandidateAlbumsTable.songsHydrated.equals(false),
+      )
+      ..orderBy([OrderingTerm.asc(librarySyncCandidateAlbumsTable.id)]);
+    if (limit != null) {
+      query.limit(limit);
+    }
+    final rows = await query.get();
+    return rows
+        .map((row) => row.read(librarySyncCandidateAlbumsTable.id)!)
+        .toList(growable: false);
+  }
+
+  Future<int> countPendingAlbums({
+    required int serverId,
+    required int generation,
+  }) async {
+    final count = librarySyncCandidateAlbumsTable.id.count();
+    final row =
+        await (selectOnly(librarySyncCandidateAlbumsTable)
+              ..addColumns([count])
+              ..where(
+                librarySyncCandidateAlbumsTable.serverId.equals(serverId) &
+                    librarySyncCandidateAlbumsTable.generation.equals(
+                      generation,
+                    ) &
+                    librarySyncCandidateAlbumsTable.songsHydrated.equals(false),
+              ))
+            .getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  Future<Set<String>> getArtistIds({
+    required int serverId,
+    required int generation,
+  }) async {
+    final rows =
+        await (selectOnly(librarySyncCandidateArtistsTable)
+              ..addColumns([librarySyncCandidateArtistsTable.id])
+              ..where(
+                librarySyncCandidateArtistsTable.serverId.equals(serverId) &
+                    librarySyncCandidateArtistsTable.generation.equals(
+                      generation,
+                    ),
+              ))
+            .get();
+    return rows
+        .map((row) => row.read(librarySyncCandidateArtistsTable.id)!)
+        .toSet();
+  }
+
+  Future<Set<String>> getAlbumIds({
+    required int serverId,
+    required int generation,
+  }) async {
+    final rows =
+        await (selectOnly(librarySyncCandidateAlbumsTable)
+              ..addColumns([librarySyncCandidateAlbumsTable.id])
+              ..where(
+                librarySyncCandidateAlbumsTable.serverId.equals(serverId) &
+                    librarySyncCandidateAlbumsTable.generation.equals(
+                      generation,
+                    ),
+              ))
+            .get();
+    return rows
+        .map((row) => row.read(librarySyncCandidateAlbumsTable.id)!)
+        .toSet();
+  }
+
+  Future<Map<String, int?>> getAlbumSongCounts({
+    required int serverId,
+    required int generation,
+    required Iterable<String> albumIds,
+  }) async {
+    final ids = albumIds.toSet();
+    if (ids.isEmpty) {
+      return const <String, int?>{};
+    }
+    final rows =
+        await (select(librarySyncCandidateAlbumsTable)..where(
+              (table) =>
+                  table.serverId.equals(serverId) &
+                  table.generation.equals(generation) &
+                  table.id.isIn(ids),
+            ))
+            .get();
+    return <String, int?>{for (final row in rows) row.id: row.songCount};
+  }
+
+  Future<int> carryForwardPendingAlbums({
+    required int serverId,
+    required int generation,
+  }) async {
+    final pending =
+        await (select(librarySyncCandidateAlbumsTable)..where(
+              (table) =>
+                  table.serverId.equals(serverId) &
+                  table.generation.equals(generation) &
+                  table.songsHydrated.equals(false),
+            ))
+            .get();
+    var carried = 0;
+    for (final candidate in pending) {
+      final existing =
+          await (select(albumsTable)
+                ..where((table) => table.id.equals(candidate.id))
+                ..limit(1))
+              .getSingleOrNull();
+      if (existing == null) {
+        continue;
+      }
+      final songs =
+          await (select(songsTable)..where(
+                (table) =>
+                    table.albumId.equals(candidate.id) &
+                    table.serverDeletedAt.isNull(),
+              ))
+              .get();
+      if (songs.isNotEmpty) {
+        await replaceSongsForAlbums(
+          serverId: serverId,
+          generation: generation,
+          songsByAlbum: <String, List<SongsTableCompanion>>{
+            candidate.id: songs.map(_liveSongCompanion).toList(),
+          },
+        );
+      }
+      await (update(librarySyncCandidateAlbumsTable)..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.id.equals(candidate.id),
+          ))
+          .write(
+            const LibrarySyncCandidateAlbumsTableCompanion(
+              carriedForward: Value(true),
+            ),
+          );
+      carried++;
+    }
+    return carried;
+  }
+
+  Future<List<LibrarySyncCandidateArtistsTableData>> getArtists({
+    required int serverId,
+    required int generation,
+  }) {
+    return (select(librarySyncCandidateArtistsTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.generation.equals(generation),
+        ))
+        .get();
+  }
+
+  Future<List<LibrarySyncCandidateArtistsTableData>> getUnclassifiedArtists({
+    required int serverId,
+    required int generation,
+    required int limit,
+  }) {
+    return (select(librarySyncCandidateArtistsTable)
+          ..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.applyState.isNull(),
+          )
+          ..orderBy([
+            (table) => OrderingTerm.asc(table.id),
+          ])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<List<LibrarySyncCandidateAlbumsTableData>> getUnclassifiedAlbums({
+    required int serverId,
+    required int generation,
+    required int limit,
+  }) {
+    return (select(librarySyncCandidateAlbumsTable)
+          ..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.applyState.isNull(),
+          )
+          ..orderBy([
+            (table) => OrderingTerm.asc(table.id),
+          ])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<List<LibrarySyncCandidateSongsTableData>> getUnclassifiedSongs({
+    required int serverId,
+    required int generation,
+    required int limit,
+  }) {
+    return (select(librarySyncCandidateSongsTable)
+          ..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.applyState.isNull(),
+          )
+          ..orderBy([
+            (table) => OrderingTerm.asc(table.id),
+          ])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<List<LibrarySyncCandidateArtistsTableData>> getChangedArtistsPage({
+    required int serverId,
+    required int generation,
+    required String afterId,
+    required int limit,
+  }) {
+    return (select(librarySyncCandidateArtistsTable)
+          ..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.applyState.equals(LibraryCandidateApplyState.changed) &
+                table.id.isBiggerThanValue(afterId),
+          )
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<List<LibrarySyncCandidateAlbumsTableData>> getChangedAlbumsPage({
+    required int serverId,
+    required int generation,
+    required String afterId,
+    required int limit,
+  }) {
+    return (select(librarySyncCandidateAlbumsTable)
+          ..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.applyState.equals(LibraryCandidateApplyState.changed) &
+                table.id.isBiggerThanValue(afterId),
+          )
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<List<LibrarySyncCandidateSongsTableData>> getChangedSongsPage({
+    required int serverId,
+    required int generation,
+    required String afterId,
+    required int limit,
+  }) {
+    return (select(librarySyncCandidateSongsTable)
+          ..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.applyState.equals(LibraryCandidateApplyState.changed) &
+                table.id.isBiggerThanValue(afterId),
+          )
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<List<LibrarySyncCandidateSongsTableData>> getSongsPage({
+    required int serverId,
+    required int generation,
+    required String afterId,
+    required int limit,
+  }) {
+    return (select(librarySyncCandidateSongsTable)
+          ..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.id.isBiggerThanValue(afterId),
+          )
+          ..orderBy([(table) => OrderingTerm.asc(table.id)])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<List<SongsTableData>> getStaleSongsPage({
+    required int serverId,
+    required int generation,
+    required String afterId,
+    required int limit,
+  }) {
+    return customSelect(
+      '''
+      SELECT s.*
+      FROM songs s
+      LEFT JOIN library_sync_candidate_songs c
+        ON c.server_id = ?1
+       AND c.generation = ?2
+       AND c.id = s.id
+      WHERE c.id IS NULL
+        AND s.id > ?3
+        AND s.is_provisional = 0
+        AND s.server_deleted_at IS NULL
+        AND (s.album_id IS NOT NULL OR s.artist_id IS NOT NULL)
+      ORDER BY s.id ASC
+      LIMIT ?4
+      ''',
+      variables: <Variable<Object>>[
+        Variable<int>(serverId),
+        Variable<int>(generation),
+        Variable<String>(afterId),
+        Variable<int>(limit),
+      ],
+      readsFrom: {songsTable, librarySyncCandidateSongsTable},
+    ).map((row) => songsTable.map(row.data)).get();
+  }
+
+  Future<int> countStaleSongs({
+    required int serverId,
+    required int generation,
+  }) async {
+    final row = await customSelect(
+      '''
+      SELECT COUNT(*) AS amount
+      FROM songs s
+      LEFT JOIN library_sync_candidate_songs c
+        ON c.server_id = ?1
+       AND c.generation = ?2
+       AND c.id = s.id
+      WHERE c.id IS NULL
+        AND s.is_provisional = 0
+        AND s.server_deleted_at IS NULL
+        AND (s.album_id IS NOT NULL OR s.artist_id IS NOT NULL)
+      ''',
+      variables: <Variable<Object>>[
+        Variable<int>(serverId),
+        Variable<int>(generation),
+      ],
+      readsFrom: {songsTable, librarySyncCandidateSongsTable},
+    ).getSingle();
+    return row.read<int>('amount');
+  }
+
+  Future<void> classifyArtists({
+    required int serverId,
+    required int generation,
+    required Iterable<String> changedIds,
+    required Iterable<String> unchangedIds,
+  }) {
+    return _classifyCandidates(
+      changedIds: changedIds,
+      unchangedIds: unchangedIds,
+      writeState: (ids, state) =>
+          (update(librarySyncCandidateArtistsTable)..where(
+                (table) =>
+                    table.serverId.equals(serverId) &
+                    table.generation.equals(generation) &
+                    table.id.isIn(ids),
+              ))
+              .write(
+                LibrarySyncCandidateArtistsTableCompanion(
+                  applyState: Value(state),
+                ),
+              ),
+    );
+  }
+
+  Future<void> classifyAlbums({
+    required int serverId,
+    required int generation,
+    required Iterable<String> changedIds,
+    required Iterable<String> unchangedIds,
+  }) {
+    return _classifyCandidates(
+      changedIds: changedIds,
+      unchangedIds: unchangedIds,
+      writeState: (ids, state) =>
+          (update(librarySyncCandidateAlbumsTable)..where(
+                (table) =>
+                    table.serverId.equals(serverId) &
+                    table.generation.equals(generation) &
+                    table.id.isIn(ids),
+              ))
+              .write(
+                LibrarySyncCandidateAlbumsTableCompanion(
+                  applyState: Value(state),
+                ),
+              ),
+    );
+  }
+
+  Future<void> classifySongs({
+    required int serverId,
+    required int generation,
+    required Iterable<String> changedIds,
+    required Iterable<String> unchangedIds,
+  }) {
+    return _classifyCandidates(
+      changedIds: changedIds,
+      unchangedIds: unchangedIds,
+      writeState: (ids, state) =>
+          (update(librarySyncCandidateSongsTable)..where(
+                (table) =>
+                    table.serverId.equals(serverId) &
+                    table.generation.equals(generation) &
+                    table.id.isIn(ids),
+              ))
+              .write(
+                LibrarySyncCandidateSongsTableCompanion(
+                  applyState: Value(state),
+                ),
+              ),
+    );
+  }
+
+  Future<CandidateApplyCounts> getApplyCounts({
+    required int serverId,
+    required int generation,
+  }) async {
+    Future<int> countWhere(Expression<bool> predicate) async {
+      final count = librarySyncCandidateSongsTable.id.count();
+      final row =
+          await (selectOnly(librarySyncCandidateSongsTable)
+                ..addColumns([count])
+                ..where(
+                  librarySyncCandidateSongsTable.serverId.equals(serverId) &
+                      librarySyncCandidateSongsTable.generation.equals(
+                        generation,
+                      ) &
+                      predicate,
+                ))
+              .getSingle();
+      return row.read(count) ?? 0;
+    }
+
+    return CandidateApplyCounts(
+      changed: await countWhere(
+        librarySyncCandidateSongsTable.applyState.equals(
+          LibraryCandidateApplyState.changed,
+        ),
+      ),
+      unchanged: await countWhere(
+        librarySyncCandidateSongsTable.applyState.equals(
+          LibraryCandidateApplyState.unchanged,
+        ),
+      ),
+      unclassified: await countWhere(
+        librarySyncCandidateSongsTable.applyState.isNull(),
+      ),
+    );
+  }
+
+  Future<void> _classifyCandidates({
+    required Iterable<String> changedIds,
+    required Iterable<String> unchangedIds,
+    required Future<int> Function(List<String> ids, int state) writeState,
+  }) async {
+    final changed = changedIds.toSet().toList(growable: false);
+    final unchanged = unchangedIds.toSet().toList(growable: false);
+    await transaction(() async {
+      if (changed.isNotEmpty) {
+        await writeState(changed, LibraryCandidateApplyState.changed);
+      }
+      if (unchanged.isNotEmpty) {
+        await writeState(unchanged, LibraryCandidateApplyState.unchanged);
+      }
+    });
+  }
+
+  Future<List<LibrarySyncCandidateAlbumsTableData>> getAlbums({
+    required int serverId,
+    required int generation,
+  }) {
+    return (select(librarySyncCandidateAlbumsTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.generation.equals(generation),
+        ))
+        .get();
+  }
+
+  Future<List<LibrarySyncCandidateSongsTableData>> getSongs({
+    required int serverId,
+    required int generation,
+  }) {
+    return (select(librarySyncCandidateSongsTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.generation.equals(generation),
+        ))
+        .get();
+  }
+
+  LibrarySyncCandidateSongsTableCompanion _candidateSong(
+    int serverId,
+    int generation,
+    SongsTableCompanion song,
+  ) {
+    return LibrarySyncCandidateSongsTableCompanion.insert(
+      serverId: serverId,
+      generation: generation,
+      id: song.id.value,
+      title: song.title.value,
+      albumId: song.albumId,
+      artistId: song.artistId,
+      artistName: song.artistName,
+      albumName: song.albumName,
+      track: song.track,
+      discNumber: song.discNumber,
+      duration: song.duration,
+      bitRate: song.bitRate,
+      sampleRate: song.sampleRate,
+      contentType: song.contentType,
+      suffix: song.suffix,
+      size: song.size,
+      coverArt: song.coverArt,
+      starred: song.starred,
+      recordingMbid: song.recordingMbid,
+      userRating: song.userRating,
+      playCount: song.playCount,
+      createdAt: song.createdAt,
+      replayGainTrackGain: song.replayGainTrackGain,
+      replayGainAlbumGain: song.replayGainAlbumGain,
+      replayGainTrackPeak: song.replayGainTrackPeak,
+      replayGainAlbumPeak: song.replayGainAlbumPeak,
+    );
+  }
+
+  SongsTableCompanion _liveSongCompanion(SongsTableData song) {
+    return SongsTableCompanion.insert(
+      id: song.id,
+      title: song.title,
+      albumId: Value(song.albumId),
+      artistId: Value(song.artistId),
+      artistName: Value(song.artistName),
+      albumName: Value(song.albumName),
+      track: Value(song.track),
+      discNumber: Value(song.discNumber),
+      duration: Value(song.duration),
+      bitRate: Value(song.bitRate),
+      sampleRate: Value(song.sampleRate),
+      contentType: Value(song.contentType),
+      suffix: Value(song.suffix),
+      size: Value(song.size),
+      coverArt: Value(song.coverArt),
+      starred: Value(song.starred),
+      recordingMbid: Value(song.recordingMbid),
+      userRating: Value(song.userRating),
+      playCount: Value(song.playCount),
+      createdAt: Value(song.createdAt),
+      replayGainTrackGain: Value(song.replayGainTrackGain),
+      replayGainAlbumGain: Value(song.replayGainAlbumGain),
+      replayGainTrackPeak: Value(song.replayGainTrackPeak),
+      replayGainAlbumPeak: Value(song.replayGainAlbumPeak),
+    );
+  }
+}

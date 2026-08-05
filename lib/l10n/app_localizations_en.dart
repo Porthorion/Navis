@@ -160,7 +160,64 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsStatusSucceeded => 'Last sync succeeded';
 
   @override
+  String get syncSettingsStatusPartial => 'Sync paused with work remaining';
+
+  @override
+  String get syncSettingsStatusDeferred => 'Sync deferred';
+
+  @override
+  String get syncSettingsStatusCancelled => 'Sync cancelled; work saved';
+
+  @override
   String get syncSettingsStatusFailed => 'Last sync failed';
+
+  @override
+  String get syncSettingsLastCheckedLabel => 'Last checked';
+
+  @override
+  String get syncSettingsLastCatalogUpdateLabel => 'Last catalog update';
+
+  @override
+  String get syncSettingsLastAuxiliaryUpdateLabel =>
+      'Starred and playlist headers';
+
+  @override
+  String get syncSettingsLastGenresUpdateLabel => 'Genres';
+
+  @override
+  String syncSettingsDegradation(Object category) {
+    return 'Degraded domain: $category';
+  }
+
+  @override
+  String syncSettingsStrategy(Object strategy, Object reason) {
+    return 'Strategy: $strategy — $reason';
+  }
+
+  @override
+  String syncSettingsPendingWork(Object count) {
+    return '$count resumable task(s) pending';
+  }
+
+  @override
+  String syncSettingsCandidate(Object generation, Object status) {
+    return 'Candidate generation $generation: $status';
+  }
+
+  @override
+  String syncSettingsCarriedForward(Object count) {
+    return '$count unavailable album(s) kept from the previous catalog';
+  }
+
+  @override
+  String syncSettingsApplyDuration(Object milliseconds) {
+    return 'Catalog applied in $milliseconds ms';
+  }
+
+  @override
+  String syncSettingsUsage(Object requests, Object bytes) {
+    return 'Last run: $requests request(s) • $bytes';
+  }
 
   @override
   String get syncSettingsCheckForUpdates => 'Check for updates';
@@ -203,6 +260,36 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get syncSettingsIntervalDescription =>
       'How often the library syncs automatically in the background.';
+
+  @override
+  String get syncSettingsBackgroundUnmeteredOnlyLabel =>
+      'Background sync only on unmetered networks';
+
+  @override
+  String get syncSettingsBackgroundUnmeteredOnlyDescription =>
+      'On mobile or metered Wi-Fi, Navis checks for updates with a single lightweight request and waits for unmetered data before downloading catalog changes.';
+
+  @override
+  String get syncSettingsUpdatesAvailable =>
+      'Library updates are available and waiting for an unmetered connection.';
+
+  @override
+  String get syncSettingsUpdatesAvailableMetered =>
+      'Library updates are available. Use mobile data now or wait for unmetered Wi-Fi.';
+
+  @override
+  String get syncSettingsSyncUsingMobileData => 'Sync using mobile data';
+
+  @override
+  String get syncSettingsRepairMeteredConfirmTitle =>
+      'Repair Library on mobile data?';
+
+  @override
+  String get syncSettingsRepairMeteredConfirmBody =>
+      'Repair Library can download a large amount of metadata over your current connection.';
+
+  @override
+  String get syncSettingsRepairMeteredConfirmAction => 'Repair on mobile data';
 
   @override
   String playbackSettingsLoadError(Object message) {
@@ -631,18 +718,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverSettingsSaveSuccess => 'Server settings saved.';
 
   @override
-  String get serverSettingsForceFullSync => 'Force Full Sync';
+  String get serverSettingsForceFullSync => 'Repair Library';
 
   @override
-  String get serverSettingsForceFullSyncRunning => 'Sync in progress...';
+  String get serverSettingsForceFullSyncRunning => 'Repair in progress...';
 
   @override
-  String get serverSettingsForceFullSyncSuccess =>
-      'Full library sync completed.';
+  String get serverSettingsForceFullSyncSuccess => 'Library repair completed.';
 
   @override
   String serverSettingsForceFullSyncFailure(Object message) {
-    return 'Full sync failed: $message';
+    return 'Library repair failed: $message';
   }
 
   @override
@@ -1644,6 +1730,14 @@ class AppLocalizationsEn extends AppLocalizations {
       zero: 'No cached tracks',
     );
     return '$_temp0';
+  }
+
+  @override
+  String get cacheSettingsRollingCaching => 'Caching current track…';
+
+  @override
+  String cacheSettingsRollingCachingProgress(int percent) {
+    return 'Caching current track… $percent%';
   }
 
   @override

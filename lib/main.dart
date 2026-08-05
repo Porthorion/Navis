@@ -14,6 +14,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/notifications/notification_bootstrap.dart';
+import 'package:navis/src/utils/sync_diagnostics_server.dart';
+import 'package:path/path.dart' as path;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,9 +25,13 @@ Future<void> main() async {
   if (_isDesktopRuntime) {
     unawaited(UpdateService.cleanupStaledUpdates());
   }
-  final desktopBootstrap = await _configureDesktopWindow();
+  final diagnosticsDatabase = _openDiagnosticsDatabase();
+  final desktopBootstrap = await _configureDesktopWindow(
+    databaseOverride: diagnosticsDatabase,
+  );
   final rootContainer = _createRootProviderContainer(
     desktopBootstrap: desktopBootstrap,
+    databaseOverride: diagnosticsDatabase,
   );
   rootContainer
       .read(audioBootstrapControllerProvider.notifier)
@@ -45,15 +51,26 @@ Future<void> main() async {
       ),
     ),
   );
+  if (_syncDiagnosticsRuntimeEnabled) {
+    unawaited(
+      _startSyncDiagnostics(
+        container: rootContainer,
+        database: diagnosticsDatabase ?? desktopBootstrap?.database,
+      ),
+    );
+  }
 }
 
 ProviderContainer _createRootProviderContainer({
   required _DesktopBootstrap? desktopBootstrap,
+  NavisDatabase? databaseOverride,
 }) {
   return ProviderContainer(
     overrides: [
-      if (desktopBootstrap != null)
-        navisDatabaseProvider.overrideWith((ref) => desktopBootstrap.database),
+      if (databaseOverride != null || desktopBootstrap != null)
+        navisDatabaseProvider.overrideWith(
+          (ref) => databaseOverride ?? desktopBootstrap!.database,
+        ),
       if (desktopBootstrap != null)
         settingsRepositoryProvider.overrideWith(
           (ref) => desktopBootstrap.settingsRepository,
@@ -97,13 +114,15 @@ void _initializeDesktopAudioBackend() {
   }
 }
 
-Future<_DesktopBootstrap?> _configureDesktopWindow() async {
+Future<_DesktopBootstrap?> _configureDesktopWindow({
+  NavisDatabase? databaseOverride,
+}) async {
   if (!_isDesktopRuntime) {
     return null;
   }
 
   try {
-    final database = NavisDatabase();
+    final database = databaseOverride ?? NavisDatabase();
     final settingsRepository = SettingsRepository(database.appSettingsDao);
     final controller = await DesktopWindowController.bootstrap(
       desktopRuntime: _isDesktopRuntime,
@@ -126,6 +145,64 @@ Future<_DesktopBootstrap?> _configureDesktopWindow() async {
     );
     return null;
   }
+}
+
+NavisDatabase? _openDiagnosticsDatabase() {
+  if (!_syncDiagnosticsRequested) {
+    return null;
+  }
+  if (!_syncDiagnosticsRuntimeEnabled) {
+    throw StateError(
+      'Sync diagnostics require a Linux profile build and a valid mode.',
+    );
+  }
+  if (_syncDiagnosticsMode == SyncDiagnosticsMode.primaryCertification) {
+    if (_syncDiagnosticsDatabasePath.isNotEmpty) {
+      throw StateError(
+        'Primary certification must use the normal Navis database path.',
+      );
+    }
+    return null;
+  }
+  if (_syncDiagnosticsRoot.isEmpty || _syncDiagnosticsDatabasePath.isEmpty) {
+    throw StateError(
+      'Clone diagnostics require an isolated root and database.',
+    );
+  }
+  final root = path.normalize(path.absolute(_syncDiagnosticsRoot));
+  final databasePath = path.normalize(
+    path.absolute(_syncDiagnosticsDatabasePath),
+  );
+  if (!path.isWithin(root, databasePath)) {
+    throw StateError('Diagnostics database must be inside the isolated root.');
+  }
+  return NavisDatabase.atPath(databasePath);
+}
+
+Future<void> _startSyncDiagnostics({
+  required ProviderContainer container,
+  required NavisDatabase? database,
+}) async {
+  final mode = _syncDiagnosticsMode;
+  if (mode == null || _syncDiagnosticsHandshakePath.isEmpty) {
+    throw StateError('Sync diagnostics mode and handshake path are required.');
+  }
+  late final SyncDiagnosticsServer server;
+  server = SyncDiagnosticsServer(
+    container: container,
+    mode: mode,
+    handshakePath: _syncDiagnosticsHandshakePath,
+    onShutdown: () async {
+      await server.close();
+      runApp(const SizedBox.shrink());
+      await WidgetsBinding.instance.endOfFrame;
+      container.dispose();
+      await database?.close();
+      exit(0);
+    },
+  );
+  await server.start();
+  AppLogger.info('Sync diagnostics API started in ${mode.name} mode.');
 }
 
 class _DesktopBootstrap {
@@ -162,6 +239,33 @@ const bool _forceEnableMediaKitInDebug = bool.fromEnvironment(
   'NAVIS_ENABLE_MEDIA_KIT_DEBUG',
   defaultValue: false,
 );
+
+const bool _syncDiagnosticsRequested = bool.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS',
+  defaultValue: false,
+);
+const String _syncDiagnosticsModeValue = String.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_MODE',
+);
+const String _syncDiagnosticsRoot = String.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_ROOT',
+);
+const String _syncDiagnosticsDatabasePath = String.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_DB_PATH',
+);
+const String _syncDiagnosticsHandshakePath = String.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE',
+);
+
+SyncDiagnosticsMode? get _syncDiagnosticsMode =>
+    SyncDiagnosticsMode.parse(_syncDiagnosticsModeValue);
+
+bool get _syncDiagnosticsRuntimeEnabled =>
+    _syncDiagnosticsRequested &&
+    kProfileMode &&
+    !kIsWeb &&
+    Platform.isLinux &&
+    _syncDiagnosticsMode != null;
 
 bool get _shouldSkipDesktopMediaKitInitialization =>
     !_forceEnableMediaKitInDebug && kDebugMode && !kIsWeb && Platform.isMacOS;

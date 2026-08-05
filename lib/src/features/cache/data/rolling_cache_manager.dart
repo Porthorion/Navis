@@ -34,6 +34,27 @@ abstract class RollingCacheManager {
   Future<Set<String>> getPermanentlyCachedSongIds();
 }
 
+enum RollingCacheActivityStatus { idle, caching }
+
+class RollingCacheActivity {
+  const RollingCacheActivity({
+    required this.status,
+    this.songId,
+    this.progress,
+  });
+
+  const RollingCacheActivity.idle()
+    : status = RollingCacheActivityStatus.idle,
+      songId = null,
+      progress = null;
+
+  final RollingCacheActivityStatus status;
+  final String? songId;
+  final double? progress;
+
+  bool get isCaching => status == RollingCacheActivityStatus.caching;
+}
+
 class DriftRollingCacheManager implements RollingCacheManager {
   DriftRollingCacheManager({
     required CacheDao cacheDao,

@@ -51,6 +51,7 @@ final _testPlaybackProvider =
 
 ProviderContainer _createContainer({
   required Stream<ManualTrackChangeCue> cueStream,
+  PlaybackBufferState bufferState = const PlaybackBufferState.idle(),
 }) {
   final database = createTestDatabase();
   final container = ProviderContainer(
@@ -61,6 +62,7 @@ ProviderContainer _createContainer({
           (ref) => ref.watch(_testPlaybackProvider),
         ),
         manualTrackChangeCueProvider.overrideWith((ref) => cueStream),
+        playbackBufferStateProvider.overrideWithValue(AsyncData(bufferState)),
       ],
     ),
   );
@@ -104,6 +106,49 @@ Finder _findActiveHorizontalSlideTransitions() {
 }
 
 void main() {
+  testWidgets('seek bar shows buffered audio as a secondary track', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(880, 1200);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainer(
+      cueStream: const Stream<ManualTrackChangeCue>.empty(),
+      bufferState: const PlaybackBufferState(
+        songId: 'song-1',
+        bufferedPosition: Duration(minutes: 1, seconds: 20),
+      ),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: NowPlayingScreen()),
+        ),
+      ),
+    );
+
+    container.read(_testPlaybackProvider.notifier).state = _song1Playback;
+    await tester.pumpAndSettle();
+
+    final seekSlider = tester.widget<Slider>(find.byType(Slider).first);
+    expect(seekSlider.max, _song1Playback.duration.inMilliseconds);
+    expect(seekSlider.secondaryTrackValue, 80000);
+    expect(seekSlider.secondaryActiveColor, isNotNull);
+  });
+
   testWidgets(
     'manual song changes swap to the new cover-art child',
     (tester) async {

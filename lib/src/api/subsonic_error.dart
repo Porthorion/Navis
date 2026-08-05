@@ -41,6 +41,20 @@ class SubsonicConnectionException extends SubsonicException {
   const SubsonicConnectionException(super.message);
 }
 
+/// A Subsonic response exceeded the configured byte budget.
+class SubsonicResponseBudgetExceededException extends SubsonicException {
+  const SubsonicResponseBudgetExceededException({
+    required this.maxBytes,
+    required this.observedBytes,
+  }) : super(
+         'Response exceeded sync byte budget '
+         '($observedBytes > $maxBytes).',
+       );
+
+  final int maxBytes;
+  final int observedBytes;
+}
+
 /// Lyrics endpoint is not supported by the connected server.
 class LyricsUnsupportedException implements Exception {
   const LyricsUnsupportedException([this.message = 'Lyrics not supported']);

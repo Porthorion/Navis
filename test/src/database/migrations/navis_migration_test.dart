@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 54);
-    expect(pragmaRow.read<int>('user_version'), 54);
+    expect(database.schemaVersion, 58);
+    expect(pragmaRow.read<int>('user_version'), 58);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -129,7 +129,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 54);
+      expect(versionRow.read<int>('user_version'), 58);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -222,7 +222,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 54);
+      expect(versionRow.read<int>('user_version'), 58);
 
       final now = DateTime.utc(2026, 1, 1, 1);
       await migrated.scrobbleDao.enqueue(
@@ -305,7 +305,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 54);
+      expect(versionRow.read<int>('user_version'), 58);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -424,7 +424,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 54);
+      expect(versionRow.read<int>('user_version'), 58);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -542,7 +542,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 54);
+      expect(versionRow.read<int>('user_version'), 58);
 
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings?.customVoyageServers, isNull);
@@ -619,7 +619,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 54);
+      expect(versionRow.read<int>('user_version'), 58);
 
       for (final table in <String>['artists', 'albums', 'songs']) {
         final columns = await migrated
@@ -649,6 +649,297 @@ SET group_listening_enabled = 1,
       expect(
         (await migrated.libraryDao.getSongById('song-1'))?.isProvisional,
         isFalse,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'migrates v54 sync state and catalog generations to v55',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v55_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+      final checkedAt = DateTime.utc(2026, 7, 1, 12);
+
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://music.example.test',
+          username: 'listener',
+          apiVersion: '1.16.1',
+          capabilities: Value(
+            '{"navis":{"libraryIndexesCursor":"${checkedAt.toIso8601String()}",'
+            '"libraryIndexesFingerprint":"artist-1",'
+            '"bulkSongSearchWildcardQuery":"*",'
+            '"libraryPendingIndexesOffset":3}}',
+          ),
+          lastSynced: Value(checkedAt),
+        ),
+      );
+      await seedDatabase.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+      ]);
+      await seedDatabase.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute('DROP INDEX IF EXISTS idx_artists_catalog_generation;');
+        raw.execute('DROP INDEX IF EXISTS idx_albums_catalog_generation;');
+        raw.execute('DROP INDEX IF EXISTS idx_songs_catalog_generation;');
+        raw.execute('DROP INDEX IF EXISTS idx_network_usage_operation;');
+        raw.execute('DROP INDEX IF EXISTS idx_library_sync_work_due;');
+        raw.execute('DROP TABLE IF EXISTS library_sync_work;');
+        raw.execute('DROP TABLE IF EXISTS library_sync_state;');
+        raw.execute('ALTER TABLE artists DROP COLUMN catalog_generation;');
+        raw.execute('ALTER TABLE albums DROP COLUMN catalog_generation;');
+        raw.execute('ALTER TABLE songs DROP COLUMN catalog_generation;');
+        raw.execute('ALTER TABLE network_usage_events DROP COLUMN operation;');
+        raw.execute('PRAGMA user_version = 54;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final version = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(version.read<int>('user_version'), 58);
+      final state = await migrated.librarySyncDao.getOrCreateState(1);
+      expect(state.conditionalIndexesMode, 'reliable');
+      expect(state.bulkSearchMode, 'supported');
+      expect(state.bulkSearchQuery, '*');
+      expect(state.catalogCursor?.toUtc(), checkedAt);
+      expect(state.catalogFingerprint, 'artist-1');
+      expect(state.auditOffset, 3);
+      expect(state.currentGeneration, 1);
+      expect(
+        (await migrated.libraryDao.getArtistById(
+          'artist-1',
+        ))?.catalogGeneration,
+        1,
+      );
+
+      final usageColumns = await migrated
+          .customSelect("PRAGMA table_info('network_usage_events');")
+          .get();
+      expect(
+        usageColumns.map((row) => row.read<String>('name')),
+        contains('operation'),
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'migrates v55 to v56 with atomic catalog candidate storage',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v56_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase.customSelect('PRAGMA user_version;').getSingle();
+      await seedDatabase.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute('DROP TABLE IF EXISTS library_sync_candidate_songs;');
+        raw.execute('DROP TABLE IF EXISTS library_sync_candidate_albums;');
+        raw.execute('DROP TABLE IF EXISTS library_sync_candidate_artists;');
+        raw.execute('DROP TABLE IF EXISTS library_sync_local_mutations;');
+        raw.execute(
+          'ALTER TABLE library_sync_state DROP COLUMN candidate_generation;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_state DROP COLUMN candidate_status;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_state DROP COLUMN candidate_started_at;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_state '
+          'DROP COLUMN candidate_carried_forward_count;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_state DROP COLUMN last_apply_duration_ms;',
+        );
+        raw.execute('PRAGMA user_version = 55;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final version = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(version.read<int>('user_version'), 58);
+      final tables = await migrated
+          .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
+          .get();
+      expect(
+        tables.map((row) => row.read<String>('name')),
+        containsAll(<String>[
+          'library_sync_candidate_artists',
+          'library_sync_candidate_albums',
+          'library_sync_candidate_songs',
+          'library_sync_local_mutations',
+        ]),
+      );
+      final stateColumns = await migrated
+          .customSelect("PRAGMA table_info('library_sync_state');")
+          .get();
+      expect(
+        stateColumns.map((row) => row.read<String>('name')),
+        containsAll(<String>[
+          'candidate_generation',
+          'candidate_status',
+          'candidate_started_at',
+          'candidate_carried_forward_count',
+          'last_apply_duration_ms',
+        ]),
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'migrates v56 to v57 with resumable candidate classifications',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v57_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase.customSelect('PRAGMA user_version;').getSingle();
+      await seedDatabase.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute(
+          'DROP INDEX idx_library_sync_candidate_artists_unclassified;',
+        );
+        raw.execute(
+          'DROP INDEX idx_library_sync_candidate_albums_unclassified;',
+        );
+        raw.execute(
+          'DROP INDEX idx_library_sync_candidate_songs_unclassified;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_candidate_artists '
+          'DROP COLUMN apply_state;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_candidate_albums '
+          'DROP COLUMN apply_state;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_candidate_songs '
+          'DROP COLUMN apply_state;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_state '
+          'DROP COLUMN last_promotion_diagnostics_json;',
+        );
+        raw.execute('PRAGMA user_version = 56;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final version = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(version.read<int>('user_version'), 58);
+      for (final table in <String>[
+        'library_sync_candidate_artists',
+        'library_sync_candidate_albums',
+        'library_sync_candidate_songs',
+      ]) {
+        final columns = await migrated
+            .customSelect("PRAGMA table_info('$table');")
+            .get();
+        expect(
+          columns.map((row) => row.read<String>('name')),
+          contains('apply_state'),
+        );
+      }
+      final stateColumns = await migrated
+          .customSelect("PRAGMA table_info('library_sync_state');")
+          .get();
+      expect(
+        stateColumns.map((row) => row.read<String>('name')),
+        contains('last_promotion_diagnostics_json'),
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'migrates v57 to v58 with sync work class and unmetered setting',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v58_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase.customSelect('PRAGMA user_version;').getSingle();
+      await seedDatabase.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute(
+          'ALTER TABLE app_settings '
+          'DROP COLUMN background_sync_unmetered_only;',
+        );
+        raw.execute(
+          'ALTER TABLE library_sync_work DROP COLUMN work_class;',
+        );
+        raw.execute('PRAGMA user_version = 57;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final version = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(version.read<int>('user_version'), 58);
+      final settingsColumns = await migrated
+          .customSelect("PRAGMA table_info('app_settings');")
+          .get();
+      expect(
+        settingsColumns.map((row) => row.read<String>('name')),
+        contains('background_sync_unmetered_only'),
+      );
+      final workColumns = await migrated
+          .customSelect("PRAGMA table_info('library_sync_work');")
+          .get();
+      expect(
+        workColumns.map((row) => row.read<String>('name')),
+        contains('work_class'),
       );
     },
     skip: !sqliteAvailable,

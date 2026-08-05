@@ -110,5 +110,47 @@ void main() {
       expect(snapshot.loadingSongId, isNull);
       expect(snapshot.lastFailedSongId, isNull);
     });
+
+    test('song metadata keeps transcoded playback duration stable', () {
+      const metadataDuration = Duration(minutes: 4);
+
+      expect(
+        resolveEffectivePlaybackDuration(
+          isRadioMode: false,
+          mediaDuration: metadataDuration,
+          playerDuration: const Duration(seconds: 18),
+        ),
+        metadataDuration,
+      );
+      expect(
+        resolveEffectivePlaybackDuration(
+          isRadioMode: false,
+          mediaDuration: metadataDuration,
+          playerDuration: const Duration(seconds: 37),
+        ),
+        metadataDuration,
+      );
+    });
+
+    test('duration falls back to decoder and preserves radio precedence', () {
+      const decoderDuration = Duration(minutes: 2);
+
+      expect(
+        resolveEffectivePlaybackDuration(
+          isRadioMode: false,
+          mediaDuration: null,
+          playerDuration: decoderDuration,
+        ),
+        decoderDuration,
+      );
+      expect(
+        resolveEffectivePlaybackDuration(
+          isRadioMode: true,
+          mediaDuration: const Duration(minutes: 5),
+          playerDuration: decoderDuration,
+        ),
+        decoderDuration,
+      );
+    });
   });
 }

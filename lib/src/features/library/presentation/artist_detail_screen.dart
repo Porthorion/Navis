@@ -38,6 +38,14 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
 
+  @override
+  void initState() {
+    super.initState();
+    ref
+        .read(librarySyncControllerProvider.notifier)
+        .registerArtistInteraction(widget.artistId);
+  }
+
   void _queueArtist(
     List<SongsTableData> songs, {
     required bool shuffle,

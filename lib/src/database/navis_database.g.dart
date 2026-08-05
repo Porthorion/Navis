@@ -1031,6 +1031,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(60),
   );
+  static const VerificationMeta _backgroundSyncUnmeteredOnlyMeta =
+      const VerificationMeta('backgroundSyncUnmeteredOnly');
+  @override
+  late final GeneratedColumn<bool> backgroundSyncUnmeteredOnly =
+      GeneratedColumn<bool>(
+        'background_sync_unmetered_only',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("background_sync_unmetered_only" IN (0, 1))',
+        ),
+        defaultValue: const Constant(true),
+      );
   static const VerificationMeta _useLrclibMeta = const VerificationMeta(
     'useLrclib',
   );
@@ -1468,6 +1483,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     audioMuseApiKey,
     audioMuseEnabled,
     syncIntervalMinutes,
+    backgroundSyncUnmeteredOnly,
     useLrclib,
     legacyInstantMixEnabled,
     replayGainMode,
@@ -1845,6 +1861,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         syncIntervalMinutes.isAcceptableOrUnknown(
           data['sync_interval_minutes']!,
           _syncIntervalMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('background_sync_unmetered_only')) {
+      context.handle(
+        _backgroundSyncUnmeteredOnlyMeta,
+        backgroundSyncUnmeteredOnly.isAcceptableOrUnknown(
+          data['background_sync_unmetered_only']!,
+          _backgroundSyncUnmeteredOnlyMeta,
         ),
       );
     }
@@ -2288,6 +2313,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}sync_interval_minutes'],
       )!,
+      backgroundSyncUnmeteredOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}background_sync_unmetered_only'],
+      )!,
       useLrclib: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}use_lrclib'],
@@ -2510,6 +2539,11 @@ class AppSettingsTableData extends DataClass
   /// 0 = manual only (disabled). Default 60 (1 hour).
   final int syncIntervalMinutes;
 
+  /// When true, automatic/background library sync waits for an unmetered
+  /// network. Metered connections may still run a one-request probe and
+  /// interactive hydration. Default true.
+  final bool backgroundSyncUnmeteredOnly;
+
   /// Whether LRCLIB fallback is used when server lyrics are unavailable.
   final bool useLrclib;
 
@@ -2651,6 +2685,7 @@ class AppSettingsTableData extends DataClass
     this.audioMuseApiKey,
     required this.audioMuseEnabled,
     required this.syncIntervalMinutes,
+    required this.backgroundSyncUnmeteredOnly,
     required this.useLrclib,
     required this.legacyInstantMixEnabled,
     required this.replayGainMode,
@@ -2757,6 +2792,9 @@ class AppSettingsTableData extends DataClass
     }
     map['audio_muse_enabled'] = Variable<bool>(audioMuseEnabled);
     map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes);
+    map['background_sync_unmetered_only'] = Variable<bool>(
+      backgroundSyncUnmeteredOnly,
+    );
     map['use_lrclib'] = Variable<bool>(useLrclib);
     map['legacy_instant_mix_enabled'] = Variable<bool>(legacyInstantMixEnabled);
     map['replay_gain_mode'] = Variable<String>(replayGainMode);
@@ -2878,6 +2916,7 @@ class AppSettingsTableData extends DataClass
           : Value(audioMuseApiKey),
       audioMuseEnabled: Value(audioMuseEnabled),
       syncIntervalMinutes: Value(syncIntervalMinutes),
+      backgroundSyncUnmeteredOnly: Value(backgroundSyncUnmeteredOnly),
       useLrclib: Value(useLrclib),
       legacyInstantMixEnabled: Value(legacyInstantMixEnabled),
       replayGainMode: Value(replayGainMode),
@@ -3001,6 +3040,9 @@ class AppSettingsTableData extends DataClass
       syncIntervalMinutes: serializer.fromJson<int>(
         json['syncIntervalMinutes'],
       ),
+      backgroundSyncUnmeteredOnly: serializer.fromJson<bool>(
+        json['backgroundSyncUnmeteredOnly'],
+      ),
       useLrclib: serializer.fromJson<bool>(json['useLrclib']),
       legacyInstantMixEnabled: serializer.fromJson<bool>(
         json['legacyInstantMixEnabled'],
@@ -3119,6 +3161,9 @@ class AppSettingsTableData extends DataClass
       'audioMuseApiKey': serializer.toJson<String?>(audioMuseApiKey),
       'audioMuseEnabled': serializer.toJson<bool>(audioMuseEnabled),
       'syncIntervalMinutes': serializer.toJson<int>(syncIntervalMinutes),
+      'backgroundSyncUnmeteredOnly': serializer.toJson<bool>(
+        backgroundSyncUnmeteredOnly,
+      ),
       'useLrclib': serializer.toJson<bool>(useLrclib),
       'legacyInstantMixEnabled': serializer.toJson<bool>(
         legacyInstantMixEnabled,
@@ -3203,6 +3248,7 @@ class AppSettingsTableData extends DataClass
     Value<String?> audioMuseApiKey = const Value.absent(),
     bool? audioMuseEnabled,
     int? syncIntervalMinutes,
+    bool? backgroundSyncUnmeteredOnly,
     bool? useLrclib,
     bool? legacyInstantMixEnabled,
     String? replayGainMode,
@@ -3299,6 +3345,8 @@ class AppSettingsTableData extends DataClass
         : this.audioMuseApiKey,
     audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
     syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
+    backgroundSyncUnmeteredOnly:
+        backgroundSyncUnmeteredOnly ?? this.backgroundSyncUnmeteredOnly,
     useLrclib: useLrclib ?? this.useLrclib,
     legacyInstantMixEnabled:
         legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
@@ -3465,6 +3513,9 @@ class AppSettingsTableData extends DataClass
       syncIntervalMinutes: data.syncIntervalMinutes.present
           ? data.syncIntervalMinutes.value
           : this.syncIntervalMinutes,
+      backgroundSyncUnmeteredOnly: data.backgroundSyncUnmeteredOnly.present
+          ? data.backgroundSyncUnmeteredOnly.value
+          : this.backgroundSyncUnmeteredOnly,
       useLrclib: data.useLrclib.present ? data.useLrclib.value : this.useLrclib,
       legacyInstantMixEnabled: data.legacyInstantMixEnabled.present
           ? data.legacyInstantMixEnabled.value
@@ -3599,6 +3650,7 @@ class AppSettingsTableData extends DataClass
           ..write('audioMuseApiKey: $audioMuseApiKey, ')
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
+          ..write('backgroundSyncUnmeteredOnly: $backgroundSyncUnmeteredOnly, ')
           ..write('useLrclib: $useLrclib, ')
           ..write('legacyInstantMixEnabled: $legacyInstantMixEnabled, ')
           ..write('replayGainMode: $replayGainMode, ')
@@ -3679,6 +3731,7 @@ class AppSettingsTableData extends DataClass
     audioMuseApiKey,
     audioMuseEnabled,
     syncIntervalMinutes,
+    backgroundSyncUnmeteredOnly,
     useLrclib,
     legacyInstantMixEnabled,
     replayGainMode,
@@ -3755,6 +3808,8 @@ class AppSettingsTableData extends DataClass
           other.audioMuseApiKey == this.audioMuseApiKey &&
           other.audioMuseEnabled == this.audioMuseEnabled &&
           other.syncIntervalMinutes == this.syncIntervalMinutes &&
+          other.backgroundSyncUnmeteredOnly ==
+              this.backgroundSyncUnmeteredOnly &&
           other.useLrclib == this.useLrclib &&
           other.legacyInstantMixEnabled == this.legacyInstantMixEnabled &&
           other.replayGainMode == this.replayGainMode &&
@@ -3830,6 +3885,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> audioMuseApiKey;
   final Value<bool> audioMuseEnabled;
   final Value<int> syncIntervalMinutes;
+  final Value<bool> backgroundSyncUnmeteredOnly;
   final Value<bool> useLrclib;
   final Value<bool> legacyInstantMixEnabled;
   final Value<String> replayGainMode;
@@ -3901,6 +3957,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseApiKey = const Value.absent(),
     this.audioMuseEnabled = const Value.absent(),
     this.syncIntervalMinutes = const Value.absent(),
+    this.backgroundSyncUnmeteredOnly = const Value.absent(),
     this.useLrclib = const Value.absent(),
     this.legacyInstantMixEnabled = const Value.absent(),
     this.replayGainMode = const Value.absent(),
@@ -3973,6 +4030,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseApiKey = const Value.absent(),
     this.audioMuseEnabled = const Value.absent(),
     this.syncIntervalMinutes = const Value.absent(),
+    this.backgroundSyncUnmeteredOnly = const Value.absent(),
     this.useLrclib = const Value.absent(),
     this.legacyInstantMixEnabled = const Value.absent(),
     this.replayGainMode = const Value.absent(),
@@ -4045,6 +4103,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? audioMuseApiKey,
     Expression<bool>? audioMuseEnabled,
     Expression<int>? syncIntervalMinutes,
+    Expression<bool>? backgroundSyncUnmeteredOnly,
     Expression<bool>? useLrclib,
     Expression<bool>? legacyInstantMixEnabled,
     Expression<String>? replayGainMode,
@@ -4134,6 +4193,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (audioMuseEnabled != null) 'audio_muse_enabled': audioMuseEnabled,
       if (syncIntervalMinutes != null)
         'sync_interval_minutes': syncIntervalMinutes,
+      if (backgroundSyncUnmeteredOnly != null)
+        'background_sync_unmetered_only': backgroundSyncUnmeteredOnly,
       if (useLrclib != null) 'use_lrclib': useLrclib,
       if (legacyInstantMixEnabled != null)
         'legacy_instant_mix_enabled': legacyInstantMixEnabled,
@@ -4223,6 +4284,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? audioMuseApiKey,
     Value<bool>? audioMuseEnabled,
     Value<int>? syncIntervalMinutes,
+    Value<bool>? backgroundSyncUnmeteredOnly,
     Value<bool>? useLrclib,
     Value<bool>? legacyInstantMixEnabled,
     Value<String>? replayGainMode,
@@ -4301,6 +4363,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       audioMuseApiKey: audioMuseApiKey ?? this.audioMuseApiKey,
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
+      backgroundSyncUnmeteredOnly:
+          backgroundSyncUnmeteredOnly ?? this.backgroundSyncUnmeteredOnly,
       useLrclib: useLrclib ?? this.useLrclib,
       legacyInstantMixEnabled:
           legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
@@ -4479,6 +4543,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (syncIntervalMinutes.present) {
       map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes.value);
     }
+    if (backgroundSyncUnmeteredOnly.present) {
+      map['background_sync_unmetered_only'] = Variable<bool>(
+        backgroundSyncUnmeteredOnly.value,
+      );
+    }
     if (useLrclib.present) {
       map['use_lrclib'] = Variable<bool>(useLrclib.value);
     }
@@ -4641,6 +4710,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('audioMuseApiKey: $audioMuseApiKey, ')
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
+          ..write('backgroundSyncUnmeteredOnly: $backgroundSyncUnmeteredOnly, ')
           ..write('useLrclib: $useLrclib, ')
           ..write('legacyInstantMixEnabled: $legacyInstantMixEnabled, ')
           ..write('replayGainMode: $replayGainMode, ')
@@ -4753,6 +4823,17 @@ class $ArtistsTableTable extends ArtistsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _catalogGenerationMeta = const VerificationMeta(
+    'catalogGeneration',
+  );
+  @override
+  late final GeneratedColumn<int> catalogGeneration = GeneratedColumn<int>(
+    'catalog_generation',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4761,6 +4842,7 @@ class $ArtistsTableTable extends ArtistsTable
     coverArt,
     starred,
     isProvisional,
+    catalogGeneration,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4814,6 +4896,15 @@ class $ArtistsTableTable extends ArtistsTable
         ),
       );
     }
+    if (data.containsKey('catalog_generation')) {
+      context.handle(
+        _catalogGenerationMeta,
+        catalogGeneration.isAcceptableOrUnknown(
+          data['catalog_generation']!,
+          _catalogGenerationMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4847,6 +4938,10 @@ class $ArtistsTableTable extends ArtistsTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_provisional'],
       )!,
+      catalogGeneration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}catalog_generation'],
+      ),
     );
   }
 
@@ -4867,6 +4962,10 @@ class ArtistsTableData extends DataClass
   /// True for lightweight parent rows created from online search/playback
   /// results before the authoritative library sync has observed the artist.
   final bool isProvisional;
+
+  /// Authoritative catalog snapshot generation that last observed this row.
+  /// Generation zero denotes rows that predate the resumable sync planner.
+  final int? catalogGeneration;
   const ArtistsTableData({
     required this.id,
     required this.name,
@@ -4874,6 +4973,7 @@ class ArtistsTableData extends DataClass
     this.coverArt,
     this.starred,
     required this.isProvisional,
+    this.catalogGeneration,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4890,6 +4990,9 @@ class ArtistsTableData extends DataClass
       map['starred'] = Variable<DateTime>(starred);
     }
     map['is_provisional'] = Variable<bool>(isProvisional);
+    if (!nullToAbsent || catalogGeneration != null) {
+      map['catalog_generation'] = Variable<int>(catalogGeneration);
+    }
     return map;
   }
 
@@ -4907,6 +5010,9 @@ class ArtistsTableData extends DataClass
           ? const Value.absent()
           : Value(starred),
       isProvisional: Value(isProvisional),
+      catalogGeneration: catalogGeneration == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogGeneration),
     );
   }
 
@@ -4922,6 +5028,7 @@ class ArtistsTableData extends DataClass
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
+      catalogGeneration: serializer.fromJson<int?>(json['catalogGeneration']),
     );
   }
   @override
@@ -4934,6 +5041,7 @@ class ArtistsTableData extends DataClass
       'coverArt': serializer.toJson<String?>(coverArt),
       'starred': serializer.toJson<DateTime?>(starred),
       'isProvisional': serializer.toJson<bool>(isProvisional),
+      'catalogGeneration': serializer.toJson<int?>(catalogGeneration),
     };
   }
 
@@ -4944,6 +5052,7 @@ class ArtistsTableData extends DataClass
     Value<String?> coverArt = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
     bool? isProvisional,
+    Value<int?> catalogGeneration = const Value.absent(),
   }) => ArtistsTableData(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -4951,6 +5060,9 @@ class ArtistsTableData extends DataClass
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     starred: starred.present ? starred.value : this.starred,
     isProvisional: isProvisional ?? this.isProvisional,
+    catalogGeneration: catalogGeneration.present
+        ? catalogGeneration.value
+        : this.catalogGeneration,
   );
   ArtistsTableData copyWithCompanion(ArtistsTableCompanion data) {
     return ArtistsTableData(
@@ -4964,6 +5076,9 @@ class ArtistsTableData extends DataClass
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
           : this.isProvisional,
+      catalogGeneration: data.catalogGeneration.present
+          ? data.catalogGeneration.value
+          : this.catalogGeneration,
     );
   }
 
@@ -4975,14 +5090,22 @@ class ArtistsTableData extends DataClass
           ..write('albumCount: $albumCount, ')
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
-          ..write('isProvisional: $isProvisional')
+          ..write('isProvisional: $isProvisional, ')
+          ..write('catalogGeneration: $catalogGeneration')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, albumCount, coverArt, starred, isProvisional);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    albumCount,
+    coverArt,
+    starred,
+    isProvisional,
+    catalogGeneration,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4992,7 +5115,8 @@ class ArtistsTableData extends DataClass
           other.albumCount == this.albumCount &&
           other.coverArt == this.coverArt &&
           other.starred == this.starred &&
-          other.isProvisional == this.isProvisional);
+          other.isProvisional == this.isProvisional &&
+          other.catalogGeneration == this.catalogGeneration);
 }
 
 class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
@@ -5002,6 +5126,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
   final Value<String?> coverArt;
   final Value<DateTime?> starred;
   final Value<bool> isProvisional;
+  final Value<int?> catalogGeneration;
   final Value<int> rowid;
   const ArtistsTableCompanion({
     this.id = const Value.absent(),
@@ -5010,6 +5135,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.catalogGeneration = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ArtistsTableCompanion.insert({
@@ -5019,6 +5145,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.catalogGeneration = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -5029,6 +5156,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     Expression<String>? coverArt,
     Expression<DateTime>? starred,
     Expression<bool>? isProvisional,
+    Expression<int>? catalogGeneration,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5038,6 +5166,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
       if (coverArt != null) 'cover_art': coverArt,
       if (starred != null) 'starred': starred,
       if (isProvisional != null) 'is_provisional': isProvisional,
+      if (catalogGeneration != null) 'catalog_generation': catalogGeneration,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5049,6 +5178,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     Value<String?>? coverArt,
     Value<DateTime?>? starred,
     Value<bool>? isProvisional,
+    Value<int?>? catalogGeneration,
     Value<int>? rowid,
   }) {
     return ArtistsTableCompanion(
@@ -5058,6 +5188,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
       coverArt: coverArt ?? this.coverArt,
       starred: starred ?? this.starred,
       isProvisional: isProvisional ?? this.isProvisional,
+      catalogGeneration: catalogGeneration ?? this.catalogGeneration,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5083,6 +5214,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     if (isProvisional.present) {
       map['is_provisional'] = Variable<bool>(isProvisional.value);
     }
+    if (catalogGeneration.present) {
+      map['catalog_generation'] = Variable<int>(catalogGeneration.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5098,6 +5232,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('catalogGeneration: $catalogGeneration, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5300,6 +5435,17 @@ class $AlbumsTableTable extends AlbumsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _catalogGenerationMeta = const VerificationMeta(
+    'catalogGeneration',
+  );
+  @override
+  late final GeneratedColumn<int> catalogGeneration = GeneratedColumn<int>(
+    'catalog_generation',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5319,6 +5465,7 @@ class $AlbumsTableTable extends AlbumsTable
     syncedAt,
     serverCreatedAt,
     isProvisional,
+    catalogGeneration,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5438,6 +5585,15 @@ class $AlbumsTableTable extends AlbumsTable
         ),
       );
     }
+    if (data.containsKey('catalog_generation')) {
+      context.handle(
+        _catalogGenerationMeta,
+        catalogGeneration.isAcceptableOrUnknown(
+          data['catalog_generation']!,
+          _catalogGenerationMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -5517,6 +5673,10 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_provisional'],
       )!,
+      catalogGeneration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}catalog_generation'],
+      ),
     );
   }
 
@@ -5563,6 +5723,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   /// True for lightweight parent rows created from online search/playback
   /// results before the authoritative library sync has observed the album.
   final bool isProvisional;
+
+  /// Authoritative catalog snapshot generation that last observed this row.
+  final int? catalogGeneration;
   const AlbumsTableData({
     required this.id,
     required this.name,
@@ -5581,6 +5744,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.syncedAt,
     this.serverCreatedAt,
     required this.isProvisional,
+    this.catalogGeneration,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5630,6 +5794,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       map['server_created_at'] = Variable<DateTime>(serverCreatedAt);
     }
     map['is_provisional'] = Variable<bool>(isProvisional);
+    if (!nullToAbsent || catalogGeneration != null) {
+      map['catalog_generation'] = Variable<int>(catalogGeneration);
+    }
     return map;
   }
 
@@ -5674,6 +5841,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ? const Value.absent()
           : Value(serverCreatedAt),
       isProvisional: Value(isProvisional),
+      catalogGeneration: catalogGeneration == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogGeneration),
     );
   }
 
@@ -5700,6 +5870,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
       serverCreatedAt: serializer.fromJson<DateTime?>(json['serverCreatedAt']),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
+      catalogGeneration: serializer.fromJson<int?>(json['catalogGeneration']),
     );
   }
   @override
@@ -5723,6 +5894,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
       'serverCreatedAt': serializer.toJson<DateTime?>(serverCreatedAt),
       'isProvisional': serializer.toJson<bool>(isProvisional),
+      'catalogGeneration': serializer.toJson<int?>(catalogGeneration),
     };
   }
 
@@ -5744,6 +5916,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<DateTime?> syncedAt = const Value.absent(),
     Value<DateTime?> serverCreatedAt = const Value.absent(),
     bool? isProvisional,
+    Value<int?> catalogGeneration = const Value.absent(),
   }) => AlbumsTableData(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -5764,6 +5937,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
         ? serverCreatedAt.value
         : this.serverCreatedAt,
     isProvisional: isProvisional ?? this.isProvisional,
+    catalogGeneration: catalogGeneration.present
+        ? catalogGeneration.value
+        : this.catalogGeneration,
   );
   AlbumsTableData copyWithCompanion(AlbumsTableCompanion data) {
     return AlbumsTableData(
@@ -5794,6 +5970,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
           : this.isProvisional,
+      catalogGeneration: data.catalogGeneration.present
+          ? data.catalogGeneration.value
+          : this.catalogGeneration,
     );
   }
 
@@ -5816,7 +5995,8 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
-          ..write('isProvisional: $isProvisional')
+          ..write('isProvisional: $isProvisional, ')
+          ..write('catalogGeneration: $catalogGeneration')
           ..write(')'))
         .toString();
   }
@@ -5840,6 +6020,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     syncedAt,
     serverCreatedAt,
     isProvisional,
+    catalogGeneration,
   );
   @override
   bool operator ==(Object other) =>
@@ -5861,7 +6042,8 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.playCount == this.playCount &&
           other.syncedAt == this.syncedAt &&
           other.serverCreatedAt == this.serverCreatedAt &&
-          other.isProvisional == this.isProvisional);
+          other.isProvisional == this.isProvisional &&
+          other.catalogGeneration == this.catalogGeneration);
 }
 
 class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
@@ -5882,6 +6064,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<DateTime?> syncedAt;
   final Value<DateTime?> serverCreatedAt;
   final Value<bool> isProvisional;
+  final Value<int?> catalogGeneration;
   final Value<int> rowid;
   const AlbumsTableCompanion({
     this.id = const Value.absent(),
@@ -5901,6 +6084,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.catalogGeneration = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AlbumsTableCompanion.insert({
@@ -5921,6 +6105,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.catalogGeneration = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -5942,6 +6127,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<DateTime>? syncedAt,
     Expression<DateTime>? serverCreatedAt,
     Expression<bool>? isProvisional,
+    Expression<int>? catalogGeneration,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5962,6 +6148,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (syncedAt != null) 'synced_at': syncedAt,
       if (serverCreatedAt != null) 'server_created_at': serverCreatedAt,
       if (isProvisional != null) 'is_provisional': isProvisional,
+      if (catalogGeneration != null) 'catalog_generation': catalogGeneration,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5984,6 +6171,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<DateTime?>? syncedAt,
     Value<DateTime?>? serverCreatedAt,
     Value<bool>? isProvisional,
+    Value<int?>? catalogGeneration,
     Value<int>? rowid,
   }) {
     return AlbumsTableCompanion(
@@ -6004,6 +6192,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       syncedAt: syncedAt ?? this.syncedAt,
       serverCreatedAt: serverCreatedAt ?? this.serverCreatedAt,
       isProvisional: isProvisional ?? this.isProvisional,
+      catalogGeneration: catalogGeneration ?? this.catalogGeneration,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6064,6 +6253,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     if (isProvisional.present) {
       map['is_provisional'] = Variable<bool>(isProvisional.value);
     }
+    if (catalogGeneration.present) {
+      map['catalog_generation'] = Variable<int>(catalogGeneration.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6090,6 +6282,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('catalogGeneration: $catalogGeneration, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6345,6 +6538,17 @@ class $SongsTableTable extends SongsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _catalogGenerationMeta = const VerificationMeta(
+    'catalogGeneration',
+  );
+  @override
+  late final GeneratedColumn<int> catalogGeneration = GeneratedColumn<int>(
+    'catalog_generation',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _replayGainTrackGainMeta =
       const VerificationMeta('replayGainTrackGain');
   @override
@@ -6413,6 +6617,7 @@ class $SongsTableTable extends SongsTable
     createdAt,
     serverDeletedAt,
     isProvisional,
+    catalogGeneration,
     replayGainTrackGain,
     replayGainAlbumGain,
     replayGainTrackPeak,
@@ -6575,6 +6780,15 @@ class $SongsTableTable extends SongsTable
         ),
       );
     }
+    if (data.containsKey('catalog_generation')) {
+      context.handle(
+        _catalogGenerationMeta,
+        catalogGeneration.isAcceptableOrUnknown(
+          data['catalog_generation']!,
+          _catalogGenerationMeta,
+        ),
+      );
+    }
     if (data.containsKey('replay_gain_track_gain')) {
       context.handle(
         _replayGainTrackGainMeta,
@@ -6708,6 +6922,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_provisional'],
       )!,
+      catalogGeneration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}catalog_generation'],
+      ),
       replayGainTrackGain: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}replay_gain_track_gain'],
@@ -6763,6 +6981,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   /// playable and has not yet been confirmed by authoritative library sync.
   final bool isProvisional;
 
+  /// Authoritative catalog snapshot generation that last observed this row.
+  final int? catalogGeneration;
+
   /// ReplayGain track gain in dB (from OpenSubsonic replayGain object).
   final double? replayGainTrackGain;
 
@@ -6797,6 +7018,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.createdAt,
     this.serverDeletedAt,
     required this.isProvisional,
+    this.catalogGeneration,
     this.replayGainTrackGain,
     this.replayGainAlbumGain,
     this.replayGainTrackPeak,
@@ -6865,6 +7087,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       map['server_deleted_at'] = Variable<DateTime>(serverDeletedAt);
     }
     map['is_provisional'] = Variable<bool>(isProvisional);
+    if (!nullToAbsent || catalogGeneration != null) {
+      map['catalog_generation'] = Variable<int>(catalogGeneration);
+    }
     if (!nullToAbsent || replayGainTrackGain != null) {
       map['replay_gain_track_gain'] = Variable<double>(replayGainTrackGain);
     }
@@ -6940,6 +7165,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ? const Value.absent()
           : Value(serverDeletedAt),
       isProvisional: Value(isProvisional),
+      catalogGeneration: catalogGeneration == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogGeneration),
       replayGainTrackGain: replayGainTrackGain == null && nullToAbsent
           ? const Value.absent()
           : Value(replayGainTrackGain),
@@ -6983,6 +7211,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       serverDeletedAt: serializer.fromJson<DateTime?>(json['serverDeletedAt']),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
+      catalogGeneration: serializer.fromJson<int?>(json['catalogGeneration']),
       replayGainTrackGain: serializer.fromJson<double?>(
         json['replayGainTrackGain'],
       ),
@@ -7023,6 +7252,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'serverDeletedAt': serializer.toJson<DateTime?>(serverDeletedAt),
       'isProvisional': serializer.toJson<bool>(isProvisional),
+      'catalogGeneration': serializer.toJson<int?>(catalogGeneration),
       'replayGainTrackGain': serializer.toJson<double?>(replayGainTrackGain),
       'replayGainAlbumGain': serializer.toJson<double?>(replayGainAlbumGain),
       'replayGainTrackPeak': serializer.toJson<double?>(replayGainTrackPeak),
@@ -7053,6 +7283,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<DateTime?> createdAt = const Value.absent(),
     Value<DateTime?> serverDeletedAt = const Value.absent(),
     bool? isProvisional,
+    Value<int?> catalogGeneration = const Value.absent(),
     Value<double?> replayGainTrackGain = const Value.absent(),
     Value<double?> replayGainAlbumGain = const Value.absent(),
     Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -7084,6 +7315,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
         ? serverDeletedAt.value
         : this.serverDeletedAt,
     isProvisional: isProvisional ?? this.isProvisional,
+    catalogGeneration: catalogGeneration.present
+        ? catalogGeneration.value
+        : this.catalogGeneration,
     replayGainTrackGain: replayGainTrackGain.present
         ? replayGainTrackGain.value
         : this.replayGainTrackGain,
@@ -7137,6 +7371,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
           : this.isProvisional,
+      catalogGeneration: data.catalogGeneration.present
+          ? data.catalogGeneration.value
+          : this.catalogGeneration,
       replayGainTrackGain: data.replayGainTrackGain.present
           ? data.replayGainTrackGain.value
           : this.replayGainTrackGain,
@@ -7177,6 +7414,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('createdAt: $createdAt, ')
           ..write('serverDeletedAt: $serverDeletedAt, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('catalogGeneration: $catalogGeneration, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
@@ -7209,6 +7447,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     createdAt,
     serverDeletedAt,
     isProvisional,
+    catalogGeneration,
     replayGainTrackGain,
     replayGainAlbumGain,
     replayGainTrackPeak,
@@ -7240,6 +7479,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.createdAt == this.createdAt &&
           other.serverDeletedAt == this.serverDeletedAt &&
           other.isProvisional == this.isProvisional &&
+          other.catalogGeneration == this.catalogGeneration &&
           other.replayGainTrackGain == this.replayGainTrackGain &&
           other.replayGainAlbumGain == this.replayGainAlbumGain &&
           other.replayGainTrackPeak == this.replayGainTrackPeak &&
@@ -7269,6 +7509,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<DateTime?> createdAt;
   final Value<DateTime?> serverDeletedAt;
   final Value<bool> isProvisional;
+  final Value<int?> catalogGeneration;
   final Value<double?> replayGainTrackGain;
   final Value<double?> replayGainAlbumGain;
   final Value<double?> replayGainTrackPeak;
@@ -7297,6 +7538,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.createdAt = const Value.absent(),
     this.serverDeletedAt = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.catalogGeneration = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
@@ -7326,6 +7568,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.createdAt = const Value.absent(),
     this.serverDeletedAt = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.catalogGeneration = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
@@ -7356,6 +7599,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? serverDeletedAt,
     Expression<bool>? isProvisional,
+    Expression<int>? catalogGeneration,
     Expression<double>? replayGainTrackGain,
     Expression<double>? replayGainAlbumGain,
     Expression<double>? replayGainTrackPeak,
@@ -7385,6 +7629,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (createdAt != null) 'created_at': createdAt,
       if (serverDeletedAt != null) 'server_deleted_at': serverDeletedAt,
       if (isProvisional != null) 'is_provisional': isProvisional,
+      if (catalogGeneration != null) 'catalog_generation': catalogGeneration,
       if (replayGainTrackGain != null)
         'replay_gain_track_gain': replayGainTrackGain,
       if (replayGainAlbumGain != null)
@@ -7420,6 +7665,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<DateTime?>? createdAt,
     Value<DateTime?>? serverDeletedAt,
     Value<bool>? isProvisional,
+    Value<int?>? catalogGeneration,
     Value<double?>? replayGainTrackGain,
     Value<double?>? replayGainAlbumGain,
     Value<double?>? replayGainTrackPeak,
@@ -7449,6 +7695,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       createdAt: createdAt ?? this.createdAt,
       serverDeletedAt: serverDeletedAt ?? this.serverDeletedAt,
       isProvisional: isProvisional ?? this.isProvisional,
+      catalogGeneration: catalogGeneration ?? this.catalogGeneration,
       replayGainTrackGain: replayGainTrackGain ?? this.replayGainTrackGain,
       replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
       replayGainTrackPeak: replayGainTrackPeak ?? this.replayGainTrackPeak,
@@ -7526,6 +7773,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (isProvisional.present) {
       map['is_provisional'] = Variable<bool>(isProvisional.value);
     }
+    if (catalogGeneration.present) {
+      map['catalog_generation'] = Variable<int>(catalogGeneration.value);
+    }
     if (replayGainTrackGain.present) {
       map['replay_gain_track_gain'] = Variable<double>(
         replayGainTrackGain.value,
@@ -7577,6 +7827,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('createdAt: $createdAt, ')
           ..write('serverDeletedAt: $serverDeletedAt, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('catalogGeneration: $catalogGeneration, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
@@ -15330,6 +15581,17 @@ class $NetworkUsageTableTable extends NetworkUsageTable
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _operationMeta = const VerificationMeta(
+    'operation',
+  );
+  @override
+  late final GeneratedColumn<String> operation = GeneratedColumn<String>(
+    'operation',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _networkTypeMeta = const VerificationMeta(
     'networkType',
   );
@@ -15378,6 +15640,7 @@ class $NetworkUsageTableTable extends NetworkUsageTable
   List<GeneratedColumn> get $columns => [
     id,
     category,
+    operation,
     networkType,
     bytes,
     requestCount,
@@ -15405,6 +15668,12 @@ class $NetworkUsageTableTable extends NetworkUsageTable
       );
     } else if (isInserting) {
       context.missing(_categoryMeta);
+    }
+    if (data.containsKey('operation')) {
+      context.handle(
+        _operationMeta,
+        operation.isAcceptableOrUnknown(data['operation']!, _operationMeta),
+      );
     }
     if (data.containsKey('network_type')) {
       context.handle(
@@ -15457,6 +15726,10 @@ class $NetworkUsageTableTable extends NetworkUsageTable
         DriftSqlType.string,
         data['${effectivePrefix}category'],
       )!,
+      operation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation'],
+      ),
       networkType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}network_type'],
@@ -15489,6 +15762,9 @@ class NetworkUsageTableData extends DataClass
   /// Stable category key such as `audio_stream`, `cover_art`, or `library_sync`.
   final String category;
 
+  /// Stable operation name, usually the Subsonic endpoint path.
+  final String? operation;
+
   /// `wifi`, `cellular`, `offline`, or `other`.
   final String networkType;
   final int bytes;
@@ -15497,6 +15773,7 @@ class NetworkUsageTableData extends DataClass
   const NetworkUsageTableData({
     required this.id,
     required this.category,
+    this.operation,
     required this.networkType,
     required this.bytes,
     required this.requestCount,
@@ -15507,6 +15784,9 @@ class NetworkUsageTableData extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['category'] = Variable<String>(category);
+    if (!nullToAbsent || operation != null) {
+      map['operation'] = Variable<String>(operation);
+    }
     map['network_type'] = Variable<String>(networkType);
     map['bytes'] = Variable<int>(bytes);
     map['request_count'] = Variable<int>(requestCount);
@@ -15518,6 +15798,9 @@ class NetworkUsageTableData extends DataClass
     return NetworkUsageTableCompanion(
       id: Value(id),
       category: Value(category),
+      operation: operation == null && nullToAbsent
+          ? const Value.absent()
+          : Value(operation),
       networkType: Value(networkType),
       bytes: Value(bytes),
       requestCount: Value(requestCount),
@@ -15533,6 +15816,7 @@ class NetworkUsageTableData extends DataClass
     return NetworkUsageTableData(
       id: serializer.fromJson<int>(json['id']),
       category: serializer.fromJson<String>(json['category']),
+      operation: serializer.fromJson<String?>(json['operation']),
       networkType: serializer.fromJson<String>(json['networkType']),
       bytes: serializer.fromJson<int>(json['bytes']),
       requestCount: serializer.fromJson<int>(json['requestCount']),
@@ -15545,6 +15829,7 @@ class NetworkUsageTableData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'category': serializer.toJson<String>(category),
+      'operation': serializer.toJson<String?>(operation),
       'networkType': serializer.toJson<String>(networkType),
       'bytes': serializer.toJson<int>(bytes),
       'requestCount': serializer.toJson<int>(requestCount),
@@ -15555,6 +15840,7 @@ class NetworkUsageTableData extends DataClass
   NetworkUsageTableData copyWith({
     int? id,
     String? category,
+    Value<String?> operation = const Value.absent(),
     String? networkType,
     int? bytes,
     int? requestCount,
@@ -15562,6 +15848,7 @@ class NetworkUsageTableData extends DataClass
   }) => NetworkUsageTableData(
     id: id ?? this.id,
     category: category ?? this.category,
+    operation: operation.present ? operation.value : this.operation,
     networkType: networkType ?? this.networkType,
     bytes: bytes ?? this.bytes,
     requestCount: requestCount ?? this.requestCount,
@@ -15571,6 +15858,7 @@ class NetworkUsageTableData extends DataClass
     return NetworkUsageTableData(
       id: data.id.present ? data.id.value : this.id,
       category: data.category.present ? data.category.value : this.category,
+      operation: data.operation.present ? data.operation.value : this.operation,
       networkType: data.networkType.present
           ? data.networkType.value
           : this.networkType,
@@ -15589,6 +15877,7 @@ class NetworkUsageTableData extends DataClass
     return (StringBuffer('NetworkUsageTableData(')
           ..write('id: $id, ')
           ..write('category: $category, ')
+          ..write('operation: $operation, ')
           ..write('networkType: $networkType, ')
           ..write('bytes: $bytes, ')
           ..write('requestCount: $requestCount, ')
@@ -15598,14 +15887,22 @@ class NetworkUsageTableData extends DataClass
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, category, networkType, bytes, requestCount, occurredAt);
+  int get hashCode => Object.hash(
+    id,
+    category,
+    operation,
+    networkType,
+    bytes,
+    requestCount,
+    occurredAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is NetworkUsageTableData &&
           other.id == this.id &&
           other.category == this.category &&
+          other.operation == this.operation &&
           other.networkType == this.networkType &&
           other.bytes == this.bytes &&
           other.requestCount == this.requestCount &&
@@ -15616,6 +15913,7 @@ class NetworkUsageTableCompanion
     extends UpdateCompanion<NetworkUsageTableData> {
   final Value<int> id;
   final Value<String> category;
+  final Value<String?> operation;
   final Value<String> networkType;
   final Value<int> bytes;
   final Value<int> requestCount;
@@ -15623,6 +15921,7 @@ class NetworkUsageTableCompanion
   const NetworkUsageTableCompanion({
     this.id = const Value.absent(),
     this.category = const Value.absent(),
+    this.operation = const Value.absent(),
     this.networkType = const Value.absent(),
     this.bytes = const Value.absent(),
     this.requestCount = const Value.absent(),
@@ -15631,6 +15930,7 @@ class NetworkUsageTableCompanion
   NetworkUsageTableCompanion.insert({
     this.id = const Value.absent(),
     required String category,
+    this.operation = const Value.absent(),
     required String networkType,
     this.bytes = const Value.absent(),
     this.requestCount = const Value.absent(),
@@ -15641,6 +15941,7 @@ class NetworkUsageTableCompanion
   static Insertable<NetworkUsageTableData> custom({
     Expression<int>? id,
     Expression<String>? category,
+    Expression<String>? operation,
     Expression<String>? networkType,
     Expression<int>? bytes,
     Expression<int>? requestCount,
@@ -15649,6 +15950,7 @@ class NetworkUsageTableCompanion
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (category != null) 'category': category,
+      if (operation != null) 'operation': operation,
       if (networkType != null) 'network_type': networkType,
       if (bytes != null) 'bytes': bytes,
       if (requestCount != null) 'request_count': requestCount,
@@ -15659,6 +15961,7 @@ class NetworkUsageTableCompanion
   NetworkUsageTableCompanion copyWith({
     Value<int>? id,
     Value<String>? category,
+    Value<String?>? operation,
     Value<String>? networkType,
     Value<int>? bytes,
     Value<int>? requestCount,
@@ -15667,6 +15970,7 @@ class NetworkUsageTableCompanion
     return NetworkUsageTableCompanion(
       id: id ?? this.id,
       category: category ?? this.category,
+      operation: operation ?? this.operation,
       networkType: networkType ?? this.networkType,
       bytes: bytes ?? this.bytes,
       requestCount: requestCount ?? this.requestCount,
@@ -15682,6 +15986,9 @@ class NetworkUsageTableCompanion
     }
     if (category.present) {
       map['category'] = Variable<String>(category.value);
+    }
+    if (operation.present) {
+      map['operation'] = Variable<String>(operation.value);
     }
     if (networkType.present) {
       map['network_type'] = Variable<String>(networkType.value);
@@ -15703,6 +16010,7 @@ class NetworkUsageTableCompanion
     return (StringBuffer('NetworkUsageTableCompanion(')
           ..write('id: $id, ')
           ..write('category: $category, ')
+          ..write('operation: $operation, ')
           ..write('networkType: $networkType, ')
           ..write('bytes: $bytes, ')
           ..write('requestCount: $requestCount, ')
@@ -16054,6 +16362,6350 @@ class SongIdentityAliasesTableCompanion
   }
 }
 
+class $LibrarySyncStateTableTable extends LibrarySyncStateTable
+    with TableInfo<$LibrarySyncStateTableTable, LibrarySyncStateTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncStateTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _plannerVersionMeta = const VerificationMeta(
+    'plannerVersion',
+  );
+  @override
+  late final GeneratedColumn<int> plannerVersion = GeneratedColumn<int>(
+    'planner_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(2),
+  );
+  static const VerificationMeta _providerFingerprintMeta =
+      const VerificationMeta('providerFingerprint');
+  @override
+  late final GeneratedColumn<String> providerFingerprint =
+      GeneratedColumn<String>(
+        'provider_fingerprint',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _conditionalIndexesModeMeta =
+      const VerificationMeta('conditionalIndexesMode');
+  @override
+  late final GeneratedColumn<String> conditionalIndexesMode =
+      GeneratedColumn<String>(
+        'conditional_indexes_mode',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('unknown'),
+      );
+  static const VerificationMeta _bulkSearchModeMeta = const VerificationMeta(
+    'bulkSearchMode',
+  );
+  @override
+  late final GeneratedColumn<String> bulkSearchMode = GeneratedColumn<String>(
+    'bulk_search_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('unknown'),
+  );
+  static const VerificationMeta _bulkSearchQueryMeta = const VerificationMeta(
+    'bulkSearchQuery',
+  );
+  @override
+  late final GeneratedColumn<String> bulkSearchQuery = GeneratedColumn<String>(
+    'bulk_search_query',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _safePageSizeMeta = const VerificationMeta(
+    'safePageSize',
+  );
+  @override
+  late final GeneratedColumn<int> safePageSize = GeneratedColumn<int>(
+    'safe_page_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(500),
+  );
+  static const VerificationMeta _detailConcurrencyMeta = const VerificationMeta(
+    'detailConcurrency',
+  );
+  @override
+  late final GeneratedColumn<int> detailConcurrency = GeneratedColumn<int>(
+    'detail_concurrency',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(2),
+  );
+  static const VerificationMeta _averageLatencyMsMeta = const VerificationMeta(
+    'averageLatencyMs',
+  );
+  @override
+  late final GeneratedColumn<int> averageLatencyMs = GeneratedColumn<int>(
+    'average_latency_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endpointFailureJsonMeta =
+      const VerificationMeta('endpointFailureJson');
+  @override
+  late final GeneratedColumn<String> endpointFailureJson =
+      GeneratedColumn<String>(
+        'endpoint_failure_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _catalogCursorMeta = const VerificationMeta(
+    'catalogCursor',
+  );
+  @override
+  late final GeneratedColumn<DateTime> catalogCursor =
+      GeneratedColumn<DateTime>(
+        'catalog_cursor',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _catalogFingerprintMeta =
+      const VerificationMeta('catalogFingerprint');
+  @override
+  late final GeneratedColumn<String> catalogFingerprint =
+      GeneratedColumn<String>(
+        'catalog_fingerprint',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _currentGenerationMeta = const VerificationMeta(
+    'currentGeneration',
+  );
+  @override
+  late final GeneratedColumn<int> currentGeneration = GeneratedColumn<int>(
+    'current_generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _candidateGenerationMeta =
+      const VerificationMeta('candidateGeneration');
+  @override
+  late final GeneratedColumn<int> candidateGeneration = GeneratedColumn<int>(
+    'candidate_generation',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _candidateStatusMeta = const VerificationMeta(
+    'candidateStatus',
+  );
+  @override
+  late final GeneratedColumn<String> candidateStatus = GeneratedColumn<String>(
+    'candidate_status',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _candidateStartedAtMeta =
+      const VerificationMeta('candidateStartedAt');
+  @override
+  late final GeneratedColumn<DateTime> candidateStartedAt =
+      GeneratedColumn<DateTime>(
+        'candidate_started_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _candidateCarriedForwardCountMeta =
+      const VerificationMeta('candidateCarriedForwardCount');
+  @override
+  late final GeneratedColumn<int> candidateCarriedForwardCount =
+      GeneratedColumn<int>(
+        'candidate_carried_forward_count',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _lastApplyDurationMsMeta =
+      const VerificationMeta('lastApplyDurationMs');
+  @override
+  late final GeneratedColumn<int> lastApplyDurationMs = GeneratedColumn<int>(
+    'last_apply_duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPromotionDiagnosticsJsonMeta =
+      const VerificationMeta('lastPromotionDiagnosticsJson');
+  @override
+  late final GeneratedColumn<String> lastPromotionDiagnosticsJson =
+      GeneratedColumn<String>(
+        'last_promotion_diagnostics_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastCheckedAtMeta = const VerificationMeta(
+    'lastCheckedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastCheckedAt =
+      GeneratedColumn<DateTime>(
+        'last_checked_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastCatalogSyncedAtMeta =
+      const VerificationMeta('lastCatalogSyncedAt');
+  @override
+  late final GeneratedColumn<DateTime> lastCatalogSyncedAt =
+      GeneratedColumn<DateTime>(
+        'last_catalog_synced_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastAuxiliarySyncedAtMeta =
+      const VerificationMeta('lastAuxiliarySyncedAt');
+  @override
+  late final GeneratedColumn<DateTime> lastAuxiliarySyncedAt =
+      GeneratedColumn<DateTime>(
+        'last_auxiliary_synced_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastGenresSyncedAtMeta =
+      const VerificationMeta('lastGenresSyncedAt');
+  @override
+  late final GeneratedColumn<DateTime> lastGenresSyncedAt =
+      GeneratedColumn<DateTime>(
+        'last_genres_synced_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastAuditAtMeta = const VerificationMeta(
+    'lastAuditAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastAuditAt = GeneratedColumn<DateTime>(
+    'last_audit_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _auditOffsetMeta = const VerificationMeta(
+    'auditOffset',
+  );
+  @override
+  late final GeneratedColumn<int> auditOffset = GeneratedColumn<int>(
+    'audit_offset',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _failureStreakMeta = const VerificationMeta(
+    'failureStreak',
+  );
+  @override
+  late final GeneratedColumn<int> failureStreak = GeneratedColumn<int>(
+    'failure_streak',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _nextEligibleAtMeta = const VerificationMeta(
+    'nextEligibleAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextEligibleAt =
+      GeneratedColumn<DateTime>(
+        'next_eligible_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastPlanKindMeta = const VerificationMeta(
+    'lastPlanKind',
+  );
+  @override
+  late final GeneratedColumn<String> lastPlanKind = GeneratedColumn<String>(
+    'last_plan_kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPlanReasonMeta = const VerificationMeta(
+    'lastPlanReason',
+  );
+  @override
+  late final GeneratedColumn<String> lastPlanReason = GeneratedColumn<String>(
+    'last_plan_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastRunBytesMeta = const VerificationMeta(
+    'lastRunBytes',
+  );
+  @override
+  late final GeneratedColumn<int> lastRunBytes = GeneratedColumn<int>(
+    'last_run_bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastRunRequestsMeta = const VerificationMeta(
+    'lastRunRequests',
+  );
+  @override
+  late final GeneratedColumn<int> lastRunRequests = GeneratedColumn<int>(
+    'last_run_requests',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _deletionCandidateFingerprintMeta =
+      const VerificationMeta('deletionCandidateFingerprint');
+  @override
+  late final GeneratedColumn<String> deletionCandidateFingerprint =
+      GeneratedColumn<String>(
+        'deletion_candidate_fingerprint',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _deletionCandidateCountMeta =
+      const VerificationMeta('deletionCandidateCount');
+  @override
+  late final GeneratedColumn<int> deletionCandidateCount = GeneratedColumn<int>(
+    'deletion_candidate_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    plannerVersion,
+    providerFingerprint,
+    conditionalIndexesMode,
+    bulkSearchMode,
+    bulkSearchQuery,
+    safePageSize,
+    detailConcurrency,
+    averageLatencyMs,
+    endpointFailureJson,
+    catalogCursor,
+    catalogFingerprint,
+    currentGeneration,
+    candidateGeneration,
+    candidateStatus,
+    candidateStartedAt,
+    candidateCarriedForwardCount,
+    lastApplyDurationMs,
+    lastPromotionDiagnosticsJson,
+    lastCheckedAt,
+    lastCatalogSyncedAt,
+    lastAuxiliarySyncedAt,
+    lastGenresSyncedAt,
+    lastAuditAt,
+    auditOffset,
+    failureStreak,
+    nextEligibleAt,
+    lastPlanKind,
+    lastPlanReason,
+    lastRunBytes,
+    lastRunRequests,
+    deletionCandidateFingerprint,
+    deletionCandidateCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_state';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncStateTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('planner_version')) {
+      context.handle(
+        _plannerVersionMeta,
+        plannerVersion.isAcceptableOrUnknown(
+          data['planner_version']!,
+          _plannerVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('provider_fingerprint')) {
+      context.handle(
+        _providerFingerprintMeta,
+        providerFingerprint.isAcceptableOrUnknown(
+          data['provider_fingerprint']!,
+          _providerFingerprintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('conditional_indexes_mode')) {
+      context.handle(
+        _conditionalIndexesModeMeta,
+        conditionalIndexesMode.isAcceptableOrUnknown(
+          data['conditional_indexes_mode']!,
+          _conditionalIndexesModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bulk_search_mode')) {
+      context.handle(
+        _bulkSearchModeMeta,
+        bulkSearchMode.isAcceptableOrUnknown(
+          data['bulk_search_mode']!,
+          _bulkSearchModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bulk_search_query')) {
+      context.handle(
+        _bulkSearchQueryMeta,
+        bulkSearchQuery.isAcceptableOrUnknown(
+          data['bulk_search_query']!,
+          _bulkSearchQueryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('safe_page_size')) {
+      context.handle(
+        _safePageSizeMeta,
+        safePageSize.isAcceptableOrUnknown(
+          data['safe_page_size']!,
+          _safePageSizeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('detail_concurrency')) {
+      context.handle(
+        _detailConcurrencyMeta,
+        detailConcurrency.isAcceptableOrUnknown(
+          data['detail_concurrency']!,
+          _detailConcurrencyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('average_latency_ms')) {
+      context.handle(
+        _averageLatencyMsMeta,
+        averageLatencyMs.isAcceptableOrUnknown(
+          data['average_latency_ms']!,
+          _averageLatencyMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('endpoint_failure_json')) {
+      context.handle(
+        _endpointFailureJsonMeta,
+        endpointFailureJson.isAcceptableOrUnknown(
+          data['endpoint_failure_json']!,
+          _endpointFailureJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('catalog_cursor')) {
+      context.handle(
+        _catalogCursorMeta,
+        catalogCursor.isAcceptableOrUnknown(
+          data['catalog_cursor']!,
+          _catalogCursorMeta,
+        ),
+      );
+    }
+    if (data.containsKey('catalog_fingerprint')) {
+      context.handle(
+        _catalogFingerprintMeta,
+        catalogFingerprint.isAcceptableOrUnknown(
+          data['catalog_fingerprint']!,
+          _catalogFingerprintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('current_generation')) {
+      context.handle(
+        _currentGenerationMeta,
+        currentGeneration.isAcceptableOrUnknown(
+          data['current_generation']!,
+          _currentGenerationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('candidate_generation')) {
+      context.handle(
+        _candidateGenerationMeta,
+        candidateGeneration.isAcceptableOrUnknown(
+          data['candidate_generation']!,
+          _candidateGenerationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('candidate_status')) {
+      context.handle(
+        _candidateStatusMeta,
+        candidateStatus.isAcceptableOrUnknown(
+          data['candidate_status']!,
+          _candidateStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('candidate_started_at')) {
+      context.handle(
+        _candidateStartedAtMeta,
+        candidateStartedAt.isAcceptableOrUnknown(
+          data['candidate_started_at']!,
+          _candidateStartedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('candidate_carried_forward_count')) {
+      context.handle(
+        _candidateCarriedForwardCountMeta,
+        candidateCarriedForwardCount.isAcceptableOrUnknown(
+          data['candidate_carried_forward_count']!,
+          _candidateCarriedForwardCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_apply_duration_ms')) {
+      context.handle(
+        _lastApplyDurationMsMeta,
+        lastApplyDurationMs.isAcceptableOrUnknown(
+          data['last_apply_duration_ms']!,
+          _lastApplyDurationMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_promotion_diagnostics_json')) {
+      context.handle(
+        _lastPromotionDiagnosticsJsonMeta,
+        lastPromotionDiagnosticsJson.isAcceptableOrUnknown(
+          data['last_promotion_diagnostics_json']!,
+          _lastPromotionDiagnosticsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_checked_at')) {
+      context.handle(
+        _lastCheckedAtMeta,
+        lastCheckedAt.isAcceptableOrUnknown(
+          data['last_checked_at']!,
+          _lastCheckedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_catalog_synced_at')) {
+      context.handle(
+        _lastCatalogSyncedAtMeta,
+        lastCatalogSyncedAt.isAcceptableOrUnknown(
+          data['last_catalog_synced_at']!,
+          _lastCatalogSyncedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_auxiliary_synced_at')) {
+      context.handle(
+        _lastAuxiliarySyncedAtMeta,
+        lastAuxiliarySyncedAt.isAcceptableOrUnknown(
+          data['last_auxiliary_synced_at']!,
+          _lastAuxiliarySyncedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_genres_synced_at')) {
+      context.handle(
+        _lastGenresSyncedAtMeta,
+        lastGenresSyncedAt.isAcceptableOrUnknown(
+          data['last_genres_synced_at']!,
+          _lastGenresSyncedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_audit_at')) {
+      context.handle(
+        _lastAuditAtMeta,
+        lastAuditAt.isAcceptableOrUnknown(
+          data['last_audit_at']!,
+          _lastAuditAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audit_offset')) {
+      context.handle(
+        _auditOffsetMeta,
+        auditOffset.isAcceptableOrUnknown(
+          data['audit_offset']!,
+          _auditOffsetMeta,
+        ),
+      );
+    }
+    if (data.containsKey('failure_streak')) {
+      context.handle(
+        _failureStreakMeta,
+        failureStreak.isAcceptableOrUnknown(
+          data['failure_streak']!,
+          _failureStreakMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_eligible_at')) {
+      context.handle(
+        _nextEligibleAtMeta,
+        nextEligibleAt.isAcceptableOrUnknown(
+          data['next_eligible_at']!,
+          _nextEligibleAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_plan_kind')) {
+      context.handle(
+        _lastPlanKindMeta,
+        lastPlanKind.isAcceptableOrUnknown(
+          data['last_plan_kind']!,
+          _lastPlanKindMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_plan_reason')) {
+      context.handle(
+        _lastPlanReasonMeta,
+        lastPlanReason.isAcceptableOrUnknown(
+          data['last_plan_reason']!,
+          _lastPlanReasonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_run_bytes')) {
+      context.handle(
+        _lastRunBytesMeta,
+        lastRunBytes.isAcceptableOrUnknown(
+          data['last_run_bytes']!,
+          _lastRunBytesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_run_requests')) {
+      context.handle(
+        _lastRunRequestsMeta,
+        lastRunRequests.isAcceptableOrUnknown(
+          data['last_run_requests']!,
+          _lastRunRequestsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deletion_candidate_fingerprint')) {
+      context.handle(
+        _deletionCandidateFingerprintMeta,
+        deletionCandidateFingerprint.isAcceptableOrUnknown(
+          data['deletion_candidate_fingerprint']!,
+          _deletionCandidateFingerprintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deletion_candidate_count')) {
+      context.handle(
+        _deletionCandidateCountMeta,
+        deletionCandidateCount.isAcceptableOrUnknown(
+          data['deletion_candidate_count']!,
+          _deletionCandidateCountMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId};
+  @override
+  LibrarySyncStateTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncStateTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      plannerVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}planner_version'],
+      )!,
+      providerFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_fingerprint'],
+      ),
+      conditionalIndexesMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conditional_indexes_mode'],
+      )!,
+      bulkSearchMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bulk_search_mode'],
+      )!,
+      bulkSearchQuery: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bulk_search_query'],
+      ),
+      safePageSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}safe_page_size'],
+      )!,
+      detailConcurrency: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}detail_concurrency'],
+      )!,
+      averageLatencyMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}average_latency_ms'],
+      ),
+      endpointFailureJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}endpoint_failure_json'],
+      ),
+      catalogCursor: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}catalog_cursor'],
+      ),
+      catalogFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}catalog_fingerprint'],
+      ),
+      currentGeneration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}current_generation'],
+      )!,
+      candidateGeneration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}candidate_generation'],
+      ),
+      candidateStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}candidate_status'],
+      ),
+      candidateStartedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}candidate_started_at'],
+      ),
+      candidateCarriedForwardCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}candidate_carried_forward_count'],
+      )!,
+      lastApplyDurationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_apply_duration_ms'],
+      ),
+      lastPromotionDiagnosticsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_promotion_diagnostics_json'],
+      ),
+      lastCheckedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_checked_at'],
+      ),
+      lastCatalogSyncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_catalog_synced_at'],
+      ),
+      lastAuxiliarySyncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_auxiliary_synced_at'],
+      ),
+      lastGenresSyncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_genres_synced_at'],
+      ),
+      lastAuditAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_audit_at'],
+      ),
+      auditOffset: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audit_offset'],
+      )!,
+      failureStreak: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}failure_streak'],
+      )!,
+      nextEligibleAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_eligible_at'],
+      ),
+      lastPlanKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_plan_kind'],
+      ),
+      lastPlanReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_plan_reason'],
+      ),
+      lastRunBytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_run_bytes'],
+      )!,
+      lastRunRequests: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_run_requests'],
+      )!,
+      deletionCandidateFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deletion_candidate_fingerprint'],
+      ),
+      deletionCandidateCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deletion_candidate_count'],
+      )!,
+    );
+  }
+
+  @override
+  $LibrarySyncStateTableTable createAlias(String alias) {
+    return $LibrarySyncStateTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncStateTableData extends DataClass
+    implements Insertable<LibrarySyncStateTableData> {
+  final int serverId;
+  final int plannerVersion;
+  final String? providerFingerprint;
+  final String conditionalIndexesMode;
+  final String bulkSearchMode;
+  final String? bulkSearchQuery;
+  final int safePageSize;
+  final int detailConcurrency;
+  final int? averageLatencyMs;
+  final String? endpointFailureJson;
+  final DateTime? catalogCursor;
+  final String? catalogFingerprint;
+  final int currentGeneration;
+  final int? candidateGeneration;
+  final String? candidateStatus;
+  final DateTime? candidateStartedAt;
+  final int candidateCarriedForwardCount;
+  final int? lastApplyDurationMs;
+  final String? lastPromotionDiagnosticsJson;
+  final DateTime? lastCheckedAt;
+  final DateTime? lastCatalogSyncedAt;
+  final DateTime? lastAuxiliarySyncedAt;
+  final DateTime? lastGenresSyncedAt;
+  final DateTime? lastAuditAt;
+  final int auditOffset;
+  final int failureStreak;
+  final DateTime? nextEligibleAt;
+  final String? lastPlanKind;
+  final String? lastPlanReason;
+  final int lastRunBytes;
+  final int lastRunRequests;
+  final String? deletionCandidateFingerprint;
+  final int deletionCandidateCount;
+  const LibrarySyncStateTableData({
+    required this.serverId,
+    required this.plannerVersion,
+    this.providerFingerprint,
+    required this.conditionalIndexesMode,
+    required this.bulkSearchMode,
+    this.bulkSearchQuery,
+    required this.safePageSize,
+    required this.detailConcurrency,
+    this.averageLatencyMs,
+    this.endpointFailureJson,
+    this.catalogCursor,
+    this.catalogFingerprint,
+    required this.currentGeneration,
+    this.candidateGeneration,
+    this.candidateStatus,
+    this.candidateStartedAt,
+    required this.candidateCarriedForwardCount,
+    this.lastApplyDurationMs,
+    this.lastPromotionDiagnosticsJson,
+    this.lastCheckedAt,
+    this.lastCatalogSyncedAt,
+    this.lastAuxiliarySyncedAt,
+    this.lastGenresSyncedAt,
+    this.lastAuditAt,
+    required this.auditOffset,
+    required this.failureStreak,
+    this.nextEligibleAt,
+    this.lastPlanKind,
+    this.lastPlanReason,
+    required this.lastRunBytes,
+    required this.lastRunRequests,
+    this.deletionCandidateFingerprint,
+    required this.deletionCandidateCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    map['planner_version'] = Variable<int>(plannerVersion);
+    if (!nullToAbsent || providerFingerprint != null) {
+      map['provider_fingerprint'] = Variable<String>(providerFingerprint);
+    }
+    map['conditional_indexes_mode'] = Variable<String>(conditionalIndexesMode);
+    map['bulk_search_mode'] = Variable<String>(bulkSearchMode);
+    if (!nullToAbsent || bulkSearchQuery != null) {
+      map['bulk_search_query'] = Variable<String>(bulkSearchQuery);
+    }
+    map['safe_page_size'] = Variable<int>(safePageSize);
+    map['detail_concurrency'] = Variable<int>(detailConcurrency);
+    if (!nullToAbsent || averageLatencyMs != null) {
+      map['average_latency_ms'] = Variable<int>(averageLatencyMs);
+    }
+    if (!nullToAbsent || endpointFailureJson != null) {
+      map['endpoint_failure_json'] = Variable<String>(endpointFailureJson);
+    }
+    if (!nullToAbsent || catalogCursor != null) {
+      map['catalog_cursor'] = Variable<DateTime>(catalogCursor);
+    }
+    if (!nullToAbsent || catalogFingerprint != null) {
+      map['catalog_fingerprint'] = Variable<String>(catalogFingerprint);
+    }
+    map['current_generation'] = Variable<int>(currentGeneration);
+    if (!nullToAbsent || candidateGeneration != null) {
+      map['candidate_generation'] = Variable<int>(candidateGeneration);
+    }
+    if (!nullToAbsent || candidateStatus != null) {
+      map['candidate_status'] = Variable<String>(candidateStatus);
+    }
+    if (!nullToAbsent || candidateStartedAt != null) {
+      map['candidate_started_at'] = Variable<DateTime>(candidateStartedAt);
+    }
+    map['candidate_carried_forward_count'] = Variable<int>(
+      candidateCarriedForwardCount,
+    );
+    if (!nullToAbsent || lastApplyDurationMs != null) {
+      map['last_apply_duration_ms'] = Variable<int>(lastApplyDurationMs);
+    }
+    if (!nullToAbsent || lastPromotionDiagnosticsJson != null) {
+      map['last_promotion_diagnostics_json'] = Variable<String>(
+        lastPromotionDiagnosticsJson,
+      );
+    }
+    if (!nullToAbsent || lastCheckedAt != null) {
+      map['last_checked_at'] = Variable<DateTime>(lastCheckedAt);
+    }
+    if (!nullToAbsent || lastCatalogSyncedAt != null) {
+      map['last_catalog_synced_at'] = Variable<DateTime>(lastCatalogSyncedAt);
+    }
+    if (!nullToAbsent || lastAuxiliarySyncedAt != null) {
+      map['last_auxiliary_synced_at'] = Variable<DateTime>(
+        lastAuxiliarySyncedAt,
+      );
+    }
+    if (!nullToAbsent || lastGenresSyncedAt != null) {
+      map['last_genres_synced_at'] = Variable<DateTime>(lastGenresSyncedAt);
+    }
+    if (!nullToAbsent || lastAuditAt != null) {
+      map['last_audit_at'] = Variable<DateTime>(lastAuditAt);
+    }
+    map['audit_offset'] = Variable<int>(auditOffset);
+    map['failure_streak'] = Variable<int>(failureStreak);
+    if (!nullToAbsent || nextEligibleAt != null) {
+      map['next_eligible_at'] = Variable<DateTime>(nextEligibleAt);
+    }
+    if (!nullToAbsent || lastPlanKind != null) {
+      map['last_plan_kind'] = Variable<String>(lastPlanKind);
+    }
+    if (!nullToAbsent || lastPlanReason != null) {
+      map['last_plan_reason'] = Variable<String>(lastPlanReason);
+    }
+    map['last_run_bytes'] = Variable<int>(lastRunBytes);
+    map['last_run_requests'] = Variable<int>(lastRunRequests);
+    if (!nullToAbsent || deletionCandidateFingerprint != null) {
+      map['deletion_candidate_fingerprint'] = Variable<String>(
+        deletionCandidateFingerprint,
+      );
+    }
+    map['deletion_candidate_count'] = Variable<int>(deletionCandidateCount);
+    return map;
+  }
+
+  LibrarySyncStateTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncStateTableCompanion(
+      serverId: Value(serverId),
+      plannerVersion: Value(plannerVersion),
+      providerFingerprint: providerFingerprint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerFingerprint),
+      conditionalIndexesMode: Value(conditionalIndexesMode),
+      bulkSearchMode: Value(bulkSearchMode),
+      bulkSearchQuery: bulkSearchQuery == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bulkSearchQuery),
+      safePageSize: Value(safePageSize),
+      detailConcurrency: Value(detailConcurrency),
+      averageLatencyMs: averageLatencyMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(averageLatencyMs),
+      endpointFailureJson: endpointFailureJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endpointFailureJson),
+      catalogCursor: catalogCursor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogCursor),
+      catalogFingerprint: catalogFingerprint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogFingerprint),
+      currentGeneration: Value(currentGeneration),
+      candidateGeneration: candidateGeneration == null && nullToAbsent
+          ? const Value.absent()
+          : Value(candidateGeneration),
+      candidateStatus: candidateStatus == null && nullToAbsent
+          ? const Value.absent()
+          : Value(candidateStatus),
+      candidateStartedAt: candidateStartedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(candidateStartedAt),
+      candidateCarriedForwardCount: Value(candidateCarriedForwardCount),
+      lastApplyDurationMs: lastApplyDurationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastApplyDurationMs),
+      lastPromotionDiagnosticsJson:
+          lastPromotionDiagnosticsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPromotionDiagnosticsJson),
+      lastCheckedAt: lastCheckedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCheckedAt),
+      lastCatalogSyncedAt: lastCatalogSyncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCatalogSyncedAt),
+      lastAuxiliarySyncedAt: lastAuxiliarySyncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAuxiliarySyncedAt),
+      lastGenresSyncedAt: lastGenresSyncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastGenresSyncedAt),
+      lastAuditAt: lastAuditAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAuditAt),
+      auditOffset: Value(auditOffset),
+      failureStreak: Value(failureStreak),
+      nextEligibleAt: nextEligibleAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextEligibleAt),
+      lastPlanKind: lastPlanKind == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPlanKind),
+      lastPlanReason: lastPlanReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPlanReason),
+      lastRunBytes: Value(lastRunBytes),
+      lastRunRequests: Value(lastRunRequests),
+      deletionCandidateFingerprint:
+          deletionCandidateFingerprint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletionCandidateFingerprint),
+      deletionCandidateCount: Value(deletionCandidateCount),
+    );
+  }
+
+  factory LibrarySyncStateTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncStateTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      plannerVersion: serializer.fromJson<int>(json['plannerVersion']),
+      providerFingerprint: serializer.fromJson<String?>(
+        json['providerFingerprint'],
+      ),
+      conditionalIndexesMode: serializer.fromJson<String>(
+        json['conditionalIndexesMode'],
+      ),
+      bulkSearchMode: serializer.fromJson<String>(json['bulkSearchMode']),
+      bulkSearchQuery: serializer.fromJson<String?>(json['bulkSearchQuery']),
+      safePageSize: serializer.fromJson<int>(json['safePageSize']),
+      detailConcurrency: serializer.fromJson<int>(json['detailConcurrency']),
+      averageLatencyMs: serializer.fromJson<int?>(json['averageLatencyMs']),
+      endpointFailureJson: serializer.fromJson<String?>(
+        json['endpointFailureJson'],
+      ),
+      catalogCursor: serializer.fromJson<DateTime?>(json['catalogCursor']),
+      catalogFingerprint: serializer.fromJson<String?>(
+        json['catalogFingerprint'],
+      ),
+      currentGeneration: serializer.fromJson<int>(json['currentGeneration']),
+      candidateGeneration: serializer.fromJson<int?>(
+        json['candidateGeneration'],
+      ),
+      candidateStatus: serializer.fromJson<String?>(json['candidateStatus']),
+      candidateStartedAt: serializer.fromJson<DateTime?>(
+        json['candidateStartedAt'],
+      ),
+      candidateCarriedForwardCount: serializer.fromJson<int>(
+        json['candidateCarriedForwardCount'],
+      ),
+      lastApplyDurationMs: serializer.fromJson<int?>(
+        json['lastApplyDurationMs'],
+      ),
+      lastPromotionDiagnosticsJson: serializer.fromJson<String?>(
+        json['lastPromotionDiagnosticsJson'],
+      ),
+      lastCheckedAt: serializer.fromJson<DateTime?>(json['lastCheckedAt']),
+      lastCatalogSyncedAt: serializer.fromJson<DateTime?>(
+        json['lastCatalogSyncedAt'],
+      ),
+      lastAuxiliarySyncedAt: serializer.fromJson<DateTime?>(
+        json['lastAuxiliarySyncedAt'],
+      ),
+      lastGenresSyncedAt: serializer.fromJson<DateTime?>(
+        json['lastGenresSyncedAt'],
+      ),
+      lastAuditAt: serializer.fromJson<DateTime?>(json['lastAuditAt']),
+      auditOffset: serializer.fromJson<int>(json['auditOffset']),
+      failureStreak: serializer.fromJson<int>(json['failureStreak']),
+      nextEligibleAt: serializer.fromJson<DateTime?>(json['nextEligibleAt']),
+      lastPlanKind: serializer.fromJson<String?>(json['lastPlanKind']),
+      lastPlanReason: serializer.fromJson<String?>(json['lastPlanReason']),
+      lastRunBytes: serializer.fromJson<int>(json['lastRunBytes']),
+      lastRunRequests: serializer.fromJson<int>(json['lastRunRequests']),
+      deletionCandidateFingerprint: serializer.fromJson<String?>(
+        json['deletionCandidateFingerprint'],
+      ),
+      deletionCandidateCount: serializer.fromJson<int>(
+        json['deletionCandidateCount'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'plannerVersion': serializer.toJson<int>(plannerVersion),
+      'providerFingerprint': serializer.toJson<String?>(providerFingerprint),
+      'conditionalIndexesMode': serializer.toJson<String>(
+        conditionalIndexesMode,
+      ),
+      'bulkSearchMode': serializer.toJson<String>(bulkSearchMode),
+      'bulkSearchQuery': serializer.toJson<String?>(bulkSearchQuery),
+      'safePageSize': serializer.toJson<int>(safePageSize),
+      'detailConcurrency': serializer.toJson<int>(detailConcurrency),
+      'averageLatencyMs': serializer.toJson<int?>(averageLatencyMs),
+      'endpointFailureJson': serializer.toJson<String?>(endpointFailureJson),
+      'catalogCursor': serializer.toJson<DateTime?>(catalogCursor),
+      'catalogFingerprint': serializer.toJson<String?>(catalogFingerprint),
+      'currentGeneration': serializer.toJson<int>(currentGeneration),
+      'candidateGeneration': serializer.toJson<int?>(candidateGeneration),
+      'candidateStatus': serializer.toJson<String?>(candidateStatus),
+      'candidateStartedAt': serializer.toJson<DateTime?>(candidateStartedAt),
+      'candidateCarriedForwardCount': serializer.toJson<int>(
+        candidateCarriedForwardCount,
+      ),
+      'lastApplyDurationMs': serializer.toJson<int?>(lastApplyDurationMs),
+      'lastPromotionDiagnosticsJson': serializer.toJson<String?>(
+        lastPromotionDiagnosticsJson,
+      ),
+      'lastCheckedAt': serializer.toJson<DateTime?>(lastCheckedAt),
+      'lastCatalogSyncedAt': serializer.toJson<DateTime?>(lastCatalogSyncedAt),
+      'lastAuxiliarySyncedAt': serializer.toJson<DateTime?>(
+        lastAuxiliarySyncedAt,
+      ),
+      'lastGenresSyncedAt': serializer.toJson<DateTime?>(lastGenresSyncedAt),
+      'lastAuditAt': serializer.toJson<DateTime?>(lastAuditAt),
+      'auditOffset': serializer.toJson<int>(auditOffset),
+      'failureStreak': serializer.toJson<int>(failureStreak),
+      'nextEligibleAt': serializer.toJson<DateTime?>(nextEligibleAt),
+      'lastPlanKind': serializer.toJson<String?>(lastPlanKind),
+      'lastPlanReason': serializer.toJson<String?>(lastPlanReason),
+      'lastRunBytes': serializer.toJson<int>(lastRunBytes),
+      'lastRunRequests': serializer.toJson<int>(lastRunRequests),
+      'deletionCandidateFingerprint': serializer.toJson<String?>(
+        deletionCandidateFingerprint,
+      ),
+      'deletionCandidateCount': serializer.toJson<int>(deletionCandidateCount),
+    };
+  }
+
+  LibrarySyncStateTableData copyWith({
+    int? serverId,
+    int? plannerVersion,
+    Value<String?> providerFingerprint = const Value.absent(),
+    String? conditionalIndexesMode,
+    String? bulkSearchMode,
+    Value<String?> bulkSearchQuery = const Value.absent(),
+    int? safePageSize,
+    int? detailConcurrency,
+    Value<int?> averageLatencyMs = const Value.absent(),
+    Value<String?> endpointFailureJson = const Value.absent(),
+    Value<DateTime?> catalogCursor = const Value.absent(),
+    Value<String?> catalogFingerprint = const Value.absent(),
+    int? currentGeneration,
+    Value<int?> candidateGeneration = const Value.absent(),
+    Value<String?> candidateStatus = const Value.absent(),
+    Value<DateTime?> candidateStartedAt = const Value.absent(),
+    int? candidateCarriedForwardCount,
+    Value<int?> lastApplyDurationMs = const Value.absent(),
+    Value<String?> lastPromotionDiagnosticsJson = const Value.absent(),
+    Value<DateTime?> lastCheckedAt = const Value.absent(),
+    Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
+    Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
+    Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
+    Value<DateTime?> lastAuditAt = const Value.absent(),
+    int? auditOffset,
+    int? failureStreak,
+    Value<DateTime?> nextEligibleAt = const Value.absent(),
+    Value<String?> lastPlanKind = const Value.absent(),
+    Value<String?> lastPlanReason = const Value.absent(),
+    int? lastRunBytes,
+    int? lastRunRequests,
+    Value<String?> deletionCandidateFingerprint = const Value.absent(),
+    int? deletionCandidateCount,
+  }) => LibrarySyncStateTableData(
+    serverId: serverId ?? this.serverId,
+    plannerVersion: plannerVersion ?? this.plannerVersion,
+    providerFingerprint: providerFingerprint.present
+        ? providerFingerprint.value
+        : this.providerFingerprint,
+    conditionalIndexesMode:
+        conditionalIndexesMode ?? this.conditionalIndexesMode,
+    bulkSearchMode: bulkSearchMode ?? this.bulkSearchMode,
+    bulkSearchQuery: bulkSearchQuery.present
+        ? bulkSearchQuery.value
+        : this.bulkSearchQuery,
+    safePageSize: safePageSize ?? this.safePageSize,
+    detailConcurrency: detailConcurrency ?? this.detailConcurrency,
+    averageLatencyMs: averageLatencyMs.present
+        ? averageLatencyMs.value
+        : this.averageLatencyMs,
+    endpointFailureJson: endpointFailureJson.present
+        ? endpointFailureJson.value
+        : this.endpointFailureJson,
+    catalogCursor: catalogCursor.present
+        ? catalogCursor.value
+        : this.catalogCursor,
+    catalogFingerprint: catalogFingerprint.present
+        ? catalogFingerprint.value
+        : this.catalogFingerprint,
+    currentGeneration: currentGeneration ?? this.currentGeneration,
+    candidateGeneration: candidateGeneration.present
+        ? candidateGeneration.value
+        : this.candidateGeneration,
+    candidateStatus: candidateStatus.present
+        ? candidateStatus.value
+        : this.candidateStatus,
+    candidateStartedAt: candidateStartedAt.present
+        ? candidateStartedAt.value
+        : this.candidateStartedAt,
+    candidateCarriedForwardCount:
+        candidateCarriedForwardCount ?? this.candidateCarriedForwardCount,
+    lastApplyDurationMs: lastApplyDurationMs.present
+        ? lastApplyDurationMs.value
+        : this.lastApplyDurationMs,
+    lastPromotionDiagnosticsJson: lastPromotionDiagnosticsJson.present
+        ? lastPromotionDiagnosticsJson.value
+        : this.lastPromotionDiagnosticsJson,
+    lastCheckedAt: lastCheckedAt.present
+        ? lastCheckedAt.value
+        : this.lastCheckedAt,
+    lastCatalogSyncedAt: lastCatalogSyncedAt.present
+        ? lastCatalogSyncedAt.value
+        : this.lastCatalogSyncedAt,
+    lastAuxiliarySyncedAt: lastAuxiliarySyncedAt.present
+        ? lastAuxiliarySyncedAt.value
+        : this.lastAuxiliarySyncedAt,
+    lastGenresSyncedAt: lastGenresSyncedAt.present
+        ? lastGenresSyncedAt.value
+        : this.lastGenresSyncedAt,
+    lastAuditAt: lastAuditAt.present ? lastAuditAt.value : this.lastAuditAt,
+    auditOffset: auditOffset ?? this.auditOffset,
+    failureStreak: failureStreak ?? this.failureStreak,
+    nextEligibleAt: nextEligibleAt.present
+        ? nextEligibleAt.value
+        : this.nextEligibleAt,
+    lastPlanKind: lastPlanKind.present ? lastPlanKind.value : this.lastPlanKind,
+    lastPlanReason: lastPlanReason.present
+        ? lastPlanReason.value
+        : this.lastPlanReason,
+    lastRunBytes: lastRunBytes ?? this.lastRunBytes,
+    lastRunRequests: lastRunRequests ?? this.lastRunRequests,
+    deletionCandidateFingerprint: deletionCandidateFingerprint.present
+        ? deletionCandidateFingerprint.value
+        : this.deletionCandidateFingerprint,
+    deletionCandidateCount:
+        deletionCandidateCount ?? this.deletionCandidateCount,
+  );
+  LibrarySyncStateTableData copyWithCompanion(
+    LibrarySyncStateTableCompanion data,
+  ) {
+    return LibrarySyncStateTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      plannerVersion: data.plannerVersion.present
+          ? data.plannerVersion.value
+          : this.plannerVersion,
+      providerFingerprint: data.providerFingerprint.present
+          ? data.providerFingerprint.value
+          : this.providerFingerprint,
+      conditionalIndexesMode: data.conditionalIndexesMode.present
+          ? data.conditionalIndexesMode.value
+          : this.conditionalIndexesMode,
+      bulkSearchMode: data.bulkSearchMode.present
+          ? data.bulkSearchMode.value
+          : this.bulkSearchMode,
+      bulkSearchQuery: data.bulkSearchQuery.present
+          ? data.bulkSearchQuery.value
+          : this.bulkSearchQuery,
+      safePageSize: data.safePageSize.present
+          ? data.safePageSize.value
+          : this.safePageSize,
+      detailConcurrency: data.detailConcurrency.present
+          ? data.detailConcurrency.value
+          : this.detailConcurrency,
+      averageLatencyMs: data.averageLatencyMs.present
+          ? data.averageLatencyMs.value
+          : this.averageLatencyMs,
+      endpointFailureJson: data.endpointFailureJson.present
+          ? data.endpointFailureJson.value
+          : this.endpointFailureJson,
+      catalogCursor: data.catalogCursor.present
+          ? data.catalogCursor.value
+          : this.catalogCursor,
+      catalogFingerprint: data.catalogFingerprint.present
+          ? data.catalogFingerprint.value
+          : this.catalogFingerprint,
+      currentGeneration: data.currentGeneration.present
+          ? data.currentGeneration.value
+          : this.currentGeneration,
+      candidateGeneration: data.candidateGeneration.present
+          ? data.candidateGeneration.value
+          : this.candidateGeneration,
+      candidateStatus: data.candidateStatus.present
+          ? data.candidateStatus.value
+          : this.candidateStatus,
+      candidateStartedAt: data.candidateStartedAt.present
+          ? data.candidateStartedAt.value
+          : this.candidateStartedAt,
+      candidateCarriedForwardCount: data.candidateCarriedForwardCount.present
+          ? data.candidateCarriedForwardCount.value
+          : this.candidateCarriedForwardCount,
+      lastApplyDurationMs: data.lastApplyDurationMs.present
+          ? data.lastApplyDurationMs.value
+          : this.lastApplyDurationMs,
+      lastPromotionDiagnosticsJson: data.lastPromotionDiagnosticsJson.present
+          ? data.lastPromotionDiagnosticsJson.value
+          : this.lastPromotionDiagnosticsJson,
+      lastCheckedAt: data.lastCheckedAt.present
+          ? data.lastCheckedAt.value
+          : this.lastCheckedAt,
+      lastCatalogSyncedAt: data.lastCatalogSyncedAt.present
+          ? data.lastCatalogSyncedAt.value
+          : this.lastCatalogSyncedAt,
+      lastAuxiliarySyncedAt: data.lastAuxiliarySyncedAt.present
+          ? data.lastAuxiliarySyncedAt.value
+          : this.lastAuxiliarySyncedAt,
+      lastGenresSyncedAt: data.lastGenresSyncedAt.present
+          ? data.lastGenresSyncedAt.value
+          : this.lastGenresSyncedAt,
+      lastAuditAt: data.lastAuditAt.present
+          ? data.lastAuditAt.value
+          : this.lastAuditAt,
+      auditOffset: data.auditOffset.present
+          ? data.auditOffset.value
+          : this.auditOffset,
+      failureStreak: data.failureStreak.present
+          ? data.failureStreak.value
+          : this.failureStreak,
+      nextEligibleAt: data.nextEligibleAt.present
+          ? data.nextEligibleAt.value
+          : this.nextEligibleAt,
+      lastPlanKind: data.lastPlanKind.present
+          ? data.lastPlanKind.value
+          : this.lastPlanKind,
+      lastPlanReason: data.lastPlanReason.present
+          ? data.lastPlanReason.value
+          : this.lastPlanReason,
+      lastRunBytes: data.lastRunBytes.present
+          ? data.lastRunBytes.value
+          : this.lastRunBytes,
+      lastRunRequests: data.lastRunRequests.present
+          ? data.lastRunRequests.value
+          : this.lastRunRequests,
+      deletionCandidateFingerprint: data.deletionCandidateFingerprint.present
+          ? data.deletionCandidateFingerprint.value
+          : this.deletionCandidateFingerprint,
+      deletionCandidateCount: data.deletionCandidateCount.present
+          ? data.deletionCandidateCount.value
+          : this.deletionCandidateCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncStateTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('plannerVersion: $plannerVersion, ')
+          ..write('providerFingerprint: $providerFingerprint, ')
+          ..write('conditionalIndexesMode: $conditionalIndexesMode, ')
+          ..write('bulkSearchMode: $bulkSearchMode, ')
+          ..write('bulkSearchQuery: $bulkSearchQuery, ')
+          ..write('safePageSize: $safePageSize, ')
+          ..write('detailConcurrency: $detailConcurrency, ')
+          ..write('averageLatencyMs: $averageLatencyMs, ')
+          ..write('endpointFailureJson: $endpointFailureJson, ')
+          ..write('catalogCursor: $catalogCursor, ')
+          ..write('catalogFingerprint: $catalogFingerprint, ')
+          ..write('currentGeneration: $currentGeneration, ')
+          ..write('candidateGeneration: $candidateGeneration, ')
+          ..write('candidateStatus: $candidateStatus, ')
+          ..write('candidateStartedAt: $candidateStartedAt, ')
+          ..write(
+            'candidateCarriedForwardCount: $candidateCarriedForwardCount, ',
+          )
+          ..write('lastApplyDurationMs: $lastApplyDurationMs, ')
+          ..write(
+            'lastPromotionDiagnosticsJson: $lastPromotionDiagnosticsJson, ',
+          )
+          ..write('lastCheckedAt: $lastCheckedAt, ')
+          ..write('lastCatalogSyncedAt: $lastCatalogSyncedAt, ')
+          ..write('lastAuxiliarySyncedAt: $lastAuxiliarySyncedAt, ')
+          ..write('lastGenresSyncedAt: $lastGenresSyncedAt, ')
+          ..write('lastAuditAt: $lastAuditAt, ')
+          ..write('auditOffset: $auditOffset, ')
+          ..write('failureStreak: $failureStreak, ')
+          ..write('nextEligibleAt: $nextEligibleAt, ')
+          ..write('lastPlanKind: $lastPlanKind, ')
+          ..write('lastPlanReason: $lastPlanReason, ')
+          ..write('lastRunBytes: $lastRunBytes, ')
+          ..write('lastRunRequests: $lastRunRequests, ')
+          ..write(
+            'deletionCandidateFingerprint: $deletionCandidateFingerprint, ',
+          )
+          ..write('deletionCandidateCount: $deletionCandidateCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    serverId,
+    plannerVersion,
+    providerFingerprint,
+    conditionalIndexesMode,
+    bulkSearchMode,
+    bulkSearchQuery,
+    safePageSize,
+    detailConcurrency,
+    averageLatencyMs,
+    endpointFailureJson,
+    catalogCursor,
+    catalogFingerprint,
+    currentGeneration,
+    candidateGeneration,
+    candidateStatus,
+    candidateStartedAt,
+    candidateCarriedForwardCount,
+    lastApplyDurationMs,
+    lastPromotionDiagnosticsJson,
+    lastCheckedAt,
+    lastCatalogSyncedAt,
+    lastAuxiliarySyncedAt,
+    lastGenresSyncedAt,
+    lastAuditAt,
+    auditOffset,
+    failureStreak,
+    nextEligibleAt,
+    lastPlanKind,
+    lastPlanReason,
+    lastRunBytes,
+    lastRunRequests,
+    deletionCandidateFingerprint,
+    deletionCandidateCount,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncStateTableData &&
+          other.serverId == this.serverId &&
+          other.plannerVersion == this.plannerVersion &&
+          other.providerFingerprint == this.providerFingerprint &&
+          other.conditionalIndexesMode == this.conditionalIndexesMode &&
+          other.bulkSearchMode == this.bulkSearchMode &&
+          other.bulkSearchQuery == this.bulkSearchQuery &&
+          other.safePageSize == this.safePageSize &&
+          other.detailConcurrency == this.detailConcurrency &&
+          other.averageLatencyMs == this.averageLatencyMs &&
+          other.endpointFailureJson == this.endpointFailureJson &&
+          other.catalogCursor == this.catalogCursor &&
+          other.catalogFingerprint == this.catalogFingerprint &&
+          other.currentGeneration == this.currentGeneration &&
+          other.candidateGeneration == this.candidateGeneration &&
+          other.candidateStatus == this.candidateStatus &&
+          other.candidateStartedAt == this.candidateStartedAt &&
+          other.candidateCarriedForwardCount ==
+              this.candidateCarriedForwardCount &&
+          other.lastApplyDurationMs == this.lastApplyDurationMs &&
+          other.lastPromotionDiagnosticsJson ==
+              this.lastPromotionDiagnosticsJson &&
+          other.lastCheckedAt == this.lastCheckedAt &&
+          other.lastCatalogSyncedAt == this.lastCatalogSyncedAt &&
+          other.lastAuxiliarySyncedAt == this.lastAuxiliarySyncedAt &&
+          other.lastGenresSyncedAt == this.lastGenresSyncedAt &&
+          other.lastAuditAt == this.lastAuditAt &&
+          other.auditOffset == this.auditOffset &&
+          other.failureStreak == this.failureStreak &&
+          other.nextEligibleAt == this.nextEligibleAt &&
+          other.lastPlanKind == this.lastPlanKind &&
+          other.lastPlanReason == this.lastPlanReason &&
+          other.lastRunBytes == this.lastRunBytes &&
+          other.lastRunRequests == this.lastRunRequests &&
+          other.deletionCandidateFingerprint ==
+              this.deletionCandidateFingerprint &&
+          other.deletionCandidateCount == this.deletionCandidateCount);
+}
+
+class LibrarySyncStateTableCompanion
+    extends UpdateCompanion<LibrarySyncStateTableData> {
+  final Value<int> serverId;
+  final Value<int> plannerVersion;
+  final Value<String?> providerFingerprint;
+  final Value<String> conditionalIndexesMode;
+  final Value<String> bulkSearchMode;
+  final Value<String?> bulkSearchQuery;
+  final Value<int> safePageSize;
+  final Value<int> detailConcurrency;
+  final Value<int?> averageLatencyMs;
+  final Value<String?> endpointFailureJson;
+  final Value<DateTime?> catalogCursor;
+  final Value<String?> catalogFingerprint;
+  final Value<int> currentGeneration;
+  final Value<int?> candidateGeneration;
+  final Value<String?> candidateStatus;
+  final Value<DateTime?> candidateStartedAt;
+  final Value<int> candidateCarriedForwardCount;
+  final Value<int?> lastApplyDurationMs;
+  final Value<String?> lastPromotionDiagnosticsJson;
+  final Value<DateTime?> lastCheckedAt;
+  final Value<DateTime?> lastCatalogSyncedAt;
+  final Value<DateTime?> lastAuxiliarySyncedAt;
+  final Value<DateTime?> lastGenresSyncedAt;
+  final Value<DateTime?> lastAuditAt;
+  final Value<int> auditOffset;
+  final Value<int> failureStreak;
+  final Value<DateTime?> nextEligibleAt;
+  final Value<String?> lastPlanKind;
+  final Value<String?> lastPlanReason;
+  final Value<int> lastRunBytes;
+  final Value<int> lastRunRequests;
+  final Value<String?> deletionCandidateFingerprint;
+  final Value<int> deletionCandidateCount;
+  const LibrarySyncStateTableCompanion({
+    this.serverId = const Value.absent(),
+    this.plannerVersion = const Value.absent(),
+    this.providerFingerprint = const Value.absent(),
+    this.conditionalIndexesMode = const Value.absent(),
+    this.bulkSearchMode = const Value.absent(),
+    this.bulkSearchQuery = const Value.absent(),
+    this.safePageSize = const Value.absent(),
+    this.detailConcurrency = const Value.absent(),
+    this.averageLatencyMs = const Value.absent(),
+    this.endpointFailureJson = const Value.absent(),
+    this.catalogCursor = const Value.absent(),
+    this.catalogFingerprint = const Value.absent(),
+    this.currentGeneration = const Value.absent(),
+    this.candidateGeneration = const Value.absent(),
+    this.candidateStatus = const Value.absent(),
+    this.candidateStartedAt = const Value.absent(),
+    this.candidateCarriedForwardCount = const Value.absent(),
+    this.lastApplyDurationMs = const Value.absent(),
+    this.lastPromotionDiagnosticsJson = const Value.absent(),
+    this.lastCheckedAt = const Value.absent(),
+    this.lastCatalogSyncedAt = const Value.absent(),
+    this.lastAuxiliarySyncedAt = const Value.absent(),
+    this.lastGenresSyncedAt = const Value.absent(),
+    this.lastAuditAt = const Value.absent(),
+    this.auditOffset = const Value.absent(),
+    this.failureStreak = const Value.absent(),
+    this.nextEligibleAt = const Value.absent(),
+    this.lastPlanKind = const Value.absent(),
+    this.lastPlanReason = const Value.absent(),
+    this.lastRunBytes = const Value.absent(),
+    this.lastRunRequests = const Value.absent(),
+    this.deletionCandidateFingerprint = const Value.absent(),
+    this.deletionCandidateCount = const Value.absent(),
+  });
+  LibrarySyncStateTableCompanion.insert({
+    this.serverId = const Value.absent(),
+    this.plannerVersion = const Value.absent(),
+    this.providerFingerprint = const Value.absent(),
+    this.conditionalIndexesMode = const Value.absent(),
+    this.bulkSearchMode = const Value.absent(),
+    this.bulkSearchQuery = const Value.absent(),
+    this.safePageSize = const Value.absent(),
+    this.detailConcurrency = const Value.absent(),
+    this.averageLatencyMs = const Value.absent(),
+    this.endpointFailureJson = const Value.absent(),
+    this.catalogCursor = const Value.absent(),
+    this.catalogFingerprint = const Value.absent(),
+    this.currentGeneration = const Value.absent(),
+    this.candidateGeneration = const Value.absent(),
+    this.candidateStatus = const Value.absent(),
+    this.candidateStartedAt = const Value.absent(),
+    this.candidateCarriedForwardCount = const Value.absent(),
+    this.lastApplyDurationMs = const Value.absent(),
+    this.lastPromotionDiagnosticsJson = const Value.absent(),
+    this.lastCheckedAt = const Value.absent(),
+    this.lastCatalogSyncedAt = const Value.absent(),
+    this.lastAuxiliarySyncedAt = const Value.absent(),
+    this.lastGenresSyncedAt = const Value.absent(),
+    this.lastAuditAt = const Value.absent(),
+    this.auditOffset = const Value.absent(),
+    this.failureStreak = const Value.absent(),
+    this.nextEligibleAt = const Value.absent(),
+    this.lastPlanKind = const Value.absent(),
+    this.lastPlanReason = const Value.absent(),
+    this.lastRunBytes = const Value.absent(),
+    this.lastRunRequests = const Value.absent(),
+    this.deletionCandidateFingerprint = const Value.absent(),
+    this.deletionCandidateCount = const Value.absent(),
+  });
+  static Insertable<LibrarySyncStateTableData> custom({
+    Expression<int>? serverId,
+    Expression<int>? plannerVersion,
+    Expression<String>? providerFingerprint,
+    Expression<String>? conditionalIndexesMode,
+    Expression<String>? bulkSearchMode,
+    Expression<String>? bulkSearchQuery,
+    Expression<int>? safePageSize,
+    Expression<int>? detailConcurrency,
+    Expression<int>? averageLatencyMs,
+    Expression<String>? endpointFailureJson,
+    Expression<DateTime>? catalogCursor,
+    Expression<String>? catalogFingerprint,
+    Expression<int>? currentGeneration,
+    Expression<int>? candidateGeneration,
+    Expression<String>? candidateStatus,
+    Expression<DateTime>? candidateStartedAt,
+    Expression<int>? candidateCarriedForwardCount,
+    Expression<int>? lastApplyDurationMs,
+    Expression<String>? lastPromotionDiagnosticsJson,
+    Expression<DateTime>? lastCheckedAt,
+    Expression<DateTime>? lastCatalogSyncedAt,
+    Expression<DateTime>? lastAuxiliarySyncedAt,
+    Expression<DateTime>? lastGenresSyncedAt,
+    Expression<DateTime>? lastAuditAt,
+    Expression<int>? auditOffset,
+    Expression<int>? failureStreak,
+    Expression<DateTime>? nextEligibleAt,
+    Expression<String>? lastPlanKind,
+    Expression<String>? lastPlanReason,
+    Expression<int>? lastRunBytes,
+    Expression<int>? lastRunRequests,
+    Expression<String>? deletionCandidateFingerprint,
+    Expression<int>? deletionCandidateCount,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (plannerVersion != null) 'planner_version': plannerVersion,
+      if (providerFingerprint != null)
+        'provider_fingerprint': providerFingerprint,
+      if (conditionalIndexesMode != null)
+        'conditional_indexes_mode': conditionalIndexesMode,
+      if (bulkSearchMode != null) 'bulk_search_mode': bulkSearchMode,
+      if (bulkSearchQuery != null) 'bulk_search_query': bulkSearchQuery,
+      if (safePageSize != null) 'safe_page_size': safePageSize,
+      if (detailConcurrency != null) 'detail_concurrency': detailConcurrency,
+      if (averageLatencyMs != null) 'average_latency_ms': averageLatencyMs,
+      if (endpointFailureJson != null)
+        'endpoint_failure_json': endpointFailureJson,
+      if (catalogCursor != null) 'catalog_cursor': catalogCursor,
+      if (catalogFingerprint != null) 'catalog_fingerprint': catalogFingerprint,
+      if (currentGeneration != null) 'current_generation': currentGeneration,
+      if (candidateGeneration != null)
+        'candidate_generation': candidateGeneration,
+      if (candidateStatus != null) 'candidate_status': candidateStatus,
+      if (candidateStartedAt != null)
+        'candidate_started_at': candidateStartedAt,
+      if (candidateCarriedForwardCount != null)
+        'candidate_carried_forward_count': candidateCarriedForwardCount,
+      if (lastApplyDurationMs != null)
+        'last_apply_duration_ms': lastApplyDurationMs,
+      if (lastPromotionDiagnosticsJson != null)
+        'last_promotion_diagnostics_json': lastPromotionDiagnosticsJson,
+      if (lastCheckedAt != null) 'last_checked_at': lastCheckedAt,
+      if (lastCatalogSyncedAt != null)
+        'last_catalog_synced_at': lastCatalogSyncedAt,
+      if (lastAuxiliarySyncedAt != null)
+        'last_auxiliary_synced_at': lastAuxiliarySyncedAt,
+      if (lastGenresSyncedAt != null)
+        'last_genres_synced_at': lastGenresSyncedAt,
+      if (lastAuditAt != null) 'last_audit_at': lastAuditAt,
+      if (auditOffset != null) 'audit_offset': auditOffset,
+      if (failureStreak != null) 'failure_streak': failureStreak,
+      if (nextEligibleAt != null) 'next_eligible_at': nextEligibleAt,
+      if (lastPlanKind != null) 'last_plan_kind': lastPlanKind,
+      if (lastPlanReason != null) 'last_plan_reason': lastPlanReason,
+      if (lastRunBytes != null) 'last_run_bytes': lastRunBytes,
+      if (lastRunRequests != null) 'last_run_requests': lastRunRequests,
+      if (deletionCandidateFingerprint != null)
+        'deletion_candidate_fingerprint': deletionCandidateFingerprint,
+      if (deletionCandidateCount != null)
+        'deletion_candidate_count': deletionCandidateCount,
+    });
+  }
+
+  LibrarySyncStateTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<int>? plannerVersion,
+    Value<String?>? providerFingerprint,
+    Value<String>? conditionalIndexesMode,
+    Value<String>? bulkSearchMode,
+    Value<String?>? bulkSearchQuery,
+    Value<int>? safePageSize,
+    Value<int>? detailConcurrency,
+    Value<int?>? averageLatencyMs,
+    Value<String?>? endpointFailureJson,
+    Value<DateTime?>? catalogCursor,
+    Value<String?>? catalogFingerprint,
+    Value<int>? currentGeneration,
+    Value<int?>? candidateGeneration,
+    Value<String?>? candidateStatus,
+    Value<DateTime?>? candidateStartedAt,
+    Value<int>? candidateCarriedForwardCount,
+    Value<int?>? lastApplyDurationMs,
+    Value<String?>? lastPromotionDiagnosticsJson,
+    Value<DateTime?>? lastCheckedAt,
+    Value<DateTime?>? lastCatalogSyncedAt,
+    Value<DateTime?>? lastAuxiliarySyncedAt,
+    Value<DateTime?>? lastGenresSyncedAt,
+    Value<DateTime?>? lastAuditAt,
+    Value<int>? auditOffset,
+    Value<int>? failureStreak,
+    Value<DateTime?>? nextEligibleAt,
+    Value<String?>? lastPlanKind,
+    Value<String?>? lastPlanReason,
+    Value<int>? lastRunBytes,
+    Value<int>? lastRunRequests,
+    Value<String?>? deletionCandidateFingerprint,
+    Value<int>? deletionCandidateCount,
+  }) {
+    return LibrarySyncStateTableCompanion(
+      serverId: serverId ?? this.serverId,
+      plannerVersion: plannerVersion ?? this.plannerVersion,
+      providerFingerprint: providerFingerprint ?? this.providerFingerprint,
+      conditionalIndexesMode:
+          conditionalIndexesMode ?? this.conditionalIndexesMode,
+      bulkSearchMode: bulkSearchMode ?? this.bulkSearchMode,
+      bulkSearchQuery: bulkSearchQuery ?? this.bulkSearchQuery,
+      safePageSize: safePageSize ?? this.safePageSize,
+      detailConcurrency: detailConcurrency ?? this.detailConcurrency,
+      averageLatencyMs: averageLatencyMs ?? this.averageLatencyMs,
+      endpointFailureJson: endpointFailureJson ?? this.endpointFailureJson,
+      catalogCursor: catalogCursor ?? this.catalogCursor,
+      catalogFingerprint: catalogFingerprint ?? this.catalogFingerprint,
+      currentGeneration: currentGeneration ?? this.currentGeneration,
+      candidateGeneration: candidateGeneration ?? this.candidateGeneration,
+      candidateStatus: candidateStatus ?? this.candidateStatus,
+      candidateStartedAt: candidateStartedAt ?? this.candidateStartedAt,
+      candidateCarriedForwardCount:
+          candidateCarriedForwardCount ?? this.candidateCarriedForwardCount,
+      lastApplyDurationMs: lastApplyDurationMs ?? this.lastApplyDurationMs,
+      lastPromotionDiagnosticsJson:
+          lastPromotionDiagnosticsJson ?? this.lastPromotionDiagnosticsJson,
+      lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
+      lastCatalogSyncedAt: lastCatalogSyncedAt ?? this.lastCatalogSyncedAt,
+      lastAuxiliarySyncedAt:
+          lastAuxiliarySyncedAt ?? this.lastAuxiliarySyncedAt,
+      lastGenresSyncedAt: lastGenresSyncedAt ?? this.lastGenresSyncedAt,
+      lastAuditAt: lastAuditAt ?? this.lastAuditAt,
+      auditOffset: auditOffset ?? this.auditOffset,
+      failureStreak: failureStreak ?? this.failureStreak,
+      nextEligibleAt: nextEligibleAt ?? this.nextEligibleAt,
+      lastPlanKind: lastPlanKind ?? this.lastPlanKind,
+      lastPlanReason: lastPlanReason ?? this.lastPlanReason,
+      lastRunBytes: lastRunBytes ?? this.lastRunBytes,
+      lastRunRequests: lastRunRequests ?? this.lastRunRequests,
+      deletionCandidateFingerprint:
+          deletionCandidateFingerprint ?? this.deletionCandidateFingerprint,
+      deletionCandidateCount:
+          deletionCandidateCount ?? this.deletionCandidateCount,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (plannerVersion.present) {
+      map['planner_version'] = Variable<int>(plannerVersion.value);
+    }
+    if (providerFingerprint.present) {
+      map['provider_fingerprint'] = Variable<String>(providerFingerprint.value);
+    }
+    if (conditionalIndexesMode.present) {
+      map['conditional_indexes_mode'] = Variable<String>(
+        conditionalIndexesMode.value,
+      );
+    }
+    if (bulkSearchMode.present) {
+      map['bulk_search_mode'] = Variable<String>(bulkSearchMode.value);
+    }
+    if (bulkSearchQuery.present) {
+      map['bulk_search_query'] = Variable<String>(bulkSearchQuery.value);
+    }
+    if (safePageSize.present) {
+      map['safe_page_size'] = Variable<int>(safePageSize.value);
+    }
+    if (detailConcurrency.present) {
+      map['detail_concurrency'] = Variable<int>(detailConcurrency.value);
+    }
+    if (averageLatencyMs.present) {
+      map['average_latency_ms'] = Variable<int>(averageLatencyMs.value);
+    }
+    if (endpointFailureJson.present) {
+      map['endpoint_failure_json'] = Variable<String>(
+        endpointFailureJson.value,
+      );
+    }
+    if (catalogCursor.present) {
+      map['catalog_cursor'] = Variable<DateTime>(catalogCursor.value);
+    }
+    if (catalogFingerprint.present) {
+      map['catalog_fingerprint'] = Variable<String>(catalogFingerprint.value);
+    }
+    if (currentGeneration.present) {
+      map['current_generation'] = Variable<int>(currentGeneration.value);
+    }
+    if (candidateGeneration.present) {
+      map['candidate_generation'] = Variable<int>(candidateGeneration.value);
+    }
+    if (candidateStatus.present) {
+      map['candidate_status'] = Variable<String>(candidateStatus.value);
+    }
+    if (candidateStartedAt.present) {
+      map['candidate_started_at'] = Variable<DateTime>(
+        candidateStartedAt.value,
+      );
+    }
+    if (candidateCarriedForwardCount.present) {
+      map['candidate_carried_forward_count'] = Variable<int>(
+        candidateCarriedForwardCount.value,
+      );
+    }
+    if (lastApplyDurationMs.present) {
+      map['last_apply_duration_ms'] = Variable<int>(lastApplyDurationMs.value);
+    }
+    if (lastPromotionDiagnosticsJson.present) {
+      map['last_promotion_diagnostics_json'] = Variable<String>(
+        lastPromotionDiagnosticsJson.value,
+      );
+    }
+    if (lastCheckedAt.present) {
+      map['last_checked_at'] = Variable<DateTime>(lastCheckedAt.value);
+    }
+    if (lastCatalogSyncedAt.present) {
+      map['last_catalog_synced_at'] = Variable<DateTime>(
+        lastCatalogSyncedAt.value,
+      );
+    }
+    if (lastAuxiliarySyncedAt.present) {
+      map['last_auxiliary_synced_at'] = Variable<DateTime>(
+        lastAuxiliarySyncedAt.value,
+      );
+    }
+    if (lastGenresSyncedAt.present) {
+      map['last_genres_synced_at'] = Variable<DateTime>(
+        lastGenresSyncedAt.value,
+      );
+    }
+    if (lastAuditAt.present) {
+      map['last_audit_at'] = Variable<DateTime>(lastAuditAt.value);
+    }
+    if (auditOffset.present) {
+      map['audit_offset'] = Variable<int>(auditOffset.value);
+    }
+    if (failureStreak.present) {
+      map['failure_streak'] = Variable<int>(failureStreak.value);
+    }
+    if (nextEligibleAt.present) {
+      map['next_eligible_at'] = Variable<DateTime>(nextEligibleAt.value);
+    }
+    if (lastPlanKind.present) {
+      map['last_plan_kind'] = Variable<String>(lastPlanKind.value);
+    }
+    if (lastPlanReason.present) {
+      map['last_plan_reason'] = Variable<String>(lastPlanReason.value);
+    }
+    if (lastRunBytes.present) {
+      map['last_run_bytes'] = Variable<int>(lastRunBytes.value);
+    }
+    if (lastRunRequests.present) {
+      map['last_run_requests'] = Variable<int>(lastRunRequests.value);
+    }
+    if (deletionCandidateFingerprint.present) {
+      map['deletion_candidate_fingerprint'] = Variable<String>(
+        deletionCandidateFingerprint.value,
+      );
+    }
+    if (deletionCandidateCount.present) {
+      map['deletion_candidate_count'] = Variable<int>(
+        deletionCandidateCount.value,
+      );
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncStateTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('plannerVersion: $plannerVersion, ')
+          ..write('providerFingerprint: $providerFingerprint, ')
+          ..write('conditionalIndexesMode: $conditionalIndexesMode, ')
+          ..write('bulkSearchMode: $bulkSearchMode, ')
+          ..write('bulkSearchQuery: $bulkSearchQuery, ')
+          ..write('safePageSize: $safePageSize, ')
+          ..write('detailConcurrency: $detailConcurrency, ')
+          ..write('averageLatencyMs: $averageLatencyMs, ')
+          ..write('endpointFailureJson: $endpointFailureJson, ')
+          ..write('catalogCursor: $catalogCursor, ')
+          ..write('catalogFingerprint: $catalogFingerprint, ')
+          ..write('currentGeneration: $currentGeneration, ')
+          ..write('candidateGeneration: $candidateGeneration, ')
+          ..write('candidateStatus: $candidateStatus, ')
+          ..write('candidateStartedAt: $candidateStartedAt, ')
+          ..write(
+            'candidateCarriedForwardCount: $candidateCarriedForwardCount, ',
+          )
+          ..write('lastApplyDurationMs: $lastApplyDurationMs, ')
+          ..write(
+            'lastPromotionDiagnosticsJson: $lastPromotionDiagnosticsJson, ',
+          )
+          ..write('lastCheckedAt: $lastCheckedAt, ')
+          ..write('lastCatalogSyncedAt: $lastCatalogSyncedAt, ')
+          ..write('lastAuxiliarySyncedAt: $lastAuxiliarySyncedAt, ')
+          ..write('lastGenresSyncedAt: $lastGenresSyncedAt, ')
+          ..write('lastAuditAt: $lastAuditAt, ')
+          ..write('auditOffset: $auditOffset, ')
+          ..write('failureStreak: $failureStreak, ')
+          ..write('nextEligibleAt: $nextEligibleAt, ')
+          ..write('lastPlanKind: $lastPlanKind, ')
+          ..write('lastPlanReason: $lastPlanReason, ')
+          ..write('lastRunBytes: $lastRunBytes, ')
+          ..write('lastRunRequests: $lastRunRequests, ')
+          ..write(
+            'deletionCandidateFingerprint: $deletionCandidateFingerprint, ',
+          )
+          ..write('deletionCandidateCount: $deletionCandidateCount')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncWorkTableTable extends LibrarySyncWorkTable
+    with TableInfo<$LibrarySyncWorkTableTable, LibrarySyncWorkTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncWorkTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _workClassMeta = const VerificationMeta(
+    'workClass',
+  );
+  @override
+  late final GeneratedColumn<String> workClass = GeneratedColumn<String>(
+    'work_class',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('background'),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('queued'),
+  );
+  static const VerificationMeta _checkpointJsonMeta = const VerificationMeta(
+    'checkpointJson',
+  );
+  @override
+  late final GeneratedColumn<String> checkpointJson = GeneratedColumn<String>(
+    'checkpoint_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attemptCountMeta = const VerificationMeta(
+    'attemptCount',
+  );
+  @override
+  late final GeneratedColumn<int> attemptCount = GeneratedColumn<int>(
+    'attempt_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _notBeforeMeta = const VerificationMeta(
+    'notBefore',
+  );
+  @override
+  late final GeneratedColumn<DateTime> notBefore = GeneratedColumn<DateTime>(
+    'not_before',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastErrorTypeMeta = const VerificationMeta(
+    'lastErrorType',
+  );
+  @override
+  late final GeneratedColumn<String> lastErrorType = GeneratedColumn<String>(
+    'last_error_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    serverId,
+    kind,
+    entityId,
+    priority,
+    workClass,
+    status,
+    checkpointJson,
+    attemptCount,
+    notBefore,
+    lastErrorType,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_work';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncWorkTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    }
+    if (data.containsKey('work_class')) {
+      context.handle(
+        _workClassMeta,
+        workClass.isAcceptableOrUnknown(data['work_class']!, _workClassMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('checkpoint_json')) {
+      context.handle(
+        _checkpointJsonMeta,
+        checkpointJson.isAcceptableOrUnknown(
+          data['checkpoint_json']!,
+          _checkpointJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attempt_count')) {
+      context.handle(
+        _attemptCountMeta,
+        attemptCount.isAcceptableOrUnknown(
+          data['attempt_count']!,
+          _attemptCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('not_before')) {
+      context.handle(
+        _notBeforeMeta,
+        notBefore.isAcceptableOrUnknown(data['not_before']!, _notBeforeMeta),
+      );
+    }
+    if (data.containsKey('last_error_type')) {
+      context.handle(
+        _lastErrorTypeMeta,
+        lastErrorType.isAcceptableOrUnknown(
+          data['last_error_type']!,
+          _lastErrorTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {serverId, kind, entityId},
+  ];
+  @override
+  LibrarySyncWorkTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncWorkTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_id'],
+      )!,
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}priority'],
+      )!,
+      workClass: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}work_class'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      checkpointJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checkpoint_json'],
+      ),
+      attemptCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempt_count'],
+      )!,
+      notBefore: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}not_before'],
+      ),
+      lastErrorType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error_type'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LibrarySyncWorkTableTable createAlias(String alias) {
+    return $LibrarySyncWorkTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncWorkTableData extends DataClass
+    implements Insertable<LibrarySyncWorkTableData> {
+  final int id;
+  final int serverId;
+  final String kind;
+  final String entityId;
+  final int priority;
+
+  /// `interactive` for user-opened entity hydration; otherwise `background`.
+  final String workClass;
+  final String status;
+  final String? checkpointJson;
+  final int attemptCount;
+  final DateTime? notBefore;
+  final String? lastErrorType;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const LibrarySyncWorkTableData({
+    required this.id,
+    required this.serverId,
+    required this.kind,
+    required this.entityId,
+    required this.priority,
+    required this.workClass,
+    required this.status,
+    this.checkpointJson,
+    required this.attemptCount,
+    this.notBefore,
+    this.lastErrorType,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['server_id'] = Variable<int>(serverId);
+    map['kind'] = Variable<String>(kind);
+    map['entity_id'] = Variable<String>(entityId);
+    map['priority'] = Variable<int>(priority);
+    map['work_class'] = Variable<String>(workClass);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || checkpointJson != null) {
+      map['checkpoint_json'] = Variable<String>(checkpointJson);
+    }
+    map['attempt_count'] = Variable<int>(attemptCount);
+    if (!nullToAbsent || notBefore != null) {
+      map['not_before'] = Variable<DateTime>(notBefore);
+    }
+    if (!nullToAbsent || lastErrorType != null) {
+      map['last_error_type'] = Variable<String>(lastErrorType);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LibrarySyncWorkTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncWorkTableCompanion(
+      id: Value(id),
+      serverId: Value(serverId),
+      kind: Value(kind),
+      entityId: Value(entityId),
+      priority: Value(priority),
+      workClass: Value(workClass),
+      status: Value(status),
+      checkpointJson: checkpointJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(checkpointJson),
+      attemptCount: Value(attemptCount),
+      notBefore: notBefore == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notBefore),
+      lastErrorType: lastErrorType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorType),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LibrarySyncWorkTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncWorkTableData(
+      id: serializer.fromJson<int>(json['id']),
+      serverId: serializer.fromJson<int>(json['serverId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      entityId: serializer.fromJson<String>(json['entityId']),
+      priority: serializer.fromJson<int>(json['priority']),
+      workClass: serializer.fromJson<String>(json['workClass']),
+      status: serializer.fromJson<String>(json['status']),
+      checkpointJson: serializer.fromJson<String?>(json['checkpointJson']),
+      attemptCount: serializer.fromJson<int>(json['attemptCount']),
+      notBefore: serializer.fromJson<DateTime?>(json['notBefore']),
+      lastErrorType: serializer.fromJson<String?>(json['lastErrorType']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'serverId': serializer.toJson<int>(serverId),
+      'kind': serializer.toJson<String>(kind),
+      'entityId': serializer.toJson<String>(entityId),
+      'priority': serializer.toJson<int>(priority),
+      'workClass': serializer.toJson<String>(workClass),
+      'status': serializer.toJson<String>(status),
+      'checkpointJson': serializer.toJson<String?>(checkpointJson),
+      'attemptCount': serializer.toJson<int>(attemptCount),
+      'notBefore': serializer.toJson<DateTime?>(notBefore),
+      'lastErrorType': serializer.toJson<String?>(lastErrorType),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LibrarySyncWorkTableData copyWith({
+    int? id,
+    int? serverId,
+    String? kind,
+    String? entityId,
+    int? priority,
+    String? workClass,
+    String? status,
+    Value<String?> checkpointJson = const Value.absent(),
+    int? attemptCount,
+    Value<DateTime?> notBefore = const Value.absent(),
+    Value<String?> lastErrorType = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => LibrarySyncWorkTableData(
+    id: id ?? this.id,
+    serverId: serverId ?? this.serverId,
+    kind: kind ?? this.kind,
+    entityId: entityId ?? this.entityId,
+    priority: priority ?? this.priority,
+    workClass: workClass ?? this.workClass,
+    status: status ?? this.status,
+    checkpointJson: checkpointJson.present
+        ? checkpointJson.value
+        : this.checkpointJson,
+    attemptCount: attemptCount ?? this.attemptCount,
+    notBefore: notBefore.present ? notBefore.value : this.notBefore,
+    lastErrorType: lastErrorType.present
+        ? lastErrorType.value
+        : this.lastErrorType,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LibrarySyncWorkTableData copyWithCompanion(
+    LibrarySyncWorkTableCompanion data,
+  ) {
+    return LibrarySyncWorkTableData(
+      id: data.id.present ? data.id.value : this.id,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      workClass: data.workClass.present ? data.workClass.value : this.workClass,
+      status: data.status.present ? data.status.value : this.status,
+      checkpointJson: data.checkpointJson.present
+          ? data.checkpointJson.value
+          : this.checkpointJson,
+      attemptCount: data.attemptCount.present
+          ? data.attemptCount.value
+          : this.attemptCount,
+      notBefore: data.notBefore.present ? data.notBefore.value : this.notBefore,
+      lastErrorType: data.lastErrorType.present
+          ? data.lastErrorType.value
+          : this.lastErrorType,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncWorkTableData(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('kind: $kind, ')
+          ..write('entityId: $entityId, ')
+          ..write('priority: $priority, ')
+          ..write('workClass: $workClass, ')
+          ..write('status: $status, ')
+          ..write('checkpointJson: $checkpointJson, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('notBefore: $notBefore, ')
+          ..write('lastErrorType: $lastErrorType, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    serverId,
+    kind,
+    entityId,
+    priority,
+    workClass,
+    status,
+    checkpointJson,
+    attemptCount,
+    notBefore,
+    lastErrorType,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncWorkTableData &&
+          other.id == this.id &&
+          other.serverId == this.serverId &&
+          other.kind == this.kind &&
+          other.entityId == this.entityId &&
+          other.priority == this.priority &&
+          other.workClass == this.workClass &&
+          other.status == this.status &&
+          other.checkpointJson == this.checkpointJson &&
+          other.attemptCount == this.attemptCount &&
+          other.notBefore == this.notBefore &&
+          other.lastErrorType == this.lastErrorType &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LibrarySyncWorkTableCompanion
+    extends UpdateCompanion<LibrarySyncWorkTableData> {
+  final Value<int> id;
+  final Value<int> serverId;
+  final Value<String> kind;
+  final Value<String> entityId;
+  final Value<int> priority;
+  final Value<String> workClass;
+  final Value<String> status;
+  final Value<String?> checkpointJson;
+  final Value<int> attemptCount;
+  final Value<DateTime?> notBefore;
+  final Value<String?> lastErrorType;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const LibrarySyncWorkTableCompanion({
+    this.id = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.workClass = const Value.absent(),
+    this.status = const Value.absent(),
+    this.checkpointJson = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.notBefore = const Value.absent(),
+    this.lastErrorType = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  LibrarySyncWorkTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int serverId,
+    required String kind,
+    this.entityId = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.workClass = const Value.absent(),
+    this.status = const Value.absent(),
+    this.checkpointJson = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.notBefore = const Value.absent(),
+    this.lastErrorType = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) : serverId = Value(serverId),
+       kind = Value(kind),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<LibrarySyncWorkTableData> custom({
+    Expression<int>? id,
+    Expression<int>? serverId,
+    Expression<String>? kind,
+    Expression<String>? entityId,
+    Expression<int>? priority,
+    Expression<String>? workClass,
+    Expression<String>? status,
+    Expression<String>? checkpointJson,
+    Expression<int>? attemptCount,
+    Expression<DateTime>? notBefore,
+    Expression<String>? lastErrorType,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (serverId != null) 'server_id': serverId,
+      if (kind != null) 'kind': kind,
+      if (entityId != null) 'entity_id': entityId,
+      if (priority != null) 'priority': priority,
+      if (workClass != null) 'work_class': workClass,
+      if (status != null) 'status': status,
+      if (checkpointJson != null) 'checkpoint_json': checkpointJson,
+      if (attemptCount != null) 'attempt_count': attemptCount,
+      if (notBefore != null) 'not_before': notBefore,
+      if (lastErrorType != null) 'last_error_type': lastErrorType,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  LibrarySyncWorkTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? serverId,
+    Value<String>? kind,
+    Value<String>? entityId,
+    Value<int>? priority,
+    Value<String>? workClass,
+    Value<String>? status,
+    Value<String?>? checkpointJson,
+    Value<int>? attemptCount,
+    Value<DateTime?>? notBefore,
+    Value<String?>? lastErrorType,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return LibrarySyncWorkTableCompanion(
+      id: id ?? this.id,
+      serverId: serverId ?? this.serverId,
+      kind: kind ?? this.kind,
+      entityId: entityId ?? this.entityId,
+      priority: priority ?? this.priority,
+      workClass: workClass ?? this.workClass,
+      status: status ?? this.status,
+      checkpointJson: checkpointJson ?? this.checkpointJson,
+      attemptCount: attemptCount ?? this.attemptCount,
+      notBefore: notBefore ?? this.notBefore,
+      lastErrorType: lastErrorType ?? this.lastErrorType,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
+    }
+    if (workClass.present) {
+      map['work_class'] = Variable<String>(workClass.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (checkpointJson.present) {
+      map['checkpoint_json'] = Variable<String>(checkpointJson.value);
+    }
+    if (attemptCount.present) {
+      map['attempt_count'] = Variable<int>(attemptCount.value);
+    }
+    if (notBefore.present) {
+      map['not_before'] = Variable<DateTime>(notBefore.value);
+    }
+    if (lastErrorType.present) {
+      map['last_error_type'] = Variable<String>(lastErrorType.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncWorkTableCompanion(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('kind: $kind, ')
+          ..write('entityId: $entityId, ')
+          ..write('priority: $priority, ')
+          ..write('workClass: $workClass, ')
+          ..write('status: $status, ')
+          ..write('checkpointJson: $checkpointJson, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('notBefore: $notBefore, ')
+          ..write('lastErrorType: $lastErrorType, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncCandidateArtistsTableTable
+    extends LibrarySyncCandidateArtistsTable
+    with
+        TableInfo<
+          $LibrarySyncCandidateArtistsTableTable,
+          LibrarySyncCandidateArtistsTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncCandidateArtistsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _albumCountMeta = const VerificationMeta(
+    'albumCount',
+  );
+  @override
+  late final GeneratedColumn<int> albumCount = GeneratedColumn<int>(
+    'album_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _coverArtMeta = const VerificationMeta(
+    'coverArt',
+  );
+  @override
+  late final GeneratedColumn<String> coverArt = GeneratedColumn<String>(
+    'cover_art',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _starredMeta = const VerificationMeta(
+    'starred',
+  );
+  @override
+  late final GeneratedColumn<DateTime> starred = GeneratedColumn<DateTime>(
+    'starred',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _applyStateMeta = const VerificationMeta(
+    'applyState',
+  );
+  @override
+  late final GeneratedColumn<int> applyState = GeneratedColumn<int>(
+    'apply_state',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    generation,
+    id,
+    name,
+    albumCount,
+    coverArt,
+    starred,
+    applyState,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_candidate_artists';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncCandidateArtistsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('album_count')) {
+      context.handle(
+        _albumCountMeta,
+        albumCount.isAcceptableOrUnknown(data['album_count']!, _albumCountMeta),
+      );
+    }
+    if (data.containsKey('cover_art')) {
+      context.handle(
+        _coverArtMeta,
+        coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
+      );
+    }
+    if (data.containsKey('starred')) {
+      context.handle(
+        _starredMeta,
+        starred.isAcceptableOrUnknown(data['starred']!, _starredMeta),
+      );
+    }
+    if (data.containsKey('apply_state')) {
+      context.handle(
+        _applyStateMeta,
+        applyState.isAcceptableOrUnknown(data['apply_state']!, _applyStateMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId, generation, id};
+  @override
+  LibrarySyncCandidateArtistsTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncCandidateArtistsTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      albumCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}album_count'],
+      ),
+      coverArt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_art'],
+      ),
+      starred: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}starred'],
+      ),
+      applyState: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}apply_state'],
+      ),
+    );
+  }
+
+  @override
+  $LibrarySyncCandidateArtistsTableTable createAlias(String alias) {
+    return $LibrarySyncCandidateArtistsTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncCandidateArtistsTableData extends DataClass
+    implements Insertable<LibrarySyncCandidateArtistsTableData> {
+  final int serverId;
+  final int generation;
+  final String id;
+  final String name;
+  final int? albumCount;
+  final String? coverArt;
+  final DateTime? starred;
+
+  /// Null while the candidate still needs comparison, zero when it matches
+  /// the committed row, and one when promotion must insert or update it.
+  final int? applyState;
+  const LibrarySyncCandidateArtistsTableData({
+    required this.serverId,
+    required this.generation,
+    required this.id,
+    required this.name,
+    this.albumCount,
+    this.coverArt,
+    this.starred,
+    this.applyState,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    map['generation'] = Variable<int>(generation);
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || albumCount != null) {
+      map['album_count'] = Variable<int>(albumCount);
+    }
+    if (!nullToAbsent || coverArt != null) {
+      map['cover_art'] = Variable<String>(coverArt);
+    }
+    if (!nullToAbsent || starred != null) {
+      map['starred'] = Variable<DateTime>(starred);
+    }
+    if (!nullToAbsent || applyState != null) {
+      map['apply_state'] = Variable<int>(applyState);
+    }
+    return map;
+  }
+
+  LibrarySyncCandidateArtistsTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncCandidateArtistsTableCompanion(
+      serverId: Value(serverId),
+      generation: Value(generation),
+      id: Value(id),
+      name: Value(name),
+      albumCount: albumCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumCount),
+      coverArt: coverArt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverArt),
+      starred: starred == null && nullToAbsent
+          ? const Value.absent()
+          : Value(starred),
+      applyState: applyState == null && nullToAbsent
+          ? const Value.absent()
+          : Value(applyState),
+    );
+  }
+
+  factory LibrarySyncCandidateArtistsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncCandidateArtistsTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      generation: serializer.fromJson<int>(json['generation']),
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      albumCount: serializer.fromJson<int?>(json['albumCount']),
+      coverArt: serializer.fromJson<String?>(json['coverArt']),
+      starred: serializer.fromJson<DateTime?>(json['starred']),
+      applyState: serializer.fromJson<int?>(json['applyState']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'generation': serializer.toJson<int>(generation),
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'albumCount': serializer.toJson<int?>(albumCount),
+      'coverArt': serializer.toJson<String?>(coverArt),
+      'starred': serializer.toJson<DateTime?>(starred),
+      'applyState': serializer.toJson<int?>(applyState),
+    };
+  }
+
+  LibrarySyncCandidateArtistsTableData copyWith({
+    int? serverId,
+    int? generation,
+    String? id,
+    String? name,
+    Value<int?> albumCount = const Value.absent(),
+    Value<String?> coverArt = const Value.absent(),
+    Value<DateTime?> starred = const Value.absent(),
+    Value<int?> applyState = const Value.absent(),
+  }) => LibrarySyncCandidateArtistsTableData(
+    serverId: serverId ?? this.serverId,
+    generation: generation ?? this.generation,
+    id: id ?? this.id,
+    name: name ?? this.name,
+    albumCount: albumCount.present ? albumCount.value : this.albumCount,
+    coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    starred: starred.present ? starred.value : this.starred,
+    applyState: applyState.present ? applyState.value : this.applyState,
+  );
+  LibrarySyncCandidateArtistsTableData copyWithCompanion(
+    LibrarySyncCandidateArtistsTableCompanion data,
+  ) {
+    return LibrarySyncCandidateArtistsTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      albumCount: data.albumCount.present
+          ? data.albumCount.value
+          : this.albumCount,
+      coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      starred: data.starred.present ? data.starred.value : this.starred,
+      applyState: data.applyState.present
+          ? data.applyState.value
+          : this.applyState,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncCandidateArtistsTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('generation: $generation, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('albumCount: $albumCount, ')
+          ..write('coverArt: $coverArt, ')
+          ..write('starred: $starred, ')
+          ..write('applyState: $applyState')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    serverId,
+    generation,
+    id,
+    name,
+    albumCount,
+    coverArt,
+    starred,
+    applyState,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncCandidateArtistsTableData &&
+          other.serverId == this.serverId &&
+          other.generation == this.generation &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.albumCount == this.albumCount &&
+          other.coverArt == this.coverArt &&
+          other.starred == this.starred &&
+          other.applyState == this.applyState);
+}
+
+class LibrarySyncCandidateArtistsTableCompanion
+    extends UpdateCompanion<LibrarySyncCandidateArtistsTableData> {
+  final Value<int> serverId;
+  final Value<int> generation;
+  final Value<String> id;
+  final Value<String> name;
+  final Value<int?> albumCount;
+  final Value<String?> coverArt;
+  final Value<DateTime?> starred;
+  final Value<int?> applyState;
+  final Value<int> rowid;
+  const LibrarySyncCandidateArtistsTableCompanion({
+    this.serverId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.albumCount = const Value.absent(),
+    this.coverArt = const Value.absent(),
+    this.starred = const Value.absent(),
+    this.applyState = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LibrarySyncCandidateArtistsTableCompanion.insert({
+    required int serverId,
+    required int generation,
+    required String id,
+    required String name,
+    this.albumCount = const Value.absent(),
+    this.coverArt = const Value.absent(),
+    this.starred = const Value.absent(),
+    this.applyState = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : serverId = Value(serverId),
+       generation = Value(generation),
+       id = Value(id),
+       name = Value(name);
+  static Insertable<LibrarySyncCandidateArtistsTableData> custom({
+    Expression<int>? serverId,
+    Expression<int>? generation,
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? albumCount,
+    Expression<String>? coverArt,
+    Expression<DateTime>? starred,
+    Expression<int>? applyState,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (generation != null) 'generation': generation,
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (albumCount != null) 'album_count': albumCount,
+      if (coverArt != null) 'cover_art': coverArt,
+      if (starred != null) 'starred': starred,
+      if (applyState != null) 'apply_state': applyState,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LibrarySyncCandidateArtistsTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<int>? generation,
+    Value<String>? id,
+    Value<String>? name,
+    Value<int?>? albumCount,
+    Value<String?>? coverArt,
+    Value<DateTime?>? starred,
+    Value<int?>? applyState,
+    Value<int>? rowid,
+  }) {
+    return LibrarySyncCandidateArtistsTableCompanion(
+      serverId: serverId ?? this.serverId,
+      generation: generation ?? this.generation,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      albumCount: albumCount ?? this.albumCount,
+      coverArt: coverArt ?? this.coverArt,
+      starred: starred ?? this.starred,
+      applyState: applyState ?? this.applyState,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (albumCount.present) {
+      map['album_count'] = Variable<int>(albumCount.value);
+    }
+    if (coverArt.present) {
+      map['cover_art'] = Variable<String>(coverArt.value);
+    }
+    if (starred.present) {
+      map['starred'] = Variable<DateTime>(starred.value);
+    }
+    if (applyState.present) {
+      map['apply_state'] = Variable<int>(applyState.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncCandidateArtistsTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('generation: $generation, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('albumCount: $albumCount, ')
+          ..write('coverArt: $coverArt, ')
+          ..write('starred: $starred, ')
+          ..write('applyState: $applyState, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncCandidateAlbumsTableTable
+    extends LibrarySyncCandidateAlbumsTable
+    with
+        TableInfo<
+          $LibrarySyncCandidateAlbumsTableTable,
+          LibrarySyncCandidateAlbumsTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncCandidateAlbumsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _artistIdMeta = const VerificationMeta(
+    'artistId',
+  );
+  @override
+  late final GeneratedColumn<String> artistId = GeneratedColumn<String>(
+    'artist_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _artistNameMeta = const VerificationMeta(
+    'artistName',
+  );
+  @override
+  late final GeneratedColumn<String> artistName = GeneratedColumn<String>(
+    'artist_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<ArtistRef>, String> artists =
+      GeneratedColumn<String>(
+        'artists',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<ArtistRef>>(
+        $LibrarySyncCandidateAlbumsTableTable.$converterartists,
+      );
+  static const VerificationMeta _songCountMeta = const VerificationMeta(
+    'songCount',
+  );
+  @override
+  late final GeneratedColumn<int> songCount = GeneratedColumn<int>(
+    'song_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationMeta = const VerificationMeta(
+    'duration',
+  );
+  @override
+  late final GeneratedColumn<int> duration = GeneratedColumn<int>(
+    'duration',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<int> year = GeneratedColumn<int>(
+    'year',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _genreMeta = const VerificationMeta('genre');
+  @override
+  late final GeneratedColumn<String> genre = GeneratedColumn<String>(
+    'genre',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _coverArtMeta = const VerificationMeta(
+    'coverArt',
+  );
+  @override
+  late final GeneratedColumn<String> coverArt = GeneratedColumn<String>(
+    'cover_art',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _songsHydratedMeta = const VerificationMeta(
+    'songsHydrated',
+  );
+  @override
+  late final GeneratedColumn<bool> songsHydrated = GeneratedColumn<bool>(
+    'songs_hydrated',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("songs_hydrated" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _carriedForwardMeta = const VerificationMeta(
+    'carriedForward',
+  );
+  @override
+  late final GeneratedColumn<bool> carriedForward = GeneratedColumn<bool>(
+    'carried_forward',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("carried_forward" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _starredMeta = const VerificationMeta(
+    'starred',
+  );
+  @override
+  late final GeneratedColumn<DateTime> starred = GeneratedColumn<DateTime>(
+    'starred',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userRatingMeta = const VerificationMeta(
+    'userRating',
+  );
+  @override
+  late final GeneratedColumn<int> userRating = GeneratedColumn<int>(
+    'user_rating',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _playCountMeta = const VerificationMeta(
+    'playCount',
+  );
+  @override
+  late final GeneratedColumn<int> playCount = GeneratedColumn<int>(
+    'play_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverCreatedAtMeta = const VerificationMeta(
+    'serverCreatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> serverCreatedAt =
+      GeneratedColumn<DateTime>(
+        'server_created_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _applyStateMeta = const VerificationMeta(
+    'applyState',
+  );
+  @override
+  late final GeneratedColumn<int> applyState = GeneratedColumn<int>(
+    'apply_state',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    generation,
+    id,
+    name,
+    artistId,
+    artistName,
+    artists,
+    songCount,
+    duration,
+    year,
+    genre,
+    coverArt,
+    songsHydrated,
+    carriedForward,
+    starred,
+    userRating,
+    playCount,
+    syncedAt,
+    serverCreatedAt,
+    applyState,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_candidate_albums';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncCandidateAlbumsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('artist_id')) {
+      context.handle(
+        _artistIdMeta,
+        artistId.isAcceptableOrUnknown(data['artist_id']!, _artistIdMeta),
+      );
+    }
+    if (data.containsKey('artist_name')) {
+      context.handle(
+        _artistNameMeta,
+        artistName.isAcceptableOrUnknown(data['artist_name']!, _artistNameMeta),
+      );
+    }
+    if (data.containsKey('song_count')) {
+      context.handle(
+        _songCountMeta,
+        songCount.isAcceptableOrUnknown(data['song_count']!, _songCountMeta),
+      );
+    }
+    if (data.containsKey('duration')) {
+      context.handle(
+        _durationMeta,
+        duration.isAcceptableOrUnknown(data['duration']!, _durationMeta),
+      );
+    }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    }
+    if (data.containsKey('genre')) {
+      context.handle(
+        _genreMeta,
+        genre.isAcceptableOrUnknown(data['genre']!, _genreMeta),
+      );
+    }
+    if (data.containsKey('cover_art')) {
+      context.handle(
+        _coverArtMeta,
+        coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
+      );
+    }
+    if (data.containsKey('songs_hydrated')) {
+      context.handle(
+        _songsHydratedMeta,
+        songsHydrated.isAcceptableOrUnknown(
+          data['songs_hydrated']!,
+          _songsHydratedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('carried_forward')) {
+      context.handle(
+        _carriedForwardMeta,
+        carriedForward.isAcceptableOrUnknown(
+          data['carried_forward']!,
+          _carriedForwardMeta,
+        ),
+      );
+    }
+    if (data.containsKey('starred')) {
+      context.handle(
+        _starredMeta,
+        starred.isAcceptableOrUnknown(data['starred']!, _starredMeta),
+      );
+    }
+    if (data.containsKey('user_rating')) {
+      context.handle(
+        _userRatingMeta,
+        userRating.isAcceptableOrUnknown(data['user_rating']!, _userRatingMeta),
+      );
+    }
+    if (data.containsKey('play_count')) {
+      context.handle(
+        _playCountMeta,
+        playCount.isAcceptableOrUnknown(data['play_count']!, _playCountMeta),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    }
+    if (data.containsKey('server_created_at')) {
+      context.handle(
+        _serverCreatedAtMeta,
+        serverCreatedAt.isAcceptableOrUnknown(
+          data['server_created_at']!,
+          _serverCreatedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('apply_state')) {
+      context.handle(
+        _applyStateMeta,
+        applyState.isAcceptableOrUnknown(data['apply_state']!, _applyStateMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId, generation, id};
+  @override
+  LibrarySyncCandidateAlbumsTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncCandidateAlbumsTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      artistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_id'],
+      ),
+      artistName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_name'],
+      ),
+      artists: $LibrarySyncCandidateAlbumsTableTable.$converterartists.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}artists'],
+        )!,
+      ),
+      songCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}song_count'],
+      ),
+      duration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration'],
+      ),
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}year'],
+      ),
+      genre: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}genre'],
+      ),
+      coverArt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_art'],
+      ),
+      songsHydrated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}songs_hydrated'],
+      )!,
+      carriedForward: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}carried_forward'],
+      )!,
+      starred: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}starred'],
+      ),
+      userRating: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}user_rating'],
+      ),
+      playCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}play_count'],
+      ),
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      ),
+      serverCreatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}server_created_at'],
+      ),
+      applyState: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}apply_state'],
+      ),
+    );
+  }
+
+  @override
+  $LibrarySyncCandidateAlbumsTableTable createAlias(String alias) {
+    return $LibrarySyncCandidateAlbumsTableTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<List<ArtistRef>, String> $converterartists =
+      const ArtistRefListConverter();
+}
+
+class LibrarySyncCandidateAlbumsTableData extends DataClass
+    implements Insertable<LibrarySyncCandidateAlbumsTableData> {
+  final int serverId;
+  final int generation;
+  final String id;
+  final String name;
+  final String? artistId;
+  final String? artistName;
+  final List<ArtistRef> artists;
+  final int? songCount;
+  final int? duration;
+  final int? year;
+  final String? genre;
+  final String? coverArt;
+  final bool songsHydrated;
+  final bool carriedForward;
+  final DateTime? starred;
+  final int? userRating;
+  final int? playCount;
+  final DateTime? syncedAt;
+  final DateTime? serverCreatedAt;
+
+  /// Null while the candidate still needs comparison, zero when it matches
+  /// the committed row, and one when promotion must insert or update it.
+  final int? applyState;
+  const LibrarySyncCandidateAlbumsTableData({
+    required this.serverId,
+    required this.generation,
+    required this.id,
+    required this.name,
+    this.artistId,
+    this.artistName,
+    required this.artists,
+    this.songCount,
+    this.duration,
+    this.year,
+    this.genre,
+    this.coverArt,
+    required this.songsHydrated,
+    required this.carriedForward,
+    this.starred,
+    this.userRating,
+    this.playCount,
+    this.syncedAt,
+    this.serverCreatedAt,
+    this.applyState,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    map['generation'] = Variable<int>(generation);
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || artistId != null) {
+      map['artist_id'] = Variable<String>(artistId);
+    }
+    if (!nullToAbsent || artistName != null) {
+      map['artist_name'] = Variable<String>(artistName);
+    }
+    {
+      map['artists'] = Variable<String>(
+        $LibrarySyncCandidateAlbumsTableTable.$converterartists.toSql(artists),
+      );
+    }
+    if (!nullToAbsent || songCount != null) {
+      map['song_count'] = Variable<int>(songCount);
+    }
+    if (!nullToAbsent || duration != null) {
+      map['duration'] = Variable<int>(duration);
+    }
+    if (!nullToAbsent || year != null) {
+      map['year'] = Variable<int>(year);
+    }
+    if (!nullToAbsent || genre != null) {
+      map['genre'] = Variable<String>(genre);
+    }
+    if (!nullToAbsent || coverArt != null) {
+      map['cover_art'] = Variable<String>(coverArt);
+    }
+    map['songs_hydrated'] = Variable<bool>(songsHydrated);
+    map['carried_forward'] = Variable<bool>(carriedForward);
+    if (!nullToAbsent || starred != null) {
+      map['starred'] = Variable<DateTime>(starred);
+    }
+    if (!nullToAbsent || userRating != null) {
+      map['user_rating'] = Variable<int>(userRating);
+    }
+    if (!nullToAbsent || playCount != null) {
+      map['play_count'] = Variable<int>(playCount);
+    }
+    if (!nullToAbsent || syncedAt != null) {
+      map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    if (!nullToAbsent || serverCreatedAt != null) {
+      map['server_created_at'] = Variable<DateTime>(serverCreatedAt);
+    }
+    if (!nullToAbsent || applyState != null) {
+      map['apply_state'] = Variable<int>(applyState);
+    }
+    return map;
+  }
+
+  LibrarySyncCandidateAlbumsTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncCandidateAlbumsTableCompanion(
+      serverId: Value(serverId),
+      generation: Value(generation),
+      id: Value(id),
+      name: Value(name),
+      artistId: artistId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artistId),
+      artistName: artistName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artistName),
+      artists: Value(artists),
+      songCount: songCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(songCount),
+      duration: duration == null && nullToAbsent
+          ? const Value.absent()
+          : Value(duration),
+      year: year == null && nullToAbsent ? const Value.absent() : Value(year),
+      genre: genre == null && nullToAbsent
+          ? const Value.absent()
+          : Value(genre),
+      coverArt: coverArt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverArt),
+      songsHydrated: Value(songsHydrated),
+      carriedForward: Value(carriedForward),
+      starred: starred == null && nullToAbsent
+          ? const Value.absent()
+          : Value(starred),
+      userRating: userRating == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userRating),
+      playCount: playCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(playCount),
+      syncedAt: syncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedAt),
+      serverCreatedAt: serverCreatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverCreatedAt),
+      applyState: applyState == null && nullToAbsent
+          ? const Value.absent()
+          : Value(applyState),
+    );
+  }
+
+  factory LibrarySyncCandidateAlbumsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncCandidateAlbumsTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      generation: serializer.fromJson<int>(json['generation']),
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      artistId: serializer.fromJson<String?>(json['artistId']),
+      artistName: serializer.fromJson<String?>(json['artistName']),
+      artists: serializer.fromJson<List<ArtistRef>>(json['artists']),
+      songCount: serializer.fromJson<int?>(json['songCount']),
+      duration: serializer.fromJson<int?>(json['duration']),
+      year: serializer.fromJson<int?>(json['year']),
+      genre: serializer.fromJson<String?>(json['genre']),
+      coverArt: serializer.fromJson<String?>(json['coverArt']),
+      songsHydrated: serializer.fromJson<bool>(json['songsHydrated']),
+      carriedForward: serializer.fromJson<bool>(json['carriedForward']),
+      starred: serializer.fromJson<DateTime?>(json['starred']),
+      userRating: serializer.fromJson<int?>(json['userRating']),
+      playCount: serializer.fromJson<int?>(json['playCount']),
+      syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      serverCreatedAt: serializer.fromJson<DateTime?>(json['serverCreatedAt']),
+      applyState: serializer.fromJson<int?>(json['applyState']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'generation': serializer.toJson<int>(generation),
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'artistId': serializer.toJson<String?>(artistId),
+      'artistName': serializer.toJson<String?>(artistName),
+      'artists': serializer.toJson<List<ArtistRef>>(artists),
+      'songCount': serializer.toJson<int?>(songCount),
+      'duration': serializer.toJson<int?>(duration),
+      'year': serializer.toJson<int?>(year),
+      'genre': serializer.toJson<String?>(genre),
+      'coverArt': serializer.toJson<String?>(coverArt),
+      'songsHydrated': serializer.toJson<bool>(songsHydrated),
+      'carriedForward': serializer.toJson<bool>(carriedForward),
+      'starred': serializer.toJson<DateTime?>(starred),
+      'userRating': serializer.toJson<int?>(userRating),
+      'playCount': serializer.toJson<int?>(playCount),
+      'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'serverCreatedAt': serializer.toJson<DateTime?>(serverCreatedAt),
+      'applyState': serializer.toJson<int?>(applyState),
+    };
+  }
+
+  LibrarySyncCandidateAlbumsTableData copyWith({
+    int? serverId,
+    int? generation,
+    String? id,
+    String? name,
+    Value<String?> artistId = const Value.absent(),
+    Value<String?> artistName = const Value.absent(),
+    List<ArtistRef>? artists,
+    Value<int?> songCount = const Value.absent(),
+    Value<int?> duration = const Value.absent(),
+    Value<int?> year = const Value.absent(),
+    Value<String?> genre = const Value.absent(),
+    Value<String?> coverArt = const Value.absent(),
+    bool? songsHydrated,
+    bool? carriedForward,
+    Value<DateTime?> starred = const Value.absent(),
+    Value<int?> userRating = const Value.absent(),
+    Value<int?> playCount = const Value.absent(),
+    Value<DateTime?> syncedAt = const Value.absent(),
+    Value<DateTime?> serverCreatedAt = const Value.absent(),
+    Value<int?> applyState = const Value.absent(),
+  }) => LibrarySyncCandidateAlbumsTableData(
+    serverId: serverId ?? this.serverId,
+    generation: generation ?? this.generation,
+    id: id ?? this.id,
+    name: name ?? this.name,
+    artistId: artistId.present ? artistId.value : this.artistId,
+    artistName: artistName.present ? artistName.value : this.artistName,
+    artists: artists ?? this.artists,
+    songCount: songCount.present ? songCount.value : this.songCount,
+    duration: duration.present ? duration.value : this.duration,
+    year: year.present ? year.value : this.year,
+    genre: genre.present ? genre.value : this.genre,
+    coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    songsHydrated: songsHydrated ?? this.songsHydrated,
+    carriedForward: carriedForward ?? this.carriedForward,
+    starred: starred.present ? starred.value : this.starred,
+    userRating: userRating.present ? userRating.value : this.userRating,
+    playCount: playCount.present ? playCount.value : this.playCount,
+    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    serverCreatedAt: serverCreatedAt.present
+        ? serverCreatedAt.value
+        : this.serverCreatedAt,
+    applyState: applyState.present ? applyState.value : this.applyState,
+  );
+  LibrarySyncCandidateAlbumsTableData copyWithCompanion(
+    LibrarySyncCandidateAlbumsTableCompanion data,
+  ) {
+    return LibrarySyncCandidateAlbumsTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      artistId: data.artistId.present ? data.artistId.value : this.artistId,
+      artistName: data.artistName.present
+          ? data.artistName.value
+          : this.artistName,
+      artists: data.artists.present ? data.artists.value : this.artists,
+      songCount: data.songCount.present ? data.songCount.value : this.songCount,
+      duration: data.duration.present ? data.duration.value : this.duration,
+      year: data.year.present ? data.year.value : this.year,
+      genre: data.genre.present ? data.genre.value : this.genre,
+      coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      songsHydrated: data.songsHydrated.present
+          ? data.songsHydrated.value
+          : this.songsHydrated,
+      carriedForward: data.carriedForward.present
+          ? data.carriedForward.value
+          : this.carriedForward,
+      starred: data.starred.present ? data.starred.value : this.starred,
+      userRating: data.userRating.present
+          ? data.userRating.value
+          : this.userRating,
+      playCount: data.playCount.present ? data.playCount.value : this.playCount,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      serverCreatedAt: data.serverCreatedAt.present
+          ? data.serverCreatedAt.value
+          : this.serverCreatedAt,
+      applyState: data.applyState.present
+          ? data.applyState.value
+          : this.applyState,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncCandidateAlbumsTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('generation: $generation, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('artistId: $artistId, ')
+          ..write('artistName: $artistName, ')
+          ..write('artists: $artists, ')
+          ..write('songCount: $songCount, ')
+          ..write('duration: $duration, ')
+          ..write('year: $year, ')
+          ..write('genre: $genre, ')
+          ..write('coverArt: $coverArt, ')
+          ..write('songsHydrated: $songsHydrated, ')
+          ..write('carriedForward: $carriedForward, ')
+          ..write('starred: $starred, ')
+          ..write('userRating: $userRating, ')
+          ..write('playCount: $playCount, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('serverCreatedAt: $serverCreatedAt, ')
+          ..write('applyState: $applyState')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    serverId,
+    generation,
+    id,
+    name,
+    artistId,
+    artistName,
+    artists,
+    songCount,
+    duration,
+    year,
+    genre,
+    coverArt,
+    songsHydrated,
+    carriedForward,
+    starred,
+    userRating,
+    playCount,
+    syncedAt,
+    serverCreatedAt,
+    applyState,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncCandidateAlbumsTableData &&
+          other.serverId == this.serverId &&
+          other.generation == this.generation &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.artistId == this.artistId &&
+          other.artistName == this.artistName &&
+          other.artists == this.artists &&
+          other.songCount == this.songCount &&
+          other.duration == this.duration &&
+          other.year == this.year &&
+          other.genre == this.genre &&
+          other.coverArt == this.coverArt &&
+          other.songsHydrated == this.songsHydrated &&
+          other.carriedForward == this.carriedForward &&
+          other.starred == this.starred &&
+          other.userRating == this.userRating &&
+          other.playCount == this.playCount &&
+          other.syncedAt == this.syncedAt &&
+          other.serverCreatedAt == this.serverCreatedAt &&
+          other.applyState == this.applyState);
+}
+
+class LibrarySyncCandidateAlbumsTableCompanion
+    extends UpdateCompanion<LibrarySyncCandidateAlbumsTableData> {
+  final Value<int> serverId;
+  final Value<int> generation;
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String?> artistId;
+  final Value<String?> artistName;
+  final Value<List<ArtistRef>> artists;
+  final Value<int?> songCount;
+  final Value<int?> duration;
+  final Value<int?> year;
+  final Value<String?> genre;
+  final Value<String?> coverArt;
+  final Value<bool> songsHydrated;
+  final Value<bool> carriedForward;
+  final Value<DateTime?> starred;
+  final Value<int?> userRating;
+  final Value<int?> playCount;
+  final Value<DateTime?> syncedAt;
+  final Value<DateTime?> serverCreatedAt;
+  final Value<int?> applyState;
+  final Value<int> rowid;
+  const LibrarySyncCandidateAlbumsTableCompanion({
+    this.serverId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.artistId = const Value.absent(),
+    this.artistName = const Value.absent(),
+    this.artists = const Value.absent(),
+    this.songCount = const Value.absent(),
+    this.duration = const Value.absent(),
+    this.year = const Value.absent(),
+    this.genre = const Value.absent(),
+    this.coverArt = const Value.absent(),
+    this.songsHydrated = const Value.absent(),
+    this.carriedForward = const Value.absent(),
+    this.starred = const Value.absent(),
+    this.userRating = const Value.absent(),
+    this.playCount = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.serverCreatedAt = const Value.absent(),
+    this.applyState = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LibrarySyncCandidateAlbumsTableCompanion.insert({
+    required int serverId,
+    required int generation,
+    required String id,
+    required String name,
+    this.artistId = const Value.absent(),
+    this.artistName = const Value.absent(),
+    this.artists = const Value.absent(),
+    this.songCount = const Value.absent(),
+    this.duration = const Value.absent(),
+    this.year = const Value.absent(),
+    this.genre = const Value.absent(),
+    this.coverArt = const Value.absent(),
+    this.songsHydrated = const Value.absent(),
+    this.carriedForward = const Value.absent(),
+    this.starred = const Value.absent(),
+    this.userRating = const Value.absent(),
+    this.playCount = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.serverCreatedAt = const Value.absent(),
+    this.applyState = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : serverId = Value(serverId),
+       generation = Value(generation),
+       id = Value(id),
+       name = Value(name);
+  static Insertable<LibrarySyncCandidateAlbumsTableData> custom({
+    Expression<int>? serverId,
+    Expression<int>? generation,
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? artistId,
+    Expression<String>? artistName,
+    Expression<String>? artists,
+    Expression<int>? songCount,
+    Expression<int>? duration,
+    Expression<int>? year,
+    Expression<String>? genre,
+    Expression<String>? coverArt,
+    Expression<bool>? songsHydrated,
+    Expression<bool>? carriedForward,
+    Expression<DateTime>? starred,
+    Expression<int>? userRating,
+    Expression<int>? playCount,
+    Expression<DateTime>? syncedAt,
+    Expression<DateTime>? serverCreatedAt,
+    Expression<int>? applyState,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (generation != null) 'generation': generation,
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (artistId != null) 'artist_id': artistId,
+      if (artistName != null) 'artist_name': artistName,
+      if (artists != null) 'artists': artists,
+      if (songCount != null) 'song_count': songCount,
+      if (duration != null) 'duration': duration,
+      if (year != null) 'year': year,
+      if (genre != null) 'genre': genre,
+      if (coverArt != null) 'cover_art': coverArt,
+      if (songsHydrated != null) 'songs_hydrated': songsHydrated,
+      if (carriedForward != null) 'carried_forward': carriedForward,
+      if (starred != null) 'starred': starred,
+      if (userRating != null) 'user_rating': userRating,
+      if (playCount != null) 'play_count': playCount,
+      if (syncedAt != null) 'synced_at': syncedAt,
+      if (serverCreatedAt != null) 'server_created_at': serverCreatedAt,
+      if (applyState != null) 'apply_state': applyState,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LibrarySyncCandidateAlbumsTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<int>? generation,
+    Value<String>? id,
+    Value<String>? name,
+    Value<String?>? artistId,
+    Value<String?>? artistName,
+    Value<List<ArtistRef>>? artists,
+    Value<int?>? songCount,
+    Value<int?>? duration,
+    Value<int?>? year,
+    Value<String?>? genre,
+    Value<String?>? coverArt,
+    Value<bool>? songsHydrated,
+    Value<bool>? carriedForward,
+    Value<DateTime?>? starred,
+    Value<int?>? userRating,
+    Value<int?>? playCount,
+    Value<DateTime?>? syncedAt,
+    Value<DateTime?>? serverCreatedAt,
+    Value<int?>? applyState,
+    Value<int>? rowid,
+  }) {
+    return LibrarySyncCandidateAlbumsTableCompanion(
+      serverId: serverId ?? this.serverId,
+      generation: generation ?? this.generation,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      artistId: artistId ?? this.artistId,
+      artistName: artistName ?? this.artistName,
+      artists: artists ?? this.artists,
+      songCount: songCount ?? this.songCount,
+      duration: duration ?? this.duration,
+      year: year ?? this.year,
+      genre: genre ?? this.genre,
+      coverArt: coverArt ?? this.coverArt,
+      songsHydrated: songsHydrated ?? this.songsHydrated,
+      carriedForward: carriedForward ?? this.carriedForward,
+      starred: starred ?? this.starred,
+      userRating: userRating ?? this.userRating,
+      playCount: playCount ?? this.playCount,
+      syncedAt: syncedAt ?? this.syncedAt,
+      serverCreatedAt: serverCreatedAt ?? this.serverCreatedAt,
+      applyState: applyState ?? this.applyState,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (artistId.present) {
+      map['artist_id'] = Variable<String>(artistId.value);
+    }
+    if (artistName.present) {
+      map['artist_name'] = Variable<String>(artistName.value);
+    }
+    if (artists.present) {
+      map['artists'] = Variable<String>(
+        $LibrarySyncCandidateAlbumsTableTable.$converterartists.toSql(
+          artists.value,
+        ),
+      );
+    }
+    if (songCount.present) {
+      map['song_count'] = Variable<int>(songCount.value);
+    }
+    if (duration.present) {
+      map['duration'] = Variable<int>(duration.value);
+    }
+    if (year.present) {
+      map['year'] = Variable<int>(year.value);
+    }
+    if (genre.present) {
+      map['genre'] = Variable<String>(genre.value);
+    }
+    if (coverArt.present) {
+      map['cover_art'] = Variable<String>(coverArt.value);
+    }
+    if (songsHydrated.present) {
+      map['songs_hydrated'] = Variable<bool>(songsHydrated.value);
+    }
+    if (carriedForward.present) {
+      map['carried_forward'] = Variable<bool>(carriedForward.value);
+    }
+    if (starred.present) {
+      map['starred'] = Variable<DateTime>(starred.value);
+    }
+    if (userRating.present) {
+      map['user_rating'] = Variable<int>(userRating.value);
+    }
+    if (playCount.present) {
+      map['play_count'] = Variable<int>(playCount.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    if (serverCreatedAt.present) {
+      map['server_created_at'] = Variable<DateTime>(serverCreatedAt.value);
+    }
+    if (applyState.present) {
+      map['apply_state'] = Variable<int>(applyState.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncCandidateAlbumsTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('generation: $generation, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('artistId: $artistId, ')
+          ..write('artistName: $artistName, ')
+          ..write('artists: $artists, ')
+          ..write('songCount: $songCount, ')
+          ..write('duration: $duration, ')
+          ..write('year: $year, ')
+          ..write('genre: $genre, ')
+          ..write('coverArt: $coverArt, ')
+          ..write('songsHydrated: $songsHydrated, ')
+          ..write('carriedForward: $carriedForward, ')
+          ..write('starred: $starred, ')
+          ..write('userRating: $userRating, ')
+          ..write('playCount: $playCount, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('serverCreatedAt: $serverCreatedAt, ')
+          ..write('applyState: $applyState, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncCandidateSongsTableTable
+    extends LibrarySyncCandidateSongsTable
+    with
+        TableInfo<
+          $LibrarySyncCandidateSongsTableTable,
+          LibrarySyncCandidateSongsTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncCandidateSongsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _albumIdMeta = const VerificationMeta(
+    'albumId',
+  );
+  @override
+  late final GeneratedColumn<String> albumId = GeneratedColumn<String>(
+    'album_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _artistIdMeta = const VerificationMeta(
+    'artistId',
+  );
+  @override
+  late final GeneratedColumn<String> artistId = GeneratedColumn<String>(
+    'artist_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _artistNameMeta = const VerificationMeta(
+    'artistName',
+  );
+  @override
+  late final GeneratedColumn<String> artistName = GeneratedColumn<String>(
+    'artist_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _albumNameMeta = const VerificationMeta(
+    'albumName',
+  );
+  @override
+  late final GeneratedColumn<String> albumName = GeneratedColumn<String>(
+    'album_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trackMeta = const VerificationMeta('track');
+  @override
+  late final GeneratedColumn<int> track = GeneratedColumn<int>(
+    'track',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _discNumberMeta = const VerificationMeta(
+    'discNumber',
+  );
+  @override
+  late final GeneratedColumn<int> discNumber = GeneratedColumn<int>(
+    'disc_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationMeta = const VerificationMeta(
+    'duration',
+  );
+  @override
+  late final GeneratedColumn<int> duration = GeneratedColumn<int>(
+    'duration',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bitRateMeta = const VerificationMeta(
+    'bitRate',
+  );
+  @override
+  late final GeneratedColumn<int> bitRate = GeneratedColumn<int>(
+    'bit_rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sampleRateMeta = const VerificationMeta(
+    'sampleRate',
+  );
+  @override
+  late final GeneratedColumn<int> sampleRate = GeneratedColumn<int>(
+    'sample_rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contentTypeMeta = const VerificationMeta(
+    'contentType',
+  );
+  @override
+  late final GeneratedColumn<String> contentType = GeneratedColumn<String>(
+    'content_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _suffixMeta = const VerificationMeta('suffix');
+  @override
+  late final GeneratedColumn<String> suffix = GeneratedColumn<String>(
+    'suffix',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sizeMeta = const VerificationMeta('size');
+  @override
+  late final GeneratedColumn<int> size = GeneratedColumn<int>(
+    'size',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _coverArtMeta = const VerificationMeta(
+    'coverArt',
+  );
+  @override
+  late final GeneratedColumn<String> coverArt = GeneratedColumn<String>(
+    'cover_art',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _starredMeta = const VerificationMeta(
+    'starred',
+  );
+  @override
+  late final GeneratedColumn<DateTime> starred = GeneratedColumn<DateTime>(
+    'starred',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recordingMbidMeta = const VerificationMeta(
+    'recordingMbid',
+  );
+  @override
+  late final GeneratedColumn<String> recordingMbid = GeneratedColumn<String>(
+    'recording_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userRatingMeta = const VerificationMeta(
+    'userRating',
+  );
+  @override
+  late final GeneratedColumn<int> userRating = GeneratedColumn<int>(
+    'user_rating',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _playCountMeta = const VerificationMeta(
+    'playCount',
+  );
+  @override
+  late final GeneratedColumn<int> playCount = GeneratedColumn<int>(
+    'play_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _replayGainTrackGainMeta =
+      const VerificationMeta('replayGainTrackGain');
+  @override
+  late final GeneratedColumn<double> replayGainTrackGain =
+      GeneratedColumn<double>(
+        'replay_gain_track_gain',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _replayGainAlbumGainMeta =
+      const VerificationMeta('replayGainAlbumGain');
+  @override
+  late final GeneratedColumn<double> replayGainAlbumGain =
+      GeneratedColumn<double>(
+        'replay_gain_album_gain',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _replayGainTrackPeakMeta =
+      const VerificationMeta('replayGainTrackPeak');
+  @override
+  late final GeneratedColumn<double> replayGainTrackPeak =
+      GeneratedColumn<double>(
+        'replay_gain_track_peak',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _replayGainAlbumPeakMeta =
+      const VerificationMeta('replayGainAlbumPeak');
+  @override
+  late final GeneratedColumn<double> replayGainAlbumPeak =
+      GeneratedColumn<double>(
+        'replay_gain_album_peak',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _applyStateMeta = const VerificationMeta(
+    'applyState',
+  );
+  @override
+  late final GeneratedColumn<int> applyState = GeneratedColumn<int>(
+    'apply_state',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    generation,
+    id,
+    title,
+    albumId,
+    artistId,
+    artistName,
+    albumName,
+    track,
+    discNumber,
+    duration,
+    bitRate,
+    sampleRate,
+    contentType,
+    suffix,
+    size,
+    coverArt,
+    starred,
+    recordingMbid,
+    userRating,
+    playCount,
+    createdAt,
+    replayGainTrackGain,
+    replayGainAlbumGain,
+    replayGainTrackPeak,
+    replayGainAlbumPeak,
+    applyState,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_candidate_songs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncCandidateSongsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('album_id')) {
+      context.handle(
+        _albumIdMeta,
+        albumId.isAcceptableOrUnknown(data['album_id']!, _albumIdMeta),
+      );
+    }
+    if (data.containsKey('artist_id')) {
+      context.handle(
+        _artistIdMeta,
+        artistId.isAcceptableOrUnknown(data['artist_id']!, _artistIdMeta),
+      );
+    }
+    if (data.containsKey('artist_name')) {
+      context.handle(
+        _artistNameMeta,
+        artistName.isAcceptableOrUnknown(data['artist_name']!, _artistNameMeta),
+      );
+    }
+    if (data.containsKey('album_name')) {
+      context.handle(
+        _albumNameMeta,
+        albumName.isAcceptableOrUnknown(data['album_name']!, _albumNameMeta),
+      );
+    }
+    if (data.containsKey('track')) {
+      context.handle(
+        _trackMeta,
+        track.isAcceptableOrUnknown(data['track']!, _trackMeta),
+      );
+    }
+    if (data.containsKey('disc_number')) {
+      context.handle(
+        _discNumberMeta,
+        discNumber.isAcceptableOrUnknown(data['disc_number']!, _discNumberMeta),
+      );
+    }
+    if (data.containsKey('duration')) {
+      context.handle(
+        _durationMeta,
+        duration.isAcceptableOrUnknown(data['duration']!, _durationMeta),
+      );
+    }
+    if (data.containsKey('bit_rate')) {
+      context.handle(
+        _bitRateMeta,
+        bitRate.isAcceptableOrUnknown(data['bit_rate']!, _bitRateMeta),
+      );
+    }
+    if (data.containsKey('sample_rate')) {
+      context.handle(
+        _sampleRateMeta,
+        sampleRate.isAcceptableOrUnknown(data['sample_rate']!, _sampleRateMeta),
+      );
+    }
+    if (data.containsKey('content_type')) {
+      context.handle(
+        _contentTypeMeta,
+        contentType.isAcceptableOrUnknown(
+          data['content_type']!,
+          _contentTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('suffix')) {
+      context.handle(
+        _suffixMeta,
+        suffix.isAcceptableOrUnknown(data['suffix']!, _suffixMeta),
+      );
+    }
+    if (data.containsKey('size')) {
+      context.handle(
+        _sizeMeta,
+        size.isAcceptableOrUnknown(data['size']!, _sizeMeta),
+      );
+    }
+    if (data.containsKey('cover_art')) {
+      context.handle(
+        _coverArtMeta,
+        coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
+      );
+    }
+    if (data.containsKey('starred')) {
+      context.handle(
+        _starredMeta,
+        starred.isAcceptableOrUnknown(data['starred']!, _starredMeta),
+      );
+    }
+    if (data.containsKey('recording_mbid')) {
+      context.handle(
+        _recordingMbidMeta,
+        recordingMbid.isAcceptableOrUnknown(
+          data['recording_mbid']!,
+          _recordingMbidMeta,
+        ),
+      );
+    }
+    if (data.containsKey('user_rating')) {
+      context.handle(
+        _userRatingMeta,
+        userRating.isAcceptableOrUnknown(data['user_rating']!, _userRatingMeta),
+      );
+    }
+    if (data.containsKey('play_count')) {
+      context.handle(
+        _playCountMeta,
+        playCount.isAcceptableOrUnknown(data['play_count']!, _playCountMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('replay_gain_track_gain')) {
+      context.handle(
+        _replayGainTrackGainMeta,
+        replayGainTrackGain.isAcceptableOrUnknown(
+          data['replay_gain_track_gain']!,
+          _replayGainTrackGainMeta,
+        ),
+      );
+    }
+    if (data.containsKey('replay_gain_album_gain')) {
+      context.handle(
+        _replayGainAlbumGainMeta,
+        replayGainAlbumGain.isAcceptableOrUnknown(
+          data['replay_gain_album_gain']!,
+          _replayGainAlbumGainMeta,
+        ),
+      );
+    }
+    if (data.containsKey('replay_gain_track_peak')) {
+      context.handle(
+        _replayGainTrackPeakMeta,
+        replayGainTrackPeak.isAcceptableOrUnknown(
+          data['replay_gain_track_peak']!,
+          _replayGainTrackPeakMeta,
+        ),
+      );
+    }
+    if (data.containsKey('replay_gain_album_peak')) {
+      context.handle(
+        _replayGainAlbumPeakMeta,
+        replayGainAlbumPeak.isAcceptableOrUnknown(
+          data['replay_gain_album_peak']!,
+          _replayGainAlbumPeakMeta,
+        ),
+      );
+    }
+    if (data.containsKey('apply_state')) {
+      context.handle(
+        _applyStateMeta,
+        applyState.isAcceptableOrUnknown(data['apply_state']!, _applyStateMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId, generation, id};
+  @override
+  LibrarySyncCandidateSongsTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncCandidateSongsTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      albumId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album_id'],
+      ),
+      artistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_id'],
+      ),
+      artistName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_name'],
+      ),
+      albumName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album_name'],
+      ),
+      track: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}track'],
+      ),
+      discNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}disc_number'],
+      ),
+      duration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration'],
+      ),
+      bitRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bit_rate'],
+      ),
+      sampleRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sample_rate'],
+      ),
+      contentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_type'],
+      ),
+      suffix: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}suffix'],
+      ),
+      size: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}size'],
+      ),
+      coverArt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_art'],
+      ),
+      starred: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}starred'],
+      ),
+      recordingMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recording_mbid'],
+      ),
+      userRating: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}user_rating'],
+      ),
+      playCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}play_count'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      ),
+      replayGainTrackGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_track_gain'],
+      ),
+      replayGainAlbumGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_album_gain'],
+      ),
+      replayGainTrackPeak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_track_peak'],
+      ),
+      replayGainAlbumPeak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_album_peak'],
+      ),
+      applyState: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}apply_state'],
+      ),
+    );
+  }
+
+  @override
+  $LibrarySyncCandidateSongsTableTable createAlias(String alias) {
+    return $LibrarySyncCandidateSongsTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncCandidateSongsTableData extends DataClass
+    implements Insertable<LibrarySyncCandidateSongsTableData> {
+  final int serverId;
+  final int generation;
+  final String id;
+  final String title;
+  final String? albumId;
+  final String? artistId;
+  final String? artistName;
+  final String? albumName;
+  final int? track;
+  final int? discNumber;
+  final int? duration;
+  final int? bitRate;
+  final int? sampleRate;
+  final String? contentType;
+  final String? suffix;
+  final int? size;
+  final String? coverArt;
+  final DateTime? starred;
+  final String? recordingMbid;
+  final int? userRating;
+  final int? playCount;
+  final DateTime? createdAt;
+  final double? replayGainTrackGain;
+  final double? replayGainAlbumGain;
+  final double? replayGainTrackPeak;
+  final double? replayGainAlbumPeak;
+
+  /// Null while the candidate still needs comparison, zero when it matches
+  /// the committed row, and one when promotion must insert or update it.
+  final int? applyState;
+  const LibrarySyncCandidateSongsTableData({
+    required this.serverId,
+    required this.generation,
+    required this.id,
+    required this.title,
+    this.albumId,
+    this.artistId,
+    this.artistName,
+    this.albumName,
+    this.track,
+    this.discNumber,
+    this.duration,
+    this.bitRate,
+    this.sampleRate,
+    this.contentType,
+    this.suffix,
+    this.size,
+    this.coverArt,
+    this.starred,
+    this.recordingMbid,
+    this.userRating,
+    this.playCount,
+    this.createdAt,
+    this.replayGainTrackGain,
+    this.replayGainAlbumGain,
+    this.replayGainTrackPeak,
+    this.replayGainAlbumPeak,
+    this.applyState,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    map['generation'] = Variable<int>(generation);
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || albumId != null) {
+      map['album_id'] = Variable<String>(albumId);
+    }
+    if (!nullToAbsent || artistId != null) {
+      map['artist_id'] = Variable<String>(artistId);
+    }
+    if (!nullToAbsent || artistName != null) {
+      map['artist_name'] = Variable<String>(artistName);
+    }
+    if (!nullToAbsent || albumName != null) {
+      map['album_name'] = Variable<String>(albumName);
+    }
+    if (!nullToAbsent || track != null) {
+      map['track'] = Variable<int>(track);
+    }
+    if (!nullToAbsent || discNumber != null) {
+      map['disc_number'] = Variable<int>(discNumber);
+    }
+    if (!nullToAbsent || duration != null) {
+      map['duration'] = Variable<int>(duration);
+    }
+    if (!nullToAbsent || bitRate != null) {
+      map['bit_rate'] = Variable<int>(bitRate);
+    }
+    if (!nullToAbsent || sampleRate != null) {
+      map['sample_rate'] = Variable<int>(sampleRate);
+    }
+    if (!nullToAbsent || contentType != null) {
+      map['content_type'] = Variable<String>(contentType);
+    }
+    if (!nullToAbsent || suffix != null) {
+      map['suffix'] = Variable<String>(suffix);
+    }
+    if (!nullToAbsent || size != null) {
+      map['size'] = Variable<int>(size);
+    }
+    if (!nullToAbsent || coverArt != null) {
+      map['cover_art'] = Variable<String>(coverArt);
+    }
+    if (!nullToAbsent || starred != null) {
+      map['starred'] = Variable<DateTime>(starred);
+    }
+    if (!nullToAbsent || recordingMbid != null) {
+      map['recording_mbid'] = Variable<String>(recordingMbid);
+    }
+    if (!nullToAbsent || userRating != null) {
+      map['user_rating'] = Variable<int>(userRating);
+    }
+    if (!nullToAbsent || playCount != null) {
+      map['play_count'] = Variable<int>(playCount);
+    }
+    if (!nullToAbsent || createdAt != null) {
+      map['created_at'] = Variable<DateTime>(createdAt);
+    }
+    if (!nullToAbsent || replayGainTrackGain != null) {
+      map['replay_gain_track_gain'] = Variable<double>(replayGainTrackGain);
+    }
+    if (!nullToAbsent || replayGainAlbumGain != null) {
+      map['replay_gain_album_gain'] = Variable<double>(replayGainAlbumGain);
+    }
+    if (!nullToAbsent || replayGainTrackPeak != null) {
+      map['replay_gain_track_peak'] = Variable<double>(replayGainTrackPeak);
+    }
+    if (!nullToAbsent || replayGainAlbumPeak != null) {
+      map['replay_gain_album_peak'] = Variable<double>(replayGainAlbumPeak);
+    }
+    if (!nullToAbsent || applyState != null) {
+      map['apply_state'] = Variable<int>(applyState);
+    }
+    return map;
+  }
+
+  LibrarySyncCandidateSongsTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncCandidateSongsTableCompanion(
+      serverId: Value(serverId),
+      generation: Value(generation),
+      id: Value(id),
+      title: Value(title),
+      albumId: albumId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumId),
+      artistId: artistId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artistId),
+      artistName: artistName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artistName),
+      albumName: albumName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumName),
+      track: track == null && nullToAbsent
+          ? const Value.absent()
+          : Value(track),
+      discNumber: discNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(discNumber),
+      duration: duration == null && nullToAbsent
+          ? const Value.absent()
+          : Value(duration),
+      bitRate: bitRate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bitRate),
+      sampleRate: sampleRate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sampleRate),
+      contentType: contentType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contentType),
+      suffix: suffix == null && nullToAbsent
+          ? const Value.absent()
+          : Value(suffix),
+      size: size == null && nullToAbsent ? const Value.absent() : Value(size),
+      coverArt: coverArt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverArt),
+      starred: starred == null && nullToAbsent
+          ? const Value.absent()
+          : Value(starred),
+      recordingMbid: recordingMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recordingMbid),
+      userRating: userRating == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userRating),
+      playCount: playCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(playCount),
+      createdAt: createdAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdAt),
+      replayGainTrackGain: replayGainTrackGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainTrackGain),
+      replayGainAlbumGain: replayGainAlbumGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainAlbumGain),
+      replayGainTrackPeak: replayGainTrackPeak == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainTrackPeak),
+      replayGainAlbumPeak: replayGainAlbumPeak == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainAlbumPeak),
+      applyState: applyState == null && nullToAbsent
+          ? const Value.absent()
+          : Value(applyState),
+    );
+  }
+
+  factory LibrarySyncCandidateSongsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncCandidateSongsTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      generation: serializer.fromJson<int>(json['generation']),
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      albumId: serializer.fromJson<String?>(json['albumId']),
+      artistId: serializer.fromJson<String?>(json['artistId']),
+      artistName: serializer.fromJson<String?>(json['artistName']),
+      albumName: serializer.fromJson<String?>(json['albumName']),
+      track: serializer.fromJson<int?>(json['track']),
+      discNumber: serializer.fromJson<int?>(json['discNumber']),
+      duration: serializer.fromJson<int?>(json['duration']),
+      bitRate: serializer.fromJson<int?>(json['bitRate']),
+      sampleRate: serializer.fromJson<int?>(json['sampleRate']),
+      contentType: serializer.fromJson<String?>(json['contentType']),
+      suffix: serializer.fromJson<String?>(json['suffix']),
+      size: serializer.fromJson<int?>(json['size']),
+      coverArt: serializer.fromJson<String?>(json['coverArt']),
+      starred: serializer.fromJson<DateTime?>(json['starred']),
+      recordingMbid: serializer.fromJson<String?>(json['recordingMbid']),
+      userRating: serializer.fromJson<int?>(json['userRating']),
+      playCount: serializer.fromJson<int?>(json['playCount']),
+      createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
+      replayGainTrackGain: serializer.fromJson<double?>(
+        json['replayGainTrackGain'],
+      ),
+      replayGainAlbumGain: serializer.fromJson<double?>(
+        json['replayGainAlbumGain'],
+      ),
+      replayGainTrackPeak: serializer.fromJson<double?>(
+        json['replayGainTrackPeak'],
+      ),
+      replayGainAlbumPeak: serializer.fromJson<double?>(
+        json['replayGainAlbumPeak'],
+      ),
+      applyState: serializer.fromJson<int?>(json['applyState']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'generation': serializer.toJson<int>(generation),
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'albumId': serializer.toJson<String?>(albumId),
+      'artistId': serializer.toJson<String?>(artistId),
+      'artistName': serializer.toJson<String?>(artistName),
+      'albumName': serializer.toJson<String?>(albumName),
+      'track': serializer.toJson<int?>(track),
+      'discNumber': serializer.toJson<int?>(discNumber),
+      'duration': serializer.toJson<int?>(duration),
+      'bitRate': serializer.toJson<int?>(bitRate),
+      'sampleRate': serializer.toJson<int?>(sampleRate),
+      'contentType': serializer.toJson<String?>(contentType),
+      'suffix': serializer.toJson<String?>(suffix),
+      'size': serializer.toJson<int?>(size),
+      'coverArt': serializer.toJson<String?>(coverArt),
+      'starred': serializer.toJson<DateTime?>(starred),
+      'recordingMbid': serializer.toJson<String?>(recordingMbid),
+      'userRating': serializer.toJson<int?>(userRating),
+      'playCount': serializer.toJson<int?>(playCount),
+      'createdAt': serializer.toJson<DateTime?>(createdAt),
+      'replayGainTrackGain': serializer.toJson<double?>(replayGainTrackGain),
+      'replayGainAlbumGain': serializer.toJson<double?>(replayGainAlbumGain),
+      'replayGainTrackPeak': serializer.toJson<double?>(replayGainTrackPeak),
+      'replayGainAlbumPeak': serializer.toJson<double?>(replayGainAlbumPeak),
+      'applyState': serializer.toJson<int?>(applyState),
+    };
+  }
+
+  LibrarySyncCandidateSongsTableData copyWith({
+    int? serverId,
+    int? generation,
+    String? id,
+    String? title,
+    Value<String?> albumId = const Value.absent(),
+    Value<String?> artistId = const Value.absent(),
+    Value<String?> artistName = const Value.absent(),
+    Value<String?> albumName = const Value.absent(),
+    Value<int?> track = const Value.absent(),
+    Value<int?> discNumber = const Value.absent(),
+    Value<int?> duration = const Value.absent(),
+    Value<int?> bitRate = const Value.absent(),
+    Value<int?> sampleRate = const Value.absent(),
+    Value<String?> contentType = const Value.absent(),
+    Value<String?> suffix = const Value.absent(),
+    Value<int?> size = const Value.absent(),
+    Value<String?> coverArt = const Value.absent(),
+    Value<DateTime?> starred = const Value.absent(),
+    Value<String?> recordingMbid = const Value.absent(),
+    Value<int?> userRating = const Value.absent(),
+    Value<int?> playCount = const Value.absent(),
+    Value<DateTime?> createdAt = const Value.absent(),
+    Value<double?> replayGainTrackGain = const Value.absent(),
+    Value<double?> replayGainAlbumGain = const Value.absent(),
+    Value<double?> replayGainTrackPeak = const Value.absent(),
+    Value<double?> replayGainAlbumPeak = const Value.absent(),
+    Value<int?> applyState = const Value.absent(),
+  }) => LibrarySyncCandidateSongsTableData(
+    serverId: serverId ?? this.serverId,
+    generation: generation ?? this.generation,
+    id: id ?? this.id,
+    title: title ?? this.title,
+    albumId: albumId.present ? albumId.value : this.albumId,
+    artistId: artistId.present ? artistId.value : this.artistId,
+    artistName: artistName.present ? artistName.value : this.artistName,
+    albumName: albumName.present ? albumName.value : this.albumName,
+    track: track.present ? track.value : this.track,
+    discNumber: discNumber.present ? discNumber.value : this.discNumber,
+    duration: duration.present ? duration.value : this.duration,
+    bitRate: bitRate.present ? bitRate.value : this.bitRate,
+    sampleRate: sampleRate.present ? sampleRate.value : this.sampleRate,
+    contentType: contentType.present ? contentType.value : this.contentType,
+    suffix: suffix.present ? suffix.value : this.suffix,
+    size: size.present ? size.value : this.size,
+    coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    starred: starred.present ? starred.value : this.starred,
+    recordingMbid: recordingMbid.present
+        ? recordingMbid.value
+        : this.recordingMbid,
+    userRating: userRating.present ? userRating.value : this.userRating,
+    playCount: playCount.present ? playCount.value : this.playCount,
+    createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    replayGainTrackGain: replayGainTrackGain.present
+        ? replayGainTrackGain.value
+        : this.replayGainTrackGain,
+    replayGainAlbumGain: replayGainAlbumGain.present
+        ? replayGainAlbumGain.value
+        : this.replayGainAlbumGain,
+    replayGainTrackPeak: replayGainTrackPeak.present
+        ? replayGainTrackPeak.value
+        : this.replayGainTrackPeak,
+    replayGainAlbumPeak: replayGainAlbumPeak.present
+        ? replayGainAlbumPeak.value
+        : this.replayGainAlbumPeak,
+    applyState: applyState.present ? applyState.value : this.applyState,
+  );
+  LibrarySyncCandidateSongsTableData copyWithCompanion(
+    LibrarySyncCandidateSongsTableCompanion data,
+  ) {
+    return LibrarySyncCandidateSongsTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      albumId: data.albumId.present ? data.albumId.value : this.albumId,
+      artistId: data.artistId.present ? data.artistId.value : this.artistId,
+      artistName: data.artistName.present
+          ? data.artistName.value
+          : this.artistName,
+      albumName: data.albumName.present ? data.albumName.value : this.albumName,
+      track: data.track.present ? data.track.value : this.track,
+      discNumber: data.discNumber.present
+          ? data.discNumber.value
+          : this.discNumber,
+      duration: data.duration.present ? data.duration.value : this.duration,
+      bitRate: data.bitRate.present ? data.bitRate.value : this.bitRate,
+      sampleRate: data.sampleRate.present
+          ? data.sampleRate.value
+          : this.sampleRate,
+      contentType: data.contentType.present
+          ? data.contentType.value
+          : this.contentType,
+      suffix: data.suffix.present ? data.suffix.value : this.suffix,
+      size: data.size.present ? data.size.value : this.size,
+      coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      starred: data.starred.present ? data.starred.value : this.starred,
+      recordingMbid: data.recordingMbid.present
+          ? data.recordingMbid.value
+          : this.recordingMbid,
+      userRating: data.userRating.present
+          ? data.userRating.value
+          : this.userRating,
+      playCount: data.playCount.present ? data.playCount.value : this.playCount,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      replayGainTrackGain: data.replayGainTrackGain.present
+          ? data.replayGainTrackGain.value
+          : this.replayGainTrackGain,
+      replayGainAlbumGain: data.replayGainAlbumGain.present
+          ? data.replayGainAlbumGain.value
+          : this.replayGainAlbumGain,
+      replayGainTrackPeak: data.replayGainTrackPeak.present
+          ? data.replayGainTrackPeak.value
+          : this.replayGainTrackPeak,
+      replayGainAlbumPeak: data.replayGainAlbumPeak.present
+          ? data.replayGainAlbumPeak.value
+          : this.replayGainAlbumPeak,
+      applyState: data.applyState.present
+          ? data.applyState.value
+          : this.applyState,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncCandidateSongsTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('generation: $generation, ')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('albumId: $albumId, ')
+          ..write('artistId: $artistId, ')
+          ..write('artistName: $artistName, ')
+          ..write('albumName: $albumName, ')
+          ..write('track: $track, ')
+          ..write('discNumber: $discNumber, ')
+          ..write('duration: $duration, ')
+          ..write('bitRate: $bitRate, ')
+          ..write('sampleRate: $sampleRate, ')
+          ..write('contentType: $contentType, ')
+          ..write('suffix: $suffix, ')
+          ..write('size: $size, ')
+          ..write('coverArt: $coverArt, ')
+          ..write('starred: $starred, ')
+          ..write('recordingMbid: $recordingMbid, ')
+          ..write('userRating: $userRating, ')
+          ..write('playCount: $playCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('replayGainTrackGain: $replayGainTrackGain, ')
+          ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
+          ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
+          ..write('replayGainAlbumPeak: $replayGainAlbumPeak, ')
+          ..write('applyState: $applyState')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    serverId,
+    generation,
+    id,
+    title,
+    albumId,
+    artistId,
+    artistName,
+    albumName,
+    track,
+    discNumber,
+    duration,
+    bitRate,
+    sampleRate,
+    contentType,
+    suffix,
+    size,
+    coverArt,
+    starred,
+    recordingMbid,
+    userRating,
+    playCount,
+    createdAt,
+    replayGainTrackGain,
+    replayGainAlbumGain,
+    replayGainTrackPeak,
+    replayGainAlbumPeak,
+    applyState,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncCandidateSongsTableData &&
+          other.serverId == this.serverId &&
+          other.generation == this.generation &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.albumId == this.albumId &&
+          other.artistId == this.artistId &&
+          other.artistName == this.artistName &&
+          other.albumName == this.albumName &&
+          other.track == this.track &&
+          other.discNumber == this.discNumber &&
+          other.duration == this.duration &&
+          other.bitRate == this.bitRate &&
+          other.sampleRate == this.sampleRate &&
+          other.contentType == this.contentType &&
+          other.suffix == this.suffix &&
+          other.size == this.size &&
+          other.coverArt == this.coverArt &&
+          other.starred == this.starred &&
+          other.recordingMbid == this.recordingMbid &&
+          other.userRating == this.userRating &&
+          other.playCount == this.playCount &&
+          other.createdAt == this.createdAt &&
+          other.replayGainTrackGain == this.replayGainTrackGain &&
+          other.replayGainAlbumGain == this.replayGainAlbumGain &&
+          other.replayGainTrackPeak == this.replayGainTrackPeak &&
+          other.replayGainAlbumPeak == this.replayGainAlbumPeak &&
+          other.applyState == this.applyState);
+}
+
+class LibrarySyncCandidateSongsTableCompanion
+    extends UpdateCompanion<LibrarySyncCandidateSongsTableData> {
+  final Value<int> serverId;
+  final Value<int> generation;
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String?> albumId;
+  final Value<String?> artistId;
+  final Value<String?> artistName;
+  final Value<String?> albumName;
+  final Value<int?> track;
+  final Value<int?> discNumber;
+  final Value<int?> duration;
+  final Value<int?> bitRate;
+  final Value<int?> sampleRate;
+  final Value<String?> contentType;
+  final Value<String?> suffix;
+  final Value<int?> size;
+  final Value<String?> coverArt;
+  final Value<DateTime?> starred;
+  final Value<String?> recordingMbid;
+  final Value<int?> userRating;
+  final Value<int?> playCount;
+  final Value<DateTime?> createdAt;
+  final Value<double?> replayGainTrackGain;
+  final Value<double?> replayGainAlbumGain;
+  final Value<double?> replayGainTrackPeak;
+  final Value<double?> replayGainAlbumPeak;
+  final Value<int?> applyState;
+  final Value<int> rowid;
+  const LibrarySyncCandidateSongsTableCompanion({
+    this.serverId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.albumId = const Value.absent(),
+    this.artistId = const Value.absent(),
+    this.artistName = const Value.absent(),
+    this.albumName = const Value.absent(),
+    this.track = const Value.absent(),
+    this.discNumber = const Value.absent(),
+    this.duration = const Value.absent(),
+    this.bitRate = const Value.absent(),
+    this.sampleRate = const Value.absent(),
+    this.contentType = const Value.absent(),
+    this.suffix = const Value.absent(),
+    this.size = const Value.absent(),
+    this.coverArt = const Value.absent(),
+    this.starred = const Value.absent(),
+    this.recordingMbid = const Value.absent(),
+    this.userRating = const Value.absent(),
+    this.playCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.replayGainTrackGain = const Value.absent(),
+    this.replayGainAlbumGain = const Value.absent(),
+    this.replayGainTrackPeak = const Value.absent(),
+    this.replayGainAlbumPeak = const Value.absent(),
+    this.applyState = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LibrarySyncCandidateSongsTableCompanion.insert({
+    required int serverId,
+    required int generation,
+    required String id,
+    required String title,
+    this.albumId = const Value.absent(),
+    this.artistId = const Value.absent(),
+    this.artistName = const Value.absent(),
+    this.albumName = const Value.absent(),
+    this.track = const Value.absent(),
+    this.discNumber = const Value.absent(),
+    this.duration = const Value.absent(),
+    this.bitRate = const Value.absent(),
+    this.sampleRate = const Value.absent(),
+    this.contentType = const Value.absent(),
+    this.suffix = const Value.absent(),
+    this.size = const Value.absent(),
+    this.coverArt = const Value.absent(),
+    this.starred = const Value.absent(),
+    this.recordingMbid = const Value.absent(),
+    this.userRating = const Value.absent(),
+    this.playCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.replayGainTrackGain = const Value.absent(),
+    this.replayGainAlbumGain = const Value.absent(),
+    this.replayGainTrackPeak = const Value.absent(),
+    this.replayGainAlbumPeak = const Value.absent(),
+    this.applyState = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : serverId = Value(serverId),
+       generation = Value(generation),
+       id = Value(id),
+       title = Value(title);
+  static Insertable<LibrarySyncCandidateSongsTableData> custom({
+    Expression<int>? serverId,
+    Expression<int>? generation,
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? albumId,
+    Expression<String>? artistId,
+    Expression<String>? artistName,
+    Expression<String>? albumName,
+    Expression<int>? track,
+    Expression<int>? discNumber,
+    Expression<int>? duration,
+    Expression<int>? bitRate,
+    Expression<int>? sampleRate,
+    Expression<String>? contentType,
+    Expression<String>? suffix,
+    Expression<int>? size,
+    Expression<String>? coverArt,
+    Expression<DateTime>? starred,
+    Expression<String>? recordingMbid,
+    Expression<int>? userRating,
+    Expression<int>? playCount,
+    Expression<DateTime>? createdAt,
+    Expression<double>? replayGainTrackGain,
+    Expression<double>? replayGainAlbumGain,
+    Expression<double>? replayGainTrackPeak,
+    Expression<double>? replayGainAlbumPeak,
+    Expression<int>? applyState,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (generation != null) 'generation': generation,
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (albumId != null) 'album_id': albumId,
+      if (artistId != null) 'artist_id': artistId,
+      if (artistName != null) 'artist_name': artistName,
+      if (albumName != null) 'album_name': albumName,
+      if (track != null) 'track': track,
+      if (discNumber != null) 'disc_number': discNumber,
+      if (duration != null) 'duration': duration,
+      if (bitRate != null) 'bit_rate': bitRate,
+      if (sampleRate != null) 'sample_rate': sampleRate,
+      if (contentType != null) 'content_type': contentType,
+      if (suffix != null) 'suffix': suffix,
+      if (size != null) 'size': size,
+      if (coverArt != null) 'cover_art': coverArt,
+      if (starred != null) 'starred': starred,
+      if (recordingMbid != null) 'recording_mbid': recordingMbid,
+      if (userRating != null) 'user_rating': userRating,
+      if (playCount != null) 'play_count': playCount,
+      if (createdAt != null) 'created_at': createdAt,
+      if (replayGainTrackGain != null)
+        'replay_gain_track_gain': replayGainTrackGain,
+      if (replayGainAlbumGain != null)
+        'replay_gain_album_gain': replayGainAlbumGain,
+      if (replayGainTrackPeak != null)
+        'replay_gain_track_peak': replayGainTrackPeak,
+      if (replayGainAlbumPeak != null)
+        'replay_gain_album_peak': replayGainAlbumPeak,
+      if (applyState != null) 'apply_state': applyState,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LibrarySyncCandidateSongsTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<int>? generation,
+    Value<String>? id,
+    Value<String>? title,
+    Value<String?>? albumId,
+    Value<String?>? artistId,
+    Value<String?>? artistName,
+    Value<String?>? albumName,
+    Value<int?>? track,
+    Value<int?>? discNumber,
+    Value<int?>? duration,
+    Value<int?>? bitRate,
+    Value<int?>? sampleRate,
+    Value<String?>? contentType,
+    Value<String?>? suffix,
+    Value<int?>? size,
+    Value<String?>? coverArt,
+    Value<DateTime?>? starred,
+    Value<String?>? recordingMbid,
+    Value<int?>? userRating,
+    Value<int?>? playCount,
+    Value<DateTime?>? createdAt,
+    Value<double?>? replayGainTrackGain,
+    Value<double?>? replayGainAlbumGain,
+    Value<double?>? replayGainTrackPeak,
+    Value<double?>? replayGainAlbumPeak,
+    Value<int?>? applyState,
+    Value<int>? rowid,
+  }) {
+    return LibrarySyncCandidateSongsTableCompanion(
+      serverId: serverId ?? this.serverId,
+      generation: generation ?? this.generation,
+      id: id ?? this.id,
+      title: title ?? this.title,
+      albumId: albumId ?? this.albumId,
+      artistId: artistId ?? this.artistId,
+      artistName: artistName ?? this.artistName,
+      albumName: albumName ?? this.albumName,
+      track: track ?? this.track,
+      discNumber: discNumber ?? this.discNumber,
+      duration: duration ?? this.duration,
+      bitRate: bitRate ?? this.bitRate,
+      sampleRate: sampleRate ?? this.sampleRate,
+      contentType: contentType ?? this.contentType,
+      suffix: suffix ?? this.suffix,
+      size: size ?? this.size,
+      coverArt: coverArt ?? this.coverArt,
+      starred: starred ?? this.starred,
+      recordingMbid: recordingMbid ?? this.recordingMbid,
+      userRating: userRating ?? this.userRating,
+      playCount: playCount ?? this.playCount,
+      createdAt: createdAt ?? this.createdAt,
+      replayGainTrackGain: replayGainTrackGain ?? this.replayGainTrackGain,
+      replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
+      replayGainTrackPeak: replayGainTrackPeak ?? this.replayGainTrackPeak,
+      replayGainAlbumPeak: replayGainAlbumPeak ?? this.replayGainAlbumPeak,
+      applyState: applyState ?? this.applyState,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (albumId.present) {
+      map['album_id'] = Variable<String>(albumId.value);
+    }
+    if (artistId.present) {
+      map['artist_id'] = Variable<String>(artistId.value);
+    }
+    if (artistName.present) {
+      map['artist_name'] = Variable<String>(artistName.value);
+    }
+    if (albumName.present) {
+      map['album_name'] = Variable<String>(albumName.value);
+    }
+    if (track.present) {
+      map['track'] = Variable<int>(track.value);
+    }
+    if (discNumber.present) {
+      map['disc_number'] = Variable<int>(discNumber.value);
+    }
+    if (duration.present) {
+      map['duration'] = Variable<int>(duration.value);
+    }
+    if (bitRate.present) {
+      map['bit_rate'] = Variable<int>(bitRate.value);
+    }
+    if (sampleRate.present) {
+      map['sample_rate'] = Variable<int>(sampleRate.value);
+    }
+    if (contentType.present) {
+      map['content_type'] = Variable<String>(contentType.value);
+    }
+    if (suffix.present) {
+      map['suffix'] = Variable<String>(suffix.value);
+    }
+    if (size.present) {
+      map['size'] = Variable<int>(size.value);
+    }
+    if (coverArt.present) {
+      map['cover_art'] = Variable<String>(coverArt.value);
+    }
+    if (starred.present) {
+      map['starred'] = Variable<DateTime>(starred.value);
+    }
+    if (recordingMbid.present) {
+      map['recording_mbid'] = Variable<String>(recordingMbid.value);
+    }
+    if (userRating.present) {
+      map['user_rating'] = Variable<int>(userRating.value);
+    }
+    if (playCount.present) {
+      map['play_count'] = Variable<int>(playCount.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (replayGainTrackGain.present) {
+      map['replay_gain_track_gain'] = Variable<double>(
+        replayGainTrackGain.value,
+      );
+    }
+    if (replayGainAlbumGain.present) {
+      map['replay_gain_album_gain'] = Variable<double>(
+        replayGainAlbumGain.value,
+      );
+    }
+    if (replayGainTrackPeak.present) {
+      map['replay_gain_track_peak'] = Variable<double>(
+        replayGainTrackPeak.value,
+      );
+    }
+    if (replayGainAlbumPeak.present) {
+      map['replay_gain_album_peak'] = Variable<double>(
+        replayGainAlbumPeak.value,
+      );
+    }
+    if (applyState.present) {
+      map['apply_state'] = Variable<int>(applyState.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncCandidateSongsTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('generation: $generation, ')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('albumId: $albumId, ')
+          ..write('artistId: $artistId, ')
+          ..write('artistName: $artistName, ')
+          ..write('albumName: $albumName, ')
+          ..write('track: $track, ')
+          ..write('discNumber: $discNumber, ')
+          ..write('duration: $duration, ')
+          ..write('bitRate: $bitRate, ')
+          ..write('sampleRate: $sampleRate, ')
+          ..write('contentType: $contentType, ')
+          ..write('suffix: $suffix, ')
+          ..write('size: $size, ')
+          ..write('coverArt: $coverArt, ')
+          ..write('starred: $starred, ')
+          ..write('recordingMbid: $recordingMbid, ')
+          ..write('userRating: $userRating, ')
+          ..write('playCount: $playCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('replayGainTrackGain: $replayGainTrackGain, ')
+          ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
+          ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
+          ..write('replayGainAlbumPeak: $replayGainAlbumPeak, ')
+          ..write('applyState: $applyState, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncLocalMutationsTableTable
+    extends LibrarySyncLocalMutationsTable
+    with
+        TableInfo<
+          $LibrarySyncLocalMutationsTableTable,
+          LibrarySyncLocalMutationsTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncLocalMutationsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _entityTypeMeta = const VerificationMeta(
+    'entityType',
+  );
+  @override
+  late final GeneratedColumn<String> entityType = GeneratedColumn<String>(
+    'entity_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _operationMeta = const VerificationMeta(
+    'operation',
+  );
+  @override
+  late final GeneratedColumn<String> operation = GeneratedColumn<String>(
+    'operation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    entityType,
+    entityId,
+    operation,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_local_mutations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncLocalMutationsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('entity_type')) {
+      context.handle(
+        _entityTypeMeta,
+        entityType.isAcceptableOrUnknown(data['entity_type']!, _entityTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityTypeMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityIdMeta);
+    }
+    if (data.containsKey('operation')) {
+      context.handle(
+        _operationMeta,
+        operation.isAcceptableOrUnknown(data['operation']!, _operationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_operationMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LibrarySyncLocalMutationsTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncLocalMutationsTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      entityType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_type'],
+      )!,
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_id'],
+      )!,
+      operation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LibrarySyncLocalMutationsTableTable createAlias(String alias) {
+    return $LibrarySyncLocalMutationsTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncLocalMutationsTableData extends DataClass
+    implements Insertable<LibrarySyncLocalMutationsTableData> {
+  final int id;
+  final String entityType;
+  final String entityId;
+  final String operation;
+  final DateTime createdAt;
+  const LibrarySyncLocalMutationsTableData({
+    required this.id,
+    required this.entityType,
+    required this.entityId,
+    required this.operation,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['entity_type'] = Variable<String>(entityType);
+    map['entity_id'] = Variable<String>(entityId);
+    map['operation'] = Variable<String>(operation);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  LibrarySyncLocalMutationsTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncLocalMutationsTableCompanion(
+      id: Value(id),
+      entityType: Value(entityType),
+      entityId: Value(entityId),
+      operation: Value(operation),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory LibrarySyncLocalMutationsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncLocalMutationsTableData(
+      id: serializer.fromJson<int>(json['id']),
+      entityType: serializer.fromJson<String>(json['entityType']),
+      entityId: serializer.fromJson<String>(json['entityId']),
+      operation: serializer.fromJson<String>(json['operation']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'entityType': serializer.toJson<String>(entityType),
+      'entityId': serializer.toJson<String>(entityId),
+      'operation': serializer.toJson<String>(operation),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  LibrarySyncLocalMutationsTableData copyWith({
+    int? id,
+    String? entityType,
+    String? entityId,
+    String? operation,
+    DateTime? createdAt,
+  }) => LibrarySyncLocalMutationsTableData(
+    id: id ?? this.id,
+    entityType: entityType ?? this.entityType,
+    entityId: entityId ?? this.entityId,
+    operation: operation ?? this.operation,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  LibrarySyncLocalMutationsTableData copyWithCompanion(
+    LibrarySyncLocalMutationsTableCompanion data,
+  ) {
+    return LibrarySyncLocalMutationsTableData(
+      id: data.id.present ? data.id.value : this.id,
+      entityType: data.entityType.present
+          ? data.entityType.value
+          : this.entityType,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      operation: data.operation.present ? data.operation.value : this.operation,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncLocalMutationsTableData(')
+          ..write('id: $id, ')
+          ..write('entityType: $entityType, ')
+          ..write('entityId: $entityId, ')
+          ..write('operation: $operation, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, entityType, entityId, operation, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncLocalMutationsTableData &&
+          other.id == this.id &&
+          other.entityType == this.entityType &&
+          other.entityId == this.entityId &&
+          other.operation == this.operation &&
+          other.createdAt == this.createdAt);
+}
+
+class LibrarySyncLocalMutationsTableCompanion
+    extends UpdateCompanion<LibrarySyncLocalMutationsTableData> {
+  final Value<int> id;
+  final Value<String> entityType;
+  final Value<String> entityId;
+  final Value<String> operation;
+  final Value<DateTime> createdAt;
+  const LibrarySyncLocalMutationsTableCompanion({
+    this.id = const Value.absent(),
+    this.entityType = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.operation = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  LibrarySyncLocalMutationsTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String entityType,
+    required String entityId,
+    required String operation,
+    required DateTime createdAt,
+  }) : entityType = Value(entityType),
+       entityId = Value(entityId),
+       operation = Value(operation),
+       createdAt = Value(createdAt);
+  static Insertable<LibrarySyncLocalMutationsTableData> custom({
+    Expression<int>? id,
+    Expression<String>? entityType,
+    Expression<String>? entityId,
+    Expression<String>? operation,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (entityType != null) 'entity_type': entityType,
+      if (entityId != null) 'entity_id': entityId,
+      if (operation != null) 'operation': operation,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  LibrarySyncLocalMutationsTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? entityType,
+    Value<String>? entityId,
+    Value<String>? operation,
+    Value<DateTime>? createdAt,
+  }) {
+    return LibrarySyncLocalMutationsTableCompanion(
+      id: id ?? this.id,
+      entityType: entityType ?? this.entityType,
+      entityId: entityId ?? this.entityId,
+      operation: operation ?? this.operation,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (entityType.present) {
+      map['entity_type'] = Variable<String>(entityType.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (operation.present) {
+      map['operation'] = Variable<String>(operation.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncLocalMutationsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('entityType: $entityType, ')
+          ..write('entityId: $entityId, ')
+          ..write('operation: $operation, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -16102,6 +22754,20 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $NetworkUsageTableTable(this);
   late final $SongIdentityAliasesTableTable songIdentityAliasesTable =
       $SongIdentityAliasesTableTable(this);
+  late final $LibrarySyncStateTableTable librarySyncStateTable =
+      $LibrarySyncStateTableTable(this);
+  late final $LibrarySyncWorkTableTable librarySyncWorkTable =
+      $LibrarySyncWorkTableTable(this);
+  late final $LibrarySyncCandidateArtistsTableTable
+  librarySyncCandidateArtistsTable = $LibrarySyncCandidateArtistsTableTable(
+    this,
+  );
+  late final $LibrarySyncCandidateAlbumsTableTable
+  librarySyncCandidateAlbumsTable = $LibrarySyncCandidateAlbumsTableTable(this);
+  late final $LibrarySyncCandidateSongsTableTable
+  librarySyncCandidateSongsTable = $LibrarySyncCandidateSongsTableTable(this);
+  late final $LibrarySyncLocalMutationsTableTable
+  librarySyncLocalMutationsTable = $LibrarySyncLocalMutationsTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -16125,6 +22791,11 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final SongIdentityDao songIdentityDao = SongIdentityDao(
     this as NavisDatabase,
   );
+  late final LibrarySyncDao librarySyncDao = LibrarySyncDao(
+    this as NavisDatabase,
+  );
+  late final LibrarySyncCandidateDao librarySyncCandidateDao =
+      LibrarySyncCandidateDao(this as NavisDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -16154,6 +22825,12 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     listenBrainzWeeklyCacheTable,
     networkUsageTable,
     songIdentityAliasesTable,
+    librarySyncStateTable,
+    librarySyncWorkTable,
+    librarySyncCandidateArtistsTable,
+    librarySyncCandidateAlbumsTable,
+    librarySyncCandidateSongsTable,
+    librarySyncLocalMutationsTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -16236,6 +22913,20 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
         TableUpdate('listenbrainz_feedback_queue', kind: UpdateKind.delete),
       ],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('library_sync_state', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('library_sync_work', kind: UpdateKind.delete)],
+    ),
   ]);
 }
 
@@ -16261,6 +22952,70 @@ typedef $$ServerConfigTableTableUpdateCompanionBuilder =
       Value<DateTime?> lastSynced,
       Value<DateTime?> lastFullSynced,
     });
+
+final class $$ServerConfigTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $ServerConfigTableTable,
+          ServerConfigTableData
+        > {
+  $$ServerConfigTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<
+    $LibrarySyncStateTableTable,
+    List<LibrarySyncStateTableData>
+  >
+  _librarySyncStateTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.librarySyncStateTable,
+        aliasName: 'server_config__id__library_sync_state__server_id',
+      );
+
+  $$LibrarySyncStateTableTableProcessedTableManager
+  get librarySyncStateTableRefs {
+    final manager = $$LibrarySyncStateTableTableTableManager(
+      $_db,
+      $_db.librarySyncStateTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncStateTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncWorkTableTable,
+    List<LibrarySyncWorkTableData>
+  >
+  _librarySyncWorkTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.librarySyncWorkTable,
+        aliasName: 'server_config__id__library_sync_work__server_id',
+      );
+
+  $$LibrarySyncWorkTableTableProcessedTableManager
+  get librarySyncWorkTableRefs {
+    final manager = $$LibrarySyncWorkTableTableTableManager(
+      $_db,
+      $_db.librarySyncWorkTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncWorkTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
 
 class $$ServerConfigTableTableFilterComposer
     extends Composer<_$NavisDatabase, $ServerConfigTableTable> {
@@ -16310,6 +23065,57 @@ class $$ServerConfigTableTableFilterComposer
     column: $table.lastFullSynced,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> librarySyncStateTableRefs(
+    Expression<bool> Function($$LibrarySyncStateTableTableFilterComposer f) f,
+  ) {
+    final $$LibrarySyncStateTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncStateTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncStateTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncStateTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> librarySyncWorkTableRefs(
+    Expression<bool> Function($$LibrarySyncWorkTableTableFilterComposer f) f,
+  ) {
+    final $$LibrarySyncWorkTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.librarySyncWorkTable,
+      getReferencedColumn: (t) => t.serverId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LibrarySyncWorkTableTableFilterComposer(
+            $db: $db,
+            $table: $db.librarySyncWorkTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ServerConfigTableTableOrderingComposer
@@ -16402,6 +23208,58 @@ class $$ServerConfigTableTableAnnotationComposer
     column: $table.lastFullSynced,
     builder: (column) => column,
   );
+
+  Expression<T> librarySyncStateTableRefs<T extends Object>(
+    Expression<T> Function($$LibrarySyncStateTableTableAnnotationComposer a) f,
+  ) {
+    final $$LibrarySyncStateTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncStateTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncStateTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncStateTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> librarySyncWorkTableRefs<T extends Object>(
+    Expression<T> Function($$LibrarySyncWorkTableTableAnnotationComposer a) f,
+  ) {
+    final $$LibrarySyncWorkTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncWorkTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncWorkTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncWorkTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ServerConfigTableTableTableManager
@@ -16415,16 +23273,12 @@ class $$ServerConfigTableTableTableManager
           $$ServerConfigTableTableAnnotationComposer,
           $$ServerConfigTableTableCreateCompanionBuilder,
           $$ServerConfigTableTableUpdateCompanionBuilder,
-          (
-            ServerConfigTableData,
-            BaseReferences<
-              _$NavisDatabase,
-              $ServerConfigTableTable,
-              ServerConfigTableData
-            >,
-          ),
+          (ServerConfigTableData, $$ServerConfigTableTableReferences),
           ServerConfigTableData,
-          PrefetchHooks Function()
+          PrefetchHooks Function({
+            bool librarySyncStateTableRefs,
+            bool librarySyncWorkTableRefs,
+          })
         > {
   $$ServerConfigTableTableTableManager(
     _$NavisDatabase db,
@@ -16483,9 +23337,73 @@ class $$ServerConfigTableTableTableManager
                 lastFullSynced: lastFullSynced,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ServerConfigTableTableReferences(db, table, e),
+                ),
+              )
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback:
+              ({
+                librarySyncStateTableRefs = false,
+                librarySyncWorkTableRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (librarySyncStateTableRefs) db.librarySyncStateTable,
+                    if (librarySyncWorkTableRefs) db.librarySyncWorkTable,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (librarySyncStateTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibrarySyncStateTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._librarySyncStateTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncStateTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (librarySyncWorkTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibrarySyncWorkTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._librarySyncWorkTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncWorkTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
         ),
       );
 }
@@ -16500,16 +23418,12 @@ typedef $$ServerConfigTableTableProcessedTableManager =
       $$ServerConfigTableTableAnnotationComposer,
       $$ServerConfigTableTableCreateCompanionBuilder,
       $$ServerConfigTableTableUpdateCompanionBuilder,
-      (
-        ServerConfigTableData,
-        BaseReferences<
-          _$NavisDatabase,
-          $ServerConfigTableTable,
-          ServerConfigTableData
-        >,
-      ),
+      (ServerConfigTableData, $$ServerConfigTableTableReferences),
       ServerConfigTableData,
-      PrefetchHooks Function()
+      PrefetchHooks Function({
+        bool librarySyncStateTableRefs,
+        bool librarySyncWorkTableRefs,
+      })
     >;
 typedef $$AppSettingsTableTableCreateCompanionBuilder =
     AppSettingsTableCompanion Function({
@@ -16552,6 +23466,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> audioMuseApiKey,
       Value<bool> audioMuseEnabled,
       Value<int> syncIntervalMinutes,
+      Value<bool> backgroundSyncUnmeteredOnly,
       Value<bool> useLrclib,
       Value<bool> legacyInstantMixEnabled,
       Value<String> replayGainMode,
@@ -16625,6 +23540,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> audioMuseApiKey,
       Value<bool> audioMuseEnabled,
       Value<int> syncIntervalMinutes,
+      Value<bool> backgroundSyncUnmeteredOnly,
       Value<bool> useLrclib,
       Value<bool> legacyInstantMixEnabled,
       Value<String> replayGainMode,
@@ -16859,6 +23775,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get syncIntervalMinutes => $composableBuilder(
     column: $table.syncIntervalMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get backgroundSyncUnmeteredOnly => $composableBuilder(
+    column: $table.backgroundSyncUnmeteredOnly,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17222,6 +24143,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get backgroundSyncUnmeteredOnly => $composableBuilder(
+    column: $table.backgroundSyncUnmeteredOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get useLrclib => $composableBuilder(
     column: $table.useLrclib,
     builder: (column) => ColumnOrderings(column),
@@ -17576,6 +24502,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get backgroundSyncUnmeteredOnly => $composableBuilder(
+    column: $table.backgroundSyncUnmeteredOnly,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get useLrclib =>
       $composableBuilder(column: $table.useLrclib, builder: (column) => column);
 
@@ -17804,6 +24735,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> audioMuseApiKey = const Value.absent(),
                 Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<int> syncIntervalMinutes = const Value.absent(),
+                Value<bool> backgroundSyncUnmeteredOnly = const Value.absent(),
                 Value<bool> useLrclib = const Value.absent(),
                 Value<bool> legacyInstantMixEnabled = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
@@ -17877,6 +24809,7 @@ class $$AppSettingsTableTableTableManager
                 audioMuseApiKey: audioMuseApiKey,
                 audioMuseEnabled: audioMuseEnabled,
                 syncIntervalMinutes: syncIntervalMinutes,
+                backgroundSyncUnmeteredOnly: backgroundSyncUnmeteredOnly,
                 useLrclib: useLrclib,
                 legacyInstantMixEnabled: legacyInstantMixEnabled,
                 replayGainMode: replayGainMode,
@@ -17950,6 +24883,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> audioMuseApiKey = const Value.absent(),
                 Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<int> syncIntervalMinutes = const Value.absent(),
+                Value<bool> backgroundSyncUnmeteredOnly = const Value.absent(),
                 Value<bool> useLrclib = const Value.absent(),
                 Value<bool> legacyInstantMixEnabled = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
@@ -18023,6 +24957,7 @@ class $$AppSettingsTableTableTableManager
                 audioMuseApiKey: audioMuseApiKey,
                 audioMuseEnabled: audioMuseEnabled,
                 syncIntervalMinutes: syncIntervalMinutes,
+                backgroundSyncUnmeteredOnly: backgroundSyncUnmeteredOnly,
                 useLrclib: useLrclib,
                 legacyInstantMixEnabled: legacyInstantMixEnabled,
                 replayGainMode: replayGainMode,
@@ -18092,6 +25027,7 @@ typedef $$ArtistsTableTableCreateCompanionBuilder =
       Value<String?> coverArt,
       Value<DateTime?> starred,
       Value<bool> isProvisional,
+      Value<int?> catalogGeneration,
       Value<int> rowid,
     });
 typedef $$ArtistsTableTableUpdateCompanionBuilder =
@@ -18102,6 +25038,7 @@ typedef $$ArtistsTableTableUpdateCompanionBuilder =
       Value<String?> coverArt,
       Value<DateTime?> starred,
       Value<bool> isProvisional,
+      Value<int?> catalogGeneration,
       Value<int> rowid,
     });
 
@@ -18183,6 +25120,11 @@ class $$ArtistsTableTableFilterComposer
 
   ColumnFilters<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18275,6 +25217,11 @@ class $$ArtistsTableTableOrderingComposer
     column: $table.isProvisional,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ArtistsTableTableAnnotationComposer
@@ -18305,6 +25252,11 @@ class $$ArtistsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
     builder: (column) => column,
   );
 
@@ -18393,6 +25345,7 @@ class $$ArtistsTableTableTableManager
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<int?> catalogGeneration = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ArtistsTableCompanion(
                 id: id,
@@ -18401,6 +25354,7 @@ class $$ArtistsTableTableTableManager
                 coverArt: coverArt,
                 starred: starred,
                 isProvisional: isProvisional,
+                catalogGeneration: catalogGeneration,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -18411,6 +25365,7 @@ class $$ArtistsTableTableTableManager
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<int?> catalogGeneration = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ArtistsTableCompanion.insert(
                 id: id,
@@ -18419,6 +25374,7 @@ class $$ArtistsTableTableTableManager
                 coverArt: coverArt,
                 starred: starred,
                 isProvisional: isProvisional,
+                catalogGeneration: catalogGeneration,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -18523,6 +25479,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
       Value<bool> isProvisional,
+      Value<int?> catalogGeneration,
       Value<int> rowid,
     });
 typedef $$AlbumsTableTableUpdateCompanionBuilder =
@@ -18544,6 +25501,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
       Value<bool> isProvisional,
+      Value<int?> catalogGeneration,
       Value<int> rowid,
     });
 
@@ -18675,6 +25633,11 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18816,6 +25779,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ArtistsTableTableOrderingComposer get artistId {
     final $$ArtistsTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -18904,6 +25872,11 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
     builder: (column) => column,
   );
 
@@ -19001,6 +25974,7 @@ class $$AlbumsTableTableTableManager
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<int?> catalogGeneration = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AlbumsTableCompanion(
                 id: id,
@@ -19020,6 +25994,7 @@ class $$AlbumsTableTableTableManager
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
                 isProvisional: isProvisional,
+                catalogGeneration: catalogGeneration,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -19041,6 +26016,7 @@ class $$AlbumsTableTableTableManager
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<int?> catalogGeneration = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AlbumsTableCompanion.insert(
                 id: id,
@@ -19060,6 +26036,7 @@ class $$AlbumsTableTableTableManager
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
                 isProvisional: isProvisional,
+                catalogGeneration: catalogGeneration,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -19173,6 +26150,7 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<DateTime?> createdAt,
       Value<DateTime?> serverDeletedAt,
       Value<bool> isProvisional,
+      Value<int?> catalogGeneration,
       Value<double?> replayGainTrackGain,
       Value<double?> replayGainAlbumGain,
       Value<double?> replayGainTrackPeak,
@@ -19203,6 +26181,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<DateTime?> createdAt,
       Value<DateTime?> serverDeletedAt,
       Value<bool> isProvisional,
+      Value<int?> catalogGeneration,
       Value<double?> replayGainTrackGain,
       Value<double?> replayGainAlbumGain,
       Value<double?> replayGainTrackPeak,
@@ -19473,6 +26452,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -19781,6 +26765,11 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get replayGainTrackGain => $composableBuilder(
     column: $table.replayGainTrackGain,
     builder: (column) => ColumnOrderings(column),
@@ -19930,6 +26919,11 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get catalogGeneration => $composableBuilder(
+    column: $table.catalogGeneration,
     builder: (column) => column,
   );
 
@@ -20190,6 +27184,7 @@ class $$SongsTableTableTableManager
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> serverDeletedAt = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<int?> catalogGeneration = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -20218,6 +27213,7 @@ class $$SongsTableTableTableManager
                 createdAt: createdAt,
                 serverDeletedAt: serverDeletedAt,
                 isProvisional: isProvisional,
+                catalogGeneration: catalogGeneration,
                 replayGainTrackGain: replayGainTrackGain,
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
@@ -20248,6 +27244,7 @@ class $$SongsTableTableTableManager
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> serverDeletedAt = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<int?> catalogGeneration = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -20276,6 +27273,7 @@ class $$SongsTableTableTableManager
                 createdAt: createdAt,
                 serverDeletedAt: serverDeletedAt,
                 isProvisional: isProvisional,
+                catalogGeneration: catalogGeneration,
                 replayGainTrackGain: replayGainTrackGain,
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
@@ -25904,6 +32902,7 @@ typedef $$NetworkUsageTableTableCreateCompanionBuilder =
     NetworkUsageTableCompanion Function({
       Value<int> id,
       required String category,
+      Value<String?> operation,
       required String networkType,
       Value<int> bytes,
       Value<int> requestCount,
@@ -25913,6 +32912,7 @@ typedef $$NetworkUsageTableTableUpdateCompanionBuilder =
     NetworkUsageTableCompanion Function({
       Value<int> id,
       Value<String> category,
+      Value<String?> operation,
       Value<String> networkType,
       Value<int> bytes,
       Value<int> requestCount,
@@ -25935,6 +32935,11 @@ class $$NetworkUsageTableTableFilterComposer
 
   ColumnFilters<String> get category => $composableBuilder(
     column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operation => $composableBuilder(
+    column: $table.operation,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -25978,6 +32983,11 @@ class $$NetworkUsageTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get networkType => $composableBuilder(
     column: $table.networkType,
     builder: (column) => ColumnOrderings(column),
@@ -26013,6 +33023,9 @@ class $$NetworkUsageTableTableAnnotationComposer
 
   GeneratedColumn<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get operation =>
+      $composableBuilder(column: $table.operation, builder: (column) => column);
 
   GeneratedColumn<String> get networkType => $composableBuilder(
     column: $table.networkType,
@@ -26075,6 +33088,7 @@ class $$NetworkUsageTableTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> category = const Value.absent(),
+                Value<String?> operation = const Value.absent(),
                 Value<String> networkType = const Value.absent(),
                 Value<int> bytes = const Value.absent(),
                 Value<int> requestCount = const Value.absent(),
@@ -26082,6 +33096,7 @@ class $$NetworkUsageTableTableTableManager
               }) => NetworkUsageTableCompanion(
                 id: id,
                 category: category,
+                operation: operation,
                 networkType: networkType,
                 bytes: bytes,
                 requestCount: requestCount,
@@ -26091,6 +33106,7 @@ class $$NetworkUsageTableTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String category,
+                Value<String?> operation = const Value.absent(),
                 required String networkType,
                 Value<int> bytes = const Value.absent(),
                 Value<int> requestCount = const Value.absent(),
@@ -26098,6 +33114,7 @@ class $$NetworkUsageTableTableTableManager
               }) => NetworkUsageTableCompanion.insert(
                 id: id,
                 category: category,
+                operation: operation,
                 networkType: networkType,
                 bytes: bytes,
                 requestCount: requestCount,
@@ -26336,6 +33353,3112 @@ typedef $$SongIdentityAliasesTableTableProcessedTableManager =
       SongIdentityAliasesTableData,
       PrefetchHooks Function()
     >;
+typedef $$LibrarySyncStateTableTableCreateCompanionBuilder =
+    LibrarySyncStateTableCompanion Function({
+      Value<int> serverId,
+      Value<int> plannerVersion,
+      Value<String?> providerFingerprint,
+      Value<String> conditionalIndexesMode,
+      Value<String> bulkSearchMode,
+      Value<String?> bulkSearchQuery,
+      Value<int> safePageSize,
+      Value<int> detailConcurrency,
+      Value<int?> averageLatencyMs,
+      Value<String?> endpointFailureJson,
+      Value<DateTime?> catalogCursor,
+      Value<String?> catalogFingerprint,
+      Value<int> currentGeneration,
+      Value<int?> candidateGeneration,
+      Value<String?> candidateStatus,
+      Value<DateTime?> candidateStartedAt,
+      Value<int> candidateCarriedForwardCount,
+      Value<int?> lastApplyDurationMs,
+      Value<String?> lastPromotionDiagnosticsJson,
+      Value<DateTime?> lastCheckedAt,
+      Value<DateTime?> lastCatalogSyncedAt,
+      Value<DateTime?> lastAuxiliarySyncedAt,
+      Value<DateTime?> lastGenresSyncedAt,
+      Value<DateTime?> lastAuditAt,
+      Value<int> auditOffset,
+      Value<int> failureStreak,
+      Value<DateTime?> nextEligibleAt,
+      Value<String?> lastPlanKind,
+      Value<String?> lastPlanReason,
+      Value<int> lastRunBytes,
+      Value<int> lastRunRequests,
+      Value<String?> deletionCandidateFingerprint,
+      Value<int> deletionCandidateCount,
+    });
+typedef $$LibrarySyncStateTableTableUpdateCompanionBuilder =
+    LibrarySyncStateTableCompanion Function({
+      Value<int> serverId,
+      Value<int> plannerVersion,
+      Value<String?> providerFingerprint,
+      Value<String> conditionalIndexesMode,
+      Value<String> bulkSearchMode,
+      Value<String?> bulkSearchQuery,
+      Value<int> safePageSize,
+      Value<int> detailConcurrency,
+      Value<int?> averageLatencyMs,
+      Value<String?> endpointFailureJson,
+      Value<DateTime?> catalogCursor,
+      Value<String?> catalogFingerprint,
+      Value<int> currentGeneration,
+      Value<int?> candidateGeneration,
+      Value<String?> candidateStatus,
+      Value<DateTime?> candidateStartedAt,
+      Value<int> candidateCarriedForwardCount,
+      Value<int?> lastApplyDurationMs,
+      Value<String?> lastPromotionDiagnosticsJson,
+      Value<DateTime?> lastCheckedAt,
+      Value<DateTime?> lastCatalogSyncedAt,
+      Value<DateTime?> lastAuxiliarySyncedAt,
+      Value<DateTime?> lastGenresSyncedAt,
+      Value<DateTime?> lastAuditAt,
+      Value<int> auditOffset,
+      Value<int> failureStreak,
+      Value<DateTime?> nextEligibleAt,
+      Value<String?> lastPlanKind,
+      Value<String?> lastPlanReason,
+      Value<int> lastRunBytes,
+      Value<int> lastRunRequests,
+      Value<String?> deletionCandidateFingerprint,
+      Value<int> deletionCandidateCount,
+    });
+
+final class $$LibrarySyncStateTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncStateTableTable,
+          LibrarySyncStateTableData
+        > {
+  $$LibrarySyncStateTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) => db
+      .serverConfigTable
+      .createAlias('library_sync_state__server_id__server_config__id');
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibrarySyncStateTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncStateTableTable> {
+  $$LibrarySyncStateTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get plannerVersion => $composableBuilder(
+    column: $table.plannerVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerFingerprint => $composableBuilder(
+    column: $table.providerFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get conditionalIndexesMode => $composableBuilder(
+    column: $table.conditionalIndexesMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bulkSearchMode => $composableBuilder(
+    column: $table.bulkSearchMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bulkSearchQuery => $composableBuilder(
+    column: $table.bulkSearchQuery,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get safePageSize => $composableBuilder(
+    column: $table.safePageSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get detailConcurrency => $composableBuilder(
+    column: $table.detailConcurrency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get averageLatencyMs => $composableBuilder(
+    column: $table.averageLatencyMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endpointFailureJson => $composableBuilder(
+    column: $table.endpointFailureJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get catalogCursor => $composableBuilder(
+    column: $table.catalogCursor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get catalogFingerprint => $composableBuilder(
+    column: $table.catalogFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get currentGeneration => $composableBuilder(
+    column: $table.currentGeneration,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get candidateGeneration => $composableBuilder(
+    column: $table.candidateGeneration,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get candidateStatus => $composableBuilder(
+    column: $table.candidateStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get candidateStartedAt => $composableBuilder(
+    column: $table.candidateStartedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get candidateCarriedForwardCount => $composableBuilder(
+    column: $table.candidateCarriedForwardCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastApplyDurationMs => $composableBuilder(
+    column: $table.lastApplyDurationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastPromotionDiagnosticsJson => $composableBuilder(
+    column: $table.lastPromotionDiagnosticsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastCatalogSyncedAt => $composableBuilder(
+    column: $table.lastCatalogSyncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastAuxiliarySyncedAt => $composableBuilder(
+    column: $table.lastAuxiliarySyncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastGenresSyncedAt => $composableBuilder(
+    column: $table.lastGenresSyncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastAuditAt => $composableBuilder(
+    column: $table.lastAuditAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get auditOffset => $composableBuilder(
+    column: $table.auditOffset,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get failureStreak => $composableBuilder(
+    column: $table.failureStreak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextEligibleAt => $composableBuilder(
+    column: $table.nextEligibleAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastPlanKind => $composableBuilder(
+    column: $table.lastPlanKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastPlanReason => $composableBuilder(
+    column: $table.lastPlanReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastRunBytes => $composableBuilder(
+    column: $table.lastRunBytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastRunRequests => $composableBuilder(
+    column: $table.lastRunRequests,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deletionCandidateFingerprint => $composableBuilder(
+    column: $table.deletionCandidateFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletionCandidateCount => $composableBuilder(
+    column: $table.deletionCandidateCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncStateTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncStateTableTable> {
+  $$LibrarySyncStateTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get plannerVersion => $composableBuilder(
+    column: $table.plannerVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerFingerprint => $composableBuilder(
+    column: $table.providerFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get conditionalIndexesMode => $composableBuilder(
+    column: $table.conditionalIndexesMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bulkSearchMode => $composableBuilder(
+    column: $table.bulkSearchMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bulkSearchQuery => $composableBuilder(
+    column: $table.bulkSearchQuery,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get safePageSize => $composableBuilder(
+    column: $table.safePageSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get detailConcurrency => $composableBuilder(
+    column: $table.detailConcurrency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get averageLatencyMs => $composableBuilder(
+    column: $table.averageLatencyMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endpointFailureJson => $composableBuilder(
+    column: $table.endpointFailureJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get catalogCursor => $composableBuilder(
+    column: $table.catalogCursor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get catalogFingerprint => $composableBuilder(
+    column: $table.catalogFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get currentGeneration => $composableBuilder(
+    column: $table.currentGeneration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get candidateGeneration => $composableBuilder(
+    column: $table.candidateGeneration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get candidateStatus => $composableBuilder(
+    column: $table.candidateStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get candidateStartedAt => $composableBuilder(
+    column: $table.candidateStartedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get candidateCarriedForwardCount => $composableBuilder(
+    column: $table.candidateCarriedForwardCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastApplyDurationMs => $composableBuilder(
+    column: $table.lastApplyDurationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastPromotionDiagnosticsJson =>
+      $composableBuilder(
+        column: $table.lastPromotionDiagnosticsJson,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastCatalogSyncedAt => $composableBuilder(
+    column: $table.lastCatalogSyncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastAuxiliarySyncedAt => $composableBuilder(
+    column: $table.lastAuxiliarySyncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastGenresSyncedAt => $composableBuilder(
+    column: $table.lastGenresSyncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastAuditAt => $composableBuilder(
+    column: $table.lastAuditAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get auditOffset => $composableBuilder(
+    column: $table.auditOffset,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get failureStreak => $composableBuilder(
+    column: $table.failureStreak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextEligibleAt => $composableBuilder(
+    column: $table.nextEligibleAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastPlanKind => $composableBuilder(
+    column: $table.lastPlanKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastPlanReason => $composableBuilder(
+    column: $table.lastPlanReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastRunBytes => $composableBuilder(
+    column: $table.lastRunBytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastRunRequests => $composableBuilder(
+    column: $table.lastRunRequests,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deletionCandidateFingerprint =>
+      $composableBuilder(
+        column: $table.deletionCandidateFingerprint,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<int> get deletionCandidateCount => $composableBuilder(
+    column: $table.deletionCandidateCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncStateTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncStateTableTable> {
+  $$LibrarySyncStateTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get plannerVersion => $composableBuilder(
+    column: $table.plannerVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get providerFingerprint => $composableBuilder(
+    column: $table.providerFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get conditionalIndexesMode => $composableBuilder(
+    column: $table.conditionalIndexesMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bulkSearchMode => $composableBuilder(
+    column: $table.bulkSearchMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bulkSearchQuery => $composableBuilder(
+    column: $table.bulkSearchQuery,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get safePageSize => $composableBuilder(
+    column: $table.safePageSize,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get detailConcurrency => $composableBuilder(
+    column: $table.detailConcurrency,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get averageLatencyMs => $composableBuilder(
+    column: $table.averageLatencyMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get endpointFailureJson => $composableBuilder(
+    column: $table.endpointFailureJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get catalogCursor => $composableBuilder(
+    column: $table.catalogCursor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get catalogFingerprint => $composableBuilder(
+    column: $table.catalogFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get currentGeneration => $composableBuilder(
+    column: $table.currentGeneration,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get candidateGeneration => $composableBuilder(
+    column: $table.candidateGeneration,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get candidateStatus => $composableBuilder(
+    column: $table.candidateStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get candidateStartedAt => $composableBuilder(
+    column: $table.candidateStartedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get candidateCarriedForwardCount => $composableBuilder(
+    column: $table.candidateCarriedForwardCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastApplyDurationMs => $composableBuilder(
+    column: $table.lastApplyDurationMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastPromotionDiagnosticsJson =>
+      $composableBuilder(
+        column: $table.lastPromotionDiagnosticsJson,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastCatalogSyncedAt => $composableBuilder(
+    column: $table.lastCatalogSyncedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastAuxiliarySyncedAt => $composableBuilder(
+    column: $table.lastAuxiliarySyncedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastGenresSyncedAt => $composableBuilder(
+    column: $table.lastGenresSyncedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastAuditAt => $composableBuilder(
+    column: $table.lastAuditAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get auditOffset => $composableBuilder(
+    column: $table.auditOffset,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get failureStreak => $composableBuilder(
+    column: $table.failureStreak,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get nextEligibleAt => $composableBuilder(
+    column: $table.nextEligibleAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastPlanKind => $composableBuilder(
+    column: $table.lastPlanKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastPlanReason => $composableBuilder(
+    column: $table.lastPlanReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastRunBytes => $composableBuilder(
+    column: $table.lastRunBytes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastRunRequests => $composableBuilder(
+    column: $table.lastRunRequests,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get deletionCandidateFingerprint =>
+      $composableBuilder(
+        column: $table.deletionCandidateFingerprint,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get deletionCandidateCount => $composableBuilder(
+    column: $table.deletionCandidateCount,
+    builder: (column) => column,
+  );
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncStateTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncStateTableTable,
+          LibrarySyncStateTableData,
+          $$LibrarySyncStateTableTableFilterComposer,
+          $$LibrarySyncStateTableTableOrderingComposer,
+          $$LibrarySyncStateTableTableAnnotationComposer,
+          $$LibrarySyncStateTableTableCreateCompanionBuilder,
+          $$LibrarySyncStateTableTableUpdateCompanionBuilder,
+          (LibrarySyncStateTableData, $$LibrarySyncStateTableTableReferences),
+          LibrarySyncStateTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$LibrarySyncStateTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncStateTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncStateTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncStateTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncStateTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<int> plannerVersion = const Value.absent(),
+                Value<String?> providerFingerprint = const Value.absent(),
+                Value<String> conditionalIndexesMode = const Value.absent(),
+                Value<String> bulkSearchMode = const Value.absent(),
+                Value<String?> bulkSearchQuery = const Value.absent(),
+                Value<int> safePageSize = const Value.absent(),
+                Value<int> detailConcurrency = const Value.absent(),
+                Value<int?> averageLatencyMs = const Value.absent(),
+                Value<String?> endpointFailureJson = const Value.absent(),
+                Value<DateTime?> catalogCursor = const Value.absent(),
+                Value<String?> catalogFingerprint = const Value.absent(),
+                Value<int> currentGeneration = const Value.absent(),
+                Value<int?> candidateGeneration = const Value.absent(),
+                Value<String?> candidateStatus = const Value.absent(),
+                Value<DateTime?> candidateStartedAt = const Value.absent(),
+                Value<int> candidateCarriedForwardCount = const Value.absent(),
+                Value<int?> lastApplyDurationMs = const Value.absent(),
+                Value<String?> lastPromotionDiagnosticsJson =
+                    const Value.absent(),
+                Value<DateTime?> lastCheckedAt = const Value.absent(),
+                Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
+                Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
+                Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
+                Value<DateTime?> lastAuditAt = const Value.absent(),
+                Value<int> auditOffset = const Value.absent(),
+                Value<int> failureStreak = const Value.absent(),
+                Value<DateTime?> nextEligibleAt = const Value.absent(),
+                Value<String?> lastPlanKind = const Value.absent(),
+                Value<String?> lastPlanReason = const Value.absent(),
+                Value<int> lastRunBytes = const Value.absent(),
+                Value<int> lastRunRequests = const Value.absent(),
+                Value<String?> deletionCandidateFingerprint =
+                    const Value.absent(),
+                Value<int> deletionCandidateCount = const Value.absent(),
+              }) => LibrarySyncStateTableCompanion(
+                serverId: serverId,
+                plannerVersion: plannerVersion,
+                providerFingerprint: providerFingerprint,
+                conditionalIndexesMode: conditionalIndexesMode,
+                bulkSearchMode: bulkSearchMode,
+                bulkSearchQuery: bulkSearchQuery,
+                safePageSize: safePageSize,
+                detailConcurrency: detailConcurrency,
+                averageLatencyMs: averageLatencyMs,
+                endpointFailureJson: endpointFailureJson,
+                catalogCursor: catalogCursor,
+                catalogFingerprint: catalogFingerprint,
+                currentGeneration: currentGeneration,
+                candidateGeneration: candidateGeneration,
+                candidateStatus: candidateStatus,
+                candidateStartedAt: candidateStartedAt,
+                candidateCarriedForwardCount: candidateCarriedForwardCount,
+                lastApplyDurationMs: lastApplyDurationMs,
+                lastPromotionDiagnosticsJson: lastPromotionDiagnosticsJson,
+                lastCheckedAt: lastCheckedAt,
+                lastCatalogSyncedAt: lastCatalogSyncedAt,
+                lastAuxiliarySyncedAt: lastAuxiliarySyncedAt,
+                lastGenresSyncedAt: lastGenresSyncedAt,
+                lastAuditAt: lastAuditAt,
+                auditOffset: auditOffset,
+                failureStreak: failureStreak,
+                nextEligibleAt: nextEligibleAt,
+                lastPlanKind: lastPlanKind,
+                lastPlanReason: lastPlanReason,
+                lastRunBytes: lastRunBytes,
+                lastRunRequests: lastRunRequests,
+                deletionCandidateFingerprint: deletionCandidateFingerprint,
+                deletionCandidateCount: deletionCandidateCount,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<int> plannerVersion = const Value.absent(),
+                Value<String?> providerFingerprint = const Value.absent(),
+                Value<String> conditionalIndexesMode = const Value.absent(),
+                Value<String> bulkSearchMode = const Value.absent(),
+                Value<String?> bulkSearchQuery = const Value.absent(),
+                Value<int> safePageSize = const Value.absent(),
+                Value<int> detailConcurrency = const Value.absent(),
+                Value<int?> averageLatencyMs = const Value.absent(),
+                Value<String?> endpointFailureJson = const Value.absent(),
+                Value<DateTime?> catalogCursor = const Value.absent(),
+                Value<String?> catalogFingerprint = const Value.absent(),
+                Value<int> currentGeneration = const Value.absent(),
+                Value<int?> candidateGeneration = const Value.absent(),
+                Value<String?> candidateStatus = const Value.absent(),
+                Value<DateTime?> candidateStartedAt = const Value.absent(),
+                Value<int> candidateCarriedForwardCount = const Value.absent(),
+                Value<int?> lastApplyDurationMs = const Value.absent(),
+                Value<String?> lastPromotionDiagnosticsJson =
+                    const Value.absent(),
+                Value<DateTime?> lastCheckedAt = const Value.absent(),
+                Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
+                Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
+                Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
+                Value<DateTime?> lastAuditAt = const Value.absent(),
+                Value<int> auditOffset = const Value.absent(),
+                Value<int> failureStreak = const Value.absent(),
+                Value<DateTime?> nextEligibleAt = const Value.absent(),
+                Value<String?> lastPlanKind = const Value.absent(),
+                Value<String?> lastPlanReason = const Value.absent(),
+                Value<int> lastRunBytes = const Value.absent(),
+                Value<int> lastRunRequests = const Value.absent(),
+                Value<String?> deletionCandidateFingerprint =
+                    const Value.absent(),
+                Value<int> deletionCandidateCount = const Value.absent(),
+              }) => LibrarySyncStateTableCompanion.insert(
+                serverId: serverId,
+                plannerVersion: plannerVersion,
+                providerFingerprint: providerFingerprint,
+                conditionalIndexesMode: conditionalIndexesMode,
+                bulkSearchMode: bulkSearchMode,
+                bulkSearchQuery: bulkSearchQuery,
+                safePageSize: safePageSize,
+                detailConcurrency: detailConcurrency,
+                averageLatencyMs: averageLatencyMs,
+                endpointFailureJson: endpointFailureJson,
+                catalogCursor: catalogCursor,
+                catalogFingerprint: catalogFingerprint,
+                currentGeneration: currentGeneration,
+                candidateGeneration: candidateGeneration,
+                candidateStatus: candidateStatus,
+                candidateStartedAt: candidateStartedAt,
+                candidateCarriedForwardCount: candidateCarriedForwardCount,
+                lastApplyDurationMs: lastApplyDurationMs,
+                lastPromotionDiagnosticsJson: lastPromotionDiagnosticsJson,
+                lastCheckedAt: lastCheckedAt,
+                lastCatalogSyncedAt: lastCatalogSyncedAt,
+                lastAuxiliarySyncedAt: lastAuxiliarySyncedAt,
+                lastGenresSyncedAt: lastGenresSyncedAt,
+                lastAuditAt: lastAuditAt,
+                auditOffset: auditOffset,
+                failureStreak: failureStreak,
+                nextEligibleAt: nextEligibleAt,
+                lastPlanKind: lastPlanKind,
+                lastPlanReason: lastPlanReason,
+                lastRunBytes: lastRunBytes,
+                lastRunRequests: lastRunRequests,
+                deletionCandidateFingerprint: deletionCandidateFingerprint,
+                deletionCandidateCount: deletionCandidateCount,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncStateTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.serverId,
+                                referencedTable:
+                                    $$LibrarySyncStateTableTableReferences
+                                        ._serverIdTable(db),
+                                referencedColumn:
+                                    $$LibrarySyncStateTableTableReferences
+                                        ._serverIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibrarySyncStateTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncStateTableTable,
+      LibrarySyncStateTableData,
+      $$LibrarySyncStateTableTableFilterComposer,
+      $$LibrarySyncStateTableTableOrderingComposer,
+      $$LibrarySyncStateTableTableAnnotationComposer,
+      $$LibrarySyncStateTableTableCreateCompanionBuilder,
+      $$LibrarySyncStateTableTableUpdateCompanionBuilder,
+      (LibrarySyncStateTableData, $$LibrarySyncStateTableTableReferences),
+      LibrarySyncStateTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
+typedef $$LibrarySyncWorkTableTableCreateCompanionBuilder =
+    LibrarySyncWorkTableCompanion Function({
+      Value<int> id,
+      required int serverId,
+      required String kind,
+      Value<String> entityId,
+      Value<int> priority,
+      Value<String> workClass,
+      Value<String> status,
+      Value<String?> checkpointJson,
+      Value<int> attemptCount,
+      Value<DateTime?> notBefore,
+      Value<String?> lastErrorType,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+    });
+typedef $$LibrarySyncWorkTableTableUpdateCompanionBuilder =
+    LibrarySyncWorkTableCompanion Function({
+      Value<int> id,
+      Value<int> serverId,
+      Value<String> kind,
+      Value<String> entityId,
+      Value<int> priority,
+      Value<String> workClass,
+      Value<String> status,
+      Value<String?> checkpointJson,
+      Value<int> attemptCount,
+      Value<DateTime?> notBefore,
+      Value<String?> lastErrorType,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$LibrarySyncWorkTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncWorkTableTable,
+          LibrarySyncWorkTableData
+        > {
+  $$LibrarySyncWorkTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) => db
+      .serverConfigTable
+      .createAlias('library_sync_work__server_id__server_config__id');
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibrarySyncWorkTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncWorkTableTable> {
+  $$LibrarySyncWorkTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get workClass => $composableBuilder(
+    column: $table.workClass,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checkpointJson => $composableBuilder(
+    column: $table.checkpointJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get notBefore => $composableBuilder(
+    column: $table.notBefore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastErrorType => $composableBuilder(
+    column: $table.lastErrorType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncWorkTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncWorkTableTable> {
+  $$LibrarySyncWorkTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get workClass => $composableBuilder(
+    column: $table.workClass,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checkpointJson => $composableBuilder(
+    column: $table.checkpointJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get notBefore => $composableBuilder(
+    column: $table.notBefore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastErrorType => $composableBuilder(
+    column: $table.lastErrorType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncWorkTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncWorkTableTable> {
+  $$LibrarySyncWorkTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<String> get workClass =>
+      $composableBuilder(column: $table.workClass, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get checkpointJson => $composableBuilder(
+    column: $table.checkpointJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get notBefore =>
+      $composableBuilder(column: $table.notBefore, builder: (column) => column);
+
+  GeneratedColumn<String> get lastErrorType => $composableBuilder(
+    column: $table.lastErrorType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncWorkTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncWorkTableTable,
+          LibrarySyncWorkTableData,
+          $$LibrarySyncWorkTableTableFilterComposer,
+          $$LibrarySyncWorkTableTableOrderingComposer,
+          $$LibrarySyncWorkTableTableAnnotationComposer,
+          $$LibrarySyncWorkTableTableCreateCompanionBuilder,
+          $$LibrarySyncWorkTableTableUpdateCompanionBuilder,
+          (LibrarySyncWorkTableData, $$LibrarySyncWorkTableTableReferences),
+          LibrarySyncWorkTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$LibrarySyncWorkTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncWorkTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncWorkTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LibrarySyncWorkTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncWorkTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> serverId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> entityId = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<String> workClass = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> checkpointJson = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<DateTime?> notBefore = const Value.absent(),
+                Value<String?> lastErrorType = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LibrarySyncWorkTableCompanion(
+                id: id,
+                serverId: serverId,
+                kind: kind,
+                entityId: entityId,
+                priority: priority,
+                workClass: workClass,
+                status: status,
+                checkpointJson: checkpointJson,
+                attemptCount: attemptCount,
+                notBefore: notBefore,
+                lastErrorType: lastErrorType,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int serverId,
+                required String kind,
+                Value<String> entityId = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<String> workClass = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> checkpointJson = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<DateTime?> notBefore = const Value.absent(),
+                Value<String?> lastErrorType = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+              }) => LibrarySyncWorkTableCompanion.insert(
+                id: id,
+                serverId: serverId,
+                kind: kind,
+                entityId: entityId,
+                priority: priority,
+                workClass: workClass,
+                status: status,
+                checkpointJson: checkpointJson,
+                attemptCount: attemptCount,
+                notBefore: notBefore,
+                lastErrorType: lastErrorType,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncWorkTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.serverId,
+                                referencedTable:
+                                    $$LibrarySyncWorkTableTableReferences
+                                        ._serverIdTable(db),
+                                referencedColumn:
+                                    $$LibrarySyncWorkTableTableReferences
+                                        ._serverIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibrarySyncWorkTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncWorkTableTable,
+      LibrarySyncWorkTableData,
+      $$LibrarySyncWorkTableTableFilterComposer,
+      $$LibrarySyncWorkTableTableOrderingComposer,
+      $$LibrarySyncWorkTableTableAnnotationComposer,
+      $$LibrarySyncWorkTableTableCreateCompanionBuilder,
+      $$LibrarySyncWorkTableTableUpdateCompanionBuilder,
+      (LibrarySyncWorkTableData, $$LibrarySyncWorkTableTableReferences),
+      LibrarySyncWorkTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
+typedef $$LibrarySyncCandidateArtistsTableTableCreateCompanionBuilder =
+    LibrarySyncCandidateArtistsTableCompanion Function({
+      required int serverId,
+      required int generation,
+      required String id,
+      required String name,
+      Value<int?> albumCount,
+      Value<String?> coverArt,
+      Value<DateTime?> starred,
+      Value<int?> applyState,
+      Value<int> rowid,
+    });
+typedef $$LibrarySyncCandidateArtistsTableTableUpdateCompanionBuilder =
+    LibrarySyncCandidateArtistsTableCompanion Function({
+      Value<int> serverId,
+      Value<int> generation,
+      Value<String> id,
+      Value<String> name,
+      Value<int?> albumCount,
+      Value<String?> coverArt,
+      Value<DateTime?> starred,
+      Value<int?> applyState,
+      Value<int> rowid,
+    });
+
+class $$LibrarySyncCandidateArtistsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateArtistsTableTable> {
+  $$LibrarySyncCandidateArtistsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get albumCount => $composableBuilder(
+    column: $table.albumCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverArt => $composableBuilder(
+    column: $table.coverArt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get starred => $composableBuilder(
+    column: $table.starred,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LibrarySyncCandidateArtistsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateArtistsTableTable> {
+  $$LibrarySyncCandidateArtistsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get albumCount => $composableBuilder(
+    column: $table.albumCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coverArt => $composableBuilder(
+    column: $table.coverArt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get starred => $composableBuilder(
+    column: $table.starred,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LibrarySyncCandidateArtistsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateArtistsTableTable> {
+  $$LibrarySyncCandidateArtistsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get albumCount => $composableBuilder(
+    column: $table.albumCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get coverArt =>
+      $composableBuilder(column: $table.coverArt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get starred =>
+      $composableBuilder(column: $table.starred, builder: (column) => column);
+
+  GeneratedColumn<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => column,
+  );
+}
+
+class $$LibrarySyncCandidateArtistsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncCandidateArtistsTableTable,
+          LibrarySyncCandidateArtistsTableData,
+          $$LibrarySyncCandidateArtistsTableTableFilterComposer,
+          $$LibrarySyncCandidateArtistsTableTableOrderingComposer,
+          $$LibrarySyncCandidateArtistsTableTableAnnotationComposer,
+          $$LibrarySyncCandidateArtistsTableTableCreateCompanionBuilder,
+          $$LibrarySyncCandidateArtistsTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncCandidateArtistsTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $LibrarySyncCandidateArtistsTableTable,
+              LibrarySyncCandidateArtistsTableData
+            >,
+          ),
+          LibrarySyncCandidateArtistsTableData,
+          PrefetchHooks Function()
+        > {
+  $$LibrarySyncCandidateArtistsTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncCandidateArtistsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncCandidateArtistsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncCandidateArtistsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncCandidateArtistsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int?> albumCount = const Value.absent(),
+                Value<String?> coverArt = const Value.absent(),
+                Value<DateTime?> starred = const Value.absent(),
+                Value<int?> applyState = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LibrarySyncCandidateArtistsTableCompanion(
+                serverId: serverId,
+                generation: generation,
+                id: id,
+                name: name,
+                albumCount: albumCount,
+                coverArt: coverArt,
+                starred: starred,
+                applyState: applyState,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int serverId,
+                required int generation,
+                required String id,
+                required String name,
+                Value<int?> albumCount = const Value.absent(),
+                Value<String?> coverArt = const Value.absent(),
+                Value<DateTime?> starred = const Value.absent(),
+                Value<int?> applyState = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LibrarySyncCandidateArtistsTableCompanion.insert(
+                serverId: serverId,
+                generation: generation,
+                id: id,
+                name: name,
+                albumCount: albumCount,
+                coverArt: coverArt,
+                starred: starred,
+                applyState: applyState,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LibrarySyncCandidateArtistsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncCandidateArtistsTableTable,
+      LibrarySyncCandidateArtistsTableData,
+      $$LibrarySyncCandidateArtistsTableTableFilterComposer,
+      $$LibrarySyncCandidateArtistsTableTableOrderingComposer,
+      $$LibrarySyncCandidateArtistsTableTableAnnotationComposer,
+      $$LibrarySyncCandidateArtistsTableTableCreateCompanionBuilder,
+      $$LibrarySyncCandidateArtistsTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncCandidateArtistsTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncCandidateArtistsTableTable,
+          LibrarySyncCandidateArtistsTableData
+        >,
+      ),
+      LibrarySyncCandidateArtistsTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$LibrarySyncCandidateAlbumsTableTableCreateCompanionBuilder =
+    LibrarySyncCandidateAlbumsTableCompanion Function({
+      required int serverId,
+      required int generation,
+      required String id,
+      required String name,
+      Value<String?> artistId,
+      Value<String?> artistName,
+      Value<List<ArtistRef>> artists,
+      Value<int?> songCount,
+      Value<int?> duration,
+      Value<int?> year,
+      Value<String?> genre,
+      Value<String?> coverArt,
+      Value<bool> songsHydrated,
+      Value<bool> carriedForward,
+      Value<DateTime?> starred,
+      Value<int?> userRating,
+      Value<int?> playCount,
+      Value<DateTime?> syncedAt,
+      Value<DateTime?> serverCreatedAt,
+      Value<int?> applyState,
+      Value<int> rowid,
+    });
+typedef $$LibrarySyncCandidateAlbumsTableTableUpdateCompanionBuilder =
+    LibrarySyncCandidateAlbumsTableCompanion Function({
+      Value<int> serverId,
+      Value<int> generation,
+      Value<String> id,
+      Value<String> name,
+      Value<String?> artistId,
+      Value<String?> artistName,
+      Value<List<ArtistRef>> artists,
+      Value<int?> songCount,
+      Value<int?> duration,
+      Value<int?> year,
+      Value<String?> genre,
+      Value<String?> coverArt,
+      Value<bool> songsHydrated,
+      Value<bool> carriedForward,
+      Value<DateTime?> starred,
+      Value<int?> userRating,
+      Value<int?> playCount,
+      Value<DateTime?> syncedAt,
+      Value<DateTime?> serverCreatedAt,
+      Value<int?> applyState,
+      Value<int> rowid,
+    });
+
+class $$LibrarySyncCandidateAlbumsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateAlbumsTableTable> {
+  $$LibrarySyncCandidateAlbumsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistId => $composableBuilder(
+    column: $table.artistId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<ArtistRef>, List<ArtistRef>, String>
+  get artists => $composableBuilder(
+    column: $table.artists,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<int> get songCount => $composableBuilder(
+    column: $table.songCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get duration => $composableBuilder(
+    column: $table.duration,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get genre => $composableBuilder(
+    column: $table.genre,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverArt => $composableBuilder(
+    column: $table.coverArt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get songsHydrated => $composableBuilder(
+    column: $table.songsHydrated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get carriedForward => $composableBuilder(
+    column: $table.carriedForward,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get starred => $composableBuilder(
+    column: $table.starred,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get playCount => $composableBuilder(
+    column: $table.playCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get serverCreatedAt => $composableBuilder(
+    column: $table.serverCreatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LibrarySyncCandidateAlbumsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateAlbumsTableTable> {
+  $$LibrarySyncCandidateAlbumsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistId => $composableBuilder(
+    column: $table.artistId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artists => $composableBuilder(
+    column: $table.artists,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get songCount => $composableBuilder(
+    column: $table.songCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get duration => $composableBuilder(
+    column: $table.duration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get genre => $composableBuilder(
+    column: $table.genre,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coverArt => $composableBuilder(
+    column: $table.coverArt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get songsHydrated => $composableBuilder(
+    column: $table.songsHydrated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get carriedForward => $composableBuilder(
+    column: $table.carriedForward,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get starred => $composableBuilder(
+    column: $table.starred,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get playCount => $composableBuilder(
+    column: $table.playCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get serverCreatedAt => $composableBuilder(
+    column: $table.serverCreatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LibrarySyncCandidateAlbumsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateAlbumsTableTable> {
+  $$LibrarySyncCandidateAlbumsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get artistId =>
+      $composableBuilder(column: $table.artistId, builder: (column) => column);
+
+  GeneratedColumn<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<List<ArtistRef>, String> get artists =>
+      $composableBuilder(column: $table.artists, builder: (column) => column);
+
+  GeneratedColumn<int> get songCount =>
+      $composableBuilder(column: $table.songCount, builder: (column) => column);
+
+  GeneratedColumn<int> get duration =>
+      $composableBuilder(column: $table.duration, builder: (column) => column);
+
+  GeneratedColumn<int> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<String> get genre =>
+      $composableBuilder(column: $table.genre, builder: (column) => column);
+
+  GeneratedColumn<String> get coverArt =>
+      $composableBuilder(column: $table.coverArt, builder: (column) => column);
+
+  GeneratedColumn<bool> get songsHydrated => $composableBuilder(
+    column: $table.songsHydrated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get carriedForward => $composableBuilder(
+    column: $table.carriedForward,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get starred =>
+      $composableBuilder(column: $table.starred, builder: (column) => column);
+
+  GeneratedColumn<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get playCount =>
+      $composableBuilder(column: $table.playCount, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get serverCreatedAt => $composableBuilder(
+    column: $table.serverCreatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => column,
+  );
+}
+
+class $$LibrarySyncCandidateAlbumsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncCandidateAlbumsTableTable,
+          LibrarySyncCandidateAlbumsTableData,
+          $$LibrarySyncCandidateAlbumsTableTableFilterComposer,
+          $$LibrarySyncCandidateAlbumsTableTableOrderingComposer,
+          $$LibrarySyncCandidateAlbumsTableTableAnnotationComposer,
+          $$LibrarySyncCandidateAlbumsTableTableCreateCompanionBuilder,
+          $$LibrarySyncCandidateAlbumsTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncCandidateAlbumsTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $LibrarySyncCandidateAlbumsTableTable,
+              LibrarySyncCandidateAlbumsTableData
+            >,
+          ),
+          LibrarySyncCandidateAlbumsTableData,
+          PrefetchHooks Function()
+        > {
+  $$LibrarySyncCandidateAlbumsTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncCandidateAlbumsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncCandidateAlbumsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncCandidateAlbumsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncCandidateAlbumsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> artistId = const Value.absent(),
+                Value<String?> artistName = const Value.absent(),
+                Value<List<ArtistRef>> artists = const Value.absent(),
+                Value<int?> songCount = const Value.absent(),
+                Value<int?> duration = const Value.absent(),
+                Value<int?> year = const Value.absent(),
+                Value<String?> genre = const Value.absent(),
+                Value<String?> coverArt = const Value.absent(),
+                Value<bool> songsHydrated = const Value.absent(),
+                Value<bool> carriedForward = const Value.absent(),
+                Value<DateTime?> starred = const Value.absent(),
+                Value<int?> userRating = const Value.absent(),
+                Value<int?> playCount = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<DateTime?> serverCreatedAt = const Value.absent(),
+                Value<int?> applyState = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LibrarySyncCandidateAlbumsTableCompanion(
+                serverId: serverId,
+                generation: generation,
+                id: id,
+                name: name,
+                artistId: artistId,
+                artistName: artistName,
+                artists: artists,
+                songCount: songCount,
+                duration: duration,
+                year: year,
+                genre: genre,
+                coverArt: coverArt,
+                songsHydrated: songsHydrated,
+                carriedForward: carriedForward,
+                starred: starred,
+                userRating: userRating,
+                playCount: playCount,
+                syncedAt: syncedAt,
+                serverCreatedAt: serverCreatedAt,
+                applyState: applyState,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int serverId,
+                required int generation,
+                required String id,
+                required String name,
+                Value<String?> artistId = const Value.absent(),
+                Value<String?> artistName = const Value.absent(),
+                Value<List<ArtistRef>> artists = const Value.absent(),
+                Value<int?> songCount = const Value.absent(),
+                Value<int?> duration = const Value.absent(),
+                Value<int?> year = const Value.absent(),
+                Value<String?> genre = const Value.absent(),
+                Value<String?> coverArt = const Value.absent(),
+                Value<bool> songsHydrated = const Value.absent(),
+                Value<bool> carriedForward = const Value.absent(),
+                Value<DateTime?> starred = const Value.absent(),
+                Value<int?> userRating = const Value.absent(),
+                Value<int?> playCount = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+                Value<DateTime?> serverCreatedAt = const Value.absent(),
+                Value<int?> applyState = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LibrarySyncCandidateAlbumsTableCompanion.insert(
+                serverId: serverId,
+                generation: generation,
+                id: id,
+                name: name,
+                artistId: artistId,
+                artistName: artistName,
+                artists: artists,
+                songCount: songCount,
+                duration: duration,
+                year: year,
+                genre: genre,
+                coverArt: coverArt,
+                songsHydrated: songsHydrated,
+                carriedForward: carriedForward,
+                starred: starred,
+                userRating: userRating,
+                playCount: playCount,
+                syncedAt: syncedAt,
+                serverCreatedAt: serverCreatedAt,
+                applyState: applyState,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LibrarySyncCandidateAlbumsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncCandidateAlbumsTableTable,
+      LibrarySyncCandidateAlbumsTableData,
+      $$LibrarySyncCandidateAlbumsTableTableFilterComposer,
+      $$LibrarySyncCandidateAlbumsTableTableOrderingComposer,
+      $$LibrarySyncCandidateAlbumsTableTableAnnotationComposer,
+      $$LibrarySyncCandidateAlbumsTableTableCreateCompanionBuilder,
+      $$LibrarySyncCandidateAlbumsTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncCandidateAlbumsTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncCandidateAlbumsTableTable,
+          LibrarySyncCandidateAlbumsTableData
+        >,
+      ),
+      LibrarySyncCandidateAlbumsTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$LibrarySyncCandidateSongsTableTableCreateCompanionBuilder =
+    LibrarySyncCandidateSongsTableCompanion Function({
+      required int serverId,
+      required int generation,
+      required String id,
+      required String title,
+      Value<String?> albumId,
+      Value<String?> artistId,
+      Value<String?> artistName,
+      Value<String?> albumName,
+      Value<int?> track,
+      Value<int?> discNumber,
+      Value<int?> duration,
+      Value<int?> bitRate,
+      Value<int?> sampleRate,
+      Value<String?> contentType,
+      Value<String?> suffix,
+      Value<int?> size,
+      Value<String?> coverArt,
+      Value<DateTime?> starred,
+      Value<String?> recordingMbid,
+      Value<int?> userRating,
+      Value<int?> playCount,
+      Value<DateTime?> createdAt,
+      Value<double?> replayGainTrackGain,
+      Value<double?> replayGainAlbumGain,
+      Value<double?> replayGainTrackPeak,
+      Value<double?> replayGainAlbumPeak,
+      Value<int?> applyState,
+      Value<int> rowid,
+    });
+typedef $$LibrarySyncCandidateSongsTableTableUpdateCompanionBuilder =
+    LibrarySyncCandidateSongsTableCompanion Function({
+      Value<int> serverId,
+      Value<int> generation,
+      Value<String> id,
+      Value<String> title,
+      Value<String?> albumId,
+      Value<String?> artistId,
+      Value<String?> artistName,
+      Value<String?> albumName,
+      Value<int?> track,
+      Value<int?> discNumber,
+      Value<int?> duration,
+      Value<int?> bitRate,
+      Value<int?> sampleRate,
+      Value<String?> contentType,
+      Value<String?> suffix,
+      Value<int?> size,
+      Value<String?> coverArt,
+      Value<DateTime?> starred,
+      Value<String?> recordingMbid,
+      Value<int?> userRating,
+      Value<int?> playCount,
+      Value<DateTime?> createdAt,
+      Value<double?> replayGainTrackGain,
+      Value<double?> replayGainAlbumGain,
+      Value<double?> replayGainTrackPeak,
+      Value<double?> replayGainAlbumPeak,
+      Value<int?> applyState,
+      Value<int> rowid,
+    });
+
+class $$LibrarySyncCandidateSongsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateSongsTableTable> {
+  $$LibrarySyncCandidateSongsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get albumId => $composableBuilder(
+    column: $table.albumId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistId => $composableBuilder(
+    column: $table.artistId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get albumName => $composableBuilder(
+    column: $table.albumName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get track => $composableBuilder(
+    column: $table.track,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get discNumber => $composableBuilder(
+    column: $table.discNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get duration => $composableBuilder(
+    column: $table.duration,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bitRate => $composableBuilder(
+    column: $table.bitRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sampleRate => $composableBuilder(
+    column: $table.sampleRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get suffix => $composableBuilder(
+    column: $table.suffix,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get size => $composableBuilder(
+    column: $table.size,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverArt => $composableBuilder(
+    column: $table.coverArt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get starred => $composableBuilder(
+    column: $table.starred,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get playCount => $composableBuilder(
+    column: $table.playCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainTrackGain => $composableBuilder(
+    column: $table.replayGainTrackGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainAlbumGain => $composableBuilder(
+    column: $table.replayGainAlbumGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainTrackPeak => $composableBuilder(
+    column: $table.replayGainTrackPeak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainAlbumPeak => $composableBuilder(
+    column: $table.replayGainAlbumPeak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LibrarySyncCandidateSongsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateSongsTableTable> {
+  $$LibrarySyncCandidateSongsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get albumId => $composableBuilder(
+    column: $table.albumId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistId => $composableBuilder(
+    column: $table.artistId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get albumName => $composableBuilder(
+    column: $table.albumName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get track => $composableBuilder(
+    column: $table.track,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get discNumber => $composableBuilder(
+    column: $table.discNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get duration => $composableBuilder(
+    column: $table.duration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bitRate => $composableBuilder(
+    column: $table.bitRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sampleRate => $composableBuilder(
+    column: $table.sampleRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get suffix => $composableBuilder(
+    column: $table.suffix,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get size => $composableBuilder(
+    column: $table.size,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coverArt => $composableBuilder(
+    column: $table.coverArt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get starred => $composableBuilder(
+    column: $table.starred,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get playCount => $composableBuilder(
+    column: $table.playCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGainTrackGain => $composableBuilder(
+    column: $table.replayGainTrackGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGainAlbumGain => $composableBuilder(
+    column: $table.replayGainAlbumGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGainTrackPeak => $composableBuilder(
+    column: $table.replayGainTrackPeak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGainAlbumPeak => $composableBuilder(
+    column: $table.replayGainAlbumPeak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LibrarySyncCandidateSongsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncCandidateSongsTableTable> {
+  $$LibrarySyncCandidateSongsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get albumId =>
+      $composableBuilder(column: $table.albumId, builder: (column) => column);
+
+  GeneratedColumn<String> get artistId =>
+      $composableBuilder(column: $table.artistId, builder: (column) => column);
+
+  GeneratedColumn<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get albumName =>
+      $composableBuilder(column: $table.albumName, builder: (column) => column);
+
+  GeneratedColumn<int> get track =>
+      $composableBuilder(column: $table.track, builder: (column) => column);
+
+  GeneratedColumn<int> get discNumber => $composableBuilder(
+    column: $table.discNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get duration =>
+      $composableBuilder(column: $table.duration, builder: (column) => column);
+
+  GeneratedColumn<int> get bitRate =>
+      $composableBuilder(column: $table.bitRate, builder: (column) => column);
+
+  GeneratedColumn<int> get sampleRate => $composableBuilder(
+    column: $table.sampleRate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get suffix =>
+      $composableBuilder(column: $table.suffix, builder: (column) => column);
+
+  GeneratedColumn<int> get size =>
+      $composableBuilder(column: $table.size, builder: (column) => column);
+
+  GeneratedColumn<String> get coverArt =>
+      $composableBuilder(column: $table.coverArt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get starred =>
+      $composableBuilder(column: $table.starred, builder: (column) => column);
+
+  GeneratedColumn<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get playCount =>
+      $composableBuilder(column: $table.playCount, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<double> get replayGainTrackGain => $composableBuilder(
+    column: $table.replayGainTrackGain,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get replayGainAlbumGain => $composableBuilder(
+    column: $table.replayGainAlbumGain,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get replayGainTrackPeak => $composableBuilder(
+    column: $table.replayGainTrackPeak,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get replayGainAlbumPeak => $composableBuilder(
+    column: $table.replayGainAlbumPeak,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get applyState => $composableBuilder(
+    column: $table.applyState,
+    builder: (column) => column,
+  );
+}
+
+class $$LibrarySyncCandidateSongsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncCandidateSongsTableTable,
+          LibrarySyncCandidateSongsTableData,
+          $$LibrarySyncCandidateSongsTableTableFilterComposer,
+          $$LibrarySyncCandidateSongsTableTableOrderingComposer,
+          $$LibrarySyncCandidateSongsTableTableAnnotationComposer,
+          $$LibrarySyncCandidateSongsTableTableCreateCompanionBuilder,
+          $$LibrarySyncCandidateSongsTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncCandidateSongsTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $LibrarySyncCandidateSongsTableTable,
+              LibrarySyncCandidateSongsTableData
+            >,
+          ),
+          LibrarySyncCandidateSongsTableData,
+          PrefetchHooks Function()
+        > {
+  $$LibrarySyncCandidateSongsTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncCandidateSongsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncCandidateSongsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncCandidateSongsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncCandidateSongsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> albumId = const Value.absent(),
+                Value<String?> artistId = const Value.absent(),
+                Value<String?> artistName = const Value.absent(),
+                Value<String?> albumName = const Value.absent(),
+                Value<int?> track = const Value.absent(),
+                Value<int?> discNumber = const Value.absent(),
+                Value<int?> duration = const Value.absent(),
+                Value<int?> bitRate = const Value.absent(),
+                Value<int?> sampleRate = const Value.absent(),
+                Value<String?> contentType = const Value.absent(),
+                Value<String?> suffix = const Value.absent(),
+                Value<int?> size = const Value.absent(),
+                Value<String?> coverArt = const Value.absent(),
+                Value<DateTime?> starred = const Value.absent(),
+                Value<String?> recordingMbid = const Value.absent(),
+                Value<int?> userRating = const Value.absent(),
+                Value<int?> playCount = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                Value<double?> replayGainTrackGain = const Value.absent(),
+                Value<double?> replayGainAlbumGain = const Value.absent(),
+                Value<double?> replayGainTrackPeak = const Value.absent(),
+                Value<double?> replayGainAlbumPeak = const Value.absent(),
+                Value<int?> applyState = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LibrarySyncCandidateSongsTableCompanion(
+                serverId: serverId,
+                generation: generation,
+                id: id,
+                title: title,
+                albumId: albumId,
+                artistId: artistId,
+                artistName: artistName,
+                albumName: albumName,
+                track: track,
+                discNumber: discNumber,
+                duration: duration,
+                bitRate: bitRate,
+                sampleRate: sampleRate,
+                contentType: contentType,
+                suffix: suffix,
+                size: size,
+                coverArt: coverArt,
+                starred: starred,
+                recordingMbid: recordingMbid,
+                userRating: userRating,
+                playCount: playCount,
+                createdAt: createdAt,
+                replayGainTrackGain: replayGainTrackGain,
+                replayGainAlbumGain: replayGainAlbumGain,
+                replayGainTrackPeak: replayGainTrackPeak,
+                replayGainAlbumPeak: replayGainAlbumPeak,
+                applyState: applyState,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int serverId,
+                required int generation,
+                required String id,
+                required String title,
+                Value<String?> albumId = const Value.absent(),
+                Value<String?> artistId = const Value.absent(),
+                Value<String?> artistName = const Value.absent(),
+                Value<String?> albumName = const Value.absent(),
+                Value<int?> track = const Value.absent(),
+                Value<int?> discNumber = const Value.absent(),
+                Value<int?> duration = const Value.absent(),
+                Value<int?> bitRate = const Value.absent(),
+                Value<int?> sampleRate = const Value.absent(),
+                Value<String?> contentType = const Value.absent(),
+                Value<String?> suffix = const Value.absent(),
+                Value<int?> size = const Value.absent(),
+                Value<String?> coverArt = const Value.absent(),
+                Value<DateTime?> starred = const Value.absent(),
+                Value<String?> recordingMbid = const Value.absent(),
+                Value<int?> userRating = const Value.absent(),
+                Value<int?> playCount = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                Value<double?> replayGainTrackGain = const Value.absent(),
+                Value<double?> replayGainAlbumGain = const Value.absent(),
+                Value<double?> replayGainTrackPeak = const Value.absent(),
+                Value<double?> replayGainAlbumPeak = const Value.absent(),
+                Value<int?> applyState = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LibrarySyncCandidateSongsTableCompanion.insert(
+                serverId: serverId,
+                generation: generation,
+                id: id,
+                title: title,
+                albumId: albumId,
+                artistId: artistId,
+                artistName: artistName,
+                albumName: albumName,
+                track: track,
+                discNumber: discNumber,
+                duration: duration,
+                bitRate: bitRate,
+                sampleRate: sampleRate,
+                contentType: contentType,
+                suffix: suffix,
+                size: size,
+                coverArt: coverArt,
+                starred: starred,
+                recordingMbid: recordingMbid,
+                userRating: userRating,
+                playCount: playCount,
+                createdAt: createdAt,
+                replayGainTrackGain: replayGainTrackGain,
+                replayGainAlbumGain: replayGainAlbumGain,
+                replayGainTrackPeak: replayGainTrackPeak,
+                replayGainAlbumPeak: replayGainAlbumPeak,
+                applyState: applyState,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LibrarySyncCandidateSongsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncCandidateSongsTableTable,
+      LibrarySyncCandidateSongsTableData,
+      $$LibrarySyncCandidateSongsTableTableFilterComposer,
+      $$LibrarySyncCandidateSongsTableTableOrderingComposer,
+      $$LibrarySyncCandidateSongsTableTableAnnotationComposer,
+      $$LibrarySyncCandidateSongsTableTableCreateCompanionBuilder,
+      $$LibrarySyncCandidateSongsTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncCandidateSongsTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncCandidateSongsTableTable,
+          LibrarySyncCandidateSongsTableData
+        >,
+      ),
+      LibrarySyncCandidateSongsTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$LibrarySyncLocalMutationsTableTableCreateCompanionBuilder =
+    LibrarySyncLocalMutationsTableCompanion Function({
+      Value<int> id,
+      required String entityType,
+      required String entityId,
+      required String operation,
+      required DateTime createdAt,
+    });
+typedef $$LibrarySyncLocalMutationsTableTableUpdateCompanionBuilder =
+    LibrarySyncLocalMutationsTableCompanion Function({
+      Value<int> id,
+      Value<String> entityType,
+      Value<String> entityId,
+      Value<String> operation,
+      Value<DateTime> createdAt,
+    });
+
+class $$LibrarySyncLocalMutationsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncLocalMutationsTableTable> {
+  $$LibrarySyncLocalMutationsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LibrarySyncLocalMutationsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncLocalMutationsTableTable> {
+  $$LibrarySyncLocalMutationsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LibrarySyncLocalMutationsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncLocalMutationsTableTable> {
+  $$LibrarySyncLocalMutationsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get operation =>
+      $composableBuilder(column: $table.operation, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$LibrarySyncLocalMutationsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncLocalMutationsTableTable,
+          LibrarySyncLocalMutationsTableData,
+          $$LibrarySyncLocalMutationsTableTableFilterComposer,
+          $$LibrarySyncLocalMutationsTableTableOrderingComposer,
+          $$LibrarySyncLocalMutationsTableTableAnnotationComposer,
+          $$LibrarySyncLocalMutationsTableTableCreateCompanionBuilder,
+          $$LibrarySyncLocalMutationsTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncLocalMutationsTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $LibrarySyncLocalMutationsTableTable,
+              LibrarySyncLocalMutationsTableData
+            >,
+          ),
+          LibrarySyncLocalMutationsTableData,
+          PrefetchHooks Function()
+        > {
+  $$LibrarySyncLocalMutationsTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncLocalMutationsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncLocalMutationsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncLocalMutationsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncLocalMutationsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> entityType = const Value.absent(),
+                Value<String> entityId = const Value.absent(),
+                Value<String> operation = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => LibrarySyncLocalMutationsTableCompanion(
+                id: id,
+                entityType: entityType,
+                entityId: entityId,
+                operation: operation,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String entityType,
+                required String entityId,
+                required String operation,
+                required DateTime createdAt,
+              }) => LibrarySyncLocalMutationsTableCompanion.insert(
+                id: id,
+                entityType: entityType,
+                entityId: entityId,
+                operation: operation,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LibrarySyncLocalMutationsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncLocalMutationsTableTable,
+      LibrarySyncLocalMutationsTableData,
+      $$LibrarySyncLocalMutationsTableTableFilterComposer,
+      $$LibrarySyncLocalMutationsTableTableOrderingComposer,
+      $$LibrarySyncLocalMutationsTableTableAnnotationComposer,
+      $$LibrarySyncLocalMutationsTableTableCreateCompanionBuilder,
+      $$LibrarySyncLocalMutationsTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncLocalMutationsTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncLocalMutationsTableTable,
+          LibrarySyncLocalMutationsTableData
+        >,
+      ),
+      LibrarySyncLocalMutationsTableData,
+      PrefetchHooks Function()
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -26401,5 +36524,33 @@ class $NavisDatabaseManager {
       $$SongIdentityAliasesTableTableTableManager(
         _db,
         _db.songIdentityAliasesTable,
+      );
+  $$LibrarySyncStateTableTableTableManager get librarySyncStateTable =>
+      $$LibrarySyncStateTableTableTableManager(_db, _db.librarySyncStateTable);
+  $$LibrarySyncWorkTableTableTableManager get librarySyncWorkTable =>
+      $$LibrarySyncWorkTableTableTableManager(_db, _db.librarySyncWorkTable);
+  $$LibrarySyncCandidateArtistsTableTableTableManager
+  get librarySyncCandidateArtistsTable =>
+      $$LibrarySyncCandidateArtistsTableTableTableManager(
+        _db,
+        _db.librarySyncCandidateArtistsTable,
+      );
+  $$LibrarySyncCandidateAlbumsTableTableTableManager
+  get librarySyncCandidateAlbumsTable =>
+      $$LibrarySyncCandidateAlbumsTableTableTableManager(
+        _db,
+        _db.librarySyncCandidateAlbumsTable,
+      );
+  $$LibrarySyncCandidateSongsTableTableTableManager
+  get librarySyncCandidateSongsTable =>
+      $$LibrarySyncCandidateSongsTableTableTableManager(
+        _db,
+        _db.librarySyncCandidateSongsTable,
+      );
+  $$LibrarySyncLocalMutationsTableTableTableManager
+  get librarySyncLocalMutationsTable =>
+      $$LibrarySyncLocalMutationsTableTableTableManager(
+        _db,
+        _db.librarySyncLocalMutationsTable,
       );
 }

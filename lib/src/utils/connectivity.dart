@@ -24,3 +24,59 @@ NetworkType resolveNetworkType(List<ConnectivityResult> results) {
 
   return NetworkType.other;
 }
+
+/// Cost-aware policy used by library sync scheduling and execution.
+class SyncNetworkPolicy {
+  const SyncNetworkPolicy({
+    required this.networkType,
+    required this.isMetered,
+    required this.allowsBackgroundSync,
+    required this.allowsHardProbe,
+    required this.allowsInteractiveHydration,
+  });
+
+  final NetworkType networkType;
+  final bool isMetered;
+  final bool allowsBackgroundSync;
+  final bool allowsHardProbe;
+  final bool allowsInteractiveHydration;
+
+  bool get isOffline => networkType == NetworkType.offline;
+}
+
+/// Resolves sync-safe network policy from interface type and optional native
+/// metering.
+///
+/// Cellular is always metered. Wi-Fi/Ethernet trust a native metered signal
+/// when available and otherwise default to unmetered on desktop-like
+/// transports. Unknown transports are conservative.
+SyncNetworkPolicy resolveSyncNetworkPolicy({
+  required NetworkType networkType,
+  required bool? nativeMetered,
+  required bool backgroundSyncUnmeteredOnly,
+}) {
+  if (networkType == NetworkType.offline) {
+    return const SyncNetworkPolicy(
+      networkType: NetworkType.offline,
+      isMetered: false,
+      allowsBackgroundSync: false,
+      allowsHardProbe: false,
+      allowsInteractiveHydration: false,
+    );
+  }
+
+  final isMetered = switch (networkType) {
+    NetworkType.cellular => true,
+    NetworkType.wifi => nativeMetered ?? false,
+    NetworkType.other => nativeMetered ?? true,
+    NetworkType.offline => false,
+  };
+  final allowsBackground = !backgroundSyncUnmeteredOnly || !isMetered;
+  return SyncNetworkPolicy(
+    networkType: networkType,
+    isMetered: isMetered,
+    allowsBackgroundSync: allowsBackground,
+    allowsHardProbe: true,
+    allowsInteractiveHydration: true,
+  );
+}

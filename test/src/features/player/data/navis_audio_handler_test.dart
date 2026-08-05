@@ -387,6 +387,39 @@ void main() {
       expect(navisNormalizePlaybackSpeed(2.5), 2.0);
     });
 
+    test('position-only playback changes are not structural changes', () {
+      const base = PlaybackSnapshot(
+        queueSongIds: <String>['song-1'],
+        currentSongId: 'song-1',
+        currentIndex: 0,
+        playing: true,
+        processingState: AudioProcessingState.ready,
+        position: Duration(seconds: 10),
+        duration: Duration(minutes: 3),
+        bufferedPosition: Duration(seconds: 30),
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+      );
+
+      expect(
+        navisPlaybackSnapshotsStructurallyEqual(
+          base,
+          base.copyWith(
+            position: const Duration(seconds: 11),
+            bufferedPosition: const Duration(seconds: 40),
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        navisPlaybackSnapshotsStructurallyEqual(
+          base,
+          base.copyWith(playing: false),
+        ),
+        isFalse,
+      );
+    });
+
     test(
       'seek recovery helper detects lock-cached seek failures',
       () {
@@ -865,43 +898,6 @@ void main() {
       expect(extras['transcodingApplied'], isTrue);
     });
 
-    test(
-      'transport helper runs command before persistence and does not skip persist',
-      () async {
-        final calls = <String>[];
-
-        Future<void> persistSafely(
-          Future<void> Function() persistOperation, {
-          required String context,
-        }) async {
-          calls.add('persist-safely:$context:start');
-          await persistOperation();
-          calls.add('persist-safely:$context:end');
-        }
-
-        await navisRunTransportWithPersistence(
-          transportOperation: () async {
-            calls.add('transport');
-          },
-          persistOperation: () async {
-            calls.add('persist');
-          },
-          persistSafely: persistSafely,
-          persistenceContext: 'pause',
-        );
-
-        expect(
-          calls,
-          equals(<String>[
-            'transport',
-            'persist-safely:pause:start',
-            'persist',
-            'persist-safely:pause:end',
-          ]),
-        );
-      },
-    );
-
     test('persist helper swallows failures and logs warning', () async {
       final logs = <String>[];
 
@@ -920,37 +916,6 @@ void main() {
       );
       expect(logs.single, contains('write failed'));
     });
-
-    test(
-      'transport helper remains successful when persistence fails safely',
-      () async {
-        var transportRuns = 0;
-        final logs = <String>[];
-
-        await navisRunTransportWithPersistence(
-          transportOperation: () async {
-            transportRuns += 1;
-          },
-          persistOperation: () async {
-            throw StateError('db unavailable');
-          },
-          persistSafely:
-              (
-                persistOperation, {
-                required context,
-              }) => navisPersistSafely(
-                persistOperation,
-                context: context,
-                logWarning: logs.add,
-              ),
-          persistenceContext: 'play',
-        );
-
-        expect(transportRuns, 1);
-        expect(logs, hasLength(1));
-        expect(logs.single, contains('db unavailable'));
-      },
-    );
 
     test(
       'queue preload decision respects autoplay, gapless, and forced restore preloading',

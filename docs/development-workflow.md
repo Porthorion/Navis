@@ -248,6 +248,36 @@ flutter run -d linux
 
 This is a local workaround and does not replace Android runtime validation.
 
+### Linux Sync Diagnostics
+
+After `./tool/check.sh` passes, exercise catalog promotion against a consistent
+clone of the configured library and the real server:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/sync_diagnostics.sh clone
+```
+
+The profile-only launcher stores its authenticated loopback handshake, logs,
+JSON report, and database checks under `build/sync-diagnostics/`. It rewrites
+cached-file paths in the clone so cancellation, restart, and deletion tests
+cannot unlink primary cache files. Clone mode can simulate metered/cellular
+policy through diagnostics overrides and asserts hard-probe, interactive
+hydration, budget, and one-time override guardrails without requiring a real
+modem.
+
+Run primary certification only after the clone suite passes:
+
+```bash
+./tool/sync_diagnostics.sh primary-certification
+```
+
+Primary mode refuses to start beside another Navis process, disables mutation
+and cancellation endpoints, requires the normal Linux database path, and
+retains a timestamped SQLite online backup in
+`~/Documents/navis-certification-backups` unless
+`NAVIS_DIAGNOSTICS_BACKUP_ROOT` overrides that location.
+
 ## MacBook Testing Guide
 
 For complete MacBook test procedures (quick smoke, full regression, release/notarization validation), use:

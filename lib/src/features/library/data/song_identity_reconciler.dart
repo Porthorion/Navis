@@ -158,54 +158,19 @@ class SongIdentityReconciler {
   Future<SongIdentityReconciliationSummary> reconcileCanonicalSongs(
     Iterable<SongsTableData> canonicalSongs,
   ) async {
-    final provisional = await _identityDao.getProvisionalSongs();
-    if (provisional.isEmpty) {
-      return const SongIdentityReconciliationSummary();
-    }
+    final session = await startSession();
+    await session.reconcile(canonicalSongs);
+    return session.summary;
+  }
 
-    final remaining = <String, SongsTableData>{
-      for (final song in provisional) song.id: song,
-    };
-    final aliases = <SongIdentityAlias>[];
-    var canonicalized = 0;
-    var ambiguous = 0;
-    for (final canonicalSong in canonicalSongs) {
-      final result = matchCanonicalSong(
-        canonicalSong: canonicalSong,
-        provisionalSongs: remaining.values.toList(growable: false),
-      );
-      switch (result) {
-        case SongIdentityMatched():
-          if (result.reason == SongIdentityMatchReason.sameId) {
-            await _identityDao.markCanonical(canonicalSong.id);
-          } else {
-            final oldSongId = result.provisionalSong.id;
-            final wasActive = readActiveSongId?.call() == oldSongId;
-            await onBeforeRemap?.call(<String, String>{
-              oldSongId: canonicalSong.id,
-            });
-            final remap = await _identityDao.remapSongIdentity(
-              oldSongId: oldSongId,
-              canonicalSongId: canonicalSong.id,
-              matchReason: result.reason.name,
-              retainOldCacheFile: wasActive,
-            );
-            aliases.add(remap.alias);
-          }
-          remaining.remove(result.provisionalSong.id);
-          canonicalized++;
-        case SongIdentityAmbiguous():
-          ambiguous++;
-        case SongIdentityUnmatched():
-          break;
-      }
-    }
-
-    return SongIdentityReconciliationSummary(
-      aliases: aliases,
-      canonicalizedSongCount: canonicalized,
-      ambiguousMatchCount: ambiguous,
-      retainedProvisionalCount: remaining.length,
+  Future<SongIdentityReconciliationSession> startSession({
+    List<SongsTableData>? provisionalSongs,
+  }) async {
+    final provisional =
+        provisionalSongs ?? await _identityDao.getProvisionalSongs();
+    return SongIdentityReconciliationSession._(
+      this,
+      _ProvisionalIdentityIndex(this, provisional),
     );
   }
 
@@ -225,5 +190,169 @@ class SongIdentityReconciler {
         .replaceAll(_identityPunctuation, ' ')
         .replaceAll(_identityWhitespace, ' ')
         .trim();
+  }
+}
+
+/// Retains a bounded provisional-song index while canonical rows are streamed
+/// in pages. This avoids rescanning every provisional row for every catalog
+/// song and keeps ambiguity decisions stable across page boundaries.
+class SongIdentityReconciliationSession {
+  SongIdentityReconciliationSession._(this._reconciler, this._index);
+
+  final SongIdentityReconciler _reconciler;
+  final _ProvisionalIdentityIndex _index;
+  final List<SongIdentityAlias> _aliases = <SongIdentityAlias>[];
+  var _canonicalized = 0;
+  var _ambiguous = 0;
+
+  SongIdentityReconciliationSummary get summary =>
+      SongIdentityReconciliationSummary(
+        aliases: List<SongIdentityAlias>.unmodifiable(_aliases),
+        canonicalizedSongCount: _canonicalized,
+        ambiguousMatchCount: _ambiguous,
+        retainedProvisionalCount: _index.remainingCount,
+      );
+
+  Future<void> reconcile(Iterable<SongsTableData> canonicalSongs) async {
+    for (final canonicalSong in canonicalSongs) {
+      final result = _index.match(canonicalSong);
+      switch (result) {
+        case SongIdentityMatched():
+          if (result.reason == SongIdentityMatchReason.sameId) {
+            await _reconciler._identityDao.markCanonical(canonicalSong.id);
+          } else {
+            final oldSongId = result.provisionalSong.id;
+            final wasActive = _reconciler.readActiveSongId?.call() == oldSongId;
+            await _reconciler.onBeforeRemap?.call(<String, String>{
+              oldSongId: canonicalSong.id,
+            });
+            final remap = await _reconciler._identityDao.remapSongIdentity(
+              oldSongId: oldSongId,
+              canonicalSongId: canonicalSong.id,
+              matchReason: result.reason.name,
+              retainOldCacheFile: wasActive,
+            );
+            _aliases.add(remap.alias);
+          }
+          _index.remove(result.provisionalSong);
+          _canonicalized++;
+        case SongIdentityAmbiguous():
+          _ambiguous++;
+        case SongIdentityUnmatched():
+          break;
+      }
+    }
+  }
+}
+
+class _ProvisionalIdentityIndex {
+  _ProvisionalIdentityIndex(
+    this._reconciler,
+    Iterable<SongsTableData> songs,
+  ) {
+    for (final song in songs) {
+      _remaining[song.id] = song;
+      final mbid = _reconciler._normalizeMbid(song.recordingMbid);
+      if (mbid != null) {
+        (_byMbid[mbid] ??= <SongsTableData>[]).add(song);
+      }
+      final metadata = _metadataKey(song);
+      if (metadata != null) {
+        (_byMetadata[metadata] ??= <SongsTableData>[]).add(song);
+      }
+    }
+  }
+
+  final SongIdentityReconciler _reconciler;
+  final Map<String, SongsTableData> _remaining = <String, SongsTableData>{};
+  final Map<String, List<SongsTableData>> _byMbid =
+      <String, List<SongsTableData>>{};
+  final Map<String, List<SongsTableData>> _byMetadata =
+      <String, List<SongsTableData>>{};
+
+  int get remainingCount => _remaining.length;
+
+  SongIdentityMatchResult match(SongsTableData canonicalSong) {
+    final sameId = _remaining[canonicalSong.id];
+    if (sameId != null) {
+      return SongIdentityMatched(
+        provisionalSong: sameId,
+        reason: SongIdentityMatchReason.sameId,
+      );
+    }
+    final mbid = _reconciler._normalizeMbid(canonicalSong.recordingMbid);
+    if (mbid != null) {
+      final matches = _active(_byMbid[mbid]);
+      if (matches.length == 1) {
+        return SongIdentityMatched(
+          provisionalSong: matches.single,
+          reason: SongIdentityMatchReason.recordingMbid,
+        );
+      }
+      if (matches.length > 1) {
+        return SongIdentityAmbiguous(
+          candidateCount: matches.length,
+          reason: SongIdentityMatchReason.recordingMbid,
+        );
+      }
+    }
+    final duration = canonicalSong.duration;
+    final key = _metadataKey(canonicalSong);
+    if (duration == null || key == null) {
+      return const SongIdentityUnmatched();
+    }
+    final matches = _active(_byMetadata[key])
+        .where(
+          (candidate) =>
+              candidate.duration != null &&
+              (candidate.duration! - duration).abs() <= 3 &&
+              _reconciler._positionsCompatible(
+                canonicalSong.track,
+                candidate.track,
+              ) &&
+              _reconciler._positionsCompatible(
+                canonicalSong.discNumber,
+                candidate.discNumber,
+              ),
+        )
+        .toList(growable: false);
+    if (matches.length == 1) {
+      return SongIdentityMatched(
+        provisionalSong: matches.single,
+        reason: SongIdentityMatchReason.exactMetadata,
+      );
+    }
+    if (matches.length > 1) {
+      return SongIdentityAmbiguous(
+        candidateCount: matches.length,
+        reason: SongIdentityMatchReason.exactMetadata,
+      );
+    }
+    return const SongIdentityUnmatched();
+  }
+
+  void remove(SongsTableData song) {
+    _remaining.remove(song.id);
+  }
+
+  List<SongsTableData> _active(List<SongsTableData>? candidates) {
+    if (candidates == null || candidates.isEmpty) {
+      return const <SongsTableData>[];
+    }
+    return candidates
+        .where((song) => _remaining.containsKey(song.id))
+        .toList(growable: false);
+  }
+
+  String? _metadataKey(SongsTableData song) {
+    final title = _reconciler._normalizeIdentityMetadata(song.title);
+    final artist = _reconciler._normalizeIdentityMetadata(
+      song.artistName ?? '',
+    );
+    final album = _reconciler._normalizeIdentityMetadata(song.albumName ?? '');
+    if (title.isEmpty || artist.isEmpty || album.isEmpty) {
+      return null;
+    }
+    return '$title\u0000$artist\u0000$album';
   }
 }

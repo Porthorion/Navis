@@ -9,6 +9,11 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
+const bool _syncDiagnosticsEnabled = bool.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS',
+  defaultValue: false,
+);
+
 final starSyncDispatchControllerProvider =
     NotifierProvider.autoDispose<StarSyncDispatchController, int>(
       StarSyncDispatchController.new,
@@ -23,6 +28,12 @@ class StarSyncDispatchController extends Notifier<int> {
 
   @override
   int build() {
+    // Diagnostics may exercise pending local actions against a cloned
+    // database, but only its explicitly reversible fixture endpoint may
+    // mutate the real server.
+    if (_syncDiagnosticsEnabled) {
+      return 0;
+    }
     _lastReachabilityStatus = ref
         .read(serverReachabilityControllerProvider)
         .status;

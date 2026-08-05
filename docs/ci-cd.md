@@ -33,6 +33,10 @@ It checks that release discovery metadata and the canonical
 `com.ryanheise.audioservice.AudioService` are present and no privileged
 media-browser bind permission blocks Android Auto.
 
+Library sync metered-network guardrails are exercised by the clone diagnostics
+suite (`./tool/sync_diagnostics.sh clone`), which can simulate network cost
+overrides without cellular hardware.
+
 ### Core Gate
 
 Use for the focused release checks when the full development test matrix is not

@@ -81,10 +81,10 @@ class ResolvedPlaybackSource {
     return switch (kind) {
       PlaybackSourceKind.file => AudioSource.uri(uri!, tag: tag),
       PlaybackSourceKind.directStream => AudioSource.uri(uri!, tag: tag),
-      // ignore: experimental_member_use, reason: LockCachingAudioSource is intentionally used as a per-deck cache source clone.
-      PlaybackSourceKind.lockCachedStream => LockCachingAudioSource(
+      // A second LockCachingAudioSource cannot share the active deck's cache
+      // path: both instances would race to rename the same `.part` file.
+      PlaybackSourceKind.lockCachedStream => AudioSource.uri(
         lockCachingStreamUri!,
-        cacheFile: cachedFilePath == null ? null : File(cachedFilePath!),
         tag: tag,
       ),
     };
@@ -117,6 +117,7 @@ class PlaybackSourceResolver {
     bool Function()? readCachedPlaybackFirst,
     bool Function()? readPreferAnyCache,
     bool Function()? readCanStream,
+    bool Function()? readSupportsLockCaching,
   }) : _cacheDao = cacheDao,
        _libraryDao = libraryDao,
        _rollingCacheManager = rollingCacheManager,
@@ -125,7 +126,9 @@ class PlaybackSourceResolver {
        _readRollingCacheDirectory = readRollingCacheDirectory,
        _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
        _readPreferAnyCache = readPreferAnyCache ?? _readFalse,
-       _readCanStream = readCanStream ?? _readTrue;
+       _readCanStream = readCanStream ?? _readTrue,
+       _readSupportsLockCaching =
+           readSupportsLockCaching ?? _defaultSupportsLockCaching;
 
   final CacheDao _cacheDao;
   final LibraryDao? _libraryDao;
@@ -136,6 +139,7 @@ class PlaybackSourceResolver {
   final bool Function() _readCachedPlaybackFirst;
   final bool Function() _readPreferAnyCache;
   final bool Function() _readCanStream;
+  final bool Function() _readSupportsLockCaching;
 
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
@@ -239,7 +243,7 @@ class PlaybackSourceResolver {
       song: song,
       quality: quality,
     );
-    final canUseLockCaching = preferLockCaching && _supportsLockCachingRuntime;
+    final canUseLockCaching = preferLockCaching && _readSupportsLockCaching();
     if (!canUseLockCaching) {
       final reason = !preferLockCaching
           ? 'prefer_lock_disabled'
@@ -577,5 +581,4 @@ bool _readFalse() => false;
 
 bool _readTrue() => true;
 
-bool get _supportsLockCachingRuntime =>
-    !kIsWeb && !(Platform.isWindows || Platform.isLinux);
+bool _defaultSupportsLockCaching() => !kIsWeb;

@@ -23,7 +23,7 @@ void main() {
             InterceptorsWrapper(
               onRequest: (options, handler) {
                 attempts += 1;
-                if (attempts < 3) {
+                if (attempts < 2) {
                   handler.reject(
                     DioException(
                       requestOptions: options,
@@ -49,7 +49,7 @@ void main() {
         final response = await dio.get<dynamic>('/rest/ping.view');
 
         expect(response.statusCode, 200);
-        expect(attempts, 3);
+        expect(attempts, 2);
       },
     );
 
@@ -106,7 +106,7 @@ void main() {
           InterceptorsWrapper(
             onRequest: (options, handler) {
               attempts += 1;
-              if (attempts < 3) {
+              if (attempts < 2) {
                 handler.reject(
                   DioException(
                     requestOptions: options,
@@ -136,7 +136,7 @@ void main() {
       final response = await dio.get<dynamic>('/rest/ping.view');
 
       expect(response.statusCode, 200);
-      expect(attempts, 3);
+      expect(attempts, 2);
     });
   });
 }

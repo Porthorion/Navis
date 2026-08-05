@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
@@ -35,12 +37,15 @@ class _MockSubsonicApiClient extends Mock implements SubsonicApiClient {}
 class _FakePlaybackHandler implements NavisPlaybackHandler {
   final StreamController<PlaybackSnapshot> _controller =
       StreamController<PlaybackSnapshot>.broadcast();
+  final StreamController<PlaybackBufferState> _bufferController =
+      StreamController<PlaybackBufferState>.broadcast();
   final List<List<String>> addToQueueCalls = <List<String>>[];
   final List<List<String>> playNextCalls = <List<String>>[];
   final List<String> retainCurrentSongCalls = <String>[];
   final List<bool> addToQueueExpandFlags = <bool>[];
   final List<bool> playNextExpandFlags = <bool>[];
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
+  PlaybackBufferState _bufferState = const PlaybackBufferState.idle();
 
   @override
   PlaybackSnapshot get snapshot => _snapshot;
@@ -50,6 +55,17 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Stream<Duration> get positionStream => Stream<Duration>.empty();
+
+  @override
+  PlaybackBufferState get bufferState => _bufferState;
+
+  @override
+  Stream<PlaybackBufferState> get bufferStateStream => _bufferController.stream;
+
+  void emitBufferState(PlaybackBufferState value) {
+    _bufferState = value;
+    _bufferController.add(value);
+  }
 
   @override
   MediaItem? get currentMediaItem => null;
@@ -302,6 +318,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
 
   Future<void> dispose() async {
     await _controller.close();
+    await _bufferController.close();
   }
 }
 
@@ -311,6 +328,58 @@ void main() {
   });
 
   group('app providers', () {
+    test('playbackBufferStateProvider yields current and live state', () async {
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [audioHandlerProvider.overrideWithValue(handler)],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
+
+      final nextState = Completer<PlaybackBufferState>();
+      final subscription = container.listen(playbackBufferStateProvider, (
+        _,
+        next,
+      ) {
+        final value = next.asData?.value;
+        if (value?.songId == 'song-1' && !nextState.isCompleted) {
+          nextState.complete(value);
+        }
+      });
+      addTearDown(subscription.close);
+
+      expect(
+        await container.read(playbackBufferStateProvider.future),
+        isA<PlaybackBufferState>()
+            .having((state) => state.songId, 'songId', isNull)
+            .having(
+              (state) => state.bufferedPosition,
+              'bufferedPosition',
+              Duration.zero,
+            ),
+      );
+
+      handler.emitBufferState(
+        const PlaybackBufferState(
+          songId: 'song-1',
+          bufferedPosition: Duration(seconds: 45),
+        ),
+      );
+
+      expect(
+        await nextState.future,
+        isA<PlaybackBufferState>()
+            .having((state) => state.songId, 'songId', 'song-1')
+            .having(
+              (state) => state.bufferedPosition,
+              'bufferedPosition',
+              const Duration(seconds: 45),
+            ),
+      );
+    });
+
     test('subsonicApiProvider returns null when server config missing', () {
       final container = ProviderContainer(
         overrides: [
@@ -513,8 +582,11 @@ void main() {
     );
 
     test('subsonicApiProvider builds client when server config exists', () {
+      final database = createTestDatabase();
+      addTearDown(database.close);
       final container = ProviderContainer(
         overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
           networkTypeProvider.overrideWith((_) => NetworkType.other),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData(
@@ -532,6 +604,73 @@ void main() {
 
       expect(container.read(subsonicApiProvider), isNotNull);
     });
+
+    test(
+      'in-flight API usage survives a network-driven client rebuild',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        final requestReceived = Completer<HttpRequest>();
+        final releaseResponse = Completer<void>();
+        server.listen((request) async {
+          requestReceived.complete(request);
+          await releaseResponse.future;
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(
+            jsonEncode(<String, Object>{
+              'subsonic-response': <String, Object>{
+                'status': 'ok',
+                'version': '1.16.1',
+                'artists': <String, Object>{
+                  'index': <Object>[
+                    <String, Object>{
+                      'artist': <Object>[
+                        <String, Object>{'id': 'artist-1', 'name': 'Artist 1'},
+                      ],
+                    },
+                  ],
+                },
+              },
+            }),
+          );
+          await request.response.close();
+        });
+        var networkType = NetworkType.other;
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            networkTypeProvider.overrideWith((_) => networkType),
+            serverConfigStateProvider.overrideWithValue(
+              AsyncData(
+                ServerConfigModel(
+                  url: 'http://${server.address.host}:${server.port}',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final original = container.read(subsonicApiProvider)!;
+        final artistsFuture = original.getArtists();
+        await requestReceived.future;
+
+        networkType = NetworkType.wifi;
+        container.invalidate(networkTypeProvider);
+        final replacement = container.read(subsonicApiProvider)!;
+        expect(replacement, isNot(same(original)));
+
+        releaseResponse.complete();
+        final artists = await artistsFuture;
+        expect(artists.single.id, 'artist-1');
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('searchResultsProvider uses live search API path', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));

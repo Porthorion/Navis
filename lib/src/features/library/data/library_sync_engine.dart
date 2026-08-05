@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -11,8 +12,10 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/library/data/library_catalog_diff_analyzer.dart';
 import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -25,15 +28,25 @@ class SyncCancelledException implements Exception {
   String toString() => 'SyncCancelledException: sync was cancelled.';
 }
 
-enum _AlbumFetchOutcome { success, deleted, requeue, hardFailure }
+/// Thrown when live network policy requires pausing background sync work.
+class SyncNetworkDeferredException implements Exception {
+  const SyncNetworkDeferredException([
+    this.message = 'Sync deferred by network policy.',
+  ]);
+
+  final String message;
+
+  @override
+  String toString() => 'SyncNetworkDeferredException: $message';
+}
+
+enum _AlbumFetchOutcome { success, requeue, hardFailure }
 
 class _AlbumFetchResult {
   const _AlbumFetchResult._(this.outcome, [this.album]);
 
   const _AlbumFetchResult.success(Album album)
     : this._(_AlbumFetchOutcome.success, album);
-
-  const _AlbumFetchResult.deleted() : this._(_AlbumFetchOutcome.deleted);
 
   const _AlbumFetchResult.requeue() : this._(_AlbumFetchOutcome.requeue);
 
@@ -47,15 +60,25 @@ class _AlbumFetchResult {
 class _AlbumBatchFetchResult {
   const _AlbumBatchFetchResult({
     required this.albums,
-    required this.deletedAlbumIds,
     required this.requeueAlbumIds,
     required this.hardFailedAlbumIds,
   });
 
   final List<Album> albums;
-  final List<String> deletedAlbumIds;
   final List<String> requeueAlbumIds;
   final List<String> hardFailedAlbumIds;
+}
+
+class _CatalogPageCheckpoint {
+  const _CatalogPageCheckpoint({
+    required this.count,
+    required this.hasMore,
+    required this.signature,
+  });
+
+  final int count;
+  final bool hasMore;
+  final String signature;
 }
 
 class _SyncFailureDiagnostic {
@@ -83,6 +106,27 @@ class _SyncFailureDiagnostic {
 }
 
 abstract class LibrarySyncEngine {
+  Future<LibrarySyncState> requestSync(
+    LibrarySyncRequest request, {
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    return switch (request.intent) {
+      LibrarySyncIntent.automatic => syncIfStale(
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+      ),
+      LibrarySyncIntent.checkForUpdates => syncNow(
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+      ),
+      LibrarySyncIntent.repair => forceFullSync(
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+      ),
+    };
+  }
+
   Future<LibrarySyncState> syncIfStale({
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
@@ -102,12 +146,54 @@ abstract class LibrarySyncEngine {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   });
+
+  /// Single conditional `getIndexes` probe with retries disabled.
+  ///
+  /// Never advances the committed cursor or fans out into artist/album work.
+  Future<LibrarySyncState> probeCatalog({
+    LibrarySyncProgressCallback? onProgress,
+  });
+}
+
+abstract interface class TargetedLibrarySyncExecutor {
+  Future<LibrarySyncState> hydrateAlbum(
+    String albumId, {
+    LibrarySyncProgressCallback? onProgress,
+  });
+
+  Future<LibrarySyncState> hydrateArtist(
+    String artistId, {
+    LibrarySyncProgressCallback? onProgress,
+  });
+
+  Future<LibrarySyncState> hydratePlaylist(
+    String playlistId, {
+    LibrarySyncProgressCallback? onProgress,
+  });
+
+  Future<LibrarySyncState> syncPlaylistHeaders({
+    LibrarySyncProgressCallback? onProgress,
+  });
+
+  Future<LibrarySyncState> syncStarredContent({
+    LibrarySyncProgressCallback? onProgress,
+  });
+
+  Future<LibrarySyncState> syncGenres({
+    LibrarySyncProgressCallback? onProgress,
+  });
 }
 
 abstract class LibrarySyncApi {
+  void beginRun();
+  void cancelActiveRequests();
   Future<List<Artist>> getArtists();
-  Future<Artist> getArtist(String id);
-  Future<Album> getAlbum(String id);
+  Future<Artist> getArtist(String id, {int? maxResponseBytes});
+  Future<Album> getAlbum(String id, {int? maxResponseBytes});
+  Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) {
+    throw UnsupportedError('Targeted playlist hydration is unsupported.');
+  }
+
   Future<StarredContent> getStarredContent();
   Future<SearchResult3> searchSongsPage({
     required String query,
@@ -125,27 +211,106 @@ abstract class LibrarySyncApi {
     return getAlbumListPage(size: size, offset: offset);
   }
 
-  Future<Indexes> getIndexes({DateTime? ifModifiedSince});
+  Future<Indexes> getIndexes({
+    DateTime? ifModifiedSince,
+    bool disableRetry = false,
+  });
   Future<List<Genre>> getGenres();
   Future<List<Playlist>> getPlaylists();
 }
 
+/// Metered interactive hydration budgets (bytes).
+const kMeteredSyncMaxResponseBytes = 16 * 1024 * 1024;
+const kMeteredSyncMaxInteractionBytes = 32 * 1024 * 1024;
+
+class _MeteredInteractionBudget {
+  _MeteredInteractionBudget({
+    required this.maxResponseBytes,
+    required this.maxInteractionBytes,
+  });
+
+  final int maxResponseBytes;
+  final int maxInteractionBytes;
+  int _used = 0;
+
+  int remainingInteractionBytes() =>
+      maxInteractionBytes > _used ? maxInteractionBytes - _used : 0;
+
+  int nextMaxResponseBytes() {
+    final remaining = remainingInteractionBytes();
+    if (remaining <= 0) {
+      throw SubsonicResponseBudgetExceededException(
+        maxBytes: maxInteractionBytes,
+        observedBytes: _used,
+      );
+    }
+    return remaining < maxResponseBytes ? remaining : maxResponseBytes;
+  }
+
+  void recordObservedBytes(int bytes) {
+    if (bytes <= 0) {
+      return;
+    }
+    _used += bytes;
+    if (_used > maxInteractionBytes) {
+      throw SubsonicResponseBudgetExceededException(
+        maxBytes: maxInteractionBytes,
+        observedBytes: _used,
+      );
+    }
+  }
+}
+
 class SubsonicLibrarySyncApi implements LibrarySyncApi {
-  const SubsonicLibrarySyncApi(this._api);
+  SubsonicLibrarySyncApi(this._api);
 
   final SubsonicApiClient _api;
+  CancelToken _cancelToken = CancelToken();
 
   @override
-  Future<List<Artist>> getArtists() => _api.getArtists();
+  void beginRun() {
+    if (_cancelToken.isCancelled) {
+      _cancelToken = CancelToken();
+    }
+  }
 
   @override
-  Future<Artist> getArtist(String id) => _api.getArtist(id);
+  void cancelActiveRequests() {
+    if (!_cancelToken.isCancelled) {
+      _cancelToken.cancel('library sync cancelled');
+    }
+  }
 
   @override
-  Future<Album> getAlbum(String id) => _api.getAlbum(id);
+  Future<List<Artist>> getArtists() =>
+      _api.getArtists(cancelToken: _cancelToken);
 
   @override
-  Future<StarredContent> getStarredContent() => _api.getStarred2();
+  Future<Artist> getArtist(String id, {int? maxResponseBytes}) =>
+      _api.getArtist(
+        id,
+        cancelToken: _cancelToken,
+        maxResponseBytes: maxResponseBytes,
+      );
+
+  @override
+  Future<Album> getAlbum(String id, {int? maxResponseBytes}) => _api.getAlbum(
+    id,
+    cancelToken: _cancelToken,
+    maxResponseBytes: maxResponseBytes,
+  );
+
+  @override
+  Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) =>
+      _api.getPlaylist(
+        id,
+        cancelToken: _cancelToken,
+        maxResponseBytes: maxResponseBytes,
+      );
+
+  @override
+  Future<StarredContent> getStarredContent() =>
+      _api.getStarred2(cancelToken: _cancelToken);
 
   @override
   Future<SearchResult3> searchSongsPage({
@@ -159,6 +324,7 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
       albumCount: 0,
       songCount: size,
       songOffset: offset,
+      cancelToken: _cancelToken,
     );
   }
 
@@ -171,6 +337,7 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
       type: 'alphabeticalByName',
       size: size,
       offset: offset,
+      cancelToken: _cancelToken,
     );
   }
 
@@ -179,18 +346,30 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
     required int size,
     required int offset,
   }) {
-    return _api.getAlbumList2(type: 'newest', size: size, offset: offset);
+    return _api.getAlbumList2(
+      type: 'newest',
+      size: size,
+      offset: offset,
+      cancelToken: _cancelToken,
+    );
   }
 
   @override
-  Future<Indexes> getIndexes({DateTime? ifModifiedSince}) =>
-      _api.getIndexes(ifModifiedSince: ifModifiedSince);
+  Future<Indexes> getIndexes({
+    DateTime? ifModifiedSince,
+    bool disableRetry = false,
+  }) => _api.getIndexes(
+    ifModifiedSince: ifModifiedSince,
+    cancelToken: _cancelToken,
+    disableRetry: disableRetry,
+  );
 
   @override
-  Future<List<Genre>> getGenres() => _api.getGenres();
+  Future<List<Genre>> getGenres() => _api.getGenres(cancelToken: _cancelToken);
 
   @override
-  Future<List<Playlist>> getPlaylists() => _api.getPlaylists();
+  Future<List<Playlist>> getPlaylists() =>
+      _api.getPlaylists(cancelToken: _cancelToken);
 }
 
 const _navisCapabilitiesNamespace = 'navis';
@@ -210,11 +389,14 @@ const _librarySyncFailureDiagnosticsCapabilityKey =
 const _librarySyncFailureRecordedAtCapabilityKey =
     'librarySyncFailureRecordedAt';
 const _auxiliarySyncLastSyncedAtCapabilityKey = 'auxiliarySyncLastSyncedAt';
+const _genresSyncLastSyncedAtCapabilityKey = 'genresSyncLastSyncedAt';
 const _defaultAuxiliarySyncStaleAfter = Duration(hours: 12);
+const _defaultGenresSyncStaleAfter = Duration(days: 7);
 const _defaultHealthProbeStaleAfter = Duration(hours: 12);
 const _indexesCapabilityRetryAfter = Duration(days: 1);
 const _normalArtistVerificationLimit = 48;
 const _cellularManualArtistVerificationLimit = 24;
+const _compatibilityArtistVerificationLimit = 24;
 const _newestAlbumHealthProbePageSize = 100;
 
 String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
@@ -233,6 +415,13 @@ DateTime? _readStoredAuxiliarySyncedAt(String? capabilitiesJson) {
     return null;
   }
   return DateTime.tryParse(raw);
+}
+
+DateTime? _readStoredGenresSyncedAt(String? capabilitiesJson) {
+  return _readNavisDateCapability(
+    capabilitiesJson,
+    _genresSyncLastSyncedAtCapabilityKey,
+  );
 }
 
 LibrarySyncFreshness _readStoredLibraryFreshness(String? capabilitiesJson) {
@@ -309,6 +498,17 @@ String? _mergeStoredAuxiliarySyncedAt(
   return _mergeNavisStringCapability(
     capabilitiesJson,
     _auxiliarySyncLastSyncedAtCapabilityKey,
+    syncedAt?.toUtc().toIso8601String(),
+  );
+}
+
+String? _mergeStoredGenresSyncedAt(
+  String? capabilitiesJson,
+  DateTime? syncedAt,
+) {
+  return _mergeNavisStringCapability(
+    capabilitiesJson,
+    _genresSyncLastSyncedAtCapabilityKey,
     syncedAt?.toUtc().toIso8601String(),
   );
 }
@@ -481,12 +681,15 @@ class _NewestAlbumHealthProbe {
   final List<Album> discrepantAlbums;
 }
 
-class DriftLibrarySyncEngine implements LibrarySyncEngine {
+class DriftLibrarySyncEngine extends LibrarySyncEngine
+    implements TargetedLibrarySyncExecutor {
   DriftLibrarySyncEngine({
     required LibrarySyncApi api,
     required NavisDatabase database,
     required ServerConfigRepository serverConfigRepository,
     this.networkType = NetworkType.other,
+    SyncNetworkPolicy Function()? readSyncNetworkPolicy,
+    int? Function()? readMeteredResponseBudgetBytes,
     this.staleAfter = const Duration(hours: 1),
     this.auxiliarySyncStaleAfter = _defaultAuxiliarySyncStaleAfter,
     this.fastPathPageSize = 500,
@@ -495,23 +698,28 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     this.bulkSearchMaxPages = 200,
     this.bulkSearchProbeQueries = const <String>['', '*'],
     this.fallbackArtistConcurrency = 4,
-    this.wifiAlbumConcurrency = 8,
+    this.wifiAlbumConcurrency = 2,
     this.cellularAlbumConcurrency = 1,
-    this.otherAlbumConcurrency = 6,
-    this.wifiMaxAlbumConcurrency = 24,
-    this.cellularMaxAlbumConcurrency = 2,
-    this.otherMaxAlbumConcurrency = 12,
+    this.otherAlbumConcurrency = 2,
+    this.wifiMaxAlbumConcurrency = 8,
+    this.cellularMaxAlbumConcurrency = 1,
+    this.otherMaxAlbumConcurrency = 4,
     this.writeChunkSize = 48,
     this.isolateThreshold = 100,
     this.onBeforeSongIdentityRemap,
     this.readActiveSongId,
+    this.readProtectedSongIds,
   }) : _api = api,
        _database = database,
-       _serverConfigRepository = serverConfigRepository;
+       _serverConfigRepository = serverConfigRepository,
+       _readSyncNetworkPolicy = readSyncNetworkPolicy,
+       _readMeteredResponseBudgetBytes = readMeteredResponseBudgetBytes;
 
   final LibrarySyncApi _api;
   final NavisDatabase _database;
   final ServerConfigRepository _serverConfigRepository;
+  final SyncNetworkPolicy Function()? _readSyncNetworkPolicy;
+  final int? Function()? _readMeteredResponseBudgetBytes;
   final NetworkType networkType;
   final Duration staleAfter;
   final Duration auxiliarySyncStaleAfter;
@@ -532,14 +740,17 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   final Future<void> Function(Map<String, String> aliases)?
   onBeforeSongIdentityRemap;
   final String? Function()? readActiveSongId;
+  final Set<String> Function()? readProtectedSongIds;
 
   Future<LibrarySyncState>? _inFlight;
   bool _cancelled = false;
+  bool allowMeteredBackgroundOverride = false;
+  Map<String, int> lastEndpointRequestCounts = const <String, int>{};
 
-  /// Cancel any in-progress sync.  The sync will complete with a `failed`
-  /// status and a "Sync cancelled." error message.
+  /// Cancel any in-progress sync. Durable orchestration retains the work.
   void cancelSync() {
     _cancelled = true;
+    _api.cancelActiveRequests();
   }
 
   /// Throws [SyncCancelledException] if [cancelSync] has been called.
@@ -547,6 +758,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     if (_cancelled) {
       throw const SyncCancelledException();
     }
+  }
+
+  void _ensureBackgroundWorkAllowed() {
+    final policy = _currentSyncPolicy;
+    if (policy.allowsBackgroundSync || allowMeteredBackgroundOverride) {
+      return;
+    }
+    _api.cancelActiveRequests();
+    throw const SyncNetworkDeferredException();
   }
 
   int get _albumConcurrency {
@@ -559,12 +779,548 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   }
 
   int get _maxHydrationConcurrency {
+    if (readActiveSongId?.call() != null) {
+      return 2;
+    }
     return switch (networkType) {
       NetworkType.wifi => wifiMaxAlbumConcurrency,
       NetworkType.cellular => cellularMaxAlbumConcurrency,
       NetworkType.offline => 2,
       NetworkType.other => otherMaxAlbumConcurrency,
     };
+  }
+
+  @override
+  Future<LibrarySyncState> hydrateAlbum(
+    String albumId, {
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
+    final normalizedId = albumId.trim();
+    if (normalizedId.isEmpty) {
+      return const LibrarySyncState.idle();
+    }
+    _cancelled = false;
+    _api.beginRun();
+    final startedAt = DateTime.now();
+    final metrics = _SyncRunMetrics();
+    var state = LibrarySyncState(
+      status: LibrarySyncStatus.running,
+      stage: LibrarySyncStage.fetchingSongs,
+      mode: LibrarySyncMode.incremental,
+      startedAt: startedAt,
+      metadataReady: true,
+      isHydrating: true,
+      processed: 0,
+      total: 1,
+      pendingHydrationCount: 1,
+    );
+    onProgress?.call(state);
+    try {
+      final budget = _meteredInteractionBudget();
+      final maxBytes =
+          budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
+      final detail = await _withRetry(
+        () => _api.getAlbum(normalizedId, maxResponseBytes: maxBytes),
+        metrics: metrics,
+        endpoint: 'getAlbum',
+      );
+      final existingSongs = await _database.libraryDao
+          .watchSongsByAlbum(normalizedId)
+          .first;
+      final incompleteEmptyResponse =
+          detail.songs.isEmpty &&
+          ((detail.songCount ?? 0) > 0 || existingSongs.isNotEmpty);
+      if (incompleteEmptyResponse) {
+        state = _withMetrics(
+          state.copyWith(
+            status: LibrarySyncStatus.partial,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            isHydrating: false,
+            pendingHydrationCount: 1,
+            errorMessage:
+                'Album details were incomplete; existing tracks were preserved.',
+          ),
+          metrics,
+        );
+        onProgress?.call(state);
+        return state;
+      }
+      final artistId = detail.artistId?.trim();
+      ArtistsTableCompanion? missingArtist;
+      final validArtistIds = await _database.libraryDao.getArtistIds();
+      if (artistId != null && artistId.isNotEmpty) {
+        if (!validArtistIds.contains(artistId)) {
+          missingArtist = ArtistsTableCompanion.insert(
+            id: artistId,
+            name: detail.artist ?? 'Unknown Artist',
+          );
+          validArtistIds.add(artistId);
+        }
+      }
+      final songs = await _toSongCompanions(
+        detail.songs,
+        defaultAlbumId: normalizedId,
+        validArtistIds: validArtistIds,
+      );
+      final sameIdProvisionalSongs =
+          (await _database.songIdentityDao.getProvisionalSongs())
+              .map((song) => song.id)
+              .toSet();
+      final albumMetadata = await _toAlbumCompanions(
+        <Album>[detail],
+        pendingHydrationAlbumIds: <String>[normalizedId],
+      );
+      await _database.transaction(() async {
+        if (missingArtist != null) {
+          await _database.libraryDao.upsertArtists([missingArtist]);
+        }
+        await _database.libraryDao.reconcileSongsForAlbumsChunk(
+          <String, List<SongsTableCompanion>>{normalizedId: songs},
+          markAlbumsHydrated: true,
+          albumMetadata: albumMetadata,
+        );
+        await _reconcileHydratedSongIds(
+          canonicalSongIds: songs
+              .where((song) => song.id.present)
+              .map((song) => song.id.value),
+          sameIdProvisionalSongs: sameIdProvisionalSongs,
+          metrics: metrics,
+        );
+      });
+      metrics.addDbWriteBatch();
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          processed: 1,
+          pendingHydrationCount: 0,
+        ),
+        metrics,
+      );
+    } on SyncCancelledException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: 'Sync cancelled.',
+        ),
+        metrics,
+      );
+    } on SyncNetworkDeferredException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: 'Sync deferred by network policy.',
+        ),
+        metrics,
+      );
+    } on SubsonicResponseBudgetExceededException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          pendingHydrationCount: 1,
+          errorMessage:
+              'Sync deferred: response exceeded the mobile-data budget.',
+        ),
+        metrics,
+      );
+    } on Object catch (error) {
+      state = _withMetrics(
+        state.copyWith(
+          status: _cancelled
+              ? LibrarySyncStatus.cancelled
+              : LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: _cancelled
+              ? 'Sync cancelled.'
+              : _toSafeErrorMessage(error),
+        ),
+        metrics,
+      );
+    }
+    onProgress?.call(state);
+    return state;
+  }
+
+  @override
+  Future<LibrarySyncState> hydrateArtist(
+    String artistId, {
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
+    final normalizedId = artistId.trim();
+    if (normalizedId.isEmpty) {
+      return const LibrarySyncState.idle();
+    }
+    _cancelled = false;
+    _api.beginRun();
+    final startedAt = DateTime.now();
+    final metrics = _SyncRunMetrics();
+    var state = LibrarySyncState(
+      status: LibrarySyncStatus.running,
+      stage: LibrarySyncStage.fetchingAlbums,
+      mode: LibrarySyncMode.incremental,
+      startedAt: startedAt,
+      metadataReady: true,
+      isHydrating: true,
+      total: 1,
+    );
+    onProgress?.call(state);
+    try {
+      final budget = _meteredInteractionBudget();
+      final maxBytes =
+          budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
+      final detail = await _withRetry(
+        () => _api.getArtist(normalizedId, maxResponseBytes: maxBytes),
+        metrics: metrics,
+        endpoint: 'getArtist',
+      );
+      if (detail.albums.isEmpty && (detail.albumCount ?? 0) > 0) {
+        state = _withMetrics(
+          state.copyWith(
+            status: LibrarySyncStatus.partial,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            isHydrating: false,
+            errorMessage:
+                'Artist details were incomplete; existing albums were preserved.',
+          ),
+          metrics,
+        );
+        onProgress?.call(state);
+        return state;
+      }
+      await _database.transaction(() async {
+        await _database.libraryDao.upsertArtists(
+          <ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(
+              id: detail.id,
+              name: detail.name,
+              albumCount: Value(detail.albumCount),
+              coverArt: Value(detail.coverArt),
+              starred: Value(detail.starred),
+            ),
+          ],
+        );
+        await _database.libraryDao.upsertAlbums(
+          await _toAlbumCompanions(
+            detail.albums,
+            pendingHydrationAlbumIds: detail.albums.map((album) => album.id),
+          ),
+        );
+      });
+      metrics.addDbWriteBatch();
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          processed: 1,
+        ),
+        metrics,
+      );
+    } on SyncCancelledException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage: 'Sync cancelled.',
+        ),
+        metrics,
+      );
+    } on SyncNetworkDeferredException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage: 'Sync deferred by network policy.',
+        ),
+        metrics,
+      );
+    } on SubsonicResponseBudgetExceededException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage:
+              'Sync deferred: response exceeded the mobile-data budget.',
+        ),
+        metrics,
+      );
+    } on Object catch (error) {
+      state = _withMetrics(
+        state.copyWith(
+          status: _cancelled
+              ? LibrarySyncStatus.cancelled
+              : LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage: _cancelled
+              ? 'Sync cancelled.'
+              : _toSafeErrorMessage(error),
+        ),
+        metrics,
+      );
+    }
+    onProgress?.call(state);
+    return state;
+  }
+
+  @override
+  Future<LibrarySyncState> hydratePlaylist(
+    String playlistId, {
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
+    final normalizedId = playlistId.trim();
+    if (normalizedId.isEmpty) {
+      return const LibrarySyncState.idle();
+    }
+    _cancelled = false;
+    _api.beginRun();
+    final startedAt = DateTime.now();
+    final metrics = _SyncRunMetrics();
+    var state = LibrarySyncState(
+      status: LibrarySyncStatus.running,
+      stage: LibrarySyncStage.fetchingSongs,
+      mode: LibrarySyncMode.incremental,
+      startedAt: startedAt,
+      metadataReady: true,
+      isHydrating: true,
+      total: 1,
+    );
+    onProgress?.call(state);
+    try {
+      final budget = _meteredInteractionBudget();
+      final maxBytes =
+          budget?.nextMaxResponseBytes() ?? _meteredResponseBudgetBytes();
+      final playlist = await _withRetry(
+        () => _api.getPlaylist(normalizedId, maxResponseBytes: maxBytes),
+        metrics: metrics,
+        endpoint: 'getPlaylist',
+      );
+      final existingSongs = await _database.playlistDao
+          .watchPlaylistSongs(normalizedId)
+          .first;
+      if (playlist.entries.isEmpty &&
+          (playlist.songCount ?? existingSongs.length) > 0) {
+        state = _withMetrics(
+          state.copyWith(
+            status: LibrarySyncStatus.partial,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            isHydrating: false,
+            errorMessage:
+                'Playlist details were incomplete; existing tracks were preserved.',
+          ),
+          metrics,
+        );
+        onProgress?.call(state);
+        return state;
+      }
+      final validArtistIds = await _database.libraryDao.getArtistIds();
+      final songs = await _toSongCompanions(
+        playlist.entries,
+        validArtistIds: validArtistIds,
+      );
+      final sameIdProvisionalSongs =
+          (await _database.songIdentityDao.getProvisionalSongs())
+              .map((song) => song.id)
+              .toSet();
+      await _database.playlistDao.replaceHydratedPlaylist(
+        PlaylistsTableCompanion.insert(
+          id: playlist.id,
+          name: playlist.name,
+          songCount: Value(playlist.songCount),
+          duration: Value(playlist.duration),
+          owner: Value(playlist.owner),
+          isPublic: Value(playlist.isPublic),
+          coverArt: Value(playlist.coverArt),
+          comment: Value(playlist.comment),
+        ),
+        songs,
+        <PlaylistSongsTableCompanion>[
+          for (var index = 0; index < playlist.entries.length; index++)
+            PlaylistSongsTableCompanion.insert(
+              playlistId: normalizedId,
+              songId: playlist.entries[index].id,
+              sortOrder: index,
+            ),
+        ],
+      );
+      metrics.addDbWriteBatch();
+      await _reconcileHydratedSongIds(
+        canonicalSongIds: playlist.entries.map((song) => song.id),
+        sameIdProvisionalSongs: sameIdProvisionalSongs,
+        metrics: metrics,
+      );
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          processed: 1,
+        ),
+        metrics,
+      );
+    } on SyncCancelledException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage: 'Sync cancelled.',
+        ),
+        metrics,
+      );
+    } on SyncNetworkDeferredException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage: 'Sync deferred by network policy.',
+        ),
+        metrics,
+      );
+    } on SubsonicResponseBudgetExceededException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage:
+              'Sync deferred: response exceeded the mobile-data budget.',
+        ),
+        metrics,
+      );
+    } on Object catch (error) {
+      state = _withMetrics(
+        state.copyWith(
+          status: _cancelled
+              ? LibrarySyncStatus.cancelled
+              : LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage: _cancelled
+              ? 'Sync cancelled.'
+              : _toSafeErrorMessage(error),
+        ),
+        metrics,
+      );
+    }
+    onProgress?.call(state);
+    return state;
+  }
+
+  @override
+  Future<LibrarySyncState> syncStarredContent({
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    return _runAuxiliaryTarget(
+      stage: LibrarySyncStage.fetchingStarred,
+      operation: _syncStarredContentStrict,
+      onProgress: onProgress,
+    );
+  }
+
+  @override
+  Future<LibrarySyncState> syncPlaylistHeaders({
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    return _runAuxiliaryTarget(
+      stage: LibrarySyncStage.fetchingPlaylists,
+      operation: _syncPlaylistHeadersStrict,
+      onProgress: onProgress,
+    );
+  }
+
+  @override
+  Future<LibrarySyncState> syncGenres({
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    return _runAuxiliaryTarget(
+      stage: LibrarySyncStage.fetchingGenres,
+      operation: _syncGenresStrict,
+      onProgress: onProgress,
+    );
+  }
+
+  Future<LibrarySyncState> _runAuxiliaryTarget({
+    required LibrarySyncStage stage,
+    required Future<void> Function(_SyncRunMetrics metrics) operation,
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
+    _cancelled = false;
+    _api.beginRun();
+    final startedAt = DateTime.now();
+    final metrics = _SyncRunMetrics();
+    var state = LibrarySyncState(
+      status: LibrarySyncStatus.running,
+      stage: stage,
+      mode: LibrarySyncMode.incremental,
+      startedAt: startedAt,
+      metadataReady: true,
+    );
+    onProgress?.call(state);
+    try {
+      await operation(metrics);
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        ),
+        metrics,
+      );
+    } on SyncCancelledException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: 'Sync cancelled.',
+        ),
+        metrics,
+      );
+    } on Object catch (error) {
+      state = _withMetrics(
+        state.copyWith(
+          status: _cancelled
+              ? LibrarySyncStatus.cancelled
+              : LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: _cancelled
+              ? 'Sync cancelled.'
+              : _toSafeErrorMessage(error),
+        ),
+        metrics,
+      );
+    }
+    onProgress?.call(state);
+    return state;
   }
 
   int get _artistConcurrency {
@@ -642,11 +1398,181 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
   }
 
+  Future<LibrarySyncState> runCompatibilityAudit({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    return _runWithLock(
+      force: true,
+      forceFull: false,
+      manual: false,
+      verificationContinuation: false,
+      compatibilityAudit: true,
+      priorityAlbumIds: priorityAlbumIds,
+      onProgress: onProgress,
+    );
+  }
+
+  @override
+  Future<LibrarySyncState> probeCatalog({
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
+    _cancelled = false;
+    _api.beginRun();
+    final startedAt = DateTime.now();
+    final metrics = _SyncRunMetrics();
+    var state = LibrarySyncState(
+      status: LibrarySyncStatus.running,
+      stage: LibrarySyncStage.fetchingArtists,
+      mode: LibrarySyncMode.incremental,
+      planKind: LibrarySyncPlanKind.probe,
+      planReason: 'hardCatalogProbe',
+      startedAt: startedAt,
+      metadataReady: true,
+    );
+    onProgress?.call(state);
+
+    try {
+      final serverConfig = await _serverConfigRepository.getActiveServer();
+      if (serverConfig == null) {
+        state = _withMetrics(
+          state.copyWith(
+            status: LibrarySyncStatus.failed,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            errorMessage: 'No active server.',
+          ),
+          metrics,
+        );
+        onProgress?.call(state);
+        return state;
+      }
+
+      final committedCursor = _readNavisDateCapability(
+        serverConfig.capabilitiesJson,
+        _libraryIndexesCursorCapabilityKey,
+      );
+      Indexes? indexes;
+      var indexesUnsupported = false;
+      var indexChanged = false;
+      try {
+        // Hard probe: one conditional request, no engine or HTTP retries.
+        indexes = await _api.getIndexes(
+          ifModifiedSince: committedCursor,
+          disableRetry: true,
+        );
+        metrics.recordApiAttempt(
+          elapsed: Duration.zero,
+          isRetryAttempt: false,
+          endpoint: 'getIndexes',
+        );
+        final targetCursor = indexes.lastModified;
+        if (targetCursor == null ||
+            (committedCursor != null &&
+                targetCursor.isBefore(committedCursor))) {
+          indexesUnsupported = true;
+        } else if (committedCursor == null ||
+            targetCursor.isAfter(committedCursor)) {
+          indexChanged = true;
+        }
+      } on Object catch (error) {
+        metrics.recordApiAttempt(
+          elapsed: Duration.zero,
+          isRetryAttempt: false,
+          endpoint: 'getIndexes',
+        );
+        if (!_isIndexesUnsupported(error)) {
+          rethrow;
+        }
+        indexesUnsupported = true;
+      }
+
+      // Never advance the committed cursor from a probe. Evidence is returned
+      // so the coordinator can enqueue follow-up background work.
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          probeIndexChanged: indexChanged,
+          probeIndexesUnsupported: indexesUnsupported,
+          updatesAvailable: indexChanged || indexesUnsupported,
+          lastCheckedAt: DateTime.now(),
+        ),
+        metrics,
+      );
+      onProgress?.call(state);
+      return state;
+    } on SyncCancelledException {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: 'Sync cancelled.',
+        ),
+        metrics,
+      );
+      onProgress?.call(state);
+      return state;
+    } on Object catch (error) {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          errorMessage: _toSafeErrorMessage(error),
+        ),
+        metrics,
+      );
+      onProgress?.call(state);
+      return state;
+    }
+  }
+
+  SyncNetworkPolicy get _currentSyncPolicy {
+    final reader = _readSyncNetworkPolicy;
+    if (reader != null) {
+      return reader();
+    }
+    return resolveSyncNetworkPolicy(
+      networkType: networkType,
+      nativeMetered: networkType == NetworkType.cellular ? true : false,
+      backgroundSyncUnmeteredOnly: true,
+    );
+  }
+
+  int? _meteredResponseBudgetBytes() {
+    if (!_currentSyncPolicy.isMetered) {
+      return null;
+    }
+    final override = _readMeteredResponseBudgetBytes?.call();
+    if (override != null) {
+      return override;
+    }
+    return kMeteredSyncMaxResponseBytes;
+  }
+
+  _MeteredInteractionBudget? _meteredInteractionBudget() {
+    if (!_currentSyncPolicy.isMetered) {
+      return null;
+    }
+    final override = _readMeteredResponseBudgetBytes?.call();
+    final maxResponse = override ?? kMeteredSyncMaxResponseBytes;
+    return _MeteredInteractionBudget(
+      maxResponseBytes: maxResponse,
+      maxInteractionBytes: override == null
+          ? kMeteredSyncMaxInteractionBytes
+          : (override * 2),
+    );
+  }
+
   Future<LibrarySyncState> _runWithLock({
     required bool force,
     required bool forceFull,
     required bool manual,
     required bool verificationContinuation,
+    bool compatibilityAudit = false,
     required Iterable<String> priorityAlbumIds,
     LibrarySyncProgressCallback? onProgress,
   }) {
@@ -656,11 +1582,13 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     }
 
     _cancelled = false;
+    _api.beginRun();
     final future = _runSync(
       force: force,
       forceFull: forceFull,
       manual: manual,
       verificationContinuation: verificationContinuation,
+      compatibilityAudit: compatibilityAudit,
       priorityAlbumIds: priorityAlbumIds,
       onProgress: onProgress,
     );
@@ -676,6 +1604,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     required bool forceFull,
     required bool manual,
     required bool verificationContinuation,
+    required bool compatibilityAudit,
     required Iterable<String> priorityAlbumIds,
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -748,6 +1677,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     }
 
     try {
+      _ensureBackgroundWorkAllowed();
       final auxiliaryDue = _shouldSyncAuxiliary(serverConfig.capabilitiesJson);
       final syncAuxiliary = manual || auxiliaryDue;
       if ((!force ||
@@ -779,6 +1709,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           manual: manual,
           priorityAlbumIds: priorityAlbumIds,
           syncAuxiliary: syncAuxiliary,
+          compatibilityAudit: compatibilityAudit,
           metrics: metrics,
           onProgress: onProgress,
         );
@@ -794,25 +1725,33 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         );
       }
 
-      final garbageCollected = await _database.songIdentityDao
-          .garbageCollectUnreferencedProvisionalMetadata();
-      if (garbageCollected.songs > 0 ||
-          garbageCollected.albums > 0 ||
-          garbageCollected.artists > 0) {
-        metrics.addDbWriteBatch();
-        AppLogger.info(
-          'Provisional metadata garbage collection: '
-          'songs=${garbageCollected.songs} '
-          'albums=${garbageCollected.albums} '
-          'artists=${garbageCollected.artists}.',
-        );
+      final catalogWasPromoted =
+          state.mode == LibrarySyncMode.fullInitial ||
+          state.mode == LibrarySyncMode.forceFull;
+      if (!catalogWasPromoted) {
+        final garbageCollected = await _database.songIdentityDao
+            .garbageCollectUnreferencedProvisionalMetadata();
+        if (garbageCollected.songs > 0 ||
+            garbageCollected.albums > 0 ||
+            garbageCollected.artists > 0) {
+          metrics.addDbWriteBatch();
+          AppLogger.info(
+            'Provisional metadata garbage collection: '
+            'songs=${garbageCollected.songs} '
+            'albums=${garbageCollected.albums} '
+            'artists=${garbageCollected.artists}.',
+          );
+        }
       }
 
       if (manual ||
           (metrics.metadataChanged && !metrics.verificationContinuation) ||
           auxiliaryDue) {
         await _reconcileStarredContent(metrics);
-        await _markAuxiliarySynced(DateTime.now(), metrics);
+        if (metrics.starredSynchronized &&
+            metrics.playlistHeadersSynchronized) {
+          await _markAuxiliarySynced(DateTime.now(), metrics);
+        }
       } else {
         metrics.skippedReason = metrics.skippedReason ?? 'auxiliaryFresh';
       }
@@ -854,6 +1793,34 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       _logSyncSummary(state: succeeded, metrics: metrics);
       return succeeded;
     } on Object catch (error, stackTrace) {
+      if (error is SyncNetworkDeferredException ||
+          error is SubsonicResponseBudgetExceededException) {
+        final deferred = _withMetrics(
+          state.copyWith(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            errorMessage: _toSafeErrorMessage(error),
+          ),
+          metrics,
+        );
+        onProgress?.call(deferred);
+        _logSyncSummary(state: deferred, metrics: metrics);
+        return deferred;
+      }
+      if (_cancelled) {
+        final cancelled = _withMetrics(
+          state.copyWith(
+            status: LibrarySyncStatus.cancelled,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            errorMessage: 'Sync cancelled.',
+          ),
+          metrics,
+        );
+        onProgress?.call(cancelled);
+        return cancelled;
+      }
       if (metrics.failureDiagnostics.isEmpty) {
         metrics.recordFailureDiagnostic(
           stage: state.stage.name,
@@ -906,47 +1873,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
   Future<void> _reconcileStarredContent(_SyncRunMetrics metrics) async {
     try {
-      final starred = await _withRetry(
-        _api.getStarredContent,
-        metrics: metrics,
-        endpoint: 'getStarredContent',
-      );
-      final pendingActions = await _database.starSyncDao.getPendingActions();
-      final pendingByType = <String, Set<String>>{
-        'album': <String>{},
-        'artist': <String>{},
-        'song': <String>{},
-      };
-      for (final action in pendingActions) {
-        pendingByType[action.itemType]?.add(action.itemId);
-      }
-
-      final albumStarredAt = <String, DateTime?>{
-        for (final album in starred.albums) album.id: album.starred,
-      };
-      final artistStarredAt = <String, DateTime?>{
-        for (final artist in starred.artists) artist.id: artist.starred,
-      };
-      final songStarredAt = <String, DateTime?>{
-        for (final song in starred.songs) song.id: song.starred,
-      };
-
-      // Use batch reconciliation — a single transaction per entity type
-      // instead of O(n) individual UPDATE statements.
-      await _database.libraryDao.batchReconcileAlbumStarred(
-        albumStarredAt,
-        excludeIds: pendingByType['album']!,
-      );
-      await _database.libraryDao.batchReconcileArtistStarred(
-        artistStarredAt,
-        excludeIds: pendingByType['artist']!,
-      );
-      await _database.libraryDao.batchReconcileSongStarred(
-        songStarredAt,
-        excludeIds: pendingByType['song']!,
-      );
-
-      metrics.addDbWriteBatch();
+      await _syncStarredContentStrict(metrics);
     } on SubsonicNotFoundException {
       AppLogger.debug(
         'Starred content reconciliation skipped: endpoint unsupported.',
@@ -959,6 +1886,61 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         'Starred content reconciliation failed: $error\n$stackTrace',
       );
     }
+  }
+
+  Future<void> _syncStarredContentStrict(_SyncRunMetrics metrics) async {
+    final snapshotStartedAt = DateTime.now();
+    final starred = await _withRetry(
+      _api.getStarredContent,
+      metrics: metrics,
+      endpoint: 'getStarredContent',
+    );
+    final pendingActions = await _database.starSyncDao.getPendingActions();
+    final pendingByType = <String, Set<String>>{
+      'album': <String>{},
+      'artist': <String>{},
+      'song': <String>{},
+    };
+    for (final action in pendingActions) {
+      pendingByType[action.itemType]?.add(action.itemId);
+    }
+    final concurrentMutations = await _database.librarySyncDao
+        .getLocalStarMutationsSince(snapshotStartedAt);
+    for (final entry in concurrentMutations.entries) {
+      pendingByType[entry.key]?.addAll(entry.value);
+    }
+
+    final albumStarredAt = <String, DateTime?>{
+      for (final album in starred.albums) album.id: album.starred,
+    };
+    final artistStarredAt = <String, DateTime?>{
+      for (final artist in starred.artists) artist.id: artist.starred,
+    };
+    final songStarredAt = <String, DateTime?>{
+      for (final song in starred.songs) song.id: song.starred,
+    };
+
+    await _database.transaction(() async {
+      await _database.libraryDao.batchReconcileAlbumStarred(
+        albumStarredAt,
+        excludeIds: pendingByType['album']!,
+      );
+      await _database.libraryDao.batchReconcileArtistStarred(
+        artistStarredAt,
+        excludeIds: pendingByType['artist']!,
+      );
+      await _database.libraryDao.batchReconcileSongStarred(
+        songStarredAt,
+        excludeIds: pendingByType['song']!,
+      );
+    });
+    await _database.librarySyncDao.pruneLocalStarMutationsBefore(
+      snapshotStartedAt,
+      exclude: pendingByType,
+    );
+    metrics
+      ..addDbWriteBatch()
+      ..starredSynchronized = true;
   }
 
   LibrarySyncMode _resolveMode(
@@ -985,6 +1967,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         auxiliarySyncStaleAfter;
   }
 
+  bool _shouldSyncGenres(String? capabilitiesJson) {
+    final lastGenresSync = _readStoredGenresSyncedAt(capabilitiesJson);
+    if (lastGenresSync == null) {
+      return true;
+    }
+    return DateTime.now().difference(lastGenresSync) >=
+        _defaultGenresSyncStaleAfter;
+  }
+
   Future<void> _updateStoredIndexesFingerprint(
     String fingerprint,
     _SyncRunMetrics metrics,
@@ -1009,6 +2000,23 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     final serverConfig = await _serverConfigRepository.getActiveServer();
     final currentCapabilitiesJson = serverConfig?.capabilitiesJson;
     final nextCapabilitiesJson = _mergeStoredAuxiliarySyncedAt(
+      currentCapabilitiesJson,
+      syncedAt,
+    );
+    if (nextCapabilitiesJson == currentCapabilitiesJson) {
+      return;
+    }
+    await _serverConfigRepository.updateCapabilitiesJson(nextCapabilitiesJson);
+    metrics.addDbWriteBatch();
+  }
+
+  Future<void> _markGenresSynced(
+    DateTime syncedAt,
+    _SyncRunMetrics metrics,
+  ) async {
+    final serverConfig = await _serverConfigRepository.getActiveServer();
+    final currentCapabilitiesJson = serverConfig?.capabilitiesJson;
+    final nextCapabilitiesJson = _mergeStoredGenresSyncedAt(
       currentCapabilitiesJson,
       syncedAt,
     );
@@ -1334,10 +2342,56 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
+    final serverId = serverConfig.id;
+    if (serverId == null) {
+      throw StateError('An active server ID is required for catalog sync.');
+    }
+    final persistentState = await _database.librarySyncDao.getOrCreateState(
+      serverId,
+    );
+    final resumableGeneration =
+        const <String>{
+          'collecting',
+          'awaitingDeletionConfirmation',
+          'ready',
+          'applying',
+        }.contains(persistentState.candidateStatus)
+        ? persistentState.candidateGeneration
+        : null;
+    final catalogGeneration =
+        resumableGeneration != null &&
+            resumableGeneration > persistentState.currentGeneration
+        ? resumableGeneration
+        : persistentState.currentGeneration + 1;
+    final candidateStartedAt = resumableGeneration == catalogGeneration
+        ? persistentState.candidateStartedAt ?? DateTime.now()
+        : DateTime.now();
+    if (resumableGeneration != catalogGeneration) {
+      await _database.librarySyncCandidateDao.clearGeneration(
+        serverId: serverId,
+        generation: catalogGeneration,
+      );
+      await _database.librarySyncDao.clearCatalogPageWork(
+        serverId: serverId,
+        generation: catalogGeneration,
+      );
+    }
+    await _database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
+        candidateGeneration: Value(catalogGeneration),
+        candidateStatus: const Value('collecting'),
+        candidateStartedAt: Value(candidateStartedAt),
+        candidateCarriedForwardCount: const Value(0),
+      ),
+    );
+    var deletionConfirmationPending = false;
     metrics.metadataChanged = true;
     var current = _withMetrics(
       state.copyWith(
         stage: LibrarySyncStage.fetchingArtists,
+        candidateGeneration: catalogGeneration,
+        candidateStatus: 'collecting',
         clearProcessed: true,
         clearTotal: true,
       ),
@@ -1350,6 +2404,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       metrics: metrics,
       endpoint: 'getArtists',
     );
+    await _database.librarySyncCandidateDao.replaceArtists(
+      serverId: serverId,
+      generation: catalogGeneration,
+      artists: _toArtistCompanions(
+        artists,
+        catalogGeneration: catalogGeneration,
+      ),
+    );
+    metrics.addDbWriteBatch();
 
     current = _withMetrics(
       current.copyWith(
@@ -1361,10 +2424,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(current);
 
-    List<Album> albums;
-    final deletedArtistIds = <String>{};
+    late Set<String> nextAlbumIds;
     try {
-      albums = await _discoverAlbumsFastPath(
+      nextAlbumIds = await _discoverAlbumIdsFastPath(
+        serverId: serverId,
+        catalogGeneration: catalogGeneration,
         metrics: metrics,
         onPageProgress: ({required discoveredCount, required hasMorePages}) {
           final totalEstimate = hasMorePages
@@ -1380,7 +2444,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           onProgress?.call(current);
         },
       );
-    } on Object {
+    } on Object catch (error) {
+      if (!_isIndexesUnsupported(error)) {
+        rethrow;
+      }
       current = _withMetrics(
         current.copyWith(
           processed: 0,
@@ -1389,7 +2456,6 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics,
       );
       onProgress?.call(current);
-      deletedArtistIds.clear();
       final artistDetails = await _mapConcurrent<Artist, Artist?>(
         artists,
         _artistConcurrency,
@@ -1409,26 +2475,38 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             onProgress?.call(current);
             return detail;
           } on SubsonicNotFoundException {
-            deletedArtistIds.add(artist.id);
-            current = _withMetrics(
-              current.copyWith(
-                processed: (current.processed ?? 0) + 1,
-              ),
-              metrics,
-            );
-            onProgress?.call(current);
-            return null;
+            // A detail 404 is not authoritative deletion evidence. Abandon
+            // this snapshot and preserve the last committed generation.
+            rethrow;
           }
         },
       );
-      for (final deletedArtistId in deletedArtistIds) {
-        await _database.libraryDao.removeArtistTree(deletedArtistId);
-        metrics.addDbWriteBatch();
-      }
-      albums = _dedupeAlbums([
+      final albums = _dedupeAlbums([
         for (final artist in artistDetails.whereType<Artist>())
           ...artist.albums,
       ]);
+      nextAlbumIds = albums.map((album) => album.id).toSet();
+      await _database.librarySyncCandidateDao.upsertAlbums(
+        serverId: serverId,
+        generation: catalogGeneration,
+        albums: await _toAlbumCompanions(
+          albums,
+          pendingHydrationAlbumIds: nextAlbumIds,
+          catalogGeneration: catalogGeneration,
+        ),
+      );
+      metrics.addDbWriteBatch();
+    }
+
+    final reportedAlbumCount = artists.fold<int>(
+      0,
+      (sum, artist) => sum + (artist.albumCount ?? 0),
+    );
+    if (reportedAlbumCount > 0 && nextAlbumIds.isEmpty) {
+      throw StateError(
+        'Catalog candidate collected no albums even though artists reported '
+        '$reportedAlbumCount albums.',
+      );
     }
 
     current = _withMetrics(
@@ -1437,25 +2515,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(current);
 
-    // Use upsert + stale cleanup instead of destructive replace.  This
-    // prevents Drift reactive streams from briefly seeing an empty library
-    // between DELETE-all and INSERT-all (which could flash-blank the UI or
-    // disrupt the currently-playing song's metadata).
-    final nextArtistIds = artists
-        .map((a) => a.id)
-        .where((id) => !deletedArtistIds.contains(id))
-        .toSet();
-    final nextAlbumIds = albums.map((a) => a.id).toSet();
-
-    await _database.libraryDao.upsertArtists(_toArtistCompanions(artists));
-    metrics.addDbWriteBatch();
-    await _database.libraryDao.upsertAlbums(
-      await _toAlbumCompanions(
-        albums,
-        pendingHydrationAlbumIds: albums.map((album) => album.id),
-      ),
-    );
-    metrics.addDbWriteBatch();
+    // The candidate tables are not watched by application providers. The
+    // live catalog remains untouched until the validated generation is
+    // promoted in one transaction.
+    final nextArtistIds = artists.map((artist) => artist.id).toSet();
 
     // Remove stale artists/albums no longer present on the server.
     final existingArtists = await _database.libraryDao.getAllArtists();
@@ -1468,30 +2531,39 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         .map((a) => a.id)
         .where((id) => !nextAlbumIds.contains(id))
         .toList(growable: false);
-    final preserved = await _database.libraryDao
-        .preserveCachedLegacyRowsAsProvisional(
-          staleArtistIds: staleArtistIds,
-          staleAlbumIds: staleAlbumIds,
+    final staleSongCount = await _database.librarySyncCandidateDao
+        .countStaleSongs(
+          serverId: serverId,
+          generation: catalogGeneration,
         );
-    final removableAlbumIds = staleAlbumIds
-        .where((id) => !preserved.albumIds.contains(id))
-        .toList(growable: false);
-    if (removableAlbumIds.isNotEmpty) {
-      await _database.libraryDao.deleteAlbumsByIds(removableAlbumIds);
-      metrics.addDbWriteBatch();
-    }
-    for (final staleId in staleArtistIds.where(
-      (id) => !preserved.artistIds.contains(id),
-    )) {
-      await _database.libraryDao.removeArtistTree(staleId);
-      metrics.addDbWriteBatch();
-    }
-
-    if (syncAuxiliary) {
-      current = await _syncGenresAndPlaylistsBestEffort(
-        current: current,
-        metrics: metrics,
-        onProgress: onProgress,
+    final deletionAllowed = await _confirmSnapshotDeletion(
+      serverId: serverConfig.id,
+      persistentState: persistentState,
+      staleArtistIds: staleArtistIds,
+      staleAlbumIds: staleAlbumIds,
+      staleSongCount: staleSongCount,
+      artistCount: existingArtists.length,
+      albumCount: existingAlbums.length,
+    );
+    deletionConfirmationPending = !deletionAllowed;
+    if (deletionConfirmationPending) {
+      await _database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          candidateGeneration: Value(catalogGeneration),
+          candidateStatus: const Value('awaitingDeletionConfirmation'),
+        ),
+      );
+      return _withMetrics(
+        current.copyWith(
+          stage: LibrarySyncStage.validatingCandidate,
+          candidateStatus: 'awaitingDeletionConfirmation',
+          freshness: LibrarySyncFreshness.repairRecommended,
+          remainingVerificationCount: 1,
+          clearProcessed: true,
+          clearTotal: true,
+        ),
+        metrics,
       );
     }
 
@@ -1499,8 +2571,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       state: _withMetrics(
         current.copyWith(
           metadataReady: true,
-          pendingHydrationCount: await _database.libraryDao
-              .countPendingHydrationAlbums(),
+          pendingHydrationCount: await _database.librarySyncCandidateDao
+              .countPendingAlbums(
+                serverId: serverId,
+                generation: catalogGeneration,
+              ),
           hydratedAlbums: 0,
         ),
         metrics,
@@ -1511,12 +2586,65 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         serverConfig.capabilitiesJson,
       ),
       excludedAlbumIds: const <String>{},
+      catalogGeneration: catalogGeneration,
+      candidateServerId: serverId,
       metrics: metrics,
       onProgress: onProgress,
     );
     final pendingHydrationCount =
         current.pendingHydrationCount ??
-        await _database.libraryDao.countPendingHydrationAlbums();
+        await _database.librarySyncCandidateDao.countPendingAlbums(
+          serverId: serverId,
+          generation: catalogGeneration,
+        );
+    final carriedForwardCount = pendingHydrationCount == 0
+        ? 0
+        : await _database.librarySyncCandidateDao.carryForwardPendingAlbums(
+            serverId: serverId,
+            generation: catalogGeneration,
+          );
+    current = _withMetrics(
+      current.copyWith(
+        stage: LibrarySyncStage.validatingCandidate,
+        candidateStatus: 'validating',
+        carriedForwardEntityCount: carriedForwardCount,
+      ),
+      metrics,
+    );
+    onProgress?.call(current);
+    await _database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
+        candidateStatus: const Value('ready'),
+        candidateCarriedForwardCount: Value(carriedForwardCount),
+      ),
+    );
+    current = _withMetrics(
+      current.copyWith(
+        stage: LibrarySyncStage.applyingCandidate,
+        candidateStatus: 'applying',
+      ),
+      metrics,
+    );
+    onProgress?.call(current);
+    await _promoteFullSyncCandidate(
+      serverId: serverId,
+      generation: catalogGeneration,
+      staleArtistIds: staleArtistIds,
+      staleAlbumIds: staleAlbumIds,
+      metrics: metrics,
+    );
+
+    if (syncAuxiliary) {
+      current = await _syncGenresAndPlaylistsBestEffort(
+        current: current,
+        syncGenres: true,
+        syncPlaylists: true,
+        metrics: metrics,
+        onProgress: onProgress,
+      );
+    }
+
     if (pendingHydrationCount == 0) {
       await _refreshIndexesCursorAfterFullSync(metrics);
     } else {
@@ -1537,6 +2665,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             ? LibrarySyncFreshness.current
             : LibrarySyncFreshness.verificationPending,
         remainingVerificationCount: 0,
+        clearCandidateGeneration: true,
+        clearCandidateStatus: true,
+        carriedForwardEntityCount: carriedForwardCount,
         clearProcessed: true,
         clearTotal: true,
       ),
@@ -1546,12 +2677,357 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     return current;
   }
 
+  Future<void> _promoteFullSyncCandidate({
+    required int serverId,
+    required int generation,
+    required List<String> staleArtistIds,
+    required List<String> staleAlbumIds,
+    required _SyncRunMetrics metrics,
+  }) async {
+    final syncState = await _database.librarySyncDao.getOrCreateState(serverId);
+    final candidateStartedAt =
+        syncState.candidateStartedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final provisionalSongs = await _database.songIdentityDao
+        .getProvisionalSongs();
+    final identitySession = provisionalSongs.isEmpty
+        ? null
+        : await SongIdentityReconciler(
+            _database.songIdentityDao,
+            onBeforeRemap: onBeforeSongIdentityRemap,
+            readActiveSongId: readActiveSongId,
+          ).startSession(provisionalSongs: provisionalSongs);
+    final analysis = await LibraryCatalogDiffAnalyzer(
+      _database,
+      readActivePlayback: () =>
+          (readProtectedSongIds?.call() ?? const <String>{}).isNotEmpty,
+    ).analyze(serverId: serverId, generation: generation);
+    AppLogger.info(
+      'Catalog candidate classified in '
+      '${analysis.duration.inMilliseconds}ms: '
+      'changed=${analysis.changedCount} '
+      'unchanged=${analysis.unchangedCount} '
+      'pages=${analysis.pageCount} '
+      'maxPage=${analysis.maximumPageSize} '
+      'rssGrowth=${analysis.rssGrowthBytes}.',
+    );
+    final stopwatch = Stopwatch()..start();
+    final deferredCacheFiles = <String>[];
+    var removedSongCount = 0;
+    await _database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
+        candidateStatus: const Value('applying'),
+      ),
+    );
+    await _database.transaction(() async {
+      // Read the mutation journals inside the apply transaction so a local
+      // write cannot land between the protection snapshot and the upserts.
+      final localStarMutations = await _database.librarySyncDao
+          .getLocalStarMutationsSince(candidateStartedAt);
+      final localRatingMutations = await _database.librarySyncDao
+          .getLocalMutationsSince(candidateStartedAt, operation: 'rating');
+      final pendingActions = await _database.starSyncDao.getPendingActions();
+      final pendingStars = <String, Set<String>>{
+        'artist': <String>{},
+        'album': <String>{},
+        'song': <String>{},
+      };
+      for (final action in pendingActions) {
+        pendingStars[action.itemType]?.add(action.itemId);
+      }
+      for (final entry in localStarMutations.entries) {
+        pendingStars[entry.key]?.addAll(entry.value);
+      }
+      var afterArtistId = '';
+      while (true) {
+        final page = await _database.librarySyncCandidateDao
+            .getChangedArtistsPage(
+              serverId: serverId,
+              generation: generation,
+              afterId: afterArtistId,
+              limit: writeChunkSize,
+            );
+        if (page.isEmpty) break;
+        await _database.libraryDao.upsertArtists([
+          for (final artist in page)
+            ArtistsTableCompanion.insert(
+              id: artist.id,
+              name: artist.name,
+              albumCount: Value(artist.albumCount),
+              coverArt: Value(artist.coverArt),
+              starred: pendingStars['artist']!.contains(artist.id)
+                  ? const Value.absent()
+                  : Value(artist.starred),
+              catalogGeneration: Value(generation),
+            ),
+        ]);
+        afterArtistId = page.last.id;
+      }
+
+      var afterAlbumId = '';
+      while (true) {
+        final page = await _database.librarySyncCandidateDao
+            .getChangedAlbumsPage(
+              serverId: serverId,
+              generation: generation,
+              afterId: afterAlbumId,
+              limit: writeChunkSize,
+            );
+        if (page.isEmpty) break;
+        await _database.libraryDao.upsertAlbums(
+          [
+            for (final album in page)
+              AlbumsTableCompanion.insert(
+                id: album.id,
+                name: album.name,
+                artistId: Value(album.artistId),
+                artistName: Value(album.artistName),
+                artists: Value(album.artists),
+                songCount: Value(album.songCount),
+                duration: Value(album.duration),
+                year: Value(album.year),
+                genre: Value(album.genre),
+                coverArt: Value(album.coverArt),
+                songsHydrated: Value(album.songsHydrated),
+                starred: pendingStars['album']!.contains(album.id)
+                    ? const Value.absent()
+                    : Value(album.starred),
+                userRating: localRatingMutations['album']!.contains(album.id)
+                    ? const Value.absent()
+                    : Value(album.userRating),
+                playCount: Value(album.playCount),
+                serverCreatedAt: Value(album.serverCreatedAt),
+                catalogGeneration: Value(generation),
+              ),
+          ],
+          preserveHydrationState: false,
+        );
+        afterAlbumId = page.last.id;
+      }
+
+      var afterSongId = '';
+      while (true) {
+        final page = await _database.librarySyncCandidateDao
+            .getChangedSongsPage(
+              serverId: serverId,
+              generation: generation,
+              afterId: afterSongId,
+              limit: writeChunkSize,
+            );
+        if (page.isEmpty) break;
+        await _database.libraryDao.upsertSongs([
+          for (final song in page)
+            SongsTableCompanion.insert(
+              id: song.id,
+              title: song.title,
+              albumId: Value(song.albumId),
+              artistId: Value(song.artistId),
+              artistName: Value(song.artistName),
+              albumName: Value(song.albumName),
+              track: Value(song.track),
+              discNumber: Value(song.discNumber),
+              duration: Value(song.duration),
+              bitRate: Value(song.bitRate),
+              sampleRate: Value(song.sampleRate),
+              contentType: Value(song.contentType),
+              suffix: Value(song.suffix),
+              size: Value(song.size),
+              coverArt: Value(song.coverArt),
+              starred: pendingStars['song']!.contains(song.id)
+                  ? const Value.absent()
+                  : Value(song.starred),
+              recordingMbid: Value(song.recordingMbid),
+              userRating: localRatingMutations['song']!.contains(song.id)
+                  ? const Value.absent()
+                  : Value(song.userRating),
+              playCount: Value(song.playCount),
+              createdAt: Value(song.createdAt),
+              catalogGeneration: Value(generation),
+              replayGainTrackGain: Value(song.replayGainTrackGain),
+              replayGainAlbumGain: Value(song.replayGainAlbumGain),
+              replayGainTrackPeak: Value(song.replayGainTrackPeak),
+              replayGainAlbumPeak: Value(song.replayGainAlbumPeak),
+            ),
+        ]);
+        afterSongId = page.last.id;
+      }
+
+      if (identitySession != null) {
+        var afterCanonicalId = '';
+        while (true) {
+          final page = await _database.librarySyncCandidateDao.getSongsPage(
+            serverId: serverId,
+            generation: generation,
+            afterId: afterCanonicalId,
+            limit: writeChunkSize,
+          );
+          if (page.isEmpty) break;
+          final canonicalSongs = await _database.libraryDao.getSongsByIds(
+            page.map((song) => song.id),
+          );
+          await identitySession.reconcile(canonicalSongs);
+          afterCanonicalId = page.last.id;
+        }
+        final identitySummary = identitySession.summary;
+        metrics.canonicalizedSongCount +=
+            identitySummary.canonicalizedSongCount;
+        metrics.ambiguousMatchCount += identitySummary.ambiguousMatchCount;
+        if (identitySummary.aliases.isNotEmpty ||
+            identitySummary.ambiguousMatchCount > 0 ||
+            identitySummary.retainedProvisionalCount > 0) {
+          AppLogger.info(
+            'Song identity reconciliation: '
+            'canonicalized=${identitySummary.canonicalizedSongCount} '
+            'ambiguous=${identitySummary.ambiguousMatchCount} '
+            'retainedProvisional='
+            '${identitySummary.retainedProvisionalCount}.',
+          );
+        }
+      }
+
+      final preserved = await _database.libraryDao
+          .preserveCachedLegacyRowsAsProvisional(
+            staleArtistIds: staleArtistIds,
+            staleAlbumIds: staleAlbumIds,
+            protectedSongIds: readProtectedSongIds?.call() ?? const <String>{},
+          );
+
+      var afterStaleSongId = '';
+      while (true) {
+        final staleSongs = await _database.librarySyncCandidateDao
+            .getStaleSongsPage(
+              serverId: serverId,
+              generation: generation,
+              afterId: afterStaleSongId,
+              limit: writeChunkSize,
+            );
+        if (staleSongs.isEmpty) break;
+        afterStaleSongId = staleSongs.last.id;
+        removedSongCount += staleSongs.length;
+        deferredCacheFiles.addAll(
+          await _database.libraryDao.removeServerSongsForPromotion(staleSongs),
+        );
+      }
+
+      final removableAlbumIds = staleAlbumIds
+          .where((id) => !preserved.albumIds.contains(id))
+          .toList(growable: false);
+      if (removableAlbumIds.isNotEmpty) {
+        await _database.libraryDao.deleteAlbumsByIds(removableAlbumIds);
+      }
+      for (final artistId in staleArtistIds.where(
+        (id) => !preserved.artistIds.contains(id),
+      )) {
+        await _database.libraryDao.removeArtistTree(artistId);
+      }
+      await _database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: Value(generation),
+          candidateGeneration: const Value(null),
+          candidateStatus: const Value(null),
+          candidateStartedAt: const Value(null),
+          deletionCandidateFingerprint: const Value(null),
+          deletionCandidateCount: const Value(0),
+          lastApplyDurationMs: Value(stopwatch.elapsedMilliseconds),
+          lastPromotionDiagnosticsJson: Value(
+            jsonEncode(<String, Object>{
+              'analysisDurationMs': analysis.duration.inMilliseconds,
+              'applyDurationMs': stopwatch.elapsedMilliseconds,
+              'changed': analysis.changedCount,
+              'unchanged': analysis.unchangedCount,
+              'artistChanged': analysis.artistChangedCount,
+              'albumChanged': analysis.albumChangedCount,
+              'songChanged': analysis.songChangedCount,
+              'removedSongs': removedSongCount,
+              'pages': analysis.pageCount,
+              'maximumPageSize': analysis.maximumPageSize,
+              'maximumPageLatencyMs':
+                  analysis.maximumPageLatency.inMilliseconds,
+              'rssGrowthBytes': analysis.rssGrowthBytes,
+              'aliases': identitySession?.summary.aliases.length ?? 0,
+            }),
+          ),
+        ),
+      );
+      // Promotion is the durable completion boundary for broad catalog work.
+      // Auxiliary and unavailable-target hydration continue as independent
+      // tasks, so a process exit after this transaction must not re-run the
+      // entire snapshot on the next launch.
+      await _database.librarySyncDao.completeRunningCatalogWork(serverId);
+    });
+    stopwatch.stop();
+    AppLogger.info(
+      'Catalog candidate promoted in ${stopwatch.elapsedMilliseconds}ms: '
+      'writes=${analysis.changedCount}.',
+    );
+    metrics.addDbWriteBatch();
+    await _database.libraryDao.cleanupRemovedCacheFiles(deferredCacheFiles);
+    await _database.librarySyncDao.pruneLocalMutationsBefore(
+      candidateStartedAt,
+      operation: 'rating',
+    );
+    await _database.librarySyncCandidateDao.clearGeneration(
+      serverId: serverId,
+      generation: generation,
+    );
+  }
+
+  Future<bool> _confirmSnapshotDeletion({
+    required int? serverId,
+    required LibrarySyncStateTableData? persistentState,
+    required List<String> staleArtistIds,
+    required List<String> staleAlbumIds,
+    required int staleSongCount,
+    required int artistCount,
+    required int albumCount,
+  }) async {
+    if (staleArtistIds.isEmpty &&
+        staleAlbumIds.isEmpty &&
+        staleSongCount == 0) {
+      return true;
+    }
+    final removesManyArtists = staleArtistIds.length * 10 > artistCount;
+    final removesManyAlbums = staleAlbumIds.length * 10 > albumCount;
+    final requiresConfirmation =
+        removesManyArtists || removesManyAlbums || staleSongCount > 500;
+    if (!requiresConfirmation || serverId == null || persistentState == null) {
+      return true;
+    }
+    final artistIds = [...staleArtistIds]..sort();
+    final albumIds = [...staleAlbumIds]..sort();
+    final fingerprint = sha1
+        .convert(
+          utf8.encode(
+            'artists:${artistIds.join(',')}\n'
+            'albums:${albumIds.join(',')}\n'
+            'songs:$staleSongCount',
+          ),
+        )
+        .toString();
+    final candidateCount =
+        staleArtistIds.length + staleAlbumIds.length + staleSongCount;
+    if (persistentState.deletionCandidateFingerprint == fingerprint &&
+        persistentState.deletionCandidateCount == candidateCount) {
+      return true;
+    }
+    await _database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
+        deletionCandidateFingerprint: Value(fingerprint),
+        deletionCandidateCount: Value(candidateCount),
+      ),
+    );
+    return false;
+  }
+
   Future<LibrarySyncState> _runIncrementalSync({
     required LibrarySyncState state,
     required ServerConfigModel serverConfig,
     required bool manual,
     required Iterable<String> priorityAlbumIds,
     required bool syncAuxiliary,
+    required bool compatibilityAudit,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -1732,8 +3208,30 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       storedPendingOffset,
     );
     var pendingOffset = 0;
+    int? nextAuditOffset;
     late List<String> orderedArtistIds;
-    if (samePendingSnapshot) {
+    if (compatibilityAudit &&
+        !cursorChanged &&
+        !samePendingSnapshot &&
+        storedRemainingArtistIds.isEmpty) {
+      final serverId = serverConfig.id;
+      final auditState = serverId == null
+          ? null
+          : await _database.librarySyncDao.getOrCreateState(serverId);
+      final candidates = fullAuditArtistIds;
+      if (candidates.isEmpty) {
+        orderedArtistIds = <String>[];
+        nextAuditOffset = 0;
+      } else {
+        final start = (auditState?.auditOffset ?? 0) % candidates.length;
+        orderedArtistIds = candidates
+            .skip(start)
+            .take(_compatibilityArtistVerificationLimit)
+            .toList(growable: false);
+        final end = start + orderedArtistIds.length;
+        nextAuditOffset = end >= candidates.length ? 0 : end;
+      }
+    } else if (samePendingSnapshot) {
       orderedArtistIds = storedPendingArtistIds;
       pendingOffset = storedPendingOffset;
     } else if (storedRemainingArtistIds.isNotEmpty) {
@@ -1766,7 +3264,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       }
     }
 
-    final passLimit = networkType == NetworkType.cellular
+    final passLimit = fallbackVerification
+        ? _compatibilityArtistVerificationLimit
+        : networkType == NetworkType.cellular
         ? _cellularManualArtistVerificationLimit
         : _normalArtistVerificationLimit;
     final passEnd = (pendingOffset + passLimit).clamp(
@@ -1812,7 +3312,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           publishArtistProgress();
           return artist;
         } on SubsonicNotFoundException {
-          deletedArtistIds.add(artistId);
+          if (snapshotArtists.containsKey(artistId)) {
+            failedArtistIds.add(artistId);
+          } else {
+            deletedArtistIds.add(artistId);
+          }
           publishArtistProgress();
           return null;
         } on Object catch (error) {
@@ -1871,13 +3375,6 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(current);
 
-    if (changedArtistDetails.isNotEmpty) {
-      await _database.libraryDao.upsertArtists(
-        _toArtistCompanions(changedArtistDetails),
-      );
-      metrics.addDbWriteBatch();
-    }
-
     final albumsByArtist = <String, List<Album>>{
       for (final artist in artistDetails) artist.id: artist.albums,
     };
@@ -1911,56 +3408,64 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       }
     }
 
-    if (changedOrNewAlbums.isNotEmpty) {
-      metrics.metadataChanged = true;
-      await _database.libraryDao.upsertAlbums(
-        await _toAlbumCompanions(
-          changedOrNewAlbums,
-          pendingHydrationAlbumIds: albumsNeedingHydration,
-        ),
-      );
-      metrics.addDbWriteBatch();
-    }
+    final changedAlbumRows = changedOrNewAlbums.isEmpty
+        ? const <AlbumsTableCompanion>[]
+        : await _toAlbumCompanions(
+            changedOrNewAlbums,
+            pendingHydrationAlbumIds: albumsNeedingHydration,
+          );
     final hydratedWithoutSongRefresh = changedOrNewAlbums
         .map((album) => album.id)
         .where((id) => !albumsNeedingHydration.contains(id))
         .toList(growable: false);
-    if (hydratedWithoutSongRefresh.isNotEmpty) {
-      metrics.metadataChanged = true;
-      await _database.libraryDao.markAlbumsSongsHydratedByIds(
-        hydratedWithoutSongRefresh,
-      );
-      metrics.addDbWriteBatch();
-    }
-    if (albumsNeedingHydration.isNotEmpty) {
-      metrics.metadataChanged = true;
-      await _database.libraryDao.markAlbumsPendingHydrationByIds(
-        albumsNeedingHydration,
-      );
-      metrics.addDbWriteBatch();
-    }
-
-    for (final entry in albumsByArtist.entries) {
-      final nextAlbumIds = entry.value.map((album) => album.id).toSet();
-      final existingAlbums = existingAlbumsForChanged.values.where(
-        (a) => a.artistId == entry.key,
-      );
-      final staleAlbumIds = existingAlbums
-          .map((album) => album.id)
-          .where((id) => !nextAlbumIds.contains(id))
-          .toList(growable: false);
-      if (staleAlbumIds.isNotEmpty) {
-        metrics.metadataChanged = true;
-        await _database.libraryDao.deleteAlbumsByIds(staleAlbumIds);
+    await _database.transaction(() async {
+      if (changedArtistDetails.isNotEmpty) {
+        await _database.libraryDao.upsertArtists(
+          _toArtistCompanions(changedArtistDetails),
+        );
         metrics.addDbWriteBatch();
       }
-    }
+      if (changedAlbumRows.isNotEmpty) {
+        metrics.metadataChanged = true;
+        await _database.libraryDao.upsertAlbums(changedAlbumRows);
+        metrics.addDbWriteBatch();
+      }
+      if (hydratedWithoutSongRefresh.isNotEmpty) {
+        metrics.metadataChanged = true;
+        await _database.libraryDao.markAlbumsSongsHydratedByIds(
+          hydratedWithoutSongRefresh,
+        );
+        metrics.addDbWriteBatch();
+      }
+      if (albumsNeedingHydration.isNotEmpty) {
+        metrics.metadataChanged = true;
+        await _database.libraryDao.markAlbumsPendingHydrationByIds(
+          albumsNeedingHydration,
+        );
+        metrics.addDbWriteBatch();
+      }
+      for (final entry in albumsByArtist.entries) {
+        final nextAlbumIds = entry.value.map((album) => album.id).toSet();
+        final existingAlbums = existingAlbumsForChanged.values.where(
+          (album) => album.artistId == entry.key,
+        );
+        final staleAlbumIds = existingAlbums
+            .map((album) => album.id)
+            .where((id) => !nextAlbumIds.contains(id))
+            .toList(growable: false);
+        if (staleAlbumIds.isNotEmpty) {
+          metrics.metadataChanged = true;
+          await _database.libraryDao.deleteAlbumsByIds(staleAlbumIds);
+          metrics.addDbWriteBatch();
+        }
+      }
 
-    for (final deletedArtistId in deletedArtistIds) {
-      metrics.metadataChanged = true;
-      await _database.libraryDao.removeArtistTree(deletedArtistId);
-      metrics.addDbWriteBatch();
-    }
+      for (final deletedArtistId in deletedArtistIds) {
+        metrics.metadataChanged = true;
+        await _database.libraryDao.removeArtistTree(deletedArtistId);
+        metrics.addDbWriteBatch();
+      }
+    });
 
     current = await _hydratePendingSongs(
       state: _withMetrics(
@@ -1986,6 +3491,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         (metrics.metadataChanged && !metrics.verificationContinuation)) {
       current = await _syncGenresAndPlaylistsBestEffort(
         current: current,
+        syncGenres:
+            metrics.metadataChanged ||
+            _shouldSyncGenres(serverConfig.capabilitiesJson),
+        syncPlaylists: true,
         metrics: metrics,
         onProgress: onProgress,
       );
@@ -2023,6 +3532,18 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics,
       );
     }
+    if (nextAuditOffset != null &&
+        remainingVerificationCount == 0 &&
+        serverConfig.id != null) {
+      await _database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverConfig.id!),
+          auditOffset: Value(nextAuditOffset),
+          lastAuditAt: Value(now),
+        ),
+      );
+      metrics.addDbWriteBatch();
+    }
 
     return _withMetrics(
       current.copyWith(
@@ -2043,46 +3564,40 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
   Future<LibrarySyncState> _syncGenresAndPlaylistsBestEffort({
     required LibrarySyncState current,
+    required bool syncGenres,
+    required bool syncPlaylists,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
-    var state = _withMetrics(
-      current.copyWith(stage: LibrarySyncStage.fetchingGenres),
-      metrics,
-    );
-    onProgress?.call(state);
-    try {
-      final genres = await _withRetry(
-        _api.getGenres,
-        metrics: metrics,
-        endpoint: 'getGenres',
+    var state = current;
+    if (syncGenres) {
+      state = _withMetrics(
+        current.copyWith(stage: LibrarySyncStage.fetchingGenres),
+        metrics,
       );
-      await _database.libraryDao.replaceGenres(_toGenreCompanions(genres));
-      metrics.addDbWriteBatch();
-    } on Object catch (error, stackTrace) {
-      if (_isFatalEntityError(error)) {
-        rethrow;
+      onProgress?.call(state);
+      try {
+        await _syncGenresStrict(metrics);
+      } on Object catch (error, stackTrace) {
+        if (_isFatalEntityError(error)) {
+          rethrow;
+        }
+        AppLogger.warning(
+          'Genre sync skipped after failure: $error\n$stackTrace',
+        );
       }
-      AppLogger.warning(
-        'Genre sync skipped after failure: $error\n$stackTrace',
-      );
     }
 
+    if (!syncPlaylists) {
+      return state;
+    }
     state = _withMetrics(
       state.copyWith(stage: LibrarySyncStage.fetchingPlaylists),
       metrics,
     );
     onProgress?.call(state);
     try {
-      final playlists = await _withRetry(
-        _api.getPlaylists,
-        metrics: metrics,
-        endpoint: 'getPlaylists',
-      );
-      await _database.playlistDao.upsertPlaylists(
-        _toPlaylistCompanions(playlists),
-      );
-      metrics.addDbWriteBatch();
+      await _syncPlaylistHeadersStrict(metrics);
     } on Object catch (error, stackTrace) {
       if (_isFatalEntityError(error)) {
         rethrow;
@@ -2095,17 +3610,117 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     return state;
   }
 
+  Future<void> _syncGenresStrict(_SyncRunMetrics metrics) async {
+    final genres = await _withRetry(
+      _api.getGenres,
+      metrics: metrics,
+      endpoint: 'getGenres',
+    );
+    await _database.libraryDao.replaceGenres(_toGenreCompanions(genres));
+    metrics
+      ..addDbWriteBatch()
+      ..genresSynchronized = true;
+    await _markGenresSynced(DateTime.now(), metrics);
+  }
+
+  Future<void> _syncPlaylistHeadersStrict(_SyncRunMetrics metrics) async {
+    final playlists = await _withRetry(
+      _api.getPlaylists,
+      metrics: metrics,
+      endpoint: 'getPlaylists',
+    );
+    final existing = <String, PlaylistsTableData>{
+      for (final playlist in await _database.playlistDao.getAllPlaylists())
+        playlist.id: playlist,
+    };
+    final cachedSongCounts = await _database.playlistDao
+        .getPlaylistSongCounts();
+    final serverIds = playlists.map((playlist) => playlist.id).toSet();
+    final changedPlaylistIds = <String>{};
+    for (final playlist in playlists) {
+      final current = existing[playlist.id];
+      final cachedSongCount = cachedSongCounts[playlist.id] ?? 0;
+      final expectedSongCount = playlist.songCount;
+      if (current == null ||
+          _playlistHeaderChanged(current, playlist) ||
+          (expectedSongCount != null && expectedSongCount != cachedSongCount)) {
+        if (expectedSongCount != 0) {
+          changedPlaylistIds.add(playlist.id);
+        }
+      }
+    }
+    await _database.playlistDao.reconcileServerPlaylists(
+      _toPlaylistCompanions(playlists),
+      serverIds.toList(growable: false),
+    );
+    metrics.addDbWriteBatch();
+
+    final serverConfig = await _serverConfigRepository.getActiveServer();
+    final serverId = serverConfig?.id;
+    if (serverId != null) {
+      final removedIds = existing.keys
+          .where((id) => !serverIds.contains(id))
+          .toList(growable: false);
+      await _database.librarySyncDao.deleteEntityWork(
+        serverId: serverId,
+        kind: LibrarySyncPlanKind.targetedHydration.name,
+        entityIds: <String>{
+          ...removedIds,
+          ...removedIds.map(
+            (id) => librarySyncTargetWorkKey(LibrarySyncTarget.playlist(id)),
+          ),
+        },
+      );
+      for (final playlistId in changedPlaylistIds) {
+        final target = LibrarySyncTarget.playlist(playlistId);
+        await _database.librarySyncDao.enqueueWork(
+          serverId: serverId,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(target),
+          priority: 30,
+          checkpointJson: jsonEncode(<String, String>{
+            'targetKind': target.kind.name,
+          }),
+        );
+      }
+    }
+    metrics.playlistHeadersSynchronized = true;
+  }
+
+  bool _playlistHeaderChanged(
+    PlaylistsTableData current,
+    Playlist remote,
+  ) {
+    return current.name != remote.name ||
+        current.songCount != remote.songCount ||
+        current.duration != remote.duration ||
+        current.owner != remote.owner ||
+        current.isPublic != remote.isPublic ||
+        current.coverArt != remote.coverArt ||
+        current.comment != remote.comment;
+  }
+
   Future<LibrarySyncState> _hydratePendingSongs({
     required LibrarySyncState state,
     required Iterable<String> priorityAlbumIds,
     required String? serverCapabilitiesJson,
     required String? storedBulkSongSearchQuery,
     required Iterable<String> excludedAlbumIds,
+    int? catalogGeneration,
+    int? candidateServerId,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
+    final candidateMode =
+        candidateServerId != null && catalogGeneration != null;
     final pendingAlbumIds =
-        (await _database.libraryDao.getPendingHydrationAlbumIds()).toSet()
+        (candidateMode
+                ? await _database.librarySyncCandidateDao.getPendingAlbumIds(
+                    serverId: candidateServerId,
+                    generation: catalogGeneration,
+                  )
+                : await _database.libraryDao.getPendingHydrationAlbumIds())
+            .toSet()
           ..removeAll(_normalizeAlbumIds(excludedAlbumIds));
     final pending = pendingAlbumIds.length;
     if (pending == 0) {
@@ -2127,20 +3742,27 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     final prioritized = _normalizeAlbumIds(
       priorityAlbumIds,
     ).where(pendingAlbumIds.contains).toList(growable: true);
-    final validArtistIds = await _database.libraryDao.getArtistIds();
-    final expectedSongCounts = await _database.libraryDao
-        .getAlbumSongCountsByIds(
-          pendingAlbumIds,
-        );
+    final validArtistIds = candidateMode
+        ? await _database.librarySyncCandidateDao.getArtistIds(
+            serverId: candidateServerId,
+            generation: catalogGeneration,
+          )
+        : await _database.libraryDao.getArtistIds();
+    final expectedSongCounts = candidateMode
+        ? await _database.librarySyncCandidateDao.getAlbumSongCounts(
+            serverId: candidateServerId,
+            generation: catalogGeneration,
+            albumIds: pendingAlbumIds,
+          )
+        : await _database.libraryDao.getAlbumSongCountsByIds(pendingAlbumIds);
 
     var processed = 0;
     var pendingRemaining = pending;
-    final requeueAlbumIds = <String>{};
     final observedBulkAlbumIds = <String>{};
     final hydrationStopwatch = Stopwatch()..start();
     final concurrencyController = _AdaptiveHydrationConcurrency(
       initial: _albumConcurrency,
-      min: 2,
+      min: 1,
       max: _maxHydrationConcurrency,
     );
     var current = _withMetrics(
@@ -2159,6 +3781,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     onProgress?.call(current);
 
     Future<void> publishProgress(Iterable<String> hydratedAlbumIds) async {
+      _ensureBackgroundWorkAllowed();
       final hydratedCount = hydratedAlbumIds.length;
       if (hydratedCount == 0) {
         return;
@@ -2190,36 +3813,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       onProgress?.call(current);
     }
 
-    Future<void> resolveRemovedAlbums(Iterable<String> albumIds) async {
-      var removed = 0;
-      for (final albumId in albumIds) {
-        if (pendingAlbumIds.remove(albumId)) {
-          prioritized.remove(albumId);
-          observedBulkAlbumIds.remove(albumId);
-          removed++;
-        }
-      }
-      if (removed == 0) {
-        return;
-      }
-      pendingRemaining -= removed;
-      metrics.deletedAlbums += removed;
-      current = _withMetrics(
-        current.copyWith(
-          metadataReady: true,
-          isHydrating: true,
-          pendingHydrationCount: pendingRemaining < 0 ? 0 : pendingRemaining,
-        ),
-        metrics,
-      );
-      onProgress?.call(current);
-    }
-
     Future<void> processAlbumBatch(_AlbumBatchFetchResult batchResult) async {
-      if (batchResult.deletedAlbumIds.isNotEmpty) {
-        await resolveRemovedAlbums(batchResult.deletedAlbumIds);
-      }
-      requeueAlbumIds.addAll(batchResult.requeueAlbumIds);
       if (batchResult.requeueAlbumIds.isNotEmpty) {
         for (final albumId in batchResult.requeueAlbumIds) {
           if (pendingAlbumIds.remove(albumId)) {
@@ -2268,27 +3862,42 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           detail.songs,
           defaultAlbumId: detail.id,
           validArtistIds: validArtistIds,
+          catalogGeneration: catalogGeneration,
         );
         hydratedAlbumIds.add(detail.id);
       }
 
-      final canonicalSongIds = songsByAlbum.values
-          .expand((songs) => songs)
-          .where((song) => song.id.present)
-          .map((song) => song.id.value)
-          .toSet();
-      final sameIdProvisionalSongs =
-          (await _database.songIdentityDao.getProvisionalSongs())
-              .map((song) => song.id)
-              .toSet();
-      await _database.libraryDao.replaceSongsForAlbumsChunk(songsByAlbum);
-      metrics.addDbWriteBatch();
-      await _reconcileHydratedSongIds(
-        canonicalSongIds: canonicalSongIds,
-        sameIdProvisionalSongs: sameIdProvisionalSongs,
-        metrics: metrics,
-      );
-      await _database.libraryDao.markAlbumsSongsHydratedByIds(hydratedAlbumIds);
+      if (candidateMode) {
+        await _database.librarySyncCandidateDao.replaceSongsForAlbums(
+          serverId: candidateServerId,
+          generation: catalogGeneration,
+          songsByAlbum: songsByAlbum,
+        );
+        await _database.librarySyncCandidateDao.markAlbumsHydrated(
+          serverId: candidateServerId,
+          generation: catalogGeneration,
+          albumIds: hydratedAlbumIds,
+        );
+      } else {
+        final canonicalSongIds = songsByAlbum.values
+            .expand((songs) => songs)
+            .where((song) => song.id.present)
+            .map((song) => song.id.value)
+            .toSet();
+        final sameIdProvisionalSongs =
+            (await _database.songIdentityDao.getProvisionalSongs())
+                .map((song) => song.id)
+                .toSet();
+        await _database.libraryDao.replaceSongsForAlbumsChunk(songsByAlbum);
+        await _reconcileHydratedSongIds(
+          canonicalSongIds: canonicalSongIds,
+          sameIdProvisionalSongs: sameIdProvisionalSongs,
+          metrics: metrics,
+        );
+        await _database.libraryDao.markAlbumsSongsHydratedByIds(
+          hydratedAlbumIds,
+        );
+      }
       metrics.addDbWriteBatch();
       await publishProgress(hydratedAlbumIds);
     }
@@ -2339,6 +3948,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           pendingAlbumIds: pendingAlbumIds,
           expectedSongCounts: expectedSongCounts,
           validArtistIds: validArtistIds,
+          catalogGeneration: catalogGeneration,
+          candidateServerId: candidateServerId,
           metrics: metrics,
           onHydratedChunk: publishProgress,
           onObservedChunk: publishBulkObservedProgress,
@@ -2390,6 +4001,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       final chunk = await _nextPendingHydrationChunk(
         prioritizedAlbumIds: prioritized,
         limit: writeChunkSize,
+        candidateServerId: candidateServerId,
+        catalogGeneration: catalogGeneration,
       );
       if (chunk.isEmpty) {
         break;
@@ -2407,29 +4020,12 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       await Future<void>.delayed(Duration.zero);
     }
 
-    if (requeueAlbumIds.isNotEmpty) {
-      final retryRows = await _database.libraryDao
-          .getPendingHydrationAlbumsByIds(
-            requeueAlbumIds.toList(growable: false),
-            limit: requeueAlbumIds.length,
-          );
-      if (retryRows.isNotEmpty) {
-        final retryController = _AdaptiveHydrationConcurrency(
-          initial: 1,
-          min: 1,
-          max: 2,
-        );
-        final retryResult = await _fetchAlbumDetailsAdaptive(
-          chunk: retryRows,
-          concurrencyController: retryController,
-          metrics: metrics,
-        );
-        await processAlbumBatch(retryResult);
-      }
-    }
-
-    final remainingPending = await _database.libraryDao
-        .countPendingHydrationAlbums();
+    final remainingPending = candidateMode
+        ? await _database.librarySyncCandidateDao.countPendingAlbums(
+            serverId: candidateServerId,
+            generation: catalogGeneration,
+          )
+        : await _database.libraryDao.countPendingHydrationAlbums();
     if (remainingPending > 0) {
       metrics.skippedReason = 'albumHydrationPending';
     }
@@ -2458,10 +4054,20 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         .toList(growable: false);
   }
 
-  Future<List<AlbumsTableData>> _nextPendingHydrationChunk({
+  Future<List<String>> _nextPendingHydrationChunk({
     required List<String> prioritizedAlbumIds,
     required int limit,
+    int? candidateServerId,
+    int? catalogGeneration,
   }) async {
+    if (candidateServerId != null && catalogGeneration != null) {
+      return _database.librarySyncCandidateDao.getPendingAlbumIds(
+        serverId: candidateServerId,
+        generation: catalogGeneration,
+        preferredIds: prioritizedAlbumIds,
+        limit: limit,
+      );
+    }
     if (prioritizedAlbumIds.isNotEmpty) {
       final prioritizedChunk = await _database.libraryDao
           .getPendingHydrationAlbumsByIds(
@@ -2469,10 +4075,13 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             limit: limit,
           );
       if (prioritizedChunk.isNotEmpty) {
-        return prioritizedChunk;
+        return prioritizedChunk.map((album) => album.id).toList();
       }
     }
-    return _database.libraryDao.getPendingHydrationAlbums(limit: limit);
+    final albums = await _database.libraryDao.getPendingHydrationAlbums(
+      limit: limit,
+    );
+    return albums.map((album) => album.id).toList();
   }
 
   Future<String?> _probeBulkSongFastPath({
@@ -2502,7 +4111,6 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             offset: 0,
           ),
           metrics: metrics,
-          maxAttempts: 2,
           endpoint: 'searchSongsPage',
         );
         if (page.songs.isEmpty) {
@@ -2529,6 +4137,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     required Set<String> pendingAlbumIds,
     required Map<String, int?> expectedSongCounts,
     required Set<String> validArtistIds,
+    int? catalogGeneration,
+    int? candidateServerId,
     required _SyncRunMetrics metrics,
     required Future<void> Function(Iterable<String> hydratedAlbumIds)
     onHydratedChunk,
@@ -2545,7 +4155,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       if (ids.isEmpty) {
         return;
       }
-      await _database.libraryDao.markAlbumsSongsHydratedByIds(ids);
+      if (candidateServerId != null && catalogGeneration != null) {
+        await _database.librarySyncCandidateDao.markAlbumsHydrated(
+          serverId: candidateServerId,
+          generation: catalogGeneration,
+          albumIds: ids,
+        );
+      } else {
+        await _database.libraryDao.markAlbumsSongsHydratedByIds(ids);
+      }
       metrics.addDbWriteBatch();
       await onHydratedChunk(ids);
     }
@@ -2564,24 +4182,33 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           rawSongs,
           defaultAlbumId: albumId,
           validArtistIds: validArtistIds,
+          catalogGeneration: catalogGeneration,
         );
       }
-      final canonicalSongIds = songsByAlbum.values
-          .expand((songs) => songs)
-          .where((song) => song.id.present)
-          .map((song) => song.id.value)
-          .toSet();
-      final sameIdProvisionalSongs =
-          (await _database.songIdentityDao.getProvisionalSongs())
-              .map((song) => song.id)
-              .toSet();
-      await _database.libraryDao.reconcileSongsForAlbumsChunk(songsByAlbum);
+      if (candidateServerId != null && catalogGeneration != null) {
+        await _database.librarySyncCandidateDao.replaceSongsForAlbums(
+          serverId: candidateServerId,
+          generation: catalogGeneration,
+          songsByAlbum: songsByAlbum,
+        );
+      } else {
+        final canonicalSongIds = songsByAlbum.values
+            .expand((songs) => songs)
+            .where((song) => song.id.present)
+            .map((song) => song.id.value)
+            .toSet();
+        final sameIdProvisionalSongs =
+            (await _database.songIdentityDao.getProvisionalSongs())
+                .map((song) => song.id)
+                .toSet();
+        await _database.libraryDao.reconcileSongsForAlbumsChunk(songsByAlbum);
+        await _reconcileHydratedSongIds(
+          canonicalSongIds: canonicalSongIds,
+          sameIdProvisionalSongs: sameIdProvisionalSongs,
+          metrics: metrics,
+        );
+      }
       metrics.addDbWriteBatch();
-      await _reconcileHydratedSongIds(
-        canonicalSongIds: canonicalSongIds,
-        sameIdProvisionalSongs: sameIdProvisionalSongs,
-        metrics: metrics,
-      );
       await markHydrated(ids);
       ids.forEach(importedSongsByAlbum.remove);
     }
@@ -2608,7 +4235,6 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           offset: offset,
         ),
         metrics: metrics,
-        maxAttempts: 3,
         endpoint: 'searchSongsPage',
       );
 
@@ -2703,7 +4329,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     return hydrated;
   }
 
-  Future<List<Album>> _discoverAlbumsFastPath({
+  Future<Set<String>> _discoverAlbumIdsFastPath({
+    required int serverId,
+    required int catalogGeneration,
     required _SyncRunMetrics metrics,
     void Function({
       required int discoveredCount,
@@ -2711,14 +4339,42 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     })?
     onPageProgress,
   }) async {
-    final byId = <String, Album>{};
     var offset = 0;
     var pageCount = 0;
+    var discoveredCount = 0;
+    String? lastPageSignature;
 
     while (true) {
+      _ensureBackgroundWorkAllowed();
       pageCount++;
       if (pageCount > fastPathMaxPages) {
         throw StateError('Album fast path exceeded page limit.');
+      }
+
+      final pageKey = '$catalogGeneration:$offset';
+      final existingWork = await _database.librarySyncDao.getWork(
+        serverId: serverId,
+        kind: 'catalogAlbumPage',
+        entityId: pageKey,
+      );
+      if (existingWork?.status == 'completed' &&
+          existingWork?.checkpointJson != null) {
+        final checkpoint = _decodeCatalogPageCheckpoint(
+          existingWork!.checkpointJson!,
+        );
+        if (checkpoint != null) {
+          discoveredCount += checkpoint.count;
+          lastPageSignature = checkpoint.signature;
+          onPageProgress?.call(
+            discoveredCount: discoveredCount,
+            hasMorePages: checkpoint.hasMore,
+          );
+          if (!checkpoint.hasMore) {
+            break;
+          }
+          offset += fastPathPageSize;
+          continue;
+        }
       }
 
       final page = await _withRetry(
@@ -2726,17 +4382,59 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics: metrics,
         endpoint: 'getAlbumListPage',
       );
-      if (page.isEmpty) {
-        break;
+      final signature = sha1
+          .convert(utf8.encode(page.map((album) => album.id).join('\n')))
+          .toString();
+      if (page.isNotEmpty && signature == lastPageSignature) {
+        throw StateError('Album fast path repeated a catalog page.');
       }
+      lastPageSignature = signature;
 
-      for (final album in page) {
-        byId[album.id] = album;
+      if (page.isNotEmpty) {
+        await _database.librarySyncCandidateDao.upsertAlbums(
+          serverId: serverId,
+          generation: catalogGeneration,
+          albums: await _toAlbumCompanions(
+            page,
+            pendingHydrationAlbumIds: page.map((album) => album.id),
+            catalogGeneration: catalogGeneration,
+          ),
+        );
+        metrics.addDbWriteBatch();
       }
 
       final hasMorePages = page.length >= fastPathPageSize;
+      discoveredCount += page.length;
+      var work = existingWork;
+      if (work == null) {
+        await _database.librarySyncDao.enqueueWork(
+          serverId: serverId,
+          kind: 'catalogAlbumPage',
+          entityId: pageKey,
+          priority: 40,
+        );
+        work = await _database.librarySyncDao.getWork(
+          serverId: serverId,
+          kind: 'catalogAlbumPage',
+          entityId: pageKey,
+        );
+      }
+      if (work != null) {
+        await _database.librarySyncDao.updateCheckpoint(
+          work.id,
+          checkpointJson: jsonEncode(<String, Object>{
+            'count': page.length,
+            'hasMore': hasMorePages,
+            'signature': signature,
+          }),
+        );
+        await _database.librarySyncDao.markCompleted(
+          work.id,
+          preserveCheckpoint: true,
+        );
+      }
       onPageProgress?.call(
-        discoveredCount: byId.length,
+        discoveredCount: discoveredCount,
         hasMorePages: hasMorePages,
       );
 
@@ -2746,7 +4444,39 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       offset += fastPathPageSize;
     }
 
-    return byId.values.toList(growable: false);
+    final candidateIds = await _database.librarySyncCandidateDao.getAlbumIds(
+      serverId: serverId,
+      generation: catalogGeneration,
+    );
+    if (candidateIds.length != discoveredCount) {
+      throw StateError(
+        'Catalog candidate contains ${candidateIds.length} albums but its '
+        'page checkpoints contain $discoveredCount.',
+      );
+    }
+    return candidateIds;
+  }
+
+  _CatalogPageCheckpoint? _decodeCatalogPageCheckpoint(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+      final count = decoded['count'];
+      final hasMore = decoded['hasMore'];
+      final signature = decoded['signature'];
+      if (count is! num || hasMore is! bool || signature is! String) {
+        return null;
+      }
+      return _CatalogPageCheckpoint(
+        count: count.toInt(),
+        hasMore: hasMore,
+        signature: signature,
+      );
+    } on FormatException {
+      return null;
+    }
   }
 
   List<Album> _dedupeAlbums(List<Album> albums) {
@@ -2770,13 +4500,12 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   Future<T> _withRetry<T>(
     Future<T> Function() action, {
     required _SyncRunMetrics metrics,
-    int maxAttempts = 4,
     String? endpoint,
     void Function(Object error, int attempts)? onFinalFailure,
   }) async {
-    final effectiveMaxAttempts = networkType == NetworkType.cellular
-        ? maxAttempts.clamp(1, 2)
-        : maxAttempts;
+    // Transport owns the single immediate retry. Persisted work owns every
+    // later attempt so nested loops cannot multiply requests.
+    const effectiveMaxAttempts = 1;
     var attempt = 0;
     while (true) {
       _checkCancelled();
@@ -2791,6 +4520,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         );
         return result;
       } on SyncCancelledException {
+        rethrow;
+      } on SyncNetworkDeferredException {
+        rethrow;
+      } on SubsonicResponseBudgetExceededException {
         rethrow;
       } on Object catch (error) {
         metrics.recordApiAttempt(
@@ -2853,13 +4586,19 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       return _AlbumFetchResult.success(album);
     } on SyncCancelledException {
       rethrow;
-    } on SubsonicNotFoundException {
+    } on SubsonicNotFoundException catch (error) {
       AppLogger.debug(
-        'Album $albumId not found during hydration; removing local row.',
+        'Album $albumId was not found during isolated hydration; preserving '
+        'it until parent or snapshot confirmation.',
       );
-      await _database.libraryDao.deleteAlbumsByIds([albumId]);
-      metrics.addDbWriteBatch();
-      return const _AlbumFetchResult.deleted();
+      metrics.recordFailureDiagnostic(
+        stage: LibrarySyncStage.fetchingSongs.name,
+        endpoint: 'getAlbum',
+        entityId: albumId,
+        error: error,
+        attempts: attempts,
+      );
+      return const _AlbumFetchResult.requeue();
     } on Object catch (error) {
       metrics.recordFailureDiagnostic(
         stage: LibrarySyncStage.fetchingSongs.name,
@@ -2880,12 +4619,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   }
 
   Future<_AlbumBatchFetchResult> _fetchAlbumDetailsAdaptive({
-    required List<AlbumsTableData> chunk,
+    required List<String> chunk,
     required _AdaptiveHydrationConcurrency concurrencyController,
     required _SyncRunMetrics metrics,
   }) async {
     final albums = <Album>[];
-    final deletedAlbumIds = <String>[];
     final requeueAlbumIds = <String>[];
     final hardFailedAlbumIds = <String>[];
     var offset = 0;
@@ -2902,8 +4640,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       final batchStopwatch = Stopwatch()..start();
       final results = await Future.wait(
         batch.map(
-          (album) => _fetchAlbumDetailResilient(
-            album.id,
+          (albumId) => _fetchAlbumDetailResilient(
+            albumId,
             metrics: metrics,
           ),
         ),
@@ -2913,13 +4651,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       var successCount = 0;
       for (var index = 0; index < results.length; index++) {
         final result = results[index];
-        final albumId = batch[index].id;
+        final albumId = batch[index];
         switch (result.outcome) {
           case _AlbumFetchOutcome.success:
             albums.add(result.album!);
             successCount++;
-          case _AlbumFetchOutcome.deleted:
-            deletedAlbumIds.add(albumId);
           case _AlbumFetchOutcome.requeue:
             requeueAlbumIds.add(albumId);
           case _AlbumFetchOutcome.hardFailure:
@@ -2938,7 +4674,6 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     return _AlbumBatchFetchResult(
       albums: albums,
-      deletedAlbumIds: deletedAlbumIds,
       requeueAlbumIds: requeueAlbumIds,
       hardFailedAlbumIds: hardFailedAlbumIds,
     );
@@ -2948,6 +4683,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     LibrarySyncState state,
     _SyncRunMetrics metrics,
   ) {
+    lastEndpointRequestCounts = Map<String, int>.from(
+      metrics.apiRequestsByEndpoint,
+    );
     return state.copyWith(
       apiRequests: metrics.apiRequests,
       apiRetries: metrics.apiRetries,
@@ -2959,6 +4697,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           metrics.hydrationThroughputAlbumsPerSecond,
       canonicalizedSongCount: metrics.canonicalizedSongCount,
       ambiguousMatchCount: metrics.ambiguousMatchCount,
+      starredSynchronized: metrics.starredSynchronized,
+      playlistHeadersSynchronized: metrics.playlistHeadersSynchronized,
+      genresSynchronized: metrics.genresSynchronized,
     );
   }
 
@@ -3087,7 +4828,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     return '{${entries.map((entry) => '${entry.key}:${entry.value}').join(',')}}';
   }
 
-  List<ArtistsTableCompanion> _toArtistCompanions(List<Artist> artists) {
+  List<ArtistsTableCompanion> _toArtistCompanions(
+    List<Artist> artists, {
+    int? catalogGeneration,
+  }) {
     return artists
         .map(
           (artist) => ArtistsTableCompanion.insert(
@@ -3096,6 +4840,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             albumCount: Value(artist.albumCount),
             coverArt: Value(artist.coverArt),
             starred: Value(artist.starred),
+            catalogGeneration: catalogGeneration == null
+                ? const Value.absent()
+                : Value(catalogGeneration),
           ),
         )
         .toList(growable: false);
@@ -3104,6 +4851,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   Future<List<AlbumsTableCompanion>> _toAlbumCompanions(
     List<Album> albums, {
     Iterable<String> pendingHydrationAlbumIds = const <String>[],
+    int? catalogGeneration,
   }) async {
     final payload = albums
         .map((album) => album.toJson())
@@ -3131,6 +4879,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             userRating: Value(row.userRating),
             playCount: Value(row.playCount),
             serverCreatedAt: Value(row.created),
+            catalogGeneration: catalogGeneration == null
+                ? const Value.absent()
+                : Value(catalogGeneration),
           ),
         )
         .toList(growable: false);
@@ -3140,6 +4891,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     List<Song> songs, {
     String? defaultAlbumId,
     required Set<String> validArtistIds,
+    int? catalogGeneration,
   }) async {
     final payload = songs.map((song) => song.toJson()).toList(growable: false);
     final rows = payload.length >= isolateThreshold
@@ -3178,6 +4930,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             replayGainAlbumGain: Value(row.replayGainAlbumGain),
             replayGainTrackPeak: Value(row.replayGainTrackPeak),
             replayGainAlbumPeak: Value(row.replayGainAlbumPeak),
+            catalogGeneration: catalogGeneration == null
+                ? const Value.absent()
+                : Value(catalogGeneration),
           ),
         )
         .toList(growable: false);
@@ -3297,6 +5052,9 @@ class _SyncRunMetrics {
   int ambiguousMatchCount = 0;
   bool metadataChanged = false;
   bool verificationContinuation = false;
+  bool starredSynchronized = false;
+  bool playlistHeadersSynchronized = false;
+  bool genresSynchronized = false;
   String? skippedReason;
   final Map<String, int> apiRequestsByEndpoint = <String, int>{};
   final List<_SyncFailureDiagnostic> failureDiagnostics =
@@ -3612,6 +5370,9 @@ DateTime? _parseIsoDate(String? value) {
 String _toSafeErrorMessage(Object error) {
   return switch (error) {
     SyncCancelledException() => 'Sync cancelled.',
+    SyncNetworkDeferredException() => 'Sync deferred by network policy.',
+    SubsonicResponseBudgetExceededException() =>
+      'Sync deferred: response exceeded the mobile-data budget.',
     SubsonicAuthException() => 'Authentication failed while syncing metadata.',
     SubsonicConnectionException() =>
       'Connection failed while syncing metadata. Retrying later may help.',

@@ -376,11 +376,95 @@ abstract class AppLocalizations {
   /// **'Last sync succeeded'**
   String get syncSettingsStatusSucceeded;
 
+  /// No description provided for @syncSettingsStatusPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync paused with work remaining'**
+  String get syncSettingsStatusPartial;
+
+  /// No description provided for @syncSettingsStatusDeferred.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync deferred'**
+  String get syncSettingsStatusDeferred;
+
+  /// No description provided for @syncSettingsStatusCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync cancelled; work saved'**
+  String get syncSettingsStatusCancelled;
+
   /// No description provided for @syncSettingsStatusFailed.
   ///
   /// In en, this message translates to:
   /// **'Last sync failed'**
   String get syncSettingsStatusFailed;
+
+  /// No description provided for @syncSettingsLastCheckedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Last checked'**
+  String get syncSettingsLastCheckedLabel;
+
+  /// No description provided for @syncSettingsLastCatalogUpdateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Last catalog update'**
+  String get syncSettingsLastCatalogUpdateLabel;
+
+  /// No description provided for @syncSettingsLastAuxiliaryUpdateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Starred and playlist headers'**
+  String get syncSettingsLastAuxiliaryUpdateLabel;
+
+  /// No description provided for @syncSettingsLastGenresUpdateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Genres'**
+  String get syncSettingsLastGenresUpdateLabel;
+
+  /// No description provided for @syncSettingsDegradation.
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded domain: {category}'**
+  String syncSettingsDegradation(Object category);
+
+  /// No description provided for @syncSettingsStrategy.
+  ///
+  /// In en, this message translates to:
+  /// **'Strategy: {strategy} — {reason}'**
+  String syncSettingsStrategy(Object strategy, Object reason);
+
+  /// No description provided for @syncSettingsPendingWork.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} resumable task(s) pending'**
+  String syncSettingsPendingWork(Object count);
+
+  /// No description provided for @syncSettingsCandidate.
+  ///
+  /// In en, this message translates to:
+  /// **'Candidate generation {generation}: {status}'**
+  String syncSettingsCandidate(Object generation, Object status);
+
+  /// No description provided for @syncSettingsCarriedForward.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} unavailable album(s) kept from the previous catalog'**
+  String syncSettingsCarriedForward(Object count);
+
+  /// No description provided for @syncSettingsApplyDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Catalog applied in {milliseconds} ms'**
+  String syncSettingsApplyDuration(Object milliseconds);
+
+  /// No description provided for @syncSettingsUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Last run: {requests} request(s) • {bytes}'**
+  String syncSettingsUsage(Object requests, Object bytes);
 
   /// No description provided for @syncSettingsCheckForUpdates.
   ///
@@ -447,6 +531,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'How often the library syncs automatically in the background.'**
   String get syncSettingsIntervalDescription;
+
+  /// No description provided for @syncSettingsBackgroundUnmeteredOnlyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Background sync only on unmetered networks'**
+  String get syncSettingsBackgroundUnmeteredOnlyLabel;
+
+  /// No description provided for @syncSettingsBackgroundUnmeteredOnlyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'On mobile or metered Wi-Fi, Navis checks for updates with a single lightweight request and waits for unmetered data before downloading catalog changes.'**
+  String get syncSettingsBackgroundUnmeteredOnlyDescription;
+
+  /// No description provided for @syncSettingsUpdatesAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Library updates are available and waiting for an unmetered connection.'**
+  String get syncSettingsUpdatesAvailable;
+
+  /// No description provided for @syncSettingsUpdatesAvailableMetered.
+  ///
+  /// In en, this message translates to:
+  /// **'Library updates are available. Use mobile data now or wait for unmetered Wi-Fi.'**
+  String get syncSettingsUpdatesAvailableMetered;
+
+  /// No description provided for @syncSettingsSyncUsingMobileData.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync using mobile data'**
+  String get syncSettingsSyncUsingMobileData;
+
+  /// No description provided for @syncSettingsRepairMeteredConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair Library on mobile data?'**
+  String get syncSettingsRepairMeteredConfirmTitle;
+
+  /// No description provided for @syncSettingsRepairMeteredConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair Library can download a large amount of metadata over your current connection.'**
+  String get syncSettingsRepairMeteredConfirmBody;
+
+  /// No description provided for @syncSettingsRepairMeteredConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair on mobile data'**
+  String get syncSettingsRepairMeteredConfirmAction;
 
   /// No description provided for @playbackSettingsLoadError.
   ///
@@ -1207,25 +1339,25 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsForceFullSync.
   ///
   /// In en, this message translates to:
-  /// **'Force Full Sync'**
+  /// **'Repair Library'**
   String get serverSettingsForceFullSync;
 
   /// No description provided for @serverSettingsForceFullSyncRunning.
   ///
   /// In en, this message translates to:
-  /// **'Sync in progress...'**
+  /// **'Repair in progress...'**
   String get serverSettingsForceFullSyncRunning;
 
   /// No description provided for @serverSettingsForceFullSyncSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Full library sync completed.'**
+  /// **'Library repair completed.'**
   String get serverSettingsForceFullSyncSuccess;
 
   /// No description provided for @serverSettingsForceFullSyncFailure.
   ///
   /// In en, this message translates to:
-  /// **'Full sync failed: {message}'**
+  /// **'Library repair failed: {message}'**
   String serverSettingsForceFullSyncFailure(Object message);
 
   /// No description provided for @serverSettingsSignOut.
@@ -2972,6 +3104,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =0{No cached tracks} =1{1 cached track} other{{count} cached tracks}}'**
   String cacheSettingsRollingTrackCount(int count);
+
+  /// No description provided for @cacheSettingsRollingCaching.
+  ///
+  /// In en, this message translates to:
+  /// **'Caching current track…'**
+  String get cacheSettingsRollingCaching;
+
+  /// No description provided for @cacheSettingsRollingCachingProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Caching current track… {percent}%'**
+  String cacheSettingsRollingCachingProgress(int percent);
 
   /// No description provided for @cacheSettingsClearRolling.
   ///

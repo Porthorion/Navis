@@ -12,6 +12,7 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import '../../../../helpers/test_database.dart';
@@ -40,7 +41,9 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   final List<Artist> artists = <Artist>[];
   final Map<String, Artist> artistDetails = <String, Artist>{};
   final Map<String, Album> albumDetails = <String, Album>{};
+  final Map<String, Playlist> playlistDetails = <String, Playlist>{};
   final Map<int, List<Album>> fastPathPages = <int, List<Album>>{};
+  final Map<int, Object> fastPathErrors = <int, Object>{};
   final Map<int, List<Song>> bulkSongPages = <int, List<Song>>{};
   StarredContent starredContent = const StarredContent();
   List<Genre> genres = <Genre>[];
@@ -51,7 +54,9 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   Exception? throwOnFastPath;
   Exception? throwOnIndexes;
   Exception? throwOnSongSearch;
+  Exception? throwOnStarred;
   Exception? throwOnGenres;
+  Exception? throwOnPlaylists;
   final Map<String, Object> albumErrors = <String, Object>{};
   final Map<String, Object> artistErrors = <String, Object>{};
   final Set<String> notFoundAlbumIds = <String>{};
@@ -59,11 +64,29 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   final Set<String> permanentTransientAlbumIds = <String>{};
   final Map<String, int> transientAlbumFailures = <String, int>{};
   Duration albumDelay = Duration.zero;
+  Completer<Album>? albumCompleter;
+  bool activeRequestsCancelled = false;
   int currentAlbumRequests = 0;
   int maxConcurrentAlbumRequests = 0;
 
   @override
-  Future<Album> getAlbum(String id) async {
+  void beginRun() {
+    activeRequestsCancelled = false;
+  }
+
+  @override
+  void cancelActiveRequests() {
+    activeRequestsCancelled = true;
+    final completer = albumCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.completeError(
+        const SubsonicConnectionException('cancelled'),
+      );
+    }
+  }
+
+  @override
+  Future<Album> getAlbum(String id, {int? maxResponseBytes}) async {
     calls.add('getAlbum:$id');
     currentAlbumRequests++;
     if (currentAlbumRequests > maxConcurrentAlbumRequests) {
@@ -91,6 +114,14 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
     if (albumDelay > Duration.zero) {
       await Future<void>.delayed(albumDelay);
     }
+    final completer = albumCompleter;
+    if (completer != null) {
+      try {
+        return await completer.future;
+      } finally {
+        currentAlbumRequests--;
+      }
+    }
     final album = albumDetails[id];
     currentAlbumRequests--;
     if (album == null) {
@@ -100,8 +131,22 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   }
 
   @override
+  Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) async {
+    calls.add('getPlaylist:$id');
+    final playlist = playlistDetails[id];
+    if (playlist == null) {
+      throw StateError('Missing fake playlist for id: $id');
+    }
+    return playlist;
+  }
+
+  @override
   Future<StarredContent> getStarredContent() async {
     calls.add('getStarredContent');
+    final error = throwOnStarred;
+    if (error != null) {
+      throw error;
+    }
     return starredContent;
   }
 
@@ -111,6 +156,10 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
     required int offset,
   }) async {
     calls.add('getAlbumListPage:$offset:$size');
+    final pageError = fastPathErrors[offset];
+    if (pageError != null) {
+      throw pageError;
+    }
     final error = throwOnFastPath;
     if (error != null) {
       throw error;
@@ -127,7 +176,7 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   }
 
   @override
-  Future<Artist> getArtist(String id) async {
+  Future<Artist> getArtist(String id, {int? maxResponseBytes}) async {
     calls.add('getArtist:$id');
     if (notFoundArtistIds.contains(id)) {
       throw const SubsonicNotFoundException(message: 'Artist not found');
@@ -164,7 +213,10 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   }
 
   @override
-  Future<Indexes> getIndexes({DateTime? ifModifiedSince}) async {
+  Future<Indexes> getIndexes({
+    DateTime? ifModifiedSince,
+    bool disableRetry = false,
+  }) async {
     calls.add('getIndexes');
     requestedIndexesCursors.add(ifModifiedSince);
     final error = throwOnIndexes;
@@ -179,6 +231,10 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   @override
   Future<List<Playlist>> getPlaylists() async {
     calls.add('getPlaylists');
+    final error = throwOnPlaylists;
+    if (error != null) {
+      throw error;
+    }
     return playlists;
   }
 
@@ -337,6 +393,633 @@ void main() {
     );
 
     test(
+      'full sync keeps the committed catalog visible until one promotion',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Old Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Old Album',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(true),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Old Song',
+            albumId: const Value('album-1'),
+            artistId: const Value('artist-1'),
+          ),
+        ]);
+        api.artists.add(const Artist(id: 'artist-1', name: 'New Artist'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'New Album',
+            artistId: 'artist-1',
+            songCount: 1,
+          ),
+        ];
+        api.albumCompleter = Completer<Album>();
+        api.throwOnStarred = const SubsonicNotFoundException(
+          message: 'unsupported',
+        );
+
+        final emissions = <List<String>>[];
+        final firstEmission = Completer<void>();
+        final subscription = database.libraryDao.watchAllAlbums().listen((
+          albums,
+        ) {
+          emissions.add(albums.map((album) => album.name).toList());
+          if (!firstEmission.isCompleted) {
+            firstEmission.complete();
+          }
+        });
+        addTearDown(subscription.cancel);
+        await firstEmission.future;
+
+        final sync = engine.forceFullSync();
+        while (!api.calls.contains('getAlbum:album-1')) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        expect(
+          (await database.libraryDao.getAlbumById('album-1'))?.name,
+          'Old Album',
+        );
+        expect(emissions, <List<String>>[
+          <String>['Old Album'],
+        ]);
+        expect(
+          (await database.librarySyncCandidateDao.getAlbums(
+            serverId: 1,
+            generation: 1,
+          )).single.name,
+          'New Album',
+        );
+        await database.libraryDao.updateSongStarred(
+          'song-1',
+          DateTime.utc(2026, 8, 4, 12),
+        );
+
+        api.albumCompleter!.complete(
+          const Album(
+            id: 'album-1',
+            name: 'New Album',
+            artistId: 'artist-1',
+            songCount: 1,
+            songs: <Song>[
+              Song(
+                id: 'song-1',
+                title: 'Song 1',
+                albumId: 'album-1',
+                artistId: 'artist-1',
+              ),
+            ],
+          ),
+        );
+        final result = await sync;
+        await Future<void>.delayed(Duration.zero);
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(
+          (await database.libraryDao.getAlbumById('album-1'))?.name,
+          'New Album',
+        );
+        expect(
+          (await database.libraryDao.getSongById('song-1'))?.starred,
+          isNotNull,
+        );
+        expect(emissions.last, <String>['New Album']);
+        expect(emissions, hasLength(2));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'targeted liked sync mirrors the server without overwriting pending local actions',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final localStarredAt = DateTime(2026, 2, 1);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'server-liked', title: 'Server liked'),
+          SongsTableCompanion.insert(
+            id: 'pending-local',
+            title: 'Pending local',
+            starred: Value(localStarredAt),
+          ),
+          SongsTableCompanion.insert(
+            id: 'server-unliked',
+            title: 'Server unliked',
+            starred: Value(DateTime(2026, 1, 1)),
+          ),
+        ]);
+        await database.starSyncDao.queueStarAction(
+          itemId: 'pending-local',
+          itemType: 'song',
+          action: 'star',
+        );
+        final remoteStarredAt = DateTime(2026, 3, 1);
+        api.starredContent = StarredContent(
+          songs: <Song>[
+            Song(
+              id: 'server-liked',
+              title: 'Server liked',
+              starred: remoteStarredAt,
+            ),
+          ],
+        );
+
+        final state = await engine.syncStarredContent();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.starredSynchronized, isTrue);
+        expect(
+          await database.libraryDao.getSongStarred('server-liked'),
+          remoteStarredAt,
+        );
+        expect(
+          await database.libraryDao.getSongStarred('pending-local'),
+          localStarredAt,
+        );
+        expect(
+          await database.libraryDao.getSongStarred('server-unliked'),
+          isNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'playlist header sync preserves memberships and queues only changed contents',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'),
+        ]);
+        await database.playlistDao.upsertPlaylists(<PlaylistsTableCompanion>[
+          PlaylistsTableCompanion.insert(
+            id: 'stable',
+            name: 'Stable',
+            songCount: const Value(1),
+          ),
+          PlaylistsTableCompanion.insert(
+            id: 'changed',
+            name: 'Changed',
+            songCount: const Value(1),
+          ),
+          PlaylistsTableCompanion.insert(
+            id: 'deleted',
+            name: 'Deleted',
+            songCount: const Value(1),
+          ),
+        ]);
+        for (final playlistId in <String>['stable', 'changed', 'deleted']) {
+          await database.playlistDao.replacePlaylistSongs(
+            playlistId,
+            <PlaylistSongsTableCompanion>[
+              PlaylistSongsTableCompanion.insert(
+                playlistId: playlistId,
+                songId: 'song-1',
+                sortOrder: 0,
+              ),
+            ],
+          );
+        }
+        api.playlists = const <Playlist>[
+          Playlist(id: 'stable', name: 'Stable', songCount: 1),
+          Playlist(id: 'changed', name: 'Changed', songCount: 2),
+          Playlist(id: 'new-empty', name: 'New empty', songCount: 0),
+        ];
+
+        final state = await engine.syncPlaylistHeaders();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.playlistHeadersSynchronized, isTrue);
+        expect(
+          await database.playlistDao.watchPlaylistSongs('stable').first,
+          hasLength(1),
+        );
+        expect(
+          await database.playlistDao.watchPlaylistById('deleted').first,
+          isNull,
+        );
+        expect(
+          await database.librarySyncDao.getWork(
+            serverId: serverId,
+            kind: LibrarySyncPlanKind.targetedHydration.name,
+            entityId: librarySyncTargetWorkKey(
+              const LibrarySyncTarget.playlist('changed'),
+            ),
+          ),
+          isNotNull,
+        );
+        expect(
+          await database.librarySyncDao.getWork(
+            serverId: serverId,
+            kind: LibrarySyncPlanKind.targetedHydration.name,
+            entityId: librarySyncTargetWorkKey(
+              const LibrarySyncTarget.playlist('stable'),
+            ),
+          ),
+          isNull,
+        );
+        expect(
+          await database.librarySyncDao.getWork(
+            serverId: serverId,
+            kind: LibrarySyncPlanKind.targetedHydration.name,
+            entityId: librarySyncTargetWorkKey(
+              const LibrarySyncTarget.playlist('new-empty'),
+            ),
+          ),
+          isNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'targeted album hydration uses one request and auto-merges a cached remote identity',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(false),
+          ),
+        ]);
+        await database.libraryDao.upsertProvisionalSongs(
+          <SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'remote-song',
+              title: 'Track',
+              albumId: const Value('album-1'),
+              artistId: const Value('artist-1'),
+              recordingMbid: const Value('recording-mbid'),
+            ),
+          ],
+        );
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          artistId: 'artist-1',
+          songs: <Song>[
+            Song(
+              id: 'server-song',
+              title: 'Track',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+              musicBrainzId: 'recording-mbid',
+            ),
+          ],
+        );
+
+        final state = await engine.hydrateAlbum('album-1');
+        final aliases = await database.songIdentityDao.getAliases();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.apiRequests, 1);
+        expect(state.dbWriteBatches, 1);
+        expect(api.calls, <String>['getAlbum:album-1']);
+        expect(aliases.single.oldSongId, 'remote-song');
+        expect(aliases.single.canonicalSongId, 'server-song');
+        expect(
+          await database.libraryDao.getSongById('remote-song'),
+          isNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'incomplete targeted album response preserves existing tracks',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            songsHydrated: const Value(false),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'existing-song',
+            title: 'Existing',
+            albumId: const Value('album-1'),
+          ),
+        ]);
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songCount: 1,
+        );
+
+        final state = await engine.hydrateAlbum('album-1');
+
+        expect(state.status, LibrarySyncStatus.partial);
+        expect(
+          await database.libraryDao.getSongById('existing-song'),
+          isNotNull,
+        );
+        expect(
+          (await database.libraryDao.getAlbumById('album-1'))?.songsHydrated,
+          isFalse,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('cancellation interrupts an active targeted request', () async {
+      await saveSession(lastSynced: DateTime.now());
+      api.albumCompleter = Completer<Album>();
+
+      final hydration = engine.hydrateAlbum('album-1');
+      await Future<void>.delayed(Duration.zero);
+      engine.cancelSync();
+      final state = await hydration;
+
+      expect(api.activeRequestsCancelled, isTrue);
+      expect(state.status, LibrarySyncStatus.cancelled);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'large snapshot deletion requires a second matching fingerprint',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-keep', name: 'Keep'),
+          ArtistsTableCompanion.insert(id: 'artist-stale', name: 'Stale'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-keep',
+            name: 'Keep',
+            artistId: const Value('artist-keep'),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-stale',
+            name: 'Stale',
+            artistId: const Value('artist-stale'),
+          ),
+        ]);
+        api.artists.add(const Artist(id: 'artist-keep', name: 'Keep'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-keep',
+            name: 'Keep',
+            artistId: 'artist-keep',
+          ),
+        ];
+        api.albumDetails['album-keep'] = const Album(
+          id: 'album-keep',
+          name: 'Keep',
+          artistId: 'artist-keep',
+        );
+
+        final first = await engine.forceFullSync();
+        expect(first.freshness, LibrarySyncFreshness.repairRecommended);
+        expect(
+          await database.libraryDao.getAlbumById('album-stale'),
+          isNotNull,
+        );
+
+        final locallyStarredAt = DateTime.now();
+        await database.libraryDao.updateAlbumStarred(
+          'album-keep',
+          locallyStarredAt,
+        );
+
+        final second = await engine.forceFullSync();
+        expect(second.status, LibrarySyncStatus.succeeded);
+        expect(
+          await database.libraryDao.getAlbumById('album-stale'),
+          isNull,
+        );
+        expect(
+          await database.libraryDao.getArtistById('artist-stale'),
+          isNull,
+        );
+        final preservedStarred = (await database.libraryDao.getAlbumById(
+          'album-keep',
+        ))?.starred;
+        expect(preservedStarred, isNotNull);
+        expect(
+          preservedStarred!.difference(locallyStarredAt).abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'catalog promotion retains a stale song protected by playback',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-stale', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-stale',
+            name: 'Album',
+            artistId: const Value('artist-stale'),
+            songsHydrated: const Value(true),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-playing',
+            title: 'Playing',
+            albumId: const Value('album-stale'),
+            artistId: const Value('artist-stale'),
+          ),
+        ]);
+        final protectedEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          readActiveSongId: () => 'song-playing',
+          readProtectedSongIds: () => const <String>{'song-playing'},
+          fallbackArtistConcurrency: 1,
+          wifiAlbumConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          otherAlbumConcurrency: 1,
+          writeChunkSize: 4,
+          isolateThreshold: 1000,
+        );
+
+        final first = await protectedEngine.forceFullSync();
+        expect(first.freshness, LibrarySyncFreshness.repairRecommended);
+        final second = await protectedEngine.forceFullSync();
+        expect(second.status, LibrarySyncStatus.succeeded);
+
+        final song = await database.libraryDao.getSongById('song-playing');
+        final album = await database.libraryDao.getAlbumById('album-stale');
+        final artist = await database.libraryDao.getArtistById('artist-stale');
+        expect(song, isNotNull);
+        expect(song!.isProvisional, isTrue);
+        expect(album?.isProvisional, isTrue);
+        expect(artist?.isProvisional, isTrue);
+        expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'catalog promotion auto-merges cached identities before cleanup',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(true),
+          ),
+        ]);
+        await database.libraryDao.upsertProvisionalSongs(
+          <SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'cached-remote-song',
+              title: 'Track',
+              albumId: const Value('album-1'),
+              artistId: const Value('artist-1'),
+              recordingMbid: const Value('recording-mbid'),
+            ),
+          ],
+        );
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album',
+            artistId: 'artist-1',
+            songCount: 1,
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album',
+          artistId: 'artist-1',
+          songCount: 1,
+          songs: <Song>[
+            Song(
+              id: 'server-song',
+              title: 'Track',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+              musicBrainzId: 'recording-mbid',
+            ),
+          ],
+        );
+        final appliedAliases = <Map<String, String>>[];
+        final aliasEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          onBeforeSongIdentityRemap: (aliases) async {
+            expect(
+              await database.libraryDao.getSongById('cached-remote-song'),
+              isNotNull,
+            );
+            appliedAliases.add(Map<String, String>.from(aliases));
+          },
+          fallbackArtistConcurrency: 1,
+          wifiAlbumConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          otherAlbumConcurrency: 1,
+          writeChunkSize: 4,
+          isolateThreshold: 1000,
+        );
+
+        final result = await aliasEngine.forceFullSync();
+        final aliases = await database.songIdentityDao.getAliases();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(appliedAliases, <Map<String, String>>[
+          <String, String>{'cached-remote-song': 'server-song'},
+        ]);
+        expect(aliases.single.oldSongId, 'cached-remote-song');
+        expect(aliases.single.canonicalSongId, 'server-song');
+        expect(
+          await database.libraryDao.getSongById('cached-remote-song'),
+          isNull,
+        );
+        expect(
+          await database.libraryDao.getSongById('server-song'),
+          isNotNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'compatibility audit rotates at most 24 artists per run',
+      () async {
+        final cursor = DateTime.utc(2026, 1, 1);
+        await saveSession(
+          lastSynced: DateTime.now(),
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'libraryIndexesCursor': cursor.toIso8601String(),
+              'libraryHealthCheckedAt': DateTime.now()
+                  .toUtc()
+                  .toIso8601String(),
+              'auxiliarySyncLastSyncedAt': DateTime.now()
+                  .toUtc()
+                  .toIso8601String(),
+            },
+          }),
+        );
+        final artists = List<Artist>.generate(
+          30,
+          (index) => Artist(id: 'artist-$index', name: 'Artist $index'),
+        );
+        api.indexes = Indexes(lastModified: cursor, shortcut: artists);
+        for (final artist in artists) {
+          api.artistDetails[artist.id] = artist;
+        }
+
+        final first = await engine.runCompatibilityAudit();
+        final firstRequests = api.calls
+            .where((call) => call.startsWith('getArtist:'))
+            .length;
+        final firstState = await database.librarySyncDao.getOrCreateState(1);
+
+        expect(first.status, LibrarySyncStatus.succeeded);
+        expect(firstRequests, 24);
+        expect(firstState.auditOffset, 24);
+        expect(firstState.lastAuditAt, isNotNull);
+
+        api.calls.clear();
+        final second = await engine.runCompatibilityAudit();
+        final secondRequests = api.calls
+            .where((call) => call.startsWith('getArtist:'))
+            .length;
+        final secondState = await database.librarySyncDao.getOrCreateState(1);
+
+        expect(second.status, LibrarySyncStatus.succeeded);
+        expect(secondRequests, 6);
+        expect(secondState.auditOffset, 0);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'album detail hydration binds child songs to the fetched album id',
       () async {
         await saveSession();
@@ -454,6 +1137,152 @@ void main() {
         expect(albumStageProgress.first.processed, 2);
         expect(albumStageProgress.last.processed, 3);
         expect(albumStageProgress.last.total, 3);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'catalog snapshot resumes after its last committed page',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
+          Album(id: 'album-2', name: 'Album 2', artistId: 'artist-1'),
+        ];
+        api.fastPathErrors[2] = const SubsonicConnectionException('offline');
+        for (final id in <String>['album-1', 'album-2', 'album-3']) {
+          api.albumDetails[id] = Album(
+            id: id,
+            name: id,
+            artistId: 'artist-1',
+            songs: <Song>[],
+          );
+        }
+        final localEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fastPathPageSize: 2,
+          fallbackArtistConcurrency: 1,
+          wifiAlbumConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          otherAlbumConcurrency: 1,
+          writeChunkSize: 4,
+          isolateThreshold: 1000,
+        );
+
+        final interrupted = await localEngine.forceFullSync();
+        expect(interrupted.status, LibrarySyncStatus.skipped);
+        expect(
+          (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
+          0,
+        );
+
+        api.fastPathErrors.remove(2);
+        api.fastPathPages[2] = const <Album>[
+          Album(id: 'album-3', name: 'Album 3', artistId: 'artist-1'),
+        ];
+        final resumed = await localEngine.forceFullSync();
+
+        expect(resumed.status, LibrarySyncStatus.succeeded);
+        expect(
+          api.calls.where((call) => call == 'getAlbumListPage:0:2'),
+          hasLength(1),
+        );
+        expect(
+          api.calls.where((call) => call == 'getAlbumListPage:2:2'),
+          hasLength(2),
+        );
+        expect(
+          (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
+          1,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'fresh candidate discards stale checkpoints for a reused generation',
+      () async {
+        await saveSession();
+        await database.librarySyncDao.enqueueWork(
+          serverId: 1,
+          kind: 'catalogAlbumPage',
+          entityId: '1:0',
+          priority: 40,
+        );
+        final staleWork = await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: 'catalogAlbumPage',
+          entityId: '1:0',
+        );
+        await database.librarySyncDao.updateCheckpoint(
+          staleWork!.id,
+          checkpointJson: jsonEncode(<String, Object>{
+            'count': 1,
+            'hasMore': false,
+            'signature': 'stale',
+          }),
+        );
+        await database.librarySyncDao.markCompleted(
+          staleWork.id,
+          preserveCheckpoint: true,
+        );
+        api.artists.add(
+          const Artist(id: 'artist-1', name: 'Artist 1', albumCount: 1),
+        );
+        api.fastPathPages[0] = const <Album>[
+          Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          artistId: 'artist-1',
+          songs: <Song>[],
+        );
+
+        final state = await engine.forceFullSync();
+        final albums = await database.libraryDao.getAllAlbums();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('getAlbumListPage:0:500'));
+        expect(albums.single.id, 'album-1');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'candidate with reported albums cannot promote an empty album catalog',
+      () async {
+        await saveSession();
+        await database.libraryDao.replaceArtists(
+          <ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(id: 'existing-artist', name: 'Artist'),
+          ],
+        );
+        await database.libraryDao.replaceAlbums(
+          <AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'existing-album',
+              name: 'Existing Album',
+              artistId: const Value('existing-artist'),
+            ),
+          ],
+        );
+        api.artists.add(
+          const Artist(id: 'artist-1', name: 'Artist 1', albumCount: 1),
+        );
+
+        final state = await engine.forceFullSync();
+        final albums = await database.libraryDao.getAllAlbums();
+
+        expect(state.status, LibrarySyncStatus.failed);
+        expect(albums.single.id, 'existing-album');
+        expect(
+          (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
+          0,
+        );
       },
       skip: !sqliteAvailable,
     );
@@ -1606,7 +2435,7 @@ void main() {
         );
         expect(
           api.calls.where((call) => call == 'getIndexes').length,
-          4,
+          1,
         );
       },
       skip: !sqliteAvailable,
@@ -1793,27 +2622,32 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('transient album failures are retried with backoff', () async {
-      await saveSession();
-      api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
-      api.fastPathPages[0] = const <Album>[
-        Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
-      ];
-      api.albumDetails['album-1'] = const Album(
-        id: 'album-1',
-        name: 'Album 1',
-        songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
-      );
-      api.transientAlbumFailures['album-1'] = 2;
+    test(
+      'transient album failures are left for durable retry',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
+        );
+        api.transientAlbumFailures['album-1'] = 2;
 
-      final state = await engine.forceFullSync();
+        final state = await engine.forceFullSync();
 
-      expect(state.status, LibrarySyncStatus.succeeded);
-      expect(
-        api.calls.where((call) => call == 'getAlbum:album-1').length,
-        greaterThanOrEqualTo(3),
-      );
-    }, skip: !sqliteAvailable);
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          api.calls.where((call) => call == 'getAlbum:album-1').length,
+          1,
+        );
+        expect(state.pendingHydrationCount, 1);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'fresh session resumes pending song hydration without metadata fetch',
@@ -1944,7 +2778,7 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test(
-      '404 on one getAlbum during hydration succeeds and removes stale album',
+      '404 on one getAlbum preserves the album as a deletion candidate',
       () async {
         await saveSession(
           lastSynced: DateTime.now(),
@@ -1979,7 +2813,8 @@ void main() {
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(albums.map((album) => album.id), contains('album-1'));
-        expect(albums.map((album) => album.id), isNot(contains('album-stale')));
+        expect(albums.map((album) => album.id), contains('album-stale'));
+        expect(state.pendingHydrationCount, 1);
         expect(songs.single.id, 'song-1');
       },
       skip: !sqliteAvailable,
@@ -2056,7 +2891,7 @@ void main() {
     );
 
     test(
-      'full sync artist fanout removes artists missing from getArtist',
+      'failed full sync keeps the candidate hidden from the committed catalog',
       () async {
         await saveSession();
         api.artists.addAll(const <Artist>[
@@ -2090,9 +2925,61 @@ void main() {
         final state = await engine.forceFullSync();
         final artists = await database.select(database.artistsTable).get();
 
+        expect(state.status, LibrarySyncStatus.failed);
+        expect(artists.map((artist) => artist.id), contains('artist-1'));
+        expect(artists.map((artist) => artist.id), isNot(contains('artist-2')));
+        final candidateArtists = await database.librarySyncCandidateDao
+            .getArtists(serverId: 1, generation: 1);
+        expect(
+          candidateArtists.map((artist) => artist.id),
+          containsAll(<String>['artist-1', 'artist-2']),
+        );
+        expect(
+          (await database.librarySyncDao.getOrCreateState(1)).candidateStatus,
+          'collecting',
+        );
+        expect(
+          (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
+          0,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'incremental artist detail 404 needs parent deletion confirmation',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: const Value('artist-1'),
+          ),
+        ]);
+        api.indexes = const Indexes(
+          shortcut: <Artist>[Artist(id: 'artist-1', name: 'Artist 1')],
+        );
+        api.notFoundArtistIds.add('artist-1');
+
+        final state = await engine.syncNow();
+
         expect(state.status, LibrarySyncStatus.succeeded);
-        expect(artists.map((artist) => artist.id), contains('artist-2'));
-        expect(artists.map((artist) => artist.id), isNot(contains('artist-1')));
+        expect(state.remainingVerificationCount, 1);
+        expect(
+          await database.libraryDao.getArtistById('artist-1'),
+          isNotNull,
+        );
+        expect(
+          await database.libraryDao.getAlbumById('album-1'),
+          isNotNull,
+        );
       },
       skip: !sqliteAvailable,
     );

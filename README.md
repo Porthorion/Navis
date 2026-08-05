@@ -21,7 +21,13 @@ Minimum tested versions:
 
 ## Core Capabilities
 
-- Library sync from Subsonic/OpenSubsonic servers
+- Adaptive, resume-safe library sync with hard low-data probes on metered
+  networks, interactive targeted hydration budgets, unmetered-background
+  defaults, one-time mobile-data overrides, compatibility fallbacks, guarded
+  repair, and atomic catalog promotion, plus server reconciliation for liked
+  items, playlist headers, and changed playlist contents. Full repairs compare
+  hidden catalog pages first and apply only actual changes, keeping memory and
+  the final visibility switch bounded.
 - Gapless/background playback and lock-screen controls
 - Queue management, instant mix, and smart queue behaviors
 - Synced/unsynced lyrics with full-screen now playing

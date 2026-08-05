@@ -16,15 +16,18 @@ class WindowsSmtcBridge {
     required NavisPlaybackHandler handler,
     WindowsSmtcClientFactory? createClient,
     bool Function()? isWindowsRuntime,
+    Duration timelineInterval = const Duration(seconds: 1),
   }) : _handler = handler,
        _createClient = createClient ?? _createDefaultSmtcClient,
-       _isWindowsRuntime = isWindowsRuntime ?? _defaultIsWindowsRuntime {
+       _isWindowsRuntime = isWindowsRuntime ?? _defaultIsWindowsRuntime,
+       _timelineInterval = timelineInterval {
     unawaited(_initialize());
   }
 
   final NavisPlaybackHandler _handler;
   final WindowsSmtcClientFactory _createClient;
   final bool Function() _isWindowsRuntime;
+  final Duration _timelineInterval;
 
   WindowsSmtcClient? _smtc;
   StreamSubscription<PlaybackSnapshot>? _snapshotSubscription;
@@ -33,6 +36,10 @@ class WindowsSmtcBridge {
   StreamSubscription<bool>? _shuffleSubscription;
   StreamSubscription<RepeatMode>? _repeatSubscription;
   StreamSubscription<Duration>? _positionChangeSubscription;
+  StreamSubscription<Duration>? _playbackPositionSubscription;
+  Timer? _timelineTimer;
+  Duration _latestPlaybackPosition = Duration.zero;
+  Duration? _lastTimelinePosition;
 
   bool _isDisposed = false;
 
@@ -73,6 +80,16 @@ class WindowsSmtcBridge {
       onError: (Object error, StackTrace stackTrace) {
         AppLogger.warning(
           'Windows SMTC media item stream error: $error\n$stackTrace',
+        );
+      },
+    );
+
+    _playbackPositionSubscription = _handler.positionStream.listen(
+      _handlePlaybackPosition,
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC playback position stream error: '
+          '$error\n$stackTrace',
         );
       },
     );
@@ -229,26 +246,12 @@ class WindowsSmtcBridge {
       _ => PlaybackStatus.paused,
     };
 
-    final durationMs = snapshot.duration.inMilliseconds;
-    final positionMs = snapshot.position.inMilliseconds;
-    final clampedPositionMs = durationMs > 0
-        ? positionMs.clamp(0, durationMs)
-        : positionMs;
-
     try {
       await smtc.setControlsEnabled(
         navisOsControlCapabilitiesForSnapshot(snapshot),
       );
       await smtc.setPlaybackStatus(status);
-      await smtc.updateTimeline(
-        PlaybackTimeline(
-          startTimeMs: 0,
-          endTimeMs: durationMs < 0 ? 0 : durationMs,
-          positionMs: clampedPositionMs,
-          minSeekTimeMs: 0,
-          maxSeekTimeMs: durationMs > 0 ? durationMs : null,
-        ),
-      );
+      await _syncTimeline(snapshot.position);
       await smtc.setShuffleEnabled(
         enabled: snapshot.shuffleMode == AudioServiceShuffleMode.all,
       );
@@ -265,6 +268,56 @@ class WindowsSmtcBridge {
         'Windows SMTC snapshot sync failed: $error\n$stackTrace',
       );
     }
+  }
+
+  void _handlePlaybackPosition(Duration position) {
+    _latestPlaybackPosition = position;
+    final previous = _lastTimelinePosition;
+    final discontinuity =
+        previous != null &&
+        (position - previous).abs() > const Duration(seconds: 2);
+    if (discontinuity) {
+      _timelineTimer?.cancel();
+      _timelineTimer = null;
+      unawaited(_syncTimelineSafely(position));
+      return;
+    }
+    _timelineTimer ??= Timer(_timelineInterval, () {
+      _timelineTimer = null;
+      unawaited(_syncTimelineSafely(_latestPlaybackPosition));
+    });
+  }
+
+  Future<void> _syncTimelineSafely(Duration position) async {
+    try {
+      await _syncTimeline(position);
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC timeline sync failed: $error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> _syncTimeline(Duration position) async {
+    final smtc = _smtc;
+    if (_isDisposed || smtc == null) {
+      return;
+    }
+    final durationMs = _handler.snapshot.duration.inMilliseconds;
+    final positionMs = position.inMilliseconds;
+    final clampedPositionMs = durationMs > 0
+        ? positionMs.clamp(0, durationMs)
+        : positionMs;
+    await smtc.updateTimeline(
+      PlaybackTimeline(
+        startTimeMs: 0,
+        endTimeMs: durationMs < 0 ? 0 : durationMs,
+        positionMs: clampedPositionMs,
+        minSeekTimeMs: 0,
+        maxSeekTimeMs: durationMs > 0 ? durationMs : null,
+      ),
+    );
+    _lastTimelinePosition = position;
   }
 
   Future<void> _syncMediaItem(MediaItem? item) async {
@@ -303,8 +356,11 @@ class WindowsSmtcBridge {
 
   Future<void> dispose() async {
     _isDisposed = true;
+    _timelineTimer?.cancel();
+    _timelineTimer = null;
     await _snapshotSubscription?.cancel();
     await _mediaItemSubscription?.cancel();
+    await _playbackPositionSubscription?.cancel();
     await _buttonSubscription?.cancel();
     await _shuffleSubscription?.cancel();
     await _repeatSubscription?.cancel();

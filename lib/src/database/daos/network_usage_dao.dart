@@ -35,6 +35,7 @@ class NetworkUsageDao extends DatabaseAccessor<NavisDatabase>
 
   Future<void> recordUsage({
     required String category,
+    String? operation,
     required String networkType,
     required int bytes,
     int requestCount = 1,
@@ -46,6 +47,7 @@ class NetworkUsageDao extends DatabaseAccessor<NavisDatabase>
     await into(networkUsageTable).insert(
       NetworkUsageTableCompanion.insert(
         category: category,
+        operation: Value(operation),
         networkType: networkType,
         bytes: Value(bytes < 0 ? 0 : bytes),
         requestCount: Value(requestCount < 1 ? 1 : requestCount),
@@ -96,6 +98,25 @@ class NetworkUsageDao extends DatabaseAccessor<NavisDatabase>
         bytes: row.read(bytes) ?? 0,
         requestCount: row.read(requests) ?? 0,
       ),
+    );
+  }
+
+  Future<NetworkUsageTotal> getCategoryTotalSince({
+    required String category,
+    required DateTime since,
+  }) async {
+    final bytes = networkUsageTable.bytes.sum();
+    final requests = networkUsageTable.requestCount.sum();
+    final query = selectOnly(networkUsageTable)
+      ..where(
+        networkUsageTable.occurredAt.isBiggerOrEqualValue(since) &
+            networkUsageTable.category.equals(category),
+      )
+      ..addColumns([bytes, requests]);
+    final row = await query.getSingle();
+    return NetworkUsageTotal(
+      bytes: row.read(bytes) ?? 0,
+      requestCount: row.read(requests) ?? 0,
     );
   }
 

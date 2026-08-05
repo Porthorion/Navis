@@ -37,6 +37,13 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Stream<Duration> get positionStream => const Stream<Duration>.empty();
 
   @override
+  PlaybackBufferState get bufferState => const PlaybackBufferState.idle();
+
+  @override
+  Stream<PlaybackBufferState> get bufferStateStream =>
+      const Stream<PlaybackBufferState>.empty();
+
+  @override
   MediaItem? get currentMediaItem => null;
 
   @override

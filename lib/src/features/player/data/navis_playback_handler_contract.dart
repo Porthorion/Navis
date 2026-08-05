@@ -5,6 +5,8 @@ abstract class NavisPlaybackHandler {
   Stream<PlaybackSnapshot> get snapshotStream;
   Stream<ManualTrackChangeCue> get manualTrackChangeCueStream;
   Stream<Duration> get positionStream;
+  PlaybackBufferState get bufferState;
+  Stream<PlaybackBufferState> get bufferStateStream;
   MediaItem? get currentMediaItem;
   Stream<MediaItem?> get mediaItemStream;
   Stream<PlaybackLoadFailure> get loadFailureStream;

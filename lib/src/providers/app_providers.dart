@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,8 +26,6 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
-import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
-import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -51,9 +49,28 @@ import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/network_cost_bridge.dart';
 import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:path_provider/path_provider.dart';
+
+const String _syncDiagnosticsRoot = String.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_ROOT',
+);
+const bool _syncDiagnosticsEnabled = bool.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS',
+  defaultValue: false,
+);
+
+Future<Directory> _readRollingCacheDirectory() async {
+  if (_syncDiagnosticsRoot.isEmpty) {
+    return getTemporaryDirectory();
+  }
+  final directory = Directory('$_syncDiagnosticsRoot/cache');
+  await directory.create(recursive: true);
+  return directory;
+}
 
 final navisDatabaseProvider = Provider<NavisDatabase>((ref) {
   final database = NavisDatabase();
@@ -97,16 +114,10 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   // would dispose the manager before its internal SQLite DB finishes opening.
   final maxObjects = ref.read(_coverArtMaxObjectsProvider).value ?? 0;
   final coordinator = ref.watch(coverArtLoadCoordinatorProvider);
+  final networkUsageMeter = ref.read(networkUsageMeterProvider);
   final service = CoverArtHttpFileService(
     loadCoordinator: coordinator,
-    reportNetworkUsage: ({required category, required bytes}) {
-      ref
-          .read(networkUsageMeterProvider)
-          .record(
-            category: category,
-            bytes: bytes,
-          );
-    },
+    reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
   );
   final manager = createCoverArtCacheManager(
     maxNrOfCacheObjects: maxObjects,
@@ -126,9 +137,71 @@ final connectivityProvider = StreamProvider<List<ConnectivityResult>>((ref) {
 });
 
 final networkTypeProvider = Provider<NetworkType>((ref) {
+  if (_syncDiagnosticsEnabled) {
+    final override = ref.watch(syncDiagnosticsOverridesProvider).networkType;
+    if (override != null) {
+      return override;
+    }
+  }
   final connectivity = ref.watch(connectivityProvider);
   return resolveNetworkType(
     connectivity.asData?.value ?? const <ConnectivityResult>[],
+  );
+});
+
+final networkCostBridgeProvider = Provider<NetworkCostBridge>((ref) {
+  return NetworkCostBridge();
+});
+
+/// Native metering hint. `null` means the platform cannot report cost.
+final nativeNetworkMeteredProvider = FutureProvider<bool?>((ref) async {
+  if (_syncDiagnosticsEnabled) {
+    final override = ref.watch(syncDiagnosticsOverridesProvider).nativeMetered;
+    if (override != null) {
+      return override;
+    }
+  }
+  ref.watch(connectivityProvider);
+  return ref.read(networkCostBridgeProvider).isActiveNetworkMetered();
+});
+
+final backgroundSyncUnmeteredOnlyProvider = Provider<bool>((ref) {
+  if (_syncDiagnosticsEnabled) {
+    final override = ref
+        .watch(syncDiagnosticsOverridesProvider)
+        .backgroundSyncUnmeteredOnly;
+    if (override != null) {
+      return override;
+    }
+  }
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.backgroundSyncUnmeteredOnly;
+});
+
+final syncNetworkPolicyProvider = Provider<SyncNetworkPolicy>((ref) {
+  final networkType = ref.watch(networkTypeProvider);
+  final nativeMetered = ref.watch(nativeNetworkMeteredProvider).asData?.value;
+  final unmeteredOnly = ref.watch(backgroundSyncUnmeteredOnlyProvider);
+  final base = resolveSyncNetworkPolicy(
+    networkType: networkType,
+    nativeMetered: nativeMetered,
+    backgroundSyncUnmeteredOnly: unmeteredOnly,
+  );
+  if (!_syncDiagnosticsEnabled) {
+    return base;
+  }
+  final overrides = ref.watch(syncDiagnosticsOverridesProvider);
+  return SyncNetworkPolicy(
+    networkType: base.networkType,
+    isMetered: base.isMetered,
+    allowsBackgroundSync:
+        overrides.automaticSyncAllowed ?? base.allowsBackgroundSync,
+    allowsHardProbe: base.allowsHardProbe,
+    allowsInteractiveHydration:
+        overrides.interactiveHydrationAllowed ??
+        base.allowsInteractiveHydration,
   );
 });
 
@@ -144,6 +217,20 @@ final networkUsageMeterProvider = Provider<NetworkUsageMeter>((ref) {
   );
   return meter;
 });
+
+NetworkUsageReporter _networkUsageReporter(
+  NetworkUsageMeter meter, {
+  NetworkType? networkType,
+}) {
+  return ({required category, required bytes, operation}) {
+    meter.record(
+      category: category,
+      bytes: bytes,
+      operation: operation,
+      networkType: networkType,
+    );
+  };
+}
 
 DateTime _networkUsageSinceForDays(int days) {
   final now = DateTime.now();
@@ -306,6 +393,7 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
     return null;
   }
   final networkType = ref.watch(networkTypeProvider);
+  final networkUsageMeter = ref.read(networkUsageMeterProvider);
 
   final authType = config.useLegacyAuth
       ? SubsonicAuthType.legacyPassword
@@ -325,15 +413,10 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
       NetworkType.offline => 4,
       NetworkType.other => 12,
     },
-    reportNetworkUsage: ({required category, required bytes}) {
-      ref
-          .read(networkUsageMeterProvider)
-          .record(
-            category: category,
-            bytes: bytes,
-            networkType: networkType,
-          );
-    },
+    reportNetworkUsage: _networkUsageReporter(
+      networkUsageMeter,
+      networkType: networkType,
+    ),
   );
 });
 
@@ -415,7 +498,8 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
     dao: database.scrobbleDao,
     readApiClient: () => ref.read(subsonicApiProvider),
     readScrobbleEnabled: () =>
-        ref.read(appSettingsProvider).asData?.value.scrobbleEnabled ?? true,
+        !_syncDiagnosticsEnabled &&
+        (ref.read(appSettingsProvider).asData?.value.scrobbleEnabled ?? true),
     readListenBrainzCredentials: () async {
       final settings =
           ref.read(appSettingsProvider).asData?.value ??
@@ -512,6 +596,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     }
 
     final database = ref.read(navisDatabaseProvider);
+    final networkUsageMeter = ref.read(networkUsageMeterProvider);
     final handler = await initNavisAudioHandler(
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
@@ -524,7 +609,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         rollingCacheManager: ref.read(rollingCacheManagerProvider),
         readApiClient: () => ref.read(subsonicApiProvider),
         readStreamingQuality: () => ref.read(activeStreamingQualityProvider),
-        readRollingCacheDirectory: getTemporaryDirectory,
+        readRollingCacheDirectory: _readRollingCacheDirectory,
         readCachedPlaybackFirst: () {
           final settings =
               ref.read(appSettingsProvider).asData?.value ??
@@ -545,13 +630,17 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         listenBrainzFeedbackServiceProvider,
       ),
       starSyncDao: database.starSyncDao,
-      reportNetworkUsage: ({required category, required bytes}) {
-        ref
-            .read(networkUsageMeterProvider)
-            .record(
-              category: category,
-              bytes: bytes,
-            );
+      reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
+      reportRollingCacheActivity: (activity) {
+        if (!ref.mounted) {
+          return;
+        }
+        try {
+          ref.read(rollingCacheActivityProvider.notifier).update(activity);
+        } on StateError {
+          // The target notifier can be disposed immediately before this
+          // initializer during root-container teardown.
+        }
       },
       readRuntimeSettings: () {
         final settings =
@@ -850,305 +939,6 @@ class ArtistAlbumSections {
   bool get isEmpty => albums.isEmpty && featuredIn.isEmpty;
 }
 
-Future<void> _hydrateArtistFromServer(Ref ref, String artistId) async {
-  final api = ref.read(subsonicApiProvider);
-  if (api == null) {
-    return;
-  }
-
-  final db = ref.read(navisDatabaseProvider);
-  final detail = await api.getArtist(artistId);
-
-  await db.libraryDao.upsertArtists(<ArtistsTableCompanion>[
-    ArtistsTableCompanion.insert(
-      id: detail.id,
-      name: detail.name,
-      albumCount: Value(detail.albumCount),
-      coverArt: Value(detail.coverArt),
-      starred: Value(detail.starred),
-    ),
-  ]);
-
-  if (detail.albums.isEmpty) {
-    return;
-  }
-
-  final totalCandidates = detail.albums.length;
-  final fallbackAlbums = detail.albums
-      .where((album) {
-        final id = album.id.trim();
-        final name = album.name.trim();
-        if (id.isEmpty || name.isEmpty) {
-          return false;
-        }
-        final songCount = album.songCount;
-        if (songCount != null && songCount <= 0) {
-          // Avoid creating empty placeholder albums from partial server data.
-          return false;
-        }
-        return true;
-      })
-      .map(
-        (album) => AlbumsTableCompanion.insert(
-          id: album.id,
-          name: album.name,
-          artistId: Value(album.artistId ?? detail.id),
-          artistName: Value(album.artist ?? detail.name),
-          artists: Value(album.artists),
-          songCount: Value(album.songCount),
-          duration: Value(album.duration),
-          year: Value(album.year),
-          genre: Value(album.genre),
-          coverArt: Value(album.coverArt),
-          // Keep this absent so existing hydrated rows are not downgraded.
-          starred: Value(album.starred),
-          userRating: Value(album.userRating),
-          playCount: Value(album.playCount),
-          serverCreatedAt: Value(album.created),
-        ),
-      )
-      .toList(growable: false);
-
-  final skippedCandidates = totalCandidates - fallbackAlbums.length;
-  if (skippedCandidates > 0) {
-    AppLogger.debug(
-      'Artist fallback hydration filtered $skippedCandidates/$totalCandidates '
-      'empty candidate albums for artist=$artistId',
-    );
-  }
-
-  if (fallbackAlbums.isEmpty) {
-    AppLogger.debug(
-      'Artist fallback hydration skipped all candidate albums for artist=$artistId',
-    );
-  } else {
-    await db.libraryDao.upsertAlbums(fallbackAlbums);
-  }
-
-  final existingArtistAlbums = await db.libraryDao.getAlbumsByArtist(artistId);
-  final staleEmptyAlbumIds = existingArtistAlbums
-      .where(
-        (album) =>
-            !album.songsHydrated &&
-            album.songCount != null &&
-            album.songCount! <= 0,
-      )
-      .map((album) => album.id)
-      .toList(growable: false);
-  if (staleEmptyAlbumIds.isNotEmpty) {
-    await db.libraryDao.deleteAlbumsByIds(staleEmptyAlbumIds);
-    AppLogger.debug(
-      'Artist fallback hydration pruned ${staleEmptyAlbumIds.length} empty '
-      'albums for artist=$artistId',
-    );
-  }
-}
-
-Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
-  final api = ref.read(subsonicApiProvider);
-  if (api == null) {
-    return;
-  }
-
-  final db = ref.read(navisDatabaseProvider);
-  var detail = await api.getAlbum(albumId);
-  if (detail.songs.isEmpty && (detail.songCount ?? 0) > 0) {
-    AppLogger.warning(
-      'Album hydrate returned empty songs on first attempt for album=$albumId. '
-      'Retrying once.',
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    final retried = await api.getAlbum(albumId);
-    if (retried.songs.isNotEmpty) {
-      detail = retried;
-      AppLogger.info(
-        'Album hydrate retry recovered ${retried.songs.length} songs for '
-        'album=$albumId.',
-      );
-    }
-  }
-
-  final existingSongs = await db.libraryDao.watchSongsByAlbum(detail.id).first;
-  final shouldPreserveExistingSongs =
-      detail.songs.isEmpty &&
-      existingSongs.isNotEmpty &&
-      (detail.songCount == null || detail.songCount! > 0);
-  if (shouldPreserveExistingSongs) {
-    AppLogger.warning(
-      'Album hydrate returned empty songs for album=${detail.id}; preserving '
-      '${existingSongs.length} existing local tracks.',
-    );
-  }
-  final effectiveSongCount =
-      shouldPreserveExistingSongs && detail.songCount == null
-      ? existingSongs.length
-      : detail.songCount;
-
-  final artistRows = <String, ArtistsTableCompanion>{};
-  final primaryArtistId = detail.artistId?.trim();
-  if (primaryArtistId != null && primaryArtistId.isNotEmpty) {
-    final primaryArtistName = (detail.artist ?? '').trim();
-    artistRows[primaryArtistId] = ArtistsTableCompanion.insert(
-      id: primaryArtistId,
-      name: primaryArtistName.isEmpty ? primaryArtistId : primaryArtistName,
-      coverArt: Value(detail.coverArt),
-    );
-  }
-
-  for (final song in detail.songs) {
-    final songArtistId = song.artistId?.trim();
-    if (songArtistId == null || songArtistId.isEmpty) {
-      continue;
-    }
-    artistRows.putIfAbsent(songArtistId, () {
-      final songArtistName = (song.artist ?? '').trim();
-      return ArtistsTableCompanion.insert(
-        id: songArtistId,
-        name: songArtistName.isEmpty ? songArtistId : songArtistName,
-      );
-    });
-  }
-
-  if (artistRows.isNotEmpty) {
-    await db.libraryDao.upsertArtists(
-      artistRows.values.toList(growable: false),
-    );
-  }
-
-  await db.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
-    AlbumsTableCompanion.insert(
-      id: detail.id,
-      name: detail.name,
-      artistId: Value(detail.artistId),
-      artistName: Value(detail.artist),
-      artists: Value(detail.artists),
-      songCount: Value(effectiveSongCount),
-      duration: Value(detail.duration),
-      year: Value(detail.year),
-      genre: Value(detail.genre),
-      coverArt: Value(detail.coverArt),
-      songsHydrated: const Value(true),
-      starred: Value(detail.starred),
-      userRating: Value(detail.userRating),
-      playCount: Value(detail.playCount),
-      serverCreatedAt: Value(detail.created),
-    ),
-  ]);
-
-  if (!shouldPreserveExistingSongs) {
-    await db.libraryDao.replaceSongsForAlbum(
-      detail.id,
-      detail.songs
-          .map(
-            (song) => SongsTableCompanion.insert(
-              id: song.id,
-              title: song.title,
-              albumId: Value(song.albumId ?? detail.id),
-              artistId: Value(song.artistId),
-              artistName: Value(song.artist),
-              albumName: Value(song.album ?? detail.name),
-              track: Value(song.track),
-              discNumber: Value(song.discNumber),
-              duration: Value(song.duration),
-              bitRate: Value(song.bitRate),
-              sampleRate: Value(song.sampleRate),
-              contentType: Value(song.contentType),
-              suffix: Value(song.suffix),
-              size: Value(song.size),
-              coverArt: Value(song.coverArt),
-              starred: Value(song.starred),
-              recordingMbid: Value(song.musicBrainzId),
-              userRating: Value(song.userRating),
-              playCount: Value(song.playCount),
-              createdAt: Value(song.created),
-              replayGainTrackGain: Value(song.replayGain?.trackGain),
-              replayGainAlbumGain: Value(song.replayGain?.albumGain),
-              replayGainTrackPeak: Value(song.replayGain?.trackPeak),
-              replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
-            ),
-          )
-          .toList(growable: false),
-    );
-    await reconcileCanonicalSongHydration(
-      ref,
-      detail.songs.map((song) => song.id),
-    );
-  }
-
-  await db.libraryDao.markAlbumSongsHydrated(detail.id);
-}
-
-Future<void> reconcileCanonicalSongHydration(
-  Ref ref,
-  Iterable<String> canonicalSongIds,
-) async {
-  final ids = canonicalSongIds
-      .map((id) => id.trim())
-      .where((id) => id.isNotEmpty)
-      .toSet();
-  if (ids.isEmpty) {
-    return;
-  }
-  final database = ref.read(navisDatabaseProvider);
-  final canonicalSongs = await database.libraryDao.getSongsByIds(ids);
-  final summary = await SongIdentityReconciler(
-    database.songIdentityDao,
-    onBeforeRemap: (aliases) async {
-      SongIdentityCacheEpoch.invalidate();
-      await ref.read(audioHandlerProvider)?.applySongIdentityAliases(aliases);
-    },
-    readActiveSongId: () =>
-        ref.read(audioHandlerProvider)?.snapshot.currentSongId,
-  ).reconcileCanonicalSongs(canonicalSongs);
-  if (summary.aliases.isNotEmpty ||
-      summary.ambiguousMatchCount > 0 ||
-      summary.retainedProvisionalCount > 0) {
-    AppLogger.info(
-      'On-demand song identity reconciliation: '
-      'canonicalized=${summary.aliases.length} '
-      'ambiguous=${summary.ambiguousMatchCount} '
-      'retainedProvisional=${summary.retainedProvisionalCount}.',
-    );
-  }
-}
-
-Future<void> _refreshAlbumInfoFromServer(Ref ref, String albumId) async {
-  final api = ref.read(subsonicApiProvider);
-  if (api == null) {
-    return;
-  }
-  final db = ref.read(navisDatabaseProvider);
-  final now = DateTime.now();
-  final info = await api.getAlbumInfo2(albumId);
-  await db.libraryDao.upsertAlbumInfoCache(
-    albumId: albumId,
-    notes: info.notes,
-    musicBrainzId: info.musicBrainzId,
-    lastFmUrl: info.lastFmUrl,
-    smallImageUrl: info.smallImageUrl,
-    mediumImageUrl: info.mediumImageUrl,
-    largeImageUrl: info.largeImageUrl,
-    fetchedAt: now,
-  );
-}
-
-Future<void> refreshAlbumFromServer(Ref ref, String albumId) async {
-  await _hydrateAlbumFromServer(ref, albumId);
-  try {
-    await _refreshAlbumInfoFromServer(ref, albumId);
-  } on Object catch (error, stackTrace) {
-    AppLogger.debug(
-      'Album info refresh failed for album=$albumId: $error\n$stackTrace',
-    );
-  }
-  ref.invalidate(albumInfoProvider(albumId));
-}
-
-final refreshAlbumFromServerProvider =
-    Provider.family<Future<void> Function(), String>((ref, albumId) {
-      return () => refreshAlbumFromServer(ref, albumId);
-    });
-
 final artistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchArtists();
@@ -1164,122 +954,26 @@ final artistByIdProvider = StreamProvider.family<ArtistsTableData?, String>((
   artistId,
 ) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  final controller = StreamController<ArtistsTableData?>();
-  var requestedServerFallback = false;
-
-  final sub = dao
-      .watchArtistById(artistId)
-      .listen(
-        (artist) {
-          if (artist == null && !requestedServerFallback) {
-            requestedServerFallback = true;
-            // Don't emit null yet — keep the StreamProvider in AsyncLoading
-            // so the UI shows a shimmer placeholder while we fetch from the
-            // server.  If hydration fails, propagate the error so the UI can
-            // show an ErrorState with a retry button.
-            unawaited(
-              _hydrateArtistFromServer(ref, artistId)
-                  .timeout(const Duration(seconds: 15))
-                  .catchError((Object error, StackTrace stackTrace) {
-                    controller.addError(error, stackTrace);
-                  }),
-            );
-          } else {
-            controller.add(artist);
-          }
-        },
-        onError: controller.addError,
-        onDone: controller.close,
-      );
-
-  ref.onDispose(() {
-    sub.cancel();
-    controller.close();
-  });
-
-  return controller.stream;
+  return dao.watchArtistById(artistId);
 });
 
 final albumsByArtistProvider =
     StreamProvider.family<List<AlbumsTableData>, String>((ref, artistId) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      final controller = StreamController<List<AlbumsTableData>>();
-      var requestedServerFallback = false;
-
-      final sub = dao
-          .watchAlbumsByArtist(artistId)
-          .listen(
-            (albums) {
-              controller.add(albums);
-              if (albums.isNotEmpty || requestedServerFallback) {
-                return;
-              }
-              requestedServerFallback = true;
-              unawaited(
-                _hydrateArtistFromServer(ref, artistId).catchError((
-                  Object error,
-                  StackTrace stackTrace,
-                ) {
-                  AppLogger.warning(
-                    'Artist albums fallback hydration failed for artist=$artistId: '
-                    '$error\n$stackTrace',
-                  );
-                }),
-              );
-            },
-            onError: controller.addError,
-            onDone: controller.close,
-          );
-
-      ref.onDispose(() {
-        sub.cancel();
-        controller.close();
-      });
-
-      return controller.stream;
+      return dao.watchAlbumsByArtist(artistId);
     });
 
 final artistAlbumSectionsProvider =
     StreamProvider.family<ArtistAlbumSections, String>((ref, artistId) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      final controller = StreamController<ArtistAlbumSections>();
-      var requestedServerFallback = false;
-
-      final sub = dao
+      return dao
           .watchArtistAlbumBuckets(artistId)
-          .listen(
-            (buckets) {
-              final sections = ArtistAlbumSections(
-                albums: buckets.primaryAlbums,
-                featuredIn: buckets.featuredInAlbums,
-              );
-              controller.add(sections);
-              if (!sections.isEmpty || requestedServerFallback) {
-                return;
-              }
-              requestedServerFallback = true;
-              unawaited(
-                _hydrateArtistFromServer(ref, artistId).catchError((
-                  Object error,
-                  StackTrace stackTrace,
-                ) {
-                  AppLogger.warning(
-                    'Artist album sections fallback hydration failed for '
-                    'artist=$artistId: $error\n$stackTrace',
-                  );
-                }),
-              );
-            },
-            onError: controller.addError,
-            onDone: controller.close,
+          .map(
+            (buckets) => ArtistAlbumSections(
+              albums: buckets.primaryAlbums,
+              featuredIn: buckets.featuredInAlbums,
+            ),
           );
-
-      ref.onDispose(() {
-        sub.cancel();
-        controller.close();
-      });
-
-      return controller.stream;
     });
 
 final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
@@ -1294,7 +988,6 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
   // because watchSongsByAlbum() never completes, silently dropping DB updates.
   final controller = StreamController<AlbumWithSongs?>();
   StreamSubscription<List<SongsTableData>>? songsSub;
-  var requestedServerFallback = false;
 
   final albumSub = dao
       .watchAlbumById(albumId)
@@ -1303,42 +996,10 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
           songsSub?.cancel();
           if (album == null) {
             songsSub = null;
-            if (!requestedServerFallback) {
-              requestedServerFallback = true;
-              // Don't emit null yet — keep the StreamProvider in AsyncLoading
-              // so the UI shows a shimmer placeholder while we fetch from the
-              // server.  If hydration fails, propagate the error so the UI can
-              // show an ErrorState with a retry button.
-              unawaited(
-                _hydrateAlbumFromServer(ref, albumId)
-                    .timeout(const Duration(seconds: 15))
-                    .catchError((Object error, StackTrace stackTrace) {
-                      controller.addError(error, stackTrace);
-                    }),
-              );
-            } else {
-              // Hydration was already attempted and the DB still returns null.
-              // The album genuinely does not exist on the server.
-              controller.add(null);
-            }
+            controller.add(null);
           } else {
             songsSub = dao.watchSongsByAlbum(albumId).listen((songs) {
               controller.add(AlbumWithSongs(album: album, songs: songs));
-              if (songs.isNotEmpty || requestedServerFallback) {
-                return;
-              }
-              requestedServerFallback = true;
-              unawaited(
-                _hydrateAlbumFromServer(ref, albumId).catchError((
-                  Object error,
-                  StackTrace stackTrace,
-                ) {
-                  AppLogger.warning(
-                    'Album songs fallback hydration failed for album=$albumId: '
-                    '$error\n$stackTrace',
-                  );
-                }),
-              );
             }, onError: controller.addError);
           }
         },
@@ -1670,6 +1331,20 @@ final rollingCacheManagerProvider = Provider<RollingCacheManager>((ref) {
   );
 });
 
+class RollingCacheActivityController extends Notifier<RollingCacheActivity> {
+  @override
+  RollingCacheActivity build() => const RollingCacheActivity.idle();
+
+  void update(RollingCacheActivity activity) {
+    state = activity;
+  }
+}
+
+final rollingCacheActivityProvider =
+    NotifierProvider<RollingCacheActivityController, RollingCacheActivity>(
+      RollingCacheActivityController.new,
+    );
+
 final playbackSnapshotProvider = StreamProvider<PlaybackSnapshot>((ref) async* {
   final handler = ref.watch(audioHandlerProvider);
   if (handler == null) {
@@ -1749,6 +1424,24 @@ final playbackPositionProvider = StreamProvider<Duration>((ref) {
     return Stream<Duration>.value(Duration.zero);
   }
   return handler.positionStream;
+});
+
+final playbackBufferStateProvider = StreamProvider<PlaybackBufferState>((ref) {
+  final handler = ref.watch(audioHandlerProvider);
+  if (handler == null) {
+    return Stream<PlaybackBufferState>.value(
+      const PlaybackBufferState.idle(),
+    );
+  }
+  return Stream<PlaybackBufferState>.multi((controller) {
+    controller.add(handler.bufferState);
+    final subscription = handler.bufferStateStream.listen(
+      controller.add,
+      onError: controller.addError,
+      onDone: controller.close,
+    );
+    controller.onCancel = subscription.cancel;
+  });
 });
 
 /// UI-tracked playback volume for desktop controls.
@@ -2059,6 +1752,7 @@ final permanentCachedTracksProvider =
 
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final db = ref.watch(navisDatabaseProvider);
+  final networkUsageMeter = ref.read(networkUsageMeterProvider);
   final service = DownloadService(
     appSettingsDao: db.appSettingsDao,
     cacheDao: db.cacheDao,
@@ -2075,14 +1769,7 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
         ref.read(customDownloadFolderPathProvider),
     lrclibClient: ref.read(lrclibClientProvider),
     readCoverArtCacheManager: () => ref.read(coverArtCacheManagerProvider),
-    reportNetworkUsage: ({required category, required bytes}) {
-      ref
-          .read(networkUsageMeterProvider)
-          .record(
-            category: category,
-            bytes: bytes,
-          );
-    },
+    reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
   );
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {
     if (previous != next) {
@@ -2355,8 +2042,8 @@ final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
 final updateServiceProvider = Provider<UpdateService>((ref) {
   final meter = ref.watch(networkUsageMeterProvider);
   return UpdateService(
-    networkUsageReporter: ({required category, required bytes}) {
-      meter.record(category: category, bytes: bytes);
+    networkUsageReporter: ({required category, required bytes, operation}) {
+      meter.record(category: category, bytes: bytes, operation: operation);
     },
   );
 });

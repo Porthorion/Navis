@@ -434,5 +434,99 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test(
+      'getSongsByIds chunks requests beyond the SQLite variable limit',
+      () async {
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'),
+        ]);
+        final requestedIds = <String>[
+          'song-1',
+          ...List<String>.generate(40000, (index) => 'missing-$index'),
+        ];
+
+        final songs = await database.libraryDao.getSongsByIds(requestedIds);
+
+        expect(songs.map((song) => song.id), <String>['song-1']);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'remote upserts preserve pending local star actions for every entity',
+      () async {
+        await database.starSyncDao.queueStarAction(
+          itemId: 'artist-1',
+          itemType: 'artist',
+          action: 'star',
+        );
+        await database.starSyncDao.queueStarAction(
+          itemId: 'album-1',
+          itemType: 'album',
+          action: 'star',
+        );
+        await database.starSyncDao.queueStarAction(
+          itemId: 'song-1',
+          itemType: 'song',
+          action: 'star',
+        );
+
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album',
+            artistId: const Value('artist-1'),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song',
+            albumId: const Value('album-1'),
+          ),
+        ]);
+
+        expect(
+          (await database.libraryDao.getArtistById('artist-1'))?.starred,
+          isNotNull,
+        );
+        expect(
+          (await database.libraryDao.getAlbumById('album-1'))?.starred,
+          isNotNull,
+        );
+        expect(
+          (await database.libraryDao.getSongById('song-1'))?.starred,
+          isNotNull,
+        );
+
+        await database.starSyncDao.queueStarAction(
+          itemId: 'song-1',
+          itemType: 'song',
+          action: 'unstar',
+        );
+        await database.libraryDao.reconcileSongsForAlbumsChunk(
+          <String, List<SongsTableCompanion>>{
+            'album-1': <SongsTableCompanion>[
+              SongsTableCompanion.insert(
+                id: 'song-1',
+                title: 'Remote liked song',
+                albumId: const Value('album-1'),
+                starred: Value(DateTime.now()),
+              ),
+            ],
+          },
+        );
+
+        expect(
+          (await database.libraryDao.getSongById('song-1'))?.starred,
+          isNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }

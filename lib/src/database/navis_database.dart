@@ -1,5 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
+import 'package:drift/native.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
@@ -7,6 +10,8 @@ import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/listenbrainz_feedback_dao.dart';
+import 'package:navis/src/database/daos/library_sync_dao.dart';
+import 'package:navis/src/database/daos/library_sync_candidate_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
@@ -26,6 +31,12 @@ import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_feedback_queue_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_weekly_cache_table.dart';
+import 'package:navis/src/database/tables/library_sync_state_table.dart';
+import 'package:navis/src/database/tables/library_sync_work_table.dart';
+import 'package:navis/src/database/tables/library_sync_candidate_albums_table.dart';
+import 'package:navis/src/database/tables/library_sync_candidate_artists_table.dart';
+import 'package:navis/src/database/tables/library_sync_candidate_songs_table.dart';
+import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/match_flows_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
@@ -41,6 +52,9 @@ import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/song_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 part 'navis_database.g.dart';
 
@@ -70,6 +84,12 @@ part 'navis_database.g.dart';
     ListenBrainzWeeklyCacheTable,
     NetworkUsageTable,
     SongIdentityAliasesTable,
+    LibrarySyncStateTable,
+    LibrarySyncWorkTable,
+    LibrarySyncCandidateArtistsTable,
+    LibrarySyncCandidateAlbumsTable,
+    LibrarySyncCandidateSongsTable,
+    LibrarySyncLocalMutationsTable,
   ],
   daos: [
     AppSettingsDao,
@@ -86,16 +106,36 @@ part 'navis_database.g.dart';
     ListenBrainzFeedbackDao,
     NetworkUsageDao,
     SongIdentityDao,
+    LibrarySyncDao,
+    LibrarySyncCandidateDao,
   ],
 )
 class NavisDatabase extends _$NavisDatabase {
   NavisDatabase([QueryExecutor? executor])
     : super(executor ?? _openConnection());
 
-  static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
+  NavisDatabase.atPath(String databasePath)
+    : this(_openFileConnection(File(databasePath)));
+
+  static QueryExecutor _openConnection() => LazyDatabase(() async {
+    final directory = await getApplicationDocumentsDirectory();
+    return _openFileConnection(
+      File(p.join(directory.path, 'navis.sqlite.sqlite')),
+    );
+  });
+
+  static QueryExecutor _openFileConnection(File file) {
+    return NativeDatabase.createInBackground(
+      file,
+      setup: _configureNativeDatabase,
+      // WAL lets ordinary reads continue while sync writes its hidden
+      // candidate catalog. One reader keeps device overhead low.
+      readPool: 1,
+    );
+  }
 
   @override
-  int get schemaVersion => 54;
+  int get schemaVersion => 58;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -278,6 +318,18 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 54 && to >= 54) {
       await from53To54(migrator);
     }
+    if (from < 55 && to >= 55) {
+      await from54To55(migrator);
+    }
+    if (from < 56 && to >= 56) {
+      await from55To56(migrator);
+    }
+    if (from < 57 && to >= 57) {
+      await from56To57(migrator);
+    }
+    if (from < 58 && to >= 58) {
+      await from57To58(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -413,6 +465,246 @@ class NavisDatabase extends _$NavisDatabase {
     if (!await _tableExists('song_identity_aliases')) {
       await migrator.createTable(songIdentityAliasesTable);
     }
+  }
+
+  Future<void> from54To55(Migrator migrator) async {
+    if (!await _columnExists('artists', 'catalog_generation')) {
+      await migrator.addColumn(artistsTable, artistsTable.catalogGeneration);
+    }
+    if (!await _columnExists('albums', 'catalog_generation')) {
+      await migrator.addColumn(albumsTable, albumsTable.catalogGeneration);
+    }
+    if (!await _columnExists('songs', 'catalog_generation')) {
+      await migrator.addColumn(songsTable, songsTable.catalogGeneration);
+    }
+    if (!await _columnExists('network_usage_events', 'operation')) {
+      await migrator.addColumn(networkUsageTable, networkUsageTable.operation);
+    }
+    if (!await _tableExists('library_sync_state')) {
+      await migrator.createTable(librarySyncStateTable);
+    }
+    if (!await _tableExists('library_sync_work')) {
+      await migrator.createTable(librarySyncWorkTable);
+    }
+    await _importLegacyLibrarySyncState();
+    await customStatement(
+      'UPDATE artists SET catalog_generation = 1 '
+      'WHERE is_provisional = 0 AND '
+      '(catalog_generation IS NULL OR catalog_generation = 0)',
+    );
+    await customStatement(
+      'UPDATE albums SET catalog_generation = 1 '
+      'WHERE is_provisional = 0 AND '
+      '(catalog_generation IS NULL OR catalog_generation = 0)',
+    );
+    await customStatement(
+      'UPDATE songs SET catalog_generation = 1 '
+      'WHERE is_provisional = 0 AND '
+      '(catalog_generation IS NULL OR catalog_generation = 0)',
+    );
+    await customStatement(
+      'UPDATE library_sync_state SET current_generation = 1 '
+      'WHERE last_catalog_synced_at IS NOT NULL AND current_generation = 0',
+    );
+  }
+
+  Future<void> from55To56(Migrator migrator) async {
+    if (!await _columnExists('library_sync_state', 'candidate_generation')) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.candidateGeneration,
+      );
+    }
+    if (!await _columnExists('library_sync_state', 'candidate_status')) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.candidateStatus,
+      );
+    }
+    if (!await _columnExists('library_sync_state', 'candidate_started_at')) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.candidateStartedAt,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'candidate_carried_forward_count',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.candidateCarriedForwardCount,
+      );
+    }
+    if (!await _columnExists('library_sync_state', 'last_apply_duration_ms')) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.lastApplyDurationMs,
+      );
+    }
+    if (!await _tableExists('library_sync_candidate_artists')) {
+      await migrator.createTable(librarySyncCandidateArtistsTable);
+    }
+    if (!await _tableExists('library_sync_candidate_albums')) {
+      await migrator.createTable(librarySyncCandidateAlbumsTable);
+    }
+    if (!await _tableExists('library_sync_candidate_songs')) {
+      await migrator.createTable(librarySyncCandidateSongsTable);
+    }
+    if (!await _tableExists('library_sync_local_mutations')) {
+      await migrator.createTable(librarySyncLocalMutationsTable);
+    }
+  }
+
+  Future<void> from56To57(Migrator migrator) async {
+    if (!await _columnExists(
+      'library_sync_state',
+      'last_promotion_diagnostics_json',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.lastPromotionDiagnosticsJson,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_candidate_artists',
+      'apply_state',
+    )) {
+      await migrator.addColumn(
+        librarySyncCandidateArtistsTable,
+        librarySyncCandidateArtistsTable.applyState,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_candidate_albums',
+      'apply_state',
+    )) {
+      await migrator.addColumn(
+        librarySyncCandidateAlbumsTable,
+        librarySyncCandidateAlbumsTable.applyState,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_candidate_songs',
+      'apply_state',
+    )) {
+      await migrator.addColumn(
+        librarySyncCandidateSongsTable,
+        librarySyncCandidateSongsTable.applyState,
+      );
+    }
+  }
+
+  Future<void> from57To58(Migrator migrator) async {
+    if (!await _columnExists(
+      'app_settings',
+      'background_sync_unmetered_only',
+    )) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.backgroundSyncUnmeteredOnly,
+      );
+    }
+    if (!await _columnExists('library_sync_work', 'work_class')) {
+      await migrator.addColumn(
+        librarySyncWorkTable,
+        librarySyncWorkTable.workClass,
+      );
+    }
+  }
+
+  Future<void> _importLegacyLibrarySyncState() async {
+    if (!await _tableExists('server_config') ||
+        !await _tableExists('library_sync_state')) {
+      return;
+    }
+    final servers = await select(serverConfigTable).get();
+    for (final server in servers) {
+      final navis = _readLegacyNavisCapabilities(server.capabilities);
+      final cursor = _parseSyncDate(navis['libraryIndexesCursor']);
+      final unsupportedAt = _parseSyncDate(
+        navis['libraryIndexesUnsupportedAt'],
+      );
+      final bulkQuery = _legacyString(
+        navis['bulkSongSearchWildcardQuery'],
+      );
+      await into(librarySyncStateTable).insert(
+        LibrarySyncStateTableCompanion.insert(
+          serverId: Value(server.id),
+          conditionalIndexesMode: Value(
+            unsupportedAt != null
+                ? 'unsupported'
+                : cursor != null
+                ? 'reliable'
+                : 'unknown',
+          ),
+          bulkSearchMode: Value(
+            bulkQuery == null ? 'unknown' : 'supported',
+          ),
+          bulkSearchQuery: Value(bulkQuery),
+          catalogCursor: Value(cursor),
+          catalogFingerprint: Value(
+            _legacyString(navis['libraryIndexesFingerprint']),
+          ),
+          lastCheckedAt: Value(server.lastSynced),
+          lastCatalogSyncedAt: Value(server.lastSynced),
+          lastAuxiliarySyncedAt: Value(
+            _parseSyncDate(navis['auxiliarySyncLastSyncedAt']),
+          ),
+          lastGenresSyncedAt: Value(
+            _parseSyncDate(navis['genresSyncLastSyncedAt']),
+          ),
+          lastAuditAt: Value(
+            _parseSyncDate(navis['libraryHealthCheckedAt']),
+          ),
+          auditOffset: Value(
+            _legacyInt(navis['libraryPendingIndexesOffset']),
+          ),
+        ),
+        mode: InsertMode.insertOrIgnore,
+      );
+    }
+  }
+
+  String? _legacyString(Object? value) {
+    if (value is! String) {
+      return null;
+    }
+    final normalized = value.trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  int _legacyInt(Object? value) {
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
+
+  Map<String, Object?> _readLegacyNavisCapabilities(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return const <String, Object?>{};
+    }
+    try {
+      final root = jsonDecode(raw);
+      if (root is! Map<String, dynamic>) {
+        return const <String, Object?>{};
+      }
+      final navis = root['navis'];
+      return navis is Map<String, dynamic> ? navis : const <String, Object?>{};
+    } on FormatException {
+      return const <String, Object?>{};
+    }
+  }
+
+  DateTime? _parseSyncDate(Object? raw) {
+    if (raw is! String || raw.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(raw);
   }
 
   Future<void> _clearRetiredGroupListeningSettings() async {
@@ -1188,6 +1480,9 @@ FROM scrobble_queue;
       'CREATE INDEX IF NOT EXISTS idx_artists_provisional ON artists(is_provisional, name);',
     );
     await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_artists_catalog_generation ON artists(catalog_generation, id);',
+    );
+    await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_albums_artist_year ON albums(artist_id, year);',
     );
     await customStatement(
@@ -1203,6 +1498,9 @@ FROM scrobble_queue;
       'CREATE INDEX IF NOT EXISTS idx_albums_provisional ON albums(is_provisional, id);',
     );
     await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_albums_catalog_generation ON albums(catalog_generation, id);',
+    );
+    await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_album_track ON songs(album_id, track);',
     );
     await customStatement(
@@ -1213,6 +1511,9 @@ FROM scrobble_queue;
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_provisional ON songs(is_provisional, id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_catalog_generation ON songs(catalog_generation, id);',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_playlist_songs_order ON playlist_songs(playlist_id, sort_order);',
@@ -1236,10 +1537,48 @@ FROM scrobble_queue;
       'CREATE INDEX IF NOT EXISTS idx_network_usage_category_network ON network_usage_events(category, network_type);',
     );
     await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_network_usage_operation ON network_usage_events(operation, occurred_at);',
+    );
+    await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_listenbrainz_weekly_cache_fetched_at ON listenbrainz_weekly_cache(fetched_at);',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_song_identity_aliases_canonical ON song_identity_aliases(canonical_song_id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_sync_work_due ON library_sync_work(server_id, status, not_before, priority);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_sync_candidate_albums_pending '
+      'ON library_sync_candidate_albums( '
+      'server_id, generation, songs_hydrated, id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_sync_candidate_songs_album '
+      'ON library_sync_candidate_songs( '
+      'server_id, generation, album_id, id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS '
+      'idx_library_sync_candidate_artists_unclassified '
+      'ON library_sync_candidate_artists( '
+      'server_id, generation, id) WHERE apply_state IS NULL;',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS '
+      'idx_library_sync_candidate_albums_unclassified '
+      'ON library_sync_candidate_albums( '
+      'server_id, generation, id) WHERE apply_state IS NULL;',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS '
+      'idx_library_sync_candidate_songs_unclassified '
+      'ON library_sync_candidate_songs( '
+      'server_id, generation, id) WHERE apply_state IS NULL;',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_sync_local_mutations_entity '
+      'ON library_sync_local_mutations(entity_type, entity_id, created_at);',
     );
   }
 
@@ -1261,4 +1600,10 @@ FROM scrobble_queue;
     }
     return false;
   }
+}
+
+void _configureNativeDatabase(Database database) {
+  database.execute('PRAGMA foreign_keys = ON');
+  database.execute('PRAGMA journal_mode = WAL');
+  database.execute('PRAGMA busy_timeout = 5000');
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -390,6 +391,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final rollingStats = ref.watch(rollingCacheStatsProvider);
+    final rollingActivity = ref.watch(rollingCacheActivityProvider);
     final budgetBytes = ref.watch(rollingCacheBudgetBytesProvider);
 
     return Scaffold(
@@ -421,6 +423,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                       const Center(child: CircularProgressIndicator()),
                   error: (_, _) => const SizedBox.shrink(),
                 ),
+                if (rollingActivity.isCaching)
+                  _RollingCacheActivity(activity: rollingActivity),
                 // Budget slider
                 if (_budgetMb != null) ...[
                   Padding(
@@ -611,6 +615,43 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _RollingCacheActivity extends StatelessWidget {
+  const _RollingCacheActivity({required this.activity});
+
+  final RollingCacheActivity activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final progress = activity.progress;
+    final hasProgress = progress != null && progress > 0 && progress < 1;
+    final percent = ((progress ?? 0) * 100).round().clamp(0, 100);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              value: hasProgress ? progress : null,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            hasProgress
+                ? l10n.cacheSettingsRollingCachingProgress(percent)
+                : l10n.cacheSettingsRollingCaching,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
     );
   }
 }

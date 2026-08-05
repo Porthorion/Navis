@@ -63,6 +63,9 @@ class SongsTable extends Table {
   BoolColumn get isProvisional =>
       boolean().withDefault(const Constant(false))();
 
+  /// Authoritative catalog snapshot generation that last observed this row.
+  IntColumn get catalogGeneration => integer().nullable()();
+
   /// ReplayGain track gain in dB (from OpenSubsonic replayGain object).
   RealColumn get replayGainTrackGain => real().nullable()();
 

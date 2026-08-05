@@ -16,6 +16,8 @@ Located in `lib/src/providers/app_providers.dart`:
 - **Network & Connectivity**
   - `connectivityProvider` - Network connectivity state
   - `networkTypeProvider` - Resolved network type (wifi/cellular/offline)
+  - `syncNetworkPolicyProvider` - Metering-aware sync policy (background vs
+    interactive vs hard probe eligibility)
   - `subsonicApiProvider` - Configured Subsonic API client
 
 - **Audio System**
@@ -50,6 +52,8 @@ Located in `lib/src/providers/app_providers.dart`:
   - `rollingCacheManagerProvider` - Rolling cache manager
   - `rollingCacheBudgetBytesProvider` - Live cache size budget read for every
     cache write
+  - `rollingCacheActivityProvider` - Active single-pass cache write and
+    optional progress before completed-file registration
   - `rollingCacheStatsProvider` - Cache statistics
   - `permanentCacheStatsProvider` - Permanent cache statistics
   - `cachedSongIdsProvider` - Set of cached song IDs
@@ -75,8 +79,36 @@ Located in `lib/src/providers/app_providers.dart`:
 - `librarySyncEngineProvider` - Sync engine instance
 - `librarySyncControllerProvider` - Sync state and controls
 - `syncStaleAfterProvider` - Sync staleness threshold
-- `requiredLibrarySyncModelVersionProvider` - Optional one-time repair gate
-  for sync storage contract changes; app build updates do not force full sync
+- `requiredLibrarySyncModelVersionProvider` - One-time sync model `56` repair
+  gate for the schema-v56 candidate-catalog contract; app build updates do not
+  force full sync, and a promoted catalog satisfies the gate even when
+  unavailable albums remain queued for targeted hydration
+- Fresh catalog candidates clear abandoned page checkpoints for the reused
+  generation. Promotion validates checkpoint-to-row counts and refuses an
+  empty album candidate when the artist snapshot reports albums, preserving
+  the committed catalog instead of applying an incomplete replacement.
+- Candidate apply queries chunk large song-ID sets below SQLite's variable
+  limit. A rolled-back `applying` generation remains resumable, allowing a
+  corrected retry to reuse its fully hydrated candidate. Promotion completes
+  the durable broad work item in the same transaction, so a restart cannot
+  repeat the catalog scan while independent auxiliary hydration is unfinished.
+- Schema-v57 promotion first classifies hidden candidate rows in resumable,
+  adaptive keyset pages. The atomic visibility transaction then writes only
+  inserted or changed rows once, streams unseen-song anti-joins, applies an
+  indexed provisional-song identity plan, and defers cache-file unlinking
+  until after commit. Unchanged catalogs therefore avoid metadata rewrites and
+  large in-memory ID collections.
+- Native Drift access uses WAL plus one pooled reader. Candidate collection and
+  classification stay on the writer while ordinary app reads can continue,
+  without a second `NavisDatabase` or candidate visibility in reactive
+  providers.
+- Linux profile diagnostics are available only through
+  `tool/sync_diagnostics.sh`. The launcher uses a bearer-authenticated loopback
+  API, isolates cloned database/cache paths for fault testing, and permits only
+  non-fault-injected operations during backed-up primary certification.
+- API, playback, download, and artwork response accounting captures the
+  long-lived network usage meter directly. It must not read through a disposed
+  provider `Ref` when connectivity rebuilds the Subsonic client mid-request.
 
 **library_providers.dart** (planned):
 - Artist, album, song providers
@@ -403,8 +435,19 @@ The Last.fm API key used by "Same Vibes" instant mix mode is injected at build t
 2. Queue controller calls `NavisAudioHandler.replaceQueue()`
 3. Audio handler resolves sources via `PlaybackSourceResolver`
 4. Source resolver checks: permanent cache → rolling cache → stream
-5. Audio handler updates `playbackSnapshotProvider`
-6. UI reacts to snapshot changes
+5. Audio handler updates structural state through `playbackSnapshotProvider`
+   plus lightweight timeline updates through `positionStream` and the
+   track-keyed `bufferStateStream`
+6. UI reacts to structural snapshots without rebuilding for routine position
+   or buffer ticks; timeline widgets subscribe to the lightweight streams
+
+Linux, Windows, and macOS all use `LockCachingAudioSource` for single-pass
+streaming and rolling-cache writes. Ordinary direct HTTPS playback bypasses
+just_audio's request-header proxy on desktop and passes the Navis user agent to
+media-kit; lock-cached sources retain their loopback byte-stream proxy. A
+completed file is registered once and remains the authoritative cache byte and
+track total. `rollingCacheActivityProvider` reports the in-progress write so
+Cache & Storage does not look idle before registration.
 
 Remote stream recovery is layered. If a lock-cached remote source stalls or
 fails at runtime, the audio handler marks that song as bypassed for the session
@@ -420,6 +463,32 @@ queue rather than the prepared transport queue, with
 `hasPendingLogicalQueue == true`. Queue UIs should display those IDs but avoid
 remove, reorder, or play-index actions until the transport queue catches up.
 
+Playback commands use prioritized intent. Play and pause bypass seek and queue
+fill work, seeks are last-write-wins, and later seeks, skips, selections, or
+pauses invalidate stale recovery so it cannot resume playback afterward.
+Transport persistence is coalesced in the background. Lock-cache seek recovery
+uses the same two-phase queue model: load the active song as a direct stream at
+the requested position, then restore the remaining logical queue in cancellable
+batches. `loadingSongId` acknowledges a selection before network startup ends.
+
+The snapshot stored on the handler still receives every timeline update, but
+the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
+position from `positionStream`; Windows SMTC coalesces routine timeline updates
+to about one per second and sends track changes and seek discontinuities
+immediately. Interactive seek bars render `bufferStateStream` as a subtle
+secondary track and ignore states keyed to another song. For queued songs,
+`MediaItem.duration` remains authoritative while a transcoded decoder reports a
+growing partial duration; the decoder duration is only a fallback when metadata
+is unavailable. The inactive crossfade deck exists only while crossfade is
+enabled and is created, synchronized, or disposed as that setting changes.
+Its clones of lock-cached sources use direct streams so two decks never rename
+the same partial cache file.
+
+Startup waits for cache maintenance before restoring or synthesizing a queue,
+so stale partial-file cleanup cannot race a new lock-cache download. If the OS
+sends duplicate Play requests while the queue is empty, both await the same
+fallback queue preparation instead of cancelling each other.
+
 Now Playing commits a full directional artwork transition only for an actual
 queue-index change. Previous actions that restart the current track and Next
 actions at the end of the queue use a short directional snapback with
@@ -427,47 +496,88 @@ replay/end-of-queue feedback instead.
 
 ### Sync Flow
 
-1. App launch or periodic timer → `LibrarySyncController.syncIfStale()`
-2. Sync controller checks staleness threshold and skips cellular auto-sync
-   Failed automatic passes remain failed until the next configured interval,
-   reconnect, or explicit manual retry; they do not start short forced retry
-   loops
-3. Sync engine sends the persisted server `Indexes.lastModified` cursor to
-   `getIndexes(ifModifiedSince)`; local completion time is used only for
-   scheduling and status
-4. A returned index is treated as a gated artist snapshot. Missing artists,
-   album-count changes, and newest-album discrepancies are prioritized, then
-   the remaining artists drain through persisted batches of 48 artists
-   (24 for manual cellular checks). Pending work bypasses the normal staleness
-   gate and continues quietly in the foreground on non-cellular networks
-5. A newest-album health probe runs every 12 hours. Unsupported or unreliable
-   index servers use bounded artist/newest-album verification and retry the
-   index endpoint daily
-6. Non-fatal artist and album endpoint failures are isolated to their entity.
-   Successful metadata is committed, unfinished IDs remain queued for bounded
-   foreground continuation, and safe diagnostics record only the stage,
-   endpoint, entity ID, exception type, and attempt count. Authentication,
-   authorization, database, and invariant errors still fail the pass
-7. The server cursor advances only after every candidate from the response and
-   its album hydration succeeds. Partial batches show verification pending
-   rather than silently claiming current metadata. If a newer cursor arrives
-   mid-audit, newly reported artists lead, the untouched tail keeps priority,
-   and previously checked artists move behind it
-8. Search and discovery metadata is written provisionally. Canonical hydration
-   reconciles song identities conservatively and transactionally remaps cache,
-   downloads, queues, history, playlists, lyrics, Match Flow, scrobbles,
-   feedback, and star actions. Playback receives the alias before the
-   provisional row is removed; late cache completion resolves the canonical ID
-   and an active losing cache file is retained until orphan cleanup can safely
-   reclaim it
-9. Starred, genre, and playlist metadata refresh on manual sync, real metadata
-   changes, or the longer auxiliary sync window
-10. Initial sync, a one-time sync-model repair, and explicit Force Full Sync are
-   the only authoritative full-library modes
+1. Callers submit a `LibrarySyncRequest` with trigger, intent, and target.
+   `LibrarySyncPlanner` selects the smallest safe plan: probe, targeted
+   hydration, delta reconciliation, catalog snapshot, compatibility audit, or
+   full repair.
+2. `AdaptiveLibrarySyncCoordinator` serializes runs, persists the chosen plan
+   and provider profile, deduplicates durable work, restores interrupted work,
+   measures requests/bytes, and owns cooldown/circuit policy. Targeted work
+   keys are namespaced by entity kind, so equal server IDs in different
+   domains remain independent. The coordinator removes that namespace before
+   passing an entity ID to a hydrator or server endpoint.
+3. Reliable providers use conditional `getIndexes(ifModifiedSince)` as a cheap
+   check. The response is a conditional artist index, not a change feed, so its
+   cursor advances only after every candidate and hydration completes.
+4. Bulk-capable providers enumerate independent album/song pages with
+   `getAlbumList2` and blank or wildcard `search3`. Full-snapshot pages are
+   validated and checkpointed into generation-keyed candidate tables that no
+   app provider watches. A restart skips collected pages while users continue
+   reading the previous committed catalog. Incompatible providers fall back to
+   bounded `getArtists → getArtist → getAlbum` work using the same candidate
+   boundary.
+5. Unhydrated artist, album, and playlist interactions upgrade matching work to
+   interactive priority instead of starting parallel hydrators. Album hydration
+   normally performs one `getAlbum` request plus one song transaction.
+   Background detail work adapts from two workers up to eight on Wi-Fi, four on
+   other unmetered networks, and one on cellular; active playback caps it at two.
+6. The transport interceptor owns at most one immediate idempotent retry and
+   honors `Retry-After`. Durable work owns later attempts with exponential
+   cooldown. Three consecutive failures open the endpoint circuit; user,
+   reconnect, and resume triggers may probe it early.
+7. Complete snapshots are generation-based. Old rows remain visible and
+   reactive queries receive no candidate-page churn until all pages and
+   required hydration validate. Promotion is one database transaction that
+   upserts the candidate, remaps proven song identities, preserves active
+   playback/cache/download dependencies, removes confirmed unseen rows, and
+   advances the committed generation. Local likes and ratings made during
+   collection are journaled and win over the older candidate snapshot across
+   restarts and the atomic apply boundary. After promotion, unavailable albums
+   continue as targeted hydration instead of rerunning the broad snapshot. Large
+   deletion candidates (over 10% of an entity type or over 500 songs) require
+   the same fingerprint twice. Isolated detail 404s remain candidates until a
+   parent or complete snapshot confirms deletion.
+8. Search and discovery metadata stays provisional. Canonical hydration uses
+   same ID, one unique recording MBID, or one unique compatible exact metadata
+   match. Proven aliases are applied to playback before provisional cleanup, so
+   cached remote songs auto-merge without interrupting the active source; late
+   cache completion also resolves through the alias.
+9. Metered automation is a true hard probe: one conditional `getIndexes`
+   request with retries disabled. Interactive artist/album/playlist hydration
+   remains allowed with 16 MiB/response and 32 MiB/interaction budgets.
+   Enumeration, audits, starred/genres/playlist-header sync, pending broad
+   hydration, and Repair Library stay deferred unless the user grants an
+   ephemeral one-time mobile-data override. Live network policy is re-checked
+   at page and hydration boundaries; unmetered-to-metered transitions
+   checkpoint and return `deferred`. Cancellation returns work to the queue.
+10. Starred content and playlist headers use the 12-hour auxiliary window and
+    can also run as explicit targeted planner work. Starred reconciliation
+    excludes queued local star/unstar actions until they reach the server.
+    Playlist headers upsert without replacing parent rows, so an unchanged
+    header refresh cannot cascade-delete cached membership. The authoritative
+    header list prunes confirmed server deletions and queues new, count-changed,
+    or metadata-changed playlist contents for resumable targeted hydration.
+    Genres refresh after catalog change/repair or weekly. Reliable providers
+    keep the 12-hour newest-album probe plus a weekly rotating audit;
+    incompatible providers use one bounded daily partition, never a periodic
+    full scan.
+11. Home ListenBrainz discovery polls the startup sync gate and uses the sync
+    completion bridge for refreshes instead of subscribing the stream to sync
+    progress. Its derived showcase watches the discovery stream once, avoiding
+    a reactive dependency diamond during large repairs.
+
+The provider fast/compatibility split and explicit repair terminology follow
+the public principles documented by
+[Symfonium](https://docs.symfonium.app/wiki/providers/sync-media-provider-data/)
+and its
+[Subsonic compatibility modes](https://docs.symfonium.app/wiki/providers/subsonic-opensubsonic-media-provider-configuration/).
+OpenSubsonic documents the conditional full-index semantics of
+[`getIndexes`](https://opensubsonic.netlify.app/docs/endpoints/getindexes/).
 
 ### Cache Flow
 
-1. Playback starts → `LockCachingAudioSource` downloads to temp
+1. Playback starts on any native platform → `LockCachingAudioSource` writes the
+   consumed stream into the rolling cache without a second download
 2. On completion → `RollingCacheManager.registerTrack()`
 3. Cache manager reads the current budget and enforces it via LRU eviction
 4. User pins content → Download to permanent cache

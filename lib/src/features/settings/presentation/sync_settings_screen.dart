@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -16,11 +17,22 @@ class SyncSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final syncState = ref.watch(librarySyncControllerProvider);
+    final syncPolicy = ref.watch(syncNetworkPolicyProvider);
+    final backgroundUnmeteredOnly = ref.watch(
+      backgroundSyncUnmeteredOnlyProvider,
+    );
     final serverConfig = ref.watch(serverConfigStateProvider).asData?.value;
-    final lastSynced = syncState.lastSyncedAt ?? serverConfig?.lastSynced;
+    final lastCatalogUpdate =
+        syncState.lastCatalogUpdatedAt ??
+        syncState.lastSyncedAt ??
+        serverConfig?.lastSynced;
+    final lastChecked = syncState.lastCheckedAt ?? syncState.completedAt;
     final isRunning = syncState.isRunning;
     final hasFailure = syncState.status == LibrarySyncStatus.failed;
     final currentInterval = ref.watch(syncIntervalMinutesProvider);
+    final showUpdatesMessaging = _showUpdatesMessaging(syncState);
+    final showMobileDataAction =
+        syncPolicy.isMetered && showUpdatesMessaging && !isRunning;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.syncSettingsTitle)),
@@ -43,6 +55,15 @@ class SyncSettingsScreen extends ConsumerWidget {
                     _statusLabel(l10n, syncState),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                  if (showUpdatesMessaging) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      syncPolicy.isMetered
+                          ? l10n.syncSettingsUpdatesAvailableMetered
+                          : l10n.syncSettingsUpdatesAvailable,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   if (hasFailure &&
                       syncState.errorMessage != null &&
                       syncState.errorMessage!.trim().isNotEmpty) ...<Widget>[
@@ -57,6 +78,74 @@ class SyncSettingsScreen extends ConsumerWidget {
                     Text(
                       l10n.syncSettingsRemainingVerification(
                         syncState.remainingVerificationCount,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (syncState.planKind != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsStrategy(
+                        _humanize(syncState.planKind!.name),
+                        _humanize(
+                          syncState.planReason ?? 'selected by planner',
+                        ),
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (syncState.pendingWorkCount > 0) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsPendingWork(syncState.pendingWorkCount),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (syncState.candidateGeneration != null &&
+                      syncState.candidateStatus != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsCandidate(
+                        syncState.candidateGeneration!,
+                        _humanize(syncState.candidateStatus!),
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (syncState.carriedForwardEntityCount > 0) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsCarriedForward(
+                        syncState.carriedForwardEntityCount,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (syncState.lastApplyDurationMs != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsApplyDuration(
+                        syncState.lastApplyDurationMs!,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (syncState.failureCategory != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsDegradation(
+                        _humanize(syncState.failureCategory!),
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (syncState.apiRequests > 0 ||
+                      syncState.lastRunBytes > 0) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsUsage(
+                        syncState.apiRequests,
+                        _formatBytes(syncState.lastRunBytes),
                       ),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
@@ -78,20 +167,57 @@ class SyncSettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
 
-          // ---- Last synced card ----
+          // ---- Domain freshness card ----
           Card(
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-              title: Text(l10n.syncSettingsLastSyncedLabel),
+            child: Column(
+              children: <Widget>[
+                ListTile(
+                  title: Text(l10n.syncSettingsLastCheckedLabel),
+                  subtitle: Text(_formatTimestamp(context, l10n, lastChecked)),
+                ),
+                ListTile(
+                  title: Text(l10n.syncSettingsLastCatalogUpdateLabel),
+                  subtitle: Text(
+                    '${_formatTimestamp(context, l10n, lastCatalogUpdate)}'
+                    ' • ${_freshnessLabel(l10n, syncState.freshness)}',
+                  ),
+                ),
+                ListTile(
+                  title: Text(l10n.syncSettingsLastAuxiliaryUpdateLabel),
+                  subtitle: Text(
+                    _formatTimestamp(
+                      context,
+                      l10n,
+                      syncState.lastAuxiliarySyncedAt,
+                    ),
+                  ),
+                ),
+                ListTile(
+                  title: Text(l10n.syncSettingsLastGenresUpdateLabel),
+                  subtitle: Text(
+                    _formatTimestamp(
+                      context,
+                      l10n,
+                      syncState.lastGenresSyncedAt,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ---- Mobile sync guardrails ----
+          Card(
+            child: SwitchListTile(
+              value: backgroundUnmeteredOnly,
+              onChanged: (enabled) async {
+                final dao = ref.read(navisDatabaseProvider).appSettingsDao;
+                await dao.updateBackgroundSyncUnmeteredOnly(enabled: enabled);
+              },
+              title: Text(l10n.syncSettingsBackgroundUnmeteredOnlyLabel),
               subtitle: Text(
-                lastSynced == null
-                    ? l10n.syncSettingsNeverSynced
-                    : '${MaterialLocalizations.of(context).formatFullDate(lastSynced)} '
-                          '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(lastSynced))}'
-                          ' • ${_freshnessLabel(l10n, syncState.freshness)}',
+                l10n.syncSettingsBackgroundUnmeteredOnlyDescription,
               ),
             ),
           ),
@@ -153,15 +279,23 @@ class SyncSettingsScreen extends ConsumerWidget {
             icon: const Icon(Icons.refresh),
             label: Text(l10n.syncSettingsCheckForUpdates),
           ),
+          if (showMobileDataAction) ...<Widget>[
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: () async {
+                await ref
+                    .read(librarySyncControllerProvider.notifier)
+                    .syncUsingMobileData();
+              },
+              icon: const Icon(Icons.signal_cellular_alt),
+              label: Text(l10n.syncSettingsSyncUsingMobileData),
+            ),
+          ],
           const SizedBox(height: 8),
           FilledButton.icon(
             onPressed: isRunning
                 ? null
-                : () async {
-                    await ref
-                        .read(librarySyncControllerProvider.notifier)
-                        .forceFullSync();
-                  },
+                : () => _repairLibrary(context, ref, syncPolicy.isMetered),
             icon: const Icon(Icons.sync),
             label: Text(
               isRunning
@@ -197,12 +331,71 @@ class SyncSettingsScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _repairLibrary(
+    BuildContext context,
+    WidgetRef ref,
+    bool isMetered,
+  ) async {
+    var allowMeteredBroadOverride = false;
+    if (isMetered) {
+      final l10n = AppLocalizations.of(context)!;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.syncSettingsRepairMeteredConfirmTitle),
+          content: Text(l10n.syncSettingsRepairMeteredConfirmBody),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancelAction),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.syncSettingsRepairMeteredConfirmAction),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) {
+        return;
+      }
+      allowMeteredBroadOverride = true;
+    }
+    await ref
+        .read(librarySyncControllerProvider.notifier)
+        .forceFullSync(allowMeteredBroadOverride: allowMeteredBroadOverride);
+  }
+
+  static bool _showUpdatesMessaging(LibrarySyncState state) {
+    return state.updatesAvailable || _hasDeferredBroadWork(state);
+  }
+
+  static bool _hasDeferredBroadWork(LibrarySyncState state) {
+    if (state.status != LibrarySyncStatus.deferred) {
+      return false;
+    }
+    final planKind = state.planKind;
+    if (planKind == null) {
+      return false;
+    }
+    return switch (planKind) {
+      LibrarySyncPlanKind.catalogSnapshot ||
+      LibrarySyncPlanKind.fullRepair ||
+      LibrarySyncPlanKind.deltaReconcile ||
+      LibrarySyncPlanKind.compatibilityAudit => true,
+      _ => false,
+    };
+  }
+
   String _statusLabel(AppLocalizations l10n, LibrarySyncState state) {
     return switch (state.status) {
       LibrarySyncStatus.running => l10n.librarySyncRunning,
       LibrarySyncStatus.succeeded => l10n.syncSettingsStatusSucceeded,
+      LibrarySyncStatus.partial => l10n.syncSettingsStatusPartial,
       LibrarySyncStatus.failed => l10n.syncSettingsStatusFailed,
       LibrarySyncStatus.skipped => l10n.syncSettingsStatusIdle,
+      LibrarySyncStatus.deferred => l10n.syncSettingsStatusDeferred,
+      LibrarySyncStatus.cancelled => l10n.syncSettingsStatusCancelled,
       LibrarySyncStatus.idle => l10n.syncSettingsStatusIdle,
     };
   }
@@ -225,5 +418,34 @@ class SyncSettingsScreen extends ConsumerWidget {
     if (minutes < 60) return l10n.syncSettingsIntervalMinutes(minutes);
     final hours = minutes ~/ 60;
     return l10n.syncSettingsIntervalHours(hours);
+  }
+
+  String _formatTimestamp(
+    BuildContext context,
+    AppLocalizations l10n,
+    DateTime? value,
+  ) {
+    if (value == null) {
+      return l10n.syncSettingsNeverSynced;
+    }
+    final material = MaterialLocalizations.of(context);
+    return '${material.formatFullDate(value)} '
+        '${material.formatTimeOfDay(TimeOfDay.fromDateTime(value))}';
+  }
+
+  String _humanize(String value) {
+    return value
+        .replaceAllMapped(
+          RegExp('([a-z0-9])([A-Z])'),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .replaceAll('_', ' ')
+        .toLowerCase();
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }

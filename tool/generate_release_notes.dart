@@ -55,9 +55,36 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
-  _Version('1.0.16', [
+  _Version('1.1.0', [
     _Entry(
-      'Fixed a launch failure that could prevent playback from initializing on Android',
+      'Sync Settings now limits background library sync to unmetered networks by default, shows when updates are waiting, and offers one-time mobile-data sync or confirmed Repair Library actions',
+    ),
+    _Entry(
+      'Library sync is now adaptive and resumable, using low-data checks and targeted updates while showing clearer freshness, progress, and repair details',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'This update performs one library repair; future full refreshes prepare and validate a replacement catalog before applying it without disrupting likes, downloads, cache, or playback',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Fixed interrupted or very large library repairs being able to repeat, lose progress, fail during apply, or leave an incomplete catalog',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Large library repairs now compare catalog pages in the background and apply only real changes, reducing memory use and avoiding long playback or browsing stalls',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Liked content and playlists now reconcile through the resumable sync queue while preserving pending likes and cached playlist tracks',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Desktop playback is more responsive and streamed tracks now populate the rolling cache on Linux, Windows, and macOS, with live cache progress in Settings',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Fixed playback initialization, rapid Play requests, crossfade caching, Home refreshes during sync, and unstable seek or duration updates',
       type: _EntryType.fix,
     ),
   ]),

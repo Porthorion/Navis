@@ -19,6 +19,10 @@ class ArtistsTable extends Table {
   BoolColumn get isProvisional =>
       boolean().withDefault(const Constant(false))();
 
+  /// Authoritative catalog snapshot generation that last observed this row.
+  /// Generation zero denotes rows that predate the resumable sync planner.
+  IntColumn get catalogGeneration => integer().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

@@ -130,6 +130,12 @@ class AppSettingsTable extends Table {
   IntColumn get syncIntervalMinutes =>
       integer().withDefault(const Constant(60))();
 
+  /// When true, automatic/background library sync waits for an unmetered
+  /// network. Metered connections may still run a one-request probe and
+  /// interactive hydration. Default true.
+  BoolColumn get backgroundSyncUnmeteredOnly =>
+      boolean().withDefault(const Constant(true))();
+
   /// Whether LRCLIB fallback is used when server lyrics are unavailable.
   BoolColumn get useLrclib => boolean().withDefault(const Constant(true))();
 

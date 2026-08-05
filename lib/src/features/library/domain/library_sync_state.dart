@@ -1,6 +1,16 @@
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 
-enum LibrarySyncStatus { idle, running, succeeded, skipped, failed }
+enum LibrarySyncStatus {
+  idle,
+  running,
+  succeeded,
+  partial,
+  skipped,
+  deferred,
+  cancelled,
+  failed,
+}
 
 enum LibrarySyncMode { fullInitial, incremental, forceFull }
 
@@ -17,8 +27,13 @@ enum LibrarySyncStage {
   fetchingAlbums,
   persistingMetadata,
   fetchingSongs,
+  fetchingStarred,
   fetchingGenres,
   fetchingPlaylists,
+  collectingCandidate,
+  validatingCandidate,
+  applyingCandidate,
+  cleaningCandidate,
   finalizing,
   completed,
 }
@@ -40,6 +55,13 @@ class LibrarySyncState {
     this.completedAt,
     this.errorMessage,
     this.lastSyncedAt,
+    this.lastCheckedAt,
+    this.lastCatalogUpdatedAt,
+    this.lastAuxiliarySyncedAt,
+    this.lastGenresSyncedAt,
+    this.starredSynchronized = false,
+    this.playlistHeadersSynchronized = false,
+    this.genresSynchronized = false,
     this.apiRequests = 0,
     this.apiRetries = 0,
     this.apiFailures = 0,
@@ -50,6 +72,18 @@ class LibrarySyncState {
     this.remainingVerificationCount = 0,
     this.canonicalizedSongCount = 0,
     this.ambiguousMatchCount = 0,
+    this.planKind,
+    this.planReason,
+    this.pendingWorkCount = 0,
+    this.lastRunBytes = 0,
+    this.failureCategory,
+    this.candidateGeneration,
+    this.candidateStatus,
+    this.carriedForwardEntityCount = 0,
+    this.lastApplyDurationMs,
+    this.probeIndexChanged,
+    this.probeIndexesUnsupported = false,
+    this.updatesAvailable = false,
   });
 
   const LibrarySyncState.idle({
@@ -76,6 +110,13 @@ class LibrarySyncState {
   final DateTime? completedAt;
   final String? errorMessage;
   final DateTime? lastSyncedAt;
+  final DateTime? lastCheckedAt;
+  final DateTime? lastCatalogUpdatedAt;
+  final DateTime? lastAuxiliarySyncedAt;
+  final DateTime? lastGenresSyncedAt;
+  final bool starredSynchronized;
+  final bool playlistHeadersSynchronized;
+  final bool genresSynchronized;
   final int apiRequests;
   final int apiRetries;
   final int apiFailures;
@@ -86,6 +127,18 @@ class LibrarySyncState {
   final int remainingVerificationCount;
   final int canonicalizedSongCount;
   final int ambiguousMatchCount;
+  final LibrarySyncPlanKind? planKind;
+  final String? planReason;
+  final int pendingWorkCount;
+  final int lastRunBytes;
+  final String? failureCategory;
+  final int? candidateGeneration;
+  final String? candidateStatus;
+  final int carriedForwardEntityCount;
+  final int? lastApplyDurationMs;
+  final bool? probeIndexChanged;
+  final bool probeIndexesUnsupported;
+  final bool updatesAvailable;
 
   bool get isRunning => status == LibrarySyncStatus.running;
 
@@ -113,6 +166,17 @@ class LibrarySyncState {
     bool clearErrorMessage = false,
     DateTime? lastSyncedAt,
     bool clearLastSyncedAt = false,
+    DateTime? lastCheckedAt,
+    bool clearLastCheckedAt = false,
+    DateTime? lastCatalogUpdatedAt,
+    bool clearLastCatalogUpdatedAt = false,
+    DateTime? lastAuxiliarySyncedAt,
+    bool clearLastAuxiliarySyncedAt = false,
+    DateTime? lastGenresSyncedAt,
+    bool clearLastGenresSyncedAt = false,
+    bool? starredSynchronized,
+    bool? playlistHeadersSynchronized,
+    bool? genresSynchronized,
     int? apiRequests,
     int? apiRetries,
     int? apiFailures,
@@ -125,6 +189,25 @@ class LibrarySyncState {
     int? remainingVerificationCount,
     int? canonicalizedSongCount,
     int? ambiguousMatchCount,
+    LibrarySyncPlanKind? planKind,
+    bool clearPlanKind = false,
+    String? planReason,
+    bool clearPlanReason = false,
+    int? pendingWorkCount,
+    int? lastRunBytes,
+    String? failureCategory,
+    bool clearFailureCategory = false,
+    int? candidateGeneration,
+    bool clearCandidateGeneration = false,
+    String? candidateStatus,
+    bool clearCandidateStatus = false,
+    int? carriedForwardEntityCount,
+    int? lastApplyDurationMs,
+    bool clearLastApplyDuration = false,
+    bool? probeIndexChanged,
+    bool clearProbeIndexChanged = false,
+    bool? probeIndexesUnsupported,
+    bool? updatesAvailable,
   }) {
     return LibrarySyncState(
       status: status ?? this.status,
@@ -149,6 +232,22 @@ class LibrarySyncState {
       lastSyncedAt: clearLastSyncedAt
           ? null
           : lastSyncedAt ?? this.lastSyncedAt,
+      lastCheckedAt: clearLastCheckedAt
+          ? null
+          : lastCheckedAt ?? this.lastCheckedAt,
+      lastCatalogUpdatedAt: clearLastCatalogUpdatedAt
+          ? null
+          : lastCatalogUpdatedAt ?? this.lastCatalogUpdatedAt,
+      lastAuxiliarySyncedAt: clearLastAuxiliarySyncedAt
+          ? null
+          : lastAuxiliarySyncedAt ?? this.lastAuxiliarySyncedAt,
+      lastGenresSyncedAt: clearLastGenresSyncedAt
+          ? null
+          : lastGenresSyncedAt ?? this.lastGenresSyncedAt,
+      starredSynchronized: starredSynchronized ?? this.starredSynchronized,
+      playlistHeadersSynchronized:
+          playlistHeadersSynchronized ?? this.playlistHeadersSynchronized,
+      genresSynchronized: genresSynchronized ?? this.genresSynchronized,
       apiRequests: apiRequests ?? this.apiRequests,
       apiRetries: apiRetries ?? this.apiRetries,
       apiFailures: apiFailures ?? this.apiFailures,
@@ -166,6 +265,30 @@ class LibrarySyncState {
       canonicalizedSongCount:
           canonicalizedSongCount ?? this.canonicalizedSongCount,
       ambiguousMatchCount: ambiguousMatchCount ?? this.ambiguousMatchCount,
+      planKind: clearPlanKind ? null : planKind ?? this.planKind,
+      planReason: clearPlanReason ? null : planReason ?? this.planReason,
+      pendingWorkCount: pendingWorkCount ?? this.pendingWorkCount,
+      lastRunBytes: lastRunBytes ?? this.lastRunBytes,
+      failureCategory: clearFailureCategory
+          ? null
+          : failureCategory ?? this.failureCategory,
+      candidateGeneration: clearCandidateGeneration
+          ? null
+          : candidateGeneration ?? this.candidateGeneration,
+      candidateStatus: clearCandidateStatus
+          ? null
+          : candidateStatus ?? this.candidateStatus,
+      carriedForwardEntityCount:
+          carriedForwardEntityCount ?? this.carriedForwardEntityCount,
+      lastApplyDurationMs: clearLastApplyDuration
+          ? null
+          : lastApplyDurationMs ?? this.lastApplyDurationMs,
+      probeIndexChanged: clearProbeIndexChanged
+          ? null
+          : probeIndexChanged ?? this.probeIndexChanged,
+      probeIndexesUnsupported:
+          probeIndexesUnsupported ?? this.probeIndexesUnsupported,
+      updatesAvailable: updatesAvailable ?? this.updatesAvailable,
     );
   }
 }

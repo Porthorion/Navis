@@ -67,6 +67,7 @@ class AppSettingsModel {
     required this.audioMuseApiKey,
     required this.audioMuseEnabled,
     required this.syncIntervalMinutes,
+    this.backgroundSyncUnmeteredOnly = true,
     required this.useLrclib,
     required this.legacyInstantMixEnabled,
     required this.replayGainMode,
@@ -137,6 +138,7 @@ class AppSettingsModel {
       audioMuseApiKey = null,
       audioMuseEnabled = false,
       syncIntervalMinutes = 60,
+      backgroundSyncUnmeteredOnly = true,
       useLrclib = true,
       legacyInstantMixEnabled = false,
       replayGainMode = 'off',
@@ -207,6 +209,11 @@ class AppSettingsModel {
   final String? audioMuseApiKey;
   final bool audioMuseEnabled;
   final int syncIntervalMinutes;
+
+  /// When true, automatic/background library sync waits for an unmetered
+  /// network. Metered connections may still run a hard probe and interactive
+  /// hydration.
+  final bool backgroundSyncUnmeteredOnly;
   final bool useLrclib;
   final bool legacyInstantMixEnabled;
 
@@ -340,6 +347,7 @@ class AppSettingsModel {
     String? audioMuseApiKey,
     bool? audioMuseEnabled,
     int? syncIntervalMinutes,
+    bool? backgroundSyncUnmeteredOnly,
     bool? useLrclib,
     bool? legacyInstantMixEnabled,
     String? replayGainMode,
@@ -446,6 +454,8 @@ class AppSettingsModel {
           : audioMuseApiKey ?? this.audioMuseApiKey,
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
+      backgroundSyncUnmeteredOnly:
+          backgroundSyncUnmeteredOnly ?? this.backgroundSyncUnmeteredOnly,
       useLrclib: useLrclib ?? this.useLrclib,
       legacyInstantMixEnabled:
           legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,

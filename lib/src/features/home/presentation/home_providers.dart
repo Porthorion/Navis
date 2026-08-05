@@ -440,9 +440,19 @@ final listenBrainzLibrarySyncRefreshBridgeProvider = Provider<void>((ref) {
         previous?.status != LibrarySyncStatus.succeeded) {
       final settings = ref.read(appSettingsProvider).asData?.value;
       if (settings?.listenBrainzTokenValid ?? false) {
-        ref
-            .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
-            .refreshAfterLibrarySync();
+        // A sync transition may be flushed while Home is reading the derived
+        // showcase provider. Defer the dependent invalidation until that
+        // widget build has finished.
+        unawaited(
+          Future<void>(() {
+            if (!ref.mounted) {
+              return;
+            }
+            ref
+                .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+                .refreshAfterLibrarySync();
+          }),
+        );
       }
     }
   });
@@ -460,7 +470,15 @@ final listenBrainzDiscoverStartupIdleDelayProvider = Provider<Duration>(
 final listenBrainzDiscoverStartupSyncStateProvider = Provider<LibrarySyncState>(
   (ref) {
     try {
-      return ref.watch(librarySyncControllerProvider);
+      final syncTransition = ref.watch(
+        librarySyncControllerProvider.select(
+          (state) => (status: state.status, stage: state.stage),
+        ),
+      );
+      return LibrarySyncState(
+        status: syncTransition.status,
+        stage: syncTransition.stage,
+      );
     } on Object {
       return const LibrarySyncState.idle();
     }
@@ -489,7 +507,6 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
   final startupIdleDelay = ref.watch(
     listenBrainzDiscoverStartupIdleDelayProvider,
   );
-  ref.watch(listenBrainzDiscoverStartupSyncStateProvider);
   ref.watch(listenBrainzLibrarySyncRefreshBridgeProvider);
 
   final token = (await credentialStore.readListenBrainzToken())?.trim() ?? '';
@@ -1860,8 +1877,6 @@ final homeRandomShowcaseProvider =
       ({bool downloadedOnly, bool likedOnly})
     >((ref, filters) {
       final listenBrainz = ref.watch(listenBrainzDiscoverStreamProvider);
-      ref.watch(listenBrainzDiscoverRefreshEpochProvider);
-      ref.watch(listenBrainzDiscoverStartupSyncStateProvider);
       final albumsAsync = ref.watch(homeRandomAlbumShowcaseProvider(filters));
 
       return albumsAsync.when(

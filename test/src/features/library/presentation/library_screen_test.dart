@@ -40,7 +40,9 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   Future<LibrarySyncState> syncIfStale() async => _initialState;
 
   @override
-  Future<LibrarySyncState> syncNow() async {
+  Future<LibrarySyncState> syncNow({
+    bool allowMeteredBroadOverride = false,
+  }) async {
     onSyncNow?.call();
     return _initialState;
   }

@@ -27,10 +27,38 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
-    version: '1.0.16',
+    version: '1.1.0',
     entries: [
       ChangelogEntry(
-        'Fixed a launch failure that could prevent playback from initializing on Android',
+        'Sync Settings now limits background library sync to unmetered networks by default, shows when updates are waiting, and offers one-time mobile-data sync or confirmed Repair Library actions',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Library sync is now adaptive and resumable, using low-data checks and targeted updates while showing clearer freshness, progress, and repair details',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'This update performs one library repair; future full refreshes prepare and validate a replacement catalog before applying it without disrupting likes, downloads, cache, or playback',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Fixed interrupted or very large library repairs being able to repeat, lose progress, fail during apply, or leave an incomplete catalog',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Large library repairs now compare catalog pages in the background and apply only real changes, reducing memory use and avoiding long playback or browsing stalls',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Liked content and playlists now reconcile through the resumable sync queue while preserving pending likes and cached playlist tracks',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Desktop playback is more responsive and streamed tracks now populate the rolling cache on Linux, Windows, and macOS, with live cache progress in Settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed playback initialization, rapid Play requests, crossfade caching, Home refreshes during sync, and unstable seek or duration updates',
         type: ChangelogEntryType.fix,
       ),
     ],

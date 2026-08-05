@@ -1,7 +1,9 @@
-import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 const String listenBrainzWeeklyExplorationVirtualPlaylistId =
@@ -93,109 +95,27 @@ final playlistLibraryItemsProvider =
       );
     });
 
-/// Fetches playlist data from the server and stores it locally.
-/// Returns the list of playlists after sync.
+/// Reconciles the authoritative server playlist list through the durable sync
+/// coordinator. Changed playlist contents are queued for targeted hydration.
 final playlistSyncProvider = FutureProvider.autoDispose<void>((ref) async {
-  final api = ref.read(subsonicApiProvider);
-  final db = ref.read(navisDatabaseProvider);
-  if (api == null) return;
-
-  final playlists = await api.getPlaylists();
-  final companions = playlists
-      .map(
-        (p) => PlaylistsTableCompanion.insert(
-          id: p.id,
-          name: p.name,
-          songCount: Value(p.songCount),
-          duration: Value(p.duration),
-          owner: Value(p.owner),
-          isPublic: Value(p.isPublic),
-          coverArt: Value(p.coverArt),
-          comment: Value(p.comment),
-        ),
-      )
-      .toList(growable: false);
-  await db.playlistDao.upsertPlaylists(companions);
-
-  // Prune locally-cached playlists that no longer exist on the server.
-  final serverIds = playlists.map((p) => p.id).toList(growable: false);
-  await db.playlistDao.deletePlaylistsNotIn(serverIds);
+  final result = await ref
+      .read(librarySyncControllerProvider.notifier)
+      .requestTarget(const LibrarySyncTarget.playlistHeaders());
+  if (result.status == LibrarySyncStatus.failed) {
+    throw StateError(result.errorMessage ?? 'Playlist refresh failed.');
+  }
 });
 
 /// Family provider: fetches a single playlist's songs from the server
 /// and stores them locally. Returns the playlist metadata + song list.
 final playlistDetailSyncProvider = FutureProvider.autoDispose
     .family<void, String>((ref, playlistId) async {
-      final api = ref.read(subsonicApiProvider);
-      final db = ref.read(navisDatabaseProvider);
-      if (api == null) return;
-
-      final playlist = await api.getPlaylist(playlistId);
-
-      // Upsert the playlist metadata
-      await db.playlistDao.upsertPlaylists([
-        PlaylistsTableCompanion.insert(
-          id: playlist.id,
-          name: playlist.name,
-          songCount: Value(playlist.songCount),
-          duration: Value(playlist.duration),
-          owner: Value(playlist.owner),
-          isPublic: Value(playlist.isPublic),
-          coverArt: Value(playlist.coverArt),
-          comment: Value(playlist.comment),
-        ),
-      ]);
-
-      // Upsert song rows from entries
-      if (playlist.entries.isNotEmpty) {
-        final songCompanions = playlist.entries
-            .map(
-              (song) => SongsTableCompanion.insert(
-                id: song.id,
-                title: song.title,
-                albumId: Value(song.albumId),
-                artistId: Value(song.artistId),
-                artistName: Value(song.artist),
-                albumName: Value(song.album),
-                track: Value(song.track),
-                discNumber: Value(song.discNumber),
-                duration: Value(song.duration),
-                bitRate: Value(song.bitRate),
-                sampleRate: Value(song.sampleRate),
-                contentType: Value(song.contentType),
-                suffix: Value(song.suffix),
-                size: Value(song.size),
-                coverArt: Value(song.coverArt),
-                starred: Value(song.starred),
-                recordingMbid: Value(song.musicBrainzId),
-                playCount: Value(song.playCount),
-                createdAt: Value(song.created),
-                replayGainTrackGain: Value(song.replayGain?.trackGain),
-                replayGainAlbumGain: Value(song.replayGain?.albumGain),
-                replayGainTrackPeak: Value(song.replayGain?.trackPeak),
-                replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
-              ),
-            )
-            .toList(growable: false);
-        await db.libraryDao.upsertSongs(songCompanions);
-        await reconcileCanonicalSongHydration(
-          ref,
-          playlist.entries.map((song) => song.id),
-        );
+      final result = await ref
+          .read(librarySyncControllerProvider.notifier)
+          .requestTarget(LibrarySyncTarget.playlist(playlistId));
+      if (result.status == LibrarySyncStatus.failed) {
+        throw StateError(result.errorMessage ?? 'Playlist refresh failed.');
       }
-
-      // Replace the playlist_songs join table
-      final songJoins = <PlaylistSongsTableCompanion>[];
-      for (var i = 0; i < playlist.entries.length; i++) {
-        songJoins.add(
-          PlaylistSongsTableCompanion.insert(
-            playlistId: playlistId,
-            songId: playlist.entries[i].id,
-            sortOrder: i,
-          ),
-        );
-      }
-      await db.playlistDao.replacePlaylistSongs(playlistId, songJoins);
     });
 
 /// Watches songs for a given playlist from the local DB.

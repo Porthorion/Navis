@@ -9,6 +9,9 @@ class NetworkUsageTable extends Table {
   /// Stable category key such as `audio_stream`, `cover_art`, or `library_sync`.
   TextColumn get category => text()();
 
+  /// Stable operation name, usually the Subsonic endpoint path.
+  TextColumn get operation => text().nullable()();
+
   /// `wifi`, `cellular`, `offline`, or `other`.
   TextColumn get networkType => text()();
 

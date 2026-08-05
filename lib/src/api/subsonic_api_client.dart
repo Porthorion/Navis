@@ -115,20 +115,30 @@ class SubsonicApiClient {
     return artists;
   }
 
-  Future<Artist> getArtist(String id, {CancelToken? cancelToken}) async {
+  Future<Artist> getArtist(
+    String id, {
+    CancelToken? cancelToken,
+    int? maxResponseBytes,
+  }) async {
     final root = await _readRoot(
       '/rest/getArtist.view',
       query: {'id': id},
       cancelToken: cancelToken,
+      maxResponseBytes: maxResponseBytes,
     );
     return Artist.fromJson(_asMap(root['artist']));
   }
 
-  Future<Album> getAlbum(String id, {CancelToken? cancelToken}) async {
+  Future<Album> getAlbum(
+    String id, {
+    CancelToken? cancelToken,
+    int? maxResponseBytes,
+  }) async {
     final root = await _readRoot(
       '/rest/getAlbum.view',
       query: {'id': id},
       cancelToken: cancelToken,
+      maxResponseBytes: maxResponseBytes,
     );
     final album = _asMap(root['album']);
     return Album.fromJson(<String, dynamic>{
@@ -229,6 +239,7 @@ class SubsonicApiClient {
   Future<Indexes> getIndexes({
     DateTime? ifModifiedSince,
     CancelToken? cancelToken,
+    bool disableRetry = false,
   }) async {
     final query = <String, dynamic>{
       if (ifModifiedSince != null)
@@ -238,6 +249,7 @@ class SubsonicApiClient {
       '/rest/getIndexes.view',
       query: query.isEmpty ? null : query,
       cancelToken: cancelToken,
+      disableRetry: disableRetry,
     );
     final indexesRoot = _asMap(root['indexes']);
     final normalized = <String, dynamic>{
@@ -401,11 +413,16 @@ class SubsonicApiClient {
     ).map(Playlist.fromJson).toList(growable: false);
   }
 
-  Future<Playlist> getPlaylist(String id, {CancelToken? cancelToken}) async {
+  Future<Playlist> getPlaylist(
+    String id, {
+    CancelToken? cancelToken,
+    int? maxResponseBytes,
+  }) async {
     final root = await _readRoot(
       '/rest/getPlaylist.view',
       query: {'id': id},
       cancelToken: cancelToken,
+      maxResponseBytes: maxResponseBytes,
     );
     final playlist = _asMap(root['playlist']);
     return Playlist.fromJson(<String, dynamic>{
@@ -650,17 +667,64 @@ class SubsonicApiClient {
     String path, {
     Map<String, dynamic>? query,
     CancelToken? cancelToken,
+    bool disableRetry = false,
+    int? maxResponseBytes,
   }) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         path,
         queryParameters: query,
         cancelToken: cancelToken,
+        options: Options(
+          extra: <String, Object?>{
+            if (disableRetry) 'navisDisableRetry': true,
+          },
+        ),
+        onReceiveProgress: maxResponseBytes == null
+            ? null
+            : (received, total) {
+                final knownTotal = total > 0 ? total : null;
+                if (knownTotal != null && knownTotal > maxResponseBytes) {
+                  cancelToken?.cancel(
+                    'Response exceeds sync byte budget ($maxResponseBytes).',
+                  );
+                  throw SubsonicResponseBudgetExceededException(
+                    maxBytes: maxResponseBytes,
+                    observedBytes: knownTotal,
+                  );
+                }
+                if (received > maxResponseBytes) {
+                  cancelToken?.cancel(
+                    'Response exceeds sync byte budget ($maxResponseBytes).',
+                  );
+                  throw SubsonicResponseBudgetExceededException(
+                    maxBytes: maxResponseBytes,
+                    observedBytes: received,
+                  );
+                }
+              },
       );
+      final bytes = _responseBodyBytes(response);
+      if (maxResponseBytes != null && bytes > maxResponseBytes) {
+        throw SubsonicResponseBudgetExceededException(
+          maxBytes: maxResponseBytes,
+          observedBytes: bytes,
+        );
+      }
       _recordUsageForResponse(path, response);
       final payload = _asMap(response.data);
       return _extractRoot(payload);
+    } on SubsonicResponseBudgetExceededException {
+      rethrow;
     } on DioException catch (err) {
+      final nested = err.error;
+      if (nested is SubsonicResponseBudgetExceededException) {
+        throw nested;
+      }
+      if (err.type == DioExceptionType.cancel &&
+          err.error is SubsonicResponseBudgetExceededException) {
+        throw err.error as SubsonicResponseBudgetExceededException;
+      }
       throw _mapDioException(err);
     }
   }
@@ -685,6 +749,7 @@ class SubsonicApiClient {
     reporter(
       category: networkUsageCategoryForSubsonicPath(path),
       bytes: bytes,
+      operation: path,
     );
   }
 

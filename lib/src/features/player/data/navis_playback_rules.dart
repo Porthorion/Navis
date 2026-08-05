@@ -251,6 +251,46 @@ bool navisShouldPreloadQueue({
 }
 
 @visibleForTesting
+bool navisPlaybackSnapshotsStructurallyEqual(
+  PlaybackSnapshot previous,
+  PlaybackSnapshot next,
+) {
+  return listEquals(previous.queueSongIds, next.queueSongIds) &&
+      previous.currentSongId == next.currentSongId &&
+      previous.currentIndex == next.currentIndex &&
+      previous.playing == next.playing &&
+      previous.processingState == next.processingState &&
+      previous.duration == next.duration &&
+      previous.shuffleMode == next.shuffleMode &&
+      previous.repeatMode == next.repeatMode &&
+      previous.isCurrentSongLiked == next.isCurrentSongLiked &&
+      _radioStationsEqual(previous.radioStation, next.radioStation) &&
+      previous.isLoading == next.isLoading &&
+      previous.hasPendingLogicalQueue == next.hasPendingLogicalQueue &&
+      previous.loadingSongId == next.loadingSongId &&
+      previous.lastFailedSongId == next.lastFailedSongId;
+}
+
+bool _radioStationsEqual(
+  RadioStationMetadata? previous,
+  RadioStationMetadata? next,
+) {
+  if (identical(previous, next)) {
+    return true;
+  }
+  if (previous == null || next == null) {
+    return false;
+  }
+  return previous.stationId == next.stationId &&
+      previous.stationName == next.stationName &&
+      previous.streamUrl == next.streamUrl &&
+      previous.homePageUrl == next.homePageUrl &&
+      previous.nowPlayingTitle == next.nowPlayingTitle &&
+      previous.nowPlayingArtist == next.nowPlayingArtist &&
+      previous.nowPlayingArtUrl == next.nowPlayingArtUrl;
+}
+
+@visibleForTesting
 bool navisEffectiveGaplessEnabled({
   required bool gaplessEnabled,
   required bool crossfadeEnabled,
@@ -579,12 +619,6 @@ bool navisShouldUseAndroidSequentialCrossfadeFallback({
   return isHighSampleRate || isHighRateLossless;
 }
 
-typedef NavisPersistSafely =
-    Future<void> Function(
-      Future<void> Function() persistOperation, {
-      required String context,
-    });
-
 @visibleForTesting
 Future<void> navisPersistSafely(
   Future<void> Function() persistOperation, {
@@ -599,17 +633,6 @@ Future<void> navisPersistSafely(
       '$error\n$stackTrace',
     );
   }
-}
-
-@visibleForTesting
-Future<void> navisRunTransportWithPersistence({
-  required Future<void> Function() transportOperation,
-  required Future<void> Function() persistOperation,
-  required NavisPersistSafely persistSafely,
-  required String persistenceContext,
-}) async {
-  await transportOperation();
-  await persistSafely(persistOperation, context: persistenceContext);
 }
 
 @visibleForTesting

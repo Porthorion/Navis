@@ -152,6 +152,43 @@ void main() {
 
       await bridge.dispose();
     });
+
+    test(
+      'coalesces normal timeline updates and sends seeks immediately',
+      () async {
+        final handler = _FakePlaybackHandler(
+          initialSnapshot: const PlaybackSnapshot.idle().copyWith(
+            currentSongId: 'song-1',
+            duration: const Duration(minutes: 3),
+          ),
+        );
+        final client = _FakeWindowsSmtcClient();
+        final bridge = WindowsSmtcBridge(
+          handler: handler,
+          createClient: () async => client,
+          isWindowsRuntime: () => true,
+          timelineInterval: const Duration(milliseconds: 20),
+        );
+        await _flushAsync();
+        final initialUpdates = client.timelineUpdates;
+
+        handler.emitPosition(const Duration(milliseconds: 100));
+        handler.emitPosition(const Duration(milliseconds: 200));
+        await _flushAsync();
+        expect(client.timelineUpdates, initialUpdates);
+
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        expect(client.timelineUpdates, initialUpdates + 1);
+        expect(client.lastTimeline?.positionMs, 200);
+
+        handler.emitPosition(const Duration(seconds: 30));
+        await _flushAsync();
+        expect(client.timelineUpdates, initialUpdates + 2);
+        expect(client.lastTimeline?.positionMs, 30000);
+
+        await bridge.dispose();
+      },
+    );
   });
 }
 
@@ -174,6 +211,7 @@ class _FakeWindowsSmtcClient implements WindowsSmtcClient {
   SMTCConfig? lastConfig;
   MusicMetadata? lastMetadata;
   int clearMetadataCalls = 0;
+  int timelineUpdates = 0;
   bool disposed = false;
 
   @override
@@ -243,6 +281,7 @@ class _FakeWindowsSmtcClient implements WindowsSmtcClient {
   @override
   Future<void> updateTimeline(PlaybackTimeline timeline) async {
     lastTimeline = timeline;
+    timelineUpdates += 1;
   }
 }
 
@@ -260,6 +299,8 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
       StreamController<PlaybackSnapshot>.broadcast();
   final StreamController<Duration> _positionController =
       StreamController<Duration>.broadcast();
+  final StreamController<PlaybackBufferState> _bufferStateController =
+      StreamController<PlaybackBufferState>.broadcast();
   final StreamController<MediaItem?> _mediaItemController =
       StreamController<MediaItem?>.broadcast();
   final StreamController<void> _radioErrorController =
@@ -282,6 +323,11 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     _mediaItemController.add(item);
   }
 
+  void emitPosition(Duration position) {
+    _snapshot = _snapshot.copyWith(position: position);
+    _positionController.add(position);
+  }
+
   @override
   MediaItem? get currentMediaItem => _currentMediaItem;
 
@@ -290,6 +336,16 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Stream<Duration> get positionStream => _positionController.stream;
+
+  @override
+  PlaybackBufferState get bufferState => PlaybackBufferState(
+    songId: _snapshot.currentSongId,
+    bufferedPosition: _snapshot.bufferedPosition,
+  );
+
+  @override
+  Stream<PlaybackBufferState> get bufferStateStream =>
+      _bufferStateController.stream;
 
   @override
   Stream<void> get radioStreamErrorStream => _radioErrorController.stream;

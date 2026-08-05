@@ -98,6 +98,14 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
     forceFullCalls.add(true);
     return _handlerNow(forceFull: true, onProgress: onProgress);
   }
+
+  @override
+  Future<LibrarySyncState> probeCatalog({
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    nowCalls++;
+    return _handlerNow(forceFull: false, onProgress: onProgress);
+  }
 }
 
 void main() {
@@ -107,7 +115,9 @@ void main() {
     test('startup trigger runs once when authenticated', () async {
       final database = createTestDatabase();
       addTearDown(database.close);
-      await database.appSettingsDao.setLastFullSyncAppBuild('54');
+      await database.appSettingsDao.setLastFullSyncAppBuild(
+        currentLibrarySyncModelVersion,
+      );
       final engine = _FakeLibrarySyncEngine(
         ({
           onProgress,
@@ -295,7 +305,9 @@ void main() {
       () async {
         final database = createTestDatabase();
         addTearDown(database.close);
-        await database.appSettingsDao.setLastFullSyncAppBuild('54');
+        await database.appSettingsDao.setLastFullSyncAppBuild(
+          currentLibrarySyncModelVersion,
+        );
         final engine = _FakeLibrarySyncEngine(
           ({
             onProgress,
@@ -430,6 +442,66 @@ void main() {
         expect(
           await database.appSettingsDao.getLastFullSyncAppBuild(),
           'model-v2',
+        );
+      },
+    );
+
+    test(
+      'promoted partial catalog satisfies the sync model repair gate',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async {
+            expect(forceFull, isTrue);
+            return LibrarySyncState(
+              status: LibrarySyncStatus.partial,
+              stage: LibrarySyncStage.completed,
+              mode: LibrarySyncMode.forceFull,
+              metadataReady: true,
+              pendingHydrationCount: 1,
+              completedAt: DateTime.now(),
+            );
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            networkTypeProvider.overrideWithValue(NetworkType.wifi),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
+              ),
+            ),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(engine.forceFullCalls, <bool>[true]);
+        expect(
+          await database.appSettingsDao.getLastFullSyncAppBuild(),
+          currentLibrarySyncModelVersion,
         );
       },
     );

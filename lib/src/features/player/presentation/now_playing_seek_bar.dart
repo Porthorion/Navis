@@ -19,6 +19,9 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     final position =
         ref.watch(playbackPositionProvider).asData?.value ??
         widget.playback.position;
+    final bufferState =
+        ref.watch(playbackBufferStateProvider).asData?.value ??
+        const PlaybackBufferState.idle();
     final duration = widget.playback.duration;
     final durationMs = duration.inMilliseconds;
     final positionMs = position.inMilliseconds;
@@ -29,6 +32,11 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             ? positionMs.toDouble().clamp(0, durationMs.toDouble())
             : 0.0);
     final sliderMax = durationMs > 0 ? durationMs.toDouble() : 1.0;
+    final bufferedValue = resolveBufferedSeekValue(
+      currentSongId: widget.playback.currentSongId,
+      bufferState: bufferState,
+      duration: duration,
+    );
     final sliderCurrentMs = sliderValue.round();
     final increasedMs = (sliderCurrentMs + _kSeekSemanticsStepMs).clamp(
       0,
@@ -85,6 +93,8 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             child: ExcludeSemantics(
               child: Slider(
                 value: sliderValue.clamp(0, sliderMax),
+                secondaryTrackValue: bufferedValue,
+                secondaryActiveColor: resolveBufferedSeekColor(context),
                 max: sliderMax,
                 semanticFormatterCallback: (value) {
                   final pos = Duration(milliseconds: value.round());

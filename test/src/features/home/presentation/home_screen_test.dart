@@ -35,7 +35,9 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> syncNow() async {
+  Future<LibrarySyncState> syncNow({
+    bool allowMeteredBroadOverride = false,
+  }) async {
     return const LibrarySyncState.idle();
   }
 }
@@ -54,7 +56,9 @@ class _FixedLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> syncNow() async {
+  Future<LibrarySyncState> syncNow({
+    bool allowMeteredBroadOverride = false,
+  }) async {
     return _fixedState;
   }
 }
@@ -72,7 +76,7 @@ class _PendingRefreshLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> syncNow() {
+  Future<LibrarySyncState> syncNow({bool allowMeteredBroadOverride = false}) {
     syncNowCalls++;
     return _completer.future;
   }

@@ -19,6 +19,10 @@ mixin _$LibraryDaoMixin on DatabaseAccessor<NavisDatabase> {
   $MatchFlowsTableTable get matchFlowsTable => attachedDatabase.matchFlowsTable;
   $MatchFlowSongsTableTable get matchFlowSongsTable =>
       attachedDatabase.matchFlowSongsTable;
+  $LibrarySyncLocalMutationsTableTable get librarySyncLocalMutationsTable =>
+      attachedDatabase.librarySyncLocalMutationsTable;
+  $StarSyncQueueTableTable get starSyncQueueTable =>
+      attachedDatabase.starSyncQueueTable;
   LibraryDaoManager get managers => LibraryDaoManager(this);
 }
 
@@ -62,5 +66,16 @@ class LibraryDaoManager {
       $$MatchFlowSongsTableTableTableManager(
         _db.attachedDatabase,
         _db.matchFlowSongsTable,
+      );
+  $$LibrarySyncLocalMutationsTableTableTableManager
+  get librarySyncLocalMutationsTable =>
+      $$LibrarySyncLocalMutationsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.librarySyncLocalMutationsTable,
+      );
+  $$StarSyncQueueTableTableTableManager get starSyncQueueTable =>
+      $$StarSyncQueueTableTableTableManager(
+        _db.attachedDatabase,
+        _db.starSyncQueueTable,
       );
 }

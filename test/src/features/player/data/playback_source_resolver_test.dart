@@ -14,10 +14,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:path/path.dart' as p;
 import '../../../../helpers/test_database.dart';
 
-/// LockCachingAudioSource is not supported on Linux or Windows at runtime,
-/// so tests that assert lockCachedStream behaviour are skipped on those platforms.
-bool get lockCachingAvailable =>
-    sqliteAvailable && !Platform.isLinux && !Platform.isWindows;
+bool get lockCachingAvailable => sqliteAvailable;
 
 void main() {
   group('PlaybackSourceResolver', () {
@@ -234,8 +231,44 @@ void main() {
         expect(lockSource.uri.path, '/rest/stream.view');
         expect(lockSource.uri.queryParameters['id'], 'song-2');
         expect(lockSource.uri.queryParameters['maxBitRate'], '128');
+
+        final inactiveDeckSource = resolved.asClonedAudioSource();
+        // ignore: experimental_member_use, reason: the inactive crossfade deck must not clone an experimental lock-cached source with the same cache path.
+        expect(inactiveDeckSource, isNot(isA<LockCachingAudioSource>()));
+        expect(inactiveDeckSource, isA<UriAudioSource>());
+        expect(
+          (inactiveDeckSource as UriAudioSource).uri,
+          resolved.lockCachingStreamUri,
+        );
       },
       skip: !lockCachingAvailable,
+    );
+
+    test(
+      'uses direct stream when native lock caching is unavailable',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-no-native-cache',
+          title: 'No Native Cache',
+        );
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
+          readRollingCacheDirectory: () async => rollingDir,
+          readSupportsLockCaching: () => false,
+        );
+
+        final resolved = await resolver.resolveForSong(song);
+
+        expect(resolved.kind, PlaybackSourceKind.directStream);
+        expect(resolved.cachedFilePath, isNull);
+      },
+      skip: !sqliteAvailable,
     );
 
     test(

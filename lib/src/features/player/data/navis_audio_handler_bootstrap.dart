@@ -68,6 +68,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
   required StarSyncDao starSyncDao,
   NetworkUsageReporter? reportNetworkUsage,
+  void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
 }) {
   final cached = _audioHandlerInitCache;
   if (cached != null && !cached.invalidated) {
@@ -90,6 +91,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       readRuntimeSettings: readRuntimeSettings,
       starSyncDao: starSyncDao,
       reportNetworkUsage: reportNetworkUsage,
+      reportRollingCacheActivity: reportRollingCacheActivity,
     );
   }
 
@@ -176,6 +178,13 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Stream<Duration> get positionStream => _delegate.positionStream;
+
+  @override
+  PlaybackBufferState get bufferState => _delegate.bufferState;
+
+  @override
+  Stream<PlaybackBufferState> get bufferStateStream =>
+      _delegate.bufferStateStream;
 
   @override
   MediaItem? get currentMediaItem => _delegate.currentMediaItem;
@@ -363,6 +372,13 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Stream<Duration> get positionStream => _delegate.positionStream;
+
+  @override
+  PlaybackBufferState get bufferState => _delegate.bufferState;
+
+  @override
+  Stream<PlaybackBufferState> get bufferStateStream =>
+      _delegate.bufferStateStream;
 
   @override
   MediaItem? get currentMediaItem => _delegate.currentMediaItem;

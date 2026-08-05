@@ -39,6 +39,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     final cs = Theme.of(context).colorScheme;
     final playback = widget.playback;
     final livePosition = ref.watch(playbackPositionProvider).asData?.value;
+    final bufferState =
+        ref.watch(playbackBufferStateProvider).asData?.value ??
+        const PlaybackBufferState.idle();
     final isPlaying = playback.playing;
     final position = livePosition ?? playback.position;
     final duration = playback.duration;
@@ -51,6 +54,11 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     final sliderValue = canSeek
         ? ((_dragSliderValue ?? positionMs).clamp(0.0, sliderMax))
         : 0.0;
+    final bufferedValue = resolveBufferedSeekValue(
+      currentSongId: playback.currentSongId,
+      bufferState: bufferState,
+      duration: duration,
+    );
     final seekPreviewPosition = Duration(milliseconds: sliderValue.round());
     final progress = duration.inMilliseconds > 0
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
@@ -434,6 +442,8 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                   ),
                   child: Slider(
                     value: sliderValue,
+                    secondaryTrackValue: bufferedValue,
+                    secondaryActiveColor: resolveBufferedSeekColor(context),
                     max: sliderMax,
                     onChangeStart: (value) {
                       setState(() {

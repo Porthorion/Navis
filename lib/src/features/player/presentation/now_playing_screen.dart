@@ -14,6 +14,7 @@ import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
+import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
@@ -1366,10 +1367,15 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         navisResolvePreviousTrackAction(
               queueLength: playback.queueSongIds.length,
               currentIndex: playback.currentIndex,
-              position: playback.position,
+              position: _livePlaybackPosition(playback),
             ) ==
             NavisPreviousTrackAction.skipToPrevious,
     };
+  }
+
+  Duration _livePlaybackPosition(PlaybackSnapshot playback) {
+    return ref.read(audioHandlerProvider)?.snapshot.position ??
+        playback.position;
   }
 
   void _scheduleNextSongCoverArtPrefetch({
@@ -1523,7 +1529,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       final previousAction = navisResolvePreviousTrackAction(
         queueLength: playback.queueSongIds.length,
         currentIndex: playback.currentIndex,
-        position: playback.position,
+        position: _livePlaybackPosition(playback),
       );
       if (previousAction == NavisPreviousTrackAction.none) {
         return;

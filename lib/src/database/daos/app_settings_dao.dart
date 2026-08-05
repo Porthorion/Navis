@@ -100,6 +100,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? audioMuseApiKey,
     required bool audioMuseEnabled,
     required int syncIntervalMinutes,
+    bool backgroundSyncUnmeteredOnly = true,
     required bool useLrclib,
     required bool legacyInstantMixEnabled,
     required String replayGainMode,
@@ -166,6 +167,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         audioMuseApiKey: Value(audioMuseApiKey),
         audioMuseEnabled: Value(audioMuseEnabled),
         syncIntervalMinutes: Value(syncIntervalMinutes),
+        backgroundSyncUnmeteredOnly: Value(backgroundSyncUnmeteredOnly),
         useLrclib: Value(useLrclib),
         legacyInstantMixEnabled: Value(legacyInstantMixEnabled),
         replayGainMode: Value(replayGainMode),
@@ -273,6 +275,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       updateChannel: 'stable',
       audioMuseEnabled: false,
       syncIntervalMinutes: defaultSyncIntervalMinutes,
+      backgroundSyncUnmeteredOnly: true,
       useLrclib: true,
       legacyInstantMixEnabled: false,
       replayGainMode: 'off',
@@ -655,6 +658,23 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Future<int> getSyncIntervalMinutes() async {
     final s = await getSettings();
     return s?.syncIntervalMinutes ?? defaultSyncIntervalMinutes;
+  }
+
+  /// Targeted update for background sync unmetered-only preference.
+  Future<void> updateBackgroundSyncUnmeteredOnly({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        backgroundSyncUnmeteredOnly: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream whether background sync waits for unmetered networks.
+  Stream<bool> watchBackgroundSyncUnmeteredOnly() {
+    return watchSettings().map((s) => s?.backgroundSyncUnmeteredOnly ?? true);
   }
 
   // ---------------------------------------------------------------------------

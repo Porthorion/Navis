@@ -88,6 +88,8 @@ flutter test test/path/to/foo_test.dart
 ./tool/dev_app.sh auto       # Android Auto
 ./tool/dev_app.sh dhu        # Desktop Head Unit
 ./tool/verify_android_auto_manifest.sh  # Android Auto manifest/APK contract
+./tool/sync_diagnostics.sh clone  # isolated Linux profile sync/API suite
+./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 
 # Release (runs check unless --skip-checks)
 ./tool/release.sh v1.2.3
@@ -220,6 +222,9 @@ presentation/ # screens, widgets, *_provider.dart files
 - Feature providers live in `lib/src/features/<name>/presentation/*_provider.dart`.
 - Avoid **circular** feature↔feature imports.
 - **Never** instantiate `NavisDatabase` outside Riverpod (hard-fail in tests).
+- Async client callbacks must capture stable dependencies rather than a
+  provider `Ref`; network changes may dispose an API client while its response
+  accounting is still completing.
 
 ### Playback data flow
 
@@ -232,6 +237,24 @@ User action → queueProvider (QueueController)
 ```
 
 Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-cache)** → **Stream**
+
+Native desktop playback on Linux, Windows, and macOS uses the same single-pass
+`LockCachingAudioSource` path: bytes consumed by playback are written into the
+rolling cache without a second download. Ordinary direct HTTPS fallbacks bypass
+just_audio's request-header proxy on desktop; lock-cached sources retain their
+required loopback byte-stream proxy. Completed files remain the authoritative
+cache byte/count totals, while `rollingCacheActivityProvider` exposes an active
+write before registration finishes.
+
+`PlaybackSnapshot` is a structural stream: track, queue, playing/processing,
+duration, repeat/shuffle, loading, and liked changes are broadcast, but routine
+position/buffer ticks only update the handler's current snapshot. Timeline UI
+and desktop media bridges must consume `positionStream`; seek bars consume the
+track-keyed `bufferStateStream` so late buffer events cannot leak onto a new
+song. Known song metadata is authoritative for timeline duration, especially
+while transcoded decoder duration is still growing. Windows SMTC coalesces
+normal timeline writes to roughly once per second, while track changes and seek
+discontinuities update immediately.
 
 Android Auto is phone projection through the Android `MediaBrowserService`,
 not an app UI rendered on the head unit. The manifest must register the
@@ -252,6 +275,25 @@ fills the remaining audio sources. During phase 2, `PlaybackSnapshot.queueSongId
 may expose a pending logical queue so the UI can show the full requested order
 before every transport item is prepared. Queue mutation UI must treat
 `PlaybackSnapshot.hasPendingLogicalQueue` as read-only/loading state.
+
+Transport intent is user-prioritized. Play and pause do not wait behind queue
+fill or seek-recovery work; seeks are last-write-wins, and newer seeks, skips,
+selections, or pauses invalidate stale recovery/autoplay. Position persistence
+runs through a coalescing background scheduler after the transport effect.
+Lock-cache seek recovery loads the active song directly at the requested
+position, then restores the logical queue in cancellable background phase-2
+batches. Keep `loadingSongId` visible as soon as selection begins.
+
+The secondary audio deck is lazy. Create and synchronize it only while
+crossfade is enabled; disabling crossfade must cancel the transition and
+dispose the inactive deck. A clone of a lock-cached source must be a direct
+stream on the inactive deck; two `LockCachingAudioSource` instances cannot own
+the same `.part` path.
+
+Startup cache maintenance must finish before queue restoration or external
+media-session Play requests can create lock-cache partial files. Concurrent
+empty-queue Play requests share one fallback queue preparation so they cannot
+supersede each other.
 
 Remote source recovery is layered: lock-cached stream setup or runtime stalls
 must first bypass lock caching and retry direct stream playback for that song;
@@ -275,6 +317,61 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 
 ### Library sync data policy
 
+- `LibrarySyncPlanner` selects among `probe`, `targetedHydration`,
+  `deltaReconcile`, `catalogSnapshot`, `compatibilityAudit`, and `fullRepair`.
+  Callers submit a `LibrarySyncRequest`; they must not choose an execution scope.
+- `AdaptiveLibrarySyncCoordinator` is the single run/retry owner. Durable work
+  and provider profiles live in `library_sync_state` / `library_sync_work` via
+  `LibrarySyncDao`. Interrupted running work returns to the queue on startup.
+  Targeted work keys include the target kind so same-ID artists, albums, and
+  playlists cannot collide, but executor/API calls must receive the raw entity
+  ID without that durable-key prefix. Once a catalog candidate is promoted,
+  its broad task is completed in the same promotion transaction; any
+  unavailable albums continue as targeted hydration. A restart after promotion
+  must never replay the broad repair while auxiliary work is still finishing.
+- Complete catalog snapshots collect into generation-keyed candidate artist,
+  album, and song tables that app providers never watch. Page checkpoints and
+  pending hydration survive cancellation or restart, while the previously
+  committed catalog remains the only visible library. Only a fully validated
+  candidate may be promoted in one database transaction; that transaction
+  applies identity aliases before cleanup, preserves playback/download/cache
+  dependencies, advances `currentGeneration`, and removes unseen rows.
+  Fresh candidates must discard page checkpoints from an abandoned reuse of
+  the same generation, and checkpoint counts must match collected candidate
+  rows before promotion. A snapshot with reported albums but no collected
+  albums is invalid and must preserve the committed catalog.
+  Large candidate promotion reads must chunk ID lookups below SQLite's bound
+  variable limit. An `applying` candidate is resumable after a rolled-back
+  apply failure so completed hydration is not downloaded again.
+- Before promotion, schema-v57 candidate rows are classified in resumable
+  keyset pages as changed or unchanged. The final transaction upserts only
+  changed rows once, streams deletion anti-joins, and emits one catalog change;
+  never restore whole-catalog materialization or the duplicate song upsert.
+  Candidate analysis yields between pages and reduces its page size during
+  playback or slow database responses. Cache-file unlinking happens after the
+  database commit so filesystem latency cannot extend the visibility switch.
+- Native database access uses WAL with one Drift read-pool connection so app
+  queries do not queue behind candidate-catalog writes. Keep one
+  `NavisDatabase` in Riverpod; its pooled reader and writer remain internal to
+  that instance.
+- `catalogGeneration` on canonical rows is the last generation that changed
+  that row. `library_sync_state.currentGeneration` is the authoritative
+  committed-catalog generation; unchanged rows are not rewritten to advance
+  their marker.
+- Local star and rating mutations are journaled while a candidate is being
+  collected. Promotion and starred reconciliation preserve those newer local
+  values, including across candidate restarts and the final apply transaction,
+  and pending star queue actions always win over an older server snapshot.
+- Interactive artist, album, and playlist hydration is deduplicated and
+  high-priority. Album hydration normally uses one request and one transaction;
+  song-bearing targets still run conservative identity reconciliation so
+  cached remote songs auto-merge without invalidating playback or cache
+  ownership.
+- Liked content and playlist headers are explicit auxiliary targets. Server
+  liked-state reconciliation must exclude pending local star/unstar actions.
+  Playlist header upserts must be non-destructive: preserve unchanged cached
+  memberships, prune only IDs absent from the authoritative header list, and
+  enqueue new or changed playlist contents as durable targeted hydration.
 - Automatic library sync is **low-data by default** after initial sync.
 - A failed automatic sync remains failed until the next configured sync
   interval, a reconnect, or an explicit manual retry. Do not add short forced
@@ -285,7 +382,7 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   fail the pass. Persist only safe diagnostics (stage, endpoint, entity ID,
   exception type, attempts), never exception messages or credentials.
 - Do not reintroduce periodic/daily full rebaseline scans from `syncIfStale()`.
-  Full library repair belongs behind explicit Force Full Sync or a dedicated
+  Full library repair belongs behind explicit Repair Library or a dedicated
   sync-model migration gate.
 - Incremental sync uses the server-provided `getIndexes.lastModified` cursor.
   Local completion time is only for scheduling/UI; do not advance the server
@@ -302,12 +399,16 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 - Run the bounded newest-album health probe every 12 hours. Servers with
   unsupported or unreliable indexes use bounded artist/newest-album
   verification on normal non-cellular syncs and retry `getIndexes` daily.
-- Starred content, genres, and playlists are auxiliary metadata. Do not fetch
-  them on every hourly no-op metadata probe; refresh them on manual sync, real
-  metadata changes, or the longer auxiliary sync window.
+- Starred content and playlist headers use the 12-hour auxiliary window.
+  Genres refresh after catalog changes/repair or every seven days; playlist
+  contents hydrate on interaction. Do not fetch auxiliary domains on every
+  hourly no-op catalog probe.
 - App version/build changes do not imply a full resync. Use
   `requiredLibrarySyncModelVersionProvider` only when a storage/sync contract
-  change truly requires a one-time repair.
+  change truly requires a one-time repair. Sync model `56` is the current
+  one-time gate for the schema-v56 candidate-catalog contract; a promoted
+  catalog records the gate even when unavailable albums remain queued for
+  targeted hydration.
 - Search, recommendation, instant-mix, and queue metadata is provisional until
   authoritative sync confirms it. Keep provisional parents out of normal
   browsing and reconcile song IDs only by same ID, one unique recording MBID,
@@ -317,6 +418,35 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   provisional row. Preserve an active losing cache file, resolve late cache
   completions through persisted aliases, and replay aliases during audio
   bootstrap so synchronization cannot invalidate the active remote source.
+- A detail 404 is only a deletion candidate. A complete catalog snapshot or
+  parent response must confirm it. Deletion sets over 10% of an entity type or
+  500 songs require the same remote fingerprint twice before removal.
+- Transport may perform at most one immediate retry (including `Retry-After`).
+  Later attempts belong to durable work with a 15-minute exponential cooldown,
+  a six-hour cap, and an endpoint circuit after three consecutive failures.
+- Cellular automation is limited to a hard conditional `getIndexes` probe
+  (one request, retries disabled) plus urgent interactive targeted hydration.
+  Catalog enumeration, audits, repairs, starred/genres/playlist-header sync,
+  and pending broad hydration remain queued for an unmetered network unless the
+  user grants an ephemeral one-time mobile-data override. Metered Wi-Fi follows
+  the same policy when native metering reports the link as metered.
+- Durable work carries a `work_class` of `interactive` or `background`. User-
+  opened artist/album/playlist targets upgrade to interactive; engine catalog
+  page checkpoints and pending-album drains stay background. Live
+  `SyncNetworkPolicy` is re-checked at execution boundaries; an unmetered-to-
+  metered transition checkpoints and returns `deferred` without failing the
+  work.
+- Interactive metered hydration is capped at 16 MiB per response and 32 MiB
+  per interaction. Budget exhaustion defers the durable work and does not count
+  as an endpoint failure.
+- Default setting **Background sync only on unmetered networks** is enabled.
+  Sync Settings surfaces updates-available messaging and a one-time
+  **Sync using mobile data** action.
+- Home discovery polls the startup sync gate and refreshes through the
+  completion bridge; it does not subscribe its stream to sync progress. Do not
+  add redundant direct sync watches around the derived ListenBrainz discovery
+  stream; a large repair can otherwise invalidate the root provider scope
+  during `HomeScreen.build`.
 
 ### Listen Together
 
@@ -370,11 +500,11 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 54 |
-| **Tables** | 24 |
-| **DAOs** | 14 |
+| **Schema version** | 58 |
+| **Tables** | 30 |
+| **DAOs** | 16 |
 
-DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `SongIdentityDao`, `PlaylistDao`, `CacheDao`, `DownloadQueueDao`, `HistoryDao`, `PlayQueueDao`, `MatchFlowDao`, `ScrobbleDao`, `StarSyncDao`, `ListenBrainzFeedbackDao`, `NetworkUsageDao`.
+DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyncCandidateDao`, `SongIdentityDao`, `PlaylistDao`, `CacheDao`, `DownloadQueueDao`, `HistoryDao`, `PlayQueueDao`, `MatchFlowDao`, `ScrobbleDao`, `StarSyncDao`, `ListenBrainzFeedbackDao`, `NetworkUsageDao`.
 
 - Stepwise migrations in `navis_database.dart`.
 - **Always** update `test/src/database/migrations/navis_migration_test.dart` when changing schema.

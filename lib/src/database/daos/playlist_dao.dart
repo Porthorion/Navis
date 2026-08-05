@@ -17,6 +17,23 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
     return query.watch();
   }
 
+  Future<List<PlaylistsTableData>> getAllPlaylists() {
+    return select(playlistsTable).get();
+  }
+
+  Future<Map<String, int>> getPlaylistSongCounts() async {
+    final count = playlistSongsTable.songId.count();
+    final rows =
+        await (selectOnly(playlistSongsTable)
+              ..addColumns([playlistSongsTable.playlistId, count])
+              ..groupBy([playlistSongsTable.playlistId]))
+            .get();
+    return <String, int>{
+      for (final row in rows)
+        row.read(playlistSongsTable.playlistId)!: row.read(count) ?? 0,
+    };
+  }
+
   Stream<List<SongsTableData>> watchPlaylistSongs(String playlistId) {
     final query =
         select(songsTable).join([
@@ -41,9 +58,32 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
         batch.insert(
           playlistsTable,
           playlist,
-          mode: InsertMode.insertOrReplace,
+          onConflict: DoUpdate(
+            (old) => playlist,
+            target: [playlistsTable.id],
+          ),
         );
       }
+    });
+  }
+
+  Future<void> reconcileServerPlaylists(
+    List<PlaylistsTableCompanion> playlists,
+    List<String> serverIds,
+  ) async {
+    await transaction(() async {
+      await upsertPlaylists(playlists);
+      if (serverIds.isEmpty) {
+        await delete(playlistSongsTable).go();
+        await delete(playlistsTable).go();
+        return;
+      }
+      await (delete(
+        playlistSongsTable,
+      )..where((table) => table.playlistId.isNotIn(serverIds))).go();
+      await (delete(
+        playlistsTable,
+      )..where((table) => table.id.isNotIn(serverIds))).go();
     });
   }
 
@@ -59,6 +99,43 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
         await batch((batch) {
           batch.insertAll(playlistSongsTable, songs);
         });
+      }
+    });
+  }
+
+  Future<void> replaceHydratedPlaylist(
+    PlaylistsTableCompanion playlist,
+    List<SongsTableCompanion> songs,
+    List<PlaylistSongsTableCompanion> joins,
+  ) async {
+    await transaction(() async {
+      await into(playlistsTable).insert(
+        playlist,
+        onConflict: DoUpdate((old) => playlist, target: [playlistsTable.id]),
+      );
+      if (songs.isNotEmpty) {
+        await batch((batch) {
+          for (final song in songs) {
+            final canonical = song.copyWith(
+              serverDeletedAt: const Value(null),
+              isProvisional: const Value(false),
+            );
+            batch.insert(
+              songsTable,
+              canonical,
+              onConflict: DoUpdate(
+                (old) => canonical,
+                target: [songsTable.id],
+              ),
+            );
+          }
+        });
+      }
+      await (delete(
+        playlistSongsTable,
+      )..where((table) => table.playlistId.equals(playlist.id.value))).go();
+      if (joins.isNotEmpty) {
+        await batch((batch) => batch.insertAll(playlistSongsTable, joins));
       }
     });
   }

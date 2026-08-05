@@ -176,6 +176,10 @@ Use this quick matrix to classify failures:
 2. Source fallback failure:
 - Symptoms: queue restore/play action fails around lock-cached source setup.
 - Expected: resolver should fall back from lock-cached stream to direct stream.
+- Desktop support: Linux, Windows, and macOS all support the lock-cached path.
+  A completed stream should appear in Cache & Storage and replay locally. The
+  direct HTTPS fallback is expected only when lock-cache setup or runtime
+  playback fails; it does not register a rolling-cache file.
 - Checks:
   - inspect logs for source kind transitions (`lockCachedStream -> directStream`)
   - verify authenticated session is present and stream URL resolves.

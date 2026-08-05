@@ -22,6 +22,8 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -1547,10 +1549,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     await HapticFeedback.lightImpact();
     setState(() => _isRefreshingAlbum = true);
     try {
-      final refreshAlbum = ref.read(
-        refreshAlbumFromServerProvider(widget.albumId),
-      );
-      await refreshAlbum();
+      final result = await ref
+          .read(librarySyncControllerProvider.notifier)
+          .requestTarget(LibrarySyncTarget.album(widget.albumId));
+      if (result.status == LibrarySyncStatus.failed) {
+        throw StateError(result.errorMessage ?? 'Album refresh failed.');
+      }
+      ref.invalidate(albumInfoProvider(widget.albumId));
     } on Object catch (error) {
       if (!mounted) {
         return;

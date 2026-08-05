@@ -51,7 +51,59 @@
   "syncSettingsNeverSynced": "Never synced",
   "syncSettingsStatusIdle": "Idle",
   "syncSettingsStatusSucceeded": "Last sync succeeded",
+  "syncSettingsStatusPartial": "Sync paused with work remaining",
+  "syncSettingsStatusDeferred": "Sync deferred",
+  "syncSettingsStatusCancelled": "Sync cancelled; work saved",
   "syncSettingsStatusFailed": "Last sync failed",
+  "syncSettingsLastCheckedLabel": "Last checked",
+  "syncSettingsLastCatalogUpdateLabel": "Last catalog update",
+  "syncSettingsLastAuxiliaryUpdateLabel": "Starred and playlist headers",
+  "syncSettingsLastGenresUpdateLabel": "Genres",
+  "syncSettingsDegradation": "Degraded domain: {category}",
+  "@syncSettingsDegradation": {
+    "placeholders": {
+      "category": {}
+    }
+  },
+  "syncSettingsStrategy": "Strategy: {strategy} — {reason}",
+  "@syncSettingsStrategy": {
+    "placeholders": {
+      "strategy": {},
+      "reason": {}
+    }
+  },
+  "syncSettingsPendingWork": "{count} resumable task(s) pending",
+  "@syncSettingsPendingWork": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "syncSettingsCandidate": "Candidate generation {generation}: {status}",
+  "@syncSettingsCandidate": {
+    "placeholders": {
+      "generation": {},
+      "status": {}
+    }
+  },
+  "syncSettingsCarriedForward": "{count} unavailable album(s) kept from the previous catalog",
+  "@syncSettingsCarriedForward": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "syncSettingsApplyDuration": "Catalog applied in {milliseconds} ms",
+  "@syncSettingsApplyDuration": {
+    "placeholders": {
+      "milliseconds": {}
+    }
+  },
+  "syncSettingsUsage": "Last run: {requests} request(s) • {bytes}",
+  "@syncSettingsUsage": {
+    "placeholders": {
+      "requests": {},
+      "bytes": {}
+    }
+  },
   "syncSettingsCheckForUpdates": "Check for updates",
   "syncSettingsFreshnessCurrent": "Current",
   "syncSettingsFreshnessPending": "Verification pending",
@@ -84,6 +136,14 @@
     }
   },
   "syncSettingsIntervalDescription": "How often the library syncs automatically in the background.",
+  "syncSettingsBackgroundUnmeteredOnlyLabel": "Background sync only on unmetered networks",
+  "syncSettingsBackgroundUnmeteredOnlyDescription": "On mobile or metered Wi-Fi, Navis checks for updates with a single lightweight request and waits for unmetered data before downloading catalog changes.",
+  "syncSettingsUpdatesAvailable": "Library updates are available and waiting for an unmetered connection.",
+  "syncSettingsUpdatesAvailableMetered": "Library updates are available. Use mobile data now or wait for unmetered Wi-Fi.",
+  "syncSettingsSyncUsingMobileData": "Sync using mobile data",
+  "syncSettingsRepairMeteredConfirmTitle": "Repair Library on mobile data?",
+  "syncSettingsRepairMeteredConfirmBody": "Repair Library can download a large amount of metadata over your current connection.",
+  "syncSettingsRepairMeteredConfirmAction": "Repair on mobile data",
   "playbackSettingsLoadError": "Could not load playback settings: {message}",
   "@playbackSettingsLoadError": {
     "placeholders": {
@@ -253,10 +313,10 @@
   "serverSettingsSave": "Save",
   "serverSettingsSaving": "Saving...",
   "serverSettingsSaveSuccess": "Server settings saved.",
-  "serverSettingsForceFullSync": "Force Full Sync",
-  "serverSettingsForceFullSyncRunning": "Sync in progress...",
-  "serverSettingsForceFullSyncSuccess": "Full library sync completed.",
-  "serverSettingsForceFullSyncFailure": "Full sync failed: {message}",
+  "serverSettingsForceFullSync": "Repair Library",
+  "serverSettingsForceFullSyncRunning": "Repair in progress...",
+  "serverSettingsForceFullSyncSuccess": "Library repair completed.",
+  "serverSettingsForceFullSyncFailure": "Library repair failed: {message}",
   "@serverSettingsForceFullSyncFailure": {
     "placeholders": {
       "message": {}
@@ -763,6 +823,13 @@
   "@cacheSettingsRollingTrackCount": {
     "placeholders": {
       "count": { "type": "int" }
+    }
+  },
+  "cacheSettingsRollingCaching": "Caching current track…",
+  "cacheSettingsRollingCachingProgress": "Caching current track… {percent}%",
+  "@cacheSettingsRollingCachingProgress": {
+    "placeholders": {
+      "percent": { "type": "int" }
     }
   },
   "cacheSettingsClearRolling": "Clear streaming cache",

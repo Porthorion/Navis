@@ -17,6 +17,44 @@ class ManualTrackChangeCue {
   final String? fromSongId;
 }
 
+/// Lightweight buffering state for the active song timeline.
+///
+/// The song id prevents a late buffered-position event from being rendered on
+/// a newly selected track.
+@immutable
+class PlaybackBufferState {
+  const PlaybackBufferState({
+    required this.songId,
+    required this.bufferedPosition,
+  });
+
+  const PlaybackBufferState.idle()
+    : songId = null,
+      bufferedPosition = Duration.zero;
+
+  final String? songId;
+  final Duration bufferedPosition;
+}
+
+Duration resolveEffectivePlaybackDuration({
+  required bool isRadioMode,
+  required Duration? mediaDuration,
+  required Duration? playerDuration,
+}) {
+  final validMediaDuration =
+      mediaDuration != null && mediaDuration > Duration.zero
+      ? mediaDuration
+      : null;
+  final validPlayerDuration =
+      playerDuration != null && playerDuration > Duration.zero
+      ? playerDuration
+      : null;
+  if (isRadioMode) {
+    return validPlayerDuration ?? validMediaDuration ?? Duration.zero;
+  }
+  return validMediaDuration ?? validPlayerDuration ?? Duration.zero;
+}
+
 /// Metadata for the currently playing radio station.
 @immutable
 class RadioStationMetadata {

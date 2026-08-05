@@ -33,6 +33,7 @@ class LinuxMprisBridge {
   _NavisMprisObject? _mprisObject;
   StreamSubscription<PlaybackSnapshot>? _snapshotSubscription;
   StreamSubscription<MediaItem?>? _mediaItemSubscription;
+  StreamSubscription<Duration>? _positionSubscription;
 
   bool _isDisposed = false;
 
@@ -86,6 +87,10 @@ class LinuxMprisBridge {
         );
       },
     );
+
+    _positionSubscription = _handler.positionStream.listen((position) {
+      _mprisObject?.updatePosition(position);
+    });
 
     unawaited(_syncSnapshot(_handler.snapshot));
     unawaited(_syncMediaItem(_handler.currentMediaItem));
@@ -218,6 +223,7 @@ class LinuxMprisBridge {
     _isDisposed = true;
     await _snapshotSubscription?.cancel();
     await _mediaItemSubscription?.cancel();
+    await _positionSubscription?.cancel();
     final client = _dbusClient;
     _dbusClient = null;
     _mprisObject = null;
@@ -463,6 +469,10 @@ class _NavisMprisObject extends DBusObject {
         changedProperties: {'Rate': DBusDouble(rate)},
       ),
     );
+  }
+
+  void updatePosition(Duration position) {
+    _position = position;
   }
 
   Future<void> emitSeeked(Duration position) => emitSignal(

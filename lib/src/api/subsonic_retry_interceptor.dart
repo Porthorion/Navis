@@ -8,7 +8,7 @@ import 'package:navis/src/utils/app_logger.dart';
 class SubsonicRetryInterceptor extends Interceptor {
   SubsonicRetryInterceptor({
     required this.dio,
-    this.maxRetries = 3,
+    this.maxRetries = 1,
     Duration Function(int attempt)? backoff,
   }) : _backoff = backoff ?? _defaultBackoff;
 
@@ -45,7 +45,7 @@ class SubsonicRetryInterceptor extends Interceptor {
         extra: updatedExtra,
       );
 
-      await Future<void>.delayed(_backoff(attempt));
+      await Future<void>.delayed(_retryDelay(currentError, attempt));
 
       try {
         final response = await dio.fetch<dynamic>(retryOptions);
@@ -59,7 +59,30 @@ class SubsonicRetryInterceptor extends Interceptor {
     handler.next(currentError);
   }
 
+  Duration _retryDelay(DioException error, int attempt) {
+    final retryAfter = error.response?.headers.value('retry-after')?.trim();
+    if (retryAfter != null) {
+      final seconds = int.tryParse(retryAfter);
+      if (seconds != null && seconds >= 0) {
+        return Duration(seconds: seconds);
+      }
+      try {
+        final date = HttpDate.parse(retryAfter);
+        final remaining = date.difference(DateTime.now().toUtc());
+        if (!remaining.isNegative) {
+          return remaining;
+        }
+      } on FormatException {
+        // Ignore malformed server guidance and use the bounded backoff.
+      }
+    }
+    return _backoff(attempt);
+  }
+
   bool _shouldRetry(DioException err) {
+    if (err.requestOptions.extra['navisDisableRetry'] == true) {
+      return false;
+    }
     if (err.type == DioExceptionType.cancel) {
       return false;
     }
@@ -70,9 +93,13 @@ class SubsonicRetryInterceptor extends Interceptor {
     }
 
     final status = err.response?.statusCode;
-    // Only retry genuine server-side transient errors (502, 503, 504, 530).
+    // Only retry rate limits and genuine server-side transient errors.
     // 501 "Not Implemented" is permanent — retrying is pointless.
     return status != null &&
-        (status == 502 || status == 503 || status == 504 || status == 530);
+        (status == 429 ||
+            status == 502 ||
+            status == 503 ||
+            status == 504 ||
+            status == 530);
   }
 }

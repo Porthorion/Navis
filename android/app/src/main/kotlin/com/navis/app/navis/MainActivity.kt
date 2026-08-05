@@ -1,9 +1,11 @@
 package com.navis.app.navis
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -24,6 +26,7 @@ class MainActivity : AudioServiceActivity() {
     private val distributionChannelName = "com.navis.app/distribution"
     private val powerChannelName = "com.navis.app/power"
     private val deviceChannelName = "com.navis.app/device"
+    private val networkCostChannelName = "com.navis.app/network_cost"
     @Volatile
     private var pendingCloseAfterInstallerHandoff = false
 
@@ -97,6 +100,24 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            networkCostChannelName
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isActiveNetworkMetered" -> {
+                    result.success(isActiveNetworkMetered())
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun isActiveNetworkMetered(): Boolean {
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        return connectivityManager.isActiveNetworkMetered
     }
 
     private fun resolveInstallSource(): Map<String, String?> {
