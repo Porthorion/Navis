@@ -5,6 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `AGENTS.md` is the canonical and most up-to-date agent guide. Prefer it when
 this file conflicts with code or newer docs.
 
+Before declaring any runtime-affecting task complete, follow the mandatory
+runtime validation loop in `AGENTS.md` and its detailed procedure in
+`docs/development-workflow.md`. Static checks and `flutter test` alone are not
+sufficient completion evidence.
+
 ## What This Is
 
 Navis is a multi-platform Subsonic/OpenSubsonic music client (Android, iOS, macOS, Linux, Windows) built with Flutter. Key features: gapless audio playback, offline cache + permanent downloads, adaptive UI (phone/tablet/desktop), synced lyrics, scrobbling, and smart queue generation.

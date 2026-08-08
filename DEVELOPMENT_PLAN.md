@@ -301,12 +301,18 @@ This section is the operational contract for day-to-day implementation, especial
 ### Mandatory Task Loop
 
 1. Implement code + tests together (or in the same session before task close-out).
-2. Run local quality gate:
+2. Complete the mandatory runtime validation loop in `AGENTS.md`, using the
+   cross-platform procedure and app API safety contract in
+   `docs/development-workflow.md`. Static tests alone do not complete a
+   runtime-affecting task.
+3. Run local quality gate:
    - Preferred: `./tool/check.sh`
    - Fallback: `dart format --set-exit-if-changed . && dart run build_runner build --delete-conflicting-outputs && flutter analyze --no-fatal-infos && flutter test`
-3. Fix all failing checks before moving to another task.
-4. Update `PROGRESS.md` immediately with completion date and evidence note.
-5. Commit one logical change using Conventional Commits.
+4. Fix all runtime or static-check failures and repeat validation before moving
+   to another task.
+5. Update `PROGRESS.md` immediately with completion date and runtime evidence
+   note when applicable.
+6. Commit one logical change using Conventional Commits.
 
 ### Blocker Protocol
 
@@ -323,6 +329,8 @@ A task is complete only when all are true:
 
 - Implementation is in place and wired into the app flow.
 - Relevant tests were added or updated.
+- The mandatory runtime validation loop passed from a clean restart for any
+  runtime-affecting change.
 - Quality gate commands pass locally.
 - `PROGRESS.md` is updated with date/evidence.
 - Any affected file in `docs/` is updated for non-trivial behavior changes.

@@ -160,6 +160,44 @@ playback sync, or queue coordination paths.
 - Mock dependencies using `ProviderContainer` overrides
 - Test provider state transitions and error handling
 
+## Agent Runtime Control Plane
+
+The agent runtime API is a non-production control and observation plane for a
+real Navis process. It complements automated tests; it does not replace the UI
+or introduce a second implementation of feature behavior.
+
+The current implementation starts from `SyncDiagnosticsServer` on Linux:
+
+1. `main.dart` accepts diagnostics only in a Linux profile build with a valid
+   mode and handshake path.
+2. Clone mode opens an isolated database and cache tree. Primary certification
+   uses the normal profile only with the launcher's backup and mutation
+   restrictions.
+3. After `runApp`, the server binds to IPv4 loopback on an ephemeral port,
+   creates a random bearer token, and writes its port, token, process ID, and
+   mode to a mode-`0600` handshake file.
+4. Authenticated feature actions run through the root `ProviderContainer` and
+   the same controllers, repositories, DAOs, and audio handler as production
+   interactions. Status and report endpoints expose bounded, non-secret
+   observations for assertions.
+5. `POST /v1/shutdown` closes the server, removes the handshake, disposes the
+   provider container and diagnostics database, and exits the process.
+
+New control-plane capabilities should remain feature-scoped, expose separate
+action and status/query contracts, return structured errors, and support
+deterministic completion or bounded polling. They must have server contract
+tests. Direct provider or database mutation is reserved for clearly named
+isolated fixture setup and fault injection; normal actions must traverse the
+production path.
+
+The security boundary is invariant across future platform adapters: the API is
+unavailable in release builds, loopback-only, bearer-authenticated, short-lived,
+and must not expose credentials, tokens, private server URLs, stream URLs, or
+raw cloned records. Native service APIs remain authoritative for platform
+integration, including MPRIS on Linux, SMTC on Windows, and Android
+media-session/MediaBrowser behavior. See `docs/development-workflow.md` for the
+mandatory validation loop and target-selection rules.
+
 ## UI Component Organization
 
 ### Common Widgets (`lib/src/common_widgets/`)
@@ -593,6 +631,10 @@ OpenSubsonic documents the conditional full-index semantics of
 8. Playback prefers permanent → rolling → stream
 
 ## Testing Strategy
+
+Automated tests are only the first layer for runtime-affecting work. Completion
+also requires launching Navis and repeating the app-API validation loop in
+`docs/development-workflow.md` from a clean isolated state.
 
 ### Unit Tests
 - Provider logic

@@ -3,6 +3,10 @@
 `AGENTS.md` at the repository root is the canonical guide for AI coding agents.
 Use it first; this file is a short compatibility summary.
 
+Runtime-affecting work must follow the mandatory runtime validation loop in
+`AGENTS.md` and the detailed procedure in `docs/development-workflow.md`.
+Static checks and `flutter test` alone are not sufficient completion evidence.
+
 ## Commands
 
 Use the repo scripts as the source of truth:

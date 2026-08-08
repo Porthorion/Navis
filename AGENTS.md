@@ -51,13 +51,60 @@ Navis is a multi-platform **Subsonic/OpenSubsonic** music client built with Flut
 1. Read this file (`AGENTS.md`). Skim `PROGRESS.md` if doing planned roadmap work.
 2. Pick **one small, testable scope** — no drive-by refactors.
 3. Identify touched files *before* editing.
-4. Implement the smallest vertical slice with tests.
-5. Run `./tool/check.sh` before considering work done.
-6. Update docs per the checklist above.
+4. Define runtime acceptance and regression scenarios before editing. Reproduce
+   an existing bug through the running app when applicable.
+5. Implement the smallest vertical slice with focused automated tests.
+6. Complete the mandatory runtime validation loop below for any change that
+   can affect app behavior.
+7. Run `./tool/check.sh` before considering work done.
+8. Update docs per the checklist above.
+
+### Mandatory runtime validation loop
+
+Static analysis and automated tests are necessary but are not sufficient for a
+runtime-affecting change. Repeat this loop until the implementation is complete:
+
+1. Launch Navis on the current system with an isolated test profile. Linux is
+   the default target for platform-neutral work.
+2. Confirm startup through the authenticated app API health endpoint.
+3. Drive the acceptance scenario through an app-owned API and assert the
+   response, observable state, persisted effects, logs, and absence of new
+   errors. An **app API** is a control or observation surface executed by the
+   running Navis process. Direct database edits, process-exists checks, or calls
+   that bypass production providers/controllers do not qualify.
+4. Inspect the rendered result when UI automation is available. If the host
+   cannot reliably drive the UI, visual work must expose enough app-owned
+   semantics, screenshot output, or presentation state to verify the result.
+5. Fix every implementation, regression, or observability gap. Add the smallest
+   missing test API when the current API cannot control or observe the scenario,
+   then restart from an isolated state and repeat.
+6. After focused iterations pass, run `./tool/check.sh`, relaunch cleanly, and
+   repeat the final acceptance and relevant regression scenarios.
+
+Target selection:
+
+- Platform-neutral behavior requires Linux runtime validation.
+- Platform-specific behavior requires a Linux startup smoke test plus runtime
+  validation through the affected platform or its authoritative service API.
+- If the required platform is unavailable, report the work as unverified or
+  blocked. Do not claim completion unless the user explicitly accepts deferred
+  platform validation.
+
+Documentation-only changes and metadata changes proven not to affect runtime
+behavior are exempt from launching the app. See `docs/development-workflow.md`
+for the detailed cross-platform procedure and API safety contract.
 
 **Blocker protocol:** if blocked for more than ~30 minutes, record in `PROGRESS.md`: what is blocked, what was tried, exact error, proposed next action. Do not silently skip tasks.
 
-**Task done criteria:** implementation wired in, relevant tests added/updated, `./tool/check.sh` passes, docs updated, `PROGRESS.md` updated if applicable.
+**Task done criteria:** implementation wired into the production app path;
+relevant tests added or updated; the runtime loop completed with a clean
+restart when the change can affect runtime; `./tool/check.sh` passes; docs
+updated; and `PROGRESS.md` updated when applicable. For runtime-affecting work,
+final handoff or progress evidence must name the runtime target and isolated
+profile mode, scenarios exercised, app or native service APIs used, observed
+results and log review, visual/semantics evidence when relevant, retest
+iterations, final quality-gate result, and clean-restart result. Never record
+credentials, bearer tokens, private server URLs, or cloned user data.
 
 ---
 

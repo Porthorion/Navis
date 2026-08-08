@@ -47,6 +47,115 @@ Checks performed:
 
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
 
+## Mandatory Runtime Validation
+
+`./tool/check.sh` does not by itself prove that a runtime-affecting change is
+complete. Agents must also run the built app, exercise the changed behavior
+through an app-owned control surface, inspect the result, fix any gap, and
+repeat from a clean restart. Documentation-only changes and metadata changes
+proven not to affect runtime behavior are exempt.
+
+### Validation loop
+
+1. Write the acceptance scenario and the closest regression scenario before
+   editing. For a bug fix, reproduce the failure through the running app when
+   possible.
+2. Add or update focused unit, widget, integration, or API-contract tests.
+3. Launch Navis with an isolated profile. Use Linux for platform-neutral work.
+4. Call `GET /v1/health` and require a successful authenticated response before
+   testing feature behavior.
+5. Drive the scenario through the running app's API. Check the response,
+   observable provider/domain state, persisted side effects, relevant logs, and
+   the absence of new errors. Use status endpoints or bounded polling instead
+   of fixed sleeps for asynchronous work.
+6. Verify rendered behavior when UI automation is reliable. If the desktop
+   environment cannot drive the window, add or use app-owned semantics,
+   screenshot capture, or presentation-state observations for visual changes.
+7. Stop the app, fix implementation or observability gaps, reset the isolated
+   state as needed, and repeat from step 2. A missing control or observation
+   endpoint is an implementation gap, not a reason to skip runtime validation.
+8. When the focused loop passes, run `./tool/check.sh`, launch a clean app
+   instance, and repeat the final acceptance and regression scenarios.
+
+An **app API** is a control or observation interface executed by the running
+Navis process and routed through the same production providers, controllers,
+repositories, DAOs, and audio handlers as the UI. Unit-test method calls,
+direct database edits, checking only that a process exists, and test-only state
+changes that bypass the production path do not satisfy this requirement.
+
+### Runtime target selection
+
+Use the same loop on every host, but select the authoritative adapter for the
+behavior under test:
+
+| Change | Required runtime evidence |
+|--------|---------------------------|
+| Platform-neutral app behavior | Linux app launch plus the app API |
+| Linux desktop or media integration | Linux app API plus MPRIS or the relevant Linux system API |
+| Android or Android Auto | Linux startup smoke plus the Android media-session/MediaBrowser API on a device, emulator, or DHU as appropriate |
+| Windows media integration | Linux startup smoke plus the Windows app and SMTC |
+| macOS or iOS integration | Linux startup smoke plus the affected Apple target and its supported platform interface |
+
+Direct mouse or keyboard automation may supplement API validation, but is not
+the foundation of the contract because desktop environments such as KDE may
+not expose reliable external UI control. If the affected target is unavailable,
+mark the work unverified or blocked; only the user may explicitly accept
+deferred platform validation.
+
+### Linux app API
+
+The existing Linux profile diagnostics path is the starting control plane:
+
+- `SyncDiagnosticsServer` is enabled only for a Linux profile build with valid
+  diagnostics defines.
+- `tool/sync_diagnostics.sh clone` demonstrates the supported isolated launch,
+  handshake, authenticated requests, restart, reporting, and shutdown flow.
+- Current observation endpoints include `GET /v1/health`,
+  `GET /v1/sync/status`, `GET /v1/playback/status`, and
+  `GET /v1/diagnostics/report`. Actions use feature-scoped `POST` endpoints;
+  `POST /v1/shutdown` provides clean termination.
+
+The sync diagnostics script runs its own catalog test sequence. For unrelated
+features, add the smallest focused launcher or scenario script that reuses the
+same lifecycle rather than pretending the sync sequence tested that feature.
+Do not document or call an endpoint until its implementation and contract test
+exist.
+
+### App API extension and safety contract
+
+Every diagnostic or agent-control surface must:
+
+- Be unavailable in production release builds, bind only to loopback on an
+  ephemeral port, and require a random bearer token communicated through a
+  mode-`0600` handshake file.
+- Use an isolated clone of the configured database and cache by default. Use
+  primary certification only when explicitly justified, after the clone
+  scenario passes, with its backup and mutation restrictions intact.
+- Expose feature-scoped actions and state/status queries, deterministic
+  completion or bounded polling, structured error responses, and clean
+  shutdown.
+- Invoke the production app path. Direct state or database mutation is allowed
+  only for isolated fixture setup or an explicitly named fault-injection
+  operation.
+- Avoid returning or logging credentials, bearer tokens, private server URLs,
+  raw cloned records, or other sensitive values.
+- Add focused server/contract tests and update this document plus
+  `docs/architecture.md` when the interface or lifecycle changes.
+
+### Completion evidence
+
+For runtime-affecting work, the final handoff and any applicable `PROGRESS.md`
+entry must record, without secrets:
+
+- Runtime target and whether an isolated clone or explicitly approved primary
+  certification profile was used.
+- Acceptance and regression scenarios exercised.
+- App API endpoints and native service APIs used.
+- Results, relevant log review, and visual, semantics, or screenshot evidence
+  when applicable.
+- A short summary of fix-and-retest iterations.
+- Final `./tool/check.sh` result and the clean-restart runtime result.
+
 ## Core Release Gate
 
 Use this focused release-ready gate when the full development test matrix is
