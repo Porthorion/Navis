@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart'
-    show songByIdProvider, subsonicApiProvider;
+    show playerStateProvider, songByIdProvider, subsonicApiProvider;
 
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});
@@ -15,7 +16,7 @@ class QueueScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final queueIds = ref.watch(queueProvider);
-    final currentSongId = ref.watch(currentQueueSongIdProvider);
+    final playback = ref.watch(playerStateProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -75,13 +76,21 @@ class QueueScreen extends ConsumerWidget {
               },
               itemBuilder: (context, index) {
                 final songId = queueIds[index];
-                final isCurrentSong = songId == currentSongId;
+                final indicatorState = resolveQueueSongPlaybackIndicatorState(
+                  rowIndex: index,
+                  rowSongId: songId,
+                  queueSongIds: queueIds,
+                  currentIndex: playback.currentIndex,
+                  currentSongId: playback.currentSongId,
+                  isLoading: playback.isLoading,
+                  loadingSongId: playback.loadingSongId,
+                );
 
                 return _QueueItem(
                   key: ValueKey('$index-$songId'),
                   songId: songId,
                   index: index,
-                  isCurrentSong: isCurrentSong,
+                  indicatorState: indicatorState,
                   onRemove: () async {
                     await ref.read(queueProvider.notifier).removeAt(index);
                   },
@@ -173,14 +182,14 @@ class _QueueItem extends ConsumerWidget {
     required super.key,
     required this.songId,
     required this.index,
-    required this.isCurrentSong,
+    required this.indicatorState,
     required this.onRemove,
     required this.onTap,
   });
 
   final String songId;
   final int index;
-  final bool isCurrentSong;
+  final SongPlaybackIndicatorState indicatorState;
   final VoidCallback onRemove;
   final VoidCallback onTap;
 
@@ -188,6 +197,7 @@ class _QueueItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final songAsync = ref.watch(songByIdProvider(songId));
+    final isSelected = indicatorState.isSelected;
 
     return songAsync.when(
       data: (song) {
@@ -215,33 +225,44 @@ class _QueueItem extends ConsumerWidget {
             onRemove();
             return false;
           },
-          child: ListTile(
-            leading: CoverArtImage(
-              coverArtId: song.coverArt,
-              size: kCoverArtStandardSize,
-              width: 48,
-              height: 48,
-              borderRadius: BorderRadius.circular(4),
-              isExternalSource: song.isExternal,
-            ),
-            title: Text(
-              song.title,
-              style: isCurrentSong
-                  ? TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    )
-                  : null,
-            ),
-            subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
-            trailing: ReorderableDragStartListener(
-              index: index,
-              child: Icon(
-                Icons.drag_handle,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+          child: SongPlaybackSemantics(
+            state: indicatorState,
+            child: ListTile(
+              selected: isSelected,
+              selectedColor: Theme.of(context).colorScheme.primary,
+              selectedTileColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.08),
+              leading: ArtworkPlaybackMarker(
+                state: indicatorState,
+                child: CoverArtImage(
+                  coverArtId: song.coverArt,
+                  size: kCoverArtStandardSize,
+                  width: 48,
+                  height: 48,
+                  borderRadius: BorderRadius.circular(4),
+                  isExternalSource: song.isExternal,
+                ),
               ),
+              title: Text(
+                song.title,
+                style: isSelected
+                    ? TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      )
+                    : null,
+              ),
+              subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
+              trailing: ReorderableDragStartListener(
+                index: index,
+                child: Icon(
+                  Icons.drag_handle,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              onTap: onTap,
             ),
-            onTap: onTap,
           ),
         );
       },

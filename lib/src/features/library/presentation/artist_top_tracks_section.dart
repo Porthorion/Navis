@@ -13,6 +13,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -338,6 +339,10 @@ class _TopTrackTile extends ConsumerWidget {
 
     // Watch DB row for the resolved song (needed for context menu).
     final resolvedId = track.resolvedSong?.id;
+    final playbackState = resolvedId == null
+        ? SongPlaybackIndicatorState.inactive
+        : ref.watch(songPlaybackIndicatorStateProvider(resolvedId));
+    final isSelected = playbackState.isSelected;
     final dbSong = resolvedId != null
         ? ref.watch(songByIdProvider(resolvedId)).asData?.value
         : null;
@@ -352,16 +357,20 @@ class _TopTrackTile extends ConsumerWidget {
           SizedBox(
             width: 28,
             child: Center(
-              child: Text(
-                rankText,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
+              child: isSelected
+                  ? SongPlaybackMarker(state: playbackState)
+                  : Text(
+                      rankText,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.6,
+                        ),
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: const <FontFeature>[
+                          FontFeature.tabularFigures(),
+                        ],
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 8),
@@ -409,6 +418,9 @@ class _TopTrackTile extends ConsumerWidget {
 
     // ── Tile ────────────────────────────────────────────────────────────
     final tile = ListTile(
+      selected: isSelected,
+      selectedColor: colorScheme.primary,
+      selectedTileColor: colorScheme.primary.withValues(alpha: 0.08),
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       enabled: enabled,
       onTap: onTap,
@@ -426,6 +438,7 @@ class _TopTrackTile extends ConsumerWidget {
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
           fontWeight: FontWeight.w500,
+          color: isSelected ? colorScheme.primary : null,
         ),
       ),
       subtitle: subtitle != null
@@ -442,18 +455,23 @@ class _TopTrackTile extends ConsumerWidget {
     );
 
     // Wrap with GestureDetector to support desktop right-click context menu.
-    if (dbSong == null) return tile;
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onSecondaryTapDown: (details) => unawaited(
-        showSongContextMenu(
-          context,
-          ref,
-          dbSong,
-          anchor: details.globalPosition,
-        ),
-      ),
-      child: tile,
+    final interactiveTile = dbSong == null
+        ? tile
+        : GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onSecondaryTapDown: (details) => unawaited(
+              showSongContextMenu(
+                context,
+                ref,
+                dbSong,
+                anchor: details.globalPosition,
+              ),
+            ),
+            child: tile,
+          );
+    return SongPlaybackSemantics(
+      state: playbackState,
+      child: interactiveTile,
     );
   }
 

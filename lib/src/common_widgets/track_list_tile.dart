@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
-class TrackListTile extends StatelessWidget {
+class TrackListTile extends ConsumerWidget {
   const TrackListTile({
     required this.song,
     super.key,
@@ -37,13 +39,17 @@ class TrackListTile extends StatelessWidget {
   final bool showAlbumArt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final playbackState = ref.watch(
+      songPlaybackIndicatorStateProvider(song.id),
+    );
+    final isSelected = playbackState.isSelected;
     final hasArtist = song.artistName != null && song.artistName!.isNotEmpty;
     final hasAlbum = song.albumName != null && song.albumName!.isNotEmpty;
 
-    final leading = showAlbumArt
+    final inactiveLeading = showAlbumArt
         ? SizedBox(
             width: 48,
             height: 48,
@@ -67,6 +73,19 @@ class TrackListTile extends StatelessWidget {
                     ),
                   ),
                 ));
+    final leading = showAlbumArt
+        ? ArtworkPlaybackMarker(
+            state: playbackState,
+            child: inactiveLeading!,
+          )
+        : isSelected
+        ? SizedBox(
+            width: 32,
+            child: Center(
+              child: SongPlaybackMarker(state: playbackState),
+            ),
+          )
+        : inactiveLeading;
 
     // Build a RichText subtitle: "Artist · Album" with differentiated styling.
     Widget? subtitleWidget;
@@ -121,18 +140,22 @@ class TrackListTile extends StatelessWidget {
       );
     }
 
-    return ListTile(
+    final tile = ListTile(
       dense: true,
       contentPadding: contentPadding,
       minLeadingWidth: showAlbumArt ? 48 : 32,
       horizontalTitleGap: horizontalTitleGap ?? 12,
       leading: leading,
+      selected: isSelected,
+      selectedColor: cs.primary,
+      selectedTileColor: cs.primary.withValues(alpha: 0.08),
       title: Text(
         song.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: theme.textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.w600,
+          color: isSelected ? cs.primary : null,
         ),
       ),
       subtitle: subtitleWidget,
@@ -152,5 +175,6 @@ class TrackListTile extends StatelessWidget {
               onLongPress!();
             },
     );
+    return SongPlaybackSemantics(state: playbackState, child: tile);
   }
 }

@@ -91,11 +91,38 @@ Future<_QueueSpyController> _pumpQueueSheet(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
   return queueSpy;
 }
 
 void main() {
+  testWidgets('duplicate song IDs mark only the current queue occurrence', (
+    tester,
+  ) async {
+    await _pumpQueueSheet(
+      tester,
+      snapshot: const PlaybackSnapshot(
+        queueSongIds: <String>['song-1', 'song-1', 'song-2'],
+        currentSongId: 'song-1',
+        currentIndex: 1,
+        playing: false,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration(minutes: 3),
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+      ),
+    );
+
+    final selectedTiles = tester
+        .widgetList<ListTile>(find.byType(ListTile))
+        .where((tile) => tile.selected);
+    expect(selectedTiles, hasLength(1));
+    expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
+  });
+
   testWidgets('pending logical queue disables item actions while visible', (
     tester,
   ) async {
@@ -111,7 +138,7 @@ void main() {
 
     await tester.tap(find.text('Track song-2'));
     await tester.tap(find.byIcon(Icons.delete_outline).first);
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(queueSpy.playCalls, 0);
     expect(queueSpy.removeCalls, 0);

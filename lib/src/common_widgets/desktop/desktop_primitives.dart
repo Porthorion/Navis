@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/desktop_tokens.dart';
 
@@ -101,7 +103,7 @@ class DesktopSectionHeader extends StatelessWidget {
   }
 }
 
-class DesktopListRow extends StatelessWidget {
+class DesktopListRow extends ConsumerWidget {
   const DesktopListRow({
     required this.title,
     super.key,
@@ -110,6 +112,7 @@ class DesktopListRow extends StatelessWidget {
     this.trailing,
     this.onTap,
     this.onSecondaryTapDown,
+    this.playbackSongId,
   });
 
   final Widget? leading;
@@ -118,13 +121,23 @@ class DesktopListRow extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
   final GestureTapDownCallback? onSecondaryTapDown;
+  final String? playbackSongId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
     final tokens = desktopTokensOf(context);
-    return Material(
-      color: Colors.transparent,
+    final playbackState = playbackSongId == null
+        ? SongPlaybackIndicatorState.inactive
+        : ref.watch(songPlaybackIndicatorStateProvider(playbackSongId!));
+    final isSelected = playbackState.isSelected;
+    final decoratedLeading = leading == null
+        ? (isSelected ? SongPlaybackMarker(state: playbackState) : null)
+        : ArtworkPlaybackMarker(state: playbackState, child: leading!);
+    final row = Material(
+      color: isSelected
+          ? colors.primary.withValues(alpha: 0.08)
+          : Colors.transparent,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -142,8 +155,8 @@ class DesktopListRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: <Widget>[
-              if (leading != null) ...<Widget>[
-                leading!,
+              if (decoratedLeading != null) ...<Widget>[
+                decoratedLeading,
                 const SizedBox(width: 12),
               ],
               Expanded(
@@ -154,6 +167,12 @@ class DesktopListRow extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      style: isSelected
+                          ? Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w600,
+                            )
+                          : null,
                     ),
                     if (subtitle != null)
                       Padding(
@@ -180,6 +199,7 @@ class DesktopListRow extends StatelessWidget {
         ),
       ),
     );
+    return SongPlaybackSemantics(state: playbackState, child: row);
   }
 }
 

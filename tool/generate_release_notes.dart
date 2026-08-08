@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.1.1', [
     _Entry(
+      'The current song is now highlighted consistently across library, Home, search, downloads, artist, playlist, and queue views',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Seeking on desktop no longer hangs while a track is still caching; playback stays on a seekable stream while the rolling cache fills in the background',
       type: _EntryType.fix,
     ),

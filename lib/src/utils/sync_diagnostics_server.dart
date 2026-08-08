@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
@@ -127,6 +128,34 @@ class SyncDiagnosticsServer {
             'albums': counts.albums,
             'songs': counts.songs,
           },
+        });
+        return;
+      }
+      if (request.method == 'GET' &&
+          path == '/v1/presentation/song-indicator') {
+        final songId = (request.uri.queryParameters['songId'] ?? '').trim();
+        if (songId.isEmpty) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'songId is required',
+          });
+          return;
+        }
+        final state = _container.read(
+          songPlaybackIndicatorStateProvider(songId),
+        );
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'state': state.name,
+          'selected': state.isSelected,
+          'markerRole': state.markerRole,
+          'semanticRole': switch (state) {
+            SongPlaybackIndicatorState.inactive => 'none',
+            SongPlaybackIndicatorState.current ||
+            SongPlaybackIndicatorState.loading => 'nowPlaying',
+          },
+          'backgroundColorRole': state.isSelected
+              ? 'primaryTint08'
+              : 'transparent',
+          'foregroundColorRole': state.isSelected ? 'primary' : 'default',
         });
         return;
       }

@@ -12,6 +12,7 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
@@ -312,8 +313,15 @@ class _RankedTopTrackRow extends ConsumerWidget {
     final song = track.resolvedSong;
     final colorScheme = Theme.of(context).colorScheme;
     final unavailable = song == null;
+    final playbackState = song == null
+        ? SongPlaybackIndicatorState.inactive
+        : ref.watch(songPlaybackIndicatorStateProvider(song.id));
+    final isSelected = playbackState.isSelected;
 
-    return ListTile(
+    final tile = ListTile(
+      selected: isSelected,
+      selectedColor: colorScheme.primary,
+      selectedTileColor: colorScheme.primary.withValues(alpha: 0.08),
       enabled: !unavailable,
       minLeadingWidth: 76,
       leading: SizedBox(
@@ -323,16 +331,18 @@ class _RankedTopTrackRow extends ConsumerWidget {
           children: <Widget>[
             SizedBox(
               width: 30,
-              child: Text(
-                '${track.rank}',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.65,
-                  ),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: isSelected
+                  ? SongPlaybackMarker(state: playbackState)
+                  : Text(
+                      '${track.rank}',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.65,
+                        ),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
             ),
             const SizedBox(width: 8),
             CoverArtImage(
@@ -351,6 +361,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
         track.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        style: isSelected ? TextStyle(color: colorScheme.primary) : null,
       ),
       subtitle: Text(
         unavailable ? l10n.artistTopTracksPlaylistUnavailable : track.artist,
@@ -382,6 +393,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
               onDownload: () => unawaited(_downloadSong(context, ref, song.id)),
             ),
     );
+    return SongPlaybackSemantics(state: playbackState, child: tile);
   }
 
   Future<void> _downloadSong(

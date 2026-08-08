@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider, songByIdProvider, subsonicApiProvider;
@@ -41,7 +42,6 @@ class QueueSheet extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final queueIds = ref.watch(queueProvider);
     final playerSnapshot = ref.watch(playerStateProvider);
-    final currentSongId = playerSnapshot.currentSongId;
     final actionsDisabled =
         playerSnapshot.isLoading && playerSnapshot.hasPendingLogicalQueue;
     final close = onClose ?? () => Navigator.of(context).pop();
@@ -82,13 +82,22 @@ class QueueSheet extends ConsumerWidget {
                   },
                   itemBuilder: (context, index) {
                     final songId = queueIds[index];
-                    final isCurrentSong = songId == currentSongId;
+                    final indicatorState =
+                        resolveQueueSongPlaybackIndicatorState(
+                          rowIndex: index,
+                          rowSongId: songId,
+                          queueSongIds: queueIds,
+                          currentIndex: playerSnapshot.currentIndex,
+                          currentSongId: playerSnapshot.currentSongId,
+                          isLoading: playerSnapshot.isLoading,
+                          loadingSongId: playerSnapshot.loadingSongId,
+                        );
 
                     return _QueueItem(
                       key: ValueKey('$index-$songId'),
                       songId: songId,
                       index: index,
-                      isCurrentSong: isCurrentSong,
+                      indicatorState: indicatorState,
                       actionsDisabled: actionsDisabled,
                       sheetDragActive: sheetDragActive,
                       onSwipeActiveChanged: onItemSwipeActiveChanged,
@@ -330,7 +339,7 @@ class _QueueItem extends ConsumerStatefulWidget {
     required super.key,
     required this.songId,
     required this.index,
-    required this.isCurrentSong,
+    required this.indicatorState,
     required this.actionsDisabled,
     required this.onRemove,
     required this.onTap,
@@ -340,7 +349,7 @@ class _QueueItem extends ConsumerStatefulWidget {
 
   final String songId;
   final int index;
-  final bool isCurrentSong;
+  final SongPlaybackIndicatorState indicatorState;
   final bool actionsDisabled;
   final VoidCallback onRemove;
   final VoidCallback onTap;
@@ -375,6 +384,7 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final songAsync = ref.watch(songByIdProvider(widget.songId));
+    final isSelected = widget.indicatorState.isSelected;
 
     return songAsync.when(
       data: (song) {
@@ -407,63 +417,74 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
             widget.onRemove();
             return false;
           },
-          child: ListTile(
-            leading: CoverArtImage(
-              coverArtId: song.coverArt,
-              size: kCoverArtStandardSize,
-              width: 48,
-              height: 48,
-              borderRadius: BorderRadius.circular(4),
-              isExternalSource: song.isExternal,
-            ),
-            title: Text(
-              song.title,
-              style: widget.isCurrentSong
-                  ? TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    )
-                  : null,
-            ),
-            subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                IconButton(
-                  tooltip: l10n.commonRemove,
-                  onPressed: widget.actionsDisabled ? null : widget.onRemove,
-                  icon: const Icon(Icons.delete_outline),
+          child: SongPlaybackSemantics(
+            state: widget.indicatorState,
+            child: ListTile(
+              selected: isSelected,
+              selectedColor: Theme.of(context).colorScheme.primary,
+              selectedTileColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.08),
+              leading: ArtworkPlaybackMarker(
+                state: widget.indicatorState,
+                child: CoverArtImage(
+                  coverArtId: song.coverArt,
+                  size: kCoverArtStandardSize,
+                  width: 48,
+                  height: 48,
+                  borderRadius: BorderRadius.circular(4),
+                  isExternalSource: song.isExternal,
                 ),
-                SizedBox(
-                  width: 28,
-                  child: Center(
-                    child: widget.actionsDisabled
-                        ? Icon(
-                            Icons.drag_indicator_rounded,
-                            size: 18,
-                            color:
-                                Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant.withValues(
-                                  alpha: 0.38,
-                                ),
-                          )
-                        : ReorderableDragStartListener(
-                            index: widget.index,
-                            child: Icon(
+              ),
+              title: Text(
+                song.title,
+                style: isSelected
+                    ? TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      )
+                    : null,
+              ),
+              subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  IconButton(
+                    tooltip: l10n.commonRemove,
+                    onPressed: widget.actionsDisabled ? null : widget.onRemove,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                  SizedBox(
+                    width: 28,
+                    child: Center(
+                      child: widget.actionsDisabled
+                          ? Icon(
                               Icons.drag_indicator_rounded,
                               size: 18,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              color:
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant.withValues(
+                                    alpha: 0.38,
+                                  ),
+                            )
+                          : ReorderableDragStartListener(
+                              index: widget.index,
+                              child: Icon(
+                                Icons.drag_indicator_rounded,
+                                size: 18,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+              enabled: !widget.actionsDisabled,
+              onTap: widget.actionsDisabled ? null : widget.onTap,
             ),
-            enabled: !widget.actionsDisabled,
-            onTap: widget.actionsDisabled ? null : widget.onTap,
           ),
         );
       },

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -552,7 +553,7 @@ class _MatchFlowContents extends StatelessWidget {
   }
 }
 
-class _MatchFlowSongTile extends StatelessWidget {
+class _MatchFlowSongTile extends ConsumerWidget {
   const _MatchFlowSongTile({
     required super.key,
     required this.entry,
@@ -565,9 +566,13 @@ class _MatchFlowSongTile extends StatelessWidget {
   final VoidCallback onRemove;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final song = entry.song;
+    final playbackState = ref.watch(
+      songPlaybackIndicatorStateProvider(entry.link.songId),
+    );
+    final isSelected = playbackState.isSelected;
     final title =
         song?.title ?? l10n.matchFlowUnresolvedSong(entry.link.songId);
     final subtitle = song == null
@@ -576,85 +581,101 @@ class _MatchFlowSongTile extends StatelessWidget {
             song.artistName,
             song.albumName,
           ].where((value) => value != null && value.isNotEmpty).join(' · ');
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: <Widget>[
-          if (song == null)
-            const SizedBox(
-              width: 44,
-              height: 44,
-              child: Icon(Icons.music_note_outlined),
-            )
-          else
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: CoverArtImage(
-                coverArtId: song.coverArt,
-                size: 80,
-                borderRadius: BorderRadius.circular(6),
-                isExternalSource: song.isExternal,
-              ),
-            ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ),
-                    if (index == 0) ...<Widget>[
-                      const SizedBox(width: 8),
-                      Chip(
-                        label: Text(l10n.matchFlowMasterLabel),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
-                  ],
-                ),
-                if (subtitle.isNotEmpty)
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+    final row = Material(
+      color: isSelected
+          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+          : Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: <Widget>[
+            if (song == null)
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: isSelected
+                    ? Center(child: SongPlaybackMarker(state: playbackState))
+                    : const Icon(Icons.music_note_outlined),
+              )
+            else
+              ArtworkPlaybackMarker(
+                state: playbackState,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: CoverArtImage(
+                    coverArtId: song.coverArt,
+                    size: 80,
+                    borderRadius: BorderRadius.circular(6),
+                    isExternalSource: song.isExternal,
                   ),
-              ],
-            ),
-          ),
-          Semantics(
-            button: true,
-            label: l10n.commonRemove,
-            child: IconButton(
-              onPressed: onRemove,
-              icon: const Icon(Icons.close),
-            ),
-          ),
-          ReorderableDragStartListener(
-            index: index,
-            child: Semantics(
-              button: true,
-              label: l10n.commonReorder,
-              child: const Padding(
-                padding: EdgeInsets.all(12),
-                child: Icon(Icons.drag_handle),
+                ),
+              ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : null,
+                              ),
+                        ),
+                      ),
+                      if (index == 0) ...<Widget>[
+                        const SizedBox(width: 8),
+                        Chip(
+                          label: Text(l10n.matchFlowMasterLabel),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
               ),
             ),
-          ),
-        ],
+            Semantics(
+              button: true,
+              label: l10n.commonRemove,
+              child: IconButton(
+                onPressed: onRemove,
+                icon: const Icon(Icons.close),
+              ),
+            ),
+            ReorderableDragStartListener(
+              index: index,
+              child: Semantics(
+                button: true,
+                label: l10n.commonReorder,
+                child: const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Icon(Icons.drag_handle),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+    return SongPlaybackSemantics(state: playbackState, child: row);
   }
 }
 

@@ -47,6 +47,19 @@ It launches the Linux profile app against an isolated clone, authenticates via
 the app API, and verifies volume, mute, Unmute, persistence, and clean restart.
 It supplements but does not replace `./tool/check.sh`.
 
+Current-song row presentation has a focused isolated Linux runtime gate:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/playback_indicator_diagnostics.sh clone
+```
+
+It verifies authenticated app startup, current/inactive indicators, paused
+marker persistence, song switching, log cleanliness, and a clean restart. It
+supplements but does not replace `./tool/check.sh`. Set
+`NAVIS_QUALITY_GATE_RESULT=passed` for the final post-gate run so its sanitized
+validation record includes the quality-gate result.
+
 ### Core Gate
 
 Use for the focused release checks when the full development test matrix is not

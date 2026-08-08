@@ -20,6 +20,7 @@ import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -3085,9 +3086,10 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
-    final currentSongId = ref.watch(currentSongProvider);
-    final isPlaying = ref.watch(isPlayingProvider);
-    final isCurrentSong = currentSongId == song.id;
+    final playbackState = ref.watch(
+      songPlaybackIndicatorStateProvider(song.id),
+    );
+    final isSelected = playbackState.isSelected;
     final isLiked =
         ref.watch(songStarredProvider(song.id)).asData?.value ??
         song.starred != null;
@@ -3101,11 +3103,13 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
       );
     }
 
-    return SizedBox(
+    final row = SizedBox(
       key: ValueKey<String>('home-random-desktop-song-row-${song.id}'),
       height: rowHeight,
       child: Material(
-        color: Colors.transparent,
+        color: isSelected
+            ? colors.primary.withValues(alpha: 0.08)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -3132,11 +3136,10 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
               children: <Widget>[
                 SizedBox(
                   width: 24,
-                  child: isCurrentSong && isPlaying
-                      ? Icon(
-                          Icons.graphic_eq_rounded,
+                  child: isSelected
+                      ? SongPlaybackMarker(
+                          state: playbackState,
                           size: 17,
-                          color: colors.primary,
                         )
                       : Text(
                           '$displayIndex',
@@ -3199,6 +3202,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               fontWeight: FontWeight.w500,
+                              color: isSelected ? colors.primary : null,
                             ),
                       ),
                       if (song.artistName != null &&
@@ -3276,6 +3280,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
         ),
       ),
     );
+    return SongPlaybackSemantics(state: playbackState, child: row);
   }
 }
 
@@ -4166,6 +4171,7 @@ class _SongListSection extends ConsumerWidget {
         children: <Widget>[
           for (final song in songs)
             DesktopListRow(
+              playbackSongId: song.id,
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: CoverArtImage(
@@ -4194,26 +4200,41 @@ class _SongListSection extends ConsumerWidget {
     final tabletMode = adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
 
     Widget songTile(SongsTableData song) {
-      return ListTile(
-        leading: SizedBox(
-          width: tabletMode
-              ? (compactDensity ? 48 : 52)
-              : (compactDensity ? 44 : 48),
-          height: tabletMode
-              ? (compactDensity ? 48 : 52)
-              : (compactDensity ? 44 : 48),
-          child: CoverArtImage(
-            coverArtId: song.coverArt,
-            size: 160,
-            borderRadius: BorderRadius.circular(6),
-            placeholderIcon: Icons.music_note_outlined,
-            isExternalSource: song.isExternal,
+      final playbackState = ref.watch(
+        songPlaybackIndicatorStateProvider(song.id),
+      );
+      final isSelected = playbackState.isSelected;
+      final tile = ListTile(
+        selected: isSelected,
+        selectedColor: Theme.of(context).colorScheme.primary,
+        selectedTileColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.08),
+        leading: ArtworkPlaybackMarker(
+          state: playbackState,
+          child: SizedBox(
+            width: tabletMode
+                ? (compactDensity ? 48 : 52)
+                : (compactDensity ? 44 : 48),
+            height: tabletMode
+                ? (compactDensity ? 48 : 52)
+                : (compactDensity ? 44 : 48),
+            child: CoverArtImage(
+              coverArtId: song.coverArt,
+              size: 160,
+              borderRadius: BorderRadius.circular(6),
+              placeholderIcon: Icons.music_note_outlined,
+              isExternalSource: song.isExternal,
+            ),
           ),
         ),
         title: Text(
           song.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: isSelected
+              ? TextStyle(color: Theme.of(context).colorScheme.primary)
+              : null,
         ),
         subtitle: Text(
           song.artistName ?? '',
@@ -4228,6 +4249,7 @@ class _SongListSection extends ConsumerWidget {
         onTap: () => onTap(song),
         onLongPress: () => showSongContextMenu(context, ref, song),
       );
+      return SongPlaybackSemantics(state: playbackState, child: tile);
     }
 
     return Padding(

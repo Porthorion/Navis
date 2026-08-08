@@ -1928,6 +1928,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                             vertical: 2,
                           ),
                           child: DesktopListRow(
+                            playbackSongId: song.id,
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: CoverArtImage(

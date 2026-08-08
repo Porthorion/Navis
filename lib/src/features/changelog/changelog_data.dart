@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.1.1',
     entries: [
       ChangelogEntry(
+        'The current song is now highlighted consistently across library, Home, search, downloads, artist, playlist, and queue views',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Seeking on desktop no longer hangs while a track is still caching; playback stays on a seekable stream while the rolling cache fills in the background',
         type: ChangelogEntryType.fix,
       ),

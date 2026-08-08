@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -861,9 +862,14 @@ class _SongResultsSection extends ConsumerWidget {
         ...visible.asMap().entries.map(
           (entry) {
             final song = entry.value;
+            final playbackState = ref.watch(
+              songPlaybackIndicatorStateProvider(song.id),
+            );
+            final isSelected = playbackState.isSelected;
 
             if (desktopMode) {
               return DesktopListRow(
+                playbackSongId: song.id,
                 leading: CoverArtImage(
                   coverArtId: song.coverArt,
                   size: 80,
@@ -897,19 +903,32 @@ class _SongResultsSection extends ConsumerWidget {
               );
             }
 
-            return ListTile(
-              leading: CoverArtImage(
-                coverArtId: song.coverArt,
-                size: 80,
-                width: 48,
-                height: 48,
-                borderRadius: coverRadius,
-                isExternalSource: isExternalCatalogSource(
-                  id: song.id,
-                  apiIsExternal: song.isExternal,
+            final tile = ListTile(
+              selected: isSelected,
+              selectedColor: Theme.of(context).colorScheme.primary,
+              selectedTileColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.08),
+              leading: ArtworkPlaybackMarker(
+                state: playbackState,
+                child: CoverArtImage(
+                  coverArtId: song.coverArt,
+                  size: 80,
+                  width: 48,
+                  height: 48,
+                  borderRadius: coverRadius,
+                  isExternalSource: isExternalCatalogSource(
+                    id: song.id,
+                    apiIsExternal: song.isExternal,
+                  ),
                 ),
               ),
-              title: Text(song.title),
+              title: Text(
+                song.title,
+                style: isSelected
+                    ? TextStyle(color: Theme.of(context).colorScheme.primary)
+                    : null,
+              ),
               subtitle: Text(
                 <String>[
                   if (song.artist != null) song.artist!,
@@ -925,6 +944,10 @@ class _SongResultsSection extends ConsumerWidget {
                 );
               },
               onLongPress: () => _showSongContextMenu(context, ref, song),
+            );
+            return SongPlaybackSemantics(
+              state: playbackState,
+              child: tile,
             );
           },
         ),

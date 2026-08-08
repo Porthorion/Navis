@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,7 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -61,6 +63,7 @@ Future<_QueueSpyController> _pumpTopTracksSection(
   WidgetTester tester, {
   required bool albumQueueEnabled,
   required List<ResolvedArtistTopTrack> tracks,
+  PlaybackSnapshot? playbackSnapshot,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -73,6 +76,8 @@ Future<_QueueSpyController> _pumpTopTracksSection(
           (ref, songId) => SongDownloadState.none,
         ),
         subsonicApiProvider.overrideWithValue(null),
+        if (playbackSnapshot != null)
+          playerStateProvider.overrideWithValue(playbackSnapshot),
       ],
       child: MaterialApp(
         theme: testTheme(),
@@ -94,6 +99,41 @@ Future<_QueueSpyController> _pumpTopTracksSection(
 }
 
 void main() {
+  testWidgets('marks the paused current artist top track', (tester) async {
+    await _pumpTopTracksSection(
+      tester,
+      albumQueueEnabled: false,
+      tracks: [
+        _track(rank: 1, id: 'song-1', title: 'First Song'),
+        _track(rank: 2, id: 'song-2', title: 'Second Song'),
+      ],
+      playbackSnapshot: const PlaybackSnapshot(
+        queueSongIds: <String>['song-2'],
+        currentSongId: 'song-2',
+        currentIndex: 0,
+        playing: false,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration(minutes: 3),
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+      ),
+    );
+
+    expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
+    expect(find.text('2'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.selected == true &&
+            widget.properties.value == 'Now Playing',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('queues only tapped top track when Album Queue is disabled', (
     tester,
   ) async {

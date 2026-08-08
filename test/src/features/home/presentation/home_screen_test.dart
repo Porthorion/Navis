@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +16,7 @@ import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -179,6 +181,76 @@ ListenBrainzDiscoverPlaylist _listenBrainzPlaylist(String id, String title) {
         ),
       ),
     ],
+  );
+}
+
+ListenBrainzDiscoverPlaylist _listenBrainzPlaylistWithApiSongs() {
+  return const ListenBrainzDiscoverPlaylist(
+    playlist: ListenBrainzPlaylist(
+      identifier: 'exploration',
+      title: 'Weekly Exploration for alice, week of 2026-06-15',
+      sourcePatch: 'weekly-exploration',
+      tracks: <ListenBrainzPlaylistTrack>[
+        ListenBrainzPlaylistTrack(
+          title: 'Remote Song 1',
+          creator: 'Remote Artist',
+        ),
+        ListenBrainzPlaylistTrack(
+          title: 'Remote Song 2',
+          creator: 'Remote Artist',
+        ),
+      ],
+    ),
+    recommendations: <ListenBrainzResolvedRecommendation>[
+      ListenBrainzResolvedRecommendation(
+        track: ListenBrainzPlaylistTrack(
+          title: 'Remote Song 1',
+          creator: 'Remote Artist',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.matched,
+        song: Song(
+          id: 'remote-song-1',
+          title: 'Remote Song 1',
+          artist: 'Remote Artist',
+          album: 'Remote Album',
+        ),
+      ),
+      ListenBrainzResolvedRecommendation(
+        track: ListenBrainzPlaylistTrack(
+          title: 'Remote Song 2',
+          creator: 'Remote Artist',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.matched,
+        song: Song(
+          id: 'remote-song-2',
+          title: 'Remote Song 2',
+          artist: 'Remote Artist',
+          album: 'Remote Album',
+        ),
+      ),
+    ],
+  );
+}
+
+void _expectWeeklyMarkerAlignedWithNumber(WidgetTester tester) {
+  final inactiveTile = find.ancestor(
+    of: find.text('Remote Song 1'),
+    matching: find.byType(ListTile),
+  );
+  final currentTile = find.ancestor(
+    of: find.text('Remote Song 2'),
+    matching: find.byType(ListTile),
+  );
+  final number = find.descendant(of: inactiveTile, matching: find.text('1'));
+  final marker = find.descendant(
+    of: currentTile,
+    matching: find.byIcon(Icons.graphic_eq_rounded),
+  );
+  expect(number, findsOneWidget);
+  expect(marker, findsOneWidget);
+  expect(
+    tester.getCenter(marker).dx,
+    closeTo(tester.getCenter(number).dx, 0.1),
   );
 }
 
@@ -1264,6 +1336,62 @@ void main() {
     },
   );
 
+  testWidgets('weekly recommendation marks the paused current song', (
+    tester,
+  ) async {
+    final view = tester.view;
+    view.devicePixelRatio = 1.0;
+    view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: <HomeRandomShowcaseItem>[
+        HomeRandomShowcaseListenBrainz(
+          playlist: _listenBrainzPlaylistWithApiSongs(),
+        ),
+      ],
+      overrides: <Override>[
+        playerStateProvider.overrideWithValue(
+          const PlaybackSnapshot(
+            queueSongIds: <String>['remote-song-2'],
+            currentSongId: 'remote-song-2',
+            currentIndex: 0,
+            playing: false,
+            processingState: AudioProcessingState.ready,
+            position: Duration.zero,
+            duration: Duration(minutes: 3),
+            bufferedPosition: Duration.zero,
+            shuffleMode: AudioServiceShuffleMode.none,
+            repeatMode: AudioServiceRepeatMode.none,
+          ),
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('Weekly Exploration'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
+    _expectWeeklyMarkerAlignedWithNumber(tester);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.selected == true &&
+            widget.properties.value == 'Now Playing',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('random hero carousel renders loading ListenBrainz cards', (
     tester,
   ) async {
@@ -1555,6 +1683,46 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('desktop weekly marker aligns with inactive track numbers', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1366, 900));
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: <HomeRandomShowcaseItem>[
+        HomeRandomShowcaseListenBrainz(
+          playlist: _listenBrainzPlaylistWithApiSongs(),
+        ),
+      ],
+      overrides: <Override>[
+        playerStateProvider.overrideWithValue(
+          const PlaybackSnapshot(
+            queueSongIds: <String>['remote-song-2'],
+            currentSongId: 'remote-song-2',
+            currentIndex: 0,
+            playing: true,
+            processingState: AudioProcessingState.ready,
+            position: Duration.zero,
+            duration: Duration(minutes: 3),
+            bufferedPosition: Duration.zero,
+            shuffleMode: AudioServiceShuffleMode.none,
+            repeatMode: AudioServiceRepeatMode.none,
+          ),
+        ),
+      ],
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('home-random-desktop-pager')),
+      findsOneWidget,
+    );
+    _expectWeeklyMarkerAlignedWithNumber(tester);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('desktop random pager renders loading ListenBrainz text', (
     tester,

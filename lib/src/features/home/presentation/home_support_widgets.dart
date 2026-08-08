@@ -428,7 +428,7 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
   }
 }
 
-class _ListenBrainzRecommendationTile extends StatelessWidget {
+class _ListenBrainzRecommendationTile extends ConsumerWidget {
   const _ListenBrainzRecommendationTile({
     required this.recommendation,
     required this.index,
@@ -446,7 +446,7 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
   final double horizontalTitleGap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final song = recommendation.song;
@@ -455,6 +455,10 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
         recommendation.status == ListenBrainzRecommendationMatchStatus.pending;
     final unavailable = !pending && !recommendation.isPlayable;
     final playableSong = unavailable ? null : song;
+    final playbackState = playableSong == null
+        ? SongPlaybackIndicatorState.inactive
+        : ref.watch(songPlaybackIndicatorStateProvider(playableSong.id));
+    final isSelected = playbackState.isSelected;
     final subtitle = pending
         ? <String>[
             if (track.creator != null) track.creator!,
@@ -475,32 +479,34 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
             if (song.album != null) song.album!,
           ].join(' · ');
 
-    return Opacity(
+    final tile = Opacity(
       opacity: unavailable ? 0.58 : 1,
       child: Material(
         type: MaterialType.transparency,
         child: ListTile(
+          selected: isSelected,
+          selectedColor: cs.primary,
+          selectedTileColor: cs.primary.withValues(alpha: 0.08),
           dense: true,
           contentPadding: contentPadding,
           minLeadingWidth: 32,
           horizontalTitleGap: horizontalTitleGap,
           leading: SizedBox(
             width: 32,
-            child: pending
-                ? const Center(
-                    child: SizedBox.square(
+            child: Center(
+              child: isSelected
+                  ? SongPlaybackMarker(state: playbackState)
+                  : pending
+                  ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
+                    )
+                  : Text(
                       '$index',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+            ),
           ),
           title: Text(
             playableSong?.title ?? track.title,
@@ -508,6 +514,7 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
+              color: isSelected ? cs.primary : null,
             ),
           ),
           subtitle: Text(
@@ -551,5 +558,6 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
         ),
       ),
     );
+    return SongPlaybackSemantics(state: playbackState, child: tile);
   }
 }

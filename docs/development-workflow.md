@@ -119,6 +119,9 @@ The existing Linux profile diagnostics path is the starting control plane:
   clone-only `POST /v1/playback/volume/toggle-mute`. The status response
   reports controller, persisted, and handler values without exposing media or
   server data.
+- Song-row presentation exposes the read-only
+  `GET /v1/presentation/song-indicator?songId=<id>` endpoint. It reports only
+  production indicator and presentation roles; it never returns song metadata.
 
 The sync diagnostics script runs its own catalog test sequence. For unrelated
 features, add the smallest focused launcher or scenario script that reuses the
@@ -136,6 +139,21 @@ It launches a Linux profile build against one isolated clone three times. The
 scenario sets 37%, verifies a clean restart, persists mute across another
 restart, then verifies that Unmute returns to 37%. Sanitized JSON responses and
 the local app log are retained under `build/volume-memory-diagnostics/`.
+
+Use the focused song-indicator scenario for shared song-row changes:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/playback_indicator_diagnostics.sh clone
+```
+
+It starts and pauses songs through the production playback API, polls playback
+and presentation state, verifies that the marker moves between songs, reviews
+hard-fail log patterns, and repeats after a clean restart. Rendered UI
+inspection supplements the scenario when native desktop automation is
+available; widget semantics and the presentation endpoint are the fallback.
+After `./tool/check.sh` passes, set `NAVIS_QUALITY_GATE_RESULT=passed` on the
+final invocation so the sanitized runtime-validation record captures the gate.
 
 ### App API extension and safety contract
 

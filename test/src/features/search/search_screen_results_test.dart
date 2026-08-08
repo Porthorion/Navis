@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
@@ -138,6 +140,58 @@ Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
 
 void main() {
   group('SearchScreen results', () {
+    testWidgets('marks the current song returned by search', (tester) async {
+      if (!sqliteAvailable) return;
+
+      final database = createTestDatabase();
+      final container = _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient(
+          (_) async => const SearchResult3(
+            songs: <Song>[
+              Song(id: 'current-song', title: 'Current Search Song'),
+              Song(id: 'other-song', title: 'Other Search Song'),
+            ],
+          ),
+        ),
+        overrides: <Override>[
+          playerStateProvider.overrideWithValue(
+            const PlaybackSnapshot(
+              queueSongIds: <String>['current-song'],
+              currentSongId: 'current-song',
+              currentIndex: 0,
+              playing: false,
+              processingState: AudioProcessingState.ready,
+              position: Duration.zero,
+              duration: Duration(minutes: 3),
+              bufferedPosition: Duration.zero,
+              shuffleMode: AudioServiceShuffleMode.none,
+              repeatMode: AudioServiceRepeatMode.none,
+            ),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'Search');
+      await _pumpUntilFound(tester, find.text('Current Search Song'));
+
+      expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.selected == true &&
+              widget.properties.value == 'Now Playing',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('badges only external artist album and song results', (
       tester,
     ) async {

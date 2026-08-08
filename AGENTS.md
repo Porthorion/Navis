@@ -138,6 +138,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/sync_diagnostics.sh clone  # isolated Linux profile sync/API suite
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
+./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
 
 # Release (runs check unless --skip-checks)
 ./tool/release.sh v1.2.3
@@ -310,6 +311,12 @@ song. Known song metadata is authoritative for timeline duration, especially
 while transcoded decoder duration is still growing. Windows SMTC coalesces
 normal timeline writes to roughly once per second, while track changes and seek
 discontinuities update immediately.
+
+Song rows derive their shared `inactive`, `current`, or `loading` presentation
+from `song_playback_indicator.dart`. While switching, `loadingSongId` is the
+effective selected song; otherwise `currentSongId` remains selected even when
+paused. Exact-song lists match by ID, while queue views prefer `currentIndex`
+so duplicate IDs highlight only the active occurrence.
 
 Android Auto is phone projection through the Android `MediaBrowserService`,
 not an app UI rendered on the head unit. The manifest must register the

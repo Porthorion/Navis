@@ -195,6 +195,14 @@ persists through `SettingsRepository`; the control plane never writes the
 settings table directly. `tool/volume_memory_diagnostics.sh` repeats this flow
 across clean process restarts.
 
+Song-row presentation diagnostics use the read-only
+`GET /v1/presentation/song-indicator?songId=<id>` endpoint. It reads the same
+production presentation provider as the UI and returns only indicator state,
+selection, marker, semantics, and color roles. It does not return song
+metadata. `tool/playback_indicator_diagnostics.sh clone` verifies current,
+inactive, paused, switched-song, and clean-restart behavior against an isolated
+Linux profile.
+
 New control-plane capabilities should remain feature-scoped, expose separate
 action and status/query contracts, return structured errors, and support
 deterministic completion or bounded polling. They must have server contract
@@ -219,7 +227,9 @@ Reusable UI components used across features:
 - **Media Display**
   - `cover_art_image.dart` - Album/artist cover art with caching
   - `hero_cover_art.dart` - Cover art with hero animation
-  - `track_list_tile.dart` - Track list item
+  - `track_list_tile.dart` - Playback-aware track list item
+  - `song_playback_indicator.dart` - Shared current/loading row state, marker,
+    tint, and semantics
   - `album_card.dart` - Album grid card
   - `artist_card.dart` - Artist list/grid card
 

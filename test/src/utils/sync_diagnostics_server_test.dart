@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -164,6 +165,105 @@ void main() {
 
     expect(await fixture.handshake.exists(), isFalse);
   });
+
+  test(
+    'song indicator endpoint is authenticated, validated, and sanitized',
+    () async {
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        playbackSnapshot: const PlaybackSnapshot(
+          queueSongIds: <String>['song-1'],
+          currentSongId: 'song-1',
+          currentIndex: 0,
+          playing: false,
+          processingState: AudioProcessingState.ready,
+          position: Duration.zero,
+          duration: Duration(minutes: 3),
+          bufferedPosition: Duration.zero,
+          shuffleMode: AudioServiceShuffleMode.none,
+          repeatMode: AudioServiceRepeatMode.none,
+        ),
+      );
+      addTearDown(fixture.close);
+
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/presentation/song-indicator?songId=song-1',
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      final invalid = await _request(
+        fixture.port,
+        '/v1/presentation/song-indicator',
+        token: fixture.token,
+      );
+      expect(invalid.statusCode, HttpStatus.badRequest);
+
+      expect(
+        fixture.container.read(
+          songPlaybackIndicatorStateProvider('song-1'),
+        ),
+        SongPlaybackIndicatorState.current,
+      );
+      final current = await _request(
+        fixture.port,
+        '/v1/presentation/song-indicator?songId=song-1',
+        token: fixture.token,
+      );
+      expect(current.statusCode, HttpStatus.ok);
+      expect(current.body, <String, Object?>{
+        'state': 'current',
+        'selected': true,
+        'markerRole': 'equalizer',
+        'semanticRole': 'nowPlaying',
+        'backgroundColorRole': 'primaryTint08',
+        'foregroundColorRole': 'primary',
+      });
+
+      final inactive = await _request(
+        fixture.port,
+        '/v1/presentation/song-indicator?songId=song-2',
+        token: fixture.token,
+      );
+      expect(inactive.body['state'], 'inactive');
+      expect(inactive.body['selected'], isFalse);
+      expect(inactive.body.containsKey('songId'), isFalse);
+    },
+  );
+
+  test(
+    'song indicator endpoint exposes the loading presentation state',
+    () async {
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        playbackSnapshot: const PlaybackSnapshot(
+          queueSongIds: <String>['song-1', 'song-2'],
+          currentSongId: 'song-1',
+          currentIndex: 1,
+          playing: true,
+          processingState: AudioProcessingState.loading,
+          position: Duration.zero,
+          duration: Duration(minutes: 3),
+          bufferedPosition: Duration.zero,
+          shuffleMode: AudioServiceShuffleMode.none,
+          repeatMode: AudioServiceRepeatMode.none,
+          isLoading: true,
+          loadingSongId: 'song-2',
+        ),
+      );
+      addTearDown(fixture.close);
+
+      final response = await _request(
+        fixture.port,
+        '/v1/presentation/song-indicator?songId=song-2',
+        token: fixture.token,
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.body['state'], 'loading');
+      expect(response.body['markerRole'], 'progress');
+      expect(response.body['semanticRole'], 'nowPlaying');
+    },
+  );
 
   test(
     'volume API uses production controller and persists mute state',
@@ -368,6 +468,7 @@ Future<_DiagnosticsFixture> _startFixture(
   SyncDiagnosticsMode mode, {
   SubsonicApiClient? api,
   NavisPlaybackHandler? handler,
+  PlaybackSnapshot? playbackSnapshot,
 }) async {
   final temp = await Directory.systemTemp.createTemp('navis_diagnostics_test_');
   final database = createTestDatabase();
@@ -375,6 +476,8 @@ Future<_DiagnosticsFixture> _startFixture(
     overrides: [
       navisDatabaseProvider.overrideWith((ref) => database),
       audioHandlerProvider.overrideWith((ref) => handler),
+      if (playbackSnapshot != null)
+        playerStateProvider.overrideWithValue(playbackSnapshot),
       if (api != null) subsonicApiProvider.overrideWithValue(api),
     ],
   );

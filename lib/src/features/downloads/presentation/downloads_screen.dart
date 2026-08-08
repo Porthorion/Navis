@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -249,27 +250,48 @@ class _QueueItemTile extends ConsumerWidget {
     final artist = song?.artistName ?? '';
     final isActive = item.status == DownloadStatus.downloading;
     final isFailed = item.status == DownloadStatus.failed;
+    final playbackState = songId == null
+        ? SongPlaybackIndicatorState.inactive
+        : ref.watch(songPlaybackIndicatorStateProvider(songId));
+    final isSelected = playbackState.isSelected;
 
-    return ListTile(
-      leading: SizedBox(
-        width: 48,
-        height: 48,
-        child: song?.coverArt != null
-            ? CoverArtImage(
-                coverArtId: song!.coverArt,
-                size: 48,
-                borderRadius: BorderRadius.circular(6),
-                isExternalSource: song.isExternal,
-              )
-            : Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    final tile = ListTile(
+      selected: isSelected,
+      selectedColor: Theme.of(context).colorScheme.primary,
+      selectedTileColor: Theme.of(
+        context,
+      ).colorScheme.primary.withValues(alpha: 0.08),
+      leading: ArtworkPlaybackMarker(
+        state: playbackState,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: song?.coverArt != null
+              ? CoverArtImage(
+                  coverArtId: song!.coverArt,
+                  size: 48,
                   borderRadius: BorderRadius.circular(6),
+                  isExternalSource: song.isExternal,
+                )
+              : Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.music_note),
                 ),
-                child: const Icon(Icons.music_note),
-              ),
+        ),
       ),
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: isSelected
+            ? TextStyle(color: Theme.of(context).colorScheme.primary)
+            : null,
+      ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -301,6 +323,7 @@ class _QueueItemTile extends ConsumerWidget {
         },
       ),
     );
+    return SongPlaybackSemantics(state: playbackState, child: tile);
   }
 }
 
@@ -405,27 +428,48 @@ class _DownloadedTrackTile extends ConsumerWidget {
 
     final title = song?.title ?? track.songId;
     final artist = song?.artistName ?? '';
+    final playbackState = ref.watch(
+      songPlaybackIndicatorStateProvider(track.songId),
+    );
+    final isSelected = playbackState.isSelected;
 
     final tile = ListTile(
-      leading: SizedBox(
-        width: 48,
-        height: 48,
-        child: song?.coverArt != null
-            ? CoverArtImage(
-                coverArtId: song!.coverArt,
-                size: 48,
-                borderRadius: BorderRadius.circular(6),
-                isExternalSource: song.isExternal,
-              )
-            : Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      selected: isSelected,
+      selectedColor: Theme.of(context).colorScheme.primary,
+      selectedTileColor: Theme.of(
+        context,
+      ).colorScheme.primary.withValues(alpha: 0.08),
+      leading: ArtworkPlaybackMarker(
+        state: playbackState,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: song?.coverArt != null
+              ? CoverArtImage(
+                  coverArtId: song!.coverArt,
+                  size: 48,
                   borderRadius: BorderRadius.circular(6),
+                  isExternalSource: song.isExternal,
+                )
+              : Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.music_note),
                 ),
-                child: const Icon(Icons.music_note),
-              ),
+        ),
       ),
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: isSelected
+            ? TextStyle(color: Theme.of(context).colorScheme.primary)
+            : null,
+      ),
       subtitle: Text(
         '$artist · ${track.format.toUpperCase()} · ${formatBytes(track.fileSize)}',
         maxLines: 1,
@@ -446,21 +490,24 @@ class _DownloadedTrackTile extends ConsumerWidget {
       },
       onLongPress: () => _showTrackMenu(context, ref, track, l10n),
     );
-    if (!isDesktopRuntime) {
-      return tile;
-    }
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onSecondaryTapDown: (details) => unawaited(
-        _showTrackMenu(
-          context,
-          ref,
-          track,
-          l10n,
-          anchor: details.globalPosition,
-        ),
-      ),
-      child: tile,
+    final interactiveTile = !isDesktopRuntime
+        ? tile
+        : GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onSecondaryTapDown: (details) => unawaited(
+              _showTrackMenu(
+                context,
+                ref,
+                track,
+                l10n,
+                anchor: details.globalPosition,
+              ),
+            ),
+            child: tile,
+          );
+    return SongPlaybackSemantics(
+      state: playbackState,
+      child: interactiveTile,
     );
   }
 
