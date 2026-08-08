@@ -457,6 +457,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Volume Normalization (ReplayGain)';
 
   @override
+  String get playbackVolumeSemanticLabel => 'Playback volume';
+
+  @override
+  String get playbackMuteTooltip => 'Mute playback';
+
+  @override
+  String get playbackUnmuteTooltip => 'Unmute playback';
+
+  @override
   String get playbackSettingsReplayGainModeLabel => 'ReplayGain mode';
 
   @override

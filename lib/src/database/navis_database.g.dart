@@ -1210,6 +1210,30 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _desktopPlaybackVolumeMeta =
+      const VerificationMeta('desktopPlaybackVolume');
+  @override
+  late final GeneratedColumn<double> desktopPlaybackVolume =
+      GeneratedColumn<double>(
+        'desktop_playback_volume',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(1),
+      );
+  static const VerificationMeta _desktopLastAudibleVolumeMeta =
+      const VerificationMeta('desktopLastAudibleVolume');
+  @override
+  late final GeneratedColumn<double> desktopLastAudibleVolume =
+      GeneratedColumn<double>(
+        'desktop_last_audible_volume',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(1),
+      );
   static const VerificationMeta _homeDensityMeta = const VerificationMeta(
     'homeDensity',
   );
@@ -1497,6 +1521,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     artistCardShape,
     artistViewMode,
     desktopFocusPlayerModeEnabled,
+    desktopPlaybackVolume,
+    desktopLastAudibleVolume,
     homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
@@ -1987,6 +2013,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('desktop_playback_volume')) {
+      context.handle(
+        _desktopPlaybackVolumeMeta,
+        desktopPlaybackVolume.isAcceptableOrUnknown(
+          data['desktop_playback_volume']!,
+          _desktopPlaybackVolumeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('desktop_last_audible_volume')) {
+      context.handle(
+        _desktopLastAudibleVolumeMeta,
+        desktopLastAudibleVolume.isAcceptableOrUnknown(
+          data['desktop_last_audible_volume']!,
+          _desktopLastAudibleVolumeMeta,
+        ),
+      );
+    }
     if (data.containsKey('home_density')) {
       context.handle(
         _homeDensityMeta,
@@ -2369,6 +2413,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}desktop_focus_player_mode_enabled'],
       )!,
+      desktopPlaybackVolume: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}desktop_playback_volume'],
+      )!,
+      desktopLastAudibleVolume: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}desktop_last_audible_volume'],
+      )!,
       homeDensity: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}home_density'],
@@ -2585,6 +2637,12 @@ class AppSettingsTableData extends DataClass
   /// When true on desktop runtime, the app restores Focus Player Mode on launch.
   final bool desktopFocusPlayerModeEnabled;
 
+  /// Navis playback volume restored on desktop runtimes.
+  final double desktopPlaybackVolume;
+
+  /// Last non-muted desktop volume used by the mute toggle.
+  final double desktopLastAudibleVolume;
+
   /// Home section density: 'comfortable' or 'compact'. Default 'comfortable'.
   final String homeDensity;
 
@@ -2699,6 +2757,8 @@ class AppSettingsTableData extends DataClass
     required this.artistCardShape,
     required this.artistViewMode,
     required this.desktopFocusPlayerModeEnabled,
+    required this.desktopPlaybackVolume,
+    required this.desktopLastAudibleVolume,
     required this.homeDensity,
     this.homeSectionOrder,
     this.homeSectionsHidden,
@@ -2813,6 +2873,10 @@ class AppSettingsTableData extends DataClass
     map['artist_view_mode'] = Variable<String>(artistViewMode);
     map['desktop_focus_player_mode_enabled'] = Variable<bool>(
       desktopFocusPlayerModeEnabled,
+    );
+    map['desktop_playback_volume'] = Variable<double>(desktopPlaybackVolume);
+    map['desktop_last_audible_volume'] = Variable<double>(
+      desktopLastAudibleVolume,
     );
     map['home_density'] = Variable<String>(homeDensity);
     if (!nullToAbsent || homeSectionOrder != null) {
@@ -2932,6 +2996,8 @@ class AppSettingsTableData extends DataClass
       artistCardShape: Value(artistCardShape),
       artistViewMode: Value(artistViewMode),
       desktopFocusPlayerModeEnabled: Value(desktopFocusPlayerModeEnabled),
+      desktopPlaybackVolume: Value(desktopPlaybackVolume),
+      desktopLastAudibleVolume: Value(desktopLastAudibleVolume),
       homeDensity: Value(homeDensity),
       homeSectionOrder: homeSectionOrder == null && nullToAbsent
           ? const Value.absent()
@@ -3066,6 +3132,12 @@ class AppSettingsTableData extends DataClass
       desktopFocusPlayerModeEnabled: serializer.fromJson<bool>(
         json['desktopFocusPlayerModeEnabled'],
       ),
+      desktopPlaybackVolume: serializer.fromJson<double>(
+        json['desktopPlaybackVolume'],
+      ),
+      desktopLastAudibleVolume: serializer.fromJson<double>(
+        json['desktopLastAudibleVolume'],
+      ),
       homeDensity: serializer.fromJson<String>(json['homeDensity']),
       homeSectionOrder: serializer.fromJson<String?>(json['homeSectionOrder']),
       homeSectionsHidden: serializer.fromJson<String?>(
@@ -3183,6 +3255,10 @@ class AppSettingsTableData extends DataClass
       'desktopFocusPlayerModeEnabled': serializer.toJson<bool>(
         desktopFocusPlayerModeEnabled,
       ),
+      'desktopPlaybackVolume': serializer.toJson<double>(desktopPlaybackVolume),
+      'desktopLastAudibleVolume': serializer.toJson<double>(
+        desktopLastAudibleVolume,
+      ),
       'homeDensity': serializer.toJson<String>(homeDensity),
       'homeSectionOrder': serializer.toJson<String?>(homeSectionOrder),
       'homeSectionsHidden': serializer.toJson<String?>(homeSectionsHidden),
@@ -3262,6 +3338,8 @@ class AppSettingsTableData extends DataClass
     String? artistCardShape,
     String? artistViewMode,
     bool? desktopFocusPlayerModeEnabled,
+    double? desktopPlaybackVolume,
+    double? desktopLastAudibleVolume,
     String? homeDensity,
     Value<String?> homeSectionOrder = const Value.absent(),
     Value<String?> homeSectionsHidden = const Value.absent(),
@@ -3365,6 +3443,9 @@ class AppSettingsTableData extends DataClass
     artistViewMode: artistViewMode ?? this.artistViewMode,
     desktopFocusPlayerModeEnabled:
         desktopFocusPlayerModeEnabled ?? this.desktopFocusPlayerModeEnabled,
+    desktopPlaybackVolume: desktopPlaybackVolume ?? this.desktopPlaybackVolume,
+    desktopLastAudibleVolume:
+        desktopLastAudibleVolume ?? this.desktopLastAudibleVolume,
     homeDensity: homeDensity ?? this.homeDensity,
     homeSectionOrder: homeSectionOrder.present
         ? homeSectionOrder.value
@@ -3553,6 +3634,12 @@ class AppSettingsTableData extends DataClass
       desktopFocusPlayerModeEnabled: data.desktopFocusPlayerModeEnabled.present
           ? data.desktopFocusPlayerModeEnabled.value
           : this.desktopFocusPlayerModeEnabled,
+      desktopPlaybackVolume: data.desktopPlaybackVolume.present
+          ? data.desktopPlaybackVolume.value
+          : this.desktopPlaybackVolume,
+      desktopLastAudibleVolume: data.desktopLastAudibleVolume.present
+          ? data.desktopLastAudibleVolume.value
+          : this.desktopLastAudibleVolume,
       homeDensity: data.homeDensity.present
           ? data.homeDensity.value
           : this.homeDensity,
@@ -3666,6 +3753,8 @@ class AppSettingsTableData extends DataClass
           ..write(
             'desktopFocusPlayerModeEnabled: $desktopFocusPlayerModeEnabled, ',
           )
+          ..write('desktopPlaybackVolume: $desktopPlaybackVolume, ')
+          ..write('desktopLastAudibleVolume: $desktopLastAudibleVolume, ')
           ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
@@ -3745,6 +3834,8 @@ class AppSettingsTableData extends DataClass
     artistCardShape,
     artistViewMode,
     desktopFocusPlayerModeEnabled,
+    desktopPlaybackVolume,
+    desktopLastAudibleVolume,
     homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
@@ -3824,6 +3915,8 @@ class AppSettingsTableData extends DataClass
           other.artistViewMode == this.artistViewMode &&
           other.desktopFocusPlayerModeEnabled ==
               this.desktopFocusPlayerModeEnabled &&
+          other.desktopPlaybackVolume == this.desktopPlaybackVolume &&
+          other.desktopLastAudibleVolume == this.desktopLastAudibleVolume &&
           other.homeDensity == this.homeDensity &&
           other.homeSectionOrder == this.homeSectionOrder &&
           other.homeSectionsHidden == this.homeSectionsHidden &&
@@ -3899,6 +3992,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> artistCardShape;
   final Value<String> artistViewMode;
   final Value<bool> desktopFocusPlayerModeEnabled;
+  final Value<double> desktopPlaybackVolume;
+  final Value<double> desktopLastAudibleVolume;
   final Value<String> homeDensity;
   final Value<String?> homeSectionOrder;
   final Value<String?> homeSectionsHidden;
@@ -3971,6 +4066,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.artistCardShape = const Value.absent(),
     this.artistViewMode = const Value.absent(),
     this.desktopFocusPlayerModeEnabled = const Value.absent(),
+    this.desktopPlaybackVolume = const Value.absent(),
+    this.desktopLastAudibleVolume = const Value.absent(),
     this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
@@ -4044,6 +4141,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.artistCardShape = const Value.absent(),
     this.artistViewMode = const Value.absent(),
     this.desktopFocusPlayerModeEnabled = const Value.absent(),
+    this.desktopPlaybackVolume = const Value.absent(),
+    this.desktopLastAudibleVolume = const Value.absent(),
     this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
@@ -4117,6 +4216,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? artistCardShape,
     Expression<String>? artistViewMode,
     Expression<bool>? desktopFocusPlayerModeEnabled,
+    Expression<double>? desktopPlaybackVolume,
+    Expression<double>? desktopLastAudibleVolume,
     Expression<String>? homeDensity,
     Expression<String>? homeSectionOrder,
     Expression<String>? homeSectionsHidden,
@@ -4213,6 +4314,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (artistViewMode != null) 'artist_view_mode': artistViewMode,
       if (desktopFocusPlayerModeEnabled != null)
         'desktop_focus_player_mode_enabled': desktopFocusPlayerModeEnabled,
+      if (desktopPlaybackVolume != null)
+        'desktop_playback_volume': desktopPlaybackVolume,
+      if (desktopLastAudibleVolume != null)
+        'desktop_last_audible_volume': desktopLastAudibleVolume,
       if (homeDensity != null) 'home_density': homeDensity,
       if (homeSectionOrder != null) 'home_section_order': homeSectionOrder,
       if (homeSectionsHidden != null)
@@ -4298,6 +4403,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? artistCardShape,
     Value<String>? artistViewMode,
     Value<bool>? desktopFocusPlayerModeEnabled,
+    Value<double>? desktopPlaybackVolume,
+    Value<double>? desktopLastAudibleVolume,
     Value<String>? homeDensity,
     Value<String?>? homeSectionOrder,
     Value<String?>? homeSectionsHidden,
@@ -4381,6 +4488,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       artistViewMode: artistViewMode ?? this.artistViewMode,
       desktopFocusPlayerModeEnabled:
           desktopFocusPlayerModeEnabled ?? this.desktopFocusPlayerModeEnabled,
+      desktopPlaybackVolume:
+          desktopPlaybackVolume ?? this.desktopPlaybackVolume,
+      desktopLastAudibleVolume:
+          desktopLastAudibleVolume ?? this.desktopLastAudibleVolume,
       homeDensity: homeDensity ?? this.homeDensity,
       homeSectionOrder: homeSectionOrder ?? this.homeSectionOrder,
       homeSectionsHidden: homeSectionsHidden ?? this.homeSectionsHidden,
@@ -4595,6 +4706,16 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         desktopFocusPlayerModeEnabled.value,
       );
     }
+    if (desktopPlaybackVolume.present) {
+      map['desktop_playback_volume'] = Variable<double>(
+        desktopPlaybackVolume.value,
+      );
+    }
+    if (desktopLastAudibleVolume.present) {
+      map['desktop_last_audible_volume'] = Variable<double>(
+        desktopLastAudibleVolume.value,
+      );
+    }
     if (homeDensity.present) {
       map['home_density'] = Variable<String>(homeDensity.value);
     }
@@ -4726,6 +4847,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write(
             'desktopFocusPlayerModeEnabled: $desktopFocusPlayerModeEnabled, ',
           )
+          ..write('desktopPlaybackVolume: $desktopPlaybackVolume, ')
+          ..write('desktopLastAudibleVolume: $desktopLastAudibleVolume, ')
           ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
@@ -23642,6 +23765,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> artistCardShape,
       Value<String> artistViewMode,
       Value<bool> desktopFocusPlayerModeEnabled,
+      Value<double> desktopPlaybackVolume,
+      Value<double> desktopLastAudibleVolume,
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
@@ -23716,6 +23841,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> artistCardShape,
       Value<String> artistViewMode,
       Value<bool> desktopFocusPlayerModeEnabled,
+      Value<double> desktopPlaybackVolume,
+      Value<double> desktopLastAudibleVolume,
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
@@ -24007,6 +24134,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get desktopFocusPlayerModeEnabled => $composableBuilder(
     column: $table.desktopFocusPlayerModeEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get desktopPlaybackVolume => $composableBuilder(
+    column: $table.desktopPlaybackVolume,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get desktopLastAudibleVolume => $composableBuilder(
+    column: $table.desktopLastAudibleVolume,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -24375,6 +24512,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get desktopPlaybackVolume => $composableBuilder(
+    column: $table.desktopPlaybackVolume,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get desktopLastAudibleVolume => $composableBuilder(
+    column: $table.desktopLastAudibleVolume,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get homeDensity => $composableBuilder(
     column: $table.homeDensity,
     builder: (column) => ColumnOrderings(column),
@@ -24732,6 +24879,16 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get desktopPlaybackVolume => $composableBuilder(
+    column: $table.desktopPlaybackVolume,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get desktopLastAudibleVolume => $composableBuilder(
+    column: $table.desktopLastAudibleVolume,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get homeDensity => $composableBuilder(
     column: $table.homeDensity,
     builder: (column) => column,
@@ -24912,6 +25069,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> artistViewMode = const Value.absent(),
                 Value<bool> desktopFocusPlayerModeEnabled =
                     const Value.absent(),
+                Value<double> desktopPlaybackVolume = const Value.absent(),
+                Value<double> desktopLastAudibleVolume = const Value.absent(),
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
@@ -24985,6 +25144,8 @@ class $$AppSettingsTableTableTableManager
                 artistCardShape: artistCardShape,
                 artistViewMode: artistViewMode,
                 desktopFocusPlayerModeEnabled: desktopFocusPlayerModeEnabled,
+                desktopPlaybackVolume: desktopPlaybackVolume,
+                desktopLastAudibleVolume: desktopLastAudibleVolume,
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
@@ -25060,6 +25221,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> artistViewMode = const Value.absent(),
                 Value<bool> desktopFocusPlayerModeEnabled =
                     const Value.absent(),
+                Value<double> desktopPlaybackVolume = const Value.absent(),
+                Value<double> desktopLastAudibleVolume = const Value.absent(),
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
@@ -25133,6 +25296,8 @@ class $$AppSettingsTableTableTableManager
                 artistCardShape: artistCardShape,
                 artistViewMode: artistViewMode,
                 desktopFocusPlayerModeEnabled: desktopFocusPlayerModeEnabled,
+                desktopPlaybackVolume: desktopPlaybackVolume,
+                desktopLastAudibleVolume: desktopLastAudibleVolume,
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,

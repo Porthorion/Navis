@@ -187,6 +187,14 @@ The current implementation starts from `SyncDiagnosticsServer` on Linux:
 5. `POST /v1/shutdown` closes the server, removes the handshake, disposes the
    provider container and diagnostics database, and exits the process.
 
+Desktop volume diagnostics use `GET /v1/playback/volume`,
+`POST /v1/playback/volume`, and
+`POST /v1/playback/volume/toggle-mute`. Mutations are clone-only and invoke
+`PlaybackVolumeController`, which in turn applies the real audio handler and
+persists through `SettingsRepository`; the control plane never writes the
+settings table directly. `tool/volume_memory_diagnostics.sh` repeats this flow
+across clean process restarts.
+
 New control-plane capabilities should remain feature-scoped, expose separate
 action and status/query contracts, return structured errors, and support
 deterministic completion or bounded polling. They must have server contract
@@ -482,6 +490,16 @@ The Last.fm API key used by "Same Vibes" instant mix mode is injected at build t
    track-keyed `bufferStateStream`
 6. UI reacts to structural snapshots without rebuilding for routine position
    or buffer ticks; timeline widgets subscribe to the lightweight streams
+
+Desktop volume follows a parallel local-settings path:
+
+1. Audio bootstrap hydrates current and last-audible volume from
+   `app_settings`.
+2. `PlaybackVolumeController` initializes the handler before queue restoration.
+3. Slider changes apply immediately and persist after a short coalescing delay;
+   drag completion and mute changes flush deterministically.
+4. The next desktop launch restores the exact level, including zero, while
+   mobile starts at the session default and does not persist volume.
 
 Linux, Windows, and macOS play remote audio via direct HTTPS (Range-seekable
 through media_kit/libmpv) and fill the rolling cache with a sidecar download to

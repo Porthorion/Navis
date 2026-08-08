@@ -56,6 +56,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required ListenBrainzFeedbackService listenBrainzFeedbackService,
     required PlaybackRuntimeSettings Function() readRuntimeSettings,
     required StarSyncDao starSyncDao,
+    double initialVolume = 1.0,
     NetworkUsageReporter? reportNetworkUsage,
     void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
     AudioPlayer? player,
@@ -72,6 +73,9 @@ class NavisAudioHandler extends BaseAudioHandler
        _listenBrainzFeedbackService = listenBrainzFeedbackService,
        _readRuntimeSettings = readRuntimeSettings,
        _starSyncDao = starSyncDao,
+       _userVolume = initialVolume.isFinite
+           ? initialVolume.clamp(0.0, 1.0)
+           : 1.0,
        _reportNetworkUsage = reportNetworkUsage,
        _reportRollingCacheActivity = reportRollingCacheActivity,
        _artCache = _isAndroidRuntime
@@ -202,7 +206,7 @@ class NavisAudioHandler extends BaseAudioHandler
   // The most-recently requested user volume (0–1). Used as the reference level
   // for ducking and crossfade restoration so track changes never override the
   // user's chosen volume.
-  double _userVolume = 1.0;
+  double _userVolume;
   bool _resumeAfterInterruption = false;
   bool _gaplessEnabled = true;
   String? _activeScrobbleQueueToken;
@@ -926,6 +930,11 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _initialize() async {
     AppLogger.info('Audio handler init: start.');
+    await _player.setVolume(_userVolume);
+    AppLogger.info(
+      'Audio handler init: user volume applied '
+      '(${_userVolume.toStringAsFixed(2)}).',
+    );
     if (_supportsAudioSessionRuntime) {
       final session = await AudioSession.instance;
       AppLogger.info('Audio handler init: audio session acquired.');
@@ -4439,6 +4448,8 @@ class NavisAudioHandler extends BaseAudioHandler
       'sidecarCacheActiveSongId': _sidecarDownloader.activeSongId,
       'playerPositionMs': _player.position.inMilliseconds,
       'playerBufferedPositionMs': _player.bufferedPosition.inMilliseconds,
+      'userVolume': _userVolume,
+      'effectivePlayerVolume': _player.volume,
       'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
     };
   }

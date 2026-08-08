@@ -275,6 +275,64 @@ class SyncDiagnosticsServer {
         await _restoreServerStar(request);
         return;
       }
+      if (request.method == 'GET' && path == '/v1/playback/volume') {
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _playbackVolumeStatus(),
+        );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/playback/volume') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final rawValue = body['value'];
+        if (rawValue is! num ||
+            !rawValue.toDouble().isFinite ||
+            rawValue < 0 ||
+            rawValue > 1) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'value must be a number from 0 to 1',
+          });
+          return;
+        }
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        await _container
+            .read(playbackVolumeProvider.notifier)
+            .setVolume(
+              rawValue.toDouble(),
+              persistImmediately: true,
+              throwOnPersistenceFailure: true,
+            );
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _playbackVolumeStatus(),
+        );
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/playback/volume/toggle-mute') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        await _container
+            .read(playbackVolumeProvider.notifier)
+            .toggleMute(throwOnPersistenceFailure: true);
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _playbackVolumeStatus(),
+        );
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/playback/start') {
         final handler = await _waitForPlaybackHandler();
         await handler.waitUntilReady();
@@ -439,6 +497,26 @@ class SyncDiagnosticsServer {
     });
   }
 
+  Future<Map<String, Object?>> _playbackVolumeStatus() async {
+    final handler = await _waitForPlaybackHandler();
+    await handler.waitUntilReady();
+    final controller = _container.read(playbackVolumeProvider.notifier);
+    final settings = await _container
+        .read(settingsRepositoryProvider)
+        .getSettings();
+    final playback = handler.collectPlaybackDiagnostics();
+    return <String, Object?>{
+      'volume': _container.read(playbackVolumeProvider),
+      'lastAudibleVolume': controller.lastAudibleVolume,
+      'persistedVolume': settings.desktopPlaybackVolume,
+      'persistedLastAudibleVolume': settings.desktopLastAudibleVolume,
+      'handlerUserVolume': playback['userVolume'],
+      'effectivePlayerVolume': playback['effectivePlayerVolume'],
+      'hydrated': controller.hydrated,
+      'desktopPersistenceEnabled': controller.persistenceEnabled,
+    };
+  }
+
   Future<void> _runSourceAudit(HttpRequest request) async {
     final body = await _readJson(request);
     final query = (body['query'] as String? ?? '').trim();
@@ -599,6 +677,8 @@ class SyncDiagnosticsServer {
   }
 
   Future<NavisPlaybackHandler> _waitForPlaybackHandler() async {
+    final existingHandler = _container.read(audioHandlerProvider);
+    if (existingHandler != null) return existingHandler;
     _container
         .read(audioBootstrapControllerProvider.notifier)
         .ensureInitialized();

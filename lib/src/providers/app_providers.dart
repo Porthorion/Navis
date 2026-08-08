@@ -14,6 +14,7 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
@@ -579,21 +580,25 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
   ref,
 ) {
   return () async {
+    AppSettingsModel? hydratedSettings;
     try {
-      await ref
-          .read(appSettingsProvider.future)
-          .timeout(const Duration(seconds: 2));
-    } on TimeoutException {
-      AppLogger.warning(
-        'App settings were not hydrated before audio init. '
-        'Continuing with fallback runtime defaults and retrying sync later.',
-      );
+      final settingsRepository = ref.read(settingsRepositoryProvider);
+      hydratedSettings = await settingsRepository.getSettings();
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'App settings preload failed before audio init. '
         '$error\n$stackTrace',
       );
     }
+
+    final volumeController = ref.read(playbackVolumeProvider.notifier);
+    if (hydratedSettings != null) {
+      volumeController.hydrate(
+        volume: hydratedSettings.desktopPlaybackVolume,
+        lastAudibleVolume: hydratedSettings.desktopLastAudibleVolume,
+      );
+    }
+    final initialVolume = ref.read(playbackVolumeProvider);
 
     final database = ref.read(navisDatabaseProvider);
     final networkUsageMeter = ref.read(networkUsageMeterProvider);
@@ -633,6 +638,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         listenBrainzFeedbackServiceProvider,
       ),
       starSyncDao: database.starSyncDao,
+      initialVolume: initialVolume,
       reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
       reportRollingCacheActivity: (activity) {
         if (!ref.mounted) {
@@ -689,7 +695,12 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     if (ref.read(appSettingsProvider).asData?.value == null) {
       unawaited(() async {
         try {
-          await ref.read(appSettingsProvider.future);
+          final settings = await ref.read(appSettingsProvider.future);
+          final restoredVolume = volumeController.hydrate(
+            volume: settings.desktopPlaybackVolume,
+            lastAudibleVolume: settings.desktopLastAudibleVolume,
+          );
+          await handler.setVolume(restoredVolume);
           await handler.applyRuntimeSettings();
           AppLogger.info(
             'Deferred runtime settings sync applied after settings hydration.',
@@ -1449,39 +1460,138 @@ final playbackBufferStateProvider = StreamProvider<PlaybackBufferState>((ref) {
 
 /// UI-tracked playback volume for desktop controls.
 ///
-/// The audio handler currently exposes a setter but not a reactive stream for
-/// volume, so the UI keeps the latest user-selected value here.
+/// This controller owns the user-selected level, audio-handler application,
+/// and desktop-only persistence so UI and diagnostics use one production path.
+final desktopVolumePersistenceEnabledProvider = Provider<bool>((_) {
+  return isDesktopRuntime;
+});
+
 class PlaybackVolumeController extends Notifier<double> {
-  double _lastAudibleVolume = 1;
+  static const Duration _persistenceDebounce = Duration(milliseconds: 250);
+
+  late final SettingsRepository _settingsRepository;
+  late final bool _persistenceEnabled;
+  double _lastAudibleVolume = AppSettingsDao.defaultDesktopPlaybackVolume;
+  bool _hydrated = false;
+  Timer? _persistenceTimer;
+  Future<void>? _persistenceInFlight;
 
   @override
-  double build() => 1;
+  double build() {
+    _settingsRepository = ref.read(settingsRepositoryProvider);
+    _persistenceEnabled = ref.read(desktopVolumePersistenceEnabledProvider);
+    ref.onDispose(() => _persistenceTimer?.cancel());
+    return AppSettingsDao.defaultDesktopPlaybackVolume;
+  }
 
-  double setVolume(double value, {bool rememberAsAudible = true}) {
-    if (value < 0) {
-      state = 0;
+  double get lastAudibleVolume => _lastAudibleVolume;
+  bool get hydrated => _hydrated;
+  bool get persistenceEnabled => _persistenceEnabled;
+
+  double hydrate({
+    required double volume,
+    required double lastAudibleVolume,
+  }) {
+    if (_hydrated || !persistenceEnabled) {
       return state;
     }
-    if (value > 1) {
-      state = 1;
-      return state;
-    }
-    state = value;
+    state = sanitizeDesktopPlaybackVolume(volume);
+    _lastAudibleVolume = sanitizeDesktopLastAudibleVolume(lastAudibleVolume);
+    _hydrated = true;
+    return state;
+  }
+
+  Future<double> setVolume(
+    double value, {
+    bool rememberAsAudible = true,
+    bool persistImmediately = false,
+    bool throwOnPersistenceFailure = false,
+  }) async {
+    state = sanitizeDesktopPlaybackVolume(value);
     if (rememberAsAudible && state > 0.001) {
       _lastAudibleVolume = state;
+    }
+    final handler = ref.read(audioHandlerProvider);
+    await handler?.setVolume(state);
+    if (persistImmediately) {
+      await _persistCurrentVolume(
+        throwOnFailure: throwOnPersistenceFailure,
+      );
+    } else {
+      _schedulePersistence();
     }
     return state;
   }
 
-  double toggleMute() {
+  Future<double> toggleMute({bool throwOnPersistenceFailure = false}) async {
+    late final double resolved;
     if (state <= 0.001) {
-      final restored = _lastAudibleVolume <= 0.001 ? 1.0 : _lastAudibleVolume;
-      state = restored;
-      return state;
+      resolved = sanitizeDesktopLastAudibleVolume(_lastAudibleVolume);
+    } else {
+      _lastAudibleVolume = state;
+      resolved = 0;
     }
-    _lastAudibleVolume = state;
-    state = 0;
+    state = resolved;
+    final handler = ref.read(audioHandlerProvider);
+    await handler?.setVolume(state);
+    await _persistCurrentVolume(
+      throwOnFailure: throwOnPersistenceFailure,
+    );
     return state;
+  }
+
+  Future<void> flushPersistence({bool throwOnFailure = false}) {
+    return _persistCurrentVolume(throwOnFailure: throwOnFailure);
+  }
+
+  void _schedulePersistence() {
+    if (!persistenceEnabled) {
+      return;
+    }
+    _persistenceTimer?.cancel();
+    _persistenceTimer = Timer(_persistenceDebounce, () {
+      unawaited(_persistCurrentVolume());
+    });
+  }
+
+  Future<void> _persistCurrentVolume({bool throwOnFailure = false}) async {
+    _persistenceTimer?.cancel();
+    _persistenceTimer = null;
+    if (!persistenceEnabled) {
+      return;
+    }
+    final volume = state;
+    final lastAudibleVolume = _lastAudibleVolume;
+    final previous = _persistenceInFlight;
+    final operation = () async {
+      if (previous != null) {
+        try {
+          await previous;
+        } on Object {
+          // A newer write must still run after an earlier failure.
+        }
+      }
+      await _settingsRepository.saveDesktopPlaybackVolume(
+        volume: volume,
+        lastAudibleVolume: lastAudibleVolume,
+      );
+    }();
+    _persistenceInFlight = operation;
+    try {
+      await operation;
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Desktop playback volume persistence failed: '
+        '$error\n$stackTrace',
+      );
+      if (throwOnFailure) {
+        rethrow;
+      }
+    } finally {
+      if (identical(_persistenceInFlight, operation)) {
+        _persistenceInFlight = null;
+      }
+    }
   }
 }
 

@@ -9,7 +9,9 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:dio/dio.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
@@ -37,7 +39,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 59);
+    expect(authorized.body['schemaVersion'], 60);
   });
 
   test('primary certification rejects mutation and cancellation', () async {
@@ -164,6 +166,115 @@ void main() {
   });
 
   test(
+    'volume API uses production controller and persists mute state',
+    () async {
+      final handler = _MockPlaybackHandler();
+      var handlerVolume = 1.0;
+      when(() => handler.loadFailureStream).thenAnswer(
+        (_) => const Stream<PlaybackLoadFailure>.empty(),
+      );
+      when(handler.waitUntilReady).thenAnswer((_) async {});
+      when(() => handler.setVolume(any())).thenAnswer((invocation) async {
+        handlerVolume = invocation.positionalArguments.single as double;
+      });
+      when(handler.collectPlaybackDiagnostics).thenAnswer(
+        (_) => <String, Object?>{
+          'userVolume': handlerVolume,
+          'effectivePlayerVolume': handlerVolume,
+        },
+      );
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        handler: handler,
+      );
+      addTearDown(fixture.close);
+      fixture.container
+          .read(playbackVolumeProvider.notifier)
+          .hydrate(
+            volume: 1,
+            lastAudibleVolume: 1,
+          );
+
+      final invalid = await _request(
+        fixture.port,
+        '/v1/playback/volume',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'value': 2},
+      );
+      expect(invalid.statusCode, HttpStatus.badRequest);
+
+      final set = await _request(
+        fixture.port,
+        '/v1/playback/volume',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'value': 0.37},
+      );
+      expect(set.statusCode, HttpStatus.ok);
+      expect(set.body['volume'], 0.37);
+      expect(set.body['persistedVolume'], 0.37);
+      expect(set.body['handlerUserVolume'], 0.37);
+
+      final muted = await _request(
+        fixture.port,
+        '/v1/playback/volume/toggle-mute',
+        method: 'POST',
+        token: fixture.token,
+      );
+      expect(muted.statusCode, HttpStatus.ok);
+      expect(muted.body['volume'], 0);
+      expect(muted.body['lastAudibleVolume'], 0.37);
+      expect(muted.body['persistedLastAudibleVolume'], 0.37);
+
+      final observed = await _request(
+        fixture.port,
+        '/v1/playback/volume',
+        token: fixture.token,
+      );
+      expect(observed.statusCode, HttpStatus.ok);
+      expect(observed.body['persistedVolume'], 0);
+    },
+  );
+
+  test('primary certification observes volume but rejects mutation', () async {
+    final handler = _MockPlaybackHandler();
+    when(() => handler.loadFailureStream).thenAnswer(
+      (_) => const Stream<PlaybackLoadFailure>.empty(),
+    );
+    when(handler.waitUntilReady).thenAnswer((_) async {});
+    when(handler.collectPlaybackDiagnostics).thenReturn(<String, Object?>{
+      'userVolume': 1.0,
+      'effectivePlayerVolume': 1.0,
+    });
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+      handler: handler,
+    );
+    addTearDown(fixture.close);
+    fixture.container
+        .read(playbackVolumeProvider.notifier)
+        .hydrate(volume: 1, lastAudibleVolume: 1);
+
+    final observed = await _request(
+      fixture.port,
+      '/v1/playback/volume',
+      token: fixture.token,
+    );
+    expect(observed.statusCode, HttpStatus.ok);
+    expect(observed.body['desktopPersistenceEnabled'], isTrue);
+
+    final response = await _request(
+      fixture.port,
+      '/v1/playback/volume',
+      method: 'POST',
+      token: fixture.token,
+      body: <String, Object?>{'value': 0.37},
+    );
+    expect(response.statusCode, HttpStatus.forbidden);
+  });
+
+  test(
     'source audit is authenticated, sanitized, and classifies mixed rows',
     () async {
       final fixture = await _startFixture(
@@ -256,13 +367,14 @@ void main() {
 Future<_DiagnosticsFixture> _startFixture(
   SyncDiagnosticsMode mode, {
   SubsonicApiClient? api,
+  NavisPlaybackHandler? handler,
 }) async {
   final temp = await Directory.systemTemp.createTemp('navis_diagnostics_test_');
   final database = createTestDatabase();
   final container = ProviderContainer(
     overrides: [
       navisDatabaseProvider.overrideWith((ref) => database),
-      audioHandlerProvider.overrideWith((ref) => null),
+      audioHandlerProvider.overrideWith((ref) => handler),
       if (api != null) subsonicApiProvider.overrideWithValue(api),
     ],
   );
@@ -286,6 +398,8 @@ Future<_DiagnosticsFixture> _startFixture(
     token: value['token'] as String,
   );
 }
+
+class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler {}
 
 class _SourceAuditApiClient extends SubsonicApiClient {
   _SourceAuditApiClient()

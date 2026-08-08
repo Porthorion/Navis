@@ -44,6 +44,8 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   final List<String> retainCurrentSongCalls = <String>[];
   final List<bool> addToQueueExpandFlags = <bool>[];
   final List<bool> playNextExpandFlags = <bool>[];
+  final List<double> volumeCalls = <double>[];
+  double volume = 1;
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
   PlaybackBufferState _bufferState = const PlaybackBufferState.idle();
 
@@ -246,6 +248,8 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Map<String, Object?> collectPlaybackDiagnostics() => <String, Object?>{
     'songId': _snapshot.currentSongId,
     'positionMs': _snapshot.position.inMilliseconds,
+    'userVolume': volume,
+    'effectivePlayerVolume': volume,
   };
 
   @override
@@ -277,7 +281,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
-  Future<void> setVolume(double volume) async {}
+  Future<void> setVolume(double volume) async {
+    this.volume = volume;
+    volumeCalls.add(volume);
+  }
 
   @override
   Future<void> setPlaybackSpeed(double speed) async {}
@@ -334,6 +341,166 @@ void main() {
   });
 
   group('app providers', () {
+    test(
+      'desktop volume hydrates, persists mute, and restores audible level',
+      () async {
+        final handler = _FakePlaybackHandler();
+        final repository = _MockSettingsRepository();
+        when(
+          () => repository.saveDesktopPlaybackVolume(
+            volume: any(named: 'volume'),
+            lastAudibleVolume: any(named: 'lastAudibleVolume'),
+          ),
+        ).thenAnswer((_) async {});
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerProvider.overrideWithValue(handler),
+            settingsRepositoryProvider.overrideWithValue(repository),
+            desktopVolumePersistenceEnabledProvider.overrideWithValue(true),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+        });
+
+        final controller = container.read(playbackVolumeProvider.notifier);
+        controller.hydrate(volume: 0, lastAudibleVolume: 0.37);
+        expect(container.read(playbackVolumeProvider), 0);
+        expect(controller.hydrated, isTrue);
+
+        expect(await controller.toggleMute(), 0.37);
+        expect(handler.volume, 0.37);
+        verify(
+          () => repository.saveDesktopPlaybackVolume(
+            volume: 0.37,
+            lastAudibleVolume: 0.37,
+          ),
+        ).called(1);
+
+        expect(
+          await controller.setVolume(0, persistImmediately: true),
+          0,
+        );
+        expect(controller.lastAudibleVolume, 0.37);
+        verify(
+          () => repository.saveDesktopPlaybackVolume(
+            volume: 0,
+            lastAudibleVolume: 0.37,
+          ),
+        ).called(1);
+      },
+    );
+
+    test('mobile volume remains session-only', () async {
+      final handler = _FakePlaybackHandler();
+      final repository = _MockSettingsRepository();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(handler),
+          settingsRepositoryProvider.overrideWithValue(repository),
+          desktopVolumePersistenceEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
+
+      final controller = container.read(playbackVolumeProvider.notifier);
+      controller.hydrate(volume: 0.25, lastAudibleVolume: 0.25);
+      expect(container.read(playbackVolumeProvider), 1);
+      expect(controller.hydrated, isFalse);
+
+      await controller.setVolume(0.42, persistImmediately: true);
+      expect(handler.volume, 0.42);
+      verifyNever(
+        () => repository.saveDesktopPlaybackVolume(
+          volume: any(named: 'volume'),
+          lastAudibleVolume: any(named: 'lastAudibleVolume'),
+        ),
+      );
+    });
+
+    test(
+      'desktop volume coalesces drag persistence to the latest value',
+      () async {
+        final handler = _FakePlaybackHandler();
+        final repository = _MockSettingsRepository();
+        when(
+          () => repository.saveDesktopPlaybackVolume(
+            volume: any(named: 'volume'),
+            lastAudibleVolume: any(named: 'lastAudibleVolume'),
+          ),
+        ).thenAnswer((_) async {});
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerProvider.overrideWithValue(handler),
+            settingsRepositoryProvider.overrideWithValue(repository),
+            desktopVolumePersistenceEnabledProvider.overrideWithValue(true),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+        });
+
+        final controller = container.read(playbackVolumeProvider.notifier);
+        controller.hydrate(volume: 1, lastAudibleVolume: 1);
+        await controller.setVolume(0.2);
+        await controller.setVolume(0.4);
+        await controller.setVolume(0.6);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+
+        verify(
+          () => repository.saveDesktopPlaybackVolume(
+            volume: 0.6,
+            lastAudibleVolume: 0.6,
+          ),
+        ).called(1);
+        verifyNoMoreInteractions(repository);
+      },
+    );
+
+    test(
+      'desktop volume can surface persistence failures to diagnostics',
+      () async {
+        final handler = _FakePlaybackHandler();
+        final repository = _MockSettingsRepository();
+        when(
+          () => repository.saveDesktopPlaybackVolume(
+            volume: any(named: 'volume'),
+            lastAudibleVolume: any(named: 'lastAudibleVolume'),
+          ),
+        ).thenThrow(StateError('write failed'));
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerProvider.overrideWithValue(handler),
+            settingsRepositoryProvider.overrideWithValue(repository),
+            desktopVolumePersistenceEnabledProvider.overrideWithValue(true),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+        });
+
+        final controller = container.read(playbackVolumeProvider.notifier);
+        controller.hydrate(volume: 1, lastAudibleVolume: 1);
+
+        await expectLater(
+          controller.setVolume(
+            0.37,
+            persistImmediately: true,
+            throwOnPersistenceFailure: true,
+          ),
+          throwsStateError,
+        );
+        expect(handler.volume, 0.37);
+        expect(container.read(playbackVolumeProvider), 0.37);
+      },
+    );
+
     test('playbackBufferStateProvider yields current and live state', () async {
       final handler = _FakePlaybackHandler();
       final container = ProviderContainer(

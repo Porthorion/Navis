@@ -856,6 +856,24 @@ abstract class AppLocalizations {
   /// **'Volume Normalization (ReplayGain)'**
   String get playbackSettingsReplayGainSectionTitle;
 
+  /// No description provided for @playbackVolumeSemanticLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback volume'**
+  String get playbackVolumeSemanticLabel;
+
+  /// No description provided for @playbackMuteTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute playback'**
+  String get playbackMuteTooltip;
+
+  /// No description provided for @playbackUnmuteTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute playback'**
+  String get playbackUnmuteTooltip;
+
   /// No description provided for @playbackSettingsReplayGainModeLabel.
   ///
   /// In en, this message translates to:

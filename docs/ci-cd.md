@@ -37,6 +37,16 @@ Library sync metered-network guardrails are exercised by the clone diagnostics
 suite (`./tool/sync_diagnostics.sh clone`), which can simulate network cost
 overrides without cellular hardware.
 
+Desktop volume restart behavior has a focused manual runtime gate:
+
+```bash
+./tool/volume_memory_diagnostics.sh
+```
+
+It launches the Linux profile app against an isolated clone, authenticates via
+the app API, and verifies volume, mute, Unmute, persistence, and clean restart.
+It supplements but does not replace `./tool/check.sh`.
+
 ### Core Gate
 
 Use for the focused release checks when the full development test matrix is not

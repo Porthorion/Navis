@@ -34,7 +34,7 @@ Minimum tested versions:
 - Offline cache plus permanent download modes
 - Adaptive layouts that scale from phone to tablet/desktop
 - Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, and guarded transport actions while typing
-- Desktop volume controls in the bottom player and desktop-wide now playing surfaces
+- Desktop volume controls that restore the previous per-installation level and mute state on the next launch
 - Channel-aware updater behavior for stable/dev release tracks
 
 ## Media Integration Status

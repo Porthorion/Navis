@@ -184,6 +184,14 @@ class AppSettingsTable extends Table {
   BoolColumn get desktopFocusPlayerModeEnabled =>
       boolean().withDefault(const Constant(false))();
 
+  /// Navis playback volume restored on desktop runtimes.
+  RealColumn get desktopPlaybackVolume =>
+      real().withDefault(const Constant(1))();
+
+  /// Last non-muted desktop volume used by the mute toggle.
+  RealColumn get desktopLastAudibleVolume =>
+      real().withDefault(const Constant(1))();
+
   /// Home section density: 'comfortable' or 'compact'. Default 'comfortable'.
   TextColumn get homeDensity =>
       text().withDefault(const Constant('comfortable'))();

@@ -228,23 +228,24 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   final volumeNotifier = ref.read(
                     playbackVolumeProvider.notifier,
                   );
-                  final volume = volumeNotifier.setVolume(rawValue);
+                  final volume = await volumeNotifier.setVolume(
+                    rawValue,
+                    persistImmediately: logChange,
+                  );
                   if (logChange) {
                     AppLogger.debug(
                       '[ACP_INPUT] volume source=$source value=${volume.toStringAsFixed(2)}',
                     );
                   }
-                  await ref.read(audioHandlerProvider)?.setVolume(volume);
                 }
 
                 Future<void> toggleMute({required String source}) async {
-                  final volume = ref
+                  final volume = await ref
                       .read(playbackVolumeProvider.notifier)
                       .toggleMute();
                   AppLogger.debug(
                     '[ACP_INPUT] volume source=$source value=${volume.toStringAsFixed(2)}',
                   );
-                  await ref.read(audioHandlerProvider)?.setVolume(volume);
                 }
 
                 final resolvedAlbumId = (widget.albumId ?? '').trim();
@@ -867,6 +868,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                   'desktopPlayerVolumeSlider',
                                 ),
                                 volume: playbackVolume,
+                                semanticLabel: l10n.playbackVolumeSemanticLabel,
+                                muteTooltip: l10n.playbackMuteTooltip,
+                                unmuteTooltip: l10n.playbackUnmuteTooltip,
                                 onChanged: (value) => unawaited(
                                   setPlaybackVolume(
                                     value,

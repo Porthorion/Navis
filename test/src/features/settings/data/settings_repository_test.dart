@@ -140,6 +140,38 @@ WHERE id = ?;
       expect(reset.cachedPlaybackFirst, isFalse);
     }, skip: !sqliteAvailable);
 
+    test(
+      'persists and normalizes desktop playback volume atomically',
+      () async {
+        await repository.saveSettings(
+          const AppSettingsModel.defaults().copyWith(themeMode: 'oled'),
+        );
+
+        await repository.saveDesktopPlaybackVolume(
+          volume: 0.37,
+          lastAudibleVolume: 0.37,
+        );
+        var saved = await repository.getSettings();
+        expect(saved.desktopPlaybackVolume, 0.37);
+        expect(saved.desktopLastAudibleVolume, 0.37);
+        expect(saved.themeMode, 'oled');
+
+        await repository.saveDesktopPlaybackVolume(
+          volume: -1,
+          lastAudibleVolume: 0,
+        );
+        saved = await repository.getSettings();
+        expect(saved.desktopPlaybackVolume, 0);
+        expect(saved.desktopLastAudibleVolume, 1);
+
+        await repository.resetDefaults();
+        saved = await repository.getSettings();
+        expect(saved.desktopPlaybackVolume, 1);
+        expect(saved.desktopLastAudibleVolume, 1);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('resetDefaults clears group listening settings', () async {
       await repository.saveSettings(
         const AppSettingsModel.defaults().copyWith(

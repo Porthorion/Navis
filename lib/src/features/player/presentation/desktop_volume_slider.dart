@@ -13,6 +13,9 @@ class DesktopVolumeSlider extends StatefulWidget {
     required this.onChanged,
     required this.onChangeEnd,
     required this.onMuteToggle,
+    required this.semanticLabel,
+    required this.muteTooltip,
+    required this.unmuteTooltip,
     this.compact = false,
   });
 
@@ -27,6 +30,10 @@ class DesktopVolumeSlider extends StatefulWidget {
 
   /// Fires when the mute/unmute icon button is tapped.
   final VoidCallback onMuteToggle;
+
+  final String semanticLabel;
+  final String muteTooltip;
+  final String unmuteTooltip;
 
   /// When true, uses smaller sizing (for now-playing transport).
   final bool compact;
@@ -109,6 +116,9 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
           IconButton(
             iconSize: compact ? 18 : 20,
             visualDensity: VisualDensity.compact,
+            tooltip: widget.volume <= 0.001
+                ? widget.unmuteTooltip
+                : widget.muteTooltip,
             onPressed: widget.onMuteToggle,
             icon: Icon(
               widget.volume <= 0.01
@@ -144,13 +154,19 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
                             overlayRadius: overlayRadius,
                           ),
                         ),
-                        child: Slider(
-                          value: displayVolume,
-                          min: 0,
-                          max: 1,
-                          onChangeStart: _onChangeStart,
-                          onChanged: _onChanged,
-                          onChangeEnd: _onChangeEnd,
+                        child: Semantics(
+                          label: widget.semanticLabel,
+                          value: '$percent%',
+                          child: Slider(
+                            value: displayVolume,
+                            min: 0,
+                            max: 1,
+                            semanticFormatterCallback: (value) =>
+                                '${(value * 100).round()}%',
+                            onChangeStart: _onChangeStart,
+                            onChanged: _onChanged,
+                            onChangeEnd: _onChangeEnd,
+                          ),
                         ),
                       ),
                       // Floating percentage tooltip.

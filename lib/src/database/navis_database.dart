@@ -135,7 +135,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 59;
+  int get schemaVersion => 60;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -332,6 +332,27 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 59 && to >= 59) {
       await from58To59(migrator);
+    }
+    if (from < 60 && to >= 60) {
+      await from59To60(migrator);
+    }
+  }
+
+  Future<void> from59To60(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'desktop_playback_volume')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.desktopPlaybackVolume,
+      );
+    }
+    if (!await _columnExists(
+      'app_settings',
+      'desktop_last_audible_volume',
+    )) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.desktopLastAudibleVolume,
+      );
     }
   }
 

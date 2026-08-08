@@ -71,6 +71,12 @@ class SettingsRepository {
       artistCardShape: settings.artistCardShape,
       artistViewMode: settings.artistViewMode,
       desktopFocusPlayerModeEnabled: settings.desktopFocusPlayerModeEnabled,
+      desktopPlaybackVolume: sanitizeDesktopPlaybackVolume(
+        settings.desktopPlaybackVolume,
+      ),
+      desktopLastAudibleVolume: sanitizeDesktopLastAudibleVolume(
+        settings.desktopLastAudibleVolume,
+      ),
       homeDensity: settings.homeDensity,
       homeSectionOrder: _encodeStringList(settings.homeSectionOrder),
       homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
@@ -98,6 +104,16 @@ class SettingsRepository {
   }
 
   Future<void> resetDefaults() => _dao.resetDefaults();
+
+  Future<void> saveDesktopPlaybackVolume({
+    required double volume,
+    required double lastAudibleVolume,
+  }) {
+    return _dao.updateDesktopPlaybackVolume(
+      volume: sanitizeDesktopPlaybackVolume(volume),
+      lastAudibleVolume: sanitizeDesktopLastAudibleVolume(lastAudibleVolume),
+    );
+  }
 
   AppSettingsModel _mapOrDefault(AppSettingsTableData? row) {
     if (row == null) {
@@ -151,6 +167,12 @@ class SettingsRepository {
       artistCardShape: row.artistCardShape,
       artistViewMode: row.artistViewMode,
       desktopFocusPlayerModeEnabled: row.desktopFocusPlayerModeEnabled,
+      desktopPlaybackVolume: sanitizeDesktopPlaybackVolume(
+        row.desktopPlaybackVolume,
+      ),
+      desktopLastAudibleVolume: sanitizeDesktopLastAudibleVolume(
+        row.desktopLastAudibleVolume,
+      ),
       homeDensity: row.homeDensity,
       homeSectionOrder: _decodeStringList(row.homeSectionOrder),
       homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),

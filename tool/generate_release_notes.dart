@@ -65,6 +65,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'Desktop clients now reopen at your previous Navis volume, including mute, and Unmute restores the last audible level',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Remote catalog artists, albums, and songs now show a cloud badge so you can distinguish them from music already in your server library',
       type: _EntryType.newFeature,
     ),

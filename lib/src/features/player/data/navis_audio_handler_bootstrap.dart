@@ -67,6 +67,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required ListenBrainzFeedbackService listenBrainzFeedbackService,
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
   required StarSyncDao starSyncDao,
+  double initialVolume = 1.0,
   NetworkUsageReporter? reportNetworkUsage,
   void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
 }) {
@@ -90,6 +91,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       listenBrainzFeedbackService: listenBrainzFeedbackService,
       readRuntimeSettings: readRuntimeSettings,
       starSyncDao: starSyncDao,
+      initialVolume: initialVolume,
       reportNetworkUsage: reportNetworkUsage,
       reportRollingCacheActivity: reportRollingCacheActivity,
     );

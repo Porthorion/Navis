@@ -137,6 +137,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/verify_android_auto_manifest.sh  # Android Auto manifest/APK contract
 ./tool/sync_diagnostics.sh clone  # isolated Linux profile sync/API suite
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
+./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 
 # Release (runs check unless --skip-checks)
 ./tool/release.sh v1.2.3
@@ -284,6 +285,13 @@ User action → queueProvider (QueueController)
 ```
 
 Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-cache)** → **Stream**
+
+Desktop playback volume is local to each installation. `PlaybackVolumeController`
+applies live changes to the audio handler, coalesces slider persistence, and
+stores the current and last-audible levels in `app_settings`. Audio bootstrap
+hydrates and applies that level before queue restoration. Mobile volume remains
+session-only, and transient ducking, ReplayGain, crossfade, and sleep-timer
+fades must never overwrite the remembered desktop level.
 
 Native desktop playback on Linux, Windows, and macOS uses direct HTTPS for the
 active deck (Range-seekable under media_kit) plus a sidecar rolling-cache
@@ -560,7 +568,7 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 59 |
+| **Schema version** | 60 |
 | **Tables** | 30 |
 | **DAOs** | 16 |
 
@@ -583,6 +591,10 @@ Contexts include: `album_grid`, `album_detail`, `now_playing`, `mini_player`.
 ### Desktop audio
 
 `JustAudioMediaKit` is initialized in `main.dart` for Linux/Windows/macOS. On macOS in **debug** mode, media_kit init is skipped to keep hot-restart stable — override with `--dart-define=NAVIS_ENABLE_MEDIA_KIT_DEBUG=true`.
+
+Desktop clients restore Navis's per-installation playback volume, including
+muted state and the last audible level used by Unmute. Validate this lifecycle
+with `./tool/volume_memory_diagnostics.sh`.
 
 ---
 

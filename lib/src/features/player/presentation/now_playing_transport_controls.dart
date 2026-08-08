@@ -93,21 +93,24 @@ class _TransportControls extends ConsumerWidget {
       bool logChange = false,
     }) async {
       final volumeNotifier = ref.read(playbackVolumeProvider.notifier);
-      final resolved = volumeNotifier.setVolume(rawValue);
+      final resolved = await volumeNotifier.setVolume(
+        rawValue,
+        persistImmediately: logChange,
+      );
       if (logChange) {
         AppLogger.debug(
           '[ACP_INPUT] volume source=$source value=${resolved.toStringAsFixed(2)}',
         );
       }
-      await ref.read(audioHandlerProvider)?.setVolume(resolved);
     }
 
     Future<void> toggleMute({required String source}) async {
-      final resolved = ref.read(playbackVolumeProvider.notifier).toggleMute();
+      final resolved = await ref
+          .read(playbackVolumeProvider.notifier)
+          .toggleMute();
       AppLogger.debug(
         '[ACP_INPUT] volume source=$source value=${resolved.toStringAsFixed(2)}',
       );
-      await ref.read(audioHandlerProvider)?.setVolume(resolved);
     }
 
     String repeatTooltip;
@@ -289,6 +292,9 @@ class _TransportControls extends ConsumerWidget {
                 key: const ValueKey<String>('nowPlayingDesktopVolumeSlider'),
                 volume: volume,
                 compact: compact,
+                semanticLabel: l10n.playbackVolumeSemanticLabel,
+                muteTooltip: l10n.playbackMuteTooltip,
+                unmuteTooltip: l10n.playbackUnmuteTooltip,
                 onChanged: (value) => unawaited(
                   setPlaybackVolume(value, source: 'desktop_now_playing_live'),
                 ),

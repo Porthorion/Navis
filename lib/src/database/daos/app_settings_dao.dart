@@ -21,6 +21,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   static const int defaultCellularBitRate = 192;
   static const String defaultCellularFormat = 'opus';
   static const int defaultSyncIntervalMinutes = 60;
+  static const double defaultDesktopPlaybackVolume = 1;
   static const bool defaultVoyageAutoFollowHost = true;
 
   Stream<AppSettingsTableData?> watchSettings() {
@@ -112,6 +113,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String artistCardShape,
     required String artistViewMode,
     bool desktopFocusPlayerModeEnabled = false,
+    double desktopPlaybackVolume = defaultDesktopPlaybackVolume,
+    double desktopLastAudibleVolume = defaultDesktopPlaybackVolume,
     required String homeDensity,
     String? homeSectionOrder,
     String? homeSectionsHidden,
@@ -179,6 +182,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         artistCardShape: Value(artistCardShape),
         artistViewMode: Value(artistViewMode),
         desktopFocusPlayerModeEnabled: Value(desktopFocusPlayerModeEnabled),
+        desktopPlaybackVolume: Value(desktopPlaybackVolume),
+        desktopLastAudibleVolume: Value(desktopLastAudibleVolume),
         homeDensity: Value(homeDensity),
         homeSectionOrder: Value(homeSectionOrder),
         homeSectionsHidden: Value(homeSectionsHidden),
@@ -287,6 +292,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       artistCardShape: 'circle',
       artistViewMode: 'grid',
       desktopFocusPlayerModeEnabled: false,
+      desktopPlaybackVolume: defaultDesktopPlaybackVolume,
+      desktopLastAudibleVolume: defaultDesktopPlaybackVolume,
       homeDensity: 'comfortable',
       homeSectionOrder: null,
       homeSectionsHidden: null,
@@ -808,6 +815,22 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         desktopNavbarAutohide: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Atomically persists the current desktop volume and its unmute target.
+  Future<void> updateDesktopPlaybackVolume({
+    required double volume,
+    required double lastAudibleVolume,
+  }) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        desktopPlaybackVolume: Value(volume),
+        desktopLastAudibleVolume: Value(lastAudibleVolume),
         updatedAt: Value(DateTime.now()),
       ),
     );

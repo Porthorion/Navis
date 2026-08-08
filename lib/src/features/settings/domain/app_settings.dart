@@ -1,6 +1,21 @@
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 
+double sanitizeDesktopPlaybackVolume(double? value) {
+  if (value == null || !value.isFinite) {
+    return AppSettingsDao.defaultDesktopPlaybackVolume;
+  }
+  return value.clamp(0.0, 1.0);
+}
+
+double sanitizeDesktopLastAudibleVolume(double? value) {
+  final normalized = sanitizeDesktopPlaybackVolume(value);
+  if (normalized <= 0.001) {
+    return AppSettingsDao.defaultDesktopPlaybackVolume;
+  }
+  return normalized;
+}
+
 @immutable
 class CustomVoyageServer {
   const CustomVoyageServer({
@@ -79,6 +94,8 @@ class AppSettingsModel {
     required this.artistCardShape,
     required this.artistViewMode,
     this.desktopFocusPlayerModeEnabled = false,
+    this.desktopPlaybackVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
+    this.desktopLastAudibleVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
     this.homeDensity = 'comfortable',
     required this.homeSectionOrder,
     required this.homeSectionsHidden,
@@ -150,6 +167,8 @@ class AppSettingsModel {
       artistCardShape = 'circle',
       artistViewMode = 'grid',
       desktopFocusPlayerModeEnabled = false,
+      desktopPlaybackVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
+      desktopLastAudibleVolume = AppSettingsDao.defaultDesktopPlaybackVolume,
       homeDensity = 'comfortable',
       homeSectionOrder = null,
       homeSectionsHidden = null,
@@ -243,6 +262,12 @@ class AppSettingsModel {
 
   /// When true on desktop runtime, the app launches in compact focus mode.
   final bool desktopFocusPlayerModeEnabled;
+
+  /// Navis playback volume restored by desktop clients.
+  final double desktopPlaybackVolume;
+
+  /// Last non-muted desktop volume restored by the mute toggle.
+  final double desktopLastAudibleVolume;
 
   /// Home layout density: 'comfortable' or 'compact'.
   final String homeDensity;
@@ -359,6 +384,8 @@ class AppSettingsModel {
     String? artistCardShape,
     String? artistViewMode,
     bool? desktopFocusPlayerModeEnabled,
+    double? desktopPlaybackVolume,
+    double? desktopLastAudibleVolume,
     String? homeDensity,
     List<String>? homeSectionOrder,
     List<String>? homeSectionsHidden,
@@ -471,6 +498,10 @@ class AppSettingsModel {
       artistViewMode: artistViewMode ?? this.artistViewMode,
       desktopFocusPlayerModeEnabled:
           desktopFocusPlayerModeEnabled ?? this.desktopFocusPlayerModeEnabled,
+      desktopPlaybackVolume:
+          desktopPlaybackVolume ?? this.desktopPlaybackVolume,
+      desktopLastAudibleVolume:
+          desktopLastAudibleVolume ?? this.desktopLastAudibleVolume,
       homeDensity: homeDensity ?? this.homeDensity,
       homeSectionOrder: clearHomeSectionOrder
           ? null

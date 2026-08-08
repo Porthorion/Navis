@@ -114,12 +114,28 @@ The existing Linux profile diagnostics path is the starting control plane:
   `GET /v1/sync/status`, `GET /v1/playback/status`, and
   `GET /v1/diagnostics/report`. Actions use feature-scoped `POST` endpoints;
   `POST /v1/shutdown` provides clean termination.
+- Desktop volume memory exposes `GET /v1/playback/volume`, clone-only
+  `POST /v1/playback/volume` with a numeric `value` from 0 through 1, and
+  clone-only `POST /v1/playback/volume/toggle-mute`. The status response
+  reports controller, persisted, and handler values without exposing media or
+  server data.
 
 The sync diagnostics script runs its own catalog test sequence. For unrelated
 features, add the smallest focused launcher or scenario script that reuses the
 same lifecycle rather than pretending the sync sequence tested that feature.
 Do not document or call an endpoint until its implementation and contract test
 exist.
+
+Use the focused volume-memory scenario for desktop volume changes:
+
+```bash
+./tool/volume_memory_diagnostics.sh
+```
+
+It launches a Linux profile build against one isolated clone three times. The
+scenario sets 37%, verifies a clean restart, persists mute across another
+restart, then verifies that Unmute returns to 37%. Sanitized JSON responses and
+the local app log are retained under `build/volume-memory-diagnostics/`.
 
 ### App API extension and safety contract
 

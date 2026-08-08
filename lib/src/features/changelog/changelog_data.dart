@@ -38,6 +38,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Desktop clients now reopen at your previous Navis volume, including mute, and Unmute restores the last audible level',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Remote catalog artists, albums, and songs now show a cloud badge so you can distinguish them from music already in your server library',
         type: ChangelogEntryType.newFeature,
       ),

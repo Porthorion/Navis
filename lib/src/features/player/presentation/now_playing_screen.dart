@@ -725,15 +725,17 @@ void _showNowPlayingSettingsSheet(
                           min: 0,
                           max: 1,
                           onChanged: (v) {
-                            final resolved = sheetRef
-                                .read(playbackVolumeProvider.notifier)
-                                .setVolume(v);
                             unawaited(
                               sheetRef
-                                  .read(audioHandlerProvider)
-                                  ?.setVolume(resolved),
+                                  .read(playbackVolumeProvider.notifier)
+                                  .setVolume(v),
                             );
                           },
+                          onChangeEnd: (v) => unawaited(
+                            sheetRef
+                                .read(playbackVolumeProvider.notifier)
+                                .setVolume(v, persistImmediately: true),
+                          ),
                         ),
                       ),
                       SizedBox(
