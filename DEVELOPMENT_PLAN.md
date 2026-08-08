@@ -304,7 +304,10 @@ This section is the operational contract for day-to-day implementation, especial
 2. Complete the mandatory runtime validation loop in `AGENTS.md`, using the
    cross-platform procedure and app API safety contract in
    `docs/development-workflow.md`. Static tests alone do not complete a
-   runtime-affecting task.
+   runtime-affecting task. The authenticated Navis diagnostics API is the
+   primary control plane. Visible Flutter work requires an app-owned screenshot
+   that the agent opens and inspects; AT-SPI and external desktop automation
+   are not substitutes.
 3. Run local quality gate:
    - Preferred: `./tool/check.sh`
    - Fallback: `dart format --set-exit-if-changed . && dart run build_runner build --delete-conflicting-outputs && flutter analyze --no-fatal-infos && flutter test`
@@ -331,6 +334,9 @@ A task is complete only when all are true:
 - Relevant tests were added or updated.
 - The mandatory runtime validation loop passed from a clean restart for any
   runtime-affecting change.
+- Every visible Flutter change has inspected app-owned screenshot evidence and
+  deterministic widget or golden coverage where the visual contract is stable
+  or regression-prone.
 - Quality gate commands pass locally.
 - `PROGRESS.md` is updated with date/evidence.
 - Any affected file in `docs/` is updated for non-trivial behavior changes.

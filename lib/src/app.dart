@@ -22,11 +22,13 @@ class NavisApp extends ConsumerStatefulWidget {
     this.requirePlaybackBootstrap = false,
     this.schedulePlaybackBootstrap = true,
     this.splashFactory,
+    this.onBootstrapOverlayDismissed,
   });
 
   final bool requirePlaybackBootstrap;
   final bool schedulePlaybackBootstrap;
   final InteractiveInkFeatureFactory? splashFactory;
+  final VoidCallback? onBootstrapOverlayDismissed;
 
   @override
   ConsumerState<NavisApp> createState() => _NavisAppState();
@@ -86,7 +88,10 @@ class _NavisAppState extends ConsumerState<NavisApp> {
           child ?? const SizedBox.shrink(),
         );
         if (widget.requirePlaybackBootstrap) {
-          content = _AppBootstrapOverlay(child: content);
+          content = _AppBootstrapOverlay(
+            onDismissed: widget.onBootstrapOverlayDismissed,
+            child: content,
+          );
         }
         return content;
       },
@@ -148,9 +153,10 @@ class _DesktopActivationShortcutManager extends ShortcutManager {
 // ---------------------------------------------------------------------------
 
 class _AppBootstrapOverlay extends ConsumerStatefulWidget {
-  const _AppBootstrapOverlay({required this.child});
+  const _AppBootstrapOverlay({required this.child, this.onDismissed});
 
   final Widget child;
+  final VoidCallback? onDismissed;
 
   @override
   ConsumerState<_AppBootstrapOverlay> createState() =>
@@ -186,6 +192,9 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
     _exitController.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
         setState(() => _overlayDismissed = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onDismissed?.call();
+        });
       }
     });
   }

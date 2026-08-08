@@ -10,6 +10,12 @@ runtime validation loop in `AGENTS.md` and its detailed procedure in
 `docs/development-workflow.md`. Static checks and `flutter test` alone are not
 sufficient completion evidence.
 
+Use the authenticated Navis diagnostics API as the primary runtime control
+plane and inspect app-owned screenshots for visible Flutter changes. Never use
+AT-SPI, accessibility D-Bus traversal, Dogtail, xdotool, wmctrl, OCR/window
+scraping, or override `NO_AT_BRIDGE` unless the user explicitly authorizes a
+separately scoped platform accessibility-bridge test.
+
 ## What This Is
 
 Navis is a multi-platform Subsonic/OpenSubsonic music client (Android, iOS, macOS, Linux, Windows) built with Flutter. Key features: gapless audio playback, offline cache + permanent downloads, adaptive UI (phone/tablet/desktop), synced lyrics, scrobbling, and smart queue generation.

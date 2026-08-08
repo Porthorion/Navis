@@ -64,22 +64,37 @@ Navis is a multi-platform **Subsonic/OpenSubsonic** music client built with Flut
 Static analysis and automated tests are necessary but are not sufficient for a
 runtime-affecting change. Repeat this loop until the implementation is complete:
 
-1. Launch Navis on the current system with an isolated test profile. Linux is
+1. Use the relevant focused diagnostics script when one exists. Otherwise
+   launch Navis on the current system with an isolated test profile; Linux is
    the default target for platform-neutral work.
-2. Confirm startup through the authenticated app API health endpoint.
-3. Drive the acceptance scenario through an app-owned API and assert the
-   response, observable state, persisted effects, logs, and absence of new
-   errors. An **app API** is a control or observation surface executed by the
-   running Navis process. Direct database edits, process-exists checks, or calls
-   that bypass production providers/controllers do not qualify.
-4. Inspect the rendered result when UI automation is available. If the host
-   cannot reliably drive the UI, visual work must expose enough app-owned
-   semantics, screenshot output, or presentation state to verify the result.
-5. Fix every implementation, regression, or observability gap. Add the smallest
-   missing test API when the current API cannot control or observe the scenario,
-   then restart from an isolated state and repeat.
-6. After focused iterations pass, run `./tool/check.sh`, relaunch cleanly, and
+2. Confirm startup through the authenticated app API health endpoint, then use
+   existing feature endpoints. If required control or observation is missing,
+   add a narrow endpoint, contract tests, and a focused script before testing.
+3. Drive the acceptance scenario through the app API and assert the response,
+   observable state, persisted effects, logs, and absence of new errors. An
+   **app API** is a control or observation surface executed by the running
+   Navis process. Direct database edits, process-exists checks, or calls that
+   bypass production providers/controllers do not qualify.
+4. For every visible Flutter change, capture the meaningful state through
+   `POST /v1/presentation/screenshot`, open the PNG with image-viewing
+   capability, inspect the affected region, and record the result. File
+   existence alone is not visual confirmation.
+5. Add deterministic widget coverage for behavior and semantics. Add component
+   goldens for stable shared, adaptive, layout, clipping, painting, or color
+   contracts; do not use live-data full-screen goldens.
+6. Fix every implementation, regression, visual, or observability gap, then
+   restart from an isolated state and repeat.
+7. After focused iterations pass, run `./tool/check.sh`, relaunch cleanly, and
    repeat the final acceptance and relevant regression scenarios.
+
+The evidence order above is mandatory. AT-SPI, accessibility D-Bus traversal,
+Dogtail, xdotool, wmctrl, OCR/window scraping, and similar external desktop
+automation are not Navis app APIs and must not be used as substitutes. Do not
+enable accessibility services, override `NO_AT_BRIDGE`, or alter the desktop
+session. AT-SPI is allowed only when the task explicitly tests the platform
+accessibility bridge and the user authorizes it. **App-owned semantics** means
+values returned by the authenticated diagnostics API or asserted in Flutter
+widget tests, never the live accessibility tree.
 
 Target selection:
 
@@ -103,8 +118,9 @@ updated; and `PROGRESS.md` updated when applicable. For runtime-affecting work,
 final handoff or progress evidence must name the runtime target and isolated
 profile mode, scenarios exercised, app or native service APIs used, observed
 results and log review, visual/semantics evidence when relevant, retest
-iterations, final quality-gate result, and clean-restart result. Never record
-credentials, bearer tokens, private server URLs, or cloned user data.
+iterations, final quality-gate result, and clean-restart result. Visible changes
+must identify each inspected app-owned screenshot. Never record credentials,
+bearer tokens, private server URLs, cloned user data, or unredacted screenshots.
 
 ---
 
@@ -139,6 +155,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
+./tool/presentation_diagnostics.sh clone / home  # app-owned screenshot suite
 
 # Release (runs check unless --skip-checks)
 ./tool/release.sh v1.2.3

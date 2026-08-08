@@ -61,20 +61,25 @@ proven not to affect runtime behavior are exempt.
    editing. For a bug fix, reproduce the failure through the running app when
    possible.
 2. Add or update focused unit, widget, integration, or API-contract tests.
-3. Launch Navis with an isolated profile. Use Linux for platform-neutral work.
+3. Run the relevant focused diagnostics script when one exists. Otherwise
+   launch Navis with an isolated profile and use Linux for platform-neutral
+   work.
 4. Call `GET /v1/health` and require a successful authenticated response before
    testing feature behavior.
 5. Drive the scenario through the running app's API. Check the response,
    observable provider/domain state, persisted side effects, relevant logs, and
    the absence of new errors. Use status endpoints or bounded polling instead
    of fixed sleeps for asynchronous work.
-6. Verify rendered behavior when UI automation is reliable. If the desktop
-   environment cannot drive the window, add or use app-owned semantics,
-   screenshot capture, or presentation-state observations for visual changes.
-7. Stop the app, fix implementation or observability gaps, reset the isolated
+6. For a visible Flutter change, call `POST /v1/presentation/screenshot`, open
+   the resulting PNG with image-viewing capability, inspect the affected
+   region, and record the result. Merely creating a PNG is not confirmation.
+7. Use deterministic widget tests for behavior and Flutter semantics. Add
+   component goldens when stable layout, clipping, painting, responsive, or
+   color output is part of the contract.
+8. Stop the app, fix implementation, visual, or observability gaps, reset the
    state as needed, and repeat from step 2. A missing control or observation
    endpoint is an implementation gap, not a reason to skip runtime validation.
-8. When the focused loop passes, run `./tool/check.sh`, launch a clean app
+9. When the focused loop passes, run `./tool/check.sh`, launch a clean app
    instance, and repeat the final acceptance and regression scenarios.
 
 An **app API** is a control or observation interface executed by the running
@@ -82,6 +87,19 @@ Navis process and routed through the same production providers, controllers,
 repositories, DAOs, and audio handlers as the UI. Unit-test method calls,
 direct database edits, checking only that a process exists, and test-only state
 changes that bypass the production path do not satisfy this requirement.
+
+The required precedence is: focused diagnostics script, existing authenticated
+Navis endpoints, then a new narrow endpoint with contract tests and a focused
+script. Do not search for an operating-system automation substitute when an
+endpoint is missing.
+
+AT-SPI, accessibility D-Bus traversal, Dogtail, xdotool, wmctrl, OCR/window
+scraping, and similar external desktop automation are not app APIs. Do not
+enable accessibility services, override `NO_AT_BRIDGE`, or change the desktop
+session. AT-SPI is permitted only for an explicitly scoped platform
+accessibility-bridge task with user authorization. **App-owned semantics** are
+values returned by the diagnostics API or asserted by Flutter widget tests;
+the live accessibility tree does not qualify.
 
 ### Runtime target selection
 
@@ -91,16 +109,18 @@ behavior under test:
 | Change | Required runtime evidence |
 |--------|---------------------------|
 | Platform-neutral app behavior | Linux app launch plus the app API |
-| Linux desktop or media integration | Linux app API plus MPRIS or the relevant Linux system API |
+| Visible Flutter UI | App API state plus an opened and inspected app-owned screenshot |
+| Stable layout, color, clipping, or painting | Runtime screenshot plus deterministic component golden |
+| Flutter accessibility semantics | Widget semantics tests; AT-SPI only when the platform bridge itself is in scope |
+| Linux media-session integration | Linux app API plus MPRIS |
 | Android or Android Auto | Linux startup smoke plus the Android media-session/MediaBrowser API on a device, emulator, or DHU as appropriate |
 | Windows media integration | Linux startup smoke plus the Windows app and SMTC |
 | macOS or iOS integration | Linux startup smoke plus the affected Apple target and its supported platform interface |
 
-Direct mouse or keyboard automation may supplement API validation, but is not
-the foundation of the contract because desktop environments such as KDE may
-not expose reliable external UI control. If the affected target is unavailable,
-mark the work unverified or blocked; only the user may explicitly accept
-deferred platform validation.
+MPRIS, SMTC, MediaBrowser, and corresponding Apple interfaces are authoritative
+only for their OS-owned integration. They do not replace the Navis API for
+ordinary Flutter state. If the affected target is unavailable, mark the work
+unverified or blocked; only the user may explicitly accept deferred validation.
 
 ### Linux app API
 
@@ -114,6 +134,15 @@ The existing Linux profile diagnostics path is the starting control plane:
   `GET /v1/sync/status`, `GET /v1/playback/status`, and
   `GET /v1/diagnostics/report`. Actions use feature-scoped `POST` endpoints;
   `POST /v1/shutdown` provides clean termination.
+- Presentation automation uses clone-only `GET /v1/presentation/status`,
+  `POST /v1/presentation/navigate`, and
+  `POST /v1/presentation/screenshot`. Navigation accepts local app routes;
+  status distinguishes render-boundary readiness from the post-bootstrap app
+  frame, while screenshots capture the Flutter surface at a deterministic 1.0
+  pixel ratio and return only protected artifact metadata.
+- The narrow `POST /v1/presentation/player-overlay` action shows or hides the
+  queue through `playerOverlayStackProvider`; add similarly narrow production-
+  controller actions for non-route UI instead of simulating coordinate clicks.
 - Desktop volume memory exposes `GET /v1/playback/volume`, clone-only
   `POST /v1/playback/volume` with a numeric `value` from 0 through 1, and
   clone-only `POST /v1/playback/volume/toggle-mute`. The status response
@@ -128,6 +157,21 @@ features, add the smallest focused launcher or scenario script that reuses the
 same lifecycle rather than pretending the sync sequence tested that feature.
 Do not document or call an endpoint until its implementation and contract test
 exist.
+
+Use the generic presentation scenario for an app-owned runtime screenshot:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/presentation_diagnostics.sh clone / home
+```
+
+It checks presentation readiness, navigates through the live `GoRouter`,
+waits for transient Flutter animations to settle, captures the requested route
+before and after a clean restart, validates PNG
+signature, digest, dimensions, containment, and permissions, and records the
+artifact paths under `build/presentation-diagnostics/`. The agent must open and
+inspect both PNGs; the script intentionally cannot certify visual correctness
+from file existence alone.
 
 Use the focused volume-memory scenario for desktop volume changes:
 
@@ -149,9 +193,10 @@ NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
 
 It starts and pauses songs through the production playback API, polls playback
 and presentation state, verifies that the marker moves between songs, reviews
-hard-fail log patterns, and repeats after a clean restart. Rendered UI
-inspection supplements the scenario when native desktop automation is
-available; widget semantics and the presentation endpoint are the fallback.
+hard-fail log patterns, opens the queue through its narrow app API, captures
+current, paused, and switched states, and repeats after a clean restart. Its
+app-owned screenshots and widget semantics are the canonical visual evidence;
+do not attempt native desktop automation.
 After `./tool/check.sh` passes, set `NAVIS_QUALITY_GATE_RESULT=passed` on the
 final invocation so the sanitized runtime-validation record captures the gate.
 
@@ -173,8 +218,17 @@ Every diagnostic or agent-control surface must:
   operation.
 - Avoid returning or logging credentials, bearer tokens, private server URLs,
   raw cloned records, or other sensitive values.
+- Store screenshots only below the validated diagnostics root in a mode-`0700`
+  directory with mode-`0600` PNGs. Treat them as potentially sensitive local
+  artifacts: never commit, upload, embed in logs, or share without redaction.
 - Add focused server/contract tests and update this document plus
   `docs/architecture.md` when the interface or lifecycle changes.
+
+For goldens, use fixed fixtures, deterministic themes, and the existing
+adaptive viewport helper. Prefer component crops. Avoid live catalog data,
+network artwork, continuous animation, and platform-font-dependent full-screen
+goldens. Test animations through state transitions and capture stable start/end
+states.
 
 ### Completion evidence
 
@@ -185,8 +239,8 @@ entry must record, without secrets:
   certification profile was used.
 - Acceptance and regression scenarios exercised.
 - App API endpoints and native service APIs used.
-- Results, relevant log review, and visual, semantics, or screenshot evidence
-  when applicable.
+- Results, relevant log review, app-owned screenshot artifacts that were
+  actually opened and inspected, and widget/golden evidence when applicable.
 - A short summary of fix-and-retest iterations.
 - Final `./tool/check.sh` result and the clean-restart runtime result.
 

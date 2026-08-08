@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
@@ -14,9 +15,12 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 enum SyncDiagnosticsMode {
@@ -36,14 +40,23 @@ class SyncDiagnosticsServer {
     required this.mode,
     required this.handshakePath,
     required this.onShutdown,
+    this.presentationController,
+    DiagnosticsNavigationDriver? navigationDriver,
     Random? random,
   }) : _container = container,
+       _navigationDriver =
+           navigationDriver ??
+           ProviderDiagnosticsNavigationDriver(
+             () => container.read(appRouterProvider),
+           ),
        _random = random ?? Random.secure();
 
   final ProviderContainer _container;
   final SyncDiagnosticsMode mode;
   final String handshakePath;
   final Future<void> Function() onShutdown;
+  final DiagnosticsPresentationController? presentationController;
+  final DiagnosticsNavigationDriver _navigationDriver;
   final Random _random;
   final List<int> _frameMicros = <int>[];
   final List<int> _databaseCanaryMicros = <int>[];
@@ -129,6 +142,122 @@ class SyncDiagnosticsServer {
             'songs': counts.songs,
           },
         });
+        return;
+      }
+      if (request.method == 'GET' && path == '/v1/presentation/status') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'route': _navigationDriver.location,
+          'appReady': presentation.appReady,
+          ...presentation.status.toJson(),
+        });
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/presentation/navigate') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final rawLocation = body['location'];
+        final location = rawLocation is String ? rawLocation.trim() : '';
+        if (!_isValidDiagnosticsLocation(location)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'location must be a local absolute route',
+          });
+          return;
+        }
+        _navigationDriver.go(location);
+        await presentation.waitForFrame();
+        final actualLocation = _navigationDriver.location;
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'requestedLocation': location,
+          'actualLocation': actualLocation,
+          'redirected': actualLocation != location,
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/player-overlay') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final surface = body['surface'];
+        final visible = body['visible'];
+        if (surface != 'queue' || visible is! bool) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'surface must be queue and visible must be boolean',
+          });
+          return;
+        }
+        final controller = _container.read(
+          playerOverlayStackProvider.notifier,
+        );
+        if (visible) {
+          controller.hideQueue();
+          await presentation.waitForFrame();
+          controller.showQueueOnly();
+        } else {
+          controller.hideQueue();
+        }
+        await presentation.waitForFrame();
+        final stack = _container.read(playerOverlayStackProvider);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'surface': 'queue',
+          'visible': stack.contains(PlayerOverlayRoute.queue),
+          'stack': stack.map((route) => route.name).toList(growable: false),
+        });
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/presentation/screenshot') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final rawLabel = body['label'];
+        final label = rawLabel is String ? rawLabel.trim() : '';
+        if (!DiagnosticsPresentationController.isValidLabel(label)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'label must match [a-z0-9][a-z0-9_-]{0,47}',
+          });
+          return;
+        }
+        try {
+          final screenshot = await presentation.capture(label: label);
+          await _respond(request, HttpStatus.created, screenshot.toJson());
+        } on FormatException catch (error) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': error.message,
+          });
+        } on DiagnosticsPresentationUnavailable {
+          await _presentationUnavailable(request);
+        }
         return;
       }
       if (request.method == 'GET' &&
@@ -911,6 +1040,12 @@ class SyncDiagnosticsServer {
     });
   }
 
+  Future<void> _presentationUnavailable(HttpRequest request) {
+    return _respond(request, HttpStatus.serviceUnavailable, <String, Object?>{
+      'error': 'presentation surface unavailable',
+    });
+  }
+
   void _recordFrameTimings(List<FrameTiming> timings) {
     for (final timing in timings) {
       _frameMicros.add(
@@ -982,6 +1117,34 @@ class SyncDiagnosticsServer {
     );
     await Process.run('chmod', <String>['600', file.path]);
   }
+}
+
+abstract interface class DiagnosticsNavigationDriver {
+  String get location;
+
+  void go(String location);
+}
+
+class ProviderDiagnosticsNavigationDriver
+    implements DiagnosticsNavigationDriver {
+  const ProviderDiagnosticsNavigationDriver(this._router);
+
+  final GoRouter Function() _router;
+
+  @override
+  String get location => _router().state.uri.toString();
+
+  @override
+  void go(String location) => _router().go(location);
+}
+
+bool _isValidDiagnosticsLocation(String value) {
+  if (value.isEmpty || value.length > 512) return false;
+  final uri = Uri.tryParse(value);
+  return uri != null &&
+      uri.path.startsWith('/') &&
+      !uri.hasScheme &&
+      !uri.hasAuthority;
 }
 
 bool canResumeDiagnosticsPlayback({

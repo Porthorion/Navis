@@ -203,6 +203,36 @@ assert "songId" not in value, value
 PY
 }
 
+capture_screenshot() {
+  local label="$1"
+  local output_file="$2"
+  api POST /v1/presentation/screenshot "{\"label\":\"$label\"}" \
+    > "$output_file"
+  python3 - "$output_file" "$OUTPUT_ROOT" <<'PY'
+import hashlib, json, os, stat, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+root = os.path.realpath(sys.argv[2])
+artifact = value.get("artifact")
+if not isinstance(artifact, str) or os.path.isabs(artifact):
+    raise SystemExit("screenshot artifact must be relative")
+path = os.path.realpath(os.path.join(root, artifact))
+if os.path.commonpath([root, path]) != root:
+    raise SystemExit("screenshot escaped diagnostics root")
+with open(path, "rb") as screenshot:
+    data = screenshot.read()
+assert data[:8] == b"\x89PNG\r\n\x1a\n", "invalid PNG signature"
+assert len(data) == value.get("byteCount"), "byte count mismatch"
+assert hashlib.sha256(data).hexdigest() == value.get("sha256"), "digest mismatch"
+assert stat.S_IMODE(os.stat(path).st_mode) == 0o600, "unsafe screenshot mode"
+PY
+}
+
+show_queue() {
+  local output_file="$1"
+  api POST /v1/presentation/player-overlay \
+    '{"surface":"queue","visible":true}' > "$output_file"
+}
+
 run_acceptance() {
   local prefix="$1"
   api GET /v1/health > "$OUTPUT_ROOT/$prefix-health.json"
@@ -211,16 +241,28 @@ run_acceptance() {
   wait_for_song "$SONG_ONE" true "$OUTPUT_ROOT/$prefix-playing-one.json"
   assert_indicator "$SONG_ONE" current "$OUTPUT_ROOT/$prefix-current-one.json"
   assert_indicator "$SONG_TWO" inactive "$OUTPUT_ROOT/$prefix-inactive-two.json"
+  show_queue "$OUTPUT_ROOT/$prefix-current-queue-overlay.json"
+  capture_screenshot \
+    "$prefix-current-queue" \
+    "$OUTPUT_ROOT/$prefix-current-screenshot.json"
 
   api POST /v1/playback/pause > /dev/null
   wait_for_song "$SONG_ONE" false "$OUTPUT_ROOT/$prefix-paused-one.json"
   assert_indicator "$SONG_ONE" current \
     "$OUTPUT_ROOT/$prefix-paused-indicator-one.json"
+  show_queue "$OUTPUT_ROOT/$prefix-paused-queue-overlay.json"
+  capture_screenshot \
+    "$prefix-paused-queue" \
+    "$OUTPUT_ROOT/$prefix-paused-screenshot.json"
 
   api POST /v1/playback/start "$(song_body "$SONG_TWO")" > /dev/null
   wait_for_song "$SONG_TWO" true "$OUTPUT_ROOT/$prefix-playing-two.json"
   assert_indicator "$SONG_ONE" inactive "$OUTPUT_ROOT/$prefix-inactive-one.json"
   assert_indicator "$SONG_TWO" current "$OUTPUT_ROOT/$prefix-current-two.json"
+  show_queue "$OUTPUT_ROOT/$prefix-switched-queue-overlay.json"
+  capture_screenshot \
+    "$prefix-switched-queue" \
+    "$OUTPUT_ROOT/$prefix-switched-screenshot.json"
   local report
   report="$(api GET /v1/diagnostics/report)"
   python3 - "$report" "$OUTPUT_ROOT/$prefix-report.json" <<'PY'
@@ -272,8 +314,18 @@ KNOWN_PLATFORM_WARNING_COUNT="${KNOWN_PLATFORM_WARNING_COUNT:-0}"
 python3 - \
   "$OUTPUT_ROOT/runtime-validation.json" \
   "${NAVIS_QUALITY_GATE_RESULT:-not-run}" \
-  "$KNOWN_PLATFORM_WARNING_COUNT" <<'PY'
-import json, sys
+  "$KNOWN_PLATFORM_WARNING_COUNT" \
+  "$OUTPUT_ROOT" <<'PY'
+import glob, json, os, sys
+screenshots = []
+for path in sorted(glob.glob(os.path.join(sys.argv[4], "*-screenshot.json"))):
+    value = json.load(open(path, encoding="utf-8"))
+    screenshots.append({
+        "artifact": value["artifact"],
+        "pixelWidth": value["pixelWidth"],
+        "pixelHeight": value["pixelHeight"],
+        "sha256": value["sha256"],
+    })
 with open(sys.argv[1], "w", encoding="utf-8") as output:
     json.dump({
         "status": "passed",
@@ -285,6 +337,8 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
             "GET /v1/playback/status",
             "POST /v1/playback/pause",
             "GET /v1/presentation/song-indicator",
+            "POST /v1/presentation/player-overlay",
+            "POST /v1/presentation/screenshot",
             "GET /v1/diagnostics/report",
             "POST /v1/shutdown",
         ],
@@ -297,7 +351,8 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
         "logReview": "no-hard-fail-patterns",
         "knownPlatformWarning": "media-kit-lavf-file-cache",
         "knownPlatformWarningCount": int(sys.argv[3]),
-        "visualEvidence": "presentation-endpoint-and-widget-semantics",
+        "visualEvidence": "app-owned-screenshots-and-widget-semantics",
+        "screenshots": screenshots,
         "retestIterations": 2,
         "qualityGate": sys.argv[2],
         "cleanRestart": "passed",
@@ -305,3 +360,4 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
 PY
 
 echo "Playback indicator diagnostics completed: $OUTPUT_ROOT"
+echo "Open and inspect every PNG under: $OUTPUT_ROOT/screenshots"

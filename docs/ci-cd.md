@@ -55,10 +55,26 @@ NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
 ```
 
 It verifies authenticated app startup, current/inactive indicators, paused
-marker persistence, song switching, log cleanliness, and a clean restart. It
-supplements but does not replace `./tool/check.sh`. Set
+marker persistence, song switching, app-owned screenshots, log cleanliness,
+and a clean restart. The agent must open and inspect the generated PNGs; file
+creation alone is not visual confirmation. It supplements but does not replace
+`./tool/check.sh`. Set
 `NAVIS_QUALITY_GATE_RESULT=passed` for the final post-gate run so its sanitized
 validation record includes the quality-gate result.
+
+Visible Flutter changes without a more focused scenario use the generic
+presentation gate:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/presentation_diagnostics.sh clone / home
+```
+
+It drives the live router through the authenticated Navis API and captures the
+Flutter surface before and after a clean restart. It validates artifact
+containment, PNG metadata, hashes, and permissions, but the agent remains
+responsible for opening both images and inspecting the affected region.
+AT-SPI and external desktop automation are not substitutes for this gate.
 
 ### Core Gate
 

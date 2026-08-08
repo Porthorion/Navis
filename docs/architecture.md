@@ -187,6 +187,19 @@ The current implementation starts from `SyncDiagnosticsServer` on Linux:
 5. `POST /v1/shutdown` closes the server, removes the handshake, disposes the
    provider container and diagnostics database, and exits the process.
 
+Clone diagnostics wrap the root Flutter application in a diagnostics-owned
+`RepaintBoundary`. `GET /v1/presentation/status` reports the live route and
+viewport plus post-bootstrap app readiness,
+`POST /v1/presentation/navigate` drives the real `GoRouter`, and
+`POST /v1/presentation/screenshot` waits for a completed, animation-settled
+frame before writing a 1.0-ratio PNG below the validated artifact root. The
+server creates filenames,
+returns only relative path/dimension/digest metadata, and protects the
+screenshots directory and files with modes `0700` and `0600`. Non-route UI uses
+narrow production-controller actions such as the queue-only
+`POST /v1/presentation/player-overlay`; the control plane has no generic
+coordinate-click interface.
+
 Desktop volume diagnostics use `GET /v1/playback/volume`,
 `POST /v1/playback/volume`, and
 `POST /v1/playback/volume/toggle-mute`. Mutations are clone-only and invoke
@@ -198,10 +211,11 @@ across clean process restarts.
 Song-row presentation diagnostics use the read-only
 `GET /v1/presentation/song-indicator?songId=<id>` endpoint. It reads the same
 production presentation provider as the UI and returns only indicator state,
-selection, marker, semantics, and color roles. It does not return song
-metadata. `tool/playback_indicator_diagnostics.sh clone` verifies current,
-inactive, paused, switched-song, and clean-restart behavior against an isolated
-Linux profile.
+selection, marker, app-owned semantic roles, and color roles. These values are
+not a live accessibility-tree traversal. It does not return song metadata.
+`tool/playback_indicator_diagnostics.sh clone` verifies current, inactive,
+paused, switched-song, app-owned screenshots, and clean-restart behavior
+against an isolated Linux profile.
 
 New control-plane capabilities should remain feature-scoped, expose separate
 action and status/query contracts, return structured errors, and support
@@ -214,9 +228,13 @@ The security boundary is invariant across future platform adapters: the API is
 unavailable in release builds, loopback-only, bearer-authenticated, short-lived,
 and must not expose credentials, tokens, private server URLs, stream URLs, or
 raw cloned records. Native service APIs remain authoritative for platform
-integration, including MPRIS on Linux, SMTC on Windows, and Android
-media-session/MediaBrowser behavior. See `docs/development-workflow.md` for the
-mandatory validation loop and target-selection rules.
+integration only, including MPRIS on Linux, SMTC on Windows, and Android
+media-session/MediaBrowser behavior; they do not replace the Navis API for
+Flutter state. AT-SPI and other external desktop/accessibility automation are
+outside this control plane and prohibited unless the platform accessibility
+bridge is explicitly under test with user authorization. See
+`docs/development-workflow.md` for the mandatory validation loop and
+target-selection rules.
 
 ## UI Component Organization
 

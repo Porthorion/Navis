@@ -13,6 +13,7 @@ import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/notifications/notification_bootstrap.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as path;
@@ -33,6 +34,7 @@ Future<void> main() async {
     desktopBootstrap: desktopBootstrap,
     databaseOverride: diagnosticsDatabase,
   );
+  final diagnosticsPresentation = _createDiagnosticsPresentationController();
   rootContainer
       .read(audioBootstrapControllerProvider.notifier)
       .ensureInitialized();
@@ -42,20 +44,21 @@ Future<void> main() async {
 
   await NotificationBootstrap.initialize();
 
-  runApp(
-    UncontrolledProviderScope(
-      container: rootContainer,
-      child: const NavisApp(
-        requirePlaybackBootstrap: true,
-        schedulePlaybackBootstrap: false,
-      ),
+  final app = UncontrolledProviderScope(
+    container: rootContainer,
+    child: NavisApp(
+      requirePlaybackBootstrap: true,
+      schedulePlaybackBootstrap: false,
+      onBootstrapOverlayDismissed: diagnosticsPresentation?.markAppReady,
     ),
   );
+  runApp(diagnosticsPresentation?.wrap(app) ?? app);
   if (_syncDiagnosticsRuntimeEnabled) {
     unawaited(
       _startSyncDiagnostics(
         container: rootContainer,
         database: diagnosticsDatabase ?? desktopBootstrap?.database,
+        presentationController: diagnosticsPresentation,
       ),
     );
   }
@@ -182,6 +185,7 @@ NavisDatabase? _openDiagnosticsDatabase() {
 Future<void> _startSyncDiagnostics({
   required ProviderContainer container,
   required NavisDatabase? database,
+  required DiagnosticsPresentationController? presentationController,
 }) async {
   final mode = _syncDiagnosticsMode;
   if (mode == null || _syncDiagnosticsHandshakePath.isEmpty) {
@@ -192,6 +196,7 @@ Future<void> _startSyncDiagnostics({
     container: container,
     mode: mode,
     handshakePath: _syncDiagnosticsHandshakePath,
+    presentationController: presentationController,
     onShutdown: () async {
       await server.close();
       runApp(const SizedBox.shrink());
@@ -203,6 +208,16 @@ Future<void> _startSyncDiagnostics({
   );
   await server.start();
   AppLogger.info('Sync diagnostics API started in ${mode.name} mode.');
+}
+
+DiagnosticsPresentationController? _createDiagnosticsPresentationController() {
+  if (!_syncDiagnosticsRuntimeEnabled ||
+      _syncDiagnosticsMode != SyncDiagnosticsMode.clone) {
+    return null;
+  }
+  return DiagnosticsPresentationController(
+    artifactRoot: Directory(_syncDiagnosticsRoot),
+  );
 }
 
 class _DesktopBootstrap {

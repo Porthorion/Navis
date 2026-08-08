@@ -4,16 +4,17 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
-import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:dio/dio.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
 
@@ -165,6 +166,198 @@ void main() {
 
     expect(await fixture.handshake.exists(), isFalse);
   });
+
+  test(
+    'presentation endpoints use the authenticated clone control plane',
+    () async {
+      final presentation = _MockPresentationController();
+      final navigationDriver = _MockDiagnosticsNavigationDriver();
+      var location = '/';
+      when(() => navigationDriver.location).thenAnswer((_) => location);
+      when(() => navigationDriver.go(any())).thenAnswer((invocation) {
+        final requested = invocation.positionalArguments.single as String;
+        location = requested == '/redirect' ? '/target' : requested;
+      });
+      when(() => presentation.status).thenReturn(
+        const DiagnosticsPresentationStatus(
+          logicalWidth: 1280,
+          logicalHeight: 720,
+          devicePixelRatio: 1.5,
+          screenshotReady: true,
+        ),
+      );
+      when(() => presentation.appReady).thenReturn(true);
+      when(presentation.waitForFrame).thenAnswer((_) async {});
+      when(
+        () => presentation.capture(label: any(named: 'label')),
+      ).thenAnswer(
+        (_) async => const DiagnosticsScreenshot(
+          artifact: 'screenshots/capture.png',
+          logicalWidth: 1280,
+          logicalHeight: 720,
+          pixelWidth: 1280,
+          pixelHeight: 720,
+          pixelRatio: 1,
+          byteCount: 42,
+          sha256Digest:
+              '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        ),
+      );
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        presentationController: presentation,
+        navigationDriver: navigationDriver,
+      );
+      addTearDown(fixture.close);
+
+      for (final unauthorized in <(String, String)>[
+        ('GET', '/v1/presentation/status'),
+        ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/screenshot'),
+      ]) {
+        final response = await _request(
+          fixture.port,
+          unauthorized.$2,
+          method: unauthorized.$1,
+        );
+        expect(response.statusCode, HttpStatus.unauthorized);
+      }
+
+      final status = await _request(
+        fixture.port,
+        '/v1/presentation/status',
+        token: fixture.token,
+      );
+      expect(status.statusCode, HttpStatus.ok);
+      expect(status.body['route'], '/');
+      expect(status.body['appReady'], isTrue);
+      expect(status.body['screenshotReady'], isTrue);
+
+      final invalidNavigation = await _request(
+        fixture.port,
+        '/v1/presentation/navigate',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'location': 'https://example.com'},
+      );
+      expect(invalidNavigation.statusCode, HttpStatus.badRequest);
+
+      final nonStringNavigation = await _request(
+        fixture.port,
+        '/v1/presentation/navigate',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'location': 42},
+      );
+      expect(nonStringNavigation.statusCode, HttpStatus.badRequest);
+
+      final navigation = await _request(
+        fixture.port,
+        '/v1/presentation/navigate',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'location': '/target'},
+      );
+      expect(navigation.statusCode, HttpStatus.ok);
+      expect(navigation.body['requestedLocation'], '/target');
+      expect(navigation.body['actualLocation'], '/target');
+      verify(presentation.waitForFrame).called(1);
+
+      final redirected = await _request(
+        fixture.port,
+        '/v1/presentation/navigate',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'location': '/redirect'},
+      );
+      expect(redirected.statusCode, HttpStatus.ok);
+      expect(redirected.body['actualLocation'], '/target');
+      expect(redirected.body['redirected'], isTrue);
+
+      final overlay = await _request(
+        fixture.port,
+        '/v1/presentation/player-overlay',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'surface': 'queue', 'visible': true},
+      );
+      expect(overlay.statusCode, HttpStatus.ok);
+      expect(overlay.body['visible'], isTrue);
+
+      when(
+        () => presentation.capture(label: 'Bad Label'),
+      ).thenThrow(const FormatException('invalid label'));
+      final invalidScreenshot = await _request(
+        fixture.port,
+        '/v1/presentation/screenshot',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'label': 'Bad Label'},
+      );
+      expect(invalidScreenshot.statusCode, HttpStatus.badRequest);
+
+      final nonStringScreenshot = await _request(
+        fixture.port,
+        '/v1/presentation/screenshot',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'label': <String>[]},
+      );
+      expect(nonStringScreenshot.statusCode, HttpStatus.badRequest);
+
+      final screenshot = await _request(
+        fixture.port,
+        '/v1/presentation/screenshot',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'label': 'target'},
+      );
+      expect(screenshot.statusCode, HttpStatus.created);
+      expect(screenshot.body['artifact'], 'screenshots/capture.png');
+      expect(screenshot.body['sha256'], hasLength(64));
+      verify(() => presentation.capture(label: 'target')).called(1);
+    },
+  );
+
+  test(
+    'presentation endpoints reject primary mode and missing surfaces',
+    () async {
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      for (final endpoint in <(String, String)>[
+        ('GET', '/v1/presentation/status'),
+        ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/screenshot'),
+      ]) {
+        final forbidden = await _request(
+          primary.port,
+          endpoint.$2,
+          method: endpoint.$1,
+          token: primary.token,
+        );
+        expect(forbidden.statusCode, HttpStatus.forbidden);
+      }
+      await primary.close();
+
+      final clone = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(clone.close);
+      for (final endpoint in <(String, String)>[
+        ('GET', '/v1/presentation/status'),
+        ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/screenshot'),
+      ]) {
+        final unavailable = await _request(
+          clone.port,
+          endpoint.$2,
+          method: endpoint.$1,
+          token: clone.token,
+        );
+        expect(unavailable.statusCode, HttpStatus.serviceUnavailable);
+      }
+    },
+  );
 
   test(
     'song indicator endpoint is authenticated, validated, and sanitized',
@@ -469,6 +662,8 @@ Future<_DiagnosticsFixture> _startFixture(
   SubsonicApiClient? api,
   NavisPlaybackHandler? handler,
   PlaybackSnapshot? playbackSnapshot,
+  DiagnosticsPresentationController? presentationController,
+  DiagnosticsNavigationDriver? navigationDriver,
 }) async {
   final temp = await Directory.systemTemp.createTemp('navis_diagnostics_test_');
   final database = createTestDatabase();
@@ -486,6 +681,8 @@ Future<_DiagnosticsFixture> _startFixture(
     container: container,
     mode: mode,
     handshakePath: handshake.path,
+    presentationController: presentationController,
+    navigationDriver: navigationDriver,
     onShutdown: () async {},
   );
   await server.start();
@@ -503,6 +700,12 @@ Future<_DiagnosticsFixture> _startFixture(
 }
 
 class _MockPlaybackHandler extends Mock implements NavisPlaybackHandler {}
+
+class _MockPresentationController extends Mock
+    implements DiagnosticsPresentationController {}
+
+class _MockDiagnosticsNavigationDriver extends Mock
+    implements DiagnosticsNavigationDriver {}
 
 class _SourceAuditApiClient extends SubsonicApiClient {
   _SourceAuditApiClient()

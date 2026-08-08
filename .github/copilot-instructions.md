@@ -7,6 +7,12 @@ Runtime-affecting work must follow the mandatory runtime validation loop in
 `AGENTS.md` and the detailed procedure in `docs/development-workflow.md`.
 Static checks and `flutter test` alone are not sufficient completion evidence.
 
+Use the authenticated Navis diagnostics API as the primary runtime control
+plane and inspect app-owned screenshots for visible Flutter changes. Never use
+AT-SPI, accessibility D-Bus traversal, Dogtail, xdotool, wmctrl, OCR/window
+scraping, or override `NO_AT_BRIDGE` unless the user explicitly authorizes a
+separately scoped platform accessibility-bridge test.
+
 ## Commands
 
 Use the repo scripts as the source of truth:
