@@ -64,8 +64,7 @@ class TrackListTile extends ConsumerWidget {
               ? null
               : SizedBox(
                   width: 32,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
+                  child: Center(
                     child: Text(
                       '${song.track}',
                       maxLines: 1,

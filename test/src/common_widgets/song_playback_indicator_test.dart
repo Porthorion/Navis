@@ -172,6 +172,45 @@ void main() {
     final tile = tester.widget<ListTile>(find.byType(ListTile));
     expect(tile.selected, isFalse);
   });
+
+  testWidgets('album and playlist number columns align with current marker', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playerStateProvider.overrideWithValue(
+            _snapshot(currentSongId: 'song-2'),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(
+            body: Column(
+              children: <Widget>[
+                TrackListTile(song: _song),
+                TrackListTile(song: _secondSong),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final number = find.text('7');
+    final marker = find.byIcon(Icons.graphic_eq_rounded);
+    expect(number, findsOneWidget);
+    expect(marker, findsOneWidget);
+    expect(
+      tester.getCenter(marker).dx,
+      closeTo(tester.getCenter(number).dx, 0.1),
+    );
+    expect(
+      tester.getTopLeft(find.text('Song One')).dx,
+      closeTo(tester.getTopLeft(find.text('Song Two')).dx, 0.1),
+    );
+  });
 }
 
 Future<void> _pumpTile(
@@ -202,6 +241,17 @@ const _song = SongsTableData(
   id: 'song-1',
   title: 'Song One',
   track: 7,
+  artistName: 'Artist',
+  albumName: 'Album',
+  duration: 180,
+  isProvisional: false,
+  isExternal: false,
+);
+
+const _secondSong = SongsTableData(
+  id: 'song-2',
+  title: 'Song Two',
+  track: 8,
   artistName: 'Artist',
   albumName: 'Album',
   duration: 180,
