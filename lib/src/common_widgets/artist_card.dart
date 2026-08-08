@@ -33,6 +33,7 @@ class ArtistCard extends StatelessWidget {
           height: 40,
           circular: true,
           placeholderIcon: Icons.person_outline,
+          isExternalSource: artist.isExternal,
         ),
         title: Text(artist.name),
         subtitle: Text(l10n.artistCardAlbumCount(albumCount)),

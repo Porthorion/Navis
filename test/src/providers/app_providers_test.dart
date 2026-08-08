@@ -1375,6 +1375,7 @@ void main() {
         songId: 'song-1',
         song: const SongsTableData(
           isProvisional: false,
+          isExternal: false,
           id: 'song-1',
           title: 'Track Title',
           artistName: null,

@@ -88,6 +88,7 @@ AlbumsTableData _likedAlbum({
 }) {
   return AlbumsTableData(
     isProvisional: false,
+    isExternal: false,
     id: id,
     name: name,
     artistName: artistName,
@@ -106,6 +107,7 @@ SongsTableData _likedSong({
 }) {
   return SongsTableData(
     isProvisional: false,
+    isExternal: false,
     id: id,
     title: title,
     albumId: albumId,
@@ -317,6 +319,7 @@ void main() {
               const AsyncData(<ArtistsTableData>[
                 ArtistsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'artist-1',
                   name: 'Artist 1',
                   albumCount: 1,
@@ -329,6 +332,7 @@ void main() {
                 const <AlbumsTableData>[
                   AlbumsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'album-1',
                     name: 'Album 1',
                     artistName: 'Artist 1',
@@ -440,6 +444,7 @@ void main() {
             const AsyncData(<ArtistsTableData>[
               ArtistsTableData(
                 isProvisional: false,
+                isExternal: false,
                 id: 'artist-1',
                 name: 'Artist 1',
                 albumCount: 1,
@@ -516,6 +521,7 @@ void main() {
           for (var i = 0; i < 26; i++)
             ArtistsTableData(
               isProvisional: false,
+              isExternal: false,
               id: 'artist-$i',
               name: '${String.fromCharCode(65 + i)} Artist',
               albumCount: 1,
@@ -572,6 +578,7 @@ void main() {
           for (var i = 0; i < 10; i++)
             ArtistsTableData(
               isProvisional: false,
+              isExternal: false,
               id: 'artist-$i',
               name: '${String.fromCharCode(65 + i)} Artist',
               albumCount: 1,
@@ -624,12 +631,14 @@ void main() {
         final artists = <ArtistsTableData>[
           const ArtistsTableData(
             isProvisional: false,
+            isExternal: false,
             id: 'artist-a',
             name: 'A Artist',
             albumCount: 1,
           ),
           const ArtistsTableData(
             isProvisional: false,
+            isExternal: false,
             id: 'artist-m',
             name: 'M Artist',
             albumCount: 1,
@@ -667,6 +676,7 @@ void main() {
         for (var i = 0; i < 26; i++)
           ArtistsTableData(
             isProvisional: false,
+            isExternal: false,
             id: 'artist-$i',
             name: '${String.fromCharCode(65 + i)} Artist',
             albumCount: 1,
@@ -709,6 +719,7 @@ void main() {
           for (var i = 0; i < 26; i++)
             ArtistsTableData(
               isProvisional: false,
+              isExternal: false,
               id: 'artist-$i',
               name: '${String.fromCharCode(65 + i)} Artist',
               albumCount: 1,
@@ -1093,6 +1104,7 @@ void main() {
               const AsyncData(<SongsTableData>[
                 SongsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'liked-song-1',
                   title: 'Desktop Liked Song',
                   artistName: 'Desktop Artist',

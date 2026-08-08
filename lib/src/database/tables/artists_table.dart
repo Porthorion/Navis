@@ -19,6 +19,10 @@ class ArtistsTable extends Table {
   BoolColumn get isProvisional =>
       boolean().withDefault(const Constant(false))();
 
+  /// True when the item belongs to an external catalog and has not been
+  /// imported into the server library.
+  BoolColumn get isExternal => boolean().withDefault(const Constant(false))();
+
   /// Authoritative catalog snapshot generation that last observed this row.
   /// Generation zero denotes rows that predate the resumable sync planner.
   IntColumn get catalogGeneration => integer().nullable()();

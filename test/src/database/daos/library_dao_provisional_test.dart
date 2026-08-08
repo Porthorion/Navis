@@ -21,6 +21,7 @@ void main() {
         ArtistsTableCompanion.insert(
           id: 'remote-artist',
           name: 'Remote Artist',
+          isExternal: const Value(true),
         ),
       ],
     );
@@ -30,6 +31,7 @@ void main() {
         name: 'Remote Album',
         artistId: const Value('remote-artist'),
         artistName: const Value('Remote Artist'),
+        isExternal: const Value(true),
       ),
     ]);
     await database.libraryDao.upsertProvisionalSongs(<SongsTableCompanion>[
@@ -40,6 +42,7 @@ void main() {
         albumName: const Value('Remote Album'),
         artistId: const Value('remote-artist'),
         artistName: const Value('Remote Artist'),
+        isExternal: const Value(true),
       ),
     ]);
   });
@@ -193,6 +196,10 @@ void main() {
         isFalse,
       );
       expect(
+        (await database.libraryDao.getArtistById('remote-artist'))?.isExternal,
+        isFalse,
+      );
+      expect(
         (await database.libraryDao.getAlbumById(
           'remote-album',
         ))?.isProvisional,
@@ -200,6 +207,7 @@ void main() {
       );
       final song = await database.libraryDao.getSongById('remote-song');
       expect(song?.isProvisional, isFalse);
+      expect(song?.isExternal, isFalse);
       expect(song?.title, 'Canonical Song');
 
       for (final table in <String>[

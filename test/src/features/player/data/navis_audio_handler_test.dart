@@ -883,6 +883,7 @@ void main() {
     test('resolved playback extras preserve transcode metadata', () {
       final song = SongsTableData(
         isProvisional: false,
+        isExternal: false,
         id: 'song-1',
         title: 'Song 1',
         albumId: 'album-1',

@@ -210,6 +210,7 @@ SongsTableData _song({
 }) {
   return SongsTableData(
     isProvisional: false,
+    isExternal: false,
     id: id,
     title: title,
     albumId: albumId,

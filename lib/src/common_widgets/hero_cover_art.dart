@@ -16,6 +16,7 @@ class HeroCoverArt extends StatelessWidget {
     this.showLoadingPlaceholder = true,
     this.fadeInDuration,
     this.loadPriority = CoverArtLoadPriority.visible,
+    this.isExternalSource = false,
   });
 
   final String? coverArtId;
@@ -39,6 +40,7 @@ class HeroCoverArt extends StatelessWidget {
   /// for full-bleed art so the image appears smoothly after the hero.
   final Duration? fadeInDuration;
   final CoverArtLoadPriority loadPriority;
+  final bool isExternalSource;
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +94,7 @@ class HeroCoverArt extends StatelessWidget {
               fadeInDuration: Duration.zero,
               lockedSize: lockedSize,
               loadPriority: CoverArtLoadPriority.critical,
+              isExternalSource: isExternalSource,
             );
           },
       child: CoverArtImage(
@@ -106,6 +109,7 @@ class HeroCoverArt extends StatelessWidget {
         showLoadingPlaceholder: showLoadingPlaceholder,
         fadeInDuration: fadeInDuration ?? const Duration(milliseconds: 150),
         loadPriority: loadPriority,
+        isExternalSource: isExternalSource,
       ),
     );
   }

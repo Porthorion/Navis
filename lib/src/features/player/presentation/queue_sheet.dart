@@ -414,6 +414,7 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
               width: 48,
               height: 48,
               borderRadius: BorderRadius.circular(4),
+              isExternalSource: song.isExternal,
             ),
             title: Text(
               song.title,

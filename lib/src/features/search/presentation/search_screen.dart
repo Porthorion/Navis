@@ -20,6 +20,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/format_utils.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -727,15 +728,18 @@ class _ArtistResultsSection extends ConsumerWidget {
             child: SizedBox(
               width: 40,
               height: 40,
-              child: artist.coverArt != null
-                  ? CoverArtImage(
-                      coverArtId: artist.coverArt,
-                      size: 80,
-                      width: 40,
-                      height: 40,
-                      borderRadius: artistRadius,
-                    )
-                  : const Icon(Icons.person),
+              child: CoverArtImage(
+                coverArtId: artist.coverArt,
+                size: 80,
+                width: 40,
+                height: 40,
+                borderRadius: artistRadius,
+                placeholderIcon: Icons.person_outline,
+                isExternalSource: isExternalCatalogSource(
+                  id: artist.id,
+                  apiIsExternal: artist.isExternal,
+                ),
+              ),
             ),
           );
           if (desktopMode) {
@@ -799,6 +803,10 @@ class _AlbumResultsSection extends ConsumerWidget {
             width: 48,
             height: 48,
             borderRadius: coverRadius,
+            isExternalSource: isExternalCatalogSource(
+              id: album.id,
+              apiIsExternal: album.isExternal,
+            ),
           );
           if (desktopMode) {
             return DesktopListRow(
@@ -862,6 +870,10 @@ class _SongResultsSection extends ConsumerWidget {
                   width: 46,
                   height: 46,
                   borderRadius: coverRadius,
+                  isExternalSource: isExternalCatalogSource(
+                    id: song.id,
+                    apiIsExternal: song.isExternal,
+                  ),
                 ),
                 title: song.title,
                 subtitle: <String>[
@@ -892,6 +904,10 @@ class _SongResultsSection extends ConsumerWidget {
                 width: 48,
                 height: 48,
                 borderRadius: coverRadius,
+                isExternalSource: isExternalCatalogSource(
+                  id: song.id,
+                  apiIsExternal: song.isExternal,
+                ),
               ),
               title: Text(song.title),
               subtitle: Text(

@@ -14,6 +14,7 @@ _Artist _$ArtistFromJson(Map<String, dynamic> json) => _Artist(
   starred: json['starred'] == null
       ? null
       : DateTime.parse(json['starred'] as String),
+  isExternal: json['isExternal'] as bool?,
   albums:
       (json['albums'] as List<dynamic>?)
           ?.map((e) => Album.fromJson(e as Map<String, dynamic>))
@@ -27,5 +28,6 @@ Map<String, dynamic> _$ArtistToJson(_Artist instance) => <String, dynamic>{
   'albumCount': instance.albumCount,
   'coverArt': instance.coverArt,
   'starred': instance.starred?.toIso8601String(),
+  'isExternal': instance.isExternal,
   'albums': instance.albums,
 };

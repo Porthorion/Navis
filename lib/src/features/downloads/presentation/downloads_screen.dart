@@ -259,6 +259,7 @@ class _QueueItemTile extends ConsumerWidget {
                 coverArtId: song!.coverArt,
                 size: 48,
                 borderRadius: BorderRadius.circular(6),
+                isExternalSource: song.isExternal,
               )
             : Container(
                 decoration: BoxDecoration(
@@ -414,6 +415,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
                 coverArtId: song!.coverArt,
                 size: 48,
                 borderRadius: BorderRadius.circular(6),
+                isExternalSource: song.isExternal,
               )
             : Container(
                 decoration: BoxDecoration(

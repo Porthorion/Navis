@@ -7,6 +7,8 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/external_source_badge.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
@@ -28,6 +30,8 @@ Widget _buildWidget({
   return ProviderScope(
     overrides: overrides.cast(),
     child: MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: Center(child: child)),
     ),
   );
@@ -249,5 +253,79 @@ void main() {
         1,
       );
     });
+
+    testWidgets(
+      'external badge uses thumbnail top-left geometry and semantics',
+      (
+        tester,
+      ) async {
+        var taps = 0;
+        await tester.pumpWidget(
+          _buildWidget(
+            child: GestureDetector(
+              onTap: () => taps++,
+              child: const CoverArtImage(
+                coverArtId: null,
+                width: 64,
+                height: 64,
+                isExternalSource: true,
+              ),
+            ),
+          ),
+        );
+
+        final artRect = tester.getRect(find.byType(CoverArtImage));
+        final badgeFinder = find.byKey(ExternalSourceBadge.semanticsKey);
+        final badgeRect = tester.getRect(badgeFinder);
+        expect(badgeRect.size, const Size.square(18));
+        expect(badgeRect.topLeft, artRect.topLeft + const Offset(4, 4));
+        expect(
+          tester.getSemantics(badgeFinder).label,
+          'Remote source — not in your server library.',
+        );
+        expect(
+          find.byTooltip('Remote source — not in your server library.'),
+          findsOneWidget,
+        );
+
+        await tester.tapAt(badgeRect.center);
+        expect(taps, 1);
+      },
+    );
+
+    testWidgets(
+      'external badge uses large-art geometry and stays absent locally',
+      (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _buildWidget(
+            child: const CoverArtImage(
+              coverArtId: null,
+              width: 160,
+              height: 160,
+              isExternalSource: true,
+            ),
+          ),
+        );
+        final artRect = tester.getRect(find.byType(CoverArtImage));
+        final badgeRect = tester.getRect(
+          find.byKey(ExternalSourceBadge.semanticsKey),
+        );
+        expect(badgeRect.size, const Size.square(24));
+        expect(badgeRect.topLeft, artRect.topLeft + const Offset(6, 6));
+
+        await tester.pumpWidget(
+          _buildWidget(
+            child: const CoverArtImage(
+              coverArtId: null,
+              width: 160,
+              height: 160,
+            ),
+          ),
+        );
+        expect(find.byKey(ExternalSourceBadge.semanticsKey), findsNothing);
+      },
+    );
   });
 }

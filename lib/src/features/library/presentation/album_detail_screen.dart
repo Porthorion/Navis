@@ -371,6 +371,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       coverArtId: details.coverArt,
                                       heroTag: coverArtHeroTag,
                                       previewSize: 300,
+                                      isExternalSource: details.isExternal,
                                     ),
                                   ),
                                   child: HeroCoverArt(
@@ -379,6 +380,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     size: 300,
                                     width: artSize,
                                     height: artSize,
+                                    isExternalSource: details.isExternal,
                                     borderRadius: coverRadius,
                                     placeholderIcon: Icons.album_outlined,
                                     loadPriority: CoverArtLoadPriority.critical,
@@ -934,6 +936,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                             coverArtId: details.coverArt,
                                             heroTag: coverArtHeroTag,
                                             previewSize: 160,
+                                            isExternalSource:
+                                                details.isExternal,
                                           ),
                                         ),
                                         child: HeroCoverArt(
@@ -942,6 +946,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           size: 168,
                                           width: artSize,
                                           height: artSize,
+                                          isExternalSource: details.isExternal,
                                           borderRadius: coverRadius,
                                           placeholderIcon: Icons.album_outlined,
                                           loadPriority:
@@ -1130,6 +1135,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           size: kCoverArtStandardSize,
                                           lockedSize: kCoverArtStandardSize,
                                           width: double.infinity,
+                                          isExternalSource: details.isExternal,
                                           height: double.infinity,
                                           fit: BoxFit.cover,
                                           fadeInDuration: Duration.zero,
@@ -1200,6 +1206,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               size: kCoverArtStandardSize,
                               width: double.infinity,
                               height: double.infinity,
+                              isExternalSource: details.isExternal,
                               fit: BoxFit.cover,
                               fadeInDuration: Duration.zero,
                               showLoadingPlaceholder: false,
@@ -2162,6 +2169,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           coverArtId: details.coverArt,
                           heroTag: coverArtHeroTag,
                           previewSize: 200,
+                          isExternalSource: details.isExternal,
                         ),
                       );
                     },

@@ -342,6 +342,7 @@ class _RankedTopTrackRow extends ConsumerWidget {
               height: 44,
               borderRadius: BorderRadius.circular(4),
               placeholderIcon: Icons.music_note_outlined,
+              isExternalSource: song?.isExternal ?? false,
             ),
           ],
         ),

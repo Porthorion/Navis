@@ -237,15 +237,27 @@ void main() {
         api: _FakeSearchApiClient(
           (_) async => const SearchResult3(
             artists: <Artist>[
-              Artist(id: 'artist-1', name: 'Remote Artist Replacement'),
+              Artist(
+                id: 'artist-1',
+                name: 'Remote Artist Replacement',
+                isExternal: true,
+              ),
               Artist(id: 'artist-2', name: 'Remote Artist'),
             ],
             albums: <Album>[
-              Album(id: 'album-1', name: 'Remote Album Replacement'),
+              Album(
+                id: 'album-1',
+                name: 'Remote Album Replacement',
+                isExternal: false,
+              ),
               Album(id: 'album-2', name: 'Remote Album'),
             ],
             songs: <Song>[
-              Song(id: 'song-1', title: 'Remote Song Replacement'),
+              Song(
+                id: 'song-1',
+                title: 'Remote Song Replacement',
+                isExternal: true,
+              ),
               Song(id: 'song-2', title: 'Remote Song'),
             ],
           ),
@@ -269,13 +281,16 @@ void main() {
         'artist-2',
       ]);
       expect(result.artists.first.name, 'Cache Artist');
+      expect(result.artists.first.isExternal, isTrue);
       expect(result.albums.map((album) => album.id), <String>[
         'album-1',
         'album-2',
       ]);
       expect(result.albums.first.name, 'Cache Album');
+      expect(result.albums.first.isExternal, isFalse);
       expect(result.songs.map((song) => song.id), <String>['song-1', 'song-2']);
       expect(result.songs.first.title, 'Cache Song');
+      expect(result.songs.first.isExternal, isTrue);
     });
 
     test('appends API-only results after local results', () async {

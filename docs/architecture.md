@@ -105,7 +105,11 @@ Located in `lib/src/providers/app_providers.dart`:
 - Linux profile diagnostics are available only through
   `tool/sync_diagnostics.sh`. The launcher uses a bearer-authenticated loopback
   API, isolates cloned database/cache paths for fault testing, and permits only
-  non-fault-injected operations during backed-up primary certification.
+  non-fault-injected operations during backed-up primary certification. The
+  read-only `POST /v1/search/source-audit` route runs the real `search3` path
+  and returns only kind, ID, display label, classified source, raw API flag,
+  local-index presence, and provisional state; it never exposes credentials,
+  URLs, or stream paths.
 - API, playback, download, and artwork response accounting captures the
   long-lived network usage meter directly. It must not read through a disposed
   provider `Ref` when connectivity rebuilds the Subsonic client mid-request.
@@ -582,6 +586,14 @@ replay/end-of-queue feedback instead.
    match. Proven aliases are applied to playback before provisional cleanup, so
    cached remote songs auto-merge without interrupting the active source; late
    cache completion also resolves through the alias.
+   External-catalog provenance is an independent persisted property:
+   `isExternal: true` means the item is remote-only, while `false` means it is
+   on-server even if Navis has not indexed it locally. Explicit API values win;
+   only missing values use the `ext-*`, `remote-*`, and `pl-deezer-*` fallback.
+   Broad snapshot candidates discard external rows. Targeted external detail
+   trees remain provisional and are visible only through exact artist/album
+   relationships; canonical promotion clears `is_external` when the server
+   later imports the item. Cache and download ownership do not affect source.
 9. Metered automation is a true hard probe: one conditional `getIndexes`
    request with retries disabled. Interactive artist/album/playlist hydration
    remains allowed with 16 MiB/response and 32 MiB/interaction budgets.

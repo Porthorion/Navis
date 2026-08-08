@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
@@ -18,8 +19,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 58);
-    expect(pragmaRow.read<int>('user_version'), 58);
+    expect(database.schemaVersion, 59);
+    expect(pragmaRow.read<int>('user_version'), 59);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -129,7 +130,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 58);
+      expect(versionRow.read<int>('user_version'), 59);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -222,7 +223,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 58);
+      expect(versionRow.read<int>('user_version'), 59);
 
       final now = DateTime.utc(2026, 1, 1, 1);
       await migrated.scrobbleDao.enqueue(
@@ -305,7 +306,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 58);
+      expect(versionRow.read<int>('user_version'), 59);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -424,7 +425,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 58);
+      expect(versionRow.read<int>('user_version'), 59);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -542,7 +543,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 58);
+      expect(versionRow.read<int>('user_version'), 59);
 
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings?.customVoyageServers, isNull);
@@ -619,7 +620,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 58);
+      expect(versionRow.read<int>('user_version'), 59);
 
       for (final table in <String>['artists', 'albums', 'songs']) {
         final columns = await migrated
@@ -710,7 +711,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 58);
+      expect(version.read<int>('user_version'), 59);
       final state = await migrated.librarySyncDao.getOrCreateState(1);
       expect(state.conditionalIndexesMode, 'reliable');
       expect(state.bulkSearchMode, 'supported');
@@ -785,7 +786,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 58);
+      expect(version.read<int>('user_version'), 59);
       final tables = await migrated
           .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
           .get();
@@ -867,7 +868,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 58);
+      expect(version.read<int>('user_version'), 59);
       for (final table in <String>[
         'library_sync_candidate_artists',
         'library_sync_candidate_albums',
@@ -926,7 +927,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 58);
+      expect(version.read<int>('user_version'), 59);
       final settingsColumns = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
           .get();
@@ -941,6 +942,106 @@ SET group_listening_enabled = 1,
         workColumns.map((row) => row.read<String>('name')),
         contains('work_class'),
       );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'migrates v58 provenance while retaining cache and download ownership',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v59_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+      final seed = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seed.libraryDao.upsertProvisionalArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(
+          id: 'ext-deezer-artist-1',
+          name: 'Remote Artist',
+        ),
+      ]);
+      await seed.libraryDao.upsertProvisionalAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'pl-deezer-album-1',
+          name: 'Remote Album',
+          artistId: const Value('ext-deezer-artist-1'),
+        ),
+      ]);
+      await seed.libraryDao.upsertProvisionalSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'remote-song-1',
+          title: 'Remote Song',
+          artistId: const Value('ext-deezer-artist-1'),
+          albumId: const Value('pl-deezer-album-1'),
+        ),
+      ]);
+      await seed.customStatement(
+        'UPDATE artists SET is_provisional = 0; '
+        'UPDATE albums SET is_provisional = 0; '
+        'UPDATE songs SET is_provisional = 0;',
+      );
+      await seed.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'remote-song-1',
+          filePath: '/tmp/remote-song-1.mp3',
+          fileSize: 100,
+          format: 'mp3',
+          lastAccessedAt: DateTime.utc(2026),
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+        ),
+      );
+      await seed.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('remote-song-1'),
+          status: DownloadStatus.queued,
+          addedAt: DateTime.utc(2026),
+        ),
+      );
+      await seed.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute('ALTER TABLE artists DROP COLUMN is_external;');
+        raw.execute('ALTER TABLE albums DROP COLUMN is_external;');
+        raw.execute('ALTER TABLE songs DROP COLUMN is_external;');
+        raw.execute('PRAGMA user_version = 58;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      expect(migrated.schemaVersion, 59);
+      final artist = await migrated.libraryDao.getArtistById(
+        'ext-deezer-artist-1',
+      );
+      final album = await migrated.libraryDao.getAlbumById(
+        'pl-deezer-album-1',
+      );
+      final song = await migrated.libraryDao.getSongById('remote-song-1');
+      expect(artist?.isExternal, isTrue);
+      expect(artist?.isProvisional, isTrue);
+      expect(album?.isExternal, isTrue);
+      expect(album?.isProvisional, isTrue);
+      expect(song?.isExternal, isTrue);
+      expect(song?.isProvisional, isTrue);
+      expect(
+        await migrated.cacheDao.getCachedTrack('remote-song-1'),
+        isNotNull,
+      );
+      expect(
+        await migrated.downloadQueueDao.findBySongId('remote-song-1'),
+        isNotNull,
+      );
+      final integrity = await migrated
+          .customSelect('PRAGMA foreign_key_check;')
+          .get();
+      expect(integrity, isEmpty);
     },
     skip: !sqliteAvailable,
   );

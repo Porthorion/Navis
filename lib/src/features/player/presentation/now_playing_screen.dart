@@ -2091,6 +2091,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       coverArtId: coverArtId,
                       semanticLabel: title,
                       maxSize: artMaxSize,
+                      isExternalSource: song?.isExternal ?? false,
                     )
                   : (hasMediaArtUrl
                         ? _RadioCoverArt(
@@ -2101,6 +2102,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             coverArtId: null,
                             semanticLabel: title,
                             maxSize: artMaxSize,
+                            isExternalSource: song?.isExternal ?? false,
                           )),
               previousArt: previousSong == null
                   ? null
@@ -2110,6 +2112,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           ? previousSong.title
                           : l10n.nowPlayingUnknownTrack,
                       maxSize: artMaxSize,
+                      isExternalSource: previousSong.isExternal,
                     ),
               nextArt: nextSong == null
                   ? null
@@ -2119,6 +2122,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           ? nextSong.title
                           : l10n.nowPlayingUnknownTrack,
                       maxSize: artMaxSize,
+                      isExternalSource: nextSong.isExternal,
                     ),
             ),
           );
@@ -2522,6 +2526,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     coverArtId: coverArtId,
                     semanticLabel: title,
                     maxSize: artMaxSize,
+                    isExternalSource: song?.isExternal ?? false,
                   )
                 : (hasMediaArtUrl
                       ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: artMaxSize)
@@ -2529,6 +2534,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           coverArtId: null,
                           semanticLabel: title,
                           maxSize: artMaxSize,
+                          isExternalSource: song?.isExternal ?? false,
                         )),
             previousArt: previousSong == null
                 ? null
@@ -2538,6 +2544,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         ? previousSong.title
                         : l10n.nowPlayingUnknownTrack,
                     maxSize: artMaxSize,
+                    isExternalSource: previousSong.isExternal,
                   ),
             nextArt: nextSong == null
                 ? null
@@ -2547,6 +2554,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         ? nextSong.title
                         : l10n.nowPlayingUnknownTrack,
                     maxSize: artMaxSize,
+                    isExternalSource: nextSong.isExternal,
                   ),
           ),
         );
@@ -2877,6 +2885,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           coverArtId: coverArtId,
                           semanticLabel: title,
                           maxSize: splitCoverArtMaxSize,
+                          isExternalSource: song?.isExternal ?? false,
                         )
                       : (hasMediaArtUrl
                             ? _RadioCoverArt(
@@ -2887,6 +2896,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                 coverArtId: null,
                                 semanticLabel: title,
                                 maxSize: splitCoverArtMaxSize,
+                                isExternalSource: song?.isExternal ?? false,
                               )),
                   previousArt: previousSong == null
                       ? null
@@ -2896,6 +2906,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                               ? previousSong.title
                               : l10n.nowPlayingUnknownTrack,
                           maxSize: splitCoverArtMaxSize,
+                          isExternalSource: previousSong.isExternal,
                         ),
                   nextArt: nextSong == null
                       ? null
@@ -2905,6 +2916,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                               ? nextSong.title
                               : l10n.nowPlayingUnknownTrack,
                           maxSize: splitCoverArtMaxSize,
+                          isExternalSource: nextSong.isExternal,
                         ),
                 ),
         );

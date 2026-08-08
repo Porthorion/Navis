@@ -5,6 +5,11 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:dio/dio.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
@@ -32,7 +37,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 58);
+    expect(authorized.body['schemaVersion'], 59);
   });
 
   test('primary certification rejects mutation and cancellation', () async {
@@ -158,6 +163,64 @@ void main() {
     expect(await fixture.handshake.exists(), isFalse);
   });
 
+  test(
+    'source audit is authenticated, sanitized, and classifies mixed rows',
+    () async {
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        api: _SourceAuditApiClient(),
+      );
+      addTearDown(fixture.close);
+      await fixture.database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'server-artist', name: 'Local Artist'),
+      ]);
+
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/search/source-audit',
+        method: 'POST',
+        body: const <String, Object?>{'query': 'mixed'},
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      final response = await _request(
+        fixture.port,
+        '/v1/search/source-audit',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'query': 'mixed'},
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      final records = response.body['records'] as List<dynamic>;
+      expect(records, hasLength(3));
+      expect(
+        records,
+        contains(
+          containsPair('source', 'remote'),
+        ),
+      );
+      final local = records.cast<Map<String, dynamic>>().singleWhere(
+        (record) => record['id'] == 'server-artist',
+      );
+      expect(local['locallyIndexed'], isTrue);
+      expect(local['source'], 'onServer');
+      for (final record in records.cast<Map<String, dynamic>>()) {
+        expect(
+          record.keys,
+          unorderedEquals(<String>[
+            'kind',
+            'id',
+            'displayLabel',
+            'source',
+            'apiIsExternal',
+            'locallyIndexed',
+            'isProvisional',
+          ]),
+        );
+      }
+    },
+  );
+
   test('current diagnostics playback source is resumed, not replaced', () {
     const active = PlaybackSnapshot(
       queueSongIds: <String>['song-1'],
@@ -190,13 +253,17 @@ void main() {
   });
 }
 
-Future<_DiagnosticsFixture> _startFixture(SyncDiagnosticsMode mode) async {
+Future<_DiagnosticsFixture> _startFixture(
+  SyncDiagnosticsMode mode, {
+  SubsonicApiClient? api,
+}) async {
   final temp = await Directory.systemTemp.createTemp('navis_diagnostics_test_');
   final database = createTestDatabase();
   final container = ProviderContainer(
     overrides: [
       navisDatabaseProvider.overrideWith((ref) => database),
       audioHandlerProvider.overrideWith((ref) => null),
+      if (api != null) subsonicApiProvider.overrideWithValue(api),
     ],
   );
   final handshake = File(p.join(temp.path, 'handshake.json'));
@@ -218,6 +285,50 @@ Future<_DiagnosticsFixture> _startFixture(SyncDiagnosticsMode mode) async {
     port: value['port'] as int,
     token: value['token'] as String,
   );
+}
+
+class _SourceAuditApiClient extends SubsonicApiClient {
+  _SourceAuditApiClient()
+    : super(
+        baseUrl: 'https://example.com',
+        authConfig: const SubsonicAuthConfig(
+          username: 'test',
+          password: 'test',
+          apiVersion: '1.16.1',
+        ),
+      );
+
+  @override
+  Future<SearchResult3> search3({
+    required String query,
+    int artistCount = 20,
+    int artistOffset = 0,
+    int albumCount = 20,
+    int albumOffset = 0,
+    int songCount = 20,
+    int songOffset = 0,
+    CancelToken? cancelToken,
+  }) async {
+    return const SearchResult3(
+      artists: <Artist>[
+        Artist(
+          id: 'server-artist',
+          name: 'Local Artist',
+          isExternal: false,
+        ),
+      ],
+      albums: <Album>[
+        Album(id: 'ext-deezer-album-1', name: 'Remote Album'),
+      ],
+      songs: <Song>[
+        Song(
+          id: 'provider-song-1',
+          title: 'Remote Song',
+          isExternal: true,
+        ),
+      ],
+    );
+  }
 }
 
 Future<_Response> _request(

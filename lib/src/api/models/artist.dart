@@ -12,6 +12,7 @@ abstract class Artist with _$Artist {
     int? albumCount,
     String? coverArt,
     DateTime? starred,
+    bool? isExternal,
     @Default(<Album>[]) List<Album> albums,
   }) = _Artist;
 

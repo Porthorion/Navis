@@ -18,6 +18,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 
 typedef LibrarySyncProgressCallback = void Function(LibrarySyncState state);
 
@@ -824,6 +825,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics: metrics,
         endpoint: 'getAlbum',
       );
+      final isExternalDetail = isExternalCatalogSource(
+        id: detail.id,
+        apiIsExternal: detail.isExternal,
+      );
       final existingSongs = await _database.libraryDao
           .watchSongsByAlbum(normalizedId)
           .first;
@@ -854,6 +859,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           missingArtist = ArtistsTableCompanion.insert(
             id: artistId,
             name: detail.artist ?? 'Unknown Artist',
+            isExternal: Value(isExternalDetail),
           );
           validArtistIds.add(artistId);
         }
@@ -862,6 +868,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         detail.songs,
         defaultAlbumId: normalizedId,
         validArtistIds: validArtistIds,
+        inheritExternalWhenMissing: isExternalDetail,
       );
       final sameIdProvisionalSongs =
           (await _database.songIdentityDao.getProvisionalSongs())
@@ -870,23 +877,36 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final albumMetadata = await _toAlbumCompanions(
         <Album>[detail],
         pendingHydrationAlbumIds: <String>[normalizedId],
+        inheritExternalWhenMissing: isExternalDetail,
       );
       await _database.transaction(() async {
         if (missingArtist != null) {
-          await _database.libraryDao.upsertArtists([missingArtist]);
+          if (isExternalDetail) {
+            await _database.libraryDao.upsertProvisionalArtists([
+              missingArtist,
+            ]);
+          } else {
+            await _database.libraryDao.upsertArtists([missingArtist]);
+          }
         }
-        await _database.libraryDao.reconcileSongsForAlbumsChunk(
-          <String, List<SongsTableCompanion>>{normalizedId: songs},
-          markAlbumsHydrated: true,
-          albumMetadata: albumMetadata,
-        );
-        await _reconcileHydratedSongIds(
-          canonicalSongIds: songs
-              .where((song) => song.id.present)
-              .map((song) => song.id.value),
-          sameIdProvisionalSongs: sameIdProvisionalSongs,
-          metrics: metrics,
-        );
+        if (isExternalDetail) {
+          await _database.libraryDao.upsertProvisionalAlbums(albumMetadata);
+          await _database.libraryDao.upsertProvisionalSongs(songs);
+          await _database.libraryDao.markAlbumSongsHydrated(normalizedId);
+        } else {
+          await _database.libraryDao.reconcileSongsForAlbumsChunk(
+            <String, List<SongsTableCompanion>>{normalizedId: songs},
+            markAlbumsHydrated: true,
+            albumMetadata: albumMetadata,
+          );
+          await _reconcileHydratedSongIds(
+            canonicalSongIds: songs
+                .where((song) => song.id.present)
+                .map((song) => song.id.value),
+            sameIdProvisionalSongs: sameIdProvisionalSongs,
+            metrics: metrics,
+          );
+        }
       });
       metrics.addDbWriteBatch();
       state = _withMetrics(
@@ -984,6 +1004,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics: metrics,
         endpoint: 'getArtist',
       );
+      final isExternalDetail = isExternalCatalogSource(
+        id: detail.id,
+        apiIsExternal: detail.isExternal,
+      );
       if (detail.albums.isEmpty && (detail.albumCount ?? 0) > 0) {
         state = _withMetrics(
           state.copyWith(
@@ -1000,23 +1024,28 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         return state;
       }
       await _database.transaction(() async {
-        await _database.libraryDao.upsertArtists(
-          <ArtistsTableCompanion>[
-            ArtistsTableCompanion.insert(
-              id: detail.id,
-              name: detail.name,
-              albumCount: Value(detail.albumCount),
-              coverArt: Value(detail.coverArt),
-              starred: Value(detail.starred),
-            ),
-          ],
-        );
-        await _database.libraryDao.upsertAlbums(
-          await _toAlbumCompanions(
-            detail.albums,
-            pendingHydrationAlbumIds: detail.albums.map((album) => album.id),
+        final artistRows = <ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(
+            id: detail.id,
+            name: detail.name,
+            albumCount: Value(detail.albumCount),
+            coverArt: Value(detail.coverArt),
+            starred: Value(detail.starred),
+            isExternal: Value(isExternalDetail),
           ),
+        ];
+        final albumRows = await _toAlbumCompanions(
+          detail.albums,
+          pendingHydrationAlbumIds: detail.albums.map((album) => album.id),
+          inheritExternalWhenMissing: isExternalDetail,
         );
+        if (isExternalDetail) {
+          await _database.libraryDao.upsertProvisionalArtists(artistRows);
+          await _database.libraryDao.upsertProvisionalAlbums(albumRows);
+        } else {
+          await _database.libraryDao.upsertArtists(artistRows);
+          await _database.libraryDao.upsertAlbums(albumRows);
+        }
       });
       metrics.addDbWriteBatch();
       state = _withMetrics(
@@ -2399,11 +2428,19 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
     onProgress?.call(current);
 
-    final artists = await _withRetry(
-      _api.getArtists,
-      metrics: metrics,
-      endpoint: 'getArtists',
-    );
+    final artists =
+        (await _withRetry(
+              _api.getArtists,
+              metrics: metrics,
+              endpoint: 'getArtists',
+            ))
+            .where(
+              (artist) => !isExternalCatalogSource(
+                id: artist.id,
+                apiIsExternal: artist.isExternal,
+              ),
+            )
+            .toList(growable: false);
     await _database.librarySyncCandidateDao.replaceArtists(
       serverId: serverId,
       generation: catalogGeneration,
@@ -2483,7 +2520,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       );
       final albums = _dedupeAlbums([
         for (final artist in artistDetails.whereType<Artist>())
-          ...artist.albums,
+          ...artist.albums.where(
+            (album) => !isExternalCatalogSource(
+              id: album.id,
+              apiIsExternal: album.isExternal,
+            ),
+          ),
       ]);
       nextAlbumIds = albums.map((album) => album.id).toSet();
       await _database.librarySyncCandidateDao.upsertAlbums(
@@ -3356,7 +3398,15 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           : 'artistVerificationPending';
     }
 
-    final artistDetails = details.whereType<Artist>().toList(growable: false);
+    final artistDetails = details
+        .whereType<Artist>()
+        .where(
+          (artist) => !isExternalCatalogSource(
+            id: artist.id,
+            apiIsExternal: artist.isExternal,
+          ),
+        )
+        .toList(growable: false);
     final touchedArtistIds = artistDetails.map((artist) => artist.id).toSet();
     final changedArtistDetails = <Artist>[];
     for (final artist in artistDetails) {
@@ -4382,6 +4432,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics: metrics,
         endpoint: 'getAlbumListPage',
       );
+      final catalogPage = page
+          .where(
+            (album) => !isExternalCatalogSource(
+              id: album.id,
+              apiIsExternal: album.isExternal,
+            ),
+          )
+          .toList(growable: false);
       final signature = sha1
           .convert(utf8.encode(page.map((album) => album.id).join('\n')))
           .toString();
@@ -4390,13 +4448,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       }
       lastPageSignature = signature;
 
-      if (page.isNotEmpty) {
+      if (catalogPage.isNotEmpty) {
         await _database.librarySyncCandidateDao.upsertAlbums(
           serverId: serverId,
           generation: catalogGeneration,
           albums: await _toAlbumCompanions(
-            page,
-            pendingHydrationAlbumIds: page.map((album) => album.id),
+            catalogPage,
+            pendingHydrationAlbumIds: catalogPage.map((album) => album.id),
             catalogGeneration: catalogGeneration,
           ),
         );
@@ -4404,7 +4462,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       }
 
       final hasMorePages = page.length >= fastPathPageSize;
-      discoveredCount += page.length;
+      discoveredCount += catalogPage.length;
       var work = existingWork;
       if (work == null) {
         await _database.librarySyncDao.enqueueWork(
@@ -4423,7 +4481,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         await _database.librarySyncDao.updateCheckpoint(
           work.id,
           checkpointJson: jsonEncode(<String, Object>{
-            'count': page.length,
+            'count': catalogPage.length,
             'hasMore': hasMorePages,
             'signature': signature,
           }),
@@ -4840,6 +4898,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             albumCount: Value(artist.albumCount),
             coverArt: Value(artist.coverArt),
             starred: Value(artist.starred),
+            isExternal: Value(
+              isExternalCatalogSource(
+                id: artist.id,
+                apiIsExternal: artist.isExternal,
+              ),
+            ),
             catalogGeneration: catalogGeneration == null
                 ? const Value.absent()
                 : Value(catalogGeneration),
@@ -4852,6 +4916,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     List<Album> albums, {
     Iterable<String> pendingHydrationAlbumIds = const <String>[],
     int? catalogGeneration,
+    bool inheritExternalWhenMissing = false,
   }) async {
     final payload = albums
         .map((album) => album.toJson())
@@ -4879,6 +4944,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             userRating: Value(row.userRating),
             playCount: Value(row.playCount),
             serverCreatedAt: Value(row.created),
+            isExternal: Value(
+              isExternalCatalogSource(
+                id: row.id,
+                apiIsExternal:
+                    row.apiIsExternal ??
+                    (inheritExternalWhenMissing ? true : null),
+              ),
+            ),
             catalogGeneration: catalogGeneration == null
                 ? const Value.absent()
                 : Value(catalogGeneration),
@@ -4892,6 +4965,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     String? defaultAlbumId,
     required Set<String> validArtistIds,
     int? catalogGeneration,
+    bool inheritExternalWhenMissing = false,
   }) async {
     final payload = songs.map((song) => song.toJson()).toList(growable: false);
     final rows = payload.length >= isolateThreshold
@@ -4926,6 +5000,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             userRating: Value(row.userRating),
             playCount: Value(row.playCount),
             createdAt: Value(row.createdAt),
+            isExternal: Value(
+              isExternalCatalogSource(
+                id: row.id,
+                apiIsExternal:
+                    row.apiIsExternal ??
+                    (inheritExternalWhenMissing ? true : null),
+              ),
+            ),
             replayGainTrackGain: Value(row.replayGainTrackGain),
             replayGainAlbumGain: Value(row.replayGainAlbumGain),
             replayGainTrackPeak: Value(row.replayGainTrackPeak),
@@ -5202,6 +5284,7 @@ class _AlbumRow {
     this.userRating,
     this.playCount,
     this.created,
+    this.apiIsExternal,
   });
 
   final String id;
@@ -5223,6 +5306,7 @@ class _AlbumRow {
 
   /// When the album was added to the server library (`created` from the API).
   final DateTime? created;
+  final bool? apiIsExternal;
 }
 
 class _SongRow {
@@ -5251,6 +5335,7 @@ class _SongRow {
     this.replayGainAlbumGain,
     this.replayGainTrackPeak,
     this.replayGainAlbumPeak,
+    this.apiIsExternal,
   });
 
   final String id;
@@ -5277,6 +5362,7 @@ class _SongRow {
   final double? replayGainAlbumGain;
   final double? replayGainTrackPeak;
   final double? replayGainAlbumPeak;
+  final bool? apiIsExternal;
 }
 
 Future<List<_AlbumRow>> _parseAlbumRowsInIsolate(
@@ -5318,6 +5404,7 @@ List<_AlbumRow> _albumRowsFromJson(List<Map<String, dynamic>> payload) {
             userRating: json['userRating'] as int?,
             playCount: json['playCount'] as int?,
             created: _parseIsoDate(json['created'] as String?),
+            apiIsExternal: json['isExternal'] as bool?,
           );
         },
       )
@@ -5354,6 +5441,7 @@ List<_SongRow> _songRowsFromJson(List<Map<String, dynamic>> payload) {
             replayGainAlbumGain: (rg?['albumGain'] as num?)?.toDouble(),
             replayGainTrackPeak: (rg?['trackPeak'] as num?)?.toDouble(),
             replayGainAlbumPeak: (rg?['albumPeak'] as num?)?.toDouble(),
+            apiIsExternal: json['isExternal'] as bool?,
           );
         },
       )

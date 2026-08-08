@@ -33,6 +33,7 @@ class _LikedArtistStripTile extends ConsumerWidget {
               height: 64,
               borderRadius: borderRadius,
               placeholderIcon: Icons.person_outline,
+              isExternalSource: artist.isExternal,
             ),
             const SizedBox(height: 4),
             Expanded(

@@ -1936,6 +1936,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                 width: 40,
                                 height: 40,
                                 placeholderIcon: Icons.music_note_outlined,
+                                isExternalSource: song.isExternal,
                               ),
                             ),
                             title: song.title,

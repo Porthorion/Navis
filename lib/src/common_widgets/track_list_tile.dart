@@ -51,6 +51,7 @@ class TrackListTile extends StatelessWidget {
               coverArtId: song.coverArt,
               size: 80,
               borderRadius: BorderRadius.circular(6),
+              isExternalSource: song.isExternal,
             ),
           )
         : (song.track == null

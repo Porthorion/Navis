@@ -32,6 +32,7 @@ _Song _$SongFromJson(Map<String, dynamic> json) => _Song(
   created: json['created'] == null
       ? null
       : DateTime.parse(json['created'] as String),
+  isExternal: json['isExternal'] as bool?,
   replayGain: json['replayGain'] == null
       ? null
       : ReplayGain.fromJson(json['replayGain'] as Map<String, dynamic>),
@@ -59,6 +60,7 @@ Map<String, dynamic> _$SongToJson(_Song instance) => <String, dynamic>{
   'userRating': instance.userRating,
   'playCount': instance.playCount,
   'created': instance.created?.toIso8601String(),
+  'isExternal': instance.isExternal,
   'replayGain': instance.replayGain?.toJson(),
 };
 

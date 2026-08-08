@@ -224,6 +224,7 @@ SongsTableData _songRow({
 }) {
   return SongsTableData(
     isProvisional: false,
+    isExternal: false,
     id: id,
     title: title,
     albumId: albumId,
@@ -244,6 +245,7 @@ AlbumWithSongs _albumWithSongs(
   return AlbumWithSongs(
     album: AlbumsTableData(
       isProvisional: false,
+      isExternal: false,
       id: albumId,
       name: albumName,
       artistName: 'Album Artist',
@@ -598,6 +600,7 @@ void main() {
               const AsyncData(<SongsTableData>[
                 SongsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'song-1',
                   title:
                       'A very long song title that should ellipsize correctly',
@@ -626,6 +629,7 @@ void main() {
               const AsyncData(<AlbumsTableData>[
                 AlbumsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'album-2',
                   name: 'Another very long album title for recent section',
                   artistName: 'Overflow Tester',
@@ -660,6 +664,7 @@ void main() {
               const AsyncData(<SongsTableData>[
                 SongsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'song-2',
                   title: 'A very long most-played song title to stress layout',
                   artistName: 'Overflow Tester',
@@ -671,6 +676,7 @@ void main() {
               const AsyncData(<AlbumsTableData>[
                 AlbumsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'album-4',
                   name: 'Liked album title',
                   artistName: 'Favorite Artist',

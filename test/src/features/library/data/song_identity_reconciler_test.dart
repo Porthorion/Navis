@@ -172,5 +172,6 @@ SongsTableData _song({
     discNumber: disc,
     recordingMbid: recordingMbid,
     isProvisional: provisional,
+    isExternal: false,
   );
 }

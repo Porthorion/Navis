@@ -8,6 +8,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/common_widgets/external_source_badge.dart';
 
 class _QueueSpyController extends QueueController {
   _QueueSpyController(this.ids);
@@ -46,9 +47,10 @@ const _pendingSnapshot = PlaybackSnapshot(
   loadingSongId: 'song-2',
 );
 
-SongsTableData _song(String id, String title) {
+SongsTableData _song(String id, String title, {bool isExternal = false}) {
   return SongsTableData(
     isProvisional: false,
+    isExternal: isExternal,
     id: id,
     title: title,
     albumId: 'album',
@@ -61,6 +63,7 @@ SongsTableData _song(String id, String title) {
 Future<_QueueSpyController> _pumpQueueSheet(
   WidgetTester tester, {
   required PlaybackSnapshot snapshot,
+  Set<String> externalSongIds = const <String>{},
 }) async {
   final queueSpy = _QueueSpyController(snapshot.queueSongIds);
   await tester.pumpWidget(
@@ -70,7 +73,13 @@ Future<_QueueSpyController> _pumpQueueSheet(
         queueProvider.overrideWith(() => queueSpy),
         currentQueueSongIdProvider.overrideWithValue(snapshot.currentSongId),
         songByIdProvider.overrideWith(
-          (ref, songId) => Stream.value(_song(songId, 'Track $songId')),
+          (ref, songId) => Stream.value(
+            _song(
+              songId,
+              'Track $songId',
+              isExternal: externalSongIds.contains(songId),
+            ),
+          ),
         ),
       ],
       child: MaterialApp(
@@ -106,5 +115,15 @@ void main() {
 
     expect(queueSpy.playCalls, 0);
     expect(queueSpy.removeCalls, 0);
+  });
+
+  testWidgets('queue chrome badges only external songs', (tester) async {
+    await _pumpQueueSheet(
+      tester,
+      snapshot: _pendingSnapshot,
+      externalSongIds: const <String>{'song-2'},
+    );
+
+    expect(find.byKey(ExternalSourceBadge.semanticsKey), findsOneWidget);
   });
 }

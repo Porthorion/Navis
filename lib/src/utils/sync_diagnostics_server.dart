@@ -15,6 +15,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 enum SyncDiagnosticsMode {
@@ -139,6 +140,10 @@ class SyncDiagnosticsServer {
                 _container.read(librarySyncControllerProvider),
           ),
         );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/search/source-audit') {
+        await _runSourceAudit(request);
         return;
       }
       if (request.method == 'GET' && path == '/v1/diagnostics/overrides') {
@@ -432,6 +437,95 @@ class SyncDiagnosticsServer {
     await _respond(request, HttpStatus.accepted, <String, Object?>{
       'status': 'started',
     });
+  }
+
+  Future<void> _runSourceAudit(HttpRequest request) async {
+    final body = await _readJson(request);
+    final query = (body['query'] as String? ?? '').trim();
+    if (query.isEmpty) {
+      await _respond(request, HttpStatus.badRequest, <String, Object?>{
+        'error': 'query is required',
+      });
+      return;
+    }
+    final api = _container.read(subsonicApiProvider);
+    if (api == null) {
+      await _respond(request, HttpStatus.serviceUnavailable, <String, Object?>{
+        'error': 'search unavailable',
+      });
+      return;
+    }
+
+    final result = await api.search3(query: query);
+    final records = <Map<String, Object?>>[];
+    for (final artist in result.artists) {
+      records.add(
+        await _sourceAuditRecord(
+          kind: 'artist',
+          id: artist.id,
+          label: artist.name,
+          apiIsExternal: artist.isExternal,
+        ),
+      );
+    }
+    for (final album in result.albums) {
+      records.add(
+        await _sourceAuditRecord(
+          kind: 'album',
+          id: album.id,
+          label: album.name,
+          apiIsExternal: album.isExternal,
+        ),
+      );
+    }
+    for (final song in result.songs) {
+      records.add(
+        await _sourceAuditRecord(
+          kind: 'song',
+          id: song.id,
+          label: song.title,
+          apiIsExternal: song.isExternal,
+        ),
+      );
+    }
+    await _respond(request, HttpStatus.ok, <String, Object?>{
+      'query': query,
+      'records': records,
+    });
+  }
+
+  Future<Map<String, Object?>> _sourceAuditRecord({
+    required String kind,
+    required String id,
+    required String label,
+    required bool? apiIsExternal,
+  }) async {
+    final dao = _container.read(navisDatabaseProvider).libraryDao;
+    final local = switch (kind) {
+      'artist' => await dao.getArtistById(id),
+      'album' => await dao.getAlbumById(id),
+      'song' => await dao.getSongById(id),
+      _ => null,
+    };
+    final isProvisional = switch (local) {
+      ArtistsTableData(:final isProvisional) => isProvisional,
+      AlbumsTableData(:final isProvisional) => isProvisional,
+      SongsTableData(:final isProvisional) => isProvisional,
+      _ => false,
+    };
+    final source = classifyCatalogSource(
+      id: id,
+      apiIsExternal: apiIsExternal,
+    );
+    return <String, Object?>{
+      'kind': kind,
+      'id': id,
+      'displayLabel': label,
+      'source': source == CatalogSource.external ? 'remote' : 'onServer',
+      'apiIsExternal': apiIsExternal,
+      'locallyIndexed': local != null,
+      'isProvisional': isProvisional,
+    };
   }
 
   Future<void> _syncUnavailable(HttpRequest request) {

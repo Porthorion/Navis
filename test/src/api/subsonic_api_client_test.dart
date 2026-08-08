@@ -336,10 +336,18 @@ void main() {
                     data: ok(<String, dynamic>{
                       'searchResult3': <String, dynamic>{
                         'artist': <Map<String, dynamic>>[
-                          <String, dynamic>{'id': 'a1', 'name': 'A'},
+                          <String, dynamic>{
+                            'id': 'a1',
+                            'name': 'A',
+                            'isExternal': true,
+                          },
                         ],
                         'album': <Map<String, dynamic>>[
-                          <String, dynamic>{'id': 'al1', 'name': 'Album 1'},
+                          <String, dynamic>{
+                            'id': 'al1',
+                            'name': 'Album 1',
+                            'isExternal': false,
+                          },
                         ],
                         'song': <Map<String, dynamic>>[
                           <String, dynamic>{'id': 's1', 'title': 'Song 1'},
@@ -430,6 +438,9 @@ void main() {
       expect(artists.first.id, 'a1');
       expect(albums.first.id, 'al1');
       expect(search.songs.first.id, 's1');
+      expect(search.artists.first.isExternal, isTrue);
+      expect(search.albums.first.isExternal, isFalse);
+      expect(search.songs.first.isExternal, isNull);
       expect(playlists.first.id, 'p1');
       expect(lyrics.structuredLyrics.first.line.first.value, 'line');
       expect(stations.single.id, 'r1');

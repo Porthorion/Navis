@@ -740,6 +740,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final coverArtUrl = playback.isRadioMode
         ? null
         : currentMediaItem?.artUri?.toString();
+    final isExternalSource = playback.isRadioMode
+        ? false
+        : currentSongAsync.asData?.value?.isExternal ?? false;
     final nowPlayingArtUrl = playback.isRadioMode
         ? playback.radioStation?.nowPlayingArtUrl
         : coverArtUrl;
@@ -1266,6 +1269,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         albumId: albumId,
                         coverArtId: coverArtId,
                         coverArtUrl: coverArtUrl,
+                        isExternalSource: isExternalSource,
                         onDestinationSelected: onDestinationSelected,
                         showLibrarySubNavigation: showLibrarySubNavigation,
                         selectedLibrarySection: selectedLibrarySection,
@@ -1385,6 +1389,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                   albumId: albumId,
                                                   coverArtId: coverArtId,
                                                   coverArtUrl: coverArtUrl,
+                                                  isExternalSource:
+                                                      isExternalSource,
                                                   isRadio: playback.isRadioMode,
                                                   radioArtUrl: playback
                                                       .radioStation
@@ -1561,6 +1567,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                       coverArtId,
                                                                   coverArtUrl:
                                                                       coverArtUrl,
+                                                                  isExternalSource:
+                                                                      isExternalSource,
                                                                   isRadio: playback
                                                                       .isRadioMode,
                                                                   radioArtUrl: playback
@@ -1797,6 +1805,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     songArtist: songArtist,
                                     coverArtId: coverArtId,
                                     coverArtUrl: coverArtUrl,
+                                    isExternalSource: isExternalSource,
                                     isRadio: playback.isRadioMode,
                                     radioArtUrl:
                                         playback.radioStation?.nowPlayingArtUrl,

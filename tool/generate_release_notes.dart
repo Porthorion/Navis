@@ -64,6 +64,10 @@ const List<_Version> _changelogs = [
       'Seeking back into already-heard audio on desktop is smoother and no longer forces a full stream rebuild',
       type: _EntryType.fix,
     ),
+    _Entry(
+      'Remote catalog artists, albums, and songs now show a cloud badge so you can distinguish them from music already in your server library',
+      type: _EntryType.newFeature,
+    ),
   ]),
   _Version('1.1.0', [
     _Entry(

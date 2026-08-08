@@ -20,6 +20,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
@@ -41,6 +42,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
     this.coverArtId,
     this.year,
     this.songCount,
+    this.isExternal = false,
   });
 
   factory HomeRandomShowcaseAlbum.fromServer(Album album) {
@@ -52,6 +54,10 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
       year: album.year,
       songCount: album.songCount,
       source: HomeRandomShowcaseSource.serverRandom,
+      isExternal: isExternalCatalogSource(
+        id: album.id,
+        apiIsExternal: album.isExternal,
+      ),
     );
   }
 
@@ -64,6 +70,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
       year: album.year,
       songCount: album.songCount,
       source: HomeRandomShowcaseSource.localFallback,
+      isExternal: album.isExternal,
     );
   }
 
@@ -76,6 +83,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
       year: album.year,
       songCount: album.songCount,
       source: HomeRandomShowcaseSource.likedDiscovery,
+      isExternal: album.isExternal,
     );
   }
 
@@ -91,6 +99,10 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
       coverArtId: song.coverArt,
       year: song.year,
       source: HomeRandomShowcaseSource.likedDiscovery,
+      isExternal: isExternalCatalogSource(
+        id: song.id,
+        apiIsExternal: song.isExternal,
+      ),
     );
   }
 
@@ -101,6 +113,7 @@ class HomeRandomShowcaseAlbum extends HomeRandomShowcaseItem {
   final int? year;
   final int? songCount;
   final HomeRandomShowcaseSource source;
+  final bool isExternal;
 
   @override
   String get stableId => 'album:$id';
@@ -1440,6 +1453,12 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
             ? song.artist!.trim()
             : artistId,
         coverArt: Value(song.coverArt),
+        isExternal: Value(
+          isExternalCatalogSource(
+            id: song.id,
+            apiIsExternal: song.isExternal,
+          ),
+        ),
       );
     }
 
@@ -1457,6 +1476,12 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
         songCount: const Value(1),
         duration: Value(song.duration),
         coverArt: Value(song.coverArt),
+        isExternal: Value(
+          isExternalCatalogSource(
+            id: song.id,
+            apiIsExternal: song.isExternal,
+          ),
+        ),
       );
     }
 
@@ -1506,6 +1531,10 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
 SongsTableData _listenBrainzTableSong(Song song) {
   return SongsTableData(
     isProvisional: false,
+    isExternal: isExternalCatalogSource(
+      id: song.id,
+      apiIsExternal: song.isExternal,
+    ),
     id: song.id,
     title: song.title,
     albumId: song.albumId,
@@ -1561,6 +1590,12 @@ SongsTableCompanion _listenBrainzSongCompanion(
     replayGainAlbumGain: Value(song.replayGain?.albumGain),
     replayGainTrackPeak: Value(song.replayGain?.trackPeak),
     replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
+    isExternal: Value(
+      isExternalCatalogSource(
+        id: song.id,
+        apiIsExternal: song.isExternal,
+      ),
+    ),
   );
 }
 

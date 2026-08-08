@@ -7,6 +7,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
@@ -332,11 +333,17 @@ class QueueController extends Notifier<List<String>> {
 
     try {
       // 1. Upsert referenced artists (deduplicated).
-      final artistEntries = <String, String?>{};
+      final artistEntries = <String, ({String? name, bool isExternal})>{};
       for (final song in songs) {
         final id = song.artistId?.trim();
         if (id != null && id.isNotEmpty && !artistEntries.containsKey(id)) {
-          artistEntries[id] = song.artist;
+          artistEntries[id] = (
+            name: song.artist,
+            isExternal: isExternalCatalogSource(
+              id: song.id,
+              apiIsExternal: song.isExternal,
+            ),
+          );
         }
       }
       if (artistEntries.isNotEmpty) {
@@ -344,7 +351,8 @@ class QueueController extends Notifier<List<String>> {
             .map(
               (e) => ArtistsTableCompanion.insert(
                 id: e.key,
-                name: e.value ?? e.key,
+                name: e.value.name ?? e.key,
+                isExternal: Value(e.value.isExternal),
               ),
             )
             .toList(growable: false);
@@ -369,6 +377,12 @@ class QueueController extends Notifier<List<String>> {
                 artistName: Value(e.value.artist),
                 coverArt: Value(e.value.coverArt),
                 year: Value(e.value.year),
+                isExternal: Value(
+                  isExternalCatalogSource(
+                    id: e.value.id,
+                    apiIsExternal: e.value.isExternal,
+                  ),
+                ),
               ),
             )
             .toList(growable: false);
@@ -411,6 +425,12 @@ class QueueController extends Notifier<List<String>> {
             recordingMbid: Value(song.musicBrainzId),
             playCount: Value(song.playCount),
             createdAt: Value(song.created),
+            isExternal: Value(
+              isExternalCatalogSource(
+                id: song.id,
+                apiIsExternal: song.isExternal,
+              ),
+            ),
             replayGainTrackGain: Value(song.replayGain?.trackGain),
             replayGainAlbumGain: Value(song.replayGain?.albumGain),
             replayGainTrackPeak: Value(song.replayGain?.trackPeak),

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
 import 'package:navis/src/database/tables/library_sync_candidate_albums_table.dart';
@@ -114,6 +115,16 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     required int generation,
     required List<ArtistsTableCompanion> artists,
   }) async {
+    final catalogArtists = artists
+        .where(
+          (artist) => !isExternalCatalogSource(
+            id: artist.id.value,
+            apiIsExternal: artist.isExternal.present
+                ? artist.isExternal.value
+                : null,
+          ),
+        )
+        .toList(growable: false);
     await _clearCandidateRowsPaged(
       tableName: 'library_sync_candidate_artists',
       serverId: serverId,
@@ -122,12 +133,15 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     );
     for (
       var offset = 0;
-      offset < artists.length;
+      offset < catalogArtists.length;
       offset += _candidateWritePageSize
     ) {
-      final end = (offset + _candidateWritePageSize).clamp(0, artists.length);
+      final end = (offset + _candidateWritePageSize).clamp(
+        0,
+        catalogArtists.length,
+      );
       await batch((batch) {
-        for (final artist in artists.sublist(offset, end)) {
+        for (final artist in catalogArtists.sublist(offset, end)) {
           batch.insert(
             librarySyncCandidateArtistsTable,
             LibrarySyncCandidateArtistsTableCompanion.insert(
@@ -151,17 +165,30 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     required int generation,
     required List<AlbumsTableCompanion> albums,
   }) async {
-    if (albums.isEmpty) {
+    final catalogAlbums = albums
+        .where(
+          (album) => !isExternalCatalogSource(
+            id: album.id.value,
+            apiIsExternal: album.isExternal.present
+                ? album.isExternal.value
+                : null,
+          ),
+        )
+        .toList(growable: false);
+    if (catalogAlbums.isEmpty) {
       return;
     }
     for (
       var offset = 0;
-      offset < albums.length;
+      offset < catalogAlbums.length;
       offset += _candidateWritePageSize
     ) {
-      final end = (offset + _candidateWritePageSize).clamp(0, albums.length);
+      final end = (offset + _candidateWritePageSize).clamp(
+        0,
+        catalogAlbums.length,
+      );
       await batch((batch) {
-        for (final album in albums.sublist(offset, end)) {
+        for (final album in catalogAlbums.sublist(offset, end)) {
           final candidate = LibrarySyncCandidateAlbumsTableCompanion.insert(
             serverId: serverId,
             generation: generation,
@@ -209,12 +236,25 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     required int generation,
     required Map<String, List<SongsTableCompanion>> songsByAlbum,
   }) async {
-    if (songsByAlbum.isEmpty) {
+    final catalogSongsByAlbum = <String, List<SongsTableCompanion>>{
+      for (final entry in songsByAlbum.entries)
+        entry.key: entry.value
+            .where(
+              (song) => !isExternalCatalogSource(
+                id: song.id.value,
+                apiIsExternal: song.isExternal.present
+                    ? song.isExternal.value
+                    : null,
+              ),
+            )
+            .toList(growable: false),
+    };
+    if (catalogSongsByAlbum.isEmpty) {
       return;
     }
     var chunk = <String, List<SongsTableCompanion>>{};
     var songCount = 0;
-    for (final entry in songsByAlbum.entries) {
+    for (final entry in catalogSongsByAlbum.entries) {
       final exceedsBound =
           chunk.isNotEmpty &&
           (chunk.length >= 24 ||

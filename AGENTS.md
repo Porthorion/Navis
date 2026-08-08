@@ -463,6 +463,17 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   browsing and reconcile song IDs only by same ID, one unique recording MBID,
   or one unique exact metadata match with compatible track/disc and duration
   within three seconds. Ambiguous matches must remain local.
+- External-catalog provenance is separate from provisional lifecycle state.
+  API `isExternal` values are authoritative; only absent values may fall back
+  to the observed `ext-*`, `remote-*`, and `pl-deezer-*` ID families. Persist
+  provenance in `artists.is_external`, `albums.is_external`, and
+  `songs.is_external`; never infer it from cover-art IDs, cache/download state,
+  local indexing, or `is_provisional`. Broad catalog candidates exclude
+  external entries. Exact external artist/album hydration remains provisional
+  and may expose provisional children on that detail page, while ordinary
+  library browsing continues to hide them. Canonical catalog writes always
+  clear `is_external`, so an item imported into the server library loses its
+  remote-source badge.
 - Apply proven song-ID aliases to the audio handler before deleting the
   provisional row. Preserve an active losing cache file, resolve late cache
   completions through persisted aliases, and replay aliases during audio
@@ -549,7 +560,7 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 58 |
+| **Schema version** | 59 |
 | **Tables** | 30 |
 | **DAOs** | 16 |
 

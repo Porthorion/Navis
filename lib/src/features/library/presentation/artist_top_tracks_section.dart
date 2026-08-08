@@ -374,6 +374,7 @@ class _TopTrackTile extends ConsumerWidget {
               borderRadius: BorderRadius.circular(4),
               placeholderIcon: Icons.music_note_outlined,
               showLoadingPlaceholder: false,
+              isExternalSource: track.resolvedSong?.isExternal ?? false,
             ),
           ),
         ],

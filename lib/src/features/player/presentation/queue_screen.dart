@@ -222,6 +222,7 @@ class _QueueItem extends ConsumerWidget {
               width: 48,
               height: 48,
               borderRadius: BorderRadius.circular(4),
+              isExternalSource: song.isExternal,
             ),
             title: Text(
               song.title,

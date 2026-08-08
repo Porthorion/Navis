@@ -47,6 +47,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/format_utils.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 export 'package:navis/src/features/home/domain/home_section_ids.dart';
@@ -2023,6 +2024,10 @@ class _ServerAlbumCarousel extends ConsumerWidget {
             coverArtId: album.coverArt,
             width: cardSize,
             borderRadius: coverRadius,
+            isExternalSource: isExternalCatalogSource(
+              id: album.id,
+              apiIsExternal: album.isExternal,
+            ),
             heroTag: buildCoverArtHeroTag(
               coverArtId: album.coverArt,
               context: '${heroContext}_${album.id}',
@@ -2054,6 +2059,10 @@ class _ServerAlbumCarousel extends ConsumerWidget {
             coverArtId: album.coverArt,
             width: cardSize,
             borderRadius: coverRadius,
+            isExternalSource: isExternalCatalogSource(
+              id: album.id,
+              apiIsExternal: album.isExternal,
+            ),
             heroTag: buildCoverArtHeroTag(
               coverArtId: album.coverArt,
               context: '${heroContext}_${album.id}',
@@ -2655,6 +2664,7 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                    isExternalSource: album.isExternal,
                   ),
                   const Positioned.fill(
                     child: DecoratedBox(
@@ -3369,6 +3379,7 @@ class _RandomMiniCover extends StatelessWidget {
         size: 96,
         fit: BoxFit.cover,
         placeholderIcon: Icons.album_outlined,
+        isExternalSource: album.isExternal,
       ),
     );
   }
@@ -3822,6 +3833,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
               size: kCoverArtStandardSize,
               fit: BoxFit.cover,
               placeholderIcon: Icons.album_outlined,
+              isExternalSource: album.isExternal,
             ),
             DecoratedBox(
               decoration: BoxDecoration(
@@ -4010,6 +4022,7 @@ class _ServerAlbumCard extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onSecondaryTapDown,
+    this.isExternalSource = false,
   });
 
   final String name;
@@ -4021,6 +4034,7 @@ class _ServerAlbumCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
+  final bool isExternalSource;
 
   @override
   Widget build(BuildContext context) {
@@ -4053,6 +4067,7 @@ class _ServerAlbumCard extends StatelessWidget {
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                    isExternalSource: isExternalSource,
                   )
                 else
                   CoverArtImage(
@@ -4060,6 +4075,7 @@ class _ServerAlbumCard extends StatelessWidget {
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                    isExternalSource: isExternalSource,
                   ),
                 Positioned(
                   left: 0,
@@ -4158,6 +4174,7 @@ class _SongListSection extends ConsumerWidget {
                   width: compactDensity ? 38 : 42,
                   height: compactDensity ? 38 : 42,
                   placeholderIcon: Icons.music_note_outlined,
+                  isExternalSource: song.isExternal,
                 ),
               ),
               title: song.title,
@@ -4190,6 +4207,7 @@ class _SongListSection extends ConsumerWidget {
             size: 160,
             borderRadius: BorderRadius.circular(6),
             placeholderIcon: Icons.music_note_outlined,
+            isExternalSource: song.isExternal,
           ),
         ),
         title: Text(

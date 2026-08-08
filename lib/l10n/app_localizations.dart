@@ -3537,6 +3537,12 @@ abstract class AppLocalizations {
   /// **'Cached'**
   String get cacheBadgeCached;
 
+  /// No description provided for @externalSourceBadgeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote source — not in your server library.'**
+  String get externalSourceBadgeLabel;
+
   /// No description provided for @appearanceTitle.
   ///
   /// In en, this message translates to:

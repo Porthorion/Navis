@@ -28,6 +28,7 @@ abstract class Song with _$Song {
     int? userRating,
     int? playCount,
     DateTime? created,
+    bool? isExternal,
     ReplayGain? replayGain,
   }) = _Song;
 

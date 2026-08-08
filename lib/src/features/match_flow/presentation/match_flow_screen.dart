@@ -594,6 +594,7 @@ class _MatchFlowSongTile extends StatelessWidget {
                 coverArtId: song.coverArt,
                 size: 80,
                 borderRadius: BorderRadius.circular(6),
+                isExternalSource: song.isExternal,
               ),
             ),
           const SizedBox(width: 16),

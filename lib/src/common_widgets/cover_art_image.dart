@@ -7,6 +7,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/common_widgets/external_source_badge.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -37,6 +38,7 @@ class CoverArtImage extends ConsumerStatefulWidget {
     this.lockedSize,
     this.loadPriority = CoverArtLoadPriority.visible,
     this.preloadScreens = 1.0,
+    this.isExternalSource = false,
   });
 
   final String? coverArtId;
@@ -69,6 +71,9 @@ class CoverArtImage extends ConsumerStatefulWidget {
   /// This lets list/grid art warm before it reaches the screen without keeping
   /// far-offscreen requests alive.
   final double preloadScreens;
+
+  /// Whether this item is available only through an external server catalog.
+  final bool isExternalSource;
 
   @override
   ConsumerState<CoverArtImage> createState() => _CoverArtImageState();
@@ -117,13 +122,19 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     final id = widget.coverArtId?.trim() ?? '';
     if (id.isEmpty) {
       _clearInterest();
-      return _withSemantics(_fallback(context));
+      return _withExternalSourceBadge(
+        context,
+        _withSemantics(_fallback(context)),
+      );
     }
 
     final api = ref.watch(subsonicApiProvider);
     if (api == null) {
       _clearInterest();
-      return _withSemantics(_fallback(context));
+      return _withExternalSourceBadge(
+        context,
+        _withSemantics(_fallback(context)),
+      );
     }
 
     final cacheManager = ref.watch(coverArtCacheManagerProvider);
@@ -188,7 +199,9 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
               ? _fallback(context)
               : _emptyPlaceholder());
 
-    return _withVisibility(_withSemantics(child));
+    return _withVisibility(
+      _withExternalSourceBadge(context, _withSemantics(child)),
+    );
   }
 
   CoverArtLoadPriority? get _activePriority {
@@ -424,6 +437,47 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       );
     }
     return ExcludeSemantics(child: child);
+  }
+
+  Widget _withExternalSourceBadge(BuildContext context, Widget child) {
+    if (!widget.isExternalSource) {
+      return child;
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final explicitWidth = _finitePositive(widget.width);
+        final explicitHeight = _finitePositive(widget.height);
+        final constrainedWidth = constraints.hasBoundedWidth
+            ? _finitePositive(constraints.maxWidth)
+            : null;
+        final constrainedHeight = constraints.hasBoundedHeight
+            ? _finitePositive(constraints.maxHeight)
+            : null;
+        final width = explicitWidth ?? constrainedWidth;
+        final height = explicitHeight ?? constrainedHeight;
+        final extent = width == null
+            ? height
+            : height == null
+            ? width
+            : width < height
+            ? width
+            : height;
+        final badgeSize = extent != null && extent >= 120 ? 24.0 : 18.0;
+        final inset = badgeSize == 24 ? 6.0 : 4.0;
+        return Stack(
+          fit: StackFit.passthrough,
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            child,
+            Positioned(
+              top: inset,
+              left: inset,
+              child: ExternalSourceBadge(size: badgeSize),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _fallback(BuildContext context) {

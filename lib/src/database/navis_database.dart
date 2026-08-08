@@ -135,7 +135,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 58;
+  int get schemaVersion => 59;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -329,6 +329,32 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 58 && to >= 58) {
       await from57To58(migrator);
+    }
+    if (from < 59 && to >= 59) {
+      await from58To59(migrator);
+    }
+  }
+
+  Future<void> from58To59(Migrator migrator) async {
+    if (!await _columnExists('artists', 'is_external')) {
+      await migrator.addColumn(artistsTable, artistsTable.isExternal);
+    }
+    if (!await _columnExists('albums', 'is_external')) {
+      await migrator.addColumn(albumsTable, albumsTable.isExternal);
+    }
+    if (!await _columnExists('songs', 'is_external')) {
+      await migrator.addColumn(songsTable, songsTable.isExternal);
+    }
+
+    for (final table in <String>['artists', 'albums', 'songs']) {
+      await customStatement('''
+        UPDATE $table
+        SET is_external = 1,
+            is_provisional = 1
+        WHERE lower(id) LIKE 'ext-%'
+           OR lower(id) LIKE 'remote-%'
+           OR lower(id) LIKE 'pl-deezer-%';
+      ''');
     }
   }
 

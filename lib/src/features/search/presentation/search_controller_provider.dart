@@ -186,18 +186,47 @@ SearchResult3 _mergeCacheFirst(SearchResult3 local, SearchResult3 remote) {
     List<T> localItems,
     List<T> remoteItems,
     String Function(T) id,
+    T Function(T local, T remote) mergeDuplicate,
   ) {
-    final seen = localItems.map(id).toSet();
+    final remoteById = <String, T>{
+      for (final item in remoteItems) id(item): item,
+    };
+    final seen = <String>{};
     return <T>[
-      ...localItems,
+      for (final localItem in localItems)
+        if (seen.add(id(localItem)))
+          remoteById[id(localItem)] == null
+              ? localItem
+              : mergeDuplicate(localItem, remoteById[id(localItem)] as T),
       ...remoteItems.where((item) => seen.add(id(item))),
     ];
   }
 
   return SearchResult3(
-    artists: merge(local.artists, remote.artists, (artist) => artist.id),
-    albums: merge(local.albums, remote.albums, (album) => album.id),
-    songs: merge(local.songs, remote.songs, (song) => song.id),
+    artists: merge(
+      local.artists,
+      remote.artists,
+      (artist) => artist.id,
+      (localItem, remoteItem) => localItem.copyWith(
+        isExternal: remoteItem.isExternal ?? localItem.isExternal,
+      ),
+    ),
+    albums: merge(
+      local.albums,
+      remote.albums,
+      (album) => album.id,
+      (localItem, remoteItem) => localItem.copyWith(
+        isExternal: remoteItem.isExternal ?? localItem.isExternal,
+      ),
+    ),
+    songs: merge(
+      local.songs,
+      remote.songs,
+      (song) => song.id,
+      (localItem, remoteItem) => localItem.copyWith(
+        isExternal: remoteItem.isExternal ?? localItem.isExternal,
+      ),
+    ),
   );
 }
 
@@ -245,6 +274,7 @@ Future<SearchResult3> _searchLocal(
             name: a.name,
             coverArt: a.coverArt,
             starred: a.starred,
+            isExternal: a.isExternal,
           ),
         )
         .toList(),
@@ -260,6 +290,7 @@ Future<SearchResult3> _searchLocal(
             genre: a.genre,
             coverArt: a.coverArt,
             starred: a.starred,
+            isExternal: a.isExternal,
           ),
         )
         .toList(),
@@ -276,6 +307,7 @@ Future<SearchResult3> _searchLocal(
             duration: s.duration,
             coverArt: s.coverArt,
             starred: s.starred,
+            isExternal: s.isExternal,
           ),
         )
         .toList(),
@@ -326,8 +358,12 @@ final expandedSearchProvider = FutureProvider.autoDispose
               SearchResult3(
                 artists: results
                     .map(
-                      (a) =>
-                          Artist(id: a.id, name: a.name, coverArt: a.coverArt),
+                      (a) => Artist(
+                        id: a.id,
+                        name: a.name,
+                        coverArt: a.coverArt,
+                        isExternal: a.isExternal,
+                      ),
                     )
                     .toList(),
               ),
@@ -347,6 +383,7 @@ final expandedSearchProvider = FutureProvider.autoDispose
                         name: a.name,
                         artist: a.artistName,
                         coverArt: a.coverArt,
+                        isExternal: a.isExternal,
                       ),
                     )
                     .toList(),
@@ -370,6 +407,7 @@ final expandedSearchProvider = FutureProvider.autoDispose
                         albumId: s.albumId,
                         duration: s.duration,
                         coverArt: s.coverArt,
+                        isExternal: s.isExternal,
                       ),
                     )
                     .toList(),

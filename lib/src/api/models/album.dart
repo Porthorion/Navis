@@ -25,6 +25,7 @@ abstract class Album with _$Album {
     DateTime? starred,
     int? userRating,
     int? playCount,
+    bool? isExternal,
 
     /// When the album was added to the Subsonic server library.
     /// Maps to the `created` field in the Subsonic API response.

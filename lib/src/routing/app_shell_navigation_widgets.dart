@@ -83,6 +83,7 @@ class _RailSidebar extends ConsumerWidget {
     this.albumId,
     this.coverArtId,
     this.coverArtUrl,
+    this.isExternalSource = false,
     this.isRadio = false,
     this.radioArtUrl,
     this.navbarAutohide = false,
@@ -105,6 +106,7 @@ class _RailSidebar extends ConsumerWidget {
   final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
+  final bool isExternalSource;
   final bool isRadio;
   final String? radioArtUrl;
   final VoidCallback onOpenPlayer;
@@ -220,6 +222,7 @@ class _RailSidebar extends ConsumerWidget {
                         albumId: albumId,
                         coverArtId: coverArtId,
                         coverArtUrl: coverArtUrl,
+                        isExternalSource: isExternalSource,
                         isRadio: isRadio,
                         radioArtUrl: radioArtUrl,
                         onOpenPlayer: onOpenPlayer,

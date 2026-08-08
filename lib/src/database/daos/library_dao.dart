@@ -135,7 +135,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       '''
       SELECT al.*
       FROM albums al
-      WHERE al.is_provisional = 0
+      WHERE (al.is_provisional = 0 OR al.is_external = 1)
         AND (
           al.artist_id = ?1
           OR (
@@ -191,15 +191,19 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
 
     final albumsSub =
-        (select(
-          albumsTable,
-        )..where((table) => table.isProvisional.equals(false))).watch().listen(
-          (albums) {
-            currentAlbums = albums;
-            emitBuckets();
-          },
-          onError: controller.addError,
-        );
+        (select(albumsTable)..where(
+              (table) =>
+                  table.isProvisional.equals(false) |
+                  table.isExternal.equals(true),
+            ))
+            .watch()
+            .listen(
+              (albums) {
+                currentAlbums = albums;
+                emitBuckets();
+              },
+              onError: controller.addError,
+            );
 
     final songsSub = watchSongsByArtist(id).listen(
       (songs) {
@@ -373,7 +377,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ..where(
         (table) =>
             table.albumId.equals(albumId) &
-            table.isProvisional.equals(false) &
+            (table.isProvisional.equals(false) |
+                table.isExternal.equals(true)) &
             table.serverDeletedAt.isNull(),
       )
       ..orderBy([
@@ -390,7 +395,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       FROM songs s
       LEFT JOIN albums al ON al.id = s.album_id
       WHERE s.artist_id = ?1
-        AND s.is_provisional = 0
+        AND (s.is_provisional = 0 OR s.is_external = 1)
         AND s.server_deleted_at IS NULL
       ORDER BY
         al.year IS NULL ASC,
@@ -520,6 +525,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       for (final artist in artists) {
         var canonicalArtist = artist.copyWith(
           isProvisional: const Value(false),
+          isExternal: const Value(false),
         );
         final id = canonicalArtist.id.present ? canonicalArtist.id.value : null;
         if (id != null && pendingStars.containsKey(id)) {
@@ -589,6 +595,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         var canonicalAlbum = album.copyWith(
           syncedAt: Value(now),
           isProvisional: const Value(false),
+          isExternal: const Value(false),
         );
         final id = canonicalAlbum.id.present ? canonicalAlbum.id.value : null;
         if (id != null && pendingStars.containsKey(id)) {
@@ -692,6 +699,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             var canonical = album.copyWith(
               syncedAt: Value(now),
               isProvisional: const Value(false),
+              isExternal: const Value(false),
             );
             final id = canonical.id.present ? canonical.id.value : null;
             if (id != null && pendingAlbumStars.containsKey(id)) {
@@ -735,6 +743,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             var canonical = song.copyWith(
               serverDeletedAt: const Value(null),
               isProvisional: const Value(false),
+              isExternal: const Value(false),
             );
             final id = canonical.id.present ? canonical.id.value : null;
             if (id != null && pendingSongStars.containsKey(id)) {
@@ -779,6 +788,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         var canonicalSong = song.copyWith(
           serverDeletedAt: const Value(null),
           isProvisional: const Value(false),
+          isExternal: const Value(false),
         );
         final id = canonicalSong.id.present ? canonicalSong.id.value : null;
         if (id != null && pendingStars.containsKey(id)) {

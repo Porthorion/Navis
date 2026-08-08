@@ -259,6 +259,7 @@ AlbumWithSongs _albumWithSongs(List<SongsTableData> songs) {
   return AlbumWithSongs(
     album: const AlbumsTableData(
       isProvisional: false,
+      isExternal: false,
       id: 'album-1',
       name: 'Album 1',
       artistName: 'Artist 1',
@@ -328,6 +329,7 @@ ListenBrainzDiscoverPlaylist _listenBrainzMixedPlaylist() {
         ),
         tableSong: SongsTableData(
           isProvisional: false,
+          isExternal: false,
           id: 'matched-track',
           title: 'Matched Track',
           artistName: 'ListenBrainz Artist',
@@ -399,6 +401,7 @@ void main() {
               const AsyncData(
                 ArtistsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'artist-1',
                   name: 'Artist 1',
                   albumCount: 1,
@@ -411,6 +414,7 @@ void main() {
                   albums: <AlbumsTableData>[
                     AlbumsTableData(
                       isProvisional: false,
+                      isExternal: false,
                       id: 'album-1',
                       name: 'Album 1',
                       artistId: 'artist-1',
@@ -421,6 +425,7 @@ void main() {
                   featuredIn: <AlbumsTableData>[
                     AlbumsTableData(
                       isProvisional: false,
+                      isExternal: false,
                       id: 'album-2',
                       name: 'Album 2',
                       artistId: 'artist-2',
@@ -467,6 +472,7 @@ void main() {
                 const AsyncData(
                   ArtistsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'artist-only',
                     name: 'Artist Only',
                     albumCount: 1,
@@ -479,6 +485,7 @@ void main() {
                     albums: <AlbumsTableData>[
                       AlbumsTableData(
                         isProvisional: false,
+                        isExternal: false,
                         id: 'solo-album',
                         name: 'Solo Album',
                         artistId: 'artist-only',
@@ -514,6 +521,7 @@ void main() {
                 AlbumWithSongs(
                   album: AlbumsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'album-1',
                     name: 'Album 1',
                     artistName: 'Artist 1',
@@ -527,6 +535,7 @@ void main() {
                       title: 'Song 1',
                       track: 1,
                       isProvisional: false,
+                      isExternal: false,
                     ),
                   ],
                 ),
@@ -559,6 +568,7 @@ void main() {
             const <SongsTableData>[
               SongsTableData(
                 isProvisional: false,
+                isExternal: false,
                 id: 'visible-track',
                 title: 'Visible Track',
                 track: 1,
@@ -646,6 +656,7 @@ void main() {
               title: 'Mobile Track',
               track: 1,
               isProvisional: false,
+              isExternal: false,
             ),
           ],
         ),
@@ -675,6 +686,7 @@ void main() {
           const <SongsTableData>[
             SongsTableData(
               isProvisional: false,
+              isExternal: false,
               id: 'desktop-track',
               title: 'Desktop Track',
               track: 1,
@@ -842,6 +854,7 @@ void main() {
             <SongsTableData>[
               SongsTableData(
                 isProvisional: false,
+                isExternal: false,
                 id: 'liked-track',
                 title: 'Liked Track',
                 track: 1,
@@ -849,6 +862,7 @@ void main() {
               ),
               const SongsTableData(
                 isProvisional: false,
+                isExternal: false,
                 id: 'downloaded-track',
                 title: 'Downloaded Track',
                 track: 2,
@@ -903,6 +917,7 @@ void main() {
             8,
             (index) => SongsTableData(
               isProvisional: false,
+              isExternal: false,
               id: 'viewport-track-${index + 1}',
               title: 'Viewport Track ${index + 1}',
               track: index + 1,
@@ -959,6 +974,7 @@ void main() {
                   AlbumWithSongs(
                     album: AlbumsTableData(
                       isProvisional: false,
+                      isExternal: false,
                       id: 'album-rapid',
                       name: 'Rapid Album',
                       artistName: 'Artist Rapid',
@@ -969,6 +985,7 @@ void main() {
                     songs: <SongsTableData>[
                       SongsTableData(
                         isProvisional: false,
+                        isExternal: false,
                         id: 'song-rapid-1',
                         title: 'Rapid Song',
                         track: 1,
@@ -1018,6 +1035,7 @@ void main() {
               AsyncData(
                 ArtistsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'starred-artist',
                   name: 'Starred Artist',
                   albumCount: 0,
@@ -1051,6 +1069,7 @@ void main() {
               const AsyncData(
                 ArtistsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'unstarred-artist',
                   name: 'Unstarred Artist',
                   albumCount: 2,

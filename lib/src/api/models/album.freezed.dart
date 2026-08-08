@@ -17,7 +17,7 @@ mixin _$Album {
 
  String get id; String get name; String? get artist; String? get artistId;/// OpenSubsonic extension: multiple album artists with individual IDs.
 /// Falls back to the legacy [artist]/[artistId] pair on standard Subsonic.
- List<ArtistRef> get artists; int? get songCount; int? get duration; int? get year; String? get genre; String? get coverArt; DateTime? get starred; int? get userRating; int? get playCount;/// When the album was added to the Subsonic server library.
+ List<ArtistRef> get artists; int? get songCount; int? get duration; int? get year; String? get genre; String? get coverArt; DateTime? get starred; int? get userRating; int? get playCount; bool? get isExternal;/// When the album was added to the Subsonic server library.
 /// Maps to the `created` field in the Subsonic API response.
  DateTime? get created; List<Song> get songs;
 /// Create a copy of Album
@@ -32,16 +32,16 @@ $AlbumCopyWith<Album> get copyWith => _$AlbumCopyWithImpl<Album>(this as Album, 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Album&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&const DeepCollectionEquality().equals(other.artists, artists)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.year, year) || other.year == year)&&(identical(other.genre, genre) || other.genre == genre)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&const DeepCollectionEquality().equals(other.songs, songs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Album&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&const DeepCollectionEquality().equals(other.artists, artists)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.year, year) || other.year == year)&&(identical(other.genre, genre) || other.genre == genre)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.isExternal, isExternal) || other.isExternal == isExternal)&&(identical(other.created, created) || other.created == created)&&const DeepCollectionEquality().equals(other.songs, songs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,artist,artistId,const DeepCollectionEquality().hash(artists),songCount,duration,year,genre,coverArt,starred,userRating,playCount,created,const DeepCollectionEquality().hash(songs));
+int get hashCode => Object.hash(runtimeType,id,name,artist,artistId,const DeepCollectionEquality().hash(artists),songCount,duration,year,genre,coverArt,starred,userRating,playCount,isExternal,created,const DeepCollectionEquality().hash(songs));
 
 @override
 String toString() {
-  return 'Album(id: $id, name: $name, artist: $artist, artistId: $artistId, artists: $artists, songCount: $songCount, duration: $duration, year: $year, genre: $genre, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, created: $created, songs: $songs)';
+  return 'Album(id: $id, name: $name, artist: $artist, artistId: $artistId, artists: $artists, songCount: $songCount, duration: $duration, year: $year, genre: $genre, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, isExternal: $isExternal, created: $created, songs: $songs)';
 }
 
 
@@ -52,7 +52,7 @@ abstract mixin class $AlbumCopyWith<$Res>  {
   factory $AlbumCopyWith(Album value, $Res Function(Album) _then) = _$AlbumCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String? artist, String? artistId, List<ArtistRef> artists, int? songCount, int? duration, int? year, String? genre, String? coverArt, DateTime? starred, int? userRating, int? playCount, DateTime? created, List<Song> songs
+ String id, String name, String? artist, String? artistId, List<ArtistRef> artists, int? songCount, int? duration, int? year, String? genre, String? coverArt, DateTime? starred, int? userRating, int? playCount, bool? isExternal, DateTime? created, List<Song> songs
 });
 
 
@@ -69,7 +69,7 @@ class _$AlbumCopyWithImpl<$Res>
 
 /// Create a copy of Album
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? artist = freezed,Object? artistId = freezed,Object? artists = null,Object? songCount = freezed,Object? duration = freezed,Object? year = freezed,Object? genre = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? created = freezed,Object? songs = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? artist = freezed,Object? artistId = freezed,Object? artists = null,Object? songCount = freezed,Object? duration = freezed,Object? year = freezed,Object? genre = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? isExternal = freezed,Object? created = freezed,Object? songs = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -84,7 +84,8 @@ as String?,coverArt: freezed == coverArt ? _self.coverArt : coverArt // ignore: 
 as String?,starred: freezed == starred ? _self.starred : starred // ignore: cast_nullable_to_non_nullable
 as DateTime?,userRating: freezed == userRating ? _self.userRating : userRating // ignore: cast_nullable_to_non_nullable
 as int?,playCount: freezed == playCount ? _self.playCount : playCount // ignore: cast_nullable_to_non_nullable
-as int?,created: freezed == created ? _self.created : created // ignore: cast_nullable_to_non_nullable
+as int?,isExternal: freezed == isExternal ? _self.isExternal : isExternal // ignore: cast_nullable_to_non_nullable
+as bool?,created: freezed == created ? _self.created : created // ignore: cast_nullable_to_non_nullable
 as DateTime?,songs: null == songs ? _self.songs : songs // ignore: cast_nullable_to_non_nullable
 as List<Song>,
   ));
@@ -171,10 +172,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? genre,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  List<Song> songs)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? genre,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  DateTime? created,  List<Song> songs)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Album() when $default != null:
-return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.genre,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.songs);case _:
+return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.genre,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.isExternal,_that.created,_that.songs);case _:
   return orElse();
 
 }
@@ -192,10 +193,10 @@ return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? genre,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  List<Song> songs)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? genre,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  DateTime? created,  List<Song> songs)  $default,) {final _that = this;
 switch (_that) {
 case _Album():
-return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.genre,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.songs);case _:
+return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.genre,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.isExternal,_that.created,_that.songs);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -212,10 +213,10 @@ return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? genre,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  List<Song> songs)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? genre,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  DateTime? created,  List<Song> songs)?  $default,) {final _that = this;
 switch (_that) {
 case _Album() when $default != null:
-return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.genre,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.songs);case _:
+return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.genre,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.isExternal,_that.created,_that.songs);case _:
   return null;
 
 }
@@ -227,7 +228,7 @@ return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_t
 
 @JsonSerializable(explicitToJson: true)
 class _Album implements Album {
-  const _Album({required this.id, required this.name, this.artist, this.artistId, final  List<ArtistRef> artists = const <ArtistRef>[], this.songCount, this.duration, this.year, this.genre, this.coverArt, this.starred, this.userRating, this.playCount, this.created, final  List<Song> songs = const <Song>[]}): _artists = artists,_songs = songs;
+  const _Album({required this.id, required this.name, this.artist, this.artistId, final  List<ArtistRef> artists = const <ArtistRef>[], this.songCount, this.duration, this.year, this.genre, this.coverArt, this.starred, this.userRating, this.playCount, this.isExternal, this.created, final  List<Song> songs = const <Song>[]}): _artists = artists,_songs = songs;
   factory _Album.fromJson(Map<String, dynamic> json) => _$AlbumFromJson(json);
 
 @override final  String id;
@@ -253,6 +254,7 @@ class _Album implements Album {
 @override final  DateTime? starred;
 @override final  int? userRating;
 @override final  int? playCount;
+@override final  bool? isExternal;
 /// When the album was added to the Subsonic server library.
 /// Maps to the `created` field in the Subsonic API response.
 @override final  DateTime? created;
@@ -277,16 +279,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Album&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&const DeepCollectionEquality().equals(other._artists, _artists)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.year, year) || other.year == year)&&(identical(other.genre, genre) || other.genre == genre)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&const DeepCollectionEquality().equals(other._songs, _songs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Album&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&const DeepCollectionEquality().equals(other._artists, _artists)&&(identical(other.songCount, songCount) || other.songCount == songCount)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.year, year) || other.year == year)&&(identical(other.genre, genre) || other.genre == genre)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.isExternal, isExternal) || other.isExternal == isExternal)&&(identical(other.created, created) || other.created == created)&&const DeepCollectionEquality().equals(other._songs, _songs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,artist,artistId,const DeepCollectionEquality().hash(_artists),songCount,duration,year,genre,coverArt,starred,userRating,playCount,created,const DeepCollectionEquality().hash(_songs));
+int get hashCode => Object.hash(runtimeType,id,name,artist,artistId,const DeepCollectionEquality().hash(_artists),songCount,duration,year,genre,coverArt,starred,userRating,playCount,isExternal,created,const DeepCollectionEquality().hash(_songs));
 
 @override
 String toString() {
-  return 'Album(id: $id, name: $name, artist: $artist, artistId: $artistId, artists: $artists, songCount: $songCount, duration: $duration, year: $year, genre: $genre, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, created: $created, songs: $songs)';
+  return 'Album(id: $id, name: $name, artist: $artist, artistId: $artistId, artists: $artists, songCount: $songCount, duration: $duration, year: $year, genre: $genre, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, isExternal: $isExternal, created: $created, songs: $songs)';
 }
 
 
@@ -297,7 +299,7 @@ abstract mixin class _$AlbumCopyWith<$Res> implements $AlbumCopyWith<$Res> {
   factory _$AlbumCopyWith(_Album value, $Res Function(_Album) _then) = __$AlbumCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String? artist, String? artistId, List<ArtistRef> artists, int? songCount, int? duration, int? year, String? genre, String? coverArt, DateTime? starred, int? userRating, int? playCount, DateTime? created, List<Song> songs
+ String id, String name, String? artist, String? artistId, List<ArtistRef> artists, int? songCount, int? duration, int? year, String? genre, String? coverArt, DateTime? starred, int? userRating, int? playCount, bool? isExternal, DateTime? created, List<Song> songs
 });
 
 
@@ -314,7 +316,7 @@ class __$AlbumCopyWithImpl<$Res>
 
 /// Create a copy of Album
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? artist = freezed,Object? artistId = freezed,Object? artists = null,Object? songCount = freezed,Object? duration = freezed,Object? year = freezed,Object? genre = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? created = freezed,Object? songs = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? artist = freezed,Object? artistId = freezed,Object? artists = null,Object? songCount = freezed,Object? duration = freezed,Object? year = freezed,Object? genre = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? isExternal = freezed,Object? created = freezed,Object? songs = null,}) {
   return _then(_Album(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -329,7 +331,8 @@ as String?,coverArt: freezed == coverArt ? _self.coverArt : coverArt // ignore: 
 as String?,starred: freezed == starred ? _self.starred : starred // ignore: cast_nullable_to_non_nullable
 as DateTime?,userRating: freezed == userRating ? _self.userRating : userRating // ignore: cast_nullable_to_non_nullable
 as int?,playCount: freezed == playCount ? _self.playCount : playCount // ignore: cast_nullable_to_non_nullable
-as int?,created: freezed == created ? _self.created : created // ignore: cast_nullable_to_non_nullable
+as int?,isExternal: freezed == isExternal ? _self.isExternal : isExternal // ignore: cast_nullable_to_non_nullable
+as bool?,created: freezed == created ? _self.created : created // ignore: cast_nullable_to_non_nullable
 as DateTime?,songs: null == songs ? _self._songs : songs // ignore: cast_nullable_to_non_nullable
 as List<Song>,
   ));

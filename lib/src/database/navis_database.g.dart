@@ -4823,6 +4823,21 @@ class $ArtistsTableTable extends ArtistsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isExternalMeta = const VerificationMeta(
+    'isExternal',
+  );
+  @override
+  late final GeneratedColumn<bool> isExternal = GeneratedColumn<bool>(
+    'is_external',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_external" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _catalogGenerationMeta = const VerificationMeta(
     'catalogGeneration',
   );
@@ -4842,6 +4857,7 @@ class $ArtistsTableTable extends ArtistsTable
     coverArt,
     starred,
     isProvisional,
+    isExternal,
     catalogGeneration,
   ];
   @override
@@ -4896,6 +4912,12 @@ class $ArtistsTableTable extends ArtistsTable
         ),
       );
     }
+    if (data.containsKey('is_external')) {
+      context.handle(
+        _isExternalMeta,
+        isExternal.isAcceptableOrUnknown(data['is_external']!, _isExternalMeta),
+      );
+    }
     if (data.containsKey('catalog_generation')) {
       context.handle(
         _catalogGenerationMeta,
@@ -4938,6 +4960,10 @@ class $ArtistsTableTable extends ArtistsTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_provisional'],
       )!,
+      isExternal: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_external'],
+      )!,
       catalogGeneration: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}catalog_generation'],
@@ -4963,6 +4989,10 @@ class ArtistsTableData extends DataClass
   /// results before the authoritative library sync has observed the artist.
   final bool isProvisional;
 
+  /// True when the item belongs to an external catalog and has not been
+  /// imported into the server library.
+  final bool isExternal;
+
   /// Authoritative catalog snapshot generation that last observed this row.
   /// Generation zero denotes rows that predate the resumable sync planner.
   final int? catalogGeneration;
@@ -4973,6 +5003,7 @@ class ArtistsTableData extends DataClass
     this.coverArt,
     this.starred,
     required this.isProvisional,
+    required this.isExternal,
     this.catalogGeneration,
   });
   @override
@@ -4990,6 +5021,7 @@ class ArtistsTableData extends DataClass
       map['starred'] = Variable<DateTime>(starred);
     }
     map['is_provisional'] = Variable<bool>(isProvisional);
+    map['is_external'] = Variable<bool>(isExternal);
     if (!nullToAbsent || catalogGeneration != null) {
       map['catalog_generation'] = Variable<int>(catalogGeneration);
     }
@@ -5010,6 +5042,7 @@ class ArtistsTableData extends DataClass
           ? const Value.absent()
           : Value(starred),
       isProvisional: Value(isProvisional),
+      isExternal: Value(isExternal),
       catalogGeneration: catalogGeneration == null && nullToAbsent
           ? const Value.absent()
           : Value(catalogGeneration),
@@ -5028,6 +5061,7 @@ class ArtistsTableData extends DataClass
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
+      isExternal: serializer.fromJson<bool>(json['isExternal']),
       catalogGeneration: serializer.fromJson<int?>(json['catalogGeneration']),
     );
   }
@@ -5041,6 +5075,7 @@ class ArtistsTableData extends DataClass
       'coverArt': serializer.toJson<String?>(coverArt),
       'starred': serializer.toJson<DateTime?>(starred),
       'isProvisional': serializer.toJson<bool>(isProvisional),
+      'isExternal': serializer.toJson<bool>(isExternal),
       'catalogGeneration': serializer.toJson<int?>(catalogGeneration),
     };
   }
@@ -5052,6 +5087,7 @@ class ArtistsTableData extends DataClass
     Value<String?> coverArt = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
     bool? isProvisional,
+    bool? isExternal,
     Value<int?> catalogGeneration = const Value.absent(),
   }) => ArtistsTableData(
     id: id ?? this.id,
@@ -5060,6 +5096,7 @@ class ArtistsTableData extends DataClass
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     starred: starred.present ? starred.value : this.starred,
     isProvisional: isProvisional ?? this.isProvisional,
+    isExternal: isExternal ?? this.isExternal,
     catalogGeneration: catalogGeneration.present
         ? catalogGeneration.value
         : this.catalogGeneration,
@@ -5076,6 +5113,9 @@ class ArtistsTableData extends DataClass
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
           : this.isProvisional,
+      isExternal: data.isExternal.present
+          ? data.isExternal.value
+          : this.isExternal,
       catalogGeneration: data.catalogGeneration.present
           ? data.catalogGeneration.value
           : this.catalogGeneration,
@@ -5091,6 +5131,7 @@ class ArtistsTableData extends DataClass
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration')
           ..write(')'))
         .toString();
@@ -5104,6 +5145,7 @@ class ArtistsTableData extends DataClass
     coverArt,
     starred,
     isProvisional,
+    isExternal,
     catalogGeneration,
   );
   @override
@@ -5116,6 +5158,7 @@ class ArtistsTableData extends DataClass
           other.coverArt == this.coverArt &&
           other.starred == this.starred &&
           other.isProvisional == this.isProvisional &&
+          other.isExternal == this.isExternal &&
           other.catalogGeneration == this.catalogGeneration);
 }
 
@@ -5126,6 +5169,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
   final Value<String?> coverArt;
   final Value<DateTime?> starred;
   final Value<bool> isProvisional;
+  final Value<bool> isExternal;
   final Value<int?> catalogGeneration;
   final Value<int> rowid;
   const ArtistsTableCompanion({
@@ -5135,6 +5179,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -5145,6 +5190,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -5156,6 +5202,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     Expression<String>? coverArt,
     Expression<DateTime>? starred,
     Expression<bool>? isProvisional,
+    Expression<bool>? isExternal,
     Expression<int>? catalogGeneration,
     Expression<int>? rowid,
   }) {
@@ -5166,6 +5213,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
       if (coverArt != null) 'cover_art': coverArt,
       if (starred != null) 'starred': starred,
       if (isProvisional != null) 'is_provisional': isProvisional,
+      if (isExternal != null) 'is_external': isExternal,
       if (catalogGeneration != null) 'catalog_generation': catalogGeneration,
       if (rowid != null) 'rowid': rowid,
     });
@@ -5178,6 +5226,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     Value<String?>? coverArt,
     Value<DateTime?>? starred,
     Value<bool>? isProvisional,
+    Value<bool>? isExternal,
     Value<int?>? catalogGeneration,
     Value<int>? rowid,
   }) {
@@ -5188,6 +5237,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
       coverArt: coverArt ?? this.coverArt,
       starred: starred ?? this.starred,
       isProvisional: isProvisional ?? this.isProvisional,
+      isExternal: isExternal ?? this.isExternal,
       catalogGeneration: catalogGeneration ?? this.catalogGeneration,
       rowid: rowid ?? this.rowid,
     );
@@ -5214,6 +5264,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     if (isProvisional.present) {
       map['is_provisional'] = Variable<bool>(isProvisional.value);
     }
+    if (isExternal.present) {
+      map['is_external'] = Variable<bool>(isExternal.value);
+    }
     if (catalogGeneration.present) {
       map['catalog_generation'] = Variable<int>(catalogGeneration.value);
     }
@@ -5232,6 +5285,7 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -5435,6 +5489,21 @@ class $AlbumsTableTable extends AlbumsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isExternalMeta = const VerificationMeta(
+    'isExternal',
+  );
+  @override
+  late final GeneratedColumn<bool> isExternal = GeneratedColumn<bool>(
+    'is_external',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_external" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _catalogGenerationMeta = const VerificationMeta(
     'catalogGeneration',
   );
@@ -5465,6 +5534,7 @@ class $AlbumsTableTable extends AlbumsTable
     syncedAt,
     serverCreatedAt,
     isProvisional,
+    isExternal,
     catalogGeneration,
   ];
   @override
@@ -5585,6 +5655,12 @@ class $AlbumsTableTable extends AlbumsTable
         ),
       );
     }
+    if (data.containsKey('is_external')) {
+      context.handle(
+        _isExternalMeta,
+        isExternal.isAcceptableOrUnknown(data['is_external']!, _isExternalMeta),
+      );
+    }
     if (data.containsKey('catalog_generation')) {
       context.handle(
         _catalogGenerationMeta,
@@ -5673,6 +5749,10 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_provisional'],
       )!,
+      isExternal: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_external'],
+      )!,
       catalogGeneration: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}catalog_generation'],
@@ -5724,6 +5804,10 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   /// results before the authoritative library sync has observed the album.
   final bool isProvisional;
 
+  /// True when the item belongs to an external catalog and has not been
+  /// imported into the server library.
+  final bool isExternal;
+
   /// Authoritative catalog snapshot generation that last observed this row.
   final int? catalogGeneration;
   const AlbumsTableData({
@@ -5744,6 +5828,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.syncedAt,
     this.serverCreatedAt,
     required this.isProvisional,
+    required this.isExternal,
     this.catalogGeneration,
   });
   @override
@@ -5794,6 +5879,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       map['server_created_at'] = Variable<DateTime>(serverCreatedAt);
     }
     map['is_provisional'] = Variable<bool>(isProvisional);
+    map['is_external'] = Variable<bool>(isExternal);
     if (!nullToAbsent || catalogGeneration != null) {
       map['catalog_generation'] = Variable<int>(catalogGeneration);
     }
@@ -5841,6 +5927,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ? const Value.absent()
           : Value(serverCreatedAt),
       isProvisional: Value(isProvisional),
+      isExternal: Value(isExternal),
       catalogGeneration: catalogGeneration == null && nullToAbsent
           ? const Value.absent()
           : Value(catalogGeneration),
@@ -5870,6 +5957,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
       serverCreatedAt: serializer.fromJson<DateTime?>(json['serverCreatedAt']),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
+      isExternal: serializer.fromJson<bool>(json['isExternal']),
       catalogGeneration: serializer.fromJson<int?>(json['catalogGeneration']),
     );
   }
@@ -5894,6 +5982,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
       'serverCreatedAt': serializer.toJson<DateTime?>(serverCreatedAt),
       'isProvisional': serializer.toJson<bool>(isProvisional),
+      'isExternal': serializer.toJson<bool>(isExternal),
       'catalogGeneration': serializer.toJson<int?>(catalogGeneration),
     };
   }
@@ -5916,6 +6005,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<DateTime?> syncedAt = const Value.absent(),
     Value<DateTime?> serverCreatedAt = const Value.absent(),
     bool? isProvisional,
+    bool? isExternal,
     Value<int?> catalogGeneration = const Value.absent(),
   }) => AlbumsTableData(
     id: id ?? this.id,
@@ -5937,6 +6027,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
         ? serverCreatedAt.value
         : this.serverCreatedAt,
     isProvisional: isProvisional ?? this.isProvisional,
+    isExternal: isExternal ?? this.isExternal,
     catalogGeneration: catalogGeneration.present
         ? catalogGeneration.value
         : this.catalogGeneration,
@@ -5970,6 +6061,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
           : this.isProvisional,
+      isExternal: data.isExternal.present
+          ? data.isExternal.value
+          : this.isExternal,
       catalogGeneration: data.catalogGeneration.present
           ? data.catalogGeneration.value
           : this.catalogGeneration,
@@ -5996,6 +6090,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration')
           ..write(')'))
         .toString();
@@ -6020,6 +6115,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     syncedAt,
     serverCreatedAt,
     isProvisional,
+    isExternal,
     catalogGeneration,
   );
   @override
@@ -6043,6 +6139,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.syncedAt == this.syncedAt &&
           other.serverCreatedAt == this.serverCreatedAt &&
           other.isProvisional == this.isProvisional &&
+          other.isExternal == this.isExternal &&
           other.catalogGeneration == this.catalogGeneration);
 }
 
@@ -6064,6 +6161,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<DateTime?> syncedAt;
   final Value<DateTime?> serverCreatedAt;
   final Value<bool> isProvisional;
+  final Value<bool> isExternal;
   final Value<int?> catalogGeneration;
   final Value<int> rowid;
   const AlbumsTableCompanion({
@@ -6084,6 +6182,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -6105,6 +6204,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -6127,6 +6227,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<DateTime>? syncedAt,
     Expression<DateTime>? serverCreatedAt,
     Expression<bool>? isProvisional,
+    Expression<bool>? isExternal,
     Expression<int>? catalogGeneration,
     Expression<int>? rowid,
   }) {
@@ -6148,6 +6249,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (syncedAt != null) 'synced_at': syncedAt,
       if (serverCreatedAt != null) 'server_created_at': serverCreatedAt,
       if (isProvisional != null) 'is_provisional': isProvisional,
+      if (isExternal != null) 'is_external': isExternal,
       if (catalogGeneration != null) 'catalog_generation': catalogGeneration,
       if (rowid != null) 'rowid': rowid,
     });
@@ -6171,6 +6273,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<DateTime?>? syncedAt,
     Value<DateTime?>? serverCreatedAt,
     Value<bool>? isProvisional,
+    Value<bool>? isExternal,
     Value<int?>? catalogGeneration,
     Value<int>? rowid,
   }) {
@@ -6192,6 +6295,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       syncedAt: syncedAt ?? this.syncedAt,
       serverCreatedAt: serverCreatedAt ?? this.serverCreatedAt,
       isProvisional: isProvisional ?? this.isProvisional,
+      isExternal: isExternal ?? this.isExternal,
       catalogGeneration: catalogGeneration ?? this.catalogGeneration,
       rowid: rowid ?? this.rowid,
     );
@@ -6253,6 +6357,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     if (isProvisional.present) {
       map['is_provisional'] = Variable<bool>(isProvisional.value);
     }
+    if (isExternal.present) {
+      map['is_external'] = Variable<bool>(isExternal.value);
+    }
     if (catalogGeneration.present) {
       map['catalog_generation'] = Variable<int>(catalogGeneration.value);
     }
@@ -6282,6 +6389,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -6538,6 +6646,21 @@ class $SongsTableTable extends SongsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isExternalMeta = const VerificationMeta(
+    'isExternal',
+  );
+  @override
+  late final GeneratedColumn<bool> isExternal = GeneratedColumn<bool>(
+    'is_external',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_external" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _catalogGenerationMeta = const VerificationMeta(
     'catalogGeneration',
   );
@@ -6617,6 +6740,7 @@ class $SongsTableTable extends SongsTable
     createdAt,
     serverDeletedAt,
     isProvisional,
+    isExternal,
     catalogGeneration,
     replayGainTrackGain,
     replayGainAlbumGain,
@@ -6780,6 +6904,12 @@ class $SongsTableTable extends SongsTable
         ),
       );
     }
+    if (data.containsKey('is_external')) {
+      context.handle(
+        _isExternalMeta,
+        isExternal.isAcceptableOrUnknown(data['is_external']!, _isExternalMeta),
+      );
+    }
     if (data.containsKey('catalog_generation')) {
       context.handle(
         _catalogGenerationMeta,
@@ -6922,6 +7052,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_provisional'],
       )!,
+      isExternal: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_external'],
+      )!,
       catalogGeneration: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}catalog_generation'],
@@ -6981,6 +7115,10 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   /// playable and has not yet been confirmed by authoritative library sync.
   final bool isProvisional;
 
+  /// True when the item belongs to an external catalog and has not been
+  /// imported into the server library.
+  final bool isExternal;
+
   /// Authoritative catalog snapshot generation that last observed this row.
   final int? catalogGeneration;
 
@@ -7018,6 +7156,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.createdAt,
     this.serverDeletedAt,
     required this.isProvisional,
+    required this.isExternal,
     this.catalogGeneration,
     this.replayGainTrackGain,
     this.replayGainAlbumGain,
@@ -7087,6 +7226,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       map['server_deleted_at'] = Variable<DateTime>(serverDeletedAt);
     }
     map['is_provisional'] = Variable<bool>(isProvisional);
+    map['is_external'] = Variable<bool>(isExternal);
     if (!nullToAbsent || catalogGeneration != null) {
       map['catalog_generation'] = Variable<int>(catalogGeneration);
     }
@@ -7165,6 +7305,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ? const Value.absent()
           : Value(serverDeletedAt),
       isProvisional: Value(isProvisional),
+      isExternal: Value(isExternal),
       catalogGeneration: catalogGeneration == null && nullToAbsent
           ? const Value.absent()
           : Value(catalogGeneration),
@@ -7211,6 +7352,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       serverDeletedAt: serializer.fromJson<DateTime?>(json['serverDeletedAt']),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
+      isExternal: serializer.fromJson<bool>(json['isExternal']),
       catalogGeneration: serializer.fromJson<int?>(json['catalogGeneration']),
       replayGainTrackGain: serializer.fromJson<double?>(
         json['replayGainTrackGain'],
@@ -7252,6 +7394,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'serverDeletedAt': serializer.toJson<DateTime?>(serverDeletedAt),
       'isProvisional': serializer.toJson<bool>(isProvisional),
+      'isExternal': serializer.toJson<bool>(isExternal),
       'catalogGeneration': serializer.toJson<int?>(catalogGeneration),
       'replayGainTrackGain': serializer.toJson<double?>(replayGainTrackGain),
       'replayGainAlbumGain': serializer.toJson<double?>(replayGainAlbumGain),
@@ -7283,6 +7426,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<DateTime?> createdAt = const Value.absent(),
     Value<DateTime?> serverDeletedAt = const Value.absent(),
     bool? isProvisional,
+    bool? isExternal,
     Value<int?> catalogGeneration = const Value.absent(),
     Value<double?> replayGainTrackGain = const Value.absent(),
     Value<double?> replayGainAlbumGain = const Value.absent(),
@@ -7315,6 +7459,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
         ? serverDeletedAt.value
         : this.serverDeletedAt,
     isProvisional: isProvisional ?? this.isProvisional,
+    isExternal: isExternal ?? this.isExternal,
     catalogGeneration: catalogGeneration.present
         ? catalogGeneration.value
         : this.catalogGeneration,
@@ -7371,6 +7516,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
           : this.isProvisional,
+      isExternal: data.isExternal.present
+          ? data.isExternal.value
+          : this.isExternal,
       catalogGeneration: data.catalogGeneration.present
           ? data.catalogGeneration.value
           : this.catalogGeneration,
@@ -7414,6 +7562,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('createdAt: $createdAt, ')
           ..write('serverDeletedAt: $serverDeletedAt, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
@@ -7447,6 +7596,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     createdAt,
     serverDeletedAt,
     isProvisional,
+    isExternal,
     catalogGeneration,
     replayGainTrackGain,
     replayGainAlbumGain,
@@ -7479,6 +7629,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.createdAt == this.createdAt &&
           other.serverDeletedAt == this.serverDeletedAt &&
           other.isProvisional == this.isProvisional &&
+          other.isExternal == this.isExternal &&
           other.catalogGeneration == this.catalogGeneration &&
           other.replayGainTrackGain == this.replayGainTrackGain &&
           other.replayGainAlbumGain == this.replayGainAlbumGain &&
@@ -7509,6 +7660,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<DateTime?> createdAt;
   final Value<DateTime?> serverDeletedAt;
   final Value<bool> isProvisional;
+  final Value<bool> isExternal;
   final Value<int?> catalogGeneration;
   final Value<double?> replayGainTrackGain;
   final Value<double?> replayGainAlbumGain;
@@ -7538,6 +7690,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.createdAt = const Value.absent(),
     this.serverDeletedAt = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
     this.replayGainAlbumGain = const Value.absent(),
@@ -7568,6 +7721,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.createdAt = const Value.absent(),
     this.serverDeletedAt = const Value.absent(),
     this.isProvisional = const Value.absent(),
+    this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
     this.replayGainAlbumGain = const Value.absent(),
@@ -7599,6 +7753,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? serverDeletedAt,
     Expression<bool>? isProvisional,
+    Expression<bool>? isExternal,
     Expression<int>? catalogGeneration,
     Expression<double>? replayGainTrackGain,
     Expression<double>? replayGainAlbumGain,
@@ -7629,6 +7784,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (createdAt != null) 'created_at': createdAt,
       if (serverDeletedAt != null) 'server_deleted_at': serverDeletedAt,
       if (isProvisional != null) 'is_provisional': isProvisional,
+      if (isExternal != null) 'is_external': isExternal,
       if (catalogGeneration != null) 'catalog_generation': catalogGeneration,
       if (replayGainTrackGain != null)
         'replay_gain_track_gain': replayGainTrackGain,
@@ -7665,6 +7821,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<DateTime?>? createdAt,
     Value<DateTime?>? serverDeletedAt,
     Value<bool>? isProvisional,
+    Value<bool>? isExternal,
     Value<int?>? catalogGeneration,
     Value<double?>? replayGainTrackGain,
     Value<double?>? replayGainAlbumGain,
@@ -7695,6 +7852,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       createdAt: createdAt ?? this.createdAt,
       serverDeletedAt: serverDeletedAt ?? this.serverDeletedAt,
       isProvisional: isProvisional ?? this.isProvisional,
+      isExternal: isExternal ?? this.isExternal,
       catalogGeneration: catalogGeneration ?? this.catalogGeneration,
       replayGainTrackGain: replayGainTrackGain ?? this.replayGainTrackGain,
       replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
@@ -7773,6 +7931,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (isProvisional.present) {
       map['is_provisional'] = Variable<bool>(isProvisional.value);
     }
+    if (isExternal.present) {
+      map['is_external'] = Variable<bool>(isExternal.value);
+    }
     if (catalogGeneration.present) {
       map['catalog_generation'] = Variable<int>(catalogGeneration.value);
     }
@@ -7827,6 +7988,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('createdAt: $createdAt, ')
           ..write('serverDeletedAt: $serverDeletedAt, ')
           ..write('isProvisional: $isProvisional, ')
+          ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
@@ -25027,6 +25189,7 @@ typedef $$ArtistsTableTableCreateCompanionBuilder =
       Value<String?> coverArt,
       Value<DateTime?> starred,
       Value<bool> isProvisional,
+      Value<bool> isExternal,
       Value<int?> catalogGeneration,
       Value<int> rowid,
     });
@@ -25038,6 +25201,7 @@ typedef $$ArtistsTableTableUpdateCompanionBuilder =
       Value<String?> coverArt,
       Value<DateTime?> starred,
       Value<bool> isProvisional,
+      Value<bool> isExternal,
       Value<int?> catalogGeneration,
       Value<int> rowid,
     });
@@ -25120,6 +25284,11 @@ class $$ArtistsTableTableFilterComposer
 
   ColumnFilters<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -25218,6 +25387,11 @@ class $$ArtistsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get catalogGeneration => $composableBuilder(
     column: $table.catalogGeneration,
     builder: (column) => ColumnOrderings(column),
@@ -25252,6 +25426,11 @@ class $$ArtistsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
     builder: (column) => column,
   );
 
@@ -25345,6 +25524,7 @@ class $$ArtistsTableTableTableManager
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ArtistsTableCompanion(
@@ -25354,6 +25534,7 @@ class $$ArtistsTableTableTableManager
                 coverArt: coverArt,
                 starred: starred,
                 isProvisional: isProvisional,
+                isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
                 rowid: rowid,
               ),
@@ -25365,6 +25546,7 @@ class $$ArtistsTableTableTableManager
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ArtistsTableCompanion.insert(
@@ -25374,6 +25556,7 @@ class $$ArtistsTableTableTableManager
                 coverArt: coverArt,
                 starred: starred,
                 isProvisional: isProvisional,
+                isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
                 rowid: rowid,
               ),
@@ -25479,6 +25662,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
       Value<bool> isProvisional,
+      Value<bool> isExternal,
       Value<int?> catalogGeneration,
       Value<int> rowid,
     });
@@ -25501,6 +25685,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
       Value<bool> isProvisional,
+      Value<bool> isExternal,
       Value<int?> catalogGeneration,
       Value<int> rowid,
     });
@@ -25633,6 +25818,11 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -25779,6 +25969,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get catalogGeneration => $composableBuilder(
     column: $table.catalogGeneration,
     builder: (column) => ColumnOrderings(column),
@@ -25872,6 +26067,11 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
     builder: (column) => column,
   );
 
@@ -25974,6 +26174,7 @@ class $$AlbumsTableTableTableManager
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AlbumsTableCompanion(
@@ -25994,6 +26195,7 @@ class $$AlbumsTableTableTableManager
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
                 isProvisional: isProvisional,
+                isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
                 rowid: rowid,
               ),
@@ -26016,6 +26218,7 @@ class $$AlbumsTableTableTableManager
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AlbumsTableCompanion.insert(
@@ -26036,6 +26239,7 @@ class $$AlbumsTableTableTableManager
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
                 isProvisional: isProvisional,
+                isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
                 rowid: rowid,
               ),
@@ -26150,6 +26354,7 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<DateTime?> createdAt,
       Value<DateTime?> serverDeletedAt,
       Value<bool> isProvisional,
+      Value<bool> isExternal,
       Value<int?> catalogGeneration,
       Value<double?> replayGainTrackGain,
       Value<double?> replayGainAlbumGain,
@@ -26181,6 +26386,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<DateTime?> createdAt,
       Value<DateTime?> serverDeletedAt,
       Value<bool> isProvisional,
+      Value<bool> isExternal,
       Value<int?> catalogGeneration,
       Value<double?> replayGainTrackGain,
       Value<double?> replayGainAlbumGain,
@@ -26452,6 +26658,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -26765,6 +26976,11 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get catalogGeneration => $composableBuilder(
     column: $table.catalogGeneration,
     builder: (column) => ColumnOrderings(column),
@@ -26919,6 +27135,11 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isExternal => $composableBuilder(
+    column: $table.isExternal,
     builder: (column) => column,
   );
 
@@ -27184,6 +27405,7 @@ class $$SongsTableTableTableManager
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> serverDeletedAt = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
                 Value<double?> replayGainAlbumGain = const Value.absent(),
@@ -27213,6 +27435,7 @@ class $$SongsTableTableTableManager
                 createdAt: createdAt,
                 serverDeletedAt: serverDeletedAt,
                 isProvisional: isProvisional,
+                isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
                 replayGainTrackGain: replayGainTrackGain,
                 replayGainAlbumGain: replayGainAlbumGain,
@@ -27244,6 +27467,7 @@ class $$SongsTableTableTableManager
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> serverDeletedAt = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
+                Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
                 Value<double?> replayGainAlbumGain = const Value.absent(),
@@ -27273,6 +27497,7 @@ class $$SongsTableTableTableManager
                 createdAt: createdAt,
                 serverDeletedAt: serverDeletedAt,
                 isProvisional: isProvisional,
+                isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
                 replayGainTrackGain: replayGainTrackGain,
                 replayGainAlbumGain: replayGainAlbumGain,

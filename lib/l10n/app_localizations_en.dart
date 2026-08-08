@@ -2002,6 +2002,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cacheBadgeCached => 'Cached';
 
   @override
+  String get externalSourceBadgeLabel =>
+      'Remote source — not in your server library.';
+
+  @override
   String get appearanceTitle => 'Appearance';
 
   @override

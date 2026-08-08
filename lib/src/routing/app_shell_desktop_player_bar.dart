@@ -9,6 +9,7 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
     required this.albumId,
     required this.coverArtId,
     required this.coverArtUrl,
+    required this.isExternalSource,
     required this.onOpenPlayer,
     required this.onToggleQueue,
     required this.queueToggleFocusNode,
@@ -23,6 +24,7 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
   final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
+  final bool isExternalSource;
   final VoidCallback onOpenPlayer;
   final VoidCallback onToggleQueue;
   final FocusNode queueToggleFocusNode;
@@ -265,6 +267,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     height: compactLayout ? 42 : 48,
                     borderRadius: BorderRadius.circular(8),
                     loadPriority: CoverArtLoadPriority.critical,
+                    isExternalSource: widget.isExternalSource,
                   );
                 }
 

@@ -81,6 +81,7 @@ class AlbumCard extends ConsumerWidget {
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                    isExternalSource: album.isExternal,
                   )
                 else
                   CoverArtImage(
@@ -88,6 +89,7 @@ class AlbumCard extends ConsumerWidget {
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                    isExternalSource: album.isExternal,
                   ),
                 if (badge != null)
                   Positioned(

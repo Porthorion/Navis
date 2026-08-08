@@ -501,6 +501,69 @@ void main() {
     );
 
     test(
+      'full catalog candidates exclude injected external entries',
+      () async {
+        await saveSession();
+        api.artists.addAll(const <Artist>[
+          Artist(id: 'artist-1', name: 'Server Artist', albumCount: 1),
+          Artist(
+            id: 'ext-deezer-artist-1',
+            name: 'Remote Artist',
+            albumCount: 1,
+            isExternal: true,
+          ),
+        ]);
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Server Album',
+            artistId: 'artist-1',
+          ),
+          Album(
+            id: 'provider-album-1',
+            name: 'Remote Album',
+            artistId: 'ext-deezer-artist-1',
+            isExternal: true,
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Server Album',
+          artistId: 'artist-1',
+          songs: <Song>[
+            Song(id: 'song-1', title: 'Server Song', albumId: 'album-1'),
+            Song(
+              id: 'provider-song-1',
+              title: 'Injected Song',
+              albumId: 'album-1',
+              isExternal: true,
+            ),
+          ],
+        );
+
+        final state = await engine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(await database.libraryDao.getArtistById('artist-1'), isNotNull);
+        expect(await database.libraryDao.getAlbumById('album-1'), isNotNull);
+        expect(await database.libraryDao.getSongById('song-1'), isNotNull);
+        expect(
+          await database.libraryDao.getArtistById('ext-deezer-artist-1'),
+          isNull,
+        );
+        expect(
+          await database.libraryDao.getAlbumById('provider-album-1'),
+          isNull,
+        );
+        expect(
+          await database.libraryDao.getSongById('provider-song-1'),
+          isNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'targeted liked sync mirrors the server without overwriting pending local actions',
       () async {
         await saveSession(lastSynced: DateTime.now());
@@ -736,6 +799,73 @@ void main() {
           (await database.libraryDao.getAlbumById('album-1'))?.songsHydrated,
           isFalse,
         );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'external targeted artist and album hydration stays provisional and browsable by exact detail',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        api.artistDetails['ext-deezer-artist-1'] = const Artist(
+          id: 'ext-deezer-artist-1',
+          name: 'Remote Artist',
+          albums: <Album>[
+            Album(
+              id: 'provider-album-1',
+              name: 'Remote Album',
+              artistId: 'ext-deezer-artist-1',
+            ),
+          ],
+        );
+        api.albumDetails['provider-album-1'] = const Album(
+          id: 'provider-album-1',
+          name: 'Remote Album',
+          artist: 'Remote Artist',
+          artistId: 'ext-deezer-artist-1',
+          isExternal: true,
+          songs: <Song>[
+            Song(
+              id: 'provider-song-1',
+              title: 'Remote Song',
+              albumId: 'provider-album-1',
+              artistId: 'ext-deezer-artist-1',
+            ),
+          ],
+        );
+
+        final artistState = await engine.hydrateArtist(
+          'ext-deezer-artist-1',
+        );
+        final albumState = await engine.hydrateAlbum('provider-album-1');
+
+        expect(artistState.status, LibrarySyncStatus.succeeded);
+        expect(albumState.status, LibrarySyncStatus.succeeded);
+        final artist = await database.libraryDao.getArtistById(
+          'ext-deezer-artist-1',
+        );
+        final album = await database.libraryDao.getAlbumById(
+          'provider-album-1',
+        );
+        final song = await database.libraryDao.getSongById(
+          'provider-song-1',
+        );
+        expect(artist?.isExternal, isTrue);
+        expect(artist?.isProvisional, isTrue);
+        expect(album?.isExternal, isTrue);
+        expect(album?.isProvisional, isTrue);
+        expect(album?.songsHydrated, isTrue);
+        expect(song?.isExternal, isTrue);
+        expect(song?.isProvisional, isTrue);
+        expect(
+          await database.libraryDao.watchSongsByAlbum(album!.id).first,
+          hasLength(1),
+        );
+        expect(
+          await database.libraryDao.watchAlbumsByArtist(artist!.id).first,
+          hasLength(1),
+        );
+        expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
       },
       skip: !sqliteAvailable,
     );

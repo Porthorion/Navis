@@ -237,6 +237,7 @@ void main() {
         suffix: 'mp3',
         contentType: 'audio/mpeg',
         size: 1,
+        isExternal: true,
       );
 
       final queue = container.read(queueProvider.notifier);
@@ -256,6 +257,14 @@ void main() {
       );
       expect(persisted, isNotEmpty);
       expect(persisted.first.title, 'Fixture Song');
+      expect(persisted.first.isExternal, isTrue);
+      expect(persisted.first.isProvisional, isTrue);
+      final album = await db.libraryDao.getAlbumById('fixture-album-1');
+      final artist = await db.libraryDao.getArtistById('fixture-artist-1');
+      expect(album?.isExternal, isTrue);
+      expect(album?.isProvisional, isTrue);
+      expect(artist?.isExternal, isTrue);
+      expect(artist?.isProvisional, isTrue);
     },
   );
 
@@ -309,6 +318,7 @@ void main() {
         const <SongsTableData>[
           SongsTableData(
             isProvisional: false,
+            isExternal: false,
             id: 'song-1',
             title: 'Song 1',
             albumId: 'album-1',
@@ -317,6 +327,7 @@ void main() {
           ),
           SongsTableData(
             isProvisional: false,
+            isExternal: false,
             id: 'song-2',
             title: 'Song 2',
             albumId: 'album-1',

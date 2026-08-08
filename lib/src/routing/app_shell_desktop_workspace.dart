@@ -22,6 +22,7 @@ class _DesktopWorkspace extends StatefulWidget {
     required this.albumId,
     required this.coverArtId,
     required this.coverArtUrl,
+    required this.isExternalSource,
     required this.onDestinationSelected,
     required this.showLibrarySubNavigation,
     required this.allowScrollableRail,
@@ -59,6 +60,7 @@ class _DesktopWorkspace extends StatefulWidget {
   final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
+  final bool isExternalSource;
   final ValueChanged<int> onDestinationSelected;
   final bool showLibrarySubNavigation;
   final bool allowScrollableRail;
@@ -198,6 +200,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                     songArtist: widget.songArtist,
                     coverArtId: widget.coverArtId,
                     coverArtUrl: widget.coverArtUrl,
+                    isExternalSource: widget.isExternalSource,
                     isRadio: widget.playback.isRadioMode,
                     radioArtUrl: widget.playback.radioStation?.nowPlayingArtUrl,
                     onOpenPlayer: widget.onOpenPlayer,
@@ -390,6 +393,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
               coverArtUrl: widget.playback.isRadioMode
                   ? widget.playback.radioStation?.nowPlayingArtUrl
                   : widget.coverArtUrl,
+              isExternalSource: widget.isExternalSource,
               onOpenPlayer: widget.onOpenPlayer,
               onToggleQueue: widget.onToggleQueue,
               queueToggleFocusNode: widget.queueToggleFocusNode,

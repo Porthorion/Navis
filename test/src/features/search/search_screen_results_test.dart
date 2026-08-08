@@ -9,6 +9,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/common_widgets/external_source_badge.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -137,6 +138,57 @@ Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
 
 void main() {
   group('SearchScreen results', () {
+    testWidgets('badges only external artist album and song results', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+
+      final database = createTestDatabase();
+      final container = _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient(
+          (_) async => const SearchResult3(
+            artists: <Artist>[
+              Artist(
+                id: 'external-artist',
+                name: 'Remote Artist',
+                isExternal: true,
+              ),
+              Artist(
+                id: 'server-artist',
+                name: 'Server Artist',
+                isExternal: false,
+              ),
+            ],
+            albums: <Album>[
+              Album(id: 'pl-deezer-album', name: 'Remote Album'),
+            ],
+            songs: <Song>[
+              Song(
+                id: 'remote-song',
+                title: 'Remote Song',
+                isExternal: true,
+              ),
+            ],
+          ),
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'Remote');
+      await _pumpUntilFound(tester, find.text('Remote Song'));
+
+      expect(
+        find.byKey(ExternalSourceBadge.semanticsKey),
+        findsNWidgets(3),
+      );
+      expect(find.text('Server Artist'), findsOneWidget);
+    });
+
     testWidgets('cached results appear without waiting for API', (
       tester,
     ) async {

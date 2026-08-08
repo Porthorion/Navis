@@ -118,7 +118,9 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
           for (final song in songs) {
             final canonical = song.copyWith(
               serverDeletedAt: const Value(null),
-              isProvisional: const Value(false),
+              isProvisional: Value(
+                song.isExternal.present && song.isExternal.value,
+              ),
             );
             batch.insert(
               songsTable,

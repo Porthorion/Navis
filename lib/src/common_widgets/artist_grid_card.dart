@@ -56,6 +56,7 @@ class ArtistGridCard extends ConsumerWidget {
                         height: side,
                         borderRadius: borderRadius,
                         placeholderIcon: Icons.person_outline,
+                        isExternalSource: artist.isExternal,
                       ),
                     ),
                   );

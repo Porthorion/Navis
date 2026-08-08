@@ -945,6 +945,7 @@
 
   "cacheBadgeDownloaded": "Downloaded",
   "cacheBadgeCached": "Cached",
+  "externalSourceBadgeLabel": "Remote source — not in your server library.",
 
   "appearanceTitle": "Appearance",
   "appearanceThemeModeLabel": "Theme Mode",

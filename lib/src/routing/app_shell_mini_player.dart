@@ -10,6 +10,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
     this.albumId,
     this.coverArtId,
     this.coverArtUrl,
+    this.isExternalSource = false,
     this.isRadio = false,
     this.radioArtUrl,
   });
@@ -22,6 +23,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
   final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
+  final bool isExternalSource;
   final bool isRadio;
   final String? radioArtUrl;
 
@@ -133,6 +135,8 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                         borderRadius: BorderRadius.circular(9),
                                         loadPriority:
                                             CoverArtLoadPriority.critical,
+                                        isExternalSource:
+                                            widget.isExternalSource,
                                       );
                                     }
                                     if (!canNavigateAlbum) {
@@ -519,6 +523,7 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
     this.songArtist,
     this.coverArtId,
     this.coverArtUrl,
+    this.isExternalSource = false,
     this.isRadio = false,
     this.radioArtUrl,
   });
@@ -532,6 +537,7 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
   final String? songArtist;
   final String? coverArtId;
   final String? coverArtUrl;
+  final bool isExternalSource;
   final bool isRadio;
   final String? radioArtUrl;
 
@@ -681,6 +687,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             height: 64,
                             borderRadius: BorderRadius.circular(10),
                             loadPriority: CoverArtLoadPriority.critical,
+                            isExternalSource: widget.isExternalSource,
                           ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -837,6 +844,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 height: 48,
                                 borderRadius: BorderRadius.circular(8),
                                 loadPriority: CoverArtLoadPriority.critical,
+                                isExternalSource: widget.isExternalSource,
                               ),
                             const SizedBox(width: 12),
                             Expanded(

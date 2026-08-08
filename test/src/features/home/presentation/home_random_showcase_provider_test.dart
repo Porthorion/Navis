@@ -2301,30 +2301,35 @@ void main() {
                 <SongsTableData>[
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-1',
                     title: 'Seed 1',
                     albumId: 'liked-a',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-2',
                     title: 'Seed 2',
                     albumId: 'liked-b',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-3',
                     title: 'Seed 3',
                     albumId: 'liked-c',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-4',
                     title: 'Seed 4',
                     albumId: 'liked-d',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-5',
                     title: 'Seed 5',
                     albumId: 'liked-e',
@@ -2424,30 +2429,35 @@ void main() {
                 <SongsTableData>[
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-1',
                     title: 'Seed 1',
                     albumId: 'liked-a',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-2',
                     title: 'Seed 2',
                     albumId: 'liked-b',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-3',
                     title: 'Seed 3',
                     albumId: 'liked-c',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-4',
                     title: 'Seed 4',
                     albumId: 'liked-d',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-5',
                     title: 'Seed 5',
                     albumId: 'liked-e',
@@ -2517,30 +2527,35 @@ void main() {
                 <SongsTableData>[
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-1',
                     title: 'Seed 1',
                     albumId: 'liked-a',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-2',
                     title: 'Seed 2',
                     albumId: 'liked-b',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-3',
                     title: 'Seed 3',
                     albumId: 'liked-c',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-4',
                     title: 'Seed 4',
                     albumId: 'liked-d',
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'seed-5',
                     title: 'Seed 5',
                     albumId: 'liked-e',
@@ -2629,6 +2644,7 @@ void main() {
               <SongsTableData>[
                 SongsTableData(
                   isProvisional: false,
+                  isExternal: false,
                   id: 'liked-song-1',
                   title: 'Liked Song',
                   albumId: 'liked-song-album',
@@ -2725,6 +2741,7 @@ void main() {
                 <SongsTableData>[
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'song-a',
                     title: 'Downloaded liked song',
                     albumId: 'album-a',
@@ -2732,6 +2749,7 @@ void main() {
                   ),
                   SongsTableData(
                     isProvisional: false,
+                    isExternal: false,
                     id: 'song-b',
                     title: 'Non-downloaded liked song',
                     albumId: 'album-b',

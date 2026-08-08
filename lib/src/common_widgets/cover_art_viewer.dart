@@ -108,6 +108,7 @@ Future<void> showCoverArtViewer(
   required String? coverArtId,
   required String heroTag,
   int previewSize = 320,
+  bool isExternalSource = false,
 }) {
   final id = coverArtId?.trim() ?? '';
   if (id.isEmpty) {
@@ -126,6 +127,7 @@ Future<void> showCoverArtViewer(
           coverArtId: id,
           heroTag: heroTag,
           previewSize: previewSize,
+          isExternalSource: isExternalSource,
         );
       },
     ),
@@ -137,12 +139,14 @@ class CoverArtViewerScreen extends StatelessWidget {
     required this.coverArtId,
     required this.heroTag,
     required this.previewSize,
+    this.isExternalSource = false,
     super.key,
   });
 
   final String coverArtId;
   final String heroTag;
   final int previewSize;
+  final bool isExternalSource;
 
   @override
   Widget build(BuildContext context) {
@@ -210,6 +214,7 @@ class CoverArtViewerScreen extends StatelessWidget {
                             fit: BoxFit.contain,
                             fadeInDuration: Duration.zero,
                             loadPriority: CoverArtLoadPriority.critical,
+                            isExternalSource: isExternalSource,
                           ),
                           CoverArtImage(
                             coverArtId: coverArtId,
@@ -220,6 +225,7 @@ class CoverArtViewerScreen extends StatelessWidget {
                             showLoadingPlaceholder: false,
                             showErrorPlaceholder: false,
                             loadPriority: CoverArtLoadPriority.critical,
+                            isExternalSource: isExternalSource,
                           ),
                         ],
                       ),

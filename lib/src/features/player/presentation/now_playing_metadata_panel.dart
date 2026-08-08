@@ -1,11 +1,17 @@
 part of 'now_playing_screen.dart';
 
 class _CoverArt extends ConsumerWidget {
-  const _CoverArt({this.coverArtId, this.semanticLabel, this.maxSize});
+  const _CoverArt({
+    this.coverArtId,
+    this.semanticLabel,
+    this.maxSize,
+    this.isExternalSource = false,
+  });
 
   final String? coverArtId;
   final String? semanticLabel;
   final double? maxSize;
+  final bool isExternalSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,6 +23,7 @@ class _CoverArt extends ConsumerWidget {
         coverArtId: coverArtId,
         size: kCoverArtStandardSize,
         loadPriority: CoverArtLoadPriority.critical,
+        isExternalSource: isExternalSource,
       );
     }
 
@@ -25,6 +32,7 @@ class _CoverArt extends ConsumerWidget {
       size: kCoverArtStandardSize,
       semanticLabel: semanticLabel,
       loadPriority: CoverArtLoadPriority.critical,
+      isExternalSource: isExternalSource,
     );
   }
 }

@@ -13,6 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/external_source_badge.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -155,6 +156,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                           ? null
                           : () => _toggleStar(isStarred: isStarred),
                       starTooltip: l10n.albumDetailStarAction,
+                      isExternalSource: artistData.isExternal,
                     );
                   }
                   // No photo — plain name row
@@ -350,6 +352,7 @@ class _ArtistImageHeader extends StatelessWidget {
     required this.isStarring,
     required this.onStarToggle,
     required this.starTooltip,
+    required this.isExternalSource,
   });
 
   final String imageUrl;
@@ -358,6 +361,7 @@ class _ArtistImageHeader extends StatelessWidget {
   final bool isStarring;
   final VoidCallback? onStarToggle;
   final String starTooltip;
+  final bool isExternalSource;
 
   @override
   Widget build(BuildContext context) {
@@ -390,6 +394,12 @@ class _ArtistImageHeader extends StatelessWidget {
                 alignment: imageAlignment,
                 errorWidget: (_, _, _) => const SizedBox.shrink(),
               ),
+              if (isExternalSource)
+                const Positioned(
+                  top: 6,
+                  left: 6,
+                  child: ExternalSourceBadge(size: 24),
+                ),
               // Dual gradient: slight top vignette + heavy bottom scrim
               const DecoratedBox(
                 decoration: BoxDecoration(
