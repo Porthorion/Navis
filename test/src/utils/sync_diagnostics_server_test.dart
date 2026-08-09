@@ -211,6 +211,8 @@ void main() {
       addTearDown(fixture.close);
 
       for (final unauthorized in <(String, String)>[
+        ('GET', '/v1/presentation/window'),
+        ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
         ('POST', '/v1/presentation/screenshot'),
@@ -327,6 +329,8 @@ void main() {
       );
       addTearDown(primary.close);
       for (final endpoint in <(String, String)>[
+        ('GET', '/v1/presentation/window'),
+        ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
         ('POST', '/v1/presentation/screenshot'),
@@ -356,6 +360,41 @@ void main() {
         );
         expect(unavailable.statusCode, HttpStatus.serviceUnavailable);
       }
+    },
+  );
+
+  test(
+    'window presentation endpoint reports and selects desktop modes',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+
+      final initial = await _request(
+        fixture.port,
+        '/v1/presentation/window',
+        token: fixture.token,
+      );
+      expect(initial.statusCode, HttpStatus.ok);
+      expect(initial.body['mode'], 'desktop');
+
+      final mini = await _request(
+        fixture.port,
+        '/v1/presentation/window',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'mode': 'miniPlayer'},
+      );
+      expect(mini.statusCode, HttpStatus.ok);
+      expect(mini.body['mode'], 'miniPlayer');
+
+      final invalid = await _request(
+        fixture.port,
+        '/v1/presentation/window',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'width': 559, 'height': 360},
+      );
+      expect(invalid.statusCode, HttpStatus.badRequest);
     },
   );
 

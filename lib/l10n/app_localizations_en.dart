@@ -2861,4 +2861,102 @@ class AppLocalizationsEn extends AppLocalizations {
   String matchFlowSongAdded(String title) {
     return 'Added $title.';
   }
+
+  @override
+  String get desktopWindowTitle => 'Desktop Window';
+
+  @override
+  String get desktopViewTitle => 'Desktop View';
+
+  @override
+  String get desktopWindowSubtitle =>
+      'Choose how Navis behaves as a full or compact desktop window.';
+
+  @override
+  String get desktopWindowUnavailable =>
+      'Desktop window controls are only available in the desktop app.';
+
+  @override
+  String get desktopMiniPlayerTitle => 'Mini Player';
+
+  @override
+  String get desktopMiniPlayerDescription =>
+      'Use a compact, playback-focused Navis window.';
+
+  @override
+  String get desktopMiniPlayerOpen => 'Open Mini Player';
+
+  @override
+  String get desktopReturnToView => 'Return to Desktop View';
+
+  @override
+  String get desktopMiniPlayerKeepOnTop => 'Keep Mini Player on top';
+
+  @override
+  String get desktopMiniPlayerStopOnTop => 'Stop keeping Mini Player on top';
+
+  @override
+  String get desktopMiniPlayerKeepOnTopDescription =>
+      'Keep the compact player above other windows. This only applies in Mini Player.';
+
+  @override
+  String get desktopMiniPlayerTooSmallTitle => 'Mini Player is too small';
+
+  @override
+  String get desktopMiniPlayerTooSmallDescription =>
+      'Mini Player needs at least 560 by 360 logical pixels. Restoring its last valid size.';
+
+  @override
+  String get desktopNothingPlaying => 'Nothing playing';
+
+  @override
+  String get desktopChooseSomething => 'Choose something to play';
+
+  @override
+  String get desktopNothingPlayingPrompt =>
+      'Return to Desktop View to choose something to play.';
+
+  @override
+  String get desktopPlaybackUnavailableTooltip =>
+      'Unavailable until something is playing';
+
+  @override
+  String get desktopFavoriteUnavailableForRadio =>
+      'Favorite is unavailable for radio';
+
+  @override
+  String get desktopLyricsUnavailableForRadio =>
+      'Lyrics are unavailable for radio';
+
+  @override
+  String get desktopQueueUnavailableForRadio =>
+      'Queue is unavailable for radio';
+
+  @override
+  String get desktopWindowTooSmallTitle =>
+      'This window is too small for Desktop View';
+
+  @override
+  String get desktopWindowMinimumDescription =>
+      'Desktop View needs at least 800 by 600 logical pixels.';
+
+  @override
+  String get desktopReturnQuestion => 'Return to Desktop View?';
+
+  @override
+  String get desktopReturnDescription =>
+      'The window is now large enough for the full desktop interface.';
+
+  @override
+  String get desktopSwitchToMiniPlayer => 'Switch to Mini Player';
+
+  @override
+  String get desktopRestoreSize => 'Restore Desktop Size';
+
+  @override
+  String get desktopKeepMiniPlayer => 'Keep Mini Player';
+
+  @override
+  String get desktopViewUnavailableOnDisplay =>
+      'This display cannot fit Desktop View. Mini Player is available until Navis moves to a larger display.';
 }

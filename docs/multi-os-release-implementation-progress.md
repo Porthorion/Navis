@@ -259,30 +259,27 @@ This document is the detailed execution log for preparing Navis as a native app 
   - Codegen: `dart run build_runner build`
   - Analyzer (focused paths): `flutter analyze ...`
 
-### P. ACP M4-04 Focus Player Mode implementation
-- Status: in progress
+### P. ACP M4-04 Desktop Mini Player implementation
+- Status: complete on Linux; Windows/macOS native validation pending
 - Actions:
-  - Replaced the old single desktop window listener path with a dedicated `DesktopWindowController`.
-  - Added a mode-aware persisted window state record with separate normal/focus geometry and maximized restoration metadata.
-  - Added persisted app setting `desktopFocusPlayerModeEnabled`.
-  - Added desktop-only `Desktop Window` settings surface with `Focus Player Mode` toggle.
-  - Added quick toggle buttons to the desktop bottom player and desktop-wide Now Playing transport.
-  - Added focused controller/settings/shell/layout tests for the new mode.
+  - Replaced the experimental Focus Player preset with explicit Desktop View and same-window Mini Player modes.
+  - Added `window_state.json` v3 with last-valid Desktop geometry, retained Mini screen position, maximized Desktop restoration, and optional Mini Player always-on-top state; Mini always enters at canonical 720×405 so expanded prompt bounds cannot loop into the next mode switch, and the legacy database flag remains unused for schema compatibility.
+  - Added 400 ms bidirectional resize-transition gates, display work-area clamping through `screen_retriever`, and deterministic authenticated diagnostics controls.
+  - Added the dedicated Mini Player surface with volume beneath its transport/actions, persistent Desktop bottom player empty state, and real Desktop Window settings controls.
+  - Added focused controller/settings/shell/layout/API tests and six component goldens.
 - Evidence:
-  - `lib/main.dart`
   - `lib/src/routing/desktop_window_controller.dart`
+  - `lib/src/routing/app_shell_desktop_mini_player.dart`
   - `lib/src/features/settings/presentation/desktop_window_settings_screen.dart`
   - `lib/src/routing/app_shell.dart`
-  - `lib/src/features/player/presentation/now_playing_screen.dart`
   - `test/src/routing/desktop_window_controller_test.dart`
+  - `test/src/routing/app_shell_navigation_test.dart`
   - `test/src/features/settings/presentation/desktop_window_settings_screen_test.dart`
+  - `tool/desktop_layout_diagnostics.sh`
 - Verification note:
-  - Local command gate still pending. The Codex environment for this session did not have `flutter`/`dart` on `PATH`, so codegen/analyze/test commands could not be executed here and must be run on the developer machine before marking this slice done.
-  - Test passes:
-    - `flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart`
-    - `flutter test test/src/database/daos/app_settings_dao_test.dart test/src/features/settings/presentation/playback_settings_screen_test.dart test/src/providers/app_providers_test.dart test/src/routing/app_shell_navigation_test.dart`
-    - `flutter test test/src/routing/app_shell_navigation_test.dart test/src/features/auth/presentation/login_screen_test.dart`
-    - `flutter test test/src/routing/app_shell_navigation_test.dart test/src/features/library/presentation/library_screen_test.dart`
+  - `./tool/check.sh` passed on 2026-08-09 with 993 tests and one skip.
+  - Linux isolated-clone diagnostics at `build/presentation-diagnostics/20260808T221412Z-clone/` passed initial and clean-restart Desktop View at 1306×853, 1159×678, 887×900, and 800×600, 799×599 and short 799×444 Desktop entry gates, the Mini exit gate, canonical 720×405 and minimum 560×360 Mini Player, Keep Mini restoration, screenshot integrity, and log review. All 22 app-owned PNGs were opened and inspected.
+  - Windows and macOS resizing, snapping, DPI/display-topology handling, and always-on-top remain unverified.
 - Change control:
   - Applied as local working-tree changes only (no commit/push in this step).
 

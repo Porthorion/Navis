@@ -70,10 +70,10 @@ class SettingsScreen extends ConsumerWidget {
     ];
     final List<_SettingsEntry> desktopEntries = [
       if (adaptiveContext.desktopRuntime)
-        const _SettingsEntry(
+        _SettingsEntry(
           icon: Icons.picture_in_picture_alt_outlined,
-          title: 'Desktop Window',
-          subtitle: 'Configure Focus Player Mode and compact desktop behavior',
+          title: l10n.desktopWindowTitle,
+          subtitle: l10n.desktopWindowSubtitle,
           route: '/settings/desktop-window',
           group: groupDesktop,
         ),

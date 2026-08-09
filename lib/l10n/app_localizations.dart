@@ -5060,6 +5060,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Added {title}.'**
   String matchFlowSongAdded(String title);
+
+  /// No description provided for @desktopWindowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop Window'**
+  String get desktopWindowTitle;
+
+  /// No description provided for @desktopViewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop View'**
+  String get desktopViewTitle;
+
+  /// No description provided for @desktopWindowSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how Navis behaves as a full or compact desktop window.'**
+  String get desktopWindowSubtitle;
+
+  /// No description provided for @desktopWindowUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop window controls are only available in the desktop app.'**
+  String get desktopWindowUnavailable;
+
+  /// No description provided for @desktopMiniPlayerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Mini Player'**
+  String get desktopMiniPlayerTitle;
+
+  /// No description provided for @desktopMiniPlayerDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a compact, playback-focused Navis window.'**
+  String get desktopMiniPlayerDescription;
+
+  /// No description provided for @desktopMiniPlayerOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Mini Player'**
+  String get desktopMiniPlayerOpen;
+
+  /// No description provided for @desktopReturnToView.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to Desktop View'**
+  String get desktopReturnToView;
+
+  /// No description provided for @desktopMiniPlayerKeepOnTop.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep Mini Player on top'**
+  String get desktopMiniPlayerKeepOnTop;
+
+  /// No description provided for @desktopMiniPlayerStopOnTop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop keeping Mini Player on top'**
+  String get desktopMiniPlayerStopOnTop;
+
+  /// No description provided for @desktopMiniPlayerKeepOnTopDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the compact player above other windows. This only applies in Mini Player.'**
+  String get desktopMiniPlayerKeepOnTopDescription;
+
+  /// No description provided for @desktopMiniPlayerTooSmallTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Mini Player is too small'**
+  String get desktopMiniPlayerTooSmallTitle;
+
+  /// No description provided for @desktopMiniPlayerTooSmallDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Mini Player needs at least 560 by 360 logical pixels. Restoring its last valid size.'**
+  String get desktopMiniPlayerTooSmallDescription;
+
+  /// No description provided for @desktopNothingPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing playing'**
+  String get desktopNothingPlaying;
+
+  /// No description provided for @desktopChooseSomething.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose something to play'**
+  String get desktopChooseSomething;
+
+  /// No description provided for @desktopNothingPlayingPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to Desktop View to choose something to play.'**
+  String get desktopNothingPlayingPrompt;
+
+  /// No description provided for @desktopPlaybackUnavailableTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable until something is playing'**
+  String get desktopPlaybackUnavailableTooltip;
+
+  /// No description provided for @desktopFavoriteUnavailableForRadio.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorite is unavailable for radio'**
+  String get desktopFavoriteUnavailableForRadio;
+
+  /// No description provided for @desktopLyricsUnavailableForRadio.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics are unavailable for radio'**
+  String get desktopLyricsUnavailableForRadio;
+
+  /// No description provided for @desktopQueueUnavailableForRadio.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue is unavailable for radio'**
+  String get desktopQueueUnavailableForRadio;
+
+  /// No description provided for @desktopWindowTooSmallTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This window is too small for Desktop View'**
+  String get desktopWindowTooSmallTitle;
+
+  /// No description provided for @desktopWindowMinimumDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop View needs at least 800 by 600 logical pixels.'**
+  String get desktopWindowMinimumDescription;
+
+  /// No description provided for @desktopReturnQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to Desktop View?'**
+  String get desktopReturnQuestion;
+
+  /// No description provided for @desktopReturnDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The window is now large enough for the full desktop interface.'**
+  String get desktopReturnDescription;
+
+  /// No description provided for @desktopSwitchToMiniPlayer.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to Mini Player'**
+  String get desktopSwitchToMiniPlayer;
+
+  /// No description provided for @desktopRestoreSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore Desktop Size'**
+  String get desktopRestoreSize;
+
+  /// No description provided for @desktopKeepMiniPlayer.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep Mini Player'**
+  String get desktopKeepMiniPlayer;
+
+  /// No description provided for @desktopViewUnavailableOnDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'This display cannot fit Desktop View. Mini Player is available until Navis moves to a larger display.'**
+  String get desktopViewUnavailableOnDisplay;
 }
 
 class _AppLocalizationsDelegate

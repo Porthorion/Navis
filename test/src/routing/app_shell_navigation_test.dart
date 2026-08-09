@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsAction;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
@@ -17,7 +18,9 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
@@ -25,6 +28,9 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/desktop_commands.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
@@ -61,6 +67,44 @@ class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
   int build() => 0;
 }
 
+class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
+  int toggleLikeCalls = 0;
+
+  @override
+  Future<void> toggleLike() async {
+    toggleLikeCalls += 1;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.isGetter) {
+      return switch (invocation.memberName) {
+        #snapshot => _activePlayback,
+        #snapshotStream => const Stream<PlaybackSnapshot>.empty(),
+        #manualTrackChangeCueStream =>
+          const Stream<ManualTrackChangeCue>.empty(),
+        #positionStream => const Stream<Duration>.empty(),
+        #bufferState => const PlaybackBufferState.idle(),
+        #bufferStateStream => const Stream<PlaybackBufferState>.empty(),
+        #currentMediaItem => null,
+        #mediaItemStream => const Stream<MediaItem?>.empty(),
+        #loadFailureStream => const Stream<PlaybackLoadFailure>.empty(),
+        #radioStreamErrorStream => const Stream<void>.empty(),
+        _ => null,
+      };
+    }
+    return Future<void>.value();
+  }
+}
+
+class _StaticDesktopShortcutBindingsNotifier
+    extends DesktopShortcutBindingsNotifier {
+  @override
+  Map<DesktopCommandAction, DesktopShortcutBinding?> build() {
+    return defaultDesktopShortcutBindings();
+  }
+}
+
 class _MutablePlaybackController extends Notifier<PlaybackSnapshot> {
   @override
   PlaybackSnapshot build() => _activePlayback;
@@ -90,8 +134,14 @@ ProviderContainer _createContainerWithDatabase({
 List<Override> _authenticatedShellOverrides({
   PlaybackSnapshot playback = _activePlayback,
   ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
+  bool desktopRuntime = false,
 }) {
   return <Override>[
+    desktopPresentationRuntimeProvider.overrideWithValue(desktopRuntime),
+    networkTypeProvider.overrideWithValue(NetworkType.wifi),
+    desktopShortcutBindingsProvider.overrideWith(
+      _StaticDesktopShortcutBindingsNotifier.new,
+    ),
     serverConfigStateProvider.overrideWithValue(
       const AsyncData(
         ServerConfigModel(
@@ -117,11 +167,20 @@ List<Override> _authenticatedShellOverrides({
     homeFrequentAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
     homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
     homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+    listenBrainzDiscoverStreamProvider.overrideWithValue(
+      const AsyncData(<ListenBrainzDiscoverPlaylist>[]),
+    ),
     artistInfoProvider.overrideWith((ref, artistId) async => null),
     scrobbleDispatchControllerProvider.overrideWith(
       _NoopScrobbleDispatchController.new,
     ),
     playbackSnapshotProvider.overrideWith((ref) => Stream.value(playback)),
+    lyricsProvider.overrideWith(
+      (ref, songId) async => const LyricsResolution(
+        lyrics: LyricsList(),
+        source: LyricsSource.serverPlain,
+      ),
+    ),
     packageInfoProvider.overrideWithValue(
       AsyncData<PackageInfo>(
         PackageInfo(
@@ -150,6 +209,15 @@ const PlaybackSnapshot _activePlayback = PlaybackSnapshot(
 );
 
 void main() {
+  IconButton desktopActionButton(WidgetTester tester, String key) {
+    return tester.widget<IconButton>(
+      find.descendant(
+        of: find.byKey(ValueKey<String>(key)),
+        matching: find.byType(IconButton),
+      ),
+    );
+  }
+
   Future<void> focusDesktopQueueButton(WidgetTester tester) async {
     for (var attempt = 0; attempt < 20; attempt++) {
       final label = FocusManager.instance.primaryFocus?.debugLabel ?? '';
@@ -237,7 +305,7 @@ void main() {
     });
 
     final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(),
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
     );
 
     await tester.pumpWidget(
@@ -270,7 +338,7 @@ void main() {
   });
 
   testWidgets(
-    'compact desktop rail keeps rail mini player and avoids desktop bar',
+    'compact Desktop View keeps the persistent desktop player bar',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1024, 1000);
@@ -280,7 +348,7 @@ void main() {
       });
 
       final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(),
+        overrides: _authenticatedShellOverrides(desktopRuntime: true),
       );
 
       await tester.pumpWidget(
@@ -291,11 +359,771 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('railMiniPlayer')), findsOneWidget);
-      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsNothing);
+      expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('800x600 Desktop View keeps an operable empty player bar', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(
+        desktopRuntime: true,
+        playback: const PlaybackSnapshot.idle(),
+      ),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('desktopPlayerVolumeSlider')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('desktopPlayerMiniPlayerButton')),
+      findsOneWidget,
+    );
+    for (final key in <String>[
+      'desktopPlayerFavoriteButton',
+      'desktopPlayerLyricsButton',
+      'desktopQueueButton',
+    ]) {
+      final finder = find.byKey(ValueKey<String>(key));
+      expect(finder, findsOneWidget);
+      expect(desktopActionButton(tester, key).onPressed, isNull);
+      expect(tester.getSize(finder), const Size(44, 44));
+      final semantics = tester.getSemantics(finder);
+      expect(semantics.label, 'Unavailable until something is playing');
+      expect(
+        semantics.getSemanticsData().hasAction(SemanticsAction.tap),
+        isFalse,
+      );
+    }
+    expect(find.text('Nothing playing'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey('desktopPlayerBar')),
+      matchesGoldenFile('goldens/desktop_view_empty_800x600.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
+  testWidgets('720x405 Mini Player uses the dedicated desktop surface', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(720, 405);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    await windowController.setMiniPlayerMode(true);
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: const PlaybackSnapshot.idle(),
+        ),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('desktopMiniPlayerSurface')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('miniPlayerExitButton')), findsOneWidget);
+    expect(find.byKey(const ValueKey('miniPlayerAlwaysOnTop')), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey('desktopMiniPlayerSurface')),
+      matchesGoldenFile('goldens/mini_player_empty_720x405.png'),
+    );
+  });
+
+  testWidgets(
+    '720x405 active Mini Player embeds expanded volume below actions',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(720, 405);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final windowController = DesktopWindowController.fallback(
+        desktopRuntime: true,
+      );
+      await windowController.setMiniPlayerMode(true);
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          desktopWindowControllerProvider.overrideWith(
+            (ref) => windowController,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final volume = find.byKey(
+        const ValueKey<String>('desktopMiniPlayerVolumeSlider'),
+      );
+      final like = find.byTooltip('Like');
+      expect(volume, findsOneWidget);
+      expect(like, findsOneWidget);
+      final volumeRect = tester.getRect(volume);
+      expect(volumeRect.width, greaterThan(220));
+      expect(volumeRect.left, greaterThan(300));
+      expect(volumeRect.top, greaterThanOrEqualTo(tester.getRect(like).bottom));
+      expect(
+        find.byKey(const ValueKey<String>('desktopMiniPlayerTightPlayback')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byKey(const ValueKey('desktopMiniPlayerSurface')),
+        matchesGoldenFile('goldens/mini_player_active_720x405.png'),
+      );
+    },
+  );
+
+  testWidgets('restored Desktop queue enables only resumable Play', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1008, 640);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final restoredQueue = _activePlayback.copyWith(
+      currentSongId: '',
+      currentIndex: -1,
+      playing: false,
+      position: Duration.zero,
+      duration: Duration.zero,
+    );
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(
+        desktopRuntime: true,
+        playback: restoredQueue,
+      ),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    IconButton button(String key) {
+      final direct = find.byKey(ValueKey<String>(key));
+      if (direct.evaluate().first.widget is IconButton) {
+        return tester.widget<IconButton>(direct);
+      }
+      return desktopActionButton(tester, key);
+    }
+
+    expect(button('desktopPlayerPlayPauseButton').onPressed, isNotNull);
+    expect(button('desktopPlayerPreviousButton').onPressed, isNull);
+    expect(button('desktopPlayerNextButton').onPressed, isNull);
+    expect(button('desktopPlayerRepeatButton').onPressed, isNull);
+    expect(button('desktopPlayerFavoriteButton').onPressed, isNull);
+    expect(button('desktopPlayerLyricsButton').onPressed, isNull);
+    expect(button('desktopQueueButton').onPressed, isNull);
+    expect(find.text('Nothing playing'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('800x600 active Desktop View player golden', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey('desktopPlayerBar')),
+      matchesGoldenFile('goldens/desktop_view_active_800x600.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
+  testWidgets('887px compact Desktop player action golden', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(887, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey('desktopPlayerBar')),
+      matchesGoldenFile('goldens/desktop_player_actions_887.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
+  for (final size in const <Size>[
+    Size(800, 1000),
+    Size(887, 900),
+    Size(919, 600),
+    Size(920, 600),
+    Size(930, 1177),
+    Size(979, 600),
+    Size(980, 600),
+    Size(1008, 600),
+    Size(1159, 678),
+    Size(1306, 853),
+    Size(3440, 600),
+  ]) {
+    testWidgets(
+      '${size.width.toInt()}x${size.height.toInt()} Desktop View keeps its persistent player overflow-free',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        final container = _createContainerWithDatabase(
+          overrides: _authenticatedShellOverrides(desktopRuntime: true),
+        );
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: container, child: testNavisApp),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const ValueKey<String>('desktopPlayerBar')),
+          findsOneWidget,
+        );
+        for (final key in <String>[
+          'desktopPlayerFavoriteButton',
+          'desktopPlayerLyricsButton',
+          'desktopQueueButton',
+          'desktopPlayerMiniPlayerButton',
+          'desktopPlayerVolumeSlider',
+        ]) {
+          expect(
+            find.byKey(ValueKey<String>(key)),
+            findsOneWidget,
+            reason: '$key must remain visible at ${size.width}',
+          );
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('compact Desktop player actions remain direct and operable', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(887, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final playbackHandler = _RecordingLikePlaybackHandler();
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        audioHandlerProvider.overrideWithValue(playbackHandler),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    for (final key in <String>[
+      'desktopPlayerFavoriteButton',
+      'desktopPlayerLyricsButton',
+      'desktopQueueButton',
+      'desktopPlayerMiniPlayerButton',
+    ]) {
+      final finder = find.byKey(ValueKey<String>(key));
+      expect(finder, findsOneWidget);
+      expect(desktopActionButton(tester, key).onPressed, isNotNull);
+      expect(tester.getSize(finder), const Size(44, 44));
+      expect(
+        tester
+            .getSemantics(finder)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+    }
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('desktopPlayerFavoriteButton')),
+    );
+    await tester.pump();
+    expect(playbackHandler.toggleLikeCalls, 1);
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Close'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey<String>('desktopQueueButton')));
+    await tester.pumpAndSettle();
+    expect(container.read(queueOverlayVisibleProvider), isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Desktop radio keeps invalid action slots visibly disabled', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    const radioPlayback = PlaybackSnapshot(
+      queueSongIds: <String>[],
+      currentSongId: null,
+      currentIndex: null,
+      playing: true,
+      processingState: AudioProcessingState.ready,
+      position: Duration.zero,
+      duration: Duration.zero,
+      bufferedPosition: Duration.zero,
+      shuffleMode: AudioServiceShuffleMode.none,
+      repeatMode: AudioServiceRepeatMode.none,
+      radioStation: RadioStationMetadata(
+        stationId: 'radio-1',
+        stationName: 'Test Radio',
+        streamUrl: 'https://example.com/radio',
+      ),
+    );
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(
+        desktopRuntime: true,
+        playback: radioPlayback,
+      ),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    for (final entry in <(String, String)>[
+      (
+        'desktopPlayerFavoriteButton',
+        'Favorite is unavailable for radio',
+      ),
+      ('desktopPlayerLyricsButton', 'Lyrics are unavailable for radio'),
+      ('desktopQueueButton', 'Queue is unavailable for radio'),
+    ]) {
+      final key = entry.$1;
+      final finder = find.byKey(ValueKey<String>(key));
+      expect(finder, findsOneWidget);
+      expect(desktopActionButton(tester, key).onPressed, isNull);
+      expect(tester.getSize(finder), const Size(44, 44));
+      final semantics = tester.getSemantics(finder);
+      expect(semantics.label, entry.$2);
+      expect(
+        semantics.getSemanticsData().hasAction(SemanticsAction.tap),
+        isFalse,
+      );
+    }
+    expect(
+      find.byTooltip('Favorite is unavailable for radio'),
+      findsOneWidget,
+    );
+    expect(
+      find.byTooltip('Lyrics are unavailable for radio'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Queue is unavailable for radio'), findsOneWidget);
+    expect(
+      desktopActionButton(tester, 'desktopPlayerMiniPlayerButton').onPressed,
+      isNotNull,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('560x360 Mini Player keeps its essential empty controls', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(560, 360);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    await windowController.setMiniPlayerMode(true);
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: const PlaybackSnapshot.idle(),
+        ),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('miniPlayerExitButton')), findsOneWidget);
+    expect(find.byKey(const ValueKey('miniPlayerAlwaysOnTop')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey('desktopMiniPlayerSurface')),
+      matchesGoldenFile('goldens/mini_player_empty_560x360.png'),
+    );
+  });
+
+  testWidgets('560x360 active Mini Player centers metadata and keeps volume', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(560, 360);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    await windowController.setMiniPlayerMode(true);
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('desktopMiniPlayerVolumeSlider')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getSize(
+            find.byKey(
+              const ValueKey<String>('desktopMiniPlayerVolumeSlider'),
+            ),
+          )
+          .width,
+      greaterThan(160),
+    );
+    expect(find.byKey(const ValueKey('miniPlayerExitButton')), findsOneWidget);
+    expect(find.byKey(const ValueKey('miniPlayerAlwaysOnTop')), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey<String>('desktopMiniPlayerTitle')),
+          )
+          .textAlign,
+      TextAlign.center,
+    );
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey<String>('desktopMiniPlayerArtist')),
+          )
+          .textAlign,
+      TextAlign.center,
+    );
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey('desktopMiniPlayerSurface')),
+      matchesGoldenFile('goldens/mini_player_active_560x360.png'),
+    );
+  });
+
+  testWidgets('560x360 radio Mini Player shows live stop-safe transport', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(560, 360);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    await windowController.setMiniPlayerMode(true);
+    const radioPlayback = PlaybackSnapshot(
+      queueSongIds: <String>[],
+      currentSongId: null,
+      currentIndex: null,
+      playing: true,
+      processingState: AudioProcessingState.ready,
+      position: Duration.zero,
+      duration: Duration.zero,
+      bufferedPosition: Duration.zero,
+      shuffleMode: AudioServiceShuffleMode.none,
+      repeatMode: AudioServiceRepeatMode.none,
+      radioStation: RadioStationMetadata(
+        stationId: 'radio-1',
+        stationName: 'Test Radio',
+        streamUrl: 'https://example.com/radio',
+      ),
+    );
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: radioPlayback,
+        ),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('LIVE'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('desktopMiniPlayerSeekSlider')),
+      findsNothing,
+    );
+    expect(find.byTooltip('Previous'), findsNothing);
+    expect(find.byTooltip('Stop radio'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('desktopMiniPlayerVolumeSlider')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('undersized Mini Player blocks the active layout safely', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(392, 184);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    await windowController.setMiniPlayerMode(true);
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('desktopMiniPlayerUndersized')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('desktopMiniPlayerTightPlayback')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pump(
+      DesktopWindowController.resizeSettleInterval +
+          const Duration(milliseconds: 1),
+    );
+  });
+
+  testWidgets('Desktop resize gate blocks an invalid 799x599 workspace', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(799, 599);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pump(
+      DesktopWindowController.resizeSettleInterval +
+          const Duration(milliseconds: 1),
+    );
+    await tester.pump();
+
+    expect(find.text('Switch to Mini Player'), findsOneWidget);
+    expect(find.text('Restore Desktop Size'), findsOneWidget);
+    await expectLater(
+      find.byKey(const ValueKey<String>('desktopWindowTransitionGate')),
+      matchesGoldenFile('goldens/desktop_resize_gate_799x599.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
+  testWidgets('short 799x444 Desktop resize gate keeps both actions visible', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(799, 444);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pump(
+      DesktopWindowController.resizeSettleInterval +
+          const Duration(milliseconds: 1),
+    );
+    await tester.pump();
+
+    final switchAction = find.widgetWithText(
+      FilledButton,
+      'Switch to Mini Player',
+    );
+    final restoreAction = find.widgetWithText(
+      OutlinedButton,
+      'Restore Desktop Size',
+    );
+    expect(switchAction, findsOneWidget);
+    expect(restoreAction, findsOneWidget);
+    expect(tester.getRect(switchAction).top, greaterThanOrEqualTo(0));
+    expect(
+      tester.getRect(restoreAction).bottom,
+      lessThanOrEqualTo(tester.view.physicalSize.height),
+    );
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey<String>('desktopWindowTransitionGate')),
+      matchesGoldenFile('goldens/desktop_resize_gate_short_799x444.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
+  testWidgets('expanded Mini Player prompts before returning to Desktop View', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    await windowController.setMiniPlayerMode(true);
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pump(
+      DesktopWindowController.resizeSettleInterval +
+          const Duration(milliseconds: 1),
+    );
+    await tester.pump();
+
+    expect(find.text('Return to Desktop View'), findsWidgets);
+    expect(find.text('Keep Mini Player'), findsOneWidget);
+    await expectLater(
+      find.byKey(const ValueKey<String>('desktopWindowTransitionGate')),
+      matchesGoldenFile('goldens/mini_player_resize_gate_800x600.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
 
   testWidgets('phone landscape falls back to bottom nav when height is tight', (
     tester,
@@ -539,7 +1367,7 @@ void main() {
     });
 
     final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(),
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
     );
 
     await tester.pumpWidget(
@@ -629,7 +1457,7 @@ void main() {
 
       final container = _createContainerWithDatabase(
         overrides: <Override>[
-          ..._authenticatedShellOverrides(),
+          ..._authenticatedShellOverrides(desktopRuntime: true),
           showLikedPageProvider.overrideWithValue(true),
           showArtistsPageProvider.overrideWithValue(true),
           showPlaylistsPageProvider.overrideWithValue(true),
@@ -940,7 +1768,7 @@ void main() {
     });
 
     final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(),
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
     );
 
     await tester.pumpWidget(
@@ -1049,6 +1877,7 @@ void main() {
     final container = _createContainerWithDatabase(
       overrides: _authenticatedShellOverrides(
         reachability: ServerReachabilityStatus.offline,
+        desktopRuntime: true,
       ),
     );
 
@@ -1089,6 +1918,7 @@ void main() {
       final container = _createContainerWithDatabase(
         overrides: _authenticatedShellOverrides(
           reachability: ServerReachabilityStatus.offline,
+          desktopRuntime: true,
         ),
       );
 
@@ -1149,7 +1979,7 @@ void main() {
     });
 
     final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(),
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
     );
 
     await tester.pumpWidget(
@@ -1176,6 +2006,41 @@ void main() {
   });
 
   testWidgets(
+    'compact queue dismissal restores focus to its persistent queue button',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(887, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(desktopRuntime: true),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      await focusDesktopQueueButton(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        contains('desktopQueueToggle'),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'space stays playback-only while enter activates focused desktop controls',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -1186,7 +2051,7 @@ void main() {
       });
 
       final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(),
+        overrides: _authenticatedShellOverrides(desktopRuntime: true),
       );
 
       await tester.pumpWidget(
@@ -1222,7 +2087,7 @@ void main() {
     });
 
     final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(),
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
     );
 
     await tester.pumpWidget(
@@ -1252,7 +2117,7 @@ void main() {
   });
 
   testWidgets(
-    'desktop player and desktop now playing hide unreleased focus mode toggles',
+    'desktop player exposes Mini Player without a duplicate now-playing toggle',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1280, 1000);
@@ -1262,7 +2127,7 @@ void main() {
       });
 
       final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(),
+        overrides: _authenticatedShellOverrides(desktopRuntime: true),
       );
 
       await tester.pumpWidget(
@@ -1274,8 +2139,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const ValueKey('desktopPlayerFocusButton')),
-        findsNothing,
+        find.byKey(const ValueKey('desktopPlayerMiniPlayerButton')),
+        findsOneWidget,
       );
 
       container.read(playerOverlayStackProvider.notifier).expand();

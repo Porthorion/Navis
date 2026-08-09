@@ -12,6 +12,7 @@ import 'package:navis/src/features/auth/presentation/server_connection_provider.
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
@@ -340,7 +341,7 @@ void main() {
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Home'), findsWidgets);
+    expect(find.byType(HomeScreen), findsOneWidget);
     final savedConfig = notifier.savedConfigSnapshot();
     expect(savedConfig, isNotNull);
     expect(savedConfig?.url, 'https://x.test');

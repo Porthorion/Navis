@@ -156,6 +156,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
 ./tool/presentation_diagnostics.sh clone / home  # app-owned screenshot suite
+./tool/desktop_layout_diagnostics.sh  # Desktop View/Mini Player resize + screenshot suite
 
 # Release (runs check unless --skip-checks)
 ./tool/release.sh v1.2.3
@@ -572,9 +573,33 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 
 | Class | Width |
 |-------|-------|
-| `compactDesktop` | < 1200 dp |
-| `standardDesktop` | 1200–1599 dp |
+| `compactDesktop` | 800–1007 dp |
+| `standardDesktop` | 1008–1599 dp |
 | `ultraWideDesktop` | ≥ 1600 dp |
+
+Desktop runtime never falls back to the phone bottom-navigation, tablet rail,
+or compact-landscape shells. Desktop View requires 800×600 logical pixels and
+always reserves its full-width bottom player, including the localized empty
+state with an operable volume control. That 116 px player keeps Favorite,
+Lyrics, Queue, and Mini Player directly visible in a fixed four-action row at
+every valid Desktop width; its volume row stays directly below. Invalid
+playback actions retain their 44 px slots with reason-specific disabled
+semantics instead of disappearing. The same-window Mini Player defaults to
+720×405 on every entry and may then be manually resized down to the enforced
+560×360 logical minimum. Mini Player persistence retains its screen position,
+not an arbitrary prior size. Its tight composition is selected from both usable
+width and height, centers metadata, and constrains its content canvas; volume
+sits below transport/actions and expands across the available metadata pane. If
+a window manager reports a smaller size, Navis blocks the invalid player and
+restores 720×405 bounds at the retained position.
+Crossing the 800×600 boundary is mediated by `DesktopWindowController`; it snapshots
+valid Desktop bounds in `window_state.json` v3, restores maximized Desktop
+state, keeps Mini position separately, and uses `screen_retriever` work areas
+to keep windows visible. Bounds reported after Desktop has already crossed its
+minimum must never replace the last valid Desktop restoration target.
+Resize-transition gates must remain height-aware and keep both decisions
+reachable at the 560×360 OS minimum; use a scroll fallback for text scaling or
+native frame reductions instead of allowing a gate to overflow.
 
 **Input policy** (`AdaptiveInputPolicy` — use exact field names):
 

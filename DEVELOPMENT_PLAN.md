@@ -1570,10 +1570,10 @@ This phase is developed after Phase 10 and can be developed in parallel with Pha
   - Width < 600 dp: `NavigationBar` at bottom (existing mobile layout).
   - Width ≥ 600 dp: `NavigationRail` on the left, content fills the remaining width.
   - Width ≥ 960 dp: side-by-side master-detail — navigation rail + list panel on the left, detail panel on the right (e.g., album list + album detail simultaneously visible).
-  - Width ≥ 1200 dp: Spotify-style desktop shell — a simple left navigation column with an extended mini player docked directly under navigation, plus a dominant right content workspace for the active route.
+  - Desktop runtime: Desktop View at 800×600 or larger with icon navigation at 800–1007, user-selected navigation at 1008+, and a persistent full-width bottom player whose Favorite, Lyrics, Queue, Mini Player, and volume controls never disappear; same-window Mini Player opens canonically at 720×405 and may be manually resized down to an enforced 560×360.
 - `go_router` shell route updated to use `AdaptiveShell` instead of the current `ScaffoldWithNavbar`.
-- Window size and position persistence via the `window_manager` package: save width, height, and maximised state to shared preferences on resize, restore on launch.
-- Minimum window size enforced: 480 × 600 px.
+- Window state persistence via `window_manager` and `screen_retriever`: last-valid Desktop bounds, retained Mini screen position (with canonical 720×405 entry size), Desktop maximised state, mode, and Mini Player always-on-top preference in `window_state.json` v3.
+- Minimum window size enforced: 560 × 360 logical pixels; Desktop View requires 800 × 600.
 
 ### Audio OS Integration
 
@@ -1597,7 +1597,7 @@ This phase is developed after Phase 10 and can be developed in parallel with Pha
 
 | Package | Platform | Purpose |
 |---|---|---|
-| `window_manager` | All desktop | Window size/position control and persistence |
+| `window_manager` + `screen_retriever` | All desktop | Window mode/bounds control, work-area clamping, and persistence |
 | `smtc_windows` | Windows | SMTC now-playing and media key integration |
 | `mpris_service` | Linux | D-Bus MPRIS media player interface |
 | Platform channel (Swift) | macOS | `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` |
@@ -2125,9 +2125,10 @@ Responsive behavior for one reusable shell implementation:
 | Window width | Layout mode | Playback surface behavior |
 |---|---|---|
 | `< 600` | Existing phone shell | Existing bottom mini-player + expandable sheet behavior |
-| `600-959` | Tablet/compact desktop shell | NavigationRail with docked mini-player rail (target 320 px) |
+| `600-839` | Non-desktop medium tablet | Bottom navigation with expandable player |
 | `960-1199` | Expanded workspace shell | Multi-column content with persistent docked player region |
-| `>= 1200` | Full desktop shell | Spotify-style left nav + full-width bottom player + expandable immersive player/lyrics mode |
+| `>= 800×600` | Desktop View | Desktop-only workspace + persistent full-width bottom player with a fixed four-action row over volume |
+| `720×405` default; `560×360` minimum | Desktop Mini Player | Dedicated same-window playback surface with centered tight metadata and volume beneath transport/actions |
 | `>= 1600` | Ultra-wide tuning | Preserve left nav and bottom player, allow wider content canvas and optional center-constrained reading columns where needed |
 
 ### 26.C Desktop Window and Packaging Strategy
@@ -2236,7 +2237,7 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 **Locked defaults (2026-03-23)**:
 - Scope: full product convergence (not shell-only).
 - Platforms: Android/iOS + macOS/Linux/Windows.
-- Behavior model: window-size-first adaptation across runtimes.
+- Behavior model: size-first phone/tablet adaptation; explicit Desktop View and Mini Player modes on desktop runtimes.
 - UX direction: keep current desktop/tablet/phone direction; improve consistency and structure.
 - Quality gate: strict milestone closeout gate.
 - Tracking system: use existing docs only (`DEVELOPMENT_PLAN.md`, `PROGRESS.md`, `docs/multi-os-release-implementation-progress.md`).
@@ -2245,7 +2246,7 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 
 - One shared adaptive contract consumed by shell and all primary screens.
 - No narrow-width desktop overflow/regression in shell/player/navigation surfaces.
-- Breakpoint behavior deterministic at all target widths: 480, 599, 600, 839, 840, 959, 960, 1199, 1200, 1599, 1600.
+- Breakpoint behavior deterministic for non-desktop phone/tablet sizes and desktop 720×405 default/560×360 minimum Mini Player, 800×600 minimum, 1008 standard, and 1600 ultra-wide boundaries; essential desktop player actions retain fixed 44 px slots throughout.
 - Progress tracking and evidence formatting standardized for agentic execution.
 
 ### 31.B Task identity and status model
@@ -2276,7 +2277,7 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 
 #### M2 — Shell stabilization first
 
-- `ACP-M2-01`: move shell composition to window-size-first behavior for desktop and mobile runtimes.
+- `ACP-M2-01`: keep non-desktop shell composition size-first and make desktop composition mode-first without phone/tablet fallbacks.
 - `ACP-M2-02`: fix narrow-width desktop player bar overflow and constrained-control behavior.
 - `ACP-M2-03`: preserve branch stack continuity and shell overlay back-priority guarantees.
 - `ACP-M2-04`: retain keyboard shortcuts and text-input guard behavior.
@@ -2294,7 +2295,7 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 - `ACP-M4-01`: standardize focus traversal behavior across desktop/tablet surfaces.
 - `ACP-M4-02`: standardize keyboard and pointer affordances where adaptive modes diverge.
 - `ACP-M4-03`: add explicit adaptive input checks to QA matrix.
-- `ACP-M4-04`: add a deferred user-toggleable compact player window mode ("Focus Player Mode") that locks the app window to a compact-wide-friendly aspect/size preset and allows quick return to normal adaptive behavior.
+- `ACP-M4-04`: provide the same-window Mini Player with explicit resize-transition gates, last-valid Desktop restoration, canonical Mini sizing with retained position, always-on-top preference, and quick return to Desktop View.
 - `ACP-M4-05`: polish overlapping keyboard/input systems across desktop surfaces, including quick-search vs library-filter precedence, transport suppression while typing, and cross-platform primary-modifier parity.
 
 #### M5 — Platform capability layer
@@ -3120,7 +3121,7 @@ Global verification rule for every phase completion:
 | 10 | Hero animations for cover art work smoothly. Skeleton loading replaces spinners. No accessibility warnings from Flutter Inspector. All strings externalized. Haptic feedback on key actions. Edge-to-edge correct on Android 15 and Android 16 emulators. Predictive back gesture works with go_router. Logger output visible in debug, silent in release (with auth params redacted). App recovers gracefully from force-kill (play queue restored, download queue re-queued). Material motion transitions (SharedAxisTransition, FadeThroughTransition) visible on page navigations. Update checker: mock Forgejo API returns newer version → banner appears; returns same version → no banner; network unavailable → silent failure, no crash. |
 | 11 | AudioMuse smart queue appends tracks when configured. UI elements hidden when AudioMuse not configured. Similar artists/albums display. Fallback to Subsonic data when AudioMuse is off. |
 | 12 | Android Auto: browsable media tree visible in a connected Android Auto head unit or emulator (Desktop Head Unit). Artists/Albums/Playlists root tabs expand correctly. Playback controls (play/pause/next/previous/seek) work from the Auto UI. Search returns results. Inert on non-Auto Android devices and on iOS. CarPlay: content tree renders in CarPlay Simulator. Playback controls work. `MPPlayableContentDelegate` receives play commands. Siri Shortcuts `INPlayMediaIntent` triggers playback. Inert on non-CarPlay iOS devices and on Android. |
-| 13 | All three desktop targets (`flutter run -d windows`, `-d macos`, `-d linux`) build and launch without errors. `NavigationRail` visible at ≥ 600 dp window width; `BottomNavigationBar` visible at < 600 dp. Master-detail layout active at ≥ 960 dp. Window size and position survive app restart. Windows: SMTC thumbnail and controls appear in the taskbar media flyout; hardware media keys toggle playback. Linux: `playerctl status` reports `Playing`/`Paused`; `playerctl play-pause` toggles playback; `playerctl metadata` shows current track. macOS: Control Centre now-playing widget shows track info and art; keyboard media keys work. MSIX, `.app` bundle, and `.deb` packages build successfully in CI. |
+| 13 | All three desktop targets (`flutter run -d windows`, `-d macos`, `-d linux`) build and launch without errors. Desktop View is the only full application shell at 800×600 and larger, with compact icon navigation at 800–1007, user-selected navigation at 1008+, and a persistent bottom player. Favorite, Lyrics, Queue, Mini Player, and volume remain directly visible from 800 px upward; unavailable actions preserve their 44 px slots with disabled semantics. Mini Player is a dedicated same-window surface that opens at 720×405, may be manually resized down to 560×360, uses centered tight metadata, embeds volume beneath transport/actions, and restores canonical bounds if a window manager violates the minimum; desktop never renders phone bottom navigation or the tablet rail player. Last-valid Desktop bounds, maximized state, Mini position, Mini Player always-on-top preference, and transition decisions survive restart without reusing prompt-triggering sizes. Windows: SMTC thumbnail and controls appear in the taskbar media flyout; hardware media keys toggle playback. Linux: `playerctl status` reports `Playing`/`Paused`; `playerctl play-pause` toggles playback; `playerctl metadata` shows current track. macOS: Control Centre now-playing widget shows track info and art; keyboard media keys work. MSIX, `.app` bundle, and `.deb` packages build successfully in CI. |
 | 14 | `skipSilenceEnabled` toggle is absent from the Playback settings screen. Killing the app immediately after pausing and relaunching places playback within 1 second of the pause point. Lyrics widget shows distinct messages for: no lyrics, fetch error, and unsupported server. ReplayGain applies audible gain normalization when mode is set to Track or Album (audible volume difference between a quietly and a loudly mastered track). Playback speed control visible in Now Playing; speed persists after navigating away and returning. Crossfade + gapless conflict warning visible when both are enabled. Targeted `isPlayingProvider` / `currentSongProvider` derived providers exist and are used by non-seek widgets. |
 | 15 | Favorites screen lists starred albums, artists, and songs from `getStarred2()`. Starring from any screen reflects immediately in the Favorites screen via drift stream. Download badges visible on album tiles in the library grid for fully downloaded albums. Every list/grid screen has pull-to-refresh. No blank screens on empty states for all listed scenarios. Album grid thumbnails use size-constrained server requests. Year/decade chip filter returns correct albums from server. Auto-download starred toggle queues downloads when Wi-Fi connects (when enabled). |
 | 16 | Starring a song offline queues the action in `star_sync_queue`; reconnecting to the server flushes the queue and the server reflects the correct star state. Search screen returns local drift results with offline banner when server is unreachable. Search type filter chips correctly restrict results to the selected type. Radio stream error produces a dismissible snackbar and stops gracefully; station name displays when ICY metadata is unavailable; previously loaded metadata is not cleared on polling failure. |

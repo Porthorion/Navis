@@ -180,7 +180,7 @@ class AppSettingsTable extends Table {
   /// Artist view layout: 'list' or 'grid'. Default 'grid'.
   TextColumn get artistViewMode => text().withDefault(const Constant('grid'))();
 
-  /// When true on desktop runtime, the app restores Focus Player Mode on launch.
+  /// Legacy desktop compact-mode flag retained for schema compatibility only.
   BoolColumn get desktopFocusPlayerModeEnabled =>
       boolean().withDefault(const Constant(false))();
 

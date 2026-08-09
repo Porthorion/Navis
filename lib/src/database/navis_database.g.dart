@@ -2634,7 +2634,7 @@ class AppSettingsTableData extends DataClass
   /// Artist view layout: 'list' or 'grid'. Default 'grid'.
   final String artistViewMode;
 
-  /// When true on desktop runtime, the app restores Focus Player Mode on launch.
+  /// Legacy desktop compact-mode flag retained for schema compatibility only.
   final bool desktopFocusPlayerModeEnabled;
 
   /// Navis playback volume restored on desktop runtimes.

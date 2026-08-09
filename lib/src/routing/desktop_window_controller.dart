@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -10,9 +9,23 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
-enum DesktopWindowMode { normal, focusPlayer }
+enum DesktopWindowMode { desktop, miniPlayer }
+
+enum DesktopWindowTransitionDirection { enterMiniPlayer, exitMiniPlayer }
+
+@immutable
+class DesktopWindowTransitionRequest {
+  const DesktopWindowTransitionRequest({
+    required this.direction,
+    required this.viewportSize,
+  });
+
+  final DesktopWindowTransitionDirection direction;
+  final Size viewportSize;
+}
 
 @immutable
 class DesktopWindowSnapshot {
@@ -20,29 +33,21 @@ class DesktopWindowSnapshot {
 
   final Rect bounds;
 
-  Map<String, double> toJson() {
-    return <String, double>{
-      'x': bounds.left,
-      'y': bounds.top,
-      'width': bounds.width,
-      'height': bounds.height,
-    };
-  }
+  Map<String, double> toJson() => <String, double>{
+    'x': bounds.left,
+    'y': bounds.top,
+    'width': bounds.width,
+    'height': bounds.height,
+  };
 
   static DesktopWindowSnapshot? fromJson(Object? raw) {
-    if (raw is! Map) {
-      return null;
-    }
+    if (raw is! Map) return null;
     final x = (raw['x'] as num?)?.toDouble();
     final y = (raw['y'] as num?)?.toDouble();
     final width = (raw['width'] as num?)?.toDouble();
     final height = (raw['height'] as num?)?.toDouble();
-    if (x == null || y == null || width == null || height == null) {
-      return null;
-    }
-    if (width <= 0 || height <= 0) {
-      return null;
-    }
+    if (x == null || y == null || width == null || height == null) return null;
+    if (width <= 0 || height <= 0) return null;
     return DesktopWindowSnapshot(Rect.fromLTWH(x, y, width, height));
   }
 }
@@ -54,82 +59,80 @@ class DesktopWindowStateRecord {
     required this.activeMode,
     this.normalBounds,
     this.normalWasMaximized = false,
-    this.focusBounds,
+    this.miniBounds,
+    this.miniAlwaysOnTop = false,
   });
 
   const DesktopWindowStateRecord.defaults()
     : version = currentVersion,
-      activeMode = DesktopWindowMode.normal,
+      activeMode = DesktopWindowMode.desktop,
       normalBounds = null,
       normalWasMaximized = false,
-      focusBounds = null;
+      miniBounds = null,
+      miniAlwaysOnTop = false;
 
-  static const int currentVersion = 2;
+  static const int currentVersion = 3;
 
   final int version;
   final DesktopWindowMode activeMode;
   final DesktopWindowSnapshot? normalBounds;
   final bool normalWasMaximized;
-  final DesktopWindowSnapshot? focusBounds;
+  final DesktopWindowSnapshot? miniBounds;
+  final bool miniAlwaysOnTop;
 
   DesktopWindowStateRecord copyWith({
     int? version,
     DesktopWindowMode? activeMode,
     DesktopWindowSnapshot? normalBounds,
     bool? normalWasMaximized,
-    DesktopWindowSnapshot? focusBounds,
-    bool clearNormalBounds = false,
-    bool clearFocusBounds = false,
+    DesktopWindowSnapshot? miniBounds,
+    bool? miniAlwaysOnTop,
   }) {
     return DesktopWindowStateRecord(
       version: version ?? this.version,
       activeMode: activeMode ?? this.activeMode,
-      normalBounds: clearNormalBounds
-          ? null
-          : normalBounds ?? this.normalBounds,
+      normalBounds: normalBounds ?? this.normalBounds,
       normalWasMaximized: normalWasMaximized ?? this.normalWasMaximized,
-      focusBounds: clearFocusBounds ? null : focusBounds ?? this.focusBounds,
+      miniBounds: miniBounds ?? this.miniBounds,
+      miniAlwaysOnTop: miniAlwaysOnTop ?? this.miniAlwaysOnTop,
     );
   }
 
-  Map<String, Object?> toJson() {
-    return <String, Object?>{
-      'version': version,
-      'activeMode': activeMode.name,
-      'normalBounds': normalBounds?.toJson(),
-      'normalWasMaximized': normalWasMaximized,
-      'focusBounds': focusBounds?.toJson(),
-    };
-  }
+  Map<String, Object?> toJson() => <String, Object?>{
+    'version': currentVersion,
+    'activeMode': activeMode.name,
+    'normalBounds': normalBounds?.toJson(),
+    'normalWasMaximized': normalWasMaximized,
+    'miniBounds': miniBounds?.toJson(),
+    'miniAlwaysOnTop': miniAlwaysOnTop,
+  };
 
   static DesktopWindowStateRecord fromJson(Object? raw) {
-    if (raw is! Map) {
-      return const DesktopWindowStateRecord.defaults();
-    }
+    if (raw is! Map) return const DesktopWindowStateRecord.defaults();
 
-    // Migration path from the pre-focus single-bounds record.
     final legacySnapshot = DesktopWindowSnapshot.fromJson(raw);
     if (legacySnapshot != null && raw['version'] == null) {
       return DesktopWindowStateRecord(
-        version: currentVersion,
-        activeMode: DesktopWindowMode.normal,
+        version: 1,
+        activeMode: DesktopWindowMode.desktop,
         normalBounds: legacySnapshot,
-        normalWasMaximized: false,
-        focusBounds: null,
       );
     }
 
     final modeName = raw['activeMode'] as String?;
-    final activeMode = DesktopWindowMode.values.firstWhere(
-      (value) => value.name == modeName,
-      orElse: () => DesktopWindowMode.normal,
-    );
+    final mode = switch (modeName) {
+      'miniPlayer' || 'focusPlayer' => DesktopWindowMode.miniPlayer,
+      _ => DesktopWindowMode.desktop,
+    };
     return DesktopWindowStateRecord(
-      version: (raw['version'] as num?)?.toInt() ?? currentVersion,
-      activeMode: activeMode,
+      version: (raw['version'] as num?)?.toInt() ?? 1,
+      activeMode: mode,
       normalBounds: DesktopWindowSnapshot.fromJson(raw['normalBounds']),
       normalWasMaximized: raw['normalWasMaximized'] as bool? ?? false,
-      focusBounds: DesktopWindowSnapshot.fromJson(raw['focusBounds']),
+      miniBounds: DesktopWindowSnapshot.fromJson(
+        raw['miniBounds'] ?? raw['focusBounds'],
+      ),
+      miniAlwaysOnTop: raw['miniAlwaysOnTop'] as bool? ?? false,
     );
   }
 }
@@ -146,6 +149,7 @@ abstract class WindowManagerAdapter {
   Future<void> setMaximumSize(Size size);
   Future<void> setAspectRatio(double aspectRatio);
   Future<void> setResizable(bool resizable);
+  Future<void> setAlwaysOnTop(bool alwaysOnTop);
   Future<void> setBounds(Rect bounds);
   Future<Rect> getBounds();
   Future<bool> isMaximized();
@@ -174,9 +178,7 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   Future<void> waitUntilReadyToShow(
     WindowOptions options,
     Future<void> Function() callback,
-  ) {
-    return windowManager.waitUntilReadyToShow(options, callback);
-  }
+  ) => windowManager.waitUntilReadyToShow(options, callback);
 
   @override
   Future<void> setMinimumSize(Size size) => windowManager.setMinimumSize(size);
@@ -191,6 +193,10 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   @override
   Future<void> setResizable(bool resizable) =>
       windowManager.setResizable(resizable);
+
+  @override
+  Future<void> setAlwaysOnTop(bool alwaysOnTop) =>
+      windowManager.setAlwaysOnTop(alwaysOnTop);
 
   @override
   Future<void> setBounds(Rect bounds) => windowManager.setBounds(bounds);
@@ -217,77 +223,110 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   Future<void> focus() => windowManager.focus();
 }
 
-class DesktopWindowController extends ChangeNotifier with WindowListener {
+abstract class ScreenRetrieverAdapter {
+  void addListener(ScreenListener listener);
+  void removeListener(ScreenListener listener);
+  Future<List<Display>> getAllDisplays();
+}
+
+class SystemScreenRetrieverAdapter implements ScreenRetrieverAdapter {
+  const SystemScreenRetrieverAdapter();
+
+  @override
+  void addListener(ScreenListener listener) =>
+      screenRetriever.addListener(listener);
+
+  @override
+  void removeListener(ScreenListener listener) =>
+      screenRetriever.removeListener(listener);
+
+  @override
+  Future<List<Display>> getAllDisplays() => screenRetriever.getAllDisplays();
+}
+
+class DesktopWindowController extends ChangeNotifier
+    with WindowListener, ScreenListener {
   DesktopWindowController({
     required bool desktopRuntime,
     required File stateFile,
     required SettingsRepository settingsRepository,
     WindowManagerAdapter? adapter,
+    ScreenRetrieverAdapter? screenAdapter,
   }) : _desktopRuntime = desktopRuntime,
        _stateFile = stateFile,
        _settingsRepository = settingsRepository,
-       _adapter = adapter ?? const WindowManagerDesktopWindowAdapter();
+       _adapter = adapter ?? const WindowManagerDesktopWindowAdapter(),
+       _screenAdapter =
+           screenAdapter ??
+           (adapter == null ? const SystemScreenRetrieverAdapter() : null);
 
   DesktopWindowController.fallback({bool desktopRuntime = false})
     : _desktopRuntime = desktopRuntime,
       _stateFile = File(''),
       _settingsRepository = null,
-      _adapter = null;
+      _adapter = null,
+      _screenAdapter = null;
 
-  static const Size normalMinSize = Size(480, 600);
-  static const Size focusDefaultSize = Size(960, 430);
-  static const Size focusMinSize = Size(840, 376);
-  static const Size focusMaxSize = Size(1040, 466);
-  static const double focusAspectRatio = 960 / 430;
+  static const Size normalMinSize = kDesktopMiniPlayerMinimumSize;
+  static const Size miniDefaultSize = kDesktopMiniPlayerDefaultSize;
+  static const Size miniMinSize = kDesktopMiniPlayerMinimumSize;
+  static const Duration resizeSettleInterval = Duration(milliseconds: 400);
   static const Duration _persistDebounceInterval = Duration(milliseconds: 450);
 
   final bool _desktopRuntime;
   final File _stateFile;
   final SettingsRepository? _settingsRepository;
   final WindowManagerAdapter? _adapter;
+  final ScreenRetrieverAdapter? _screenAdapter;
 
   Timer? _persistDebounce;
-  DesktopWindowMode _mode = DesktopWindowMode.normal;
+  Timer? _viewportDebounce;
+  DesktopWindowMode _mode = DesktopWindowMode.desktop;
   DesktopWindowStateRecord _stateRecord =
       const DesktopWindowStateRecord.defaults();
+  DesktopWindowTransitionRequest? _transitionRequest;
+  Size? _lastViewportSize;
+  Rect? _currentWorkArea;
   bool _isInitialized = false;
   bool _isApplyingMode = false;
+  bool _miniAlwaysOnTop = false;
 
   bool get desktopRuntime => _desktopRuntime;
   bool get isInitialized => _isInitialized;
   bool get isApplyingMode => _isApplyingMode;
   DesktopWindowMode get mode => _mode;
-  bool get isFocusPlayerMode => _mode == DesktopWindowMode.focusPlayer;
+  bool get isMiniPlayerMode => _mode == DesktopWindowMode.miniPlayer;
+  bool get miniAlwaysOnTop => _miniAlwaysOnTop;
+  DesktopWindowTransitionRequest? get transitionRequest => _transitionRequest;
+  Rect? get currentWorkArea => _currentWorkArea;
+  bool get desktopViewAvailable =>
+      _currentWorkArea == null || supportsDesktopView(_currentWorkArea!.size);
 
   static Future<DesktopWindowController?> bootstrap({
     required bool desktopRuntime,
     required SettingsRepository settingsRepository,
     WindowManagerAdapter? adapter,
+    ScreenRetrieverAdapter? screenAdapter,
   }) async {
-    if (!desktopRuntime) {
-      return null;
-    }
+    if (!desktopRuntime) return null;
     final supportDir = await getApplicationSupportDirectory();
-    final stateFile = File(
-      '${supportDir.path}${Platform.pathSeparator}window_state.json',
-    );
     final controller = DesktopWindowController(
       desktopRuntime: desktopRuntime,
-      stateFile: stateFile,
+      stateFile: File(
+        '${supportDir.path}${Platform.pathSeparator}window_state.json',
+      ),
       settingsRepository: settingsRepository,
       adapter: adapter,
+      screenAdapter: screenAdapter,
     );
     await controller.initialize();
     return controller;
   }
 
   Future<void> initialize() async {
-    if (!_desktopRuntime || _isInitialized) {
-      return;
-    }
+    if (!_desktopRuntime || _isInitialized) return;
     final adapter = _adapter;
-    final settingsRepository = _settingsRepository;
-    if (adapter == null || settingsRepository == null) {
+    if (adapter == null) {
       _isInitialized = true;
       notifyListeners();
       return;
@@ -295,47 +334,52 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
 
     await adapter.ensureInitialized();
     adapter.addListener(this);
+    _screenAdapter?.addListener(this);
     _stateRecord = await _readStateRecord();
-    final settings = await settingsRepository.getSettings();
-    _mode = settings.desktopFocusPlayerModeEnabled
-        ? DesktopWindowMode.focusPlayer
-        : DesktopWindowMode.normal;
-    _stateRecord = _stateRecord.copyWith(activeMode: _mode);
-    final savedFocusBounds = _stateRecord.focusBounds?.bounds;
+    final legacyFocusEnabled =
+        (await _settingsRepository?.getSettings())
+            ?.desktopFocusPlayerModeEnabled ??
+        false;
+    _mode = _stateRecord.version >= DesktopWindowStateRecord.currentVersion
+        ? _stateRecord.activeMode
+        : (legacyFocusEnabled
+              ? DesktopWindowMode.miniPlayer
+              : _stateRecord.activeMode);
+    _miniAlwaysOnTop = _stateRecord.miniAlwaysOnTop;
+    _stateRecord = _stateRecord.copyWith(
+      version: DesktopWindowStateRecord.currentVersion,
+      activeMode: _mode,
+    );
 
-    final startupBounds = _mode == DesktopWindowMode.focusPlayer
-        ? _resolveStartupFocusBounds(savedFocusBounds)
-        : _normalizeNormalBounds(_stateRecord.normalBounds?.bounds);
+    final savedBounds = _mode == DesktopWindowMode.miniPlayer
+        ? _stateRecord.miniBounds?.bounds
+        : _stateRecord.normalBounds?.bounds;
+    var startupBounds = await _clampToVisibleWorkArea(
+      _mode == DesktopWindowMode.miniPlayer
+          ? _normalizeMiniBounds(savedBounds)
+          : _normalizeDesktopBounds(savedBounds),
+    );
+    if (_mode == DesktopWindowMode.desktop && !desktopViewAvailable) {
+      _mode = DesktopWindowMode.miniPlayer;
+      _stateRecord = _stateRecord.copyWith(activeMode: _mode);
+      startupBounds = await _clampToVisibleWorkArea(
+        _normalizeMiniBounds(_stateRecord.miniBounds?.bounds),
+      );
+    }
     final options = WindowOptions(
-      minimumSize: _mode == DesktopWindowMode.focusPlayer
-          ? focusMinSize
-          : normalMinSize,
-      maximumSize: _mode == DesktopWindowMode.focusPlayer ? focusMaxSize : null,
-      size: startupBounds?.size,
-      center:
-          startupBounds == null ||
-          (_mode == DesktopWindowMode.focusPlayer && savedFocusBounds == null),
+      minimumSize: normalMinSize,
+      size: startupBounds.size,
+      center: savedBounds == null,
     );
 
     await adapter.waitUntilReadyToShow(options, () async {
-      if (_mode == DesktopWindowMode.focusPlayer) {
-        await _applyFocusWindowConstraints();
-        if (startupBounds != null) {
-          await adapter.setBounds(startupBounds);
-          if (savedFocusBounds == null) {
-            await adapter.center();
-          }
-        } else {
-          await adapter.center();
-        }
-      } else {
-        await _applyNormalWindowConstraints();
-        if (startupBounds != null) {
-          await adapter.setBounds(startupBounds);
-        }
-        if (_stateRecord.normalWasMaximized) {
-          await adapter.maximize();
-        }
+      await _applyCommonWindowConstraints();
+      await adapter.setAlwaysOnTop(isMiniPlayerMode && _miniAlwaysOnTop);
+      await adapter.setBounds(startupBounds);
+      if (savedBounds == null) await adapter.center();
+      if (_mode == DesktopWindowMode.desktop &&
+          _stateRecord.normalWasMaximized) {
+        await adapter.maximize();
       }
       await adapter.show();
       await adapter.focus();
@@ -345,39 +389,105 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
     await _persistCurrentState(reason: 'initialize');
     notifyListeners();
     AppLogger.info(
-      '[ACP_FOCUS] desktop window controller initialized mode=${_mode.name}',
+      '[DESKTOP_WINDOW] initialized mode=${_mode.name}',
     );
   }
 
-  Future<void> setFocusPlayerMode(bool enabled) async {
-    if (!_desktopRuntime) {
+  void updateViewportSize(Size viewportSize) {
+    if (!_desktopRuntime || viewportSize.isEmpty) return;
+    if (_lastViewportSize == viewportSize && _transitionRequest != null) return;
+    _lastViewportSize = viewportSize;
+    _viewportDebounce?.cancel();
+
+    final miniBelowMinimum =
+        _mode == DesktopWindowMode.miniPlayer &&
+        !supportsMiniPlayer(viewportSize);
+    if (miniBelowMinimum) {
+      if (_transitionRequest != null) {
+        _transitionRequest = null;
+        notifyListeners();
+      }
+      _viewportDebounce = Timer(resizeSettleInterval, () {
+        final size = _lastViewportSize;
+        if (_mode != DesktopWindowMode.miniPlayer ||
+            size == null ||
+            supportsMiniPlayer(size)) {
+          return;
+        }
+        unawaited(_restoreBoundsForCurrentMode());
+      });
       return;
     }
-    if (enabled == isFocusPlayerMode && _isInitialized) {
+
+    final wantsMini =
+        _mode == DesktopWindowMode.desktop &&
+        !supportsDesktopView(viewportSize);
+    final wantsDesktop =
+        _mode == DesktopWindowMode.miniPlayer &&
+        supportsDesktopView(viewportSize);
+    if (!wantsMini && !wantsDesktop) {
+      if (_transitionRequest != null) {
+        _transitionRequest = null;
+        notifyListeners();
+      }
       return;
     }
-    if (_adapter == null) {
-      _mode = enabled
-          ? DesktopWindowMode.focusPlayer
-          : DesktopWindowMode.normal;
+
+    _viewportDebounce = Timer(resizeSettleInterval, () {
+      if (_isApplyingMode) return;
+      final size = _lastViewportSize;
+      if (size == null) return;
+      final direction = _mode == DesktopWindowMode.desktop
+          ? DesktopWindowTransitionDirection.enterMiniPlayer
+          : DesktopWindowTransitionDirection.exitMiniPlayer;
+      _transitionRequest = DesktopWindowTransitionRequest(
+        direction: direction,
+        viewportSize: size,
+      );
       notifyListeners();
+    });
+  }
+
+  Future<void> resolveTransition({required bool switchMode}) async {
+    final request = _transitionRequest;
+    if (request == null) return;
+    _transitionRequest = null;
+    if (switchMode) {
+      await setMiniPlayerMode(
+        request.direction == DesktopWindowTransitionDirection.enterMiniPlayer,
+      );
       return;
     }
-    if (_isApplyingMode) {
+    await _restoreBoundsForCurrentMode();
+    notifyListeners();
+  }
+
+  Future<void> setMiniPlayerMode(bool enabled) async {
+    if (!_desktopRuntime || _isApplyingMode) return;
+    if (!enabled && !desktopViewAvailable) return;
+    final target = enabled
+        ? DesktopWindowMode.miniPlayer
+        : DesktopWindowMode.desktop;
+    if (_mode == target && _isInitialized) return;
+    final adapter = _adapter;
+    if (adapter == null) {
+      _mode = target;
+      _transitionRequest = null;
+      notifyListeners();
       return;
     }
 
     _isApplyingMode = true;
+    _transitionRequest = null;
     notifyListeners();
     try {
       if (enabled) {
-        await _enterFocusPlayerMode();
+        await _enterMiniPlayerMode();
       } else {
-        await _exitFocusPlayerMode();
+        await _exitMiniPlayerMode();
       }
-      await _saveFocusSetting(enabled);
       await _persistCurrentState(
-        reason: enabled ? 'enter_focus' : 'exit_focus',
+        reason: enabled ? 'enter_mini' : 'exit_mini',
       );
     } finally {
       _isApplyingMode = false;
@@ -385,19 +495,46 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
     }
   }
 
-  Future<void> toggleFocusPlayerMode() {
-    return setFocusPlayerMode(!isFocusPlayerMode);
+  Future<void> toggleMiniPlayerMode() => setMiniPlayerMode(!isMiniPlayerMode);
+
+  Future<void> setMiniAlwaysOnTop(bool enabled) async {
+    if (_miniAlwaysOnTop == enabled) return;
+    _miniAlwaysOnTop = enabled;
+    _stateRecord = _stateRecord.copyWith(miniAlwaysOnTop: enabled);
+    if (isMiniPlayerMode) await _adapter?.setAlwaysOnTop(enabled);
+    await _persistCurrentState(reason: 'mini_always_on_top');
+    notifyListeners();
+  }
+
+  Future<Rect?> getCurrentBounds() async =>
+      _adapter == null ? null : await _adapter.getBounds();
+
+  Future<void> setBoundsForDiagnostics(Rect bounds) async {
+    final adapter = _adapter;
+    if (adapter == null) return;
+    if (await adapter.isMaximized()) {
+      await adapter.unmaximize();
+    }
+    await adapter.setBounds(bounds);
+    final deadline = DateTime.now().add(const Duration(seconds: 1));
+    while (DateTime.now().isBefore(deadline)) {
+      final applied = await adapter.getBounds();
+      if ((applied.left - bounds.left).abs() <= 1 &&
+          (applied.top - bounds.top).abs() <= 1 &&
+          (applied.width - bounds.width).abs() <= 1 &&
+          (applied.height - bounds.height).abs() <= 1) {
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+    }
+    await _persistCurrentState(reason: 'diagnostic_bounds');
   }
 
   @override
-  void onWindowMoved() {
-    _schedulePersist();
-  }
+  void onWindowMoved() => _schedulePersist();
 
   @override
-  void onWindowResized() {
-    _schedulePersist();
-  }
+  void onWindowResized() => _schedulePersist();
 
   @override
   void onWindowClose() {
@@ -406,81 +543,82 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
   }
 
   @override
+  void onScreenEvent(String eventName) {
+    unawaited(_reconcileCurrentDisplay(eventName));
+  }
+
+  @override
   void dispose() {
     _persistDebounce?.cancel();
-    final adapter = _adapter;
-    if (adapter != null && _desktopRuntime) {
-      adapter.removeListener(this);
+    _viewportDebounce?.cancel();
+    if (_desktopRuntime) {
+      _adapter?.removeListener(this);
+      _screenAdapter?.removeListener(this);
     }
     super.dispose();
   }
 
-  void _schedulePersist() {
-    if (!_desktopRuntime || _adapter == null) {
-      return;
-    }
-    _persistDebounce?.cancel();
-    _persistDebounce = Timer(_persistDebounceInterval, () {
-      unawaited(_persistCurrentState(reason: 'debounced'));
-    });
-  }
-
-  Future<void> _enterFocusPlayerMode() async {
+  Future<void> _enterMiniPlayerMode() async {
     final adapter = _adapter!;
-    final currentBounds = await adapter.getBounds();
-    final wasMaximized = await adapter.isMaximized();
+    final current = await adapter.getBounds();
+    final maximized = await adapter.isMaximized();
+    final previousNormalBounds = _stateRecord.normalBounds;
+    final currentIsValidDesktop = supportsDesktopView(current.size);
+    final nextNormalBounds = maximized && previousNormalBounds != null
+        ? previousNormalBounds
+        : currentIsValidDesktop
+        ? DesktopWindowSnapshot(_normalizeDesktopBounds(current))
+        : previousNormalBounds;
     _stateRecord = _stateRecord.copyWith(
-      normalBounds: DesktopWindowSnapshot(
-        _normalizeNormalBounds(currentBounds) ?? currentBounds,
-      ),
-      normalWasMaximized: wasMaximized,
-      activeMode: DesktopWindowMode.focusPlayer,
+      normalBounds: nextNormalBounds,
+      normalWasMaximized: maximized,
+      activeMode: DesktopWindowMode.miniPlayer,
     );
-
-    if (wasMaximized) {
-      await adapter.unmaximize();
-    }
-    await _applyFocusWindowConstraints();
-    final savedFocusBounds = _stateRecord.focusBounds?.bounds;
-    final targetBounds = _resolveStartupFocusBounds(savedFocusBounds);
-    await adapter.setBounds(targetBounds);
-    if (savedFocusBounds == null) {
-      await adapter.center();
-    }
-    _mode = DesktopWindowMode.focusPlayer;
-    AppLogger.info('[ACP_FOCUS] entered focus player mode');
-  }
-
-  Future<void> _exitFocusPlayerMode() async {
-    final adapter = _adapter!;
-    final currentBounds = await adapter.getBounds();
+    if (maximized) await adapter.unmaximize();
+    await _applyCommonWindowConstraints();
+    await adapter.setAlwaysOnTop(_miniAlwaysOnTop);
+    final target = await _clampToVisibleWorkArea(
+      _normalizeMiniBounds(_stateRecord.miniBounds?.bounds),
+    );
+    await adapter.setBounds(target);
+    if (_stateRecord.miniBounds == null) await adapter.center();
     _stateRecord = _stateRecord.copyWith(
-      focusBounds: DesktopWindowSnapshot(_clampFocusBounds(currentBounds)),
-      activeMode: DesktopWindowMode.normal,
+      miniBounds: DesktopWindowSnapshot(target),
     );
-    await _applyNormalWindowConstraints();
-    final restoreBounds = _normalizeNormalBounds(
-      _stateRecord.normalBounds?.bounds,
-    );
-    if (restoreBounds != null) {
-      await adapter.setBounds(restoreBounds);
-    }
-    if (_stateRecord.normalWasMaximized) {
-      await adapter.maximize();
-    }
-    _mode = DesktopWindowMode.normal;
-    AppLogger.info('[ACP_FOCUS] restored normal desktop window');
+    _mode = DesktopWindowMode.miniPlayer;
+    AppLogger.info('[DESKTOP_WINDOW] entered Mini Player');
   }
 
-  Future<void> _applyFocusWindowConstraints() async {
+  Future<void> _exitMiniPlayerMode() async {
     final adapter = _adapter!;
-    await adapter.setResizable(true);
-    await adapter.setMinimumSize(focusMinSize);
-    await adapter.setMaximumSize(focusMaxSize);
-    await adapter.setAspectRatio(focusAspectRatio);
+    final current = await adapter.getBounds();
+    _stateRecord = _stateRecord.copyWith(
+      miniBounds: DesktopWindowSnapshot(_normalizeMiniBounds(current)),
+      activeMode: DesktopWindowMode.desktop,
+    );
+    await _applyCommonWindowConstraints();
+    await adapter.setAlwaysOnTop(false);
+    final target = await _clampToVisibleWorkArea(
+      _normalizeDesktopBounds(_stateRecord.normalBounds?.bounds),
+    );
+    await adapter.setBounds(target);
+    if (_stateRecord.normalWasMaximized) await adapter.maximize();
+    _mode = DesktopWindowMode.desktop;
+    AppLogger.info('[DESKTOP_WINDOW] restored Desktop View');
   }
 
-  Future<void> _applyNormalWindowConstraints() async {
+  Future<void> _restoreBoundsForCurrentMode() async {
+    final adapter = _adapter;
+    if (adapter == null) return;
+    final target = await _clampToVisibleWorkArea(
+      _mode == DesktopWindowMode.desktop
+          ? _normalizeDesktopBounds(_stateRecord.normalBounds?.bounds)
+          : _normalizeMiniBounds(_stateRecord.miniBounds?.bounds),
+    );
+    await adapter.setBounds(target);
+  }
+
+  Future<void> _applyCommonWindowConstraints() async {
     final adapter = _adapter!;
     await adapter.setResizable(true);
     await adapter.setAspectRatio(0);
@@ -488,60 +626,44 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
     await adapter.setMinimumSize(normalMinSize);
   }
 
-  Future<void> _saveFocusSetting(bool enabled) async {
-    final repository = _settingsRepository;
-    if (repository == null) {
-      return;
-    }
-    final current = await repository.getSettings();
-    await repository.saveSettings(
-      current.copyWith(desktopFocusPlayerModeEnabled: enabled),
-    );
-  }
-
-  Future<DesktopWindowStateRecord> _readStateRecord() async {
-    if (_stateFile.path.isEmpty || !await _stateFile.exists()) {
-      return const DesktopWindowStateRecord.defaults();
-    }
-    try {
-      final raw = await _stateFile.readAsString();
-      return DesktopWindowStateRecord.fromJson(jsonDecode(raw));
-    } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Failed to parse desktop window state. $error\n$stackTrace',
-      );
-      return const DesktopWindowStateRecord.defaults();
-    }
+  void _schedulePersist() {
+    if (!_desktopRuntime || _adapter == null || _isApplyingMode) return;
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(_persistDebounceInterval, () {
+      unawaited(_persistCurrentState(reason: 'debounced'));
+    });
   }
 
   Future<void> _persistCurrentState({required String reason}) async {
     final adapter = _adapter;
-    if (!_desktopRuntime || adapter == null || _stateFile.path.isEmpty) {
-      return;
-    }
+    if (!_desktopRuntime || adapter == null || _stateFile.path.isEmpty) return;
     try {
-      final currentBounds = await adapter.getBounds();
+      final current = await adapter.getBounds();
       final maximized = await adapter.isMaximized();
-      if (_mode == DesktopWindowMode.focusPlayer) {
+      if (_mode == DesktopWindowMode.miniPlayer) {
+        if (supportsMiniPlayer(current.size)) {
+          _stateRecord = _stateRecord.copyWith(
+            miniBounds: DesktopWindowSnapshot(_normalizeMiniBounds(current)),
+            activeMode: _mode,
+            miniAlwaysOnTop: _miniAlwaysOnTop,
+          );
+        }
+      } else if (supportsDesktopView(current.size) && !maximized) {
         _stateRecord = _stateRecord.copyWith(
-          focusBounds: DesktopWindowSnapshot(_clampFocusBounds(currentBounds)),
-          activeMode: DesktopWindowMode.focusPlayer,
+          normalBounds: DesktopWindowSnapshot(_normalizeDesktopBounds(current)),
+          normalWasMaximized: maximized,
+          activeMode: _mode,
         );
       } else {
         _stateRecord = _stateRecord.copyWith(
-          normalBounds: maximized
-              ? _stateRecord.normalBounds
-              : DesktopWindowSnapshot(
-                  _normalizeNormalBounds(currentBounds) ?? currentBounds,
-                ),
           normalWasMaximized: maximized,
-          activeMode: DesktopWindowMode.normal,
+          activeMode: _mode,
         );
       }
       await _stateFile.parent.create(recursive: true);
       await _stateFile.writeAsString(jsonEncode(_stateRecord.toJson()));
       AppLogger.debug(
-        '[ACP_FOCUS] persisted desktop window state mode=${_mode.name} reason=$reason',
+        '[DESKTOP_WINDOW] persisted mode=${_mode.name} reason=$reason',
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
@@ -550,50 +672,125 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
     }
   }
 
-  Rect? _normalizeNormalBounds(Rect? bounds) {
-    if (bounds == null) {
-      return null;
+  Future<DesktopWindowStateRecord> _readStateRecord() async {
+    if (_stateFile.path.isEmpty || !await _stateFile.exists()) {
+      return const DesktopWindowStateRecord.defaults();
     }
-    final width = bounds.width < normalMinSize.width
-        ? normalMinSize.width
-        : bounds.width;
-    final height = bounds.height < normalMinSize.height
-        ? normalMinSize.height
-        : bounds.height;
-    return Rect.fromLTWH(bounds.left, bounds.top, width, height);
+    try {
+      return DesktopWindowStateRecord.fromJson(
+        jsonDecode(await _stateFile.readAsString()),
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to parse desktop window state. $error\n$stackTrace',
+      );
+      return const DesktopWindowStateRecord.defaults();
+    }
   }
 
-  Rect _resolveStartupFocusBounds(Rect? bounds) {
-    return _clampFocusBounds(
-      bounds ??
-          Rect.fromLTWH(0, 0, focusDefaultSize.width, focusDefaultSize.height),
-    );
-  }
-
-  Rect _clampFocusBounds(Rect bounds) {
-    final clampedWidth = bounds.width.clamp(
-      focusMinSize.width,
-      focusMaxSize.width,
-    );
-    final heightFromWidth = clampedWidth / focusAspectRatio;
-    final clampedHeight = heightFromWidth.clamp(
-      focusMinSize.height,
-      focusMaxSize.height,
-    );
-    final widthFromHeight = clampedHeight * focusAspectRatio;
+  Rect _normalizeDesktopBounds(Rect? bounds) {
+    final source = bounds ?? const Rect.fromLTWH(0, 0, 1200, 760);
     return Rect.fromLTWH(
-      bounds.left,
-      bounds.top,
-      widthFromHeight,
-      clampedHeight,
+      source.left,
+      source.top,
+      source.width < kDesktopViewMinimumSize.width
+          ? kDesktopViewMinimumSize.width
+          : source.width,
+      source.height < kDesktopViewMinimumSize.height
+          ? kDesktopViewMinimumSize.height
+          : source.height,
     );
+  }
+
+  Rect _normalizeMiniBounds(Rect? bounds) {
+    final source =
+        bounds ??
+        Rect.fromLTWH(
+          0,
+          0,
+          miniDefaultSize.width,
+          miniDefaultSize.height,
+        );
+    return Rect.fromLTWH(
+      source.left,
+      source.top,
+      miniDefaultSize.width,
+      miniDefaultSize.height,
+    );
+  }
+
+  Future<Rect> _clampToVisibleWorkArea(Rect bounds) async {
+    final displays =
+        await _screenAdapter?.getAllDisplays() ?? const <Display>[];
+    if (displays.isEmpty) return bounds;
+    Display selected = displays.first;
+    var bestIntersection = -1.0;
+    for (final display in displays) {
+      final area = _displayWorkArea(display);
+      final intersection = bounds.intersect(area);
+      final score = intersection.isEmpty
+          ? 0.0
+          : intersection.width * intersection.height;
+      if (score > bestIntersection) {
+        selected = display;
+        bestIntersection = score;
+      }
+    }
+    final area = _displayWorkArea(selected);
+    _currentWorkArea = area;
+    final width = bounds.width.clamp(
+      1.0,
+      area.width < bounds.width ? bounds.width : area.width,
+    );
+    final height = bounds.height.clamp(
+      1.0,
+      area.height < bounds.height ? bounds.height : area.height,
+    );
+    final maxLeft = area.right - width;
+    final maxTop = area.bottom - height;
+    return Rect.fromLTWH(
+      bounds.left.clamp(area.left, maxLeft < area.left ? area.left : maxLeft),
+      bounds.top.clamp(area.top, maxTop < area.top ? area.top : maxTop),
+      width,
+      height,
+    );
+  }
+
+  Rect _displayWorkArea(Display display) {
+    final position = display.visiblePosition ?? Offset.zero;
+    final size = display.visibleSize ?? display.size;
+    return position & size;
+  }
+
+  Future<void> _reconcileCurrentDisplay(String eventName) async {
+    final adapter = _adapter;
+    if (adapter == null || _isApplyingMode) return;
+    try {
+      final current = await adapter.getBounds();
+      final clamped = await _clampToVisibleWorkArea(current);
+      if (clamped != current) await adapter.setBounds(clamped);
+      notifyListeners();
+      AppLogger.debug('[DESKTOP_WINDOW] reconciled display event=$eventName');
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to reconcile desktop displays. $error\n$stackTrace',
+      );
+    }
   }
 }
 
 final desktopWindowControllerProvider =
     ChangeNotifierProvider<DesktopWindowController>((ref) {
-      return DesktopWindowController.fallback(desktopRuntime: isDesktopRuntime);
+      return DesktopWindowController.fallback(
+        desktopRuntime: ref.watch(desktopPresentationRuntimeProvider),
+      );
     });
+
+/// Injectable runtime capability used by presentation tests to exercise the
+/// non-desktop adaptive contracts while the test runner itself is on Linux.
+final desktopPresentationRuntimeProvider = Provider<bool>(
+  (_) => isDesktopRuntime,
+);
 
 final desktopWindowModeProvider = Provider<DesktopWindowMode>((ref) {
   return ref.watch(

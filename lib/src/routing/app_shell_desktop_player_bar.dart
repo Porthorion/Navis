@@ -44,12 +44,20 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     final colors = Theme.of(context).colorScheme;
     final playback = widget.playback;
     final playbackVolume = ref.watch(playbackVolumeProvider);
+    final hasPlayback =
+        playback.isRadioMode ||
+        (playback.currentSongId ?? '').trim().isNotEmpty;
+    final hasResumableQueue = playback.queueSongIds.isNotEmpty;
+    final canOpenQueue = hasPlayback && hasResumableQueue;
     final isPlaying = playback.playing;
-    final title = (widget.songTitle == null || widget.songTitle!.trim().isEmpty)
+    final title = !hasPlayback
+        ? l10n.desktopNothingPlaying
+        : (widget.songTitle == null || widget.songTitle!.trim().isEmpty)
         ? l10n.miniPlayerUnknownTrack
         : widget.songTitle!;
-    final artist =
-        (widget.songArtist == null || widget.songArtist!.trim().isEmpty)
+    final artist = !hasPlayback
+        ? l10n.desktopChooseSomething
+        : (widget.songArtist == null || widget.songArtist!.trim().isEmpty)
         ? l10n.miniPlayerUnknownArtist
         : widget.songArtist!;
     final resolvedArtistId = (widget.artistId ?? '').trim();
@@ -139,19 +147,29 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final maxWidth = constraints.maxWidth;
+                if (maxWidth < 700) {
+                  return const SizedBox.expand();
+                }
                 final compactLayout = maxWidth < 980;
-                final showQueueAction = maxWidth >= 720;
-                final showVolumeControl = maxWidth >= 860;
-                final showInlineLikeAction =
-                    !playback.isRadioMode && maxWidth >= 760;
-                final metadataWidth = compactLayout ? 292.0 : 352.0;
-                final metadataTextWidth = compactLayout ? 156.0 : 208.0;
-                const likeGapWidth = 8.0;
-                const likeSlotWidth = 40.0;
+                final metadataWidth = maxWidth < 900
+                    ? 220.0
+                    : (compactLayout ? 292.0 : 352.0);
+                final metadataTextWidth = maxWidth < 900
+                    ? 154.0
+                    : (compactLayout ? 156.0 : 208.0);
                 final controlRailMaxWidth = math
                     .min(760, math.max(280, maxWidth * 0.58))
                     .toDouble();
-                final tightHeight = constraints.maxHeight <= 100;
+                final actionRegionWidth = (maxWidth * 0.20)
+                    .clamp(184.0, 240.0)
+                    .toDouble();
+                final useCompactVolume = maxWidth < 1008;
+                // The bar itself is fixed at 116 px. Measure against that
+                // contract rather than waiting for an impossible <=100 px
+                // outer constraint; otherwise the slider, labels, and
+                // transport row can overflow vertically on tall/narrow
+                // desktop windows.
+                final tightHeight = constraints.maxHeight <= 120;
                 final denseControls = maxWidth <= 820 || tightHeight;
                 final controlButtonExtent = tightHeight
                     ? 36.0
@@ -248,12 +266,58 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   );
                 }
 
+                Widget persistentActionButton({
+                  required String keyName,
+                  required String tooltip,
+                  required IconData icon,
+                  required VoidCallback? onPressed,
+                  Color? iconColor,
+                  FocusNode? focusNode,
+                }) {
+                  return Semantics(
+                    key: ValueKey<String>(keyName),
+                    container: true,
+                    button: true,
+                    enabled: onPressed != null,
+                    label: tooltip,
+                    onTap: onPressed,
+                    excludeSemantics: true,
+                    child: Tooltip(
+                      message: tooltip,
+                      child: IconButton(
+                        focusNode: focusNode,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size.square(44),
+                          maximumSize: const Size.square(44),
+                          padding: EdgeInsets.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: onPressed,
+                        icon: Icon(icon, color: iconColor),
+                      ),
+                    ),
+                  );
+                }
+
                 final resolvedAlbumId = (widget.albumId ?? '').trim();
                 final canOpenAlbum =
                     resolvedAlbumId.isNotEmpty && !playback.isRadioMode;
 
                 Widget coverArtWidget;
-                if (widget.coverArtId == null ||
+                if (!hasPlayback) {
+                  coverArtWidget = Container(
+                    width: compactLayout ? 42 : 48,
+                    height: compactLayout ? 42 : 48,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.music_note_rounded,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  );
+                } else if (widget.coverArtId == null ||
                     widget.coverArtId!.trim().isEmpty) {
                   coverArtWidget = _MiniRemoteArt(
                     artUrl: widget.coverArtUrl,
@@ -501,37 +565,6 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: likeGapWidth),
-                              SizedBox(
-                                width: likeSlotWidth,
-                                child: showInlineLikeAction
-                                    ? IconButton(
-                                        tooltip: playback.isCurrentSongLiked
-                                            ? l10n.actionLiked
-                                            : l10n.actionLike,
-                                        visualDensity: VisualDensity.compact,
-                                        style: IconButton.styleFrom(
-                                          minimumSize: const Size(38, 38),
-                                          padding: const EdgeInsets.all(4),
-                                        ),
-                                        onPressed: () {
-                                          unawaited(
-                                            ref
-                                                .read(audioHandlerProvider)
-                                                ?.toggleLike(),
-                                          );
-                                        },
-                                        icon: Icon(
-                                          playback.isCurrentSongLiked
-                                              ? Icons.favorite
-                                              : Icons.favorite_border,
-                                          color: playback.isCurrentSongLiked
-                                              ? colors.primary
-                                              : null,
-                                        ),
-                                      )
-                                    : const SizedBox.shrink(),
-                              ),
                             ],
                           ),
                         ),
@@ -667,8 +700,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                     children: <Widget>[
                                       if (!playback.isRadioMode)
                                         IconButton(
-                                          tooltip:
-                                              l10n.nowPlayingInstantMixLabel,
+                                          key: const ValueKey<String>(
+                                            'desktopPlayerPreviousButton',
+                                          ),
+                                          tooltip: canToggleLegacyMix
+                                              ? l10n.nowPlayingInstantMixLabel
+                                              : l10n.desktopPlaybackUnavailableTooltip,
                                           iconSize: controlIconSize,
                                           style: IconButton.styleFrom(
                                             minimumSize: Size.square(
@@ -715,7 +752,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         ),
                                       if (!playback.isRadioMode)
                                         IconButton(
-                                          tooltip: l10n.nowPlayingPrevious,
+                                          tooltip: hasPlayback
+                                              ? l10n.nowPlayingPrevious
+                                              : l10n.desktopPlaybackUnavailableTooltip,
                                           iconSize: controlIconSize,
                                           style: IconButton.styleFrom(
                                             minimumSize: Size.square(
@@ -729,15 +768,23 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             tapTargetSize: MaterialTapTargetSize
                                                 .shrinkWrap,
                                           ),
-                                          onPressed: skipBackward,
+                                          onPressed: hasPlayback
+                                              ? skipBackward
+                                              : null,
                                           icon: const Icon(
                                             Icons.skip_previous_rounded,
                                           ),
                                         ),
                                       IconButton.filledTonal(
-                                        tooltip: isPlaying
-                                            ? l10n.miniPlayerPause
-                                            : l10n.miniPlayerPlay,
+                                        key: const ValueKey<String>(
+                                          'desktopPlayerPlayPauseButton',
+                                        ),
+                                        tooltip:
+                                            hasPlayback || hasResumableQueue
+                                            ? (isPlaying
+                                                  ? l10n.miniPlayerPause
+                                                  : l10n.miniPlayerPlay)
+                                            : l10n.desktopPlaybackUnavailableTooltip,
                                         style: IconButton.styleFrom(
                                           minimumSize: Size.square(
                                             primaryControlExtent,
@@ -750,8 +797,10 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                           tapTargetSize:
                                               MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        onPressed: () =>
-                                            unawaited(togglePlayPause()),
+                                        onPressed:
+                                            hasPlayback || hasResumableQueue
+                                            ? () => unawaited(togglePlayPause())
+                                            : null,
                                         icon: Icon(
                                           isPlaying
                                               ? Icons.pause_rounded
@@ -760,7 +809,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         ),
                                       ),
                                       IconButton(
-                                        tooltip: playback.isRadioMode
+                                        key: const ValueKey<String>(
+                                          'desktopPlayerNextButton',
+                                        ),
+                                        tooltip: !hasPlayback
+                                            ? l10n.desktopPlaybackUnavailableTooltip
+                                            : playback.isRadioMode
                                             ? l10n.radioStopStation
                                             : l10n.miniPlayerSkipNext,
                                         iconSize: controlIconSize,
@@ -776,8 +830,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                           tapTargetSize:
                                               MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        onPressed: () =>
-                                            unawaited(skipForwardOrStopRadio()),
+                                        onPressed: hasPlayback
+                                            ? () => unawaited(
+                                                skipForwardOrStopRadio(),
+                                              )
+                                            : null,
                                         icon: Icon(
                                           playback.isRadioMode
                                               ? Icons.stop_rounded
@@ -786,7 +843,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                       ),
                                       if (!playback.isRadioMode)
                                         IconButton(
-                                          tooltip: repeatTooltip,
+                                          key: const ValueKey<String>(
+                                            'desktopPlayerRepeatButton',
+                                          ),
+                                          tooltip: hasPlayback
+                                              ? repeatTooltip
+                                              : l10n.desktopPlaybackUnavailableTooltip,
                                           iconSize: controlIconSize,
                                           style: IconButton.styleFrom(
                                             minimumSize: Size.square(
@@ -800,7 +862,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             tapTargetSize: MaterialTapTargetSize
                                                 .shrinkWrap,
                                           ),
-                                          onPressed: playback.isRadioMode
+                                          onPressed:
+                                              playback.isRadioMode ||
+                                                  !hasPlayback
                                               ? null
                                               : () {
                                                   final handler = ref.read(
@@ -847,59 +911,110 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                         ),
                       ),
                       SizedBox(
-                        width: showVolumeControl ? 344 : 152,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                        width: actionRegionWidth,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: <Widget>[
-                            if (!playback.isRadioMode)
-                              IconButton(
-                                tooltip: l10n.nowPlayingLyrics,
-                                icon: Icon(
-                                  Icons.lyrics_outlined,
-                                  color: widget.lyricsActive
-                                      ? colors.primary
-                                      : null,
-                                ),
-                                onPressed: widget.onToggleLyrics,
-                              ),
-                            if (showVolumeControl) ...<Widget>[
-                              DesktopVolumeSlider(
-                                key: const ValueKey<String>(
-                                  'desktopPlayerVolumeSlider',
-                                ),
-                                volume: playbackVolume,
-                                semanticLabel: l10n.playbackVolumeSemanticLabel,
-                                muteTooltip: l10n.playbackMuteTooltip,
-                                unmuteTooltip: l10n.playbackUnmuteTooltip,
-                                onChanged: (value) => unawaited(
-                                  setPlaybackVolume(
-                                    value,
-                                    source: 'desktop_player_bar_live',
+                            SizedBox(
+                              height: 44,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: <Widget>[
+                                  persistentActionButton(
+                                    keyName: 'desktopPlayerFavoriteButton',
+                                    tooltip: playback.isRadioMode
+                                        ? l10n.desktopFavoriteUnavailableForRadio
+                                        : hasPlayback
+                                        ? (playback.isCurrentSongLiked
+                                              ? l10n.actionLiked
+                                              : l10n.actionLike)
+                                        : l10n.desktopPlaybackUnavailableTooltip,
+                                    onPressed:
+                                        hasPlayback && !playback.isRadioMode
+                                        ? () => unawaited(
+                                            ref
+                                                .read(audioHandlerProvider)
+                                                ?.toggleLike(),
+                                          )
+                                        : null,
+                                    icon: playback.isCurrentSongLiked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    iconColor: playback.isCurrentSongLiked
+                                        ? colors.primary
+                                        : null,
                                   ),
-                                ),
-                                onChangeEnd: (value) => unawaited(
-                                  setPlaybackVolume(
-                                    value,
-                                    source: 'desktop_player_bar_settle',
-                                    logChange: true,
+                                  persistentActionButton(
+                                    keyName: 'desktopPlayerLyricsButton',
+                                    tooltip: playback.isRadioMode
+                                        ? l10n.desktopLyricsUnavailableForRadio
+                                        : hasPlayback
+                                        ? l10n.nowPlayingLyrics
+                                        : l10n.desktopPlaybackUnavailableTooltip,
+                                    icon: Icons.lyrics_outlined,
+                                    iconColor: widget.lyricsActive
+                                        ? colors.primary
+                                        : null,
+                                    onPressed:
+                                        hasPlayback && !playback.isRadioMode
+                                        ? widget.onToggleLyrics
+                                        : null,
                                   ),
-                                ),
-                                onMuteToggle: () => unawaited(
-                                  toggleMute(source: 'desktop_player_icon'),
+                                  persistentActionButton(
+                                    keyName: 'desktopQueueButton',
+                                    focusNode: widget.queueToggleFocusNode,
+                                    tooltip: playback.isRadioMode
+                                        ? l10n.desktopQueueUnavailableForRadio
+                                        : canOpenQueue
+                                        ? l10n.queueTitle
+                                        : l10n.desktopPlaybackUnavailableTooltip,
+                                    onPressed: canOpenQueue
+                                        ? widget.onToggleQueue
+                                        : null,
+                                    icon: Icons.queue_music_outlined,
+                                  ),
+                                  persistentActionButton(
+                                    keyName: 'desktopPlayerMiniPlayerButton',
+                                    tooltip: l10n.desktopMiniPlayerOpen,
+                                    onPressed: () => unawaited(
+                                      ref
+                                          .read(
+                                            desktopWindowControllerProvider,
+                                          )
+                                          .setMiniPlayerMode(true),
+                                    ),
+                                    icon: Icons.picture_in_picture_alt_rounded,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            DesktopVolumeSlider(
+                              key: const ValueKey<String>(
+                                'desktopPlayerVolumeSlider',
+                              ),
+                              volume: playbackVolume,
+                              compact: useCompactVolume,
+                              semanticLabel: l10n.playbackVolumeSemanticLabel,
+                              muteTooltip: l10n.playbackMuteTooltip,
+                              unmuteTooltip: l10n.playbackUnmuteTooltip,
+                              onChanged: (value) => unawaited(
+                                setPlaybackVolume(
+                                  value,
+                                  source: 'desktop_player_bar_live',
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                            ],
-                            if (showQueueAction && !playback.isRadioMode)
-                              IconButton(
-                                key: const ValueKey<String>(
-                                  'desktopQueueButton',
+                              onChangeEnd: (value) => unawaited(
+                                setPlaybackVolume(
+                                  value,
+                                  source: 'desktop_player_bar_settle',
+                                  logChange: true,
                                 ),
-                                focusNode: widget.queueToggleFocusNode,
-                                tooltip: l10n.queueTitle,
-                                onPressed: widget.onToggleQueue,
-                                icon: const Icon(Icons.queue_music_outlined),
                               ),
+                              onMuteToggle: () => unawaited(
+                                toggleMute(source: 'desktop_player_icon'),
+                              ),
+                            ),
                           ],
                         ),
                       ),

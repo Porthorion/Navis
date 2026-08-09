@@ -359,11 +359,17 @@ not shown in navigation.
 
 ### Shell Routes
 
-The app uses `StatefulShellRoute.indexedStack` for persistent navigation. The shell composition
-mode (bottom nav vs. navigation rail) is determined at runtime by `resolveAdaptiveShellMode`
-based on the current `AdaptiveContext`. On desktop, a persistent side rail and now-playing bar
-are shown instead of a bottom navigation bar. The expandable player sheet is embedded directly
-in the shell on all platforms — there is no separate `/now-playing` route.
+The app uses `StatefulShellRoute.indexedStack` for persistent navigation. On
+non-desktop platforms, shell composition is selected by `resolveAdaptiveShellMode`.
+Desktop runtime has only Desktop View and the dedicated same-window Mini Player;
+it never renders the phone bottom navigation, expandable player sheet, or tablet
+rail mini-player. Desktop View always reserves its bottom player bar, including
+when playback is empty. Its right-side action region is stable from the 800 px
+minimum upward: Favorite, Lyrics, Queue, and Mini Player remain directly
+visible in a 44 px-target row, with mute and the full volume slider on the row
+below. Contextually invalid actions keep their slots and expose localized
+disabled semantics rather than changing player geometry. There is no separate
+`/now-playing` route.
 
 ### Navigation Intent
 
@@ -393,21 +399,28 @@ modality. Its implementation lives in `lib/src/routing/desktop_layout.dart` and
 
 ### Layout Classification
 
-Width buckets are resolved by `resolveAdaptiveLayoutClass(double width)`:
+Non-desktop width buckets are resolved by `resolveAdaptiveLayoutClass`:
 
 | Width threshold | `AdaptiveLayoutClass` |
 |---|---|
-| ≥ 1200 dp | `desktopWide` (desktop-first workspace layout) |
 | ≥ 840 dp | `tabletExpanded` |
-| ≥ 550 dp | `tabletMedium` |
-| < 550 dp | `phoneCompact` |
+| 600–839 dp | `tabletMedium` |
+| < 600 dp | `phoneCompact` |
+
+Desktop uses a separate classification:
+
+| Width | `DesktopLayoutClass` |
+|---|---|
+| 800–1007 dp | `compactDesktop` |
+| 1008–1599 dp | `standardDesktop` |
+| ≥1600 dp | `ultraWideDesktop` |
 
 ### Shell Composition
 
 `resolveAdaptiveShellMode` maps layout class + runtime + orientation to a shell mode:
 
-- **Desktop runtime + wide width** → `desktopWide` mode: persistent side rail + sidebar detail pane
-- **Desktop runtime + narrow width** → `phoneBottomNav` mode: compact bottom-bar player, no sidebar
+- **Desktop runtime, Desktop View** → desktop workspace with persistent side navigation and bottom player
+- **Desktop runtime, Mini Player** → dedicated playback surface, with no application navigation shell
 - **Phone/tablet, landscape, tabletExpanded** → navigation rail
 - **All other cases** → bottom navigation bar
 
@@ -417,7 +430,7 @@ Width buckets are resolved by `resolveAdaptiveLayoutClass(double width)`:
 downward via `AdaptiveContextScope`. It exposes:
 
 - `desktopRuntime` — true on Linux/macOS/Windows
-- `desktopWide` — true when width ≥ 1200 dp on desktop
+- `desktopWide` — true for the desktop workspace; retained as a compatibility capability flag
 - `desktopLayoutClass` — the `DesktopLayoutClass` bucket (narrow / standard / wide)
 - `adaptiveLayoutClass` — the shared `AdaptiveLayoutClass` for non-desktop breakpoints
 - `useCompactWideLandscape` — compact landscape mode flag for phone-wide layouts
@@ -429,13 +442,40 @@ triggering rebuilds on unrelated dimension changes.
 
 `AdaptiveInputPolicy` separates capability decisions from layout decisions:
 
-- `enableKeyboardShortcuts` — whether global shortcuts are active
-- `enableRightClickMenus` — whether right-click context menus appear
-- `enableHoverEffects` — whether pointer-hover visual feedback is shown
+- `enableDeterministicTraversal`
+- `enableEscapeOverlayPriority`
+- `enableDesktopPointerAffordances`
+- `enableSecondaryClickMenus`
+- `enableDesktopCommandShortcuts`
 
 The policy is resolved from `AdaptiveContext` by `AdaptiveShell` and propagated via
 `AdaptiveInputPolicyScope`. This allows feature screens to adapt their affordances
 independently of layout decisions.
+
+### Desktop window modes
+
+`DesktopWindowController` owns `desktop` and `miniPlayer` modes above the
+router-backed shell so branch stacks and playback survive mode changes. The OS
+minimum is 560×360 logical pixels. Desktop View is valid at 800×600 or larger;
+Mini Player defaults to 720×405 and uses both usable width and height to choose
+its centered, constrained composition. Every Mini Player entry starts at that
+canonical size while retaining the last Mini screen position; manual resizing
+is allowed only for the current Mini session down to 560×360. Its volume row is
+embedded below transport/actions and fills the metadata pane. A window-manager
+size below 560×360 is blocked and automatically restored to 720×405. A 400 ms
+settled resize across the Desktop boundary blocks the invalid surface and
+requests an explicit mode decision. The last valid Desktop bounds, previous
+maximized Desktop state, active mode, Mini position, and optional Mini Player
+always-on-top preference are stored in `window_state.json` v3. Invalid Desktop
+bounds and prompt-triggering expanded Mini sizes are never restoration targets.
+Legacy Focus Player bounds/settings are imported once. `screen_retriever`
+work areas select the display with greatest window intersection and keep the
+title bar visible after display or DPI changes.
+
+Clone-only authenticated diagnostics expose `GET /v1/presentation/window`
+for mode, bounds, work area, availability, always-on-top, and pending-transition
+state. `POST /v1/presentation/window` drives deterministic logical resizing,
+mode selection, and transition resolution for the Linux runtime gate.
 
 ### Desktop Command System
 

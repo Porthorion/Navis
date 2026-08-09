@@ -57,4 +57,39 @@ void main() {
     expect(completedValue, isNotNull);
     expect(completedValue, greaterThan(0.5));
   });
+
+  testWidgets('expanded mode fills the width offered by its player pane', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 312,
+              child: DesktopVolumeSlider(
+                key: const ValueKey<String>('expanded-volume'),
+                volume: 0.5,
+                expanded: true,
+                semanticLabel: 'Playback volume',
+                muteTooltip: 'Mute playback',
+                unmuteTooltip: 'Unmute playback',
+                onChanged: (_) {},
+                onChangeEnd: (_) {},
+                onMuteToggle: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey<String>('expanded-volume')))
+          .width,
+      312,
+    );
+  });
 }

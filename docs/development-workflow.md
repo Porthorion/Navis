@@ -184,6 +184,23 @@ scenario sets 37%, verifies a clean restart, persists mute across another
 restart, then verifies that Unmute returns to 37%. Sanitized JSON responses and
 the local app log are retained under `build/volume-memory-diagnostics/`.
 
+Use the focused desktop window scenario for shell, bottom-player, resize-gate,
+or Mini Player changes:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/desktop_layout_diagnostics.sh
+```
+
+It drives `GET/POST /v1/presentation/window`, captures 1306×853 standard,
+1159×678 short, 887×900 compact, and minimum 800×600 Desktop View plus the
+canonical 720×405 and minimum 560×360 Mini Player through the app-owned
+screenshot endpoint, verifies Keep Mini returns to 720×405, checks the log, and
+repeats after a clean restart. Open and inspect every generated PNG, including
+the bottom-player action/volume region at each Desktop width and the embedded
+Mini Player volume row at both Mini sizes. Inspect both Desktop entry gates
+(799×599 and short 799×444) and confirm both choices remain fully visible.
+
 Use the focused song-indicator scenario for shared song-row changes:
 
 ```bash

@@ -1,0 +1,694 @@
+part of 'app_shell.dart';
+
+class _DesktopMiniPlayerSurface extends ConsumerStatefulWidget {
+  const _DesktopMiniPlayerSurface({
+    required this.playback,
+    required this.songTitle,
+    required this.songArtist,
+    required this.coverArtId,
+    required this.coverArtUrl,
+    required this.isExternalSource,
+    required this.onBackInterceptorChanged,
+    required this.onCompactWideOverlayActiveChanged,
+    required this.onCompactWideQueueRequestChanged,
+  });
+
+  final PlaybackSnapshot playback;
+  final String? songTitle;
+  final String? songArtist;
+  final String? coverArtId;
+  final String? coverArtUrl;
+  final bool isExternalSource;
+  final ValueChanged<bool Function()?> onBackInterceptorChanged;
+  final ValueChanged<bool> onCompactWideOverlayActiveChanged;
+  final ValueChanged<VoidCallback?> onCompactWideQueueRequestChanged;
+
+  @override
+  ConsumerState<_DesktopMiniPlayerSurface> createState() =>
+      _DesktopMiniPlayerSurfaceState();
+}
+
+class _DesktopMiniPlayerSurfaceState
+    extends ConsumerState<_DesktopMiniPlayerSurface> {
+  VoidCallback? _queueRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = ref.watch(desktopWindowControllerProvider);
+    final l10n = AppLocalizations.of(context)!;
+    final hasPlayback =
+        widget.playback.isRadioMode ||
+        (widget.playback.currentSongId ?? '').trim().isNotEmpty;
+
+    return Material(
+      key: const ValueKey<String>('desktopMiniPlayerSurface'),
+      color: Theme.of(context).colorScheme.surface,
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: hasPlayback
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth < 680 ||
+                          constraints.maxHeight < 340) {
+                        return _DesktopMiniPlayerTightPlayback(
+                          playback: widget.playback,
+                          songTitle: widget.songTitle,
+                          songArtist: widget.songArtist,
+                          coverArtId: widget.coverArtId,
+                          coverArtUrl: widget.coverArtUrl,
+                          isExternalSource: widget.isExternalSource,
+                        );
+                      }
+                      return Center(
+                        child: SizedBox(
+                          width: math.min(constraints.maxWidth, 1200),
+                          height: math.min(constraints.maxHeight, 720),
+                          child: NowPlayingScreen(
+                            wideEmbeddedMode: true,
+                            compactWideLandscapeMode: true,
+                            showEmbeddedVolumeBelowActions: true,
+                            onShowQueue: () => _queueRequest?.call(),
+                            onBackInterceptorChanged:
+                                widget.onBackInterceptorChanged,
+                            onCompactWideOverlayActiveChanged:
+                                widget.onCompactWideOverlayActiveChanged,
+                            onCompactWideQueueRequestChanged: (handler) {
+                              _queueRequest = handler;
+                              widget.onCompactWideQueueRequestChanged(handler);
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : const _DesktopMiniPlayerEmptyState(),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: SafeArea(
+              minimum: const EdgeInsets.all(4),
+              child: Material(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHigh.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(18),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButton(
+                      key: const ValueKey<String>('miniPlayerAlwaysOnTop'),
+                      tooltip: controller.miniAlwaysOnTop
+                          ? l10n.desktopMiniPlayerStopOnTop
+                          : l10n.desktopMiniPlayerKeepOnTop,
+                      onPressed: controller.isApplyingMode
+                          ? null
+                          : () => unawaited(
+                              controller.setMiniAlwaysOnTop(
+                                !controller.miniAlwaysOnTop,
+                              ),
+                            ),
+                      icon: Icon(
+                        controller.miniAlwaysOnTop
+                            ? Icons.push_pin_rounded
+                            : Icons.push_pin_outlined,
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey<String>('miniPlayerExitButton'),
+                      tooltip: l10n.desktopReturnToView,
+                      onPressed: controller.isApplyingMode
+                          ? null
+                          : () => unawaited(
+                              controller.setMiniPlayerMode(false),
+                            ),
+                      icon: const Icon(Icons.open_in_full_rounded),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _DesktopMiniPlayerAction { shuffle, repeat, queue, lyrics }
+
+class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
+  const _DesktopMiniPlayerTightPlayback({
+    required this.playback,
+    required this.songTitle,
+    required this.songArtist,
+    required this.coverArtId,
+    required this.coverArtUrl,
+    required this.isExternalSource,
+  });
+
+  final PlaybackSnapshot playback;
+  final String? songTitle;
+  final String? songArtist;
+  final String? coverArtId;
+  final String? coverArtUrl;
+  final bool isExternalSource;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final position =
+        ref.watch(playbackPositionProvider).asData?.value ?? playback.position;
+    final durationMs = playback.duration.inMilliseconds;
+    final canSeek = !playback.isRadioMode && durationMs > 0;
+    final seekValue = canSeek
+        ? position.inMilliseconds.clamp(0, durationMs).toDouble()
+        : 0.0;
+    final title = (songTitle ?? '').trim().isEmpty
+        ? l10n.miniPlayerUnknownTrack
+        : songTitle!.trim();
+    final artist = (songArtist ?? '').trim().isEmpty
+        ? l10n.miniPlayerUnknownArtist
+        : songArtist!.trim();
+
+    Widget artwork;
+    if ((coverArtId ?? '').trim().isNotEmpty) {
+      artwork = CoverArtImage(
+        coverArtId: coverArtId,
+        size: kCoverArtStandardSize,
+        width: 156,
+        height: 156,
+        borderRadius: BorderRadius.circular(12),
+        loadPriority: CoverArtLoadPriority.critical,
+        isExternalSource: isExternalSource,
+      );
+    } else {
+      artwork = _MiniRemoteArt(
+        artUrl: coverArtUrl,
+        colorScheme: colors,
+        size: 156,
+      );
+    }
+
+    Future<void> playPause() async {
+      final handler = ref.read(audioHandlerProvider);
+      if (playback.playing) {
+        await handler?.pause();
+      } else {
+        await handler?.play();
+      }
+    }
+
+    void handleSecondaryAction(_DesktopMiniPlayerAction action) {
+      final handler = ref.read(audioHandlerProvider);
+      switch (action) {
+        case _DesktopMiniPlayerAction.shuffle:
+          unawaited(
+            handler?.setShuffleMode(
+              playback.shuffleMode == AudioServiceShuffleMode.all
+                  ? AudioServiceShuffleMode.none
+                  : AudioServiceShuffleMode.all,
+            ),
+          );
+        case _DesktopMiniPlayerAction.repeat:
+          final next = switch (playback.repeatMode) {
+            AudioServiceRepeatMode.none => AudioServiceRepeatMode.all,
+            AudioServiceRepeatMode.all => AudioServiceRepeatMode.one,
+            AudioServiceRepeatMode.one => AudioServiceRepeatMode.none,
+            AudioServiceRepeatMode.group => AudioServiceRepeatMode.none,
+          };
+          unawaited(handler?.setRepeatMode(next));
+        case _DesktopMiniPlayerAction.queue:
+          unawaited(
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const QueueScreen()),
+            ),
+          );
+        case _DesktopMiniPlayerAction.lyrics:
+          unawaited(
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const NowPlayingLyricsScreen(),
+              ),
+            ),
+          );
+      }
+    }
+
+    final transport = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        if (!playback.isRadioMode)
+          IconButton(
+            tooltip: l10n.nowPlayingPrevious,
+            onPressed: () => unawaited(
+              ref.read(audioHandlerProvider)?.skipToPrevious(),
+            ),
+            icon: const Icon(Icons.skip_previous_rounded),
+          ),
+        IconButton.filled(
+          tooltip: playback.playing
+              ? l10n.nowPlayingPause
+              : l10n.nowPlayingPlay,
+          onPressed: () => unawaited(playPause()),
+          icon: Icon(
+            playback.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          ),
+        ),
+        IconButton(
+          tooltip: playback.isRadioMode
+              ? l10n.radioStopStation
+              : l10n.nowPlayingNext,
+          onPressed: () => unawaited(
+            playback.isRadioMode
+                ? ref.read(audioHandlerProvider)?.stopRadio()
+                : ref.read(audioHandlerProvider)?.skipToNext(),
+          ),
+          icon: Icon(
+            playback.isRadioMode ? Icons.stop_rounded : Icons.skip_next_rounded,
+          ),
+        ),
+        PopupMenuButton<_DesktopMiniPlayerAction>(
+          tooltip: l10n.nowPlayingMore,
+          onSelected: handleSecondaryAction,
+          itemBuilder: (context) => <PopupMenuEntry<_DesktopMiniPlayerAction>>[
+            if (!playback
+                .isRadioMode) ...<PopupMenuEntry<_DesktopMiniPlayerAction>>[
+              PopupMenuItem<_DesktopMiniPlayerAction>(
+                value: _DesktopMiniPlayerAction.shuffle,
+                child: Text(l10n.nowPlayingShuffle),
+              ),
+              PopupMenuItem<_DesktopMiniPlayerAction>(
+                value: _DesktopMiniPlayerAction.repeat,
+                child: Text(l10n.nowPlayingRepeatAll),
+              ),
+              PopupMenuItem<_DesktopMiniPlayerAction>(
+                value: _DesktopMiniPlayerAction.queue,
+                child: Text(l10n.nowPlayingQueue),
+              ),
+              PopupMenuItem<_DesktopMiniPlayerAction>(
+                value: _DesktopMiniPlayerAction.lyrics,
+                child: Text(l10n.nowPlayingLyrics),
+              ),
+            ],
+          ],
+          icon: const Icon(Icons.more_horiz_rounded),
+        ),
+      ],
+    );
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Padding(
+          key: const ValueKey<String>('desktopMiniPlayerTightPlayback'),
+          padding: const EdgeInsets.fromLTRB(16, 56, 16, 8),
+          child: Row(
+            children: <Widget>[
+              Flexible(child: AspectRatio(aspectRatio: 1, child: artwork)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      key: const ValueKey<String>('desktopMiniPlayerTitle'),
+                      title,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          Theme.of(
+                            context,
+                          ).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    Text(
+                      key: const ValueKey<String>('desktopMiniPlayerArtist'),
+                      artist,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                    ),
+                    if (playback.isRadioMode)
+                      Align(
+                        alignment: Alignment.center,
+                        child: Chip(
+                          visualDensity: VisualDensity.compact,
+                          avatar: const Icon(Icons.podcasts_rounded, size: 16),
+                          label: Text(l10n.radioLive),
+                        ),
+                      )
+                    else
+                      Slider(
+                        key: const ValueKey<String>(
+                          'desktopMiniPlayerSeekSlider',
+                        ),
+                        value: seekValue,
+                        max: canSeek ? durationMs.toDouble() : 1,
+                        onChanged: canSeek
+                            ? (value) => unawaited(
+                                ref
+                                    .read(audioHandlerProvider)
+                                    ?.seek(
+                                      Duration(milliseconds: value.round()),
+                                    ),
+                              )
+                            : null,
+                      ),
+                    transport,
+                    const _DesktopMiniPlayerInlineVolumeControl(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopMiniPlayerUndersizedSurface extends StatelessWidget {
+  const _DesktopMiniPlayerUndersizedSurface();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      key: const ValueKey<String>('desktopMiniPlayerUndersized'),
+      color: colors.surface,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                Icons.picture_in_picture_alt_rounded,
+                color: colors.onSurfaceVariant,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.desktopMiniPlayerTooSmallTitle,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                l10n.desktopMiniPlayerTooSmallDescription,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopMiniPlayerInlineVolumeControl extends ConsumerWidget {
+  const _DesktopMiniPlayerInlineVolumeControl();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final volume = ref.watch(playbackVolumeProvider);
+    return SizedBox(
+      key: const ValueKey<String>('desktopMiniPlayerVolumeSlider'),
+      height: 44,
+      child: DesktopVolumeSlider(
+        volume: volume,
+        compact: true,
+        expanded: true,
+        semanticLabel: l10n.playbackVolumeSemanticLabel,
+        muteTooltip: l10n.playbackMuteTooltip,
+        unmuteTooltip: l10n.playbackUnmuteTooltip,
+        onMuteToggle: () => unawaited(
+          ref.read(playbackVolumeProvider.notifier).toggleMute(),
+        ),
+        onChanged: (value) => unawaited(
+          ref.read(playbackVolumeProvider.notifier).setVolume(value),
+        ),
+        onChangeEnd: (value) => unawaited(
+          ref
+              .read(playbackVolumeProvider.notifier)
+              .setVolume(value, persistImmediately: true),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopMiniPlayerEmptyState extends ConsumerWidget {
+  const _DesktopMiniPlayerEmptyState();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final volume = ref.watch(playbackVolumeProvider);
+    final colors = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(
+                  Icons.music_note_rounded,
+                  size: 64,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  l10n.desktopNothingPlaying,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.desktopNothingPlayingPrompt,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: 280,
+                  child: DesktopVolumeSlider(
+                    key: const ValueKey<String>(
+                      'desktopMiniPlayerVolumeSlider',
+                    ),
+                    volume: volume,
+                    semanticLabel: l10n.playbackVolumeSemanticLabel,
+                    muteTooltip: l10n.playbackMuteTooltip,
+                    unmuteTooltip: l10n.playbackUnmuteTooltip,
+                    onMuteToggle: () => unawaited(
+                      ref.read(playbackVolumeProvider.notifier).toggleMute(),
+                    ),
+                    onChanged: (value) => unawaited(
+                      ref
+                          .read(playbackVolumeProvider.notifier)
+                          .setVolume(value),
+                    ),
+                    onChangeEnd: (value) => unawaited(
+                      ref
+                          .read(playbackVolumeProvider.notifier)
+                          .setVolume(value, persistImmediately: true),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopWindowTransitionGate extends ConsumerWidget {
+  const _DesktopWindowTransitionGate({
+    required this.mode,
+    required this.request,
+  });
+
+  final DesktopWindowMode mode;
+  final DesktopWindowTransitionRequest? request;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.watch(desktopWindowControllerProvider);
+    final l10n = AppLocalizations.of(context)!;
+    final enteringMini = mode == DesktopWindowMode.desktop;
+    final workArea = controller.currentWorkArea;
+    final desktopAvailable =
+        workArea == null || supportsDesktopView(workArea.size);
+
+    Future<void> restoreCurrentMode() {
+      return controller.resolveTransition(switchMode: false);
+    }
+
+    final content = LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 500;
+        final outerInset = compact ? 8.0 : 24.0;
+        final innerInset = compact ? 14.0 : 24.0;
+        final availableHeight = math.max(
+          0.0,
+          constraints.maxHeight - (outerInset * 2),
+        );
+
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(outerInset),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: availableHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Card(
+                    elevation: 8,
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: EdgeInsets.all(innerInset),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            enteringMini
+                                ? Icons.picture_in_picture_alt_rounded
+                                : Icons.desktop_windows_rounded,
+                            size: compact ? 34 : 44,
+                          ),
+                          SizedBox(height: compact ? 6 : 16),
+                          Text(
+                            enteringMini
+                                ? l10n.desktopWindowTooSmallTitle
+                                : l10n.desktopReturnQuestion,
+                            textAlign: TextAlign.center,
+                            style:
+                                (compact
+                                        ? Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium
+                                        : Theme.of(
+                                            context,
+                                          ).textTheme.titleLarge)
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          SizedBox(height: compact ? 4 : 8),
+                          Text(
+                            enteringMini && !desktopAvailable
+                                ? l10n.desktopViewUnavailableOnDisplay
+                                : enteringMini
+                                ? l10n.desktopWindowMinimumDescription
+                                : l10n.desktopReturnDescription,
+                            textAlign: TextAlign.center,
+                            style: compact
+                                ? Theme.of(context).textTheme.bodySmall
+                                : null,
+                          ),
+                          SizedBox(height: compact ? 10 : 20),
+                          if (request == null)
+                            const CircularProgressIndicator()
+                          else
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 260),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: <Widget>[
+                                  FilledButton(
+                                    autofocus: true,
+                                    onPressed:
+                                        controller.isApplyingMode ||
+                                            (!enteringMini && !desktopAvailable)
+                                        ? null
+                                        : () => unawaited(
+                                            controller.resolveTransition(
+                                              switchMode: true,
+                                            ),
+                                          ),
+                                    child: Text(
+                                      enteringMini
+                                          ? l10n.desktopSwitchToMiniPlayer
+                                          : l10n.desktopReturnToView,
+                                    ),
+                                  ),
+                                  SizedBox(height: compact ? 4 : 8),
+                                  OutlinedButton(
+                                    onPressed:
+                                        controller.isApplyingMode ||
+                                            (enteringMini && !desktopAvailable)
+                                        ? null
+                                        : () => unawaited(restoreCurrentMode()),
+                                    child: Text(
+                                      enteringMini
+                                          ? l10n.desktopRestoreSize
+                                          : l10n.desktopKeepMiniPlayer,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    return RepaintBoundary(
+      key: const ValueKey<String>('desktopWindowTransitionGate'),
+      child: PopScope(
+        canPop: false,
+        child: CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              if (request != null && (!enteringMini || desktopAvailable)) {
+                unawaited(restoreCurrentMode());
+              }
+            },
+          },
+          child: Focus(
+            autofocus: true,
+            child: ColoredBox(
+              color: Theme.of(
+                context,
+              ).colorScheme.scrim.withValues(alpha: 0.72),
+              child: content,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

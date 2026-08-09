@@ -57,6 +57,26 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.1.1', [
     _Entry(
+      'Mini Player now opens at a balanced 720×405, returns to that size after mode prompts, keeps volume neatly beneath its controls, and shows both resize choices in short windows',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Favorite, Lyrics, Queue, Mini Player, and volume now stay directly visible across every supported Desktop View size',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Desktop and Mini Player layouts now stay balanced at unusual aspect ratios, with centered compact metadata and a firm 560×360 Mini Player minimum',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Desktop now stays in a consistent workspace down to 800×600, with its volume-ready bottom player always present and no phone-layout fallbacks',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'The new same-window Mini Player keeps playback, volume, pinning, and a quick return to Desktop View available in compact windows',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
       'The current song is now highlighted consistently across library, Home, search, downloads, artist, playlist, and queue views',
       type: _EntryType.improvement,
     ),

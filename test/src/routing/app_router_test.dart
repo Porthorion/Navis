@@ -203,7 +203,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Home'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey<String>('desktopSidebarRegion')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('desktopPlayerBar')),
+      findsOneWidget,
+    );
     expect(find.text('Unknown track'), findsNothing);
   });
 

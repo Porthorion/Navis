@@ -17,6 +17,7 @@ class DesktopVolumeSlider extends StatefulWidget {
     required this.muteTooltip,
     required this.unmuteTooltip,
     this.compact = false,
+    this.expanded = false,
   });
 
   /// Current volume in the range [0, 1].
@@ -37,6 +38,9 @@ class DesktopVolumeSlider extends StatefulWidget {
 
   /// When true, uses smaller sizing (for now-playing transport).
   final bool compact;
+
+  /// When true, fills the available width instead of using a fixed preset.
+  final bool expanded;
 
   @override
   State<DesktopVolumeSlider> createState() => _DesktopVolumeSliderState();
@@ -109,106 +113,110 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
     final overlayRadius = compact ? 10.0 : 12.0;
     final sliderWidth = compact ? 140.0 : 188.0;
 
-    return SizedBox(
-      width: sliderWidth,
-      child: Row(
-        children: <Widget>[
-          IconButton(
-            iconSize: compact ? 18 : 20,
-            visualDensity: VisualDensity.compact,
-            tooltip: widget.volume <= 0.001
-                ? widget.unmuteTooltip
-                : widget.muteTooltip,
-            onPressed: widget.onMuteToggle,
-            icon: Icon(
-              widget.volume <= 0.01
-                  ? Icons.volume_off_rounded
-                  : (widget.volume < 0.5
-                        ? Icons.volume_down_rounded
-                        : Icons.volume_up_rounded),
-              color: colors.onSurfaceVariant,
-            ),
+    final control = Row(
+      children: <Widget>[
+        IconButton(
+          iconSize: compact ? 18 : 20,
+          visualDensity: VisualDensity.compact,
+          tooltip: widget.volume <= 0.001
+              ? widget.unmuteTooltip
+              : widget.muteTooltip,
+          onPressed: widget.onMuteToggle,
+          icon: Icon(
+            widget.volume <= 0.01
+                ? Icons.volume_off_rounded
+                : (widget.volume < 0.5
+                      ? Icons.volume_down_rounded
+                      : Icons.volume_up_rounded),
+            color: colors.onSurfaceVariant,
           ),
-          SizedBox(width: compact ? 0 : 2),
-          Expanded(
-            child: MouseRegion(
-              onEnter: (_) => _onEnter(),
-              onExit: (_) => _onExit(),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final trackWidth = constraints.maxWidth;
-                  // Horizontal offset of the thumb center relative to the track.
-                  final thumbOffset = trackWidth * displayVolume;
-                  final showTooltip = _isDragging || _isHovering;
+        ),
+        SizedBox(width: compact ? 0 : 2),
+        Expanded(
+          child: MouseRegion(
+            onEnter: (_) => _onEnter(),
+            onExit: (_) => _onExit(),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final trackWidth = constraints.maxWidth;
+                // Horizontal offset of the thumb center relative to the track.
+                final thumbOffset = trackWidth * displayVolume;
+                final showTooltip = _isDragging || _isHovering;
 
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: <Widget>[
-                      SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: trackHeight,
-                          thumbShape: RoundSliderThumbShape(
-                            enabledThumbRadius: thumbRadius,
-                          ),
-                          overlayShape: RoundSliderOverlayShape(
-                            overlayRadius: overlayRadius,
-                          ),
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: trackHeight,
+                        thumbShape: RoundSliderThumbShape(
+                          enabledThumbRadius: thumbRadius,
                         ),
-                        child: Semantics(
-                          label: widget.semanticLabel,
-                          value: '$percent%',
-                          child: Slider(
-                            value: displayVolume,
-                            min: 0,
-                            max: 1,
-                            semanticFormatterCallback: (value) =>
-                                '${(value * 100).round()}%',
-                            onChangeStart: _onChangeStart,
-                            onChanged: _onChanged,
-                            onChangeEnd: _onChangeEnd,
-                          ),
+                        overlayShape: RoundSliderOverlayShape(
+                          overlayRadius: overlayRadius,
                         ),
                       ),
-                      // Floating percentage tooltip.
-                      if (showTooltip)
-                        Positioned(
-                          left: thumbOffset - 16,
-                          top: -28,
-                          child: IgnorePointer(
-                            child: FadeTransition(
-                              opacity: _isDragging
-                                  ? const AlwaysStoppedAnimation(1)
-                                  : _tooltipFade,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colors.inverseSurface,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  '$percent%',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: colors.onInverseSurface,
-                                    height: 1.2,
-                                  ),
+                      child: Semantics(
+                        label: widget.semanticLabel,
+                        value: '$percent%',
+                        child: Slider(
+                          value: displayVolume,
+                          min: 0,
+                          max: 1,
+                          semanticFormatterCallback: (value) =>
+                              '${(value * 100).round()}%',
+                          onChangeStart: _onChangeStart,
+                          onChanged: _onChanged,
+                          onChangeEnd: _onChangeEnd,
+                        ),
+                      ),
+                    ),
+                    // Floating percentage tooltip.
+                    if (showTooltip)
+                      Positioned(
+                        left: thumbOffset - 16,
+                        top: -28,
+                        child: IgnorePointer(
+                          child: FadeTransition(
+                            opacity: _isDragging
+                                ? const AlwaysStoppedAnimation(1)
+                                : _tooltipFade,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colors.inverseSurface,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '$percent%',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.onInverseSurface,
+                                  height: 1.2,
                                 ),
                               ),
                             ),
                           ),
                         ),
-                    ],
-                  );
-                },
-              ),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+    if (widget.expanded) {
+      return control;
+    }
+    return SizedBox(
+      width: sliderWidth,
+      child: control,
     );
   }
 }

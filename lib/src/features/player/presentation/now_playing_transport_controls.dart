@@ -6,7 +6,7 @@ class _TransportControls extends ConsumerWidget {
     this.isRadio = false,
     this.compact = false,
     this.showVolumeControl = false,
-    this.showFocusPlayerToggle = false,
+    this.showMiniPlayerToggle = false,
     this.onSkipPrevious,
     this.onSkipNext,
   });
@@ -15,7 +15,7 @@ class _TransportControls extends ConsumerWidget {
   final bool isRadio;
   final bool compact;
   final bool showVolumeControl;
-  final bool showFocusPlayerToggle;
+  final bool showMiniPlayerToggle;
   final VoidCallback? onSkipPrevious;
   final VoidCallback? onSkipNext;
 
@@ -253,13 +253,13 @@ class _TransportControls extends ConsumerWidget {
                 unawaited(handler?.setRepeatMode(next));
               },
             ),
-            if (showFocusPlayerToggle) ...<Widget>[
+            if (showMiniPlayerToggle) ...<Widget>[
               SizedBox(width: compact ? 4 : 8),
               Consumer(
                 builder: (context, ref, _) {
-                  final focusMode = ref.watch(
+                  final miniPlayerMode = ref.watch(
                     desktopWindowControllerProvider.select(
-                      (value) => value.isFocusPlayerMode,
+                      (value) => value.isMiniPlayerMode,
                     ),
                   );
                   final busy = ref.watch(
@@ -269,16 +269,18 @@ class _TransportControls extends ConsumerWidget {
                   );
                   final controller = ref.read(desktopWindowControllerProvider);
                   return IconButton(
-                    key: const ValueKey<String>('desktopNowPlayingFocusButton'),
+                    key: const ValueKey<String>(
+                      'desktopNowPlayingMiniPlayerButton',
+                    ),
                     visualDensity: compact ? VisualDensity.compact : null,
-                    tooltip: focusMode
-                        ? 'Return to normal window'
-                        : 'Enter Focus Player Mode',
+                    tooltip: miniPlayerMode
+                        ? l10n.desktopReturnToView
+                        : l10n.desktopMiniPlayerOpen,
                     onPressed: busy
                         ? null
-                        : () => unawaited(controller.toggleFocusPlayerMode()),
+                        : () => unawaited(controller.toggleMiniPlayerMode()),
                     icon: Icon(
-                      focusMode
+                      miniPlayerMode
                           ? Icons.close_fullscreen_rounded
                           : Icons.fit_screen_rounded,
                     ),

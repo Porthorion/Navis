@@ -76,6 +76,23 @@ containment, PNG metadata, hashes, and permissions, but the agent remains
 responsible for opening both images and inspecting the affected region.
 AT-SPI and external desktop automation are not substitutes for this gate.
 
+Desktop layout changes also run the isolated window-mode scenario:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/desktop_layout_diagnostics.sh
+```
+
+The scenario exercises the authenticated window API and captures 1306×853
+standard, 1159×678 short, 887×900 compact, and minimum 800×600 Desktop View.
+It also captures the canonical 720×405 Mini Player, its manually resized
+560×360 minimum, the Desktop transition gate at both 799×599 and the short
+799×444 edge case, the Mini transition gate, canonical Keep Mini restoration,
+and a clean Linux profile restart. Desktop captures must retain Favorite,
+Lyrics, Queue, Mini Player, and the full volume control without overflow; Mini
+captures must keep volume below transport/actions and centered tight metadata,
+and every transition choice must remain fully visible.
+
 ### Core Gate
 
 Use for the focused release checks when the full development test matrix is not

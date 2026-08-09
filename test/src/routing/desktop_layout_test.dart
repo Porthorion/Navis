@@ -4,13 +4,42 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 
 void main() {
+  test('desktop resolver matrix keeps height and width gates stable', () {
+    const cases = <(Size, bool)>[
+      (Size(480, 320), false),
+      (Size(720, 405), false),
+      (Size(799, 599), false),
+      (Size(800, 600), true),
+      (Size(1008, 640), true),
+      (Size(1366, 768), true),
+      (Size(1600, 900), true),
+      (Size(3440, 600), true),
+      (Size(799, 1200), false),
+      (Size(3440, 599), false),
+    ];
+    for (final entry in cases) {
+      expect(
+        supportsDesktopView(entry.$1),
+        entry.$2,
+        reason: 'viewport ${entry.$1}',
+      );
+    }
+  });
+
+  test('Mini Player resolver enforces its complete minimum viewport', () {
+    expect(supportsMiniPlayer(const Size(559, 360)), isFalse);
+    expect(supportsMiniPlayer(const Size(560, 359)), isFalse);
+    expect(supportsMiniPlayer(const Size(560, 360)), isTrue);
+    expect(supportsMiniPlayer(const Size(720, 405)), isTrue);
+  });
+
   test('resolveDesktopLayoutClass uses expected breakpoints', () {
     expect(
-      resolveDesktopLayoutClass(959),
+      resolveDesktopLayoutClass(1007),
       DesktopLayoutClass.compactDesktop,
     );
     expect(
-      resolveDesktopLayoutClass(1200),
+      resolveDesktopLayoutClass(1008),
       DesktopLayoutClass.standardDesktop,
     );
     expect(
@@ -108,7 +137,7 @@ void main() {
     );
   });
 
-  test('resolveAdaptiveContext keeps medium desktop window on bottom nav', () {
+  test('desktop runtime always resolves to the desktop workspace', () {
     final context = resolveAdaptiveContext(
       desktopRuntime: true,
       viewportSize: const Size(700, 1000),
@@ -116,22 +145,22 @@ void main() {
     );
 
     expect(context.desktopRuntime, isTrue);
-    expect(context.useDesktopShell, isFalse);
+    expect(context.useDesktopShell, isTrue);
     expect(context.useRailNavigation, isFalse);
-    expect(context.adaptiveShellMode, AdaptiveShellMode.phoneBottomNav);
+    expect(context.isPhoneFormFactor, isFalse);
   });
 
-  test('resolveAdaptiveContext uses rail at tablet-expanded widths', () {
+  test('compact desktop does not fall back to the tablet rail shell', () {
     final context = resolveAdaptiveContext(
       desktopRuntime: true,
       viewportSize: const Size(840, 1000),
       safePadding: EdgeInsets.zero,
     );
 
-    expect(context.useDesktopShell, isFalse);
-    expect(context.useStandardRailNavigation, isTrue);
-    expect(context.useRailNavigation, isTrue);
-    expect(context.adaptiveShellMode, AdaptiveShellMode.standardRail);
+    expect(context.useDesktopShell, isTrue);
+    expect(context.useStandardRailNavigation, isFalse);
+    expect(context.useRailNavigation, isFalse);
+    expect(context.desktopLayoutClass, DesktopLayoutClass.compactDesktop);
   });
 
   test('resolveAdaptiveContext enables desktop shell only at wide widths', () {
@@ -178,31 +207,30 @@ void main() {
     },
   );
 
-  test('resolveAdaptiveContext keeps compact-wide fallback behavior', () {
+  test('desktop runtime never uses compact-wide phone fallback behavior', () {
     final context = resolveAdaptiveContext(
       desktopRuntime: true,
       viewportSize: const Size(900, 420),
       safePadding: EdgeInsets.zero,
     );
 
-    expect(context.useDesktopShell, isFalse);
-    expect(context.useCompactWideLandscape, isTrue);
-    expect(context.adaptiveShellMode, AdaptiveShellMode.compactWideLandscape);
+    expect(context.useDesktopShell, isTrue);
+    expect(context.useCompactWideLandscape, isFalse);
   });
 
-  test('focus player preset resolves to compact-wide landscape', () {
+  test('mini player preset remains classified as a desktop workspace', () {
     final context = resolveAdaptiveContext(
       desktopRuntime: true,
-      viewportSize: DesktopWindowController.focusDefaultSize,
+      viewportSize: DesktopWindowController.miniDefaultSize,
       safePadding: EdgeInsets.zero,
     );
 
-    expect(context.useDesktopShell, isFalse);
-    expect(context.useCompactWideLandscape, isTrue);
+    expect(context.useDesktopShell, isTrue);
+    expect(context.useCompactWideLandscape, isFalse);
   });
 
   test(
-    'normal desktop minimum keeps desktop shell disabled at narrow width',
+    'desktop OS minimum remains desktop-only at narrow width',
     () {
       final context = resolveAdaptiveContext(
         desktopRuntime: true,
@@ -210,8 +238,8 @@ void main() {
         safePadding: EdgeInsets.zero,
       );
 
-      expect(context.useDesktopShell, isFalse);
-      expect(context.adaptiveShellMode, AdaptiveShellMode.phoneBottomNav);
+      expect(context.useDesktopShell, isTrue);
+      expect(context.useRailNavigation, isFalse);
     },
   );
 

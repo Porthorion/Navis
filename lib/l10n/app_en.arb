@@ -1322,5 +1322,33 @@
     "placeholders": {
       "title": { "type": "String" }
     }
-  }
+  },
+  "desktopWindowTitle": "Desktop Window",
+  "desktopViewTitle": "Desktop View",
+  "desktopWindowSubtitle": "Choose how Navis behaves as a full or compact desktop window.",
+  "desktopWindowUnavailable": "Desktop window controls are only available in the desktop app.",
+  "desktopMiniPlayerTitle": "Mini Player",
+  "desktopMiniPlayerDescription": "Use a compact, playback-focused Navis window.",
+  "desktopMiniPlayerOpen": "Open Mini Player",
+  "desktopReturnToView": "Return to Desktop View",
+  "desktopMiniPlayerKeepOnTop": "Keep Mini Player on top",
+  "desktopMiniPlayerStopOnTop": "Stop keeping Mini Player on top",
+  "desktopMiniPlayerKeepOnTopDescription": "Keep the compact player above other windows. This only applies in Mini Player.",
+  "desktopMiniPlayerTooSmallTitle": "Mini Player is too small",
+  "desktopMiniPlayerTooSmallDescription": "Mini Player needs at least 560 by 360 logical pixels. Restoring its last valid size.",
+  "desktopNothingPlaying": "Nothing playing",
+  "desktopChooseSomething": "Choose something to play",
+  "desktopNothingPlayingPrompt": "Return to Desktop View to choose something to play.",
+  "desktopPlaybackUnavailableTooltip": "Unavailable until something is playing",
+  "desktopFavoriteUnavailableForRadio": "Favorite is unavailable for radio",
+  "desktopLyricsUnavailableForRadio": "Lyrics are unavailable for radio",
+  "desktopQueueUnavailableForRadio": "Queue is unavailable for radio",
+  "desktopWindowTooSmallTitle": "This window is too small for Desktop View",
+  "desktopWindowMinimumDescription": "Desktop View needs at least 800 by 600 logical pixels.",
+  "desktopReturnQuestion": "Return to Desktop View?",
+  "desktopReturnDescription": "The window is now large enough for the full desktop interface.",
+  "desktopSwitchToMiniPlayer": "Switch to Mini Player",
+  "desktopRestoreSize": "Restore Desktop Size",
+  "desktopKeepMiniPlayer": "Keep Mini Player",
+  "desktopViewUnavailableOnDisplay": "This display cannot fit Desktop View. Mini Player is available until Navis moves to a larger display."
 }

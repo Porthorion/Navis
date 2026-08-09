@@ -290,6 +290,7 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
     this.onShowQueue,
     this.wideEmbeddedMode = false,
     this.compactWideLandscapeMode = false,
+    this.showEmbeddedVolumeBelowActions = false,
     this.onBackInterceptorChanged,
     this.onCompactWideOverlayActiveChanged,
     this.onCompactWideQueueRequestChanged,
@@ -299,6 +300,7 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
   final VoidCallback? onShowQueue;
   final bool wideEmbeddedMode;
   final bool compactWideLandscapeMode;
+  final bool showEmbeddedVolumeBelowActions;
   final ValueChanged<bool Function()?>? onBackInterceptorChanged;
   final ValueChanged<bool>? onCompactWideOverlayActiveChanged;
   final ValueChanged<VoidCallback?>? onCompactWideQueueRequestChanged;
@@ -549,6 +551,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   ? true
                   : effectiveWideMode,
               compactWideLandscapeMode: widget.compactWideLandscapeMode,
+              showEmbeddedVolumeBelowActions:
+                  widget.showEmbeddedVolumeBelowActions,
               onCollapse: widget.onCollapse,
               onBackInterceptorChanged: widget.onBackInterceptorChanged,
               onCompactWideOverlayActiveChanged:
@@ -956,12 +960,46 @@ void _showPlaybackSpeedSheet(
   );
 }
 
+class _NowPlayingEmbeddedVolumeControl extends ConsumerWidget {
+  const _NowPlayingEmbeddedVolumeControl();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final volume = ref.watch(playbackVolumeProvider);
+    return SizedBox(
+      key: const ValueKey<String>('desktopMiniPlayerVolumeSlider'),
+      height: 44,
+      child: DesktopVolumeSlider(
+        volume: volume,
+        compact: true,
+        expanded: true,
+        semanticLabel: l10n.playbackVolumeSemanticLabel,
+        muteTooltip: l10n.playbackMuteTooltip,
+        unmuteTooltip: l10n.playbackUnmuteTooltip,
+        onMuteToggle: () => unawaited(
+          ref.read(playbackVolumeProvider.notifier).toggleMute(),
+        ),
+        onChanged: (value) => unawaited(
+          ref.read(playbackVolumeProvider.notifier).setVolume(value),
+        ),
+        onChangeEnd: (value) => unawaited(
+          ref
+              .read(playbackVolumeProvider.notifier)
+              .setVolume(value, persistImmediately: true),
+        ),
+      ),
+    );
+  }
+}
+
 class _NowPlayingBody extends ConsumerStatefulWidget {
   const _NowPlayingBody({
     required this.playback,
     this.song,
     this.wideEmbeddedMode = false,
     this.compactWideLandscapeMode = false,
+    this.showEmbeddedVolumeBelowActions = false,
     this.onCollapse,
     this.onBackInterceptorChanged,
     this.onCompactWideOverlayActiveChanged,
@@ -972,6 +1010,7 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
   final SongsTableData? song;
   final bool wideEmbeddedMode;
   final bool compactWideLandscapeMode;
+  final bool showEmbeddedVolumeBelowActions;
   final VoidCallback? onCollapse;
   final ValueChanged<bool Function()?>? onBackInterceptorChanged;
   final ValueChanged<bool>? onCompactWideOverlayActiveChanged;
@@ -2269,6 +2308,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       }),
                     ),
                   ],
+                  if (widget.showEmbeddedVolumeBelowActions) ...<Widget>[
+                    SizedBox(height: vSpacing * 0.35),
+                    const _NowPlayingEmbeddedVolumeControl(),
+                  ],
                 ],
               ),
             ),
@@ -2439,9 +2482,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             widget.wideEmbeddedMode &&
             resolveAdaptiveContextFor(context).desktopRuntime &&
             !compactTransport;
-        // Focus Player Mode is not yet user-accessible; keep the flag false
-        // so no toggle button appears anywhere until the feature is released.
-        const showDesktopFocusPlayerToggle = false;
+        // Mini Player entry lives in the persistent desktop bar and Desktop
+        // Window settings, so embedded Now Playing does not duplicate it.
+        const showDesktopMiniPlayerToggle = false;
         final compactSpacing =
             tightHeight || layoutMode == _NowPlayingLayoutMode.compact;
         final splitGap =
@@ -2672,7 +2715,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
-              showFocusPlayerToggle: showDesktopFocusPlayerToggle,
+              showMiniPlayerToggle: showDesktopMiniPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2741,6 +2784,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       })
                     : null,
               ),
+            if (widget.showEmbeddedVolumeBelowActions) ...<Widget>[
+              SizedBox(height: compactSpacing ? 2 : 6),
+              const _NowPlayingEmbeddedVolumeControl(),
+            ],
           ],
         );
         final metadataTop = Column(
@@ -2985,7 +3032,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
-              showFocusPlayerToggle: showDesktopFocusPlayerToggle,
+              showMiniPlayerToggle: showDesktopMiniPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),

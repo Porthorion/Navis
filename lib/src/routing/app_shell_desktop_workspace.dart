@@ -380,27 +380,26 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
             ],
           ),
         ),
-        if (widget.showPlayer)
-          FocusTraversalOrder(
-            order: const NumericFocusOrder(30),
-            child: _DesktopPlayerBar(
-              playback: widget.playback,
-              songTitle: widget.songTitle,
-              songArtist: widget.songArtist,
-              artistId: widget.artistId,
-              albumId: widget.albumId,
-              coverArtId: widget.coverArtId,
-              coverArtUrl: widget.playback.isRadioMode
-                  ? widget.playback.radioStation?.nowPlayingArtUrl
-                  : widget.coverArtUrl,
-              isExternalSource: widget.isExternalSource,
-              onOpenPlayer: widget.onOpenPlayer,
-              onToggleQueue: widget.onToggleQueue,
-              queueToggleFocusNode: widget.queueToggleFocusNode,
-              lyricsActive: widget.showLyricsOverlay,
-              onToggleLyrics: widget.onToggleLyrics,
-            ),
+        FocusTraversalOrder(
+          order: const NumericFocusOrder(30),
+          child: _DesktopPlayerBar(
+            playback: widget.playback,
+            songTitle: widget.songTitle,
+            songArtist: widget.songArtist,
+            artistId: widget.artistId,
+            albumId: widget.albumId,
+            coverArtId: widget.coverArtId,
+            coverArtUrl: widget.playback.isRadioMode
+                ? widget.playback.radioStation?.nowPlayingArtUrl
+                : widget.coverArtUrl,
+            isExternalSource: widget.isExternalSource,
+            onOpenPlayer: widget.onOpenPlayer,
+            onToggleQueue: widget.onToggleQueue,
+            queueToggleFocusNode: widget.queueToggleFocusNode,
+            lyricsActive: widget.showLyricsOverlay,
+            onToggleLyrics: widget.onToggleLyrics,
           ),
+        ),
       ],
     );
   }

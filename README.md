@@ -32,7 +32,7 @@ Minimum tested versions:
 - Queue management, instant mix, and smart queue behaviors
 - Synced/unsynced lyrics with full-screen now playing
 - Offline cache plus permanent download modes
-- Adaptive layouts that scale from phone to tablet/desktop
+- Adaptive phone/tablet layouts plus a desktop-only 800×600 workspace whose persistent bottom player keeps Favorite, Lyrics, Queue, Mini Player, and volume directly visible, alongside a centered same-window Mini Player that opens at 720×405, embeds volume beneath its controls, and resizes down to 560×360
 - Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, and guarded transport actions while typing
 - Desktop volume controls that restore the previous per-installation level and mute state on the next launch
 - Channel-aware updater behavior for stable/dev release tracks

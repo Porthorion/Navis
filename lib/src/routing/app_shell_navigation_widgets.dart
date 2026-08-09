@@ -178,9 +178,13 @@ class _RailSidebar extends ConsumerWidget {
                     showLibrarySubNavigation &&
                     navViewportHeight >=
                         (inlineLibraryNavHeight + railCutoffSlack);
+                final visibleNavContentHeight = showLibrarySectionsInline
+                    ? inlineLibraryNavHeight
+                    : baseNavHeight;
                 final useScrollableRail =
                     allowScrollableRail &&
-                    navViewportHeight < (baseNavHeight + railCutoffSlack);
+                    navViewportHeight <
+                        (visibleNavContentHeight + (railCutoffSlack * 3));
 
                 final navTiles = <Widget>[
                   for (var i = 0; i < destinations.length; i++) ...<Widget>[

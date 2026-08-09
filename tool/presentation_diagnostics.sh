@@ -198,6 +198,41 @@ with open(path_output, "w", encoding="utf-8") as output:
 PY
 }
 
+validate_window_response() {
+  python3 - "$1" "$2" "$3" "$4" "$5" <<'PY'
+import json, math, sys
+path, expected_mode, expected_transition, expected_width, expected_height = sys.argv[1:]
+value = json.load(open(path, encoding="utf-8"))
+if value.get("mode") != expected_mode:
+    raise SystemExit(f"unexpected window mode: {value}")
+pending = value.get("pendingTransition")
+if expected_transition == "none":
+    if pending is not None:
+        raise SystemExit(f"unexpected pending transition: {value}")
+elif not isinstance(pending, dict) or pending.get("direction") != expected_transition:
+    raise SystemExit(f"missing {expected_transition} transition: {value}")
+bounds = value.get("bounds")
+if not isinstance(bounds, dict):
+    raise SystemExit(f"window bounds unavailable: {value}")
+if not math.isclose(bounds.get("width", -1), float(expected_width), abs_tol=1.0):
+    raise SystemExit(f"unexpected window width: {value}")
+if not math.isclose(bounds.get("height", -1), float(expected_height), abs_tol=1.0):
+    raise SystemExit(f"unexpected window height: {value}")
+if value.get("desktopViewAvailable") is not True:
+    raise SystemExit(f"desktop work area unexpectedly unavailable: {value}")
+PY
+}
+
+capture_window_screenshot() {
+  local prefix="$1"
+  local label="$2"
+  api POST /v1/presentation/screenshot "$(screenshot_body "$label")" \
+    > "$OUTPUT_ROOT/$prefix.json"
+  validate_screenshot \
+    "$OUTPUT_ROOT/$prefix.json" \
+    "$OUTPUT_ROOT/$prefix-path.txt"
+}
+
 run_capture() {
   local prefix="$1"
   local capture_label="$prefix-$LABEL"
@@ -206,6 +241,95 @@ run_capture() {
   api POST /v1/presentation/navigate "$(navigation_body)" \
     > "$OUTPUT_ROOT/$prefix-navigation.json"
   validate_navigation "$OUTPUT_ROOT/$prefix-navigation.json"
+  if [[ "${NAVIS_DESKTOP_LAYOUT_DIAGNOSTICS:-0}" == "1" ]]; then
+    api GET /v1/presentation/window \
+      > "$OUTPUT_ROOT/$prefix-window-before.json"
+    api POST /v1/presentation/window \
+      '{"mode":"desktop"}' \
+      > "$OUTPUT_ROOT/$prefix-window-desktop-mode.json"
+    api POST /v1/presentation/window \
+      '{"width":1306,"height":853}' \
+      > "$OUTPUT_ROOT/$prefix-window-desktop-standard.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-desktop-standard.json" desktop none 1306 853
+    capture_window_screenshot \
+      "$prefix-desktop-standard-screenshot" "$prefix-desktop-standard"
+    api POST /v1/presentation/window \
+      '{"width":1159,"height":678}' \
+      > "$OUTPUT_ROOT/$prefix-window-desktop-short.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-desktop-short.json" desktop none 1159 678
+    capture_window_screenshot \
+      "$prefix-desktop-short-screenshot" "$prefix-desktop-short"
+    api POST /v1/presentation/window \
+      '{"width":887,"height":900}' \
+      > "$OUTPUT_ROOT/$prefix-window-desktop-compact.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-desktop-compact.json" desktop none 887 900
+    capture_window_screenshot \
+      "$prefix-desktop-compact-screenshot" "$prefix-desktop-compact"
+    api POST /v1/presentation/window \
+      '{"width":800,"height":600}' \
+      > "$OUTPUT_ROOT/$prefix-window-desktop.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-desktop.json" desktop none 800 600
+    capture_window_screenshot \
+      "$prefix-desktop-screenshot" "$prefix-desktop-view"
+
+    api POST /v1/presentation/window \
+      '{"width":799,"height":599}' \
+      > "$OUTPUT_ROOT/$prefix-window-enter-mini-gate.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-enter-mini-gate.json" \
+      desktop enterMiniPlayer 799 599
+    capture_window_screenshot \
+      "$prefix-enter-mini-gate-screenshot" "$prefix-enter-mini-gate"
+    api POST /v1/presentation/window \
+      '{"width":799,"height":444}' \
+      > "$OUTPUT_ROOT/$prefix-window-enter-mini-gate-short.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-enter-mini-gate-short.json" \
+      desktop enterMiniPlayer 799 444
+    capture_window_screenshot \
+      "$prefix-enter-mini-gate-short-screenshot" \
+      "$prefix-enter-mini-gate-short"
+    api POST /v1/presentation/window \
+      '{"transitionResolution":"restoreBounds"}' \
+      > "$OUTPUT_ROOT/$prefix-window-desktop-restored.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-desktop-restored.json" desktop none 800 600
+
+    api POST /v1/presentation/window \
+      '{"mode":"miniPlayer"}' \
+      > "$OUTPUT_ROOT/$prefix-window-mini-mode.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-mini-mode.json" miniPlayer none 720 405
+    capture_window_screenshot \
+      "$prefix-mini-default-screenshot" "$prefix-mini-default"
+    api POST /v1/presentation/window \
+      '{"width":560,"height":360}' \
+      > "$OUTPUT_ROOT/$prefix-window-mini.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-mini.json" miniPlayer none 560 360
+    capture_window_screenshot \
+      "$prefix-mini-minimum-screenshot" "$prefix-mini-minimum"
+
+    api POST /v1/presentation/window \
+      '{"width":800,"height":600}' \
+      > "$OUTPUT_ROOT/$prefix-window-exit-mini-gate.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-exit-mini-gate.json" \
+      miniPlayer exitMiniPlayer 800 600
+    capture_window_screenshot \
+      "$prefix-exit-mini-gate-screenshot" "$prefix-exit-mini-gate"
+    api POST /v1/presentation/window \
+      '{"transitionResolution":"restoreBounds"}' \
+      > "$OUTPUT_ROOT/$prefix-window-mini-restored.json"
+    validate_window_response \
+      "$OUTPUT_ROOT/$prefix-window-mini-restored.json" miniPlayer none 720 405
+    capture_window_screenshot \
+      "$prefix-mini-screenshot" "$prefix-mini-player"
+  fi
   api GET /v1/presentation/status \
     > "$OUTPUT_ROOT/$prefix-presentation-after.json"
   api POST /v1/presentation/screenshot "$(screenshot_body "$capture_label")" \
@@ -261,6 +385,8 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
         "endpoints": [
             "GET /v1/health",
             "GET /v1/presentation/status",
+            "GET /v1/presentation/window",
+            "POST /v1/presentation/window",
             "POST /v1/presentation/navigate",
             "POST /v1/presentation/screenshot",
             "POST /v1/shutdown",

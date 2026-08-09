@@ -10,6 +10,29 @@ enum DesktopLayoutClass {
   ultraWideDesktop,
 }
 
+/// Smallest logical viewport that can present the full desktop workspace.
+const Size kDesktopViewMinimumSize = Size(800, 600);
+
+/// Smallest supported logical viewport for the desktop Mini Player.
+const Size kDesktopMiniPlayerMinimumSize = Size(560, 360);
+
+/// Initial logical size used when the user enters the desktop Mini Player.
+const Size kDesktopMiniPlayerDefaultSize = Size(720, 405);
+
+// Compatibility boundary for leaf widgets rendered without AppShell. The
+// production desktop contract is defined by kDesktopViewMinimumSize instead.
+const double _legacyUnscopedDesktopShellWidth = 1200;
+
+bool supportsDesktopView(Size viewportSize) {
+  return viewportSize.width >= kDesktopViewMinimumSize.width &&
+      viewportSize.height >= kDesktopViewMinimumSize.height;
+}
+
+bool supportsMiniPlayer(Size viewportSize) {
+  return viewportSize.width >= kDesktopMiniPlayerMinimumSize.width &&
+      viewportSize.height >= kDesktopMiniPlayerMinimumSize.height;
+}
+
 /// Shared width buckets for non-desktop (phone/tablet) adaptive UI.
 enum AdaptiveLayoutClass {
   phoneCompact,
@@ -126,7 +149,7 @@ DesktopLayoutClass resolveDesktopLayoutClass(double width) {
   if (width >= 1600) {
     return DesktopLayoutClass.ultraWideDesktop;
   }
-  if (width >= 1200) {
+  if (width >= 1008) {
     return DesktopLayoutClass.standardDesktop;
   }
   return DesktopLayoutClass.compactDesktop;
@@ -148,9 +171,7 @@ AdaptiveShellMode resolveAdaptiveShellMode({
   required EdgeInsets safePadding,
 }) {
   if (desktopRuntime) {
-    return viewportSize.width >= 600
-        ? AdaptiveShellMode.standardRail
-        : AdaptiveShellMode.phoneBottomNav;
+    return AdaptiveShellMode.standardRail;
   }
 
   final width = viewportSize.width;
@@ -209,17 +230,18 @@ AdaptiveContext resolveAdaptiveContext({
   final shortestSide = viewportSize.shortestSide;
   final adaptiveLayoutClass = resolveAdaptiveLayoutClass(width);
 
-  // Keep existing shell breakpoint behavior for this ACP slice by resolving
-  // the shared shell mode through the non-desktop branch for all runtimes.
+  // Phone/tablet composition remains size-first. Desktop runtimes deliberately
+  // never inherit those shells: an undersized desktop window is handled by the
+  // explicit Mini Player transition instead.
   final adaptiveShellMode = resolveAdaptiveShellMode(
-    desktopRuntime: false,
+    desktopRuntime: desktopRuntime,
     viewportSize: viewportSize,
     safePadding: safePadding,
   );
   final desktopLayoutClass = resolveDesktopLayoutClass(width);
-  final isPhoneFormFactor = shortestSide < 600;
-  final desktopWide = desktopRuntime && width >= 1200;
-  final useDesktopShell = desktopWide;
+  final isPhoneFormFactor = !desktopRuntime && shortestSide < 600;
+  final desktopWide = desktopRuntime;
+  final useDesktopShell = desktopRuntime;
   final useCompactWideLandscape =
       !useDesktopShell &&
       adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
@@ -259,8 +281,16 @@ AdaptiveInputPolicy resolveAdaptiveInputPolicy({
 
 /// Returns the current [AdaptiveContext] from scope when available.
 ///
-/// Falls back to resolving context from [MediaQuery] when a screen is rendered
-/// outside [AdaptiveContextScope] (for example direct widget tests).
+/// Falls back to the legacy size-gated host resolution when a screen is
+/// rendered outside [AdaptiveContextScope] (for example direct component
+/// tests).
+///
+/// Production routes are hosted by [AppShell], which always installs the
+/// authoritative runtime scope. Keeping the unscoped behavior compatible with
+/// isolated leaf components prevents them from silently adopting the complete
+/// desktop workspace without its host. Callers that intentionally exercise the
+/// new desktop contract can pass [desktopRuntimeOverride] or install an
+/// [AdaptiveContextScope].
 AdaptiveContext resolveAdaptiveContextFor(
   BuildContext context, {
   bool? desktopRuntimeOverride,
@@ -278,8 +308,12 @@ AdaptiveContext resolveAdaptiveContextFor(
     );
   }
 
+  final desktopRuntime =
+      desktopRuntimeOverride ??
+      (isDesktopRuntime &&
+          mediaQuery.size.width >= _legacyUnscopedDesktopShellWidth);
   return resolveAdaptiveContext(
-    desktopRuntime: desktopRuntimeOverride ?? isDesktopRuntime,
+    desktopRuntime: desktopRuntime,
     viewportSize: mediaQuery.size,
     safePadding: mediaQuery.padding,
   );

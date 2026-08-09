@@ -11,6 +11,7 @@ import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/navigation_history_provider.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_presentation_host.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -87,6 +88,9 @@ class _NavisAppState extends ConsumerState<NavisApp> {
         var content = _wrapWithDesktopInputBoundary(
           child ?? const SizedBox.shrink(),
         );
+        if (isDesktopRuntime) {
+          content = DesktopPresentationHost(child: content);
+        }
         if (widget.requirePlaybackBootstrap) {
           content = _AppBootstrapOverlay(
             onDismissed: widget.onBootstrapOverlayDismissed,

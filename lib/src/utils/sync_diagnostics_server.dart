@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
@@ -19,6 +20,8 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
@@ -142,6 +145,79 @@ class SyncDiagnosticsServer {
             'songs': counts.songs,
           },
         });
+        return;
+      }
+      if (request.method == 'GET' && path == '/v1/presentation/window') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _windowPresentationJson(),
+        );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/presentation/window') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final controller = _container.read(desktopWindowControllerProvider);
+        final mode = body['mode'];
+        final resolution = body['transitionResolution'];
+        final width = (body['width'] as num?)?.toDouble();
+        final height = (body['height'] as num?)?.toDouble();
+        if (mode != null && mode != 'desktop' && mode != 'miniPlayer') {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'mode must be desktop or miniPlayer',
+          });
+          return;
+        }
+        if (resolution != null &&
+            resolution != 'switchMode' &&
+            resolution != 'restoreBounds') {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'transitionResolution must be switchMode or restoreBounds',
+          });
+          return;
+        }
+        if ((width == null) != (height == null) ||
+            (width != null && !supportsMiniPlayer(Size(width, height!)))) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'width and height must be at least 560 by 360',
+          });
+          return;
+        }
+        if (width != null && height != null) {
+          final current =
+              await controller.getCurrentBounds() ??
+              Rect.fromLTWH(0, 0, width, height);
+          await controller.setBoundsForDiagnostics(
+            Rect.fromLTWH(current.left, current.top, width, height),
+          );
+          controller.updateViewportSize(Size(width, height));
+          await Future<void>.delayed(
+            DesktopWindowController.resizeSettleInterval +
+                const Duration(milliseconds: 20),
+          );
+        }
+        if (mode != null) {
+          await controller.setMiniPlayerMode(mode == 'miniPlayer');
+        }
+        if (resolution != null) {
+          await controller.resolveTransition(
+            switchMode: resolution == 'switchMode',
+          );
+        }
+        await presentationController?.waitForFrame();
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _windowPresentationJson(),
+        );
         return;
       }
       if (request.method == 'GET' && path == '/v1/presentation/status') {
@@ -618,6 +694,37 @@ class SyncDiagnosticsServer {
       });
     }
   }
+
+  Future<Map<String, Object?>> _windowPresentationJson() async {
+    final controller = _container.read(desktopWindowControllerProvider);
+    final bounds = await controller.getCurrentBounds();
+    final transition = controller.transitionRequest;
+    return <String, Object?>{
+      'mode': controller.mode.name,
+      'bounds': _rectJson(bounds),
+      'displayWorkArea': _rectJson(controller.currentWorkArea),
+      'desktopViewAvailable': controller.desktopViewAvailable,
+      'miniAlwaysOnTop': controller.miniAlwaysOnTop,
+      'pendingTransition': transition == null
+          ? null
+          : <String, Object?>{
+              'direction': transition.direction.name,
+              'viewport': <String, double>{
+                'width': transition.viewportSize.width,
+                'height': transition.viewportSize.height,
+              },
+            },
+    };
+  }
+
+  Map<String, double>? _rectJson(Rect? rect) => rect == null
+      ? null
+      : <String, double>{
+          'x': rect.left,
+          'y': rect.top,
+          'width': rect.width,
+          'height': rect.height,
+        };
 
   Future<void> _startSync(
     HttpRequest request,
