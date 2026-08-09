@@ -134,6 +134,9 @@ bearer tokens, private server URLs, cloned user data, or unredacted screenshots.
 make gen                     # dart run build_runner build
 make gen-watch               # watch mode
 
+# Branding (canonical SVG -> runtime/platform raster assets)
+./tool/generate_platform_icons.sh  # requires ImageMagick
+
 # Full quality gate (pre-commit hook runs this)
 ./tool/check.sh              # or: make check
 
@@ -148,6 +151,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/dev_app.sh run -d <device-id>
 ./tool/dev_app.sh apk
 ./tool/dev_app.sh linux
+./tool/dev_app.sh linux-icon  # refresh content-addressed desktop icon/cache
 ./tool/dev_app.sh auto       # Android Auto
 ./tool/dev_app.sh dhu        # Desktop Head Unit
 ./tool/verify_android_auto_manifest.sh  # Android Auto manifest/APK contract

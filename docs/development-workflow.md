@@ -15,6 +15,45 @@ What it does:
 - checks Flutter minimum and active baseline expectations
 - runs `flutter pub get`
 
+## Branding Assets
+
+`lib/src/icon/Navis_Logo.svg` is the canonical in-app mark. After changing it,
+regenerate every raster and platform icon with:
+
+```bash
+./tool/generate_platform_icons.sh
+```
+
+The script requires ImageMagick and creates the light, dark, adaptive, and app
+PNG sources before refreshing Android launcher/adaptive/status icons, iOS and
+macOS icon sets, Linux hicolor icons, and the Windows ICO. It directly
+downscales the macOS icon set after launcher generation so grayscale-alpha
+artwork remains intact at every size. The launcher master is a dark circular
+badge with a transparent outer canvas; Android legacy/adaptive, macOS, Linux,
+and Windows outputs must preserve that transparency. iOS stays opaque because
+shipping iOS icons cannot contain transparent regions. Open and inspect the
+canonical mark, the Android notification icon, and representative
+smallest/largest assets for each affected platform over both light and dark
+backgrounds; non-empty files or successful generation alone do not prove the
+artwork is legible, centred, or free of a baked square canvas.
+
+For a Linux dev sidecar, refresh the user-level desktop entry and its
+content-addressed icon without launching the app:
+
+```bash
+./tool/dev_app.sh linux-icon
+```
+
+`./tool/dev_app.sh linux` performs the same refresh automatically. The
+content-derived icon name prevents Wayland compositor caches from retaining a
+previous brand asset under the generic `navis` name.
+
+Android uses the cache-busting `ic_launcher_navis` resource ID for both stable
+and sideload/dev manifests. Keep that ID aligned across launcher generation,
+the manifest contract test, and Android Auto manifest verification. Its
+adaptive background remains transparent; the foreground owns the complete
+circular badge.
+
 ## Multi-OS Host Preflight
 
 Before preparing artifacts for desktop + mobile targets, run:

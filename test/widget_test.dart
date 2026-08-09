@@ -95,6 +95,12 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(
+      tester.getCenter(
+        find.byKey(const ValueKey<String>('bootstrap-logo')),
+      ),
+      tester.getCenter(find.byType(CircularProgressIndicator)),
+    );
   });
 
   testWidgets('shows retry action when playback bootstrap fails', (

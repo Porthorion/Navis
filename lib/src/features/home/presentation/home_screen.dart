@@ -1663,10 +1663,6 @@ class _HomeSyncLogo extends StatelessWidget {
   });
 
   static const Key ringKey = ValueKey<String>('home-sync-ring');
-  // The source PNG's visible glyph is slightly right/down from canvas center.
-  // Apply a tiny counter-shift so the ring and icon appear optically centered.
-  static const double _assetCenterOffsetX = 12.5 / 1024.0;
-  static const double _assetCenterOffsetY = 3.5 / 1024.0;
 
   final double size;
   final LibrarySyncState syncState;
@@ -1705,11 +1701,6 @@ class _HomeSyncLogo extends StatelessWidget {
     final ringTrackColor = showFailure
         ? colorScheme.error.withValues(alpha: 0.18)
         : accentColors.brandTrack;
-    final iconOffset = Offset(
-      -(size * _assetCenterOffsetX),
-      -(size * _assetCenterOffsetY),
-    );
-
     final logo = Transform.translate(
       offset: Offset(0, size * 0.10 * clampedPullProgress),
       child: Transform.rotate(
@@ -1758,12 +1749,10 @@ class _HomeSyncLogo extends StatelessWidget {
                 ),
               ),
             ),
-            Transform.translate(
-              offset: iconOffset,
-              child: NavisIcon(
-                size: size,
-                tintWithAccent: true,
-              ),
+            NavisIcon(
+              key: const ValueKey<String>('home-sync-logo'),
+              size: size,
+              tintWithAccent: true,
             ),
           ],
         ),

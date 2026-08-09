@@ -48,7 +48,7 @@ void main() {
       isNot(contains('android:name="com.navis.app.navis.NavisAudioService"')),
     );
     expect(manifest, contains('android:label="@string/app_name"'));
-    expect(manifest, contains('android:icon="@mipmap/ic_launcher"'));
+    expect(manifest, contains('android:icon="@mipmap/ic_launcher_navis"'));
     expect(manifest, contains('android:exported="true"'));
     expect(manifest, contains('android:foregroundServiceType="mediaPlayback"'));
     expect(

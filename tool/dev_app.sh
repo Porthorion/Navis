@@ -9,6 +9,7 @@
 # Usage:
 #   ./tool/dev_app.sh run [flutter-run-args...]
 #   ./tool/dev_app.sh linux [flutter-run-args...]
+#   ./tool/dev_app.sh linux-icon
 #   ./tool/dev_app.sh apk [flutter-build-args...]
 #   ./tool/dev_app.sh auto [flutter-run-args...]
 #   ./tool/dev_app.sh dhu
@@ -63,6 +64,36 @@ fi
 # (wrong package id + old version) instead of app-sideload-*.apk.
 ANDROID_FLAVOR_ARGS=("--flavor" "sideload")
 
+install_linux_desktop_icon() {
+  local icon_source="linux/packaging/icons/hicolor/256x256/apps/navis.png"
+  local icon_dir="${HOME}/.local/share/icons/hicolor/256x256/apps"
+  local app_dir="${HOME}/.local/share/applications"
+  local icon_digest
+  local icon_name
+
+  if [[ ! -f "${icon_source}" ]]; then
+    echo "ERROR: Generated Linux app icon not found: ${icon_source}" >&2
+    echo "Run ./tool/generate_platform_icons.sh first." >&2
+    exit 66
+  fi
+
+  icon_digest="$(sha256sum "${icon_source}" | cut -c1-12)"
+  icon_name="navis-${icon_digest}"
+  mkdir -p "${icon_dir}" "${app_dir}"
+  cp -f "${icon_source}" "${icon_dir}/${icon_name}.png"
+  sed "s/^Icon=.*/Icon=${icon_name}/" \
+    "linux/packaging/com.navis.app.navis.desktop" \
+    >"${app_dir}/com.navis.app.navis.desktop"
+
+  if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database "${app_dir}" >/dev/null 2>&1 || true
+  fi
+  gtk-update-icon-cache "${HOME}/.local/share/icons/hicolor" \
+    --force --ignore-theme-index --quiet 2>/dev/null || true
+
+  echo "    Installed Linux desktop icon: ${icon_name}"
+}
+
 case "${MODE}" in
   run)
     flutter run --debug "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
@@ -72,18 +103,15 @@ case "${MODE}" in
     # compositors (GNOME, KDE Plasma, etc.) resolve the app icon via app-id.
     # Safe to run repeatedly — only installs/updates local user files.
     echo "==> Installing user-level desktop entry for Wayland icon support"
-    _icon_dir="${HOME}/.local/share/icons/hicolor/256x256/apps"
-    _app_dir="${HOME}/.local/share/applications"
-    mkdir -p "${_icon_dir}" "${_app_dir}"
-    cp -f "lib/src/icon/Navis_App_Icon.png" "${_icon_dir}/navis.png"
-    cp -f "linux/packaging/com.navis.app.navis.desktop" \
-          "${_app_dir}/com.navis.app.navis.desktop"
-    gtk-update-icon-cache "${HOME}/.local/share/icons/hicolor" \
-      --ignore-theme-index --quiet 2>/dev/null || true
+    install_linux_desktop_icon
 
     # libmpv (media_kit backend) lives in brew — expose it only for this run.
     export LD_LIBRARY_PATH="/home/linuxbrew/.linuxbrew/lib:${LD_LIBRARY_PATH:-}"
     flutter run -d linux --debug "${DART_DEFINE_ARGS[@]}" "$@"
+    ;;
+  linux-icon)
+    echo "==> Installing user-level desktop entry for Wayland icon support"
+    install_linux_desktop_icon
     ;;
   apk)
     flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"

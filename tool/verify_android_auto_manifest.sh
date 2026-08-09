@@ -133,7 +133,7 @@ require_contains \
   "media service has a label"
 require_contains \
   "$MANIFEST_PATH" \
-  'android:icon="@mipmap/ic_launcher"' \
+  'android:icon="@mipmap/ic_launcher_navis"' \
   "media service has an icon"
 require_contains \
   "$MANIFEST_PATH" \

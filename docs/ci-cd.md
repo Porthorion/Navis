@@ -107,6 +107,27 @@ Lyrics, Queue, Mini Player, and the full volume control without overflow; Mini
 captures must keep volume below transport/actions and centered tight metadata,
 and every transition choice must remain fully visible.
 
+### Branding Regeneration
+
+When the canonical `lib/src/icon/Navis_Logo.svg` changes, run:
+
+```bash
+./tool/generate_platform_icons.sh
+```
+
+This ImageMagick-backed generator refreshes the runtime PNG sources and all
+Android, iOS, macOS, Linux, and Windows icon outputs. Android adaptive and
+status-bar variants and every macOS downscale are part of the generated
+contract. Desktop and Android launchers must retain transparent pixels outside
+the circular badge; iOS is intentionally flattened to the required opaque
+canvas. Inspect representative platform outputs over light and dark
+backgrounds, including the smallest notification/desktop sizes, before running
+`./tool/check.sh`.
+
+On Linux, `./tool/dev_app.sh linux` installs a content-addressed user icon and
+refreshes the desktop/icon caches before launch. Use
+`./tool/dev_app.sh linux-icon` to perform only that cache-safe icon refresh.
+
 ### Core Gate
 
 Use for the focused release checks when the full development test matrix is not

@@ -2025,6 +2025,10 @@ void main() {
     expect(ring, findsOneWidget);
     final indicator = tester.widget<CircularProgressIndicator>(ring);
     expect(indicator.value, closeTo(0.3, 0.001));
+    expect(
+      tester.getCenter(find.byKey(const ValueKey<String>('home-sync-logo'))),
+      tester.getCenter(ring),
+    );
 
     final context = tester.element(find.byType(HomeScreen));
     final l10n = AppLocalizations.of(context)!;

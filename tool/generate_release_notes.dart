@@ -104,6 +104,10 @@ const List<_Version> _changelogs = [
       'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
       type: _EntryType.improvement,
     ),
+    _Entry(
+      'Navis now uses a refreshed, precisely centred logo and background-free circular platform icons',
+      type: _EntryType.improvement,
+    ),
   ]),
   _Version('1.1.1', [
     _Entry(

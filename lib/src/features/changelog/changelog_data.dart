@@ -77,6 +77,10 @@ const List<ChangelogVersion> changelogs = [
         'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Navis now uses a refreshed, precisely centred logo and background-free circular platform icons',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

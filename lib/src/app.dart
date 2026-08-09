@@ -254,10 +254,6 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
   }
 }
 
-// Same optical-centre offsets used by the home sync logo.
-const double _assetCenterOffsetX = 12.5 / 1024.0;
-const double _assetCenterOffsetY = 3.5 / 1024.0;
-
 class _BootstrapSplashScreen extends StatelessWidget {
   const _BootstrapSplashScreen({
     required this.ringFill,
@@ -292,11 +288,6 @@ class _BootstrapSplashScreen extends StatelessWidget {
     final ringTrackColor = isFailed
         ? colorScheme.error.withValues(alpha: 0.15)
         : accentColors.brandTrack;
-    final iconOffset = Offset(
-      -(logoSize * _assetCenterOffsetX),
-      -(logoSize * _assetCenterOffsetY),
-    );
-
     // Exit animation — logo lifts upward and fades out.
     final opacity = (1.0 - exitProgress).clamp(0.0, 1.0);
     final translateY = -screenSize.height * 0.35 * exitProgress;
@@ -338,12 +329,10 @@ class _BootstrapSplashScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Transform.translate(
-                          offset: iconOffset,
-                          child: NavisIcon(
-                            size: logoSize,
-                            tintWithAccent: true,
-                          ),
+                        NavisIcon(
+                          key: const ValueKey<String>('bootstrap-logo'),
+                          size: logoSize,
+                          tintWithAccent: true,
                         ),
                       ],
                     ),
