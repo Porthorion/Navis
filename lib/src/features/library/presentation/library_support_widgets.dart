@@ -93,7 +93,13 @@ class _SyncStatusBanner extends StatelessWidget {
     if (syncState.isRunning) {
       final total = syncState.total;
       final processed = syncState.processed ?? 0;
-      final progress = total == null || total == 0
+      // Metadata stages use different units (artists, catalog pages, and
+      // candidate validation), so their percentages cannot form one stable
+      // overall value. Reserve the determinate bar for durable song hydration.
+      final durableHydration =
+          syncState.metadataReady &&
+          syncState.stage == LibrarySyncStage.fetchingSongs;
+      final progress = !durableHydration || total == null || total == 0
           ? null
           : processed / total.clamp(1, total);
       return Material(

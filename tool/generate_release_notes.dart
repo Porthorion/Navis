@@ -132,6 +132,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'Library song hydration progress now advances only after song data is safely written, while catalog discovery uses an activity indicator instead of a misleading percentage',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Library setup now waits for an already-running sync instead of briefly reporting a false failure, and completed syncs keep you on the page you are viewing',
       type: _EntryType.fix,
     ),

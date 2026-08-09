@@ -1718,6 +1718,95 @@ void main() {
     );
 
     test(
+      'bulk song hydration progress never counts observed albums as complete',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+            songCount: 2,
+          ),
+          Album(
+            id: 'album-2',
+            name: 'Album 2',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+            songCount: 2,
+          ),
+        ];
+        api.bulkSongPages[0] = const <Song>[
+          Song(
+            id: 'song-1',
+            title: 'Song 1',
+            albumId: 'album-1',
+            artistId: 'artist-1',
+          ),
+          Song(
+            id: 'song-3',
+            title: 'Song 3',
+            albumId: 'album-2',
+            artistId: 'artist-1',
+          ),
+        ];
+        api.bulkSongPages[2] = const <Song>[
+          Song(
+            id: 'song-2',
+            title: 'Song 2',
+            albumId: 'album-1',
+            artistId: 'artist-1',
+          ),
+        ];
+        api.albumDetails['album-2'] = const Album(
+          id: 'album-2',
+          name: 'Album 2',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+          songs: <Song>[
+            Song(id: 'song-3', title: 'Song 3', artistId: 'artist-1'),
+            Song(id: 'song-4', title: 'Song 4', artistId: 'artist-1'),
+          ],
+        );
+
+        final bulkEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fallbackArtistConcurrency: 1,
+          wifiAlbumConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          otherAlbumConcurrency: 1,
+          bulkSearchPageSize: 2,
+          writeChunkSize: 1,
+          isolateThreshold: 1000,
+        );
+
+        final progress = <LibrarySyncState>[];
+        final result = await bulkEngine.forceFullSync(onProgress: progress.add);
+
+        final hydrationProgress = progress
+            .where((state) => state.stage == LibrarySyncStage.fetchingSongs)
+            .where((state) => state.processed != null)
+            .map((state) => state.processed!)
+            .toList(growable: false);
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(hydrationProgress, isNotEmpty);
+        for (var index = 1; index < hydrationProgress.length; index++) {
+          expect(
+            hydrationProgress[index],
+            greaterThanOrEqualTo(hydrationProgress[index - 1]),
+            reason: 'Durable hydration progress must not move backwards.',
+          );
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'bulk song fast path with isolate parsing does not crash',
       () async {
         await saveSession();

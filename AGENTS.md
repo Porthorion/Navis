@@ -449,6 +449,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   continue after short pages: compatible servers may silently cap the requested
   page size, and stopping on that cap would incorrectly trigger the slow
   per-album fallback.
+- Song-hydration progress is durable: it advances only after an album's songs
+  are written and the album is marked hydrated. Catalog/metadata stages use an
+  indeterminate activity indicator because their page totals are estimates,
+  not one continuous percentage.
 - Native database access uses WAL with one Drift read-pool connection so app
   queries do not queue behind candidate-catalog writes. Keep one
   `NavisDatabase` in Riverpod; its pooled reader and writer remain internal to

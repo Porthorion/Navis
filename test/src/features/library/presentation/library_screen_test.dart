@@ -257,6 +257,7 @@ Future<void> _pumpLibraryScreen(
   WidgetTester tester, {
   required List<Object?> overrides,
   bool showPlaylistsPage = false,
+  bool settle = true,
 }) async {
   await tester.pumpWidget(
     _buildLibraryScreen(
@@ -264,7 +265,11 @@ Future<void> _pumpLibraryScreen(
       showPlaylistsPage: showPlaylistsPage,
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 Future<void> _switchToArtistsTab(WidgetTester tester) async {
@@ -508,6 +513,57 @@ void main() {
             'Metadata ready. Hydrating songs (5/10, 5 remaining, 2.5 albums/s)',
           ),
           findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<LinearProgressIndicator>(
+                find.byType(LinearProgressIndicator),
+              )
+              .value,
+          0.5,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'sync banner keeps candidate discovery progress indeterminate',
+      (tester) async {
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(
+                const LibrarySyncState(
+                  status: LibrarySyncStatus.running,
+                  stage: LibrarySyncStage.fetchingAlbums,
+                  candidateGeneration: 4,
+                  candidateStatus: 'collecting',
+                  processed: 500,
+                  total: 1000,
+                ),
+              ),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
+            ),
+          ],
+          settle: false,
+        );
+
+        expect(
+          tester
+              .widget<LinearProgressIndicator>(
+                find.byType(LinearProgressIndicator),
+              )
+              .value,
+          isNull,
         );
       },
     );

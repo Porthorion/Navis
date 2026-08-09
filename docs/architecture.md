@@ -717,6 +717,10 @@ replay/end-of-queue feedback instead.
    reading the previous committed catalog. Song pagination advances by each
    response's actual count rather than treating a short page as completion,
    since compatible servers can silently cap the requested result size.
+   Hydration progress advances only after an album has been written and marked
+   hydrated; albums merely observed in a bulk search page are not presented as
+   complete. Catalog discovery remains indeterminate because its page total is
+   an estimate and does not share a stable denominator with song hydration.
    Incompatible providers fall back to
    bounded `getArtists → getArtist → getAlbum` work using the same candidate
    boundary.

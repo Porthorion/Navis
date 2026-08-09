@@ -106,6 +106,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Library song hydration progress now advances only after song data is safely written, while catalog discovery uses an activity indicator instead of a misleading percentage',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Library setup now waits for an already-running sync instead of briefly reporting a false failure, and completed syncs keep you on the page you are viewing',
         type: ChangelogEntryType.fix,
       ),
