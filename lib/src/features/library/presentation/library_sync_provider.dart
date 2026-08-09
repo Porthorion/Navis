@@ -194,6 +194,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   bool _startupSyncInFlight = false;
   bool _startupSyncSuppressed = false;
   int _startupSyncEpoch = 0;
+  Future<LibrarySyncState>? _activeSync;
   Future<void>? _startupSyncTask;
   String? _startupSyncDoneFingerprint;
   String? _sessionFingerprint;
@@ -344,12 +345,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (engine == null) {
       return state;
     }
-    return _runRequest(
-      engine,
-      LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.checkForUpdates,
-        target: target,
+    return _joinOrStartSync(
+      () => _runRequest(
+        engine,
+        LibrarySyncRequest(
+          trigger: LibrarySyncTrigger.interaction,
+          intent: LibrarySyncIntent.checkForUpdates,
+          target: target,
+        ),
       ),
     );
   }
@@ -361,12 +364,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (engine == null) {
       return state;
     }
-    return _runRequest(
-      engine,
-      LibrarySyncRequest(
-        trigger: LibrarySyncTrigger.interaction,
-        intent: LibrarySyncIntent.automatic,
-        target: target,
+    return _joinOrStartSync(
+      () => _runRequest(
+        engine,
+        LibrarySyncRequest(
+          trigger: LibrarySyncTrigger.interaction,
+          intent: LibrarySyncIntent.automatic,
+          target: target,
+        ),
       ),
     );
   }
@@ -640,10 +645,39 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     bool verificationContinuation = false,
     bool allowMeteredBroadOverride = false,
   }) async {
-    if (state.isRunning) {
-      return state;
-    }
+    return _joinOrStartSync(
+      () => _runSyncOnce(
+        force: force,
+        forceFull: forceFull,
+        verificationContinuation: verificationContinuation,
+        allowMeteredBroadOverride: allowMeteredBroadOverride,
+      ),
+    );
+  }
 
+  Future<LibrarySyncState> _joinOrStartSync(
+    Future<LibrarySyncState> Function() start,
+  ) {
+    final active = _activeSync;
+    if (active != null) {
+      return active;
+    }
+    late final Future<LibrarySyncState> task;
+    task = start();
+    _activeSync = task;
+    return task.whenComplete(() {
+      if (identical(_activeSync, task)) {
+        _activeSync = null;
+      }
+    });
+  }
+
+  Future<LibrarySyncState> _runSyncOnce({
+    required bool force,
+    required bool forceFull,
+    required bool verificationContinuation,
+    required bool allowMeteredBroadOverride,
+  }) async {
     final engine = ref.read(librarySyncEngineProvider);
     final notifier = ref.read(librarySyncNotifierProvider);
     if (engine == null) {

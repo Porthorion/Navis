@@ -132,6 +132,14 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'Library setup now waits for an already-running sync instead of briefly reporting a false failure, and completed syncs keep you on the page you are viewing',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'When a viewed album, artist, or playlist is confirmed removed, its page now stays open with a Back to Library action instead of navigating you away',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
       type: _EntryType.improvement,
     ),

@@ -144,6 +144,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   title: l10n.albumDetailNotFoundTitle,
                   subtitle: l10n.albumDetailNotFoundSubtitle,
                   icon: Icons.album_outlined,
+                  action: OutlinedButton.icon(
+                    key: const ValueKey<String>(
+                      'album-detail-back-to-library',
+                    ),
+                    onPressed: () => NavService.returnToLibrary(context, ref),
+                    icon: const Icon(Icons.library_music_outlined),
+                    label: Text(l10n.detailUnavailableBackToLibrary),
+                  ),
                 );
               }
               final details = data.album;

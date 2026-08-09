@@ -130,6 +130,12 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
             title: l10n.artistDetailNotFoundTitle,
             subtitle: l10n.artistDetailNotFoundSubtitle,
             icon: Icons.person_off_outlined,
+            action: OutlinedButton.icon(
+              key: const ValueKey<String>('artist-detail-back-to-library'),
+              onPressed: () => NavService.returnToLibrary(context, ref),
+              icon: const Icon(Icons.library_music_outlined),
+              label: Text(l10n.detailUnavailableBackToLibrary),
+            ),
           );
         }
 

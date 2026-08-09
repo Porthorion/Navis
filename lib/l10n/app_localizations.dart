@@ -1576,6 +1576,12 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get commonRetry;
 
+  /// No description provided for @detailUnavailableBackToLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Library'**
+  String get detailUnavailableBackToLibrary;
+
   /// No description provided for @commonCancel.
   ///
   /// In en, this message translates to:

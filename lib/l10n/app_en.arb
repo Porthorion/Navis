@@ -358,6 +358,7 @@
   "configurationLastFmBundledSubtitle": "This build includes a Last.fm API key. You do not need to provide your own.",
   "commonQueued": "Queued",
   "commonRetry": "Retry",
+  "detailUnavailableBackToLibrary": "Back to Library",
   "commonCancel": "Cancel",
   "libraryTitle": "Library",
   "libraryTabArtists": "Artists",

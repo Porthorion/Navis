@@ -53,6 +53,22 @@ class _RecordingLibrarySyncController extends LibrarySyncController {
   }
 }
 
+class _SingleFlightRecordingLibrarySyncController
+    extends _RecordingLibrarySyncController {
+  _SingleFlightRecordingLibrarySyncController(super.result, {super.gate});
+
+  Future<LibrarySyncState>? _active;
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    bool allowMeteredBroadOverride = false,
+  }) {
+    return _active ??= super.syncNow(
+      allowMeteredBroadOverride: allowMeteredBroadOverride,
+    );
+  }
+}
+
 const _unmetered = SyncNetworkPolicy(
   networkType: NetworkType.wifi,
   isMetered: false,
@@ -248,5 +264,84 @@ void main() {
       expect(container.read(initialSyncCompletionWarningProvider), isTrue);
     },
     skip: !sqliteAvailable,
+  );
+
+  test(
+    'setup waits for an already-running sync instead of reporting failure',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.com',
+          username: 'alice',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final server = await database.serverDao.getActiveServer();
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(server!.id),
+          currentGeneration: const Value(1),
+        ),
+      );
+      final gate = Completer<void>();
+      final sync = _SingleFlightRecordingLibrarySyncController(
+        const LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+        ),
+        gate: gate,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          sessionRoutePhaseProvider.overrideWithValue(
+            SessionRoutePhase.initialSyncRequired,
+          ),
+          syncNetworkPolicyProvider.overrideWithValue(_unmetered),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.online,
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(() => sync),
+          serverConfigStateProvider.overrideWithValue(
+            AsyncData(
+              ServerConfigModel(
+                id: server.id,
+                url: server.url,
+                username: server.username,
+                password: 'secret',
+                apiVersion: server.apiVersion,
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(librarySyncControllerProvider);
+      final existing = sync.syncNow();
+      container.read(initialServerSyncControllerProvider);
+      await _drainMicrotasks();
+
+      expect(sync.calls, 1);
+      expect(
+        container.read(initialServerSyncControllerProvider).status,
+        InitialServerSyncStatus.running,
+      );
+
+      gate.complete();
+      await existing;
+      await _drainMicrotasks();
+
+      expect(
+        container.read(initialServerSyncControllerProvider).status,
+        InitialServerSyncStatus.complete,
+      );
+    },
   );
 }

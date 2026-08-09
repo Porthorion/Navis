@@ -698,6 +698,9 @@ replay/end-of-queue feedback instead.
    passing an entity ID to a hydrator or server endpoint. Automatic broad work
    defers while Navis is backgrounded or playing; an explicit user refresh may
    resume queued broad work in the foreground, including during playback.
+   `LibrarySyncController` also coalesces overlapping app-level requests onto
+   one terminal result, so setup, startup, user, reconnect, and continuation
+   callers cannot mistake an in-flight state for a failed sync.
 3. Reliable providers use conditional `getIndexes(ifModifiedSince)` as a cheap
    check. The response is a conditional artist index, not a change feed, so its
    cursor advances only after every candidate and hydration completes.

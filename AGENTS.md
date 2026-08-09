@@ -475,6 +475,11 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 - Automatic broad catalog work defers while Navis is backgrounded or playing;
   an explicit user refresh may resume queued broad work in the foreground so a
   requested refresh is not silently postponed behind it.
+- `LibrarySyncController` coalesces overlapping app-level sync requests and
+  returns their final shared result. Never treat an in-flight state as a
+  terminal failure, and never route away from a ready session for ordinary
+  sync completion. Confirmed missing detail entities remain on their route
+  with a user-controlled return to Library.
 - A failed automatic sync remains failed until the next configured sync
   interval, a reconnect, or an explicit manual retry. Do not add short forced
   retry loops that repeatedly restart the same failing metadata pass.

@@ -61,6 +61,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             title: l10n.playlistDetailNotFound,
             subtitle: l10n.playlistDetailNotFoundSubtitle,
             icon: Icons.queue_music_outlined,
+            action: OutlinedButton.icon(
+              key: const ValueKey<String>('playlist-detail-back-to-library'),
+              onPressed: () => NavService.returnToLibrary(context, ref),
+              icon: const Icon(Icons.library_music_outlined),
+              label: Text(l10n.detailUnavailableBackToLibrary),
+            ),
           );
         }
 

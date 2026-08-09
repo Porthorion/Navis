@@ -319,6 +319,62 @@ void main() {
       expect(engine.forceFullCalls.last, isFalse);
     });
 
+    test('overlapping sync callers await one terminal result', () async {
+      final completer = Completer<LibrarySyncState>();
+      final engine = _FakeLibrarySyncEngine(
+        ({onProgress}) async => const LibrarySyncState(
+          status: LibrarySyncStatus.skipped,
+          stage: LibrarySyncStage.completed,
+        ),
+        ({forceFull = false, onProgress}) async {
+          onProgress?.call(
+            const LibrarySyncState(
+              status: LibrarySyncStatus.running,
+              stage: LibrarySyncStage.collectingCandidate,
+            ),
+          );
+          return completer.future;
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          _manualSyncInterval,
+          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.checking,
+              ),
+            ),
+          ),
+          librarySyncEngineProvider.overrideWithValue(engine),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(librarySyncControllerProvider.notifier);
+      final first = notifier.syncNow();
+      final second = notifier.syncIfStale();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(engine.nowCalls, 1);
+      expect(engine.staleCalls, 0);
+      expect(container.read(librarySyncControllerProvider).isRunning, isTrue);
+
+      const completed = LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      );
+      completer.complete(completed);
+
+      expect(await first, completed);
+      expect(await second, completed);
+      expect(
+        container.read(librarySyncControllerProvider).status,
+        LibrarySyncStatus.succeeded,
+      );
+    });
+
     test('syncNow transitions through running to failed state', () async {
       final engine = _FakeLibrarySyncEngine(
         ({

@@ -117,6 +117,13 @@ abstract final class NavService {
     context.go('/library/artists/$artistId');
   }
 
+  /// Return from an unavailable detail page to the Library root.
+  static void returnToLibrary(BuildContext context, WidgetRef ref) {
+    clearExitPrompt();
+    _prepareForNavigation(context, ref, AppNavigationIntent.replace);
+    context.go('/library');
+  }
+
   /// Navigate to the search screen and pre-fill the query.
   ///
   /// Useful for radio "search for this artist / song" flows.

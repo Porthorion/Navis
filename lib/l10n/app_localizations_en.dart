@@ -852,6 +852,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonRetry => 'Retry';
 
   @override
+  String get detailUnavailableBackToLibrary => 'Back to Library';
+
+  @override
   String get commonCancel => 'Cancel';
 
   @override
