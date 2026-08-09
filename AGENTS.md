@@ -603,7 +603,11 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   initial-sync-required, or ready. `/initial-sync` is outside the shell and
   authenticated profiles without a committed catalog cannot bypass it.
 - **No top-level `/now-playing` route** — player is embedded in the shell.
-- `appRouterProvider` must watch auth with `.select(...)` only. Watching the full `serverConfigProvider` rebuilds `GoRouter` and resets navigation.
+- `appRouterProvider` keeps one `GoRouter` instance and refreshes its
+  auth/first-sync redirects through a `ValueNotifier`. Do not watch a
+  timestamp-bearing config provider in its construction: sync completion may
+  briefly re-evaluate session readiness, but must never recreate the router or
+  reset the current location.
 - `NavService` (`navigation_service.dart`) for app-level navigation.
 - Desktop mouse back/forward via `navigation_history_provider.dart`.
 

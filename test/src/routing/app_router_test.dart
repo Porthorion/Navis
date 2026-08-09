@@ -382,6 +382,67 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   });
 
+  testWidgets('keeps the current route across a sync timestamp update', (
+    tester,
+  ) async {
+    const config = ServerConfigModel(
+      id: 1,
+      url: 'https://example.com',
+      username: 'alice',
+      password: 'secret',
+      apiVersion: '1.16.1',
+    );
+    final container = _createContainerWithDatabase(
+      overrides: [
+        serverConfigProvider.overrideWith(
+          () => _TestServerConfigNotifier(config),
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
+        scrobbleDispatchControllerProvider.overrideWith(
+          _NoopScrobbleDispatchController.new,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pumpAndSettle();
+
+    final router = container.read(appRouterProvider);
+    router.go('/library');
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, '/library');
+
+    await container
+        .read(serverConfigProvider.notifier)
+        .save(config.copyWith(lastSynced: DateTime.utc(2026, 8, 10)));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(container.read(appRouterProvider), same(router));
+    expect(router.state.matchedLocation, '/library');
+  });
+
   testWidgets('contains all expected route paths', (tester) async {
     final container = _createContainerWithDatabase(
       overrides: [

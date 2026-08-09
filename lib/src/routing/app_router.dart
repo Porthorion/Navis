@@ -62,21 +62,33 @@ CustomTransitionPage<T> _slideFadePage<T>({
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // Only watch auth state (logged-in vs not), not the full config which
-  // changes on every sync timestamp update.  Rebuilding GoRouter resets
-  // the location to initialLocation, so we must avoid spurious rebuilds.
-  final sessionPhase = ref.watch(sessionRoutePhaseProvider);
+  // Keep the router instance stable. A sync completion updates the server
+  // configuration timestamp and briefly re-evaluates the session phase while
+  // its persisted first-sync safety check resolves. Recreating GoRouter during
+  // that transient state restarts it at [initialLocation], which can turn a
+  // later ready redirect into an unwanted trip to Home.
+  //
+  // A refresh listenable lets redirects react to real auth/first-sync changes
+  // without replacing the current router or its location.
+  final sessionPhase = ValueNotifier<SessionRoutePhase>(
+    ref.read(sessionRoutePhaseProvider),
+  );
+  ref.listen<SessionRoutePhase>(sessionRoutePhaseProvider, (_, next) {
+    sessionPhase.value = next;
+  });
+  ref.onDispose(sessionPhase.dispose);
 
   return GoRouter(
     initialLocation: '/login',
+    refreshListenable: sessionPhase,
     redirect: (context, state) {
       final isLoginRoute = state.matchedLocation == '/login';
       final isInitialSyncRoute = state.matchedLocation == '/initial-sync';
-      if (sessionPhase == SessionRoutePhase.loading) {
+      if (sessionPhase.value == SessionRoutePhase.loading) {
         return null; // still loading
       }
 
-      return switch (sessionPhase) {
+      return switch (sessionPhase.value) {
         SessionRoutePhase.unauthenticated => isLoginRoute ? null : '/login',
         SessionRoutePhase.initialSyncRequired =>
           isInitialSyncRoute ? null : '/initial-sync',

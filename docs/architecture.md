@@ -417,6 +417,12 @@ Routes are defined in `lib/src/routing/app_router.dart`:
 The retired `/settings/group-listening` path redirects to Configuration and is
 not shown in navigation.
 
+`appRouterProvider` owns one stable `GoRouter` instance. Authentication and
+first-sync phase changes refresh its redirects in place rather than rebuilding
+the router: timestamp and catalog-state updates during ordinary sync may
+briefly re-evaluate session readiness, but they must preserve the current
+location.
+
 ### Shell Routes
 
 The app uses `StatefulShellRoute.indexedStack` for persistent navigation. On
