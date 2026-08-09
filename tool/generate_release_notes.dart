@@ -105,6 +105,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'Remote label tooltips no longer flood desktop logs or destabilize accessibility when repeatedly shown and hidden',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
       type: _EntryType.improvement,
     ),

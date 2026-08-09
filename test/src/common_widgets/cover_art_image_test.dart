@@ -284,8 +284,8 @@ void main() {
           'Remote source — not in your server library.',
         );
         expect(
-          find.byTooltip('Remote source — not in your server library.'),
-          findsOneWidget,
+          tester.getSemantics(badgeFinder).tooltip,
+          'Remote source — not in your server library.',
         );
 
         await tester.tapAt(badgeRect.center);

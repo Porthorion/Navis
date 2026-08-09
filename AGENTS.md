@@ -527,7 +527,12 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   subtitle with `RemoteSourceMetadataLine`. Metadata truncates before the
   fixed-width indicator; adding provenance must not change row height or
   leading/trailing alignment. Shared track and weekly rows keep a 64 dp
-  minimum height for local/remote parity.
+  minimum height for local/remote parity. Keep each Remote indicator's one
+  stable semantics node in the normal render tree. Its explanatory desktop
+  hover label uses a visual-only `OverlayEntry`, excluded from semantics;
+  do not wrap Remote indicators in Material `Tooltip`/`RawTooltip` because
+  Flutter 3.44 `OverlayPortal` semantics reparenting can retain stale attached
+  children during repeated show/hide cycles.
 - Apply proven song-ID aliases to the audio handler before deleting the
   provisional row. Preserve an active losing cache file, resolve late cache
   completions through persisted aliases, and replay aliases during audio

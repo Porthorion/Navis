@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,6 +54,119 @@ void main() {
     }
     await tester.tapAt(tester.getCenter(indicators.first));
     expect(taps, 1);
+  });
+
+  testWidgets('tooltip lifecycle keeps the semantics tree consistent', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(
+          tooltipTheme: const TooltipThemeData(
+            waitDuration: Duration.zero,
+            exitDuration: Duration.zero,
+          ),
+        ),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: Dialog(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Tooltip(
+                  message: 'Stable sibling tooltip',
+                  child: Semantics(
+                    explicitChildNodes: true,
+                    child: const Text('Stable sibling'),
+                  ),
+                ),
+                SizedBox(
+                  width: 200,
+                  height: 100,
+                  child: Overlay.wrap(
+                    child: const ExcludeSemantics(
+                      child: RemoteSourceIndicator(
+                        variant: RemoteSourceIndicatorVariant.inline,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final indicator = find.byKey(RemoteSourceIndicator.semanticsKey);
+    final outside =
+        tester.getBottomRight(find.byType(Scaffold)) - const Offset(4, 4);
+    for (var cycle = 0; cycle < 3; cycle++) {
+      await mouse.moveTo(tester.getCenter(indicator));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byKey(RemoteSourceIndicator.tooltipKey), findsOneWidget);
+      await mouse.moveTo(outside);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byKey(RemoteSourceIndicator.tooltipKey), findsNothing);
+    }
+
+    expect(tester.takeException(), isNull);
+    await mouse.removePointer();
+    semantics.dispose();
+  });
+
+  testWidgets('visual tooltip stays readable and inside the overlay', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 180);
+    addTearDown(tester.view.reset);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildDarkTheme(Colors.indigo).copyWith(
+          tooltipTheme: const TooltipThemeData(waitDuration: Duration.zero),
+        ),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(
+          body: Center(
+            child: RemoteSourceIndicator(
+              variant: RemoteSourceIndicatorVariant.inline,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final indicator = find.byKey(RemoteSourceIndicator.semanticsKey);
+    await mouse.moveTo(tester.getCenter(indicator));
+    await tester.pump();
+
+    final tooltip = find.byKey(RemoteSourceIndicator.tooltipKey);
+    expect(tooltip, findsOneWidget);
+    final overlayRect = tester.getRect(find.byType(Overlay));
+    final tooltipRect = tester.getRect(tooltip);
+    expect(tooltipRect.left, greaterThanOrEqualTo(overlayRect.left));
+    expect(tooltipRect.top, greaterThanOrEqualTo(overlayRect.top));
+    expect(tooltipRect.right, lessThanOrEqualTo(overlayRect.right));
+    expect(tooltipRect.bottom, lessThanOrEqualTo(overlayRect.bottom));
+    await expectLater(
+      find.byType(Overlay),
+      matchesGoldenFile('goldens/remote_source_tooltip.png'),
+    );
+
+    await mouse.removePointer();
   });
 
   testWidgets('inline source and download states fit a narrow metadata row', (

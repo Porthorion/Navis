@@ -754,7 +754,11 @@ replay/end-of-queue feedback instead.
    This contract covers Home, ListenBrainz weekly recommendations, liked
    songs, artist top tracks, Match Flow, queues, and downloads; those rows
    suppress artwork overlays and preserve the same height and alignment for
-   local and remote entries.
+   local and remote entries. Each indicator owns one stable semantic node in
+   the normal tree. The desktop hover explanation is a pointer-transparent,
+   visual-only `OverlayEntry` with inherited themes and no semantic children;
+   it intentionally avoids Material `Tooltip`/`RawTooltip` and their
+   `OverlayPortal` semantics reparenting on Flutter 3.44.
 9. Metered automation is a true hard probe: one conditional `getIndexes`
    request with retries disabled. Interactive artist/album/playlist hydration
    remains allowed with 16 MiB/response and 32 MiB/interaction budgets.

@@ -78,6 +78,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Remote label tooltips no longer flood desktop logs or destabilize accessibility when repeatedly shown and hidden',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
         type: ChangelogEntryType.improvement,
       ),

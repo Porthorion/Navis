@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:navis/l10n/app_localizations.dart';
 
@@ -44,6 +47,7 @@ class RemoteSourceIndicator extends StatelessWidget {
   });
 
   static const semanticsKey = ValueKey<String>('remote-source-indicator');
+  static const tooltipKey = ValueKey<String>('remote-source-tooltip');
 
   final RemoteSourceIndicatorVariant variant;
 
@@ -51,12 +55,13 @@ class RemoteSourceIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final semanticLabel = l10n.externalSourceBadgeLabel;
-    return Tooltip(
-      message: semanticLabel,
-      child: Semantics(
-        key: semanticsKey,
-        label: semanticLabel,
-        container: true,
+    return Semantics(
+      key: semanticsKey,
+      label: semanticLabel,
+      tooltip: semanticLabel,
+      container: true,
+      child: _RemoteSourceTooltip(
+        message: semanticLabel,
         child: IgnorePointer(
           child: ExcludeSemantics(
             child: switch (variant) {
@@ -72,6 +77,186 @@ class RemoteSourceIndicator extends StatelessWidget {
                 label: l10n.remoteSourceLabel,
               ),
             },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows the explanatory hover label without Material [Tooltip]'s
+/// [OverlayPortal] semantics reparenting.
+///
+/// Flutter 3.44 can retain stale semantics children when an overlay portal is
+/// repeatedly shown and hidden. Remote indicators already own their complete
+/// semantics description, so this overlay is deliberately visual-only.
+class _RemoteSourceTooltip extends StatefulWidget {
+  const _RemoteSourceTooltip({required this.message, required this.child});
+
+  final String message;
+  final Widget child;
+
+  @override
+  State<_RemoteSourceTooltip> createState() => _RemoteSourceTooltipState();
+}
+
+class _RemoteSourceTooltipState extends State<_RemoteSourceTooltip> {
+  static const _defaultWaitDuration = Duration(milliseconds: 500);
+
+  OverlayEntry? _entry;
+  Timer? _showTimer;
+
+  void _handleEnter(PointerEnterEvent event) {
+    _showTimer?.cancel();
+    final waitDuration =
+        TooltipTheme.of(context).waitDuration ?? _defaultWaitDuration;
+    if (waitDuration == Duration.zero) {
+      _show();
+      return;
+    }
+    _showTimer = Timer(waitDuration, _show);
+  }
+
+  void _handleExit(PointerExitEvent event) {
+    _hide();
+  }
+
+  void _show() {
+    _showTimer?.cancel();
+    _showTimer = null;
+    if (!mounted || _entry != null) return;
+    final overlay = Overlay.maybeOf(context);
+    final targetBox = context.findRenderObject();
+    final overlayBox = overlay?.context.findRenderObject();
+    if (overlay == null ||
+        targetBox is! RenderBox ||
+        overlayBox is! RenderBox ||
+        !targetBox.attached ||
+        !overlayBox.attached) {
+      return;
+    }
+    final themes = InheritedTheme.capture(from: context, to: overlay.context);
+    final target = targetBox.localToGlobal(
+      targetBox.size.center(Offset.zero),
+      ancestor: overlayBox,
+    );
+    final verticalOffset = (targetBox.size.height / 2) + 8;
+    final entry = OverlayEntry(
+      builder: (context) => themes.wrap(
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ExcludeSemantics(
+              child: CustomSingleChildLayout(
+                delegate: _RemoteSourceTooltipPositionDelegate(
+                  target: target,
+                  verticalOffset: verticalOffset,
+                ),
+                child: _RemoteSourceTooltipBubble(message: widget.message),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    _entry = entry;
+    overlay.insert(entry);
+  }
+
+  void _hide() {
+    _showTimer?.cancel();
+    _showTimer = null;
+    _entry?.remove();
+    _entry = null;
+  }
+
+  @override
+  void deactivate() {
+    _hide();
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _hide();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: _handleEnter,
+      onExit: _handleExit,
+      child: widget.child,
+    );
+  }
+}
+
+class _RemoteSourceTooltipPositionDelegate extends SingleChildLayoutDelegate {
+  const _RemoteSourceTooltipPositionDelegate({
+    required this.target,
+    required this.verticalOffset,
+  });
+
+  final Offset target;
+  final double verticalOffset;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    return constraints.loosen();
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    return positionDependentBox(
+      size: size,
+      childSize: childSize,
+      target: target,
+      verticalOffset: verticalOffset,
+      preferBelow: false,
+    );
+  }
+
+  @override
+  bool shouldRelayout(_RemoteSourceTooltipPositionDelegate oldDelegate) {
+    return target != oldDelegate.target ||
+        verticalOffset != oldDelegate.verticalOffset;
+  }
+}
+
+class _RemoteSourceTooltipBubble extends StatelessWidget {
+  const _RemoteSourceTooltipBubble({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 24, maxWidth: 280),
+      child: Align(
+        widthFactor: 1,
+        heightFactor: 1,
+        child: DecoratedBox(
+          key: RemoteSourceIndicator.tooltipKey,
+          decoration: BoxDecoration(
+            color: colors.inverseSurface,
+            borderRadius: BorderRadius.circular(4),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.onInverseSurface,
+              ),
+            ),
           ),
         ),
       ),
