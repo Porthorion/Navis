@@ -55,10 +55,14 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
-  _Version('1.1.1', [
+  _Version('1.2.0', [
     _Entry(
       'First-time server connections now show a cancellable initial library setup with clear progress, offline retry, and mobile-data consent',
       type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Signing back into the same server account now safely reuses its committed local library, while switching server or account requires confirmation before local data is replaced',
+      type: _EntryType.improvement,
     ),
     _Entry(
       'Signing out now reliably stops playback and radio, clears queues and pending server work, and waits for active syncs and downloads to stop',
@@ -85,16 +89,8 @@ const List<_Version> _changelogs = [
       type: _EntryType.newFeature,
     ),
     _Entry(
-      'The current song is now highlighted consistently across library, Home, search, downloads, artist, playlist, and queue views',
+      'The current or loading song is now highlighted consistently across library, Home, search, downloads, artist, playlist, and queue views without shifting queue track numbers',
       type: _EntryType.improvement,
-    ),
-    _Entry(
-      'Seeking on desktop no longer hangs while a track is still caching; playback stays on a seekable stream while the rolling cache fills in the background',
-      type: _EntryType.fix,
-    ),
-    _Entry(
-      'Seeking back into already-heard audio on desktop is smoother and no longer forces a full stream rebuild',
-      type: _EntryType.fix,
     ),
     _Entry(
       'Desktop clients now reopen at your previous Navis volume, including mute, and Unmute restores the last audible level',
@@ -103,6 +99,20 @@ const List<_Version> _changelogs = [
     _Entry(
       'Remote catalog artists, albums, and songs now show a cloud badge so you can distinguish them from music already in your server library',
       type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
+      type: _EntryType.improvement,
+    ),
+  ]),
+  _Version('1.1.1', [
+    _Entry(
+      'Seeking on desktop no longer hangs while a track is still caching; playback stays on a seekable stream while the rolling cache fills in the background',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Seeking back into already-heard audio on desktop is smoother and no longer forces a full stream rebuild',
+      type: _EntryType.fix,
     ),
   ]),
   _Version('1.1.0', [
