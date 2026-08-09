@@ -72,6 +72,26 @@ void main() {
 
     expect(find.text('Version 1.0.10'), findsOneWidget);
   });
+
+  testWidgets('dialog changelog rows use the available content width', (
+    tester,
+  ) async {
+    const entryText =
+        'A sufficiently long release highlight remains readable in the dialog';
+    const version = ChangelogVersion(
+      version: '9.9.9',
+      entries: [
+        ChangelogEntry(entryText, type: ChangelogEntryType.improvement),
+      ],
+    );
+    final router = _createRouter(version);
+
+    await _pumpRouter(tester, router);
+    await tester.tap(find.text('Open dialog'));
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(find.text(entryText)).width, greaterThan(300));
+  });
 }
 
 GoRouter _createRouter(ChangelogVersion version) {

@@ -95,35 +95,40 @@ class _ChangelogDialog extends StatelessWidget {
       ),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400, maxHeight: 400),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 4),
-              for (final entry in highlights) ChangelogEntryTile(entry: entry),
-              if (hasFixes)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.build_circle_outlined,
-                        size: 14,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        hasHighlights
-                            ? l10n.changelogDialogOtherBugFixes
-                            : l10n.changelogDialogBugFixesTitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
+        child: SizedBox(
+          width: double.infinity,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 4),
+                for (final entry in highlights)
+                  ChangelogEntryTile(entry: entry),
+                if (hasFixes)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.build_circle_outlined,
+                          size: 14,
                           color: colorScheme.onSurfaceVariant,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Text(
+                          hasHighlights
+                              ? l10n.changelogDialogOtherBugFixes
+                              : l10n.changelogDialogBugFixesTitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

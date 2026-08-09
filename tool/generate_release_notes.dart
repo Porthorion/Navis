@@ -109,6 +109,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'The update summary now keeps every change readable when it appears over an active player view',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
       type: _EntryType.improvement,
     ),
