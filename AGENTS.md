@@ -472,6 +472,9 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   memberships, prune only IDs absent from the authoritative header list, and
   enqueue new or changed playlist contents as durable targeted hydration.
 - Automatic library sync is **low-data by default** after initial sync.
+- Automatic broad catalog work defers while Navis is backgrounded or playing;
+  an explicit user refresh may resume queued broad work in the foreground so a
+  requested refresh is not silently postponed behind it.
 - A failed automatic sync remains failed until the next configured sync
   interval, a reconnect, or an explicit manual retry. Do not add short forced
   retry loops that repeatedly restart the same failing metadata pass.

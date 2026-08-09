@@ -28,6 +28,7 @@ class _MemoryCredentialStore implements SecureCredentialStore {
 class _ProbeLibrarySyncEngine
     implements LibrarySyncEngine, TargetedLibrarySyncExecutor {
   int probeCalls = 0;
+  int forceFullSyncCalls = 0;
   int syncIfStaleCalls = 0;
   int syncNowCalls = 0;
   bool probeIndexChanged = false;
@@ -60,7 +61,10 @@ class _ProbeLibrarySyncEngine
   Future<LibrarySyncState> forceFullSync({
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
+  }) async {
+    forceFullSyncCalls++;
+    return _idle();
+  }
 
   @override
   Future<LibrarySyncState> syncIfStale({
@@ -457,6 +461,33 @@ void main() {
       );
       expect(followUp, isNotNull);
       expect(followUp?.workClass, 'background');
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'manual refresh resumes queued catalog work while playback is active',
+    () async {
+      final probeEngine = _ProbeLibrarySyncEngine();
+      final activePlaybackCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => true,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.deltaReconcile.name,
+        priority: 50,
+      );
+
+      final result = await activePlaybackCoordinator.syncNow();
+
+      expect(result.status, LibrarySyncStatus.succeeded);
+      expect(probeEngine.syncNowCalls, 1);
     },
     skip: !sqliteAvailable,
   );

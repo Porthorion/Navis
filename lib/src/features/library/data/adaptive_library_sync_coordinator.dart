@@ -182,7 +182,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         : null;
     final resumedPlan = resumedWork == null
         ? null
-        : _planFromWork(resumedWork, policy);
+        : _planFromWork(resumedWork, policy, request);
     final plan =
         resumedPlan ??
         _planner.plan(
@@ -894,6 +894,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   LibrarySyncPlan? _planFromWork(
     LibrarySyncWorkTableData work,
     SyncNetworkPolicy policy,
+    LibrarySyncRequest request,
   ) {
     final kinds = LibrarySyncPlanKind.values.where(
       (candidate) => candidate.name == work.kind,
@@ -916,6 +917,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         (!interactive && !isProbe && !policy.allowsBackgroundSync) ||
         (isBroad &&
             policy.allowsBackgroundSync &&
+            request.intent == LibrarySyncIntent.automatic &&
             (!_readIsForeground() || _readHasActivePlayback()));
     return LibrarySyncPlan(
       kind: kind,

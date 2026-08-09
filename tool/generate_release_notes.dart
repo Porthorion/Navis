@@ -128,6 +128,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'Manual library refresh now resumes queued catalog work while music is playing instead of deferring the refresh behind it',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
       type: _EntryType.improvement,
     ),

@@ -695,7 +695,9 @@ replay/end-of-queue feedback instead.
    measures requests/bytes, and owns cooldown/circuit policy. Targeted work
    keys are namespaced by entity kind, so equal server IDs in different
    domains remain independent. The coordinator removes that namespace before
-   passing an entity ID to a hydrator or server endpoint.
+   passing an entity ID to a hydrator or server endpoint. Automatic broad work
+   defers while Navis is backgrounded or playing; an explicit user refresh may
+   resume queued broad work in the foreground, including during playback.
 3. Reliable providers use conditional `getIndexes(ifModifiedSince)` as a cheap
    check. The response is a conditional artist index, not a change feed, so its
    cursor advances only after every candidate and hydration completes.
