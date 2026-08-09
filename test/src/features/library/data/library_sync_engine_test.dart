@@ -445,6 +445,48 @@ void main() {
     );
 
     test(
+      'full sync derives artists from album pages when artist endpoints fail',
+      () async {
+        await saveSession();
+        api.getArtistsError = const SubsonicNotFoundException(
+          message: 'getArtists is unavailable',
+        );
+        api.throwOnIndexes = const SubsonicNotFoundException(
+          message: 'getIndexes is unavailable',
+        );
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songs: <Song>[
+            Song(
+              id: 'song-1',
+              title: 'Song 1',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+            ),
+          ],
+        );
+
+        final state = await engine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          (await database.libraryDao.getArtistById('artist-1'))?.name,
+          'Artist 1',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'full sync keeps the committed catalog visible until one promotion',
       () async {
         await saveSession();
