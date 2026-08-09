@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -840,6 +841,87 @@ void main() {
         await service.processQueuedDownloads();
 
         expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'stopAndWait prevents a cancelled transfer from recreating queue state',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_cancelled_download_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        final dio = _MockDio();
+        final downloadStarted = Completer<void>();
+        when(
+          () => dio.downloadUri(
+            any<Uri>(),
+            any<dynamic>(),
+            cancelToken: any<CancelToken?>(named: 'cancelToken'),
+            onReceiveProgress: any<ProgressCallback?>(
+              named: 'onReceiveProgress',
+            ),
+          ),
+        ).thenAnswer((invocation) async {
+          final token = invocation.namedArguments[#cancelToken] as CancelToken;
+          final progress =
+              invocation.namedArguments[#onReceiveProgress]
+                  as ProgressCallback?;
+          progress?.call(1, 10);
+          if (!downloadStarted.isCompleted) {
+            downloadStarted.complete();
+          }
+          await token.whenCancel;
+          throw DioException(
+            requestOptions: RequestOptions(path: 'download'),
+            type: DioExceptionType.cancel,
+          );
+        });
+        final apiClient = SubsonicApiClient(
+          baseUrl: 'https://example.com',
+          authConfig: const SubsonicAuthConfig(
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final cancellingService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => apiClient,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+          dio: dio,
+        );
+        addTearDown(cancellingService.stop);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'),
+        ]);
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime.now(),
+          ),
+        );
+
+        await cancellingService.start();
+        await downloadStarted.future;
+        await cancellingService.stopAndWait();
+        await database.downloadQueueDao.clearQueue();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
+        expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );

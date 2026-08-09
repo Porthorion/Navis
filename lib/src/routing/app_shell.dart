@@ -18,6 +18,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart';
@@ -539,6 +540,21 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final initialSyncWarning = ref.watch(
+      initialSyncCompletionWarningProvider,
+    );
+    if (initialSyncWarning) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !ref.read(initialSyncCompletionWarningProvider)) {
+          return;
+        }
+        _appNoticeController.show(
+          message: l10n.initialSyncCompletedWithWarnings,
+          level: AppNoticeLevel.info,
+        );
+        ref.read(initialSyncCompletionWarningProvider.notifier).consume();
+      });
+    }
     ref.watch(librarySyncControllerProvider);
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(listenBrainzFeedbackDispatchControllerProvider);

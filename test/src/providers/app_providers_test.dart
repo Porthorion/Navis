@@ -45,6 +45,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   final List<bool> addToQueueExpandFlags = <bool>[];
   final List<bool> playNextExpandFlags = <bool>[];
   final List<double> volumeCalls = <double>[];
+  int resetSessionCalls = 0;
   double volume = 1;
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
   PlaybackBufferState _bufferState = const PlaybackBufferState.idle();
@@ -106,6 +107,12 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> clearQueue() async {
     _snapshot = const PlaybackSnapshot.idle();
     _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> resetSession() async {
+    resetSessionCalls++;
+    await clearQueue();
   }
 
   @override
@@ -1320,6 +1327,39 @@ void main() {
         expect(container.read(audioHandlerStateProvider), same(handler));
       },
     );
+
+    test('session reset waits for an in-flight audio bootstrap', () async {
+      final initializer = Completer<NavisPlaybackHandler>();
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerInitializerProvider.overrideWithValue(
+            () => initializer.future,
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
+
+      container
+          .read(audioBootstrapControllerProvider.notifier)
+          .ensureInitialized();
+      var resetCompleted = false;
+      final reset = container
+          .read(audioBootstrapControllerProvider.notifier)
+          .resetSessionAndWait()
+          .then((_) => resetCompleted = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(resetCompleted, isFalse);
+
+      initializer.complete(handler);
+      await reset;
+
+      expect(resetCompleted, isTrue);
+      expect(handler.resetSessionCalls, 1);
+    });
 
     test(
       'audio bootstrap timeout can recover when initialization completes late',

@@ -400,7 +400,7 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
       ? SubsonicAuthType.legacyPassword
       : SubsonicAuthType.token;
 
-  return SubsonicApiClient(
+  final client = SubsonicApiClient(
     baseUrl: config.url,
     authConfig: SubsonicAuthConfig(
       username: config.username,
@@ -419,6 +419,11 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
       networkType: networkType,
     ),
   );
+  // A network-quality rebuild must let responses already owned by this client
+  // finish. Session teardown explicitly force-closes the active client before
+  // credentials are invalidated.
+  ref.onDispose(() => client.close(force: false));
+  return client;
 });
 
 /// Whether a Last.fm API key is bundled at build time via NAVIS_LASTFM_API_KEY.
@@ -431,6 +436,9 @@ final lastFmBundledKeyProvider = Provider<bool>((_) {
 /// Prefers the build-time key (NAVIS_LASTFM_API_KEY). When no build-time key
 /// is present, falls back to the user-provided key stored in app settings.
 final lastFmApiKeyProvider = Provider<String>((ref) {
+  if (_syncDiagnosticsEnabled) {
+    return '';
+  }
   const bundledKey = AppConstants.lastFmApiKey;
   if (bundledKey.trim().isNotEmpty) {
     return bundledKey.trim();
@@ -468,6 +476,9 @@ final listenBrainzApiClientProvider = Provider<ListenBrainzApiClient>((_) {
 
 final externalScrobbleCredentialStoreProvider =
     Provider<ExternalScrobbleCredentialStore>((_) {
+      if (_syncDiagnosticsEnabled) {
+        return CloneDiagnosticsExternalScrobbleCredentialStore();
+      }
       return const FlutterExternalScrobbleCredentialStore();
     });
 
@@ -803,6 +814,17 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
       return;
     }
     unawaited(_initialize());
+  }
+
+  /// Wait for any handler construction/queue restoration before clearing all
+  /// session playback state. This prevents a late bootstrap completion from
+  /// restoring a signed-out queue after teardown has already returned.
+  Future<void> resetSessionAndWait() async {
+    final pending = _inFlight;
+    if (pending != null) {
+      await pending;
+    }
+    await state.handler?.resetSession();
   }
 
   Future<void> retry() => _initialize(force: true);

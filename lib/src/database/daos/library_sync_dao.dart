@@ -27,6 +27,36 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     )..where((table) => table.serverId.equals(serverId))).go();
   }
 
+  Future<void> discardPendingSessionWork(int serverId) async {
+    await transaction(() async {
+      await clearWorkForServer(serverId);
+      await (update(
+        librarySyncStateTable,
+      )..where((table) => table.serverId.equals(serverId))).write(
+        const LibrarySyncStateTableCompanion(
+          candidateGeneration: Value(null),
+          candidateStatus: Value(null),
+          candidateStartedAt: Value(null),
+          candidateCarriedForwardCount: Value(0),
+        ),
+      );
+    });
+  }
+
+  Future<void> discardAllPendingSessionWork() async {
+    await transaction(() async {
+      await delete(librarySyncWorkTable).go();
+      await update(librarySyncStateTable).write(
+        const LibrarySyncStateTableCompanion(
+          candidateGeneration: Value(null),
+          candidateStatus: Value(null),
+          candidateStartedAt: Value(null),
+          candidateCarriedForwardCount: Value(0),
+        ),
+      );
+    });
+  }
+
   Future<void> clearCatalogPageWork({
     required int serverId,
     required int generation,
@@ -321,7 +351,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final row = await (select(
       librarySyncWorkTable,
-    )..where((table) => table.id.equals(id))).getSingle();
+    )..where((table) => table.id.equals(id))).getSingleOrNull();
+    if (row == null) {
+      return;
+    }
     await (update(
       librarySyncWorkTable,
     )..where((table) => table.id.equals(id))).write(

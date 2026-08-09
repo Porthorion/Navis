@@ -9,6 +9,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/sign_out_service.dart';
+import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -376,6 +380,83 @@ class SyncDiagnosticsServer {
         );
         return;
       }
+      if (request.method == 'GET' && path == '/v1/session/status') {
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _sessionStatusJson(),
+        );
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/session/initial-sync/retry') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _container
+            .read(initialServerSyncControllerProvider.notifier)
+            .retry();
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/session/initial-sync/mobile') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _container
+            .read(initialServerSyncControllerProvider.notifier)
+            .startUsingMobileData();
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/session/initial-sync/cancel') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _container
+            .read(initialServerSyncControllerProvider.notifier)
+            .cancelAndLogOut();
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/session/sign-out') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        await _container
+            .read(signOutServiceProvider)
+            .signOut(wipeLocalData: body['wipeLocalData'] == true);
+        await _container.read(serverConfigProvider.notifier).refresh();
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/session/reset-initial-state') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _container
+            .read(librarySyncControllerProvider.notifier)
+            .cancelAndWait();
+        await _container.read(downloadServiceProvider).stopAndWait();
+        await _container
+            .read(audioBootstrapControllerProvider.notifier)
+            .resetSessionAndWait();
+        await _container.read(serverDataResetServiceProvider).reset();
+        await _container.read(serverConfigProvider.notifier).refresh();
+        _container.invalidate(initialSyncRequiredProvider);
+        _container.invalidate(initialServerSyncControllerProvider);
+        await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/search/source-audit') {
         await _runSourceAudit(request);
         return;
@@ -693,6 +774,47 @@ class SyncDiagnosticsServer {
         'error': error.runtimeType.toString(),
       });
     }
+  }
+
+  Future<Map<String, Object?>> _sessionStatusJson() async {
+    final database = _container.read(navisDatabaseProvider);
+    final handler = _container.read(audioHandlerProvider);
+    final playback = handler?.snapshot ?? const PlaybackSnapshot.idle();
+    final rollingCache = _container.read(rollingCacheActivityProvider);
+    final persistedQueue = await database.playQueueDao.watchQueueItems().first;
+    final downloadQueue = await database.downloadQueueDao.watchQueue().first;
+    final pendingWork = await database
+        .select(database.librarySyncWorkTable)
+        .get();
+    final LibrarySyncState sync =
+        _activeProgress ??
+        _lastSync ??
+        _container.read(librarySyncControllerProvider);
+    return <String, Object?>{
+      'phase': _container.read(sessionRoutePhaseProvider).name,
+      'transition': _container.read(sessionTransitionProvider).name,
+      'initialSync': _container
+          .read(initialServerSyncControllerProvider)
+          .status
+          .name,
+      'sync': <String, Object?>{
+        'status': sync.status.name,
+        'stage': sync.stage.name,
+      },
+      'queues': <String, int>{
+        'memoryPlayback': playback.queueSongIds.length,
+        'persistedPlayback': persistedQueue.length,
+        'downloads': downloadQueue.length,
+        'syncWork': pendingWork.length,
+      },
+      'activity': <String, bool>{
+        'playing': playback.playing,
+        'loading': playback.isLoading,
+        'radio': playback.isRadioMode,
+        'mediaItemPresent': handler?.currentMediaItem != null,
+        'rollingCacheActive': rollingCache.isCaching,
+      },
+    };
   }
 
   Future<Map<String, Object?>> _windowPresentationJson() async {

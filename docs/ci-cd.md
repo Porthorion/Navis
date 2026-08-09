@@ -37,6 +37,20 @@ Library sync metered-network guardrails are exercised by the clone diagnostics
 suite (`./tool/sync_diagnostics.sh clone`), which can simulate network cost
 overrides without cellular hardware.
 
+First-login and logout ownership are exercised separately with:
+
+```bash
+./tool/auth_lifecycle_diagnostics.sh clone
+```
+
+This clone-only Linux profile gate covers the `/initial-sync` route, offline
+recovery and app-owned screenshots, safe catalog promotion and restart,
+playback-to-sign-out teardown, queue/activity cleanup, and setup cancellation.
+It uses a deterministic loopback Subsonic fixture and isolated credential file;
+it never reads device third-party credentials or enables personalized Last.fm
+or ListenBrainz discovery, and it must never be run in primary-certification
+mode.
+
 Desktop volume restart behavior has a focused manual runtime gate:
 
 ```bash

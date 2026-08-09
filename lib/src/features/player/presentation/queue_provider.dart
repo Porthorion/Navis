@@ -27,6 +27,11 @@ final _playbackActionErrorControllerProvider =
       return controller;
     });
 
+void resetPlaybackActionErrors(Ref ref) {
+  ref.invalidate(_playbackActionErrorControllerProvider);
+  ref.invalidate(playbackActionErrorProvider);
+}
+
 class PlaybackActionError {
   const PlaybackActionError({required this.error, this.action});
   final Object error;

@@ -152,6 +152,29 @@ The existing Linux profile diagnostics path is the starting control plane:
   `GET /v1/presentation/song-indicator?songId=<id>` endpoint. It reports only
   production indicator and presentation roles; it never returns song metadata.
 
+Authentication lifecycle work uses:
+
+```bash
+./tool/auth_lifecycle_diagnostics.sh clone
+```
+
+The script creates isolated database/cache profiles, uses the authenticated
+`/v1/session/*` API to create a first-sync state through
+`ServerDataResetService`, exercises offline recovery, captures app-owned setup
+screenshots, waits for safe promotion, verifies a clean restart, starts real
+playback, and signs out through `SessionLifecycleService`. A second clone
+verifies initial-sync cancellation and restart at login. The clones use a
+deterministic loopback Subsonic fixture and a mode-600 fixture credential file;
+credential save/clear operations remain memory-wrapped and never modify device
+secure storage. Clone diagnostics also use an empty process-local external
+credential store and disable Last.fm, so saved ListenBrainz/Last.fm credentials
+and personalized discovery services are outside the run. Direct database
+changes are limited to pointing the isolated
+fixture profile at that loopback process; lifecycle actions run through the
+production app API and services.
+Session status is deliberately bounded to route/sync phases, queue counts, and
+playback/activity flags; URLs, usernames, credentials, and tokens are forbidden.
+
 The sync diagnostics script runs its own catalog test sequence. For unrelated
 features, add the smallest focused launcher or scenario script that reuses the
 same lifecycle rather than pretending the sync sequence tested that feature.

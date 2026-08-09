@@ -256,6 +256,84 @@ abstract class AppLocalizations {
   /// **'Connection successful (API {apiVersion}).'**
   String loginTestConnectionSuccess(Object apiVersion);
 
+  /// No description provided for @loginReplaceServerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace local server data?'**
+  String get loginReplaceServerTitle;
+
+  /// No description provided for @loginReplaceServerMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This device keeps one local server catalog. Continuing will remove the retained library, downloads, caches, history, playlists, and Match Flows from the previous server account.'**
+  String get loginReplaceServerMessage;
+
+  /// No description provided for @loginReplaceServerAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace local data'**
+  String get loginReplaceServerAction;
+
+  /// No description provided for @initialSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Initial server sync'**
+  String get initialSyncTitle;
+
+  /// No description provided for @initialSyncDoNotClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis is building this server\'s local library. Do not close the app during setup.'**
+  String get initialSyncDoNotClose;
+
+  /// No description provided for @initialSyncWaitingForNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to a network, then retry to continue setup.'**
+  String get initialSyncWaitingForNetwork;
+
+  /// No description provided for @initialSyncMobileDataRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Initial setup requires a full library download. Confirm to use this metered connection.'**
+  String get initialSyncMobileDataRequired;
+
+  /// No description provided for @initialSyncUseMobileData.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync using mobile data'**
+  String get initialSyncUseMobileData;
+
+  /// No description provided for @initialSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Initial sync could not complete.'**
+  String get initialSyncFailed;
+
+  /// No description provided for @initialSyncCancelling.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelling and signing out...'**
+  String get initialSyncCancelling;
+
+  /// No description provided for @initialSyncCancelAndLogout.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel and sign out'**
+  String get initialSyncCancelAndLogout;
+
+  /// No description provided for @initialSyncComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Library ready'**
+  String get initialSyncComplete;
+
+  /// No description provided for @initialSyncCompletedWithWarnings.
+  ///
+  /// In en, this message translates to:
+  /// **'Your library is ready. A few items are still syncing in the background.'**
+  String get initialSyncCompletedWithWarnings;
+
   /// No description provided for @serverOfflineBanner.
   ///
   /// In en, this message translates to:

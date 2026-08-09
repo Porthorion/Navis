@@ -42,6 +42,7 @@ abstract class NavisPlaybackHandler {
   Future<void> removeAt(int index);
   Future<void> reorderQueue(int oldIndex, int newIndex);
   Future<void> clearQueue();
+  Future<void> resetSession();
   Future<void> play();
   Future<void> pause();
   Future<void> stop();

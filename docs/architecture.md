@@ -155,8 +155,39 @@ playback sync, or queue coordination paths.
 ### Provider Lifecycle
 
 - **Auto-dispose**: Most providers auto-dispose when no longer watched
-- **Keep-alive**: Database and API client providers kept alive for app lifetime
+- **Keep-alive**: the database remains app-scoped; the Subsonic client is
+  session-scoped and is force-closed during logout
 - **Explicit disposal**: Audio handler and cache managers have explicit cleanup
+
+### Authentication, initial catalog, and teardown
+
+Navis retains one local server/account profile. Its stable identity is the
+normalized server base URL plus trimmed username. Schema v61 stores
+`server_config.is_authenticated` separately from the non-secret profile:
+keep-data logout clears secure credentials and marks the row signed out without
+discarding its committed catalog, sync generation, provider tuning, timestamps,
+or Navis capability metadata. Reauthenticating the same identity updates that
+row in place. A different identity must traverse the explicit destructive
+replacement boundary before its credentials can be stored.
+
+Routing derives a compact `SessionRoutePhase`. An authenticated profile with no
+committed generation is confined to `/initial-sync`; the shell and ordinary
+startup-sync owner are unavailable. `InitialServerSyncController` starts a
+normal user-initiated catalog check on unmetered connectivity, waits offline,
+or requests the ephemeral metered override. Completion requires a promoted
+catalog and no candidate in `applying`; isolated hydration or auxiliary gaps
+may continue after entry with a visible warning. Cancel awaits sync teardown,
+uses the production server-data reset, signs out, and returns to login.
+
+All logout callers use the injected, single-flight `SessionLifecycleService`.
+Its ordering is API cancellation → awaited sync/download stop → playback/radio
+session reset → transient UI/mix/timer reset → pending mutation/work cleanup →
+optional server-data/file reset → authentication invalidation in `finally`.
+`NavisPlaybackHandler.resetSession()` supersedes transport and queue work,
+stops radio metadata, crossfade and cache sidecars, empties both decks and the
+media session, persists an empty queue, and emits idle state. Download teardown
+tracks progress writes and background cover-art/lyrics/notification tasks so
+late completions cannot recreate queue state after `stopAndWait()`.
 
 ### Testing
 
@@ -216,6 +247,18 @@ not a live accessibility-tree traversal. It does not return song metadata.
 `tool/playback_indicator_diagnostics.sh clone` verifies current, inactive,
 paused, switched-song, app-owned screenshots, and clean-restart behavior
 against an isolated Linux profile.
+
+Authentication lifecycle diagnostics use bounded `GET /v1/session/status`
+plus clone-only initial-sync retry/mobile/cancel, sign-out, and
+`reset-initial-state` actions. The reset endpoint invokes production
+cancellation/playback/reset services and `ServerDataResetService`; it does not
+edit the database directly. `tool/auth_lifecycle_diagnostics.sh clone`
+points each isolated clone at a deterministic loopback Subsonic fixture, seeds
+its credential from a mode-600 diagnostics file, and exercises offline
+recovery, safe promotion, screenshots, restart, real playback-to-sign-out
+teardown, and setup cancellation. Clone-mode credential writes and clears stay
+in memory, so these destructive actions can never clear or replace device
+secure storage.
 
 New control-plane capabilities should remain feature-scoped, expose separate
 action and status/query contracts, return structured errors, and support
@@ -336,6 +379,7 @@ Routes are defined in `lib/src/routing/app_router.dart`:
 ### Main Routes
 
 - `/login` - Login screen (unauthenticated)
+- `/initial-sync` - blocking first-catalog setup for authenticated profiles
 - `/` - Home screen (default after login)
 - `/library` - Library tabs (albums, artists, playlists, liked albums)
 - `/library/artists/:id` - Artist detail

@@ -57,6 +57,14 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.1.1', [
     _Entry(
+      'First-time server connections now show a cancellable initial library setup with clear progress, offline retry, and mobile-data consent',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Signing out now reliably stops playback and radio, clears queues and pending server work, and waits for active syncs and downloads to stop',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Mini Player now opens at a balanced 720×405, returns to that size after mode prompts, keeps volume neatly beneath its controls, and shows both resize choices in short windows',
       type: _EntryType.fix,
     ),

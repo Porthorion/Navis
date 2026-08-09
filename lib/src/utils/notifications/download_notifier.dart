@@ -61,18 +61,26 @@ class DownloadNotifier {
       progress: normProgress,
     );
 
-    await _plugin.show(
-      id: _progressId,
-      title: title,
-      body: '${received * 100 ~/ (total > 0 ? total : 1)}%',
-      notificationDetails: NotificationDetails(android: androidDetails),
-    );
+    try {
+      await _plugin.show(
+        id: _progressId,
+        title: title,
+        body: '${received * 100 ~/ (total > 0 ? total : 1)}%',
+        notificationDetails: NotificationDetails(android: androidDetails),
+      );
+    } on Object {
+      // Notifications are best-effort in tests and unsupported environments.
+    }
   }
 
   /// Dismiss the ongoing progress notification.
   static Future<void> dismissProgress() async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
-    await _plugin.cancel(id: _progressId);
+    try {
+      await _plugin.cancel(id: _progressId);
+    } on Object {
+      // Notifications are best-effort in tests and unsupported environments.
+    }
   }
 
   /// Show a notification when a download completes successfully.
@@ -89,11 +97,17 @@ class DownloadNotifier {
       priority: Priority.defaultPriority,
     );
 
-    await _plugin.show(
-      id: _summaryId,
-      title: title,
-      notificationDetails: const NotificationDetails(android: androidDetails),
-    );
+    try {
+      await _plugin.show(
+        id: _summaryId,
+        title: title,
+        notificationDetails: const NotificationDetails(
+          android: androidDetails,
+        ),
+      );
+    } on Object {
+      // Notifications are best-effort in tests and unsupported environments.
+    }
   }
 
   /// Show a notification when a download fails.
@@ -110,10 +124,16 @@ class DownloadNotifier {
       priority: Priority.defaultPriority,
     );
 
-    await _plugin.show(
-      id: _summaryId,
-      title: title,
-      notificationDetails: const NotificationDetails(android: androidDetails),
-    );
+    try {
+      await _plugin.show(
+        id: _summaryId,
+        title: title,
+        notificationDetails: const NotificationDetails(
+          android: androidDetails,
+        ),
+      );
+    } on Object {
+      // Notifications are best-effort in tests and unsupported environments.
+    }
   }
 }

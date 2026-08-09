@@ -95,6 +95,50 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get loginReplaceServerTitle => 'Replace local server data?';
+
+  @override
+  String get loginReplaceServerMessage =>
+      'This device keeps one local server catalog. Continuing will remove the retained library, downloads, caches, history, playlists, and Match Flows from the previous server account.';
+
+  @override
+  String get loginReplaceServerAction => 'Replace local data';
+
+  @override
+  String get initialSyncTitle => 'Initial server sync';
+
+  @override
+  String get initialSyncDoNotClose =>
+      'Navis is building this server\'s local library. Do not close the app during setup.';
+
+  @override
+  String get initialSyncWaitingForNetwork =>
+      'Connect to a network, then retry to continue setup.';
+
+  @override
+  String get initialSyncMobileDataRequired =>
+      'Initial setup requires a full library download. Confirm to use this metered connection.';
+
+  @override
+  String get initialSyncUseMobileData => 'Sync using mobile data';
+
+  @override
+  String get initialSyncFailed => 'Initial sync could not complete.';
+
+  @override
+  String get initialSyncCancelling => 'Cancelling and signing out...';
+
+  @override
+  String get initialSyncCancelAndLogout => 'Cancel and sign out';
+
+  @override
+  String get initialSyncComplete => 'Library ready';
+
+  @override
+  String get initialSyncCompletedWithWarnings =>
+      'Your library is ready. A few items are still syncing in the background.';
+
+  @override
   String get serverOfflineBanner => 'Server unreachable. Retrying every 30s.';
 
   @override

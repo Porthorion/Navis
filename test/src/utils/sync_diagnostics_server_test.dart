@@ -41,7 +41,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 60);
+    expect(authorized.body['schemaVersion'], 61);
   });
 
   test('primary certification rejects mutation and cancellation', () async {
@@ -80,6 +80,50 @@ void main() {
       body: <String, Object?>{'songId': 'song-1', 'liked': false},
     );
     expect(restore.statusCode, HttpStatus.forbidden);
+
+    final signOut = await _request(
+      fixture.port,
+      '/v1/session/sign-out',
+      method: 'POST',
+      token: fixture.token,
+    );
+    expect(signOut.statusCode, HttpStatus.forbidden);
+
+    final reset = await _request(
+      fixture.port,
+      '/v1/session/reset-initial-state',
+      method: 'POST',
+      token: fixture.token,
+    );
+    expect(reset.statusCode, HttpStatus.forbidden);
+  });
+
+  test('session status exposes only lifecycle activity fields', () async {
+    final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(fixture.close);
+
+    final response = await _request(
+      fixture.port,
+      '/v1/session/status',
+      token: fixture.token,
+    );
+
+    expect(response.statusCode, HttpStatus.ok);
+    expect(response.body.keys, <String>[
+      'phase',
+      'transition',
+      'initialSync',
+      'sync',
+      'queues',
+      'activity',
+    ]);
+    expect(response.body['queues'], isA<Map<String, dynamic>>());
+    expect(response.body['activity'], isA<Map<String, dynamic>>());
+    final encoded = jsonEncode(response.body).toLowerCase();
+    expect(encoded, isNot(contains('username')));
+    expect(encoded, isNot(contains('password')));
+    expect(encoded, isNot(contains('token')));
+    expect(encoded, isNot(contains('url')));
   });
 
   test('clone local mutation remains pending for sync precedence', () async {

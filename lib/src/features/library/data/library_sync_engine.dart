@@ -754,6 +754,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     _api.cancelActiveRequests();
   }
 
+  Future<void> cancelAndWait() async {
+    cancelSync();
+    final running = _inFlight;
+    if (running != null) {
+      await running;
+    }
+  }
+
   /// Throws [SyncCancelledException] if [cancelSync] has been called.
   void _checkCancelled() {
     if (_cancelled) {

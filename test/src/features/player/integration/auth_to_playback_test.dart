@@ -108,6 +108,9 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   Future<void> clearQueue() async {}
 
   @override
+  Future<void> resetSession() => clearQueue();
+
+  @override
   Future<void> pause() async {}
 
   @override

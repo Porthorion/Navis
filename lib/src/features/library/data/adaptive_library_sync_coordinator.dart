@@ -1034,4 +1034,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       executor.cancelSync();
     }
   }
+
+  Future<void> cancelAndWait() async {
+    cancelSync();
+    final running = _inFlight;
+    if (running != null) {
+      await running;
+    }
+  }
 }

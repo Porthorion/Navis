@@ -7,6 +7,27 @@ abstract class ExternalScrobbleCredentialStore {
   Future<void> clearListenBrainzToken();
 }
 
+/// Process-local credential storage for isolated diagnostics.
+///
+/// Clone runs must never read from or write to the device credential store.
+class CloneDiagnosticsExternalScrobbleCredentialStore
+    implements ExternalScrobbleCredentialStore {
+  String? _listenBrainzToken;
+
+  @override
+  Future<void> saveListenBrainzToken(String value) async {
+    _listenBrainzToken = value;
+  }
+
+  @override
+  Future<String?> readListenBrainzToken() async => _listenBrainzToken;
+
+  @override
+  Future<void> clearListenBrainzToken() async {
+    _listenBrainzToken = null;
+  }
+}
+
 class FlutterExternalScrobbleCredentialStore
     implements ExternalScrobbleCredentialStore {
   const FlutterExternalScrobbleCredentialStore({

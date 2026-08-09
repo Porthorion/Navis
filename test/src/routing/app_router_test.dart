@@ -12,6 +12,8 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -49,7 +51,6 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
     state = AsyncData(config);
   }
 
-  @override
   Future<void> clear() async {
     _initial = null;
     state = const AsyncData(null);
@@ -84,6 +85,13 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   }
 }
 
+class _StaticInitialServerSyncController extends InitialServerSyncController {
+  @override
+  InitialServerSyncState build() => const InitialServerSyncState(
+    status: InitialServerSyncStatus.waitingForNetwork,
+  );
+}
+
 class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
   @override
   int build() => 0;
@@ -93,10 +101,19 @@ const _testApp = NavisApp(splashFactory: NoSplash.splashFactory);
 
 ProviderContainer _createContainerWithDatabase({
   List<Override> overrides = const <Override>[],
+  bool initialSyncRequired = false,
 }) {
   final database = createTestDatabase();
   final container = ProviderContainer(
-    overrides: withTestDatabase(database, overrides: overrides),
+    overrides: withTestDatabase(
+      database,
+      overrides: <Override>[
+        initialSyncRequiredProvider.overrideWithValue(
+          AsyncData(initialSyncRequired),
+        ),
+        ...overrides,
+      ],
+    ),
   );
   addTearDown(() async {
     container.dispose();
@@ -212,6 +229,42 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Unknown track'), findsNothing);
+  });
+
+  testWidgets('fresh authenticated profile is gated by initial sync', (
+    tester,
+  ) async {
+    final container = _createContainerWithDatabase(
+      initialSyncRequired: true,
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              id: 1,
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        initialServerSyncControllerProvider.overrideWith(
+          _StaticInitialServerSyncController.new,
+        ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Initial server sync'), findsOneWidget);
+    expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsNothing);
+    expect(find.byKey(const ValueKey('initialSyncCancelButton')), findsOne);
   });
 
   testWidgets('shows offline banner when reachability is offline', (

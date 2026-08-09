@@ -8,6 +8,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/data/server_config_repository.dart';
+import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_url_validation.dart';
@@ -414,6 +416,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         useLegacyAuth: result.useLegacyAuth,
         capabilitiesJson: jsonEncode(result.capabilities.toJson()),
       );
+      final repository = ref.read(serverConfigRepositoryProvider);
+      final retainedMatch = await repository.compareRetainedServer(config);
+      if (retainedMatch == RetainedServerMatch.different) {
+        if (!mounted || !await _confirmServerReplacement(l10n)) {
+          return;
+        }
+        await ref.read(signOutServiceProvider).signOut(wipeLocalData: true);
+        await ref.read(serverConfigProvider.notifier).refresh();
+      }
       await ref.read(serverConfigProvider.notifier).save(config);
 
       if (!mounted) {
@@ -423,7 +434,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: l10n.loginConnectSuccess,
         level: AppNoticeLevel.success,
       );
-      context.go('/');
+      context.go('/initial-sync');
     } on Object catch (error) {
       if (!mounted) {
         return;
@@ -437,6 +448,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() => _isConnecting = false);
       }
     }
+  }
+
+  Future<bool> _confirmServerReplacement(AppLocalizations l10n) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(l10n.loginReplaceServerTitle),
+            content: Text(l10n.loginReplaceServerMessage),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(l10n.cancelAction),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(l10n.loginReplaceServerAction),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   bool _validateForm() {

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -81,11 +83,6 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
   @override
   Future<void> refresh() async {}
 
-  @override
-  Future<void> clear() async {
-    state = const AsyncData(null);
-  }
-
   ServerConfigModel? savedConfigSnapshot() => _savedConfig;
 }
 
@@ -121,6 +118,7 @@ Widget _buildTestApp({
       scrobbleDispatchControllerProvider.overrideWith(
         _StaticScrobbleDispatchController.new,
       ),
+      initialSyncRequiredProvider.overrideWithValue(const AsyncData(false)),
       ...overrides.cast(),
     ],
     child: testNavisApp,
@@ -213,7 +211,8 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Connect'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Server URL is required.'), findsOneWidget);
     expect(find.text('Username is required.'), findsOneWidget);
@@ -347,6 +346,52 @@ void main() {
     expect(savedConfig?.url, 'https://x.test');
     expect(savedConfig?.username, 'alice');
     expect(savedConfig?.password, 'secret');
+    await _disposeApp(tester);
+  });
+
+  testWidgets('different retained profile requires destructive confirmation', (
+    tester,
+  ) async {
+    await database.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'https://x.test',
+        username: 'alice',
+        apiVersion: '1.16.1',
+        isAuthenticated: const Value(false),
+      ),
+    );
+    late _TestServerConfigNotifier notifier;
+    final fakeService = _FakeServerConnectionService();
+    await tester.pumpWidget(
+      _buildTestApp(
+        database: database,
+        overrides: [
+          serverConnectionServiceProvider.overrideWithValue(fakeService),
+          serverConfigProvider.overrideWith(
+            () => notifier = _TestServerConfigNotifier(),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'https://x.test');
+    await tester.enterText(find.byType(TextFormField).at(1), 'bob');
+    await tester.enterText(find.byType(TextFormField).at(2), 'secret');
+
+    await tester.tap(find.text('Connect'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Replace local server data?'), findsOneWidget);
+    expect(find.text('Replace local data'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(notifier.savedConfigSnapshot(), isNull);
+    expect(find.text('bob'), findsOneWidget);
+    expect(find.text('secret'), findsOneWidget);
     await _disposeApp(tester);
   });
 

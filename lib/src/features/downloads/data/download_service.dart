@@ -102,12 +102,23 @@ class DownloadService {
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
   bool _processing = false;
   bool _maintenanceInProgress = false;
+  bool _stopped = false;
   CancelToken? _activeCancelToken;
+  Future<void>? _startInFlight;
+  final Set<Future<void>> _backgroundTasks = <Future<void>>{};
+  final Set<Future<void>> _pendingProgressWrites = <Future<void>>{};
 
   /// Start listening to the download queue and automatically process items.
   ///
   /// Recovers any items stuck in `downloading` status from a previous crash.
-  Future<void> start() async {
+  Future<void> start() {
+    return _startInFlight ??= _start().whenComplete(() {
+      _startInFlight = null;
+    });
+  }
+
+  Future<void> _start() async {
+    _stopped = false;
     // Recover items left in 'downloading' from a previous app kill.
     await _downloadQueueDao.requeueStuckDownloads();
 
@@ -118,18 +129,68 @@ class DownloadService {
     await _normalizePermanentDownloads();
 
     // Best-effort lyrics backfill for already-downloaded songs.
-    unawaited(_backfillLyricsForDownloadedSongs());
+    _trackBackgroundTask(_backfillLyricsForDownloadedSongs());
 
-    await _startQueueSubscription();
+    if (!_stopped) {
+      await _startQueueSubscription();
+    }
   }
 
   /// Stop the service and cancel any active download.
   Future<void> stop() async {
+    await stopAndWait();
+  }
+
+  /// Stops queue observation, cancels the active transfer, and does not return
+  /// until its cancellation cleanup has finished.
+  Future<void> stopAndWait() async {
+    _stopped = true;
     await _queueSubscription?.cancel();
     _queueSubscription = null;
     _activeCancelToken?.cancel('Service stopped');
-    _activeCancelToken = null;
-    _processing = false;
+    await _startInFlight;
+    await _waitForCurrentWorkToStop();
+    await _waitForBackgroundTasks();
+    await _waitForPendingProgressWrites();
+    await DownloadNotifier.dismissProgress().catchError((_) {});
+  }
+
+  void _trackBackgroundTask(Future<void> task) {
+    final tracked = task.catchError((Object error, StackTrace _) {
+      AppLogger.warning(
+        'Download background task failed: ${error.runtimeType}.',
+      );
+    });
+    _backgroundTasks.add(tracked);
+    unawaited(
+      tracked.whenComplete(() => _backgroundTasks.remove(tracked)),
+    );
+  }
+
+  void _trackProgressWrite(Future<void> write) {
+    final tracked = write.catchError((Object error, StackTrace _) {
+      AppLogger.warning(
+        'Download progress persistence failed: ${error.runtimeType}.',
+      );
+    });
+    _pendingProgressWrites.add(tracked);
+    unawaited(
+      tracked.whenComplete(() => _pendingProgressWrites.remove(tracked)),
+    );
+  }
+
+  Future<void> _waitForBackgroundTasks() async {
+    while (_backgroundTasks.isNotEmpty) {
+      await Future.wait<void>(_backgroundTasks.toList(growable: false));
+    }
+  }
+
+  Future<void> _waitForPendingProgressWrites() async {
+    while (_pendingProgressWrites.isNotEmpty) {
+      await Future.wait<void>(
+        _pendingProgressWrites.toList(growable: false),
+      );
+    }
   }
 
   Future<void> configureCustomDownloadFolder({
@@ -226,7 +287,7 @@ class DownloadService {
       return await action();
     } finally {
       _maintenanceInProgress = false;
-      if (hadSubscription) {
+      if (hadSubscription && !_stopped) {
         await _startQueueSubscription();
       }
     }
@@ -533,7 +594,7 @@ class DownloadService {
   // ---------------------------------------------------------------------------
 
   Future<void> _processNext() async {
-    if (_processing || _maintenanceInProgress) return;
+    if (_stopped || _processing || _maintenanceInProgress) return;
 
     // Respect Wi-Fi-only setting.
     if (_readWifiOnly() && !_readIsWifi()) {
@@ -545,6 +606,7 @@ class DownloadService {
 
     try {
       while (true) {
+        if (_stopped) break;
         final queue = await _downloadQueueDao.getQueuedItems();
         if (queue.isEmpty) break;
 
@@ -612,9 +674,11 @@ class DownloadService {
         destFile.path,
         cancelToken: _activeCancelToken,
         onReceiveProgress: (received, total) {
-          if (total > 0) {
+          if (!_stopped && total > 0) {
             final progress = (received / total).clamp(0.0, 1.0);
-            _downloadQueueDao.updateProgress(item.id, progress);
+            _trackProgressWrite(
+              _downloadQueueDao.updateProgress(item.id, progress),
+            );
             unawaited(
               DownloadNotifier.showProgress(
                 title: songTitle,
@@ -625,6 +689,11 @@ class DownloadService {
           }
         },
       );
+
+      if (_stopped) {
+        await tryDeleteFile(destFile);
+        return;
+      }
 
       if (response.statusCode != null &&
           response.statusCode! >= 200 &&
@@ -655,17 +724,19 @@ class DownloadService {
         await _downloadQueueDao.remove(item.id);
 
         // Pre-cache cover art alongside the audio file (best-effort).
-        unawaited(_precacheCoverArt(song, api));
+        _trackBackgroundTask(_precacheCoverArt(song, api));
 
-        unawaited(DownloadNotifier.dismissProgress().catchError((_) {}));
-        unawaited(
+        _trackBackgroundTask(
+          DownloadNotifier.dismissProgress().catchError((_) {}),
+        );
+        _trackBackgroundTask(
           DownloadNotifier.showComplete(
             title: 'Downloaded: $songTitle',
           ).catchError((_) {}),
         );
 
         // Best-effort: pre-fetch lyrics so they're available offline.
-        unawaited(_prefetchLyrics(songId, song, api));
+        _trackBackgroundTask(_prefetchLyrics(songId, song, api));
 
         AppLogger.info(
           'DownloadService: Completed download for $songId '
@@ -694,7 +765,9 @@ class DownloadService {
       if (e.type == DioExceptionType.cancel) {
         AppLogger.debug('DownloadService: Download cancelled for $songId');
         await tryDeleteFile(destFile);
-        await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
+        if (!_stopped) {
+          await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
+        }
       } else {
         AppLogger.warning('DownloadService: Dio error for $songId: $e');
         await tryDeleteFile(destFile);
@@ -799,7 +872,9 @@ class DownloadService {
       // Schedule a delayed re-trigger. The queue subscription would
       // eventually pick it up, but the backoff delay adds some spacing.
       Future<void>.delayed(backoff, () {
-        unawaited(_processNext());
+        if (!_stopped) {
+          unawaited(_processNext());
+        }
       });
     } else {
       await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
@@ -864,6 +939,9 @@ class DownloadService {
   /// the server or LrcLib. Never throws.
   Future<void> _backfillLyricsForDownloadedSongs() async {
     try {
+      if (_stopped) {
+        return;
+      }
       if (!_readIsWifi()) {
         AppLogger.debug(
           'DownloadService: Lyrics backfill skipped — not on wifi.',
@@ -890,6 +968,9 @@ class DownloadService {
       );
 
       for (final song in songs) {
+        if (_stopped) {
+          return;
+        }
         final existing = await _libraryDao.getExternalLyricsCache(song.id);
         if (existing != null && existing.syncedLyrics != null) {
           // Already have synced lyrics — best possible quality, nothing to do.
@@ -899,6 +980,10 @@ class DownloadService {
         // to synced lyrics.
 
         await _prefetchLyrics(song.id, song, api);
+
+        if (_stopped) {
+          return;
+        }
 
         // Throttle to avoid hammering the server or LrcLib.
         await Future<void>.delayed(const Duration(milliseconds: 250));

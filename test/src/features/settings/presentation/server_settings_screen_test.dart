@@ -75,7 +75,6 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
     state = AsyncData(_initial);
   }
 
-  @override
   Future<void> clear() async {
     _initial = null;
     state = const AsyncData(null);

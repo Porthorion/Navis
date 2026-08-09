@@ -260,6 +260,9 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   Future<void> clearQueue() => _delegate.clearQueue();
 
   @override
+  Future<void> resetSession() => _delegate.resetSession();
+
+  @override
   Future<void> play() => _delegate.play();
 
   @override
@@ -456,6 +459,9 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> clearQueue() => _delegate.clearQueue();
+
+  @override
+  Future<void> resetSession() => _delegate.resetSession();
 
   @override
   Future<void> play() => _delegate.play();

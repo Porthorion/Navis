@@ -1,6 +1,7 @@
 import 'dart:io';
+import 'dart:async';
 
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show InsertMode, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -40,7 +41,7 @@ void main() {
       database = NavisDatabase(NativeDatabase.memory());
       credentials = _FakeCredentialStore();
       repository = ServerConfigRepository(database, credentials: credentials);
-      service = SignOutService(
+      service = SessionLifecycleService(
         serverConfigRepository: repository,
         database: database,
       );
@@ -62,6 +63,11 @@ void main() {
       await service.signOut(wipeLocalData: false);
 
       expect(await database.serverDao.getActiveServer(), isNull);
+      expect(await database.serverDao.getRetainedServer(), isNotNull);
+      expect(
+        (await database.serverDao.getRetainedServer())?.isAuthenticated,
+        isFalse,
+      );
       expect(credentials.password, isNull);
       expect((await database.select(database.artistsTable).get()).length, 1);
       expect(
@@ -69,6 +75,19 @@ void main() {
         1,
       );
       expect(await database.starSyncDao.getPendingActions(), isEmpty);
+      expect(await database.playQueueDao.watchQueueItems().first, isEmpty);
+      expect(await database.select(database.downloadQueueTable).get(), isEmpty);
+      expect(await database.scrobbleDao.countEntries(), 0);
+      expect(
+        await database.listenBrainzFeedbackDao.getDueFeedback(
+          now: DateTime.now().add(const Duration(days: 1)),
+        ),
+        isEmpty,
+      );
+      expect(
+        await database.select(database.librarySyncWorkTable).get(),
+        isEmpty,
+      );
       expect(cacheFile.existsSync(), isTrue);
     }, skip: !sqliteAvailable);
 
@@ -106,6 +125,10 @@ void main() {
         );
         expect(await database.playQueueDao.watchQueueItems().first, isEmpty);
         expect(await database.starSyncDao.getPendingActions(), isEmpty);
+        expect(
+          await database.select(database.appSettingsTable).get(),
+          hasLength(1),
+        );
         expect(cacheFile.existsSync(), isFalse);
       },
       skip: !sqliteAvailable,
@@ -122,6 +145,61 @@ void main() {
       expect(await database.select(database.cachedTracksTable).get(), isEmpty);
       expect(await database.starSyncDao.getPendingActions(), isEmpty);
     }, skip: !sqliteAvailable);
+
+    test(
+      'teardown is single-flight and continues after a failed step',
+      () async {
+        final cacheFile = File('${tmpDir.path}/track.mp3');
+        cacheFile.writeAsStringSync('audio');
+        await _seedAuthenticatedData(database, repository, cacheFile.path);
+        final syncGate = Completer<void>();
+        var apiCalls = 0;
+        var syncCalls = 0;
+        var downloadCalls = 0;
+        var playbackCalls = 0;
+        var invalidationCalls = 0;
+        final transitions = <SessionTransition>[];
+        service = SessionLifecycleService(
+          serverConfigRepository: repository,
+          database: database,
+          cancelApiRequests: () async {
+            apiCalls += 1;
+            throw StateError('contains sensitive server detail');
+          },
+          cancelSync: () async {
+            syncCalls += 1;
+            await syncGate.future;
+          },
+          stopDownloads: () async => downloadCalls += 1,
+          resetPlayback: () async => playbackCalls += 1,
+          invalidateSessionProviders: () => invalidationCalls += 1,
+          onTransition: transitions.add,
+        );
+
+        final first = service.signOut(wipeLocalData: false);
+        final second = service.signOut(wipeLocalData: false);
+        await Future<void>.delayed(Duration.zero);
+        expect(apiCalls, 1);
+        expect(syncCalls, 1);
+        syncGate.complete();
+        await Future.wait(<Future<void>>[first, second]);
+
+        expect(downloadCalls, 1);
+        expect(playbackCalls, 1);
+        expect(invalidationCalls, 1);
+        expect(
+          transitions,
+          <SessionTransition>[
+            SessionTransition.signingOut,
+            SessionTransition.idle,
+          ],
+        );
+        expect(await database.serverDao.getActiveServer(), isNull);
+        expect(credentials.password, isNull);
+        expect(await database.playQueueDao.watchQueueItems().first, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }
 
@@ -138,6 +216,21 @@ Future<void> _seedAuthenticatedData(
       password: 'secret',
       apiVersion: '1.16.1',
     ),
+  );
+  await database
+      .into(database.appSettingsTable)
+      .insert(
+        AppSettingsTableCompanion.insert(
+          id: const Value(1),
+          updatedAt: DateTime.now(),
+        ),
+        mode: InsertMode.insertOrIgnore,
+      );
+  final server = await database.serverDao.getActiveServer();
+  await database.librarySyncDao.enqueueWork(
+    serverId: server!.id,
+    kind: 'catalogSnapshot',
+    priority: 1,
   );
 
   await database
@@ -230,5 +323,21 @@ Future<void> _seedAuthenticatedData(
     itemId: 'song-1',
     itemType: 'song',
     action: 'star',
+  );
+  final now = DateTime.now();
+  await database.scrobbleDao.enqueue(
+    songId: 'song-1',
+    provider: 'subsonic',
+    submission: true,
+    sessionKey: 'session-1',
+    createdAt: now,
+    nextAttemptAt: now,
+    expiresAt: now.add(const Duration(days: 1)),
+  );
+  await database.listenBrainzFeedbackDao.queueFeedback(
+    songId: 'song-1',
+    score: 1,
+    title: 'Song 1',
+    artist: 'Artist 1',
   );
 }

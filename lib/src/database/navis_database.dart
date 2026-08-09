@@ -135,7 +135,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 60;
+  int get schemaVersion => 61;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -335,6 +335,18 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 60 && to >= 60) {
       await from59To60(migrator);
+    }
+    if (from < 61 && to >= 61) {
+      await from60To61(migrator);
+    }
+  }
+
+  Future<void> from60To61(Migrator migrator) async {
+    if (!await _columnExists('server_config', 'is_authenticated')) {
+      await migrator.addColumn(
+        serverConfigTable,
+        serverConfigTable.isAuthenticated,
+      );
     }
   }
 

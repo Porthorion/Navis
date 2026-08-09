@@ -4161,14 +4161,24 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> clearQueue() {
     _supersedeTransportIntent();
     _cancelCrossfade();
+    _cancelRemotePlaybackStallWatchdog();
+    _radioMetadataService.stop();
+    _radioStation = null;
     final generation = _supersedeQueueWork();
     return _queueLane.run((token) async {
       await _ready;
       _checkQueueWorkCurrent(token, generation);
+      await _sidecarDownloader.cancel();
+      _sidecarSongsById.clear();
+      _rollingCacheActivities.clear();
+      _reportRollingCacheActivity?.call(const RollingCacheActivity.idle());
       await _clearQueueInternal(persist: true, generation: generation);
       _completeQueueLoad(generation);
     });
   }
+
+  @override
+  Future<void> resetSession() => clearQueue();
 
   @override
   Future<void> addQueueItem(MediaItem mediaItem) {

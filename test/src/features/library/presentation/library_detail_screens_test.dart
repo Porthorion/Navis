@@ -113,6 +113,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> clearQueue() async {}
 
   @override
+  Future<void> resetSession() => clearQueue();
+
+  @override
   Future<void> play() async {}
 
   @override

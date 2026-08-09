@@ -179,6 +179,79 @@ void main() {
       expect(engine.nowCalls, 0);
     });
 
+    test(
+      'cancelAndWait drains and suppresses scheduled startup sync',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        await database.appSettingsDao.setLastFullSyncAppBuild(
+          currentLibrarySyncModelVersion,
+        );
+        final startupResult = Completer<LibrarySyncState>();
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) => startupResult.future,
+          ({forceFull = false, onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            serverConfigStateProvider.overrideWithValue(
+              AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                  lastSynced: DateTime.now(),
+                ),
+              ),
+            ),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _MutableReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(Duration.zero);
+        expect(engine.staleCalls, 1);
+        var cancellationCompleted = false;
+        final cancellation = container
+            .read(librarySyncControllerProvider.notifier)
+            .cancelAndWait()
+            .then((_) => cancellationCompleted = true);
+        await Future<void>.delayed(Duration.zero);
+        expect(cancellationCompleted, isFalse);
+
+        startupResult.complete(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.cancelled,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        await cancellation;
+        final reachability =
+            container.read(serverReachabilityControllerProvider.notifier)
+                as _MutableReachabilityController;
+        reachability.setStatus(ServerReachabilityStatus.offline);
+        reachability.setStatus(ServerReachabilityStatus.online);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(cancellationCompleted, isTrue);
+        expect(engine.staleCalls, 1);
+      },
+    );
+
     test('syncNow transitions through running to succeeded state', () async {
       final completer = Completer<LibrarySyncState>();
       final engine = _FakeLibrarySyncEngine(

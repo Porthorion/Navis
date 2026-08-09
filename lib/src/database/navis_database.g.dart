@@ -96,6 +96,21 @@ class $ServerConfigTableTable extends ServerConfigTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _isAuthenticatedMeta = const VerificationMeta(
+    'isAuthenticated',
+  );
+  @override
+  late final GeneratedColumn<bool> isAuthenticated = GeneratedColumn<bool>(
+    'is_authenticated',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_authenticated" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -106,6 +121,7 @@ class $ServerConfigTableTable extends ServerConfigTable
     capabilities,
     lastSynced,
     lastFullSynced,
+    isAuthenticated,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -176,6 +192,15 @@ class $ServerConfigTableTable extends ServerConfigTable
         ),
       );
     }
+    if (data.containsKey('is_authenticated')) {
+      context.handle(
+        _isAuthenticatedMeta,
+        isAuthenticated.isAcceptableOrUnknown(
+          data['is_authenticated']!,
+          _isAuthenticatedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -217,6 +242,10 @@ class $ServerConfigTableTable extends ServerConfigTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_full_synced'],
       ),
+      isAuthenticated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_authenticated'],
+      )!,
     );
   }
 
@@ -236,6 +265,12 @@ class ServerConfigTableData extends DataClass
   final String? capabilities;
   final DateTime? lastSynced;
   final DateTime? lastFullSynced;
+
+  /// Whether this retained server profile currently has usable credentials.
+  ///
+  /// The row itself survives a keep-data sign-out so its sync state remains
+  /// attached to the committed local catalog.
+  final bool isAuthenticated;
   const ServerConfigTableData({
     required this.id,
     this.name,
@@ -245,6 +280,7 @@ class ServerConfigTableData extends DataClass
     this.capabilities,
     this.lastSynced,
     this.lastFullSynced,
+    required this.isAuthenticated,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -265,6 +301,7 @@ class ServerConfigTableData extends DataClass
     if (!nullToAbsent || lastFullSynced != null) {
       map['last_full_synced'] = Variable<DateTime>(lastFullSynced);
     }
+    map['is_authenticated'] = Variable<bool>(isAuthenticated);
     return map;
   }
 
@@ -284,6 +321,7 @@ class ServerConfigTableData extends DataClass
       lastFullSynced: lastFullSynced == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFullSynced),
+      isAuthenticated: Value(isAuthenticated),
     );
   }
 
@@ -301,6 +339,7 @@ class ServerConfigTableData extends DataClass
       capabilities: serializer.fromJson<String?>(json['capabilities']),
       lastSynced: serializer.fromJson<DateTime?>(json['lastSynced']),
       lastFullSynced: serializer.fromJson<DateTime?>(json['lastFullSynced']),
+      isAuthenticated: serializer.fromJson<bool>(json['isAuthenticated']),
     );
   }
   @override
@@ -315,6 +354,7 @@ class ServerConfigTableData extends DataClass
       'capabilities': serializer.toJson<String?>(capabilities),
       'lastSynced': serializer.toJson<DateTime?>(lastSynced),
       'lastFullSynced': serializer.toJson<DateTime?>(lastFullSynced),
+      'isAuthenticated': serializer.toJson<bool>(isAuthenticated),
     };
   }
 
@@ -327,6 +367,7 @@ class ServerConfigTableData extends DataClass
     Value<String?> capabilities = const Value.absent(),
     Value<DateTime?> lastSynced = const Value.absent(),
     Value<DateTime?> lastFullSynced = const Value.absent(),
+    bool? isAuthenticated,
   }) => ServerConfigTableData(
     id: id ?? this.id,
     name: name.present ? name.value : this.name,
@@ -338,6 +379,7 @@ class ServerConfigTableData extends DataClass
     lastFullSynced: lastFullSynced.present
         ? lastFullSynced.value
         : this.lastFullSynced,
+    isAuthenticated: isAuthenticated ?? this.isAuthenticated,
   );
   ServerConfigTableData copyWithCompanion(ServerConfigTableCompanion data) {
     return ServerConfigTableData(
@@ -357,6 +399,9 @@ class ServerConfigTableData extends DataClass
       lastFullSynced: data.lastFullSynced.present
           ? data.lastFullSynced.value
           : this.lastFullSynced,
+      isAuthenticated: data.isAuthenticated.present
+          ? data.isAuthenticated.value
+          : this.isAuthenticated,
     );
   }
 
@@ -370,7 +415,8 @@ class ServerConfigTableData extends DataClass
           ..write('apiVersion: $apiVersion, ')
           ..write('capabilities: $capabilities, ')
           ..write('lastSynced: $lastSynced, ')
-          ..write('lastFullSynced: $lastFullSynced')
+          ..write('lastFullSynced: $lastFullSynced, ')
+          ..write('isAuthenticated: $isAuthenticated')
           ..write(')'))
         .toString();
   }
@@ -385,6 +431,7 @@ class ServerConfigTableData extends DataClass
     capabilities,
     lastSynced,
     lastFullSynced,
+    isAuthenticated,
   );
   @override
   bool operator ==(Object other) =>
@@ -397,7 +444,8 @@ class ServerConfigTableData extends DataClass
           other.apiVersion == this.apiVersion &&
           other.capabilities == this.capabilities &&
           other.lastSynced == this.lastSynced &&
-          other.lastFullSynced == this.lastFullSynced);
+          other.lastFullSynced == this.lastFullSynced &&
+          other.isAuthenticated == this.isAuthenticated);
 }
 
 class ServerConfigTableCompanion
@@ -410,6 +458,7 @@ class ServerConfigTableCompanion
   final Value<String?> capabilities;
   final Value<DateTime?> lastSynced;
   final Value<DateTime?> lastFullSynced;
+  final Value<bool> isAuthenticated;
   const ServerConfigTableCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -419,6 +468,7 @@ class ServerConfigTableCompanion
     this.capabilities = const Value.absent(),
     this.lastSynced = const Value.absent(),
     this.lastFullSynced = const Value.absent(),
+    this.isAuthenticated = const Value.absent(),
   });
   ServerConfigTableCompanion.insert({
     this.id = const Value.absent(),
@@ -429,6 +479,7 @@ class ServerConfigTableCompanion
     this.capabilities = const Value.absent(),
     this.lastSynced = const Value.absent(),
     this.lastFullSynced = const Value.absent(),
+    this.isAuthenticated = const Value.absent(),
   }) : url = Value(url),
        username = Value(username),
        apiVersion = Value(apiVersion);
@@ -441,6 +492,7 @@ class ServerConfigTableCompanion
     Expression<String>? capabilities,
     Expression<DateTime>? lastSynced,
     Expression<DateTime>? lastFullSynced,
+    Expression<bool>? isAuthenticated,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -451,6 +503,7 @@ class ServerConfigTableCompanion
       if (capabilities != null) 'capabilities': capabilities,
       if (lastSynced != null) 'last_synced': lastSynced,
       if (lastFullSynced != null) 'last_full_synced': lastFullSynced,
+      if (isAuthenticated != null) 'is_authenticated': isAuthenticated,
     });
   }
 
@@ -463,6 +516,7 @@ class ServerConfigTableCompanion
     Value<String?>? capabilities,
     Value<DateTime?>? lastSynced,
     Value<DateTime?>? lastFullSynced,
+    Value<bool>? isAuthenticated,
   }) {
     return ServerConfigTableCompanion(
       id: id ?? this.id,
@@ -473,6 +527,7 @@ class ServerConfigTableCompanion
       capabilities: capabilities ?? this.capabilities,
       lastSynced: lastSynced ?? this.lastSynced,
       lastFullSynced: lastFullSynced ?? this.lastFullSynced,
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
     );
   }
 
@@ -503,6 +558,9 @@ class ServerConfigTableCompanion
     if (lastFullSynced.present) {
       map['last_full_synced'] = Variable<DateTime>(lastFullSynced.value);
     }
+    if (isAuthenticated.present) {
+      map['is_authenticated'] = Variable<bool>(isAuthenticated.value);
+    }
     return map;
   }
 
@@ -516,7 +574,8 @@ class ServerConfigTableCompanion
           ..write('apiVersion: $apiVersion, ')
           ..write('capabilities: $capabilities, ')
           ..write('lastSynced: $lastSynced, ')
-          ..write('lastFullSynced: $lastFullSynced')
+          ..write('lastFullSynced: $lastFullSynced, ')
+          ..write('isAuthenticated: $isAuthenticated')
           ..write(')'))
         .toString();
   }
@@ -23225,6 +23284,7 @@ typedef $$ServerConfigTableTableCreateCompanionBuilder =
       Value<String?> capabilities,
       Value<DateTime?> lastSynced,
       Value<DateTime?> lastFullSynced,
+      Value<bool> isAuthenticated,
     });
 typedef $$ServerConfigTableTableUpdateCompanionBuilder =
     ServerConfigTableCompanion Function({
@@ -23236,6 +23296,7 @@ typedef $$ServerConfigTableTableUpdateCompanionBuilder =
       Value<String?> capabilities,
       Value<DateTime?> lastSynced,
       Value<DateTime?> lastFullSynced,
+      Value<bool> isAuthenticated,
     });
 
 final class $$ServerConfigTableTableReferences
@@ -23351,6 +23412,11 @@ class $$ServerConfigTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get isAuthenticated => $composableBuilder(
+    column: $table.isAuthenticated,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> librarySyncStateTableRefs(
     Expression<bool> Function($$LibrarySyncStateTableTableFilterComposer f) f,
   ) {
@@ -23451,6 +23517,11 @@ class $$ServerConfigTableTableOrderingComposer
     column: $table.lastFullSynced,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isAuthenticated => $composableBuilder(
+    column: $table.isAuthenticated,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ServerConfigTableTableAnnotationComposer
@@ -23491,6 +23562,11 @@ class $$ServerConfigTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get lastFullSynced => $composableBuilder(
     column: $table.lastFullSynced,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isAuthenticated => $composableBuilder(
+    column: $table.isAuthenticated,
     builder: (column) => column,
   );
 
@@ -23591,6 +23667,7 @@ class $$ServerConfigTableTableTableManager
                 Value<String?> capabilities = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
                 Value<DateTime?> lastFullSynced = const Value.absent(),
+                Value<bool> isAuthenticated = const Value.absent(),
               }) => ServerConfigTableCompanion(
                 id: id,
                 name: name,
@@ -23600,6 +23677,7 @@ class $$ServerConfigTableTableTableManager
                 capabilities: capabilities,
                 lastSynced: lastSynced,
                 lastFullSynced: lastFullSynced,
+                isAuthenticated: isAuthenticated,
               ),
           createCompanionCallback:
               ({
@@ -23611,6 +23689,7 @@ class $$ServerConfigTableTableTableManager
                 Value<String?> capabilities = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
                 Value<DateTime?> lastFullSynced = const Value.absent(),
+                Value<bool> isAuthenticated = const Value.absent(),
               }) => ServerConfigTableCompanion.insert(
                 id: id,
                 name: name,
@@ -23620,6 +23699,7 @@ class $$ServerConfigTableTableTableManager
                 capabilities: capabilities,
                 lastSynced: lastSynced,
                 lastFullSynced: lastFullSynced,
+                isAuthenticated: isAuthenticated,
               ),
           withReferenceMapper: (p0) => p0
               .map(

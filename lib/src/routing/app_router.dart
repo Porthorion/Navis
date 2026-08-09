@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/auth/presentation/login_screen.dart';
-import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/initial_server_sync_screen.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
@@ -64,33 +65,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   // Only watch auth state (logged-in vs not), not the full config which
   // changes on every sync timestamp update.  Rebuilding GoRouter resets
   // the location to initialLocation, so we must avoid spurious rebuilds.
-  final isLoggedIn = ref.watch(
-    serverConfigStateProvider.select((cfg) {
-      if (cfg.isLoading) return null; // still loading
-      return cfg.asData?.value != null;
-    }),
-  );
+  final sessionPhase = ref.watch(sessionRoutePhaseProvider);
 
   return GoRouter(
     initialLocation: '/login',
     redirect: (context, state) {
       final isLoginRoute = state.matchedLocation == '/login';
-      if (isLoggedIn == null) {
+      final isInitialSyncRoute = state.matchedLocation == '/initial-sync';
+      if (sessionPhase == SessionRoutePhase.loading) {
         return null; // still loading
       }
 
-      if (!isLoggedIn && !isLoginRoute) {
-        return '/login';
-      }
-
-      if (isLoggedIn && isLoginRoute) {
-        return '/';
-      }
-
-      return null;
+      return switch (sessionPhase) {
+        SessionRoutePhase.unauthenticated => isLoginRoute ? null : '/login',
+        SessionRoutePhase.initialSyncRequired =>
+          isInitialSyncRoute ? null : '/initial-sync',
+        SessionRoutePhase.ready =>
+          (isLoginRoute || isInitialSyncRoute) ? '/' : null,
+        SessionRoutePhase.loading => null,
+      };
     },
     routes: <RouteBase>[
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/initial-sync',
+        builder: (context, state) => const InitialServerSyncScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);

@@ -50,6 +50,10 @@ class SubsonicApiClient {
   final int? maxConnectionsPerHost;
   final NetworkUsageReporter? _reportNetworkUsage;
 
+  void close({bool force = true}) {
+    _dio.close(force: force);
+  }
+
   static String _normalizeBaseUrl(String baseUrl) => baseUrl.endsWith('/')
       ? baseUrl.substring(0, baseUrl.length - 1)
       : baseUrl;

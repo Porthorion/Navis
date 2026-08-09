@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,6 +57,57 @@ class _ThrowingCredentialStore implements SecureCredentialStore {
 }
 
 void main() {
+  test(
+    'clone diagnostics credential clear never mutates backing storage',
+    () async {
+      final backing = _FakeCredentialStore()..password = 'real-secret';
+      final clone = CloneDiagnosticsCredentialStore(backing);
+
+      expect(await clone.readPassword(), 'real-secret');
+      await clone.clearPassword();
+
+      expect(await clone.readPassword(), isNull);
+      expect(backing.password, 'real-secret');
+      expect(backing.clearCalls, 0);
+    },
+  );
+
+  test(
+    'clone diagnostics can seed its isolated credential from a file',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-clone-credentials-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final credentialFile = File('${directory.path}/password')
+        ..writeAsStringSync('fixture-secret\n');
+      final backing = _FakeCredentialStore()..password = 'real-secret';
+      final clone = CloneDiagnosticsCredentialStore(
+        backing,
+        credentialPath: credentialFile.path,
+      );
+
+      expect(await clone.readPassword(), 'fixture-secret');
+      await clone.clearPassword();
+
+      expect(await clone.readPassword(), isNull);
+      expect(backing.password, 'real-secret');
+      expect(backing.clearCalls, 0);
+    },
+  );
+
+  test('clone diagnostics shares one concurrent credential load', () async {
+    final backing = _FakeCredentialStore()..password = 'fixture-secret';
+    final clone = CloneDiagnosticsCredentialStore(backing);
+
+    final values = await Future.wait([
+      clone.readPassword(),
+      clone.readPassword(),
+    ]);
+
+    expect(values, everyElement('fixture-secret'));
+  });
+
   group('ServerConfigRepository', () {
     late NavisDatabase database;
     late _FakeCredentialStore credentials;
@@ -109,7 +162,7 @@ void main() {
     );
 
     test(
-      'missing secure password clears stale drift session',
+      'missing secure password signs out without deleting retained profile',
       () async {
         await database.serverDao.saveServer(
           ServerConfigTableCompanion.insert(
@@ -122,10 +175,14 @@ void main() {
         credentials.password = null;
 
         final config = await repository.getActiveServer();
-        final rowAfter = await database.serverDao.getActiveServer();
+        final activeAfter = await database.serverDao.getActiveServer();
+        final retainedAfter = await database.serverDao.getRetainedServer();
 
         expect(config, isNull);
-        expect(rowAfter, isNull);
+        expect(activeAfter, isNull);
+        expect(retainedAfter, isNotNull);
+        expect(retainedAfter?.username, 'alice');
+        expect(retainedAfter?.isAuthenticated, isFalse);
       },
       skip: !sqliteAvailable,
     );
@@ -164,7 +221,7 @@ void main() {
     );
 
     test(
-      'getActiveServer clears stale drift row when secure read fails',
+      'getActiveServer signs out retained row when secure read fails',
       () async {
         await database.serverDao.saveServer(
           ServerConfigTableCompanion.insert(
@@ -180,9 +237,10 @@ void main() {
         );
 
         final config = await repository.getActiveServer();
-        final rowAfter = await database.serverDao.getActiveServer();
+        final rowAfter = await database.serverDao.getRetainedServer();
         expect(config, isNull);
-        expect(rowAfter, isNull);
+        expect(rowAfter, isNotNull);
+        expect(rowAfter?.isAuthenticated, isFalse);
       },
       skip: !sqliteAvailable,
     );
@@ -243,5 +301,101 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test(
+      'same-profile reauthentication preserves identity and sync state',
+      () async {
+        final syncedAt = DateTime(2026, 1, 2, 3, 4);
+        await repository.save(
+          ServerConfigModel(
+            name: 'Old name',
+            url: 'https://EXAMPLE.com/',
+            username: 'alice',
+            password: 'old-secret',
+            apiVersion: '1.16.1',
+            capabilitiesJson: '{"navis":{"plannerVersion":9},"scan":"old"}',
+            lastSynced: syncedAt,
+          ),
+        );
+        final before = await database.serverDao.getRetainedServer();
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: Value(before!.id),
+            currentGeneration: const Value(7),
+            safePageSize: const Value(321),
+          ),
+        );
+        await repository.signOutKeepData();
+
+        expect(
+          await repository.compareRetainedServer(
+            const ServerConfigModel(
+              url: 'https://example.com:443',
+              username: ' alice ',
+              password: 'new-secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+          RetainedServerMatch.same,
+        );
+        await repository.save(
+          const ServerConfigModel(
+            name: 'Fresh name',
+            url: 'https://example.com:443',
+            username: ' alice ',
+            password: 'new-secret',
+            apiVersion: '1.16.1',
+            capabilitiesJson: '{"navis":{"plannerVersion":1},"scan":"new"}',
+          ),
+        );
+
+        final after = await database.serverDao.getActiveServer();
+        final syncState = await database.librarySyncDao.getOrCreateState(
+          after!.id,
+        );
+        expect(after.id, before.id);
+        expect(after.lastSynced, syncedAt);
+        expect(after.isAuthenticated, isTrue);
+        expect(after.capabilities, contains('"plannerVersion":9'));
+        expect(after.capabilities, contains('"scan":"new"'));
+        expect(syncState.currentGeneration, 7);
+        expect(syncState.safePageSize, 321);
+        expect(credentials.password, 'new-secret');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('different profile requires explicit deletion', () async {
+      await repository.save(
+        const ServerConfigModel(
+          url: 'https://example.com',
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await repository.signOutKeepData();
+      const candidate = ServerConfigModel(
+        url: 'https://example.com',
+        username: 'bob',
+        password: 'other-secret',
+        apiVersion: '1.16.1',
+      );
+
+      expect(
+        await repository.compareRetainedServer(candidate),
+        RetainedServerMatch.different,
+      );
+      await expectLater(
+        repository.save(candidate),
+        throwsA(isA<RetainedServerMismatchException>()),
+      );
+      expect((await database.serverDao.getRetainedServer())?.username, 'alice');
+      expect(credentials.password, isNull);
+
+      await repository.clear();
+      await repository.save(candidate);
+      expect((await database.serverDao.getActiveServer())?.username, 'bob');
+    }, skip: !sqliteAvailable);
   });
 }

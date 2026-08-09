@@ -157,6 +157,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
 ./tool/presentation_diagnostics.sh clone / home  # app-owned screenshot suite
 ./tool/desktop_layout_diagnostics.sh  # Desktop View/Mini Player resize + screenshot suite
+./tool/auth_lifecycle_diagnostics.sh clone  # isolated first-sync/logout suite
 
 # Release (runs check unless --skip-checks)
 ./tool/release.sh v1.2.3
@@ -554,6 +555,9 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 ### Routing (`lib/src/routing/app_router.dart`)
 
 - `StatefulShellRoute.indexedStack` in `AppShell`.
+- `SessionRoutePhase` is the top-level gate: loading, unauthenticated,
+  initial-sync-required, or ready. `/initial-sync` is outside the shell and
+  authenticated profiles without a committed catalog cannot bypass it.
 - **No top-level `/now-playing` route** — player is embedded in the shell.
 - `appRouterProvider` must watch auth with `.select(...)` only. Watching the full `serverConfigProvider` rebuilds `GoRouter` and resets navigation.
 - `NavService` (`navigation_service.dart`) for app-level navigation.
@@ -617,7 +621,7 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 60 |
+| **Schema version** | 61 |
 | **Tables** | 30 |
 | **DAOs** | 16 |
 
@@ -626,6 +630,37 @@ DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyn
 - Stepwise migrations in `navis_database.dart`.
 - **Always** update `test/src/database/migrations/navis_migration_test.dart` when changing schema.
 - Access only through DAOs — no raw SQL in feature code.
+- `server_config.is_authenticated` separates the retained non-secret
+  server/account profile from an active credential session. Profile identity
+  is normalized base URL plus trimmed username; same-profile login updates the
+  row in place, while replacement is an explicit destructive operation.
+
+### Session lifecycle
+
+`SessionLifecycleService` is the only logout path. It is single-flight and
+best-effort, but authentication invalidation is always attempted in `finally`.
+Teardown closes the Subsonic client, awaits library-sync and download
+cancellation, resets both playback decks/radio/media-session state and the
+persisted queue, clears transient mix/timer/overlay/error state, then removes
+pending server mutations and durable work. Keep-data logout retains the
+committed catalog, completed caches/downloads, history, playlists, Match Flows,
+sync tuning, and device settings while marking the profile unauthenticated.
+Full wipe, initial-sync cancellation, and confirmed profile replacement use
+`ServerDataResetService` to remove all server-scoped rows, audio files, and
+cover art before deleting the retained profile.
+
+`InitialServerSyncController` owns the first catalog run. Ordinary startup
+sync is suppressed while no committed generation exists. Unmetered setup
+starts automatically; offline setup waits for Retry and metered setup requires
+the existing one-time mobile-data override. Only an atomically promoted
+catalog (`currentGeneration > 0`, with legacy `lastSynced` fallback) unlocks
+the shell; non-applying auxiliary/hydration gaps may continue with a warning.
+`tool/auth_lifecycle_diagnostics.sh clone` validates this on Linux with two
+isolated database/cache profiles, a deterministic loopback Subsonic fixture,
+and a mode-600 fixture credential that never touches device secure storage.
+Clone diagnostics also replace the external-scrobble credential store with an
+empty process-local store and disable Last.fm so they cannot read device tokens
+or contact personalized third-party discovery services.
 
 ### Hero animation tags
 

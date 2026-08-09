@@ -7,7 +7,21 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 final secureCredentialStoreProvider = Provider<SecureCredentialStore>((ref) {
-  return const FlutterSecureCredentialStore();
+  const backing = FlutterSecureCredentialStore();
+  const diagnosticsEnabled = bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS');
+  const diagnosticsMode = String.fromEnvironment(
+    'NAVIS_SYNC_DIAGNOSTICS_MODE',
+  );
+  if (diagnosticsEnabled && diagnosticsMode == 'clone') {
+    const credentialPath = String.fromEnvironment(
+      'NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH',
+    );
+    return CloneDiagnosticsCredentialStore(
+      backing,
+      credentialPath: credentialPath,
+    );
+  }
+  return backing;
 });
 
 final serverConfigRepositoryProvider = Provider<ServerConfigRepository>((ref) {
@@ -37,12 +51,6 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
   Future<void> save(ServerConfigModel config) async {
     final repository = ref.read(serverConfigRepositoryProvider);
     await repository.save(config);
-    await refresh();
-  }
-
-  Future<void> clear() async {
-    final repository = ref.read(serverConfigRepositoryProvider);
-    await repository.clear();
     await refresh();
   }
 
