@@ -428,6 +428,8 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   the same generation, and checkpoint counts must match collected candidate
   rows before promotion. A snapshot with reported albums but no collected
   albums is invalid and must preserve the committed catalog.
+  Full collection prefers `getArtists`; if that endpoint is unsupported, use
+  the compatible `getIndexes` artist index before failing the candidate.
   Large candidate promotion reads must chunk ID lookups below SQLite's bound
   variable limit. An `applying` candidate is resumable after a rolled-back
   apply failure so completed hydration is not downloaded again.

@@ -62,6 +62,7 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   final Set<String> notFoundAlbumIds = <String>{};
   final Set<String> notFoundArtistIds = <String>{};
   final Set<String> permanentTransientAlbumIds = <String>{};
+  Object? getArtistsError;
   final Map<String, int> transientAlbumFailures = <String, int>{};
   Duration albumDelay = Duration.zero;
   Completer<Album>? albumCompleter;
@@ -195,6 +196,10 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   @override
   Future<List<Artist>> getArtists() async {
     calls.add('getArtists');
+    final error = getArtistsError;
+    if (error != null) {
+      throw error;
+    }
     final completer = artistsCompleter;
     if (completer != null) {
       return completer.future;
@@ -388,6 +393,53 @@ void main() {
         expect(playlistRows.length, 1);
         expect(serverConfig?.lastSynced, isNotNull);
         expect(serverConfig?.lastFullSyncedAt, isNotNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'full sync falls back to getIndexes when getArtists is unavailable',
+      () async {
+        await saveSession();
+        api.getArtistsError = const SubsonicNotFoundException(
+          message: 'getArtists is unavailable',
+        );
+        api.indexes = const Indexes(
+          indexes: <IndexesIndex>[
+            IndexesIndex(
+              artists: <Artist>[Artist(id: 'artist-1', name: 'Artist 1')],
+            ),
+          ],
+        );
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songs: <Song>[
+            Song(
+              id: 'song-1',
+              title: 'Song 1',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+            ),
+          ],
+        );
+
+        final state = await engine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, containsAll(<String>['getArtists', 'getIndexes']));
+        expect(
+          (await database.libraryDao.getArtistById('artist-1'))?.name,
+          'Artist 1',
+        );
       },
       skip: !sqliteAvailable,
     );

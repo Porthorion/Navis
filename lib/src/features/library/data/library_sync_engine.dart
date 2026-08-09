@@ -1908,6 +1908,51 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     }
   }
 
+  /// Gets catalog artists while tolerating servers that only expose them in
+  /// the standard `getIndexes` response.
+  Future<List<Artist>> _loadCatalogArtists(_SyncRunMetrics metrics) async {
+    try {
+      return await _withRetry(
+        _api.getArtists,
+        metrics: metrics,
+        endpoint: 'getArtists',
+      );
+    } on Object catch (getArtistsError) {
+      if (!_isIndexesUnsupported(getArtistsError)) {
+        rethrow;
+      }
+
+      try {
+        final indexes = await _withRetry(
+          _api.getIndexes,
+          metrics: metrics,
+          endpoint: 'getIndexes',
+        );
+        final artistsById = <String, Artist>{};
+        void addAll(Iterable<Artist> candidates) {
+          for (final artist in candidates) {
+            artistsById.putIfAbsent(artist.id, () => artist);
+          }
+        }
+
+        for (final index in indexes.indexes) {
+          addAll(index.artists);
+        }
+        addAll(indexes.shortcut);
+        addAll(indexes.child);
+        return artistsById.values.toList(growable: false);
+      } on Object catch (indexesError) {
+        if (_isIndexesUnsupported(indexesError)) {
+          AppLogger.info(
+            'Artist-list endpoints unavailable; deriving artists from album pages.',
+          );
+          return const <Artist>[];
+        }
+        rethrow;
+      }
+    }
+  }
+
   Future<void> _reconcileStarredContent(_SyncRunMetrics metrics) async {
     try {
       await _syncStarredContentStrict(metrics);
@@ -2436,19 +2481,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
     onProgress?.call(current);
 
-    final artists =
-        (await _withRetry(
-              _api.getArtists,
-              metrics: metrics,
-              endpoint: 'getArtists',
-            ))
-            .where(
-              (artist) => !isExternalCatalogSource(
-                id: artist.id,
-                apiIsExternal: artist.isExternal,
-              ),
-            )
-            .toList(growable: false);
+    var artists = (await _loadCatalogArtists(metrics))
+        .where(
+          (artist) => !isExternalCatalogSource(
+            id: artist.id,
+            apiIsExternal: artist.isExternal,
+          ),
+        )
+        .toList(growable: false);
     await _database.librarySyncCandidateDao.replaceArtists(
       serverId: serverId,
       generation: catalogGeneration,
@@ -2557,6 +2597,39 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         'Catalog candidate collected no albums even though artists reported '
         '$reportedAlbumCount albums.',
       );
+    }
+
+    if (artists.isEmpty && nextAlbumIds.isNotEmpty) {
+      final albums = await _database.librarySyncCandidateDao.getAlbums(
+        serverId: serverId,
+        generation: catalogGeneration,
+      );
+      final artistsById = <String, Artist>{};
+      for (final album in albums) {
+        final artistId = album.artistId?.trim();
+        final artistName = album.artistName?.trim();
+        if (artistId != null &&
+            artistId.isNotEmpty &&
+            artistName != null &&
+            artistName.isNotEmpty) {
+          artistsById.putIfAbsent(
+            artistId,
+            () => Artist(id: artistId, name: artistName),
+          );
+        }
+      }
+      artists = artistsById.values.toList(growable: false);
+      if (artists.isNotEmpty) {
+        await _database.librarySyncCandidateDao.replaceArtists(
+          serverId: serverId,
+          generation: catalogGeneration,
+          artists: _toArtistCompanions(
+            artists,
+            catalogGeneration: catalogGeneration,
+          ),
+        );
+        metrics.addDbWriteBatch();
+      }
     }
 
     current = _withMetrics(

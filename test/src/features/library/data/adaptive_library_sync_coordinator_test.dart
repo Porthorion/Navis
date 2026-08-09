@@ -32,13 +32,16 @@ class _ProbeLibrarySyncEngine
   int syncNowCalls = 0;
   bool probeIndexChanged = false;
   bool probeIndexesUnsupported = false;
+  LibrarySyncState? forcedResult;
 
-  LibrarySyncState _idle() => LibrarySyncState(
-    status: LibrarySyncStatus.succeeded,
-    stage: LibrarySyncStage.completed,
-    metadataReady: true,
-    completedAt: DateTime.utc(2026, 8, 4),
-  );
+  LibrarySyncState _idle() =>
+      forcedResult ??
+      LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+        metadataReady: true,
+        completedAt: DateTime.utc(2026, 8, 4),
+      );
 
   @override
   Future<LibrarySyncState> requestSync(
@@ -495,6 +498,43 @@ void main() {
       );
       expect(work?.workClass, 'interactive');
       expect(work?.status, 'completed');
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'failed sync keeps executor failure diagnostics',
+    () async {
+      final failingExecutor = _ProbeLibrarySyncEngine()
+        ..forcedResult = LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.utc(2026, 8, 4),
+        );
+      final failingCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: failingExecutor,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          endpointFailureJson: Value(
+            '{"stage":"collectingCandidate","endpoint":"getAlbum",'
+            '"entityId":"album-1","exceptionType":"TimeoutException"}',
+          ),
+        ),
+      );
+
+      await failingCoordinator.requestSync(const LibrarySyncRequest.repair());
+
+      final persisted = await database.librarySyncDao.getOrCreateState(1);
+      expect(persisted.endpointFailureJson, contains('collectingCandidate'));
+      expect(persisted.endpointFailureJson, contains('TimeoutException'));
     },
     skip: !sqliteAvailable,
   );

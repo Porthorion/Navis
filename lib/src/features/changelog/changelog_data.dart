@@ -86,6 +86,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Library repairs now fall back to the server artist index when its separate artist-list endpoint is unavailable, so compatible servers can resume safely',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
         type: ChangelogEntryType.improvement,
       ),

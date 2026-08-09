@@ -235,6 +235,19 @@ wait_for_candidate_collection() {
     if python3 - "$status" <<'PY'
 import json, sys
 value = json.loads(sys.argv[1])
+terminal = (
+    not value.get("requestActive", False)
+    and value.get("status") in ("failed", "cancelled", "deferred", "skipped")
+)
+raise SystemExit(0 if terminal else 1)
+PY
+    then
+      echo "Catalog candidate did not begin collection: $status" >&2
+      exit 70
+    fi
+    if python3 - "$status" <<'PY'
+import json, sys
+value = json.loads(sys.argv[1])
 ready = (
     value.get("requestActive", False)
     and value.get("candidateStatus") in ("collecting", "ready", "applying")

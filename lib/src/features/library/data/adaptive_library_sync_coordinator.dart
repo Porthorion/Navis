@@ -715,14 +715,20 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           _parseDate(navis['genresSyncLastSyncedAt']),
         ),
         detailConcurrency: Value(_preferredDetailConcurrency()),
-        endpointFailureJson: result.failureCategory == null
-            ? const Value(null)
-            : Value(
+        // The executor persists stage/endpoint/entity failure diagnostics.
+        // Do not erase those safe details when its returned state has no
+        // coarse failure category; callers otherwise see only a generic failed
+        // sync and the durable retry record cannot explain what happened.
+        endpointFailureJson: result.failureCategory != null
+            ? Value(
                 jsonEncode(<String, Object?>{
                   'category': result.failureCategory,
                   'at': _now().toUtc().toIso8601String(),
                 }),
-              ),
+              )
+            : result.status == LibrarySyncStatus.succeeded
+            ? const Value(null)
+            : const Value.absent(),
       ),
     );
   }

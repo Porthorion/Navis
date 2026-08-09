@@ -705,6 +705,8 @@ replay/end-of-queue feedback instead.
    reading the previous committed catalog. Incompatible providers fall back to
    bounded `getArtists → getArtist → getAlbum` work using the same candidate
    boundary.
+   If `getArtists` is unsupported, the collector falls back to the compatible
+   `getIndexes` artist index before treating the catalog as unavailable.
 5. Unhydrated artist, album, and playlist interactions upgrade matching work to
    interactive priority instead of starting parallel hydrators. Album hydration
    normally performs one `getAlbum` request plus one song transaction.
