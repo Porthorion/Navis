@@ -117,6 +117,13 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'Large Library Repairs now keep a fast, bounded concurrent album fallback when a server search result window cannot return every song at once',
+    ),
+    _Entry(
+      'Manual library refresh now includes liked music, playlist headers, and genres alongside catalog updates',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
       type: _EntryType.improvement,
     ),

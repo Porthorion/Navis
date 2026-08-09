@@ -2689,6 +2689,43 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test(
+      'manual normal sync refreshes liked content and playlist headers',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'auxiliarySyncLastSyncedAt': DateTime.now()
+                  .toUtc()
+                  .toIso8601String(),
+              'genresSyncLastSyncedAt': DateTime.now()
+                  .toUtc()
+                  .toIso8601String(),
+            },
+          }),
+        );
+        api.indexes = Indexes(lastModified: DateTime.utc(2026, 8, 9));
+        api.starredContent = const StarredContent();
+        api.playlists = const <Playlist>[
+          Playlist(id: 'playlist-1', name: 'Playlist 1'),
+        ];
+        api.genres = const <Genre>[Genre(name: 'Rock', songCount: 1)];
+
+        final state = await engine.syncNow();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('getStarredContent'));
+        expect(api.calls, contains('getPlaylists'));
+        expect(api.calls, contains('getGenres'));
+        expect(state.starredSynchronized, isTrue);
+        expect(state.playlistHeadersSynchronized, isTrue);
+        expect(state.genresSynchronized, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'automatic sync stays incremental after the old rebaseline interval',
       () async {
         await saveSession(
@@ -2800,7 +2837,7 @@ void main() {
     );
 
     test(
-      'adaptive hydration ramps concurrency on healthy latency',
+      'full catalog hydration starts with fast concurrent fallback',
       () async {
         await saveSession();
         api.albumDelay = const Duration(milliseconds: 2);
@@ -2841,7 +2878,54 @@ void main() {
         final state = await adaptiveEngine.forceFullSync();
 
         expect(state.status, LibrarySyncStatus.succeeded);
-        expect(api.maxConcurrentAlbumRequests, greaterThan(2));
+        expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(8));
+        expect(
+          api.calls.where((call) => call.startsWith('getAlbum:')).length,
+          18,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'adaptive hydration does not serialize a high-latency repair',
+      () async {
+        await saveSession();
+        api.albumDelay = const Duration(milliseconds: 2600);
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = List<Album>.generate(
+          12,
+          (index) => Album(
+            id: 'album-${index + 1}',
+            name: 'Album ${index + 1}',
+            artistId: 'artist-1',
+          ),
+        );
+        for (var index = 0; index < 12; index++) {
+          final albumId = 'album-${index + 1}';
+          api.albumDetails[albumId] = Album(
+            id: albumId,
+            name: 'Album ${index + 1}',
+            songs: <Song>[Song(id: 'song-${index + 1}', title: 'Song')],
+          );
+        }
+
+        final adaptiveEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          fallbackArtistConcurrency: 2,
+          wifiAlbumConcurrency: 2,
+          wifiMaxAlbumConcurrency: 8,
+          writeChunkSize: 12,
+          isolateThreshold: 1000,
+        );
+
+        final state = await adaptiveEngine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(8));
       },
       skip: !sqliteAvailable,
     );

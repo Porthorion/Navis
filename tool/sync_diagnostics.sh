@@ -3,9 +3,9 @@ set -euo pipefail
 
 MODE="${1:-clone}"
 case "$MODE" in
-  clone|primary-certification) ;;
+  clone|primary-certification|throughput) ;;
   *)
-    echo "Usage: $0 [clone|primary-certification]" >&2
+    echo "Usage: $0 [clone|primary-certification|throughput]" >&2
     exit 64
     ;;
 esac
@@ -147,12 +147,16 @@ FLUTTER_PID=0
 
 launch_app() {
   rm -f "$HANDSHAKE"
+  local diagnostics_runtime_mode="$MODE"
+  if [[ "$MODE" == "throughput" ]]; then
+    diagnostics_runtime_mode="clone"
+  fi
   flutter run -d linux --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Diagnostics' \
     --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
-    --dart-define="NAVIS_SYNC_DIAGNOSTICS_MODE=$MODE" \
+    --dart-define="NAVIS_SYNC_DIAGNOSTICS_MODE=$diagnostics_runtime_mode" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
     "${DATABASE_DEFINE[@]}" >>"$APP_LOG" 2>&1 &
   FLUTTER_PID=$!
@@ -314,7 +318,7 @@ db.close()
 print(f"{row[0]}\t{row[1]}" if row else "\t0")
 PY
 )
-if [[ -n "$SONG_ID" ]]; then
+if [[ -n "$SONG_ID" && "$MODE" != "throughput" ]]; then
   api POST /v1/playback/start "$(python3 - "$SONG_ID" <<'PY'
 import json, sys
 print(json.dumps({"songId": sys.argv[1]}))
@@ -322,7 +326,75 @@ PY
 )" > "$OUTPUT_ROOT/playback-start.json"
 fi
 
-if [[ "$MODE" == "clone" ]]; then
+if [[ "$MODE" == "throughput" ]]; then
+  api POST /v1/diagnostics/overrides \
+    '{"networkType":"wifi","nativeMetered":false,"backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
+    > "$OUTPUT_ROOT/throughput-overrides.json"
+  api POST /v1/sync/repair > "$OUTPUT_ROOT/throughput-repair-start.json"
+  for _ in $(seq 1 600); do
+    STATUS="$(api GET /v1/sync/status)"
+    if python3 - "$STATUS" <<'PY'
+import json, sys
+value = json.loads(sys.argv[1])
+# A full repair reports the broad catalog stage while its candidate album
+# fallback is active, so stage alone is not a reliable readiness signal.
+requests = value.get("endpointRequests") or {}
+ready = value.get("candidateGeneration") and requests.get("getAlbum", 0) > 0
+raise SystemExit(0 if ready else 1)
+PY
+    then
+      break
+    fi
+    sleep 1
+  done
+  printf '%s\n' "$STATUS" > "$OUTPUT_ROOT/throughput-before.json"
+  GENERATION="$(python3 - "$OUTPUT_ROOT/throughput-before.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding="utf-8")).get("candidateGeneration") or "")
+PY
+)"
+  if [[ -z "$GENERATION" ]]; then
+    echo "Repair did not reach candidate song hydration." >&2
+    exit 70
+  fi
+  BEFORE_HYDRATED="$(sqlite3 "$CLONE_DB" "SELECT COUNT(*) FROM library_sync_candidate_albums WHERE generation = $GENERATION AND songs_hydrated = 1;")"
+  sleep 15
+  api GET /v1/sync/status > "$OUTPUT_ROOT/throughput-after.json"
+  AFTER_HYDRATED="$(sqlite3 "$CLONE_DB" "SELECT COUNT(*) FROM library_sync_candidate_albums WHERE generation = $GENERATION AND songs_hydrated = 1;")"
+  python3 - "$OUTPUT_ROOT/throughput-before.json" "$OUTPUT_ROOT/throughput-after.json" "$BEFORE_HYDRATED" "$AFTER_HYDRATED" "$OUTPUT_ROOT/throughput.json" <<'PY'
+import json, sys
+before = json.load(open(sys.argv[1], encoding="utf-8"))
+after = json.load(open(sys.argv[2], encoding="utf-8"))
+result = {
+    "intervalSeconds": 15,
+    "candidateGeneration": before.get("candidateGeneration"),
+    "hydratedAlbumsBefore": int(sys.argv[3]),
+    "hydratedAlbumsAfter": int(sys.argv[4]),
+    "hydratedAlbumsPerSecond": (int(sys.argv[4]) - int(sys.argv[3])) / 15,
+    "endpointRequests": after.get("endpointRequests"),
+}
+with open(sys.argv[5], "w", encoding="utf-8") as output:
+    json.dump(result, output)
+print(json.dumps(result, indent=2))
+PY
+  api POST /v1/sync/cancel > "$OUTPUT_ROOT/throughput-cancel.json"
+  for _ in $(seq 1 30); do
+    STATUS="$(api GET /v1/sync/status)"
+    if python3 - "$STATUS" <<'PY'
+import json, sys
+raise SystemExit(0 if not json.loads(sys.argv[1]).get("requestActive") else 1)
+PY
+    then
+      break
+    fi
+    sleep 1
+  done
+  api POST /v1/shutdown > "$OUTPUT_ROOT/throughput-shutdown.json" || true
+  wait "$FLUTTER_PID" || true
+  FLUTTER_PID=0
+  echo "Throughput diagnostics completed: $OUTPUT_ROOT"
+  exit 0
+elif [[ "$MODE" == "clone" ]]; then
   api POST /v1/diagnostics/overrides \
     '{"networkType":"cellular","backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
     > "$OUTPUT_ROOT/guardrails-overrides-cellular.json"

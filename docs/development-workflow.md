@@ -168,6 +168,8 @@ The existing Linux profile diagnostics path is the starting control plane:
 - `SyncDiagnosticsServer` is enabled only for a Linux profile build with valid
   diagnostics defines.
 - `tool/sync_diagnostics.sh clone` demonstrates the supported isolated launch,
+  while `tool/sync_diagnostics.sh throughput` measures one isolated Repair
+  Library run without cancellation/restart scenarios affecting its result.
   handshake, authenticated requests, restart, reporting, and shutdown flow.
 - Current observation endpoints include `GET /v1/health`,
   `GET /v1/sync/status`, `GET /v1/playback/status`, and

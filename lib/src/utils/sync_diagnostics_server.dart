@@ -385,6 +385,10 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'GET' && path == '/v1/sync/status') {
+        // The engine updates this map with every progress frame. Refresh it
+        // here as well so a long-running repair exposes its live endpoint mix
+        // instead of the previous completed run's counts.
+        _captureEndpointRequests();
         await _respond(
           request,
           HttpStatus.ok,
@@ -936,12 +940,14 @@ class SyncDiagnosticsServer {
     _activeSync = future;
     unawaited(
       future
-          .then(
+          .then<void>(
             (state) {
               _lastSync = state;
               _captureEndpointRequests();
             },
-            onError: (Object error) => _lastSyncError = error,
+            onError: (Object error, StackTrace stackTrace) {
+              _lastSyncError = error;
+            },
           )
           .whenComplete(() {
             _activeSync = null;

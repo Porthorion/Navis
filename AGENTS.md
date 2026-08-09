@@ -156,6 +156,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/dev_app.sh dhu        # Desktop Head Unit
 ./tool/verify_android_auto_manifest.sh  # Android Auto manifest/APK contract
 ./tool/sync_diagnostics.sh clone  # isolated Linux profile sync/API suite
+./tool/sync_diagnostics.sh throughput  # isolated single-repair throughput sample
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
@@ -440,6 +441,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   Candidate analysis yields between pages and reduces its page size during
   playback or slow database responses. Cache-file unlinking happens after the
   database commit so filesystem latency cannot extend the visibility switch.
+  A foreground full-catalog candidate with no active playback may begin its
+  album-detail fallback at eight concurrent requests and ramp to 24 on Wi-Fi;
+  ordinary background and interactive hydration remain capped at their smaller
+  platform limits and back off only after transport retries.
 - Native database access uses WAL with one Drift read-pool connection so app
   queries do not queue behind candidate-catalog writes. Keep one
   `NavisDatabase` in Riverpod; its pooled reader and writer remain internal to

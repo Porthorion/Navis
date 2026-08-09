@@ -705,6 +705,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     this.wifiMaxAlbumConcurrency = 8,
     this.cellularMaxAlbumConcurrency = 1,
     this.otherMaxAlbumConcurrency = 4,
+    this.wifiFullCatalogAlbumConcurrency = 8,
+    this.wifiFullCatalogMaxAlbumConcurrency = 24,
+    this.otherFullCatalogAlbumConcurrency = 4,
+    this.otherFullCatalogMaxAlbumConcurrency = 12,
     this.writeChunkSize = 48,
     this.isolateThreshold = 100,
     this.onBeforeSongIdentityRemap,
@@ -736,6 +740,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   final int wifiMaxAlbumConcurrency;
   final int cellularMaxAlbumConcurrency;
   final int otherMaxAlbumConcurrency;
+  final int wifiFullCatalogAlbumConcurrency;
+  final int wifiFullCatalogMaxAlbumConcurrency;
+  final int otherFullCatalogAlbumConcurrency;
+  final int otherFullCatalogMaxAlbumConcurrency;
   final int writeChunkSize;
   final int isolateThreshold;
   final Future<void> Function(Map<String, String> aliases)?
@@ -796,6 +804,24 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       NetworkType.cellular => cellularMaxAlbumConcurrency,
       NetworkType.offline => 2,
       NetworkType.other => otherMaxAlbumConcurrency,
+    };
+  }
+
+  int get _fullCatalogAlbumConcurrency {
+    return switch (networkType) {
+      NetworkType.wifi => wifiFullCatalogAlbumConcurrency,
+      NetworkType.cellular => cellularAlbumConcurrency,
+      NetworkType.offline => 2,
+      NetworkType.other => otherFullCatalogAlbumConcurrency,
+    };
+  }
+
+  int get _fullCatalogMaxHydrationConcurrency {
+    return switch (networkType) {
+      NetworkType.wifi => wifiFullCatalogMaxAlbumConcurrency,
+      NetworkType.cellular => cellularMaxAlbumConcurrency,
+      NetworkType.offline => 2,
+      NetworkType.other => otherFullCatalogMaxAlbumConcurrency,
     };
   }
 
@@ -3623,6 +3649,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       current = await _syncGenresAndPlaylistsBestEffort(
         current: current,
         syncGenres:
+            manual ||
             metrics.metadataChanged ||
             _shouldSyncGenres(serverConfig.capabilitiesJson),
         syncPlaylists: true,
@@ -3891,10 +3918,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     var pendingRemaining = pending;
     final observedBulkAlbumIds = <String>{};
     final hydrationStopwatch = Stopwatch()..start();
+    final fullCatalogHydration =
+        candidateMode && readActiveSongId?.call() == null;
     final concurrencyController = _AdaptiveHydrationConcurrency(
-      initial: _albumConcurrency,
+      initial: fullCatalogHydration
+          ? _fullCatalogAlbumConcurrency
+          : _albumConcurrency,
       min: 1,
-      max: _maxHydrationConcurrency,
+      max: fullCatalogHydration
+          ? _fullCatalogMaxHydrationConcurrency
+          : _maxHydrationConcurrency,
     );
     var current = _withMetrics(
       state.copyWith(
@@ -5318,24 +5351,16 @@ class _AdaptiveHydrationConcurrency {
       _decrease(by: 2);
       return;
     }
-    if (averageLatencyMs <= 0) {
-      return;
-    }
-    if (averageLatencyMs >= 1800) {
-      _decrease(by: 2);
-      return;
-    }
-    if (averageLatencyMs >= 1200) {
-      _decrease(by: 1);
-      return;
-    }
+    // Request latency alone is not congestion. Reducing parallelism on a
+    // healthy but high-latency server turns a large repair into a serial
+    // getAlbum crawl. Back off only on an actual transport retry; otherwise
+    // continue probing toward the bounded platform concurrency limit.
+    if (averageLatencyMs <= 0) return;
     if (averageLatencyMs <= 450) {
       _increase(by: 2);
       return;
     }
-    if (averageLatencyMs <= 800) {
-      _increase(by: 1);
-    }
+    _increase(by: 1);
   }
 
   void _increase({required int by}) {

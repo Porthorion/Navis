@@ -90,6 +90,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Large Library Repairs now keep a fast, bounded concurrent album fallback when a server search result window cannot return every song at once',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Manual library refresh now includes liked music, playlist headers, and genres alongside catalog updates',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',
         type: ChangelogEntryType.improvement,
       ),
