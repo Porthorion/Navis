@@ -1586,6 +1586,64 @@ void main() {
     );
 
     test(
+      'bulk song fast path continues after a server silently caps page size',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = List<Album>.generate(
+          4,
+          (index) => Album(
+            id: 'album-${index + 1}',
+            name: 'Album ${index + 1}',
+            artistId: 'artist-1',
+            artist: 'Artist 1',
+            songCount: 1,
+          ),
+        );
+        api.bulkSongPages[0] = List<Song>.generate(
+          2,
+          (index) => Song(
+            id: 'song-${index + 1}',
+            title: 'Song ${index + 1}',
+            albumId: 'album-${index + 1}',
+            artistId: 'artist-1',
+          ),
+        );
+        api.bulkSongPages[2] = List<Song>.generate(
+          2,
+          (index) => Song(
+            id: 'song-${index + 3}',
+            title: 'Song ${index + 3}',
+            albumId: 'album-${index + 3}',
+            artistId: 'artist-1',
+          ),
+        );
+        final cappedPageEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fastPathPageSize: 4,
+          bulkSearchPageSize: 3,
+          writeChunkSize: 2,
+          isolateThreshold: 1000,
+        );
+
+        final state = await cappedPageEngine.forceFullSync();
+        final songs = await database.select(database.songsTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('searchSongsPage::0:3'));
+        expect(api.calls, contains('searchSongsPage::2:3'));
+        expect(
+          api.calls.where((call) => call.startsWith('getAlbum:')),
+          isEmpty,
+        );
+        expect(songs, hasLength(4));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'bulk song fast path emits incremental hydration progress updates',
       () async {
         await saveSession();

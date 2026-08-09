@@ -107,9 +107,10 @@ Located in `lib/src/providers/app_providers.dart`:
   API, isolates cloned database/cache paths for fault testing, and permits only
   non-fault-injected operations during backed-up primary certification. The
   read-only `POST /v1/search/source-audit` route runs the real `search3` path
-  and returns only kind, ID, display label, classified source, raw API flag,
-  local-index presence, and provisional state; it never exposes credentials,
-  URLs, or stream paths.
+  and accepts bounded song-page count/offset inputs so diagnostics can verify
+  server pagination. It returns only result counts plus kind, ID, display
+  label, classified source, raw API flag, local-index presence, and provisional
+  state; it never exposes credentials, URLs, or stream paths.
   Authenticated `POST /v1/presentation/search` drives the production Search
   providers, navigates to `/search`, waits for the final local/API merge, and
   returns only ordered IDs, relevance tiers, and source classifications for
@@ -702,7 +703,10 @@ replay/end-of-queue feedback instead.
    `getAlbumList2` and blank or wildcard `search3`. Full-snapshot pages are
    validated and checkpointed into generation-keyed candidate tables that no
    app provider watches. A restart skips collected pages while users continue
-   reading the previous committed catalog. Incompatible providers fall back to
+   reading the previous committed catalog. Song pagination advances by each
+   response's actual count rather than treating a short page as completion,
+   since compatible servers can silently cap the requested result size.
+   Incompatible providers fall back to
    bounded `getArtists → getArtist → getAlbum` work using the same candidate
    boundary.
    If `getArtists` is unsupported, the collector falls back to the compatible

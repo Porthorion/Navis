@@ -700,6 +700,12 @@ void main() {
         body: const <String, Object?>{'query': 'mixed'},
       );
       expect(response.statusCode, HttpStatus.ok);
+      expect(response.body['songCount'], 20);
+      expect(response.body['songOffset'], 0);
+      expect(
+        response.body['resultCounts'],
+        <String, Object?>{'artists': 1, 'albums': 1, 'songs': 1},
+      );
       final records = response.body['records'] as List<dynamic>;
       expect(records, hasLength(3));
       expect(

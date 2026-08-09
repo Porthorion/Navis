@@ -94,6 +94,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Library Repairs now continue through server-capped song-search pages instead of needlessly falling back to slow album-by-album downloads',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Manual library refresh now includes liked music, playlist headers, and genres alongside catalog updates',
         type: ChangelogEntryType.fix,
       ),

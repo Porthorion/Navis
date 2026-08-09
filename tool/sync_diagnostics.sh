@@ -330,16 +330,25 @@ if [[ "$MODE" == "throughput" ]]; then
   api POST /v1/diagnostics/overrides \
     '{"networkType":"wifi","nativeMetered":false,"backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
     > "$OUTPUT_ROOT/throughput-overrides.json"
+  api POST /v1/search/source-audit '{"query":"","songCount":1000,"songOffset":0}' \
+    | jq '{query, songCount, songOffset, resultCounts}' \
+    > "$OUTPUT_ROOT/throughput-search-page-0.json"
+  api POST /v1/search/source-audit '{"query":"","songCount":1000,"songOffset":1000}' \
+    | jq '{query, songCount, songOffset, resultCounts}' \
+    > "$OUTPUT_ROOT/throughput-search-page-1000.json"
   api POST /v1/sync/repair > "$OUTPUT_ROOT/throughput-repair-start.json"
   for _ in $(seq 1 600); do
     STATUS="$(api GET /v1/sync/status)"
     if python3 - "$STATUS" <<'PY'
 import json, sys
 value = json.loads(sys.argv[1])
-# A full repair reports the broad catalog stage while its candidate album
-# fallback is active, so stage alone is not a reliable readiness signal.
+# A full repair reports the broad catalog stage while its candidate hydration
+# is active, so stage alone is not a reliable readiness signal. Either the
+# paginated song fast path or the album fallback proves that hydration started.
 requests = value.get("endpointRequests") or {}
-ready = value.get("candidateGeneration") and requests.get("getAlbum", 0) > 0
+ready = value.get("candidateGeneration") and (
+    requests.get("getAlbum", 0) > 0 or requests.get("searchSongsPage", 0) >= 2
+)
 raise SystemExit(0 if ready else 1)
 PY
     then
@@ -358,10 +367,12 @@ PY
     exit 70
   fi
   BEFORE_HYDRATED="$(sqlite3 "$CLONE_DB" "SELECT COUNT(*) FROM library_sync_candidate_albums WHERE generation = $GENERATION AND songs_hydrated = 1;")"
+  BEFORE_SONGS="$(sqlite3 "$CLONE_DB" "SELECT COUNT(*) FROM library_sync_candidate_songs WHERE generation = $GENERATION;")"
   sleep 15
   api GET /v1/sync/status > "$OUTPUT_ROOT/throughput-after.json"
   AFTER_HYDRATED="$(sqlite3 "$CLONE_DB" "SELECT COUNT(*) FROM library_sync_candidate_albums WHERE generation = $GENERATION AND songs_hydrated = 1;")"
-  python3 - "$OUTPUT_ROOT/throughput-before.json" "$OUTPUT_ROOT/throughput-after.json" "$BEFORE_HYDRATED" "$AFTER_HYDRATED" "$OUTPUT_ROOT/throughput.json" <<'PY'
+  AFTER_SONGS="$(sqlite3 "$CLONE_DB" "SELECT COUNT(*) FROM library_sync_candidate_songs WHERE generation = $GENERATION;")"
+  python3 - "$OUTPUT_ROOT/throughput-before.json" "$OUTPUT_ROOT/throughput-after.json" "$BEFORE_HYDRATED" "$AFTER_HYDRATED" "$BEFORE_SONGS" "$AFTER_SONGS" "$OUTPUT_ROOT/throughput.json" <<'PY'
 import json, sys
 before = json.load(open(sys.argv[1], encoding="utf-8"))
 after = json.load(open(sys.argv[2], encoding="utf-8"))
@@ -371,9 +382,12 @@ result = {
     "hydratedAlbumsBefore": int(sys.argv[3]),
     "hydratedAlbumsAfter": int(sys.argv[4]),
     "hydratedAlbumsPerSecond": (int(sys.argv[4]) - int(sys.argv[3])) / 15,
+    "candidateSongsBefore": int(sys.argv[5]),
+    "candidateSongsAfter": int(sys.argv[6]),
+    "candidateSongsPerSecond": (int(sys.argv[6]) - int(sys.argv[5])) / 15,
     "endpointRequests": after.get("endpointRequests"),
 }
-with open(sys.argv[5], "w", encoding="utf-8") as output:
+with open(sys.argv[7], "w", encoding="utf-8") as output:
     json.dump(result, output)
 print(json.dumps(result, indent=2))
 PY

@@ -120,6 +120,10 @@ const List<_Version> _changelogs = [
       'Large Library Repairs now keep a fast, bounded concurrent album fallback when a server search result window cannot return every song at once',
     ),
     _Entry(
+      'Library Repairs now continue through server-capped song-search pages instead of needlessly falling back to slow album-by-album downloads',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Manual library refresh now includes liked music, playlist headers, and genres alongside catalog updates',
       type: _EntryType.fix,
     ),

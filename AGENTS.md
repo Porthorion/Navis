@@ -445,6 +445,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   album-detail fallback at eight concurrent requests and ramp to 24 on Wi-Fi;
   ordinary background and interactive hydration remain capped at their smaller
   platform limits and back off only after transport retries.
+  Its `search3` bulk-song pagination must advance by the returned count and
+  continue after short pages: compatible servers may silently cap the requested
+  page size, and stopping on that cap would incorrectly trigger the slow
+  per-album fallback.
 - Native database access uses WAL with one Drift read-pool connection so app
   queries do not queue behind candidate-catalog writes. Keep one
   `NavisDatabase` in Riverpod; its pooled reader and writer remain internal to

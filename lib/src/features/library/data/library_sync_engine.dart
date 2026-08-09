@@ -4444,10 +4444,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         );
       }
 
-      if (songs.length < bulkSearchPageSize) {
-        break;
-      }
-      offset += bulkSearchPageSize;
+      // Servers are allowed to impose a lower response cap than the requested
+      // songCount. A short page is therefore not an end-of-results signal:
+      // Navidrome and other Subsonic servers may return (for example) 500
+      // songs for a 1,000-song request while still accepting the next offset.
+      // Advancing by the returned count also keeps pagination correct for that
+      // cap. An empty or repeated page above is the reliable stop condition.
+      offset += songs.length;
       // Yield between bulk search pages for UI responsiveness.
       await Future<void>.delayed(Duration.zero);
     }

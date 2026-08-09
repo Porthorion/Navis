@@ -981,13 +981,26 @@ class SyncDiagnosticsServer {
 
   Future<void> _runSourceAudit(HttpRequest request) async {
     final body = await _readJson(request);
-    final query = (body['query'] as String? ?? '').trim();
-    if (query.isEmpty) {
+    final rawQuery = body['query'];
+    if (rawQuery is! String) {
       await _respond(request, HttpStatus.badRequest, <String, Object?>{
         'error': 'query is required',
       });
       return;
     }
+    final query = rawQuery.trim();
+    final songCount = _readSearchAuditBoundedInt(
+      body['songCount'],
+      fallback: 20,
+      min: 1,
+      max: 1000,
+    );
+    final songOffset = _readSearchAuditBoundedInt(
+      body['songOffset'],
+      fallback: 0,
+      min: 0,
+      max: 100000000,
+    );
     final api = _container.read(subsonicApiProvider);
     if (api == null) {
       await _respond(request, HttpStatus.serviceUnavailable, <String, Object?>{
@@ -996,7 +1009,11 @@ class SyncDiagnosticsServer {
       return;
     }
 
-    final result = await api.search3(query: query);
+    final result = await api.search3(
+      query: query,
+      songCount: songCount,
+      songOffset: songOffset,
+    );
     final records = <Map<String, Object?>>[];
     for (final artist in result.artists) {
       records.add(
@@ -1030,8 +1047,35 @@ class SyncDiagnosticsServer {
     }
     await _respond(request, HttpStatus.ok, <String, Object?>{
       'query': query,
+      'songCount': songCount,
+      'songOffset': songOffset,
+      'resultCounts': <String, int>{
+        'artists': result.artists.length,
+        'albums': result.albums.length,
+        'songs': result.songs.length,
+      },
       'records': records,
     });
+  }
+
+  int _readSearchAuditBoundedInt(
+    Object? value, {
+    required int fallback,
+    required int min,
+    required int max,
+  }) {
+    final parsed = switch (value) {
+      int() => value,
+      num() => value.toInt(),
+      _ => fallback,
+    };
+    if (parsed < min) {
+      return min;
+    }
+    if (parsed > max) {
+      return max;
+    }
+    return parsed;
   }
 
   Future<void> _runPresentationSearch(HttpRequest request) async {
