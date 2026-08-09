@@ -51,6 +51,12 @@ it never reads device third-party credentials or enables personalized Last.fm
 or ListenBrainz discovery, and it must never be run in primary-certification
 mode.
 
+`tool/presentation_diagnostics.sh` may enable the clone-only
+`cachedListenBrainzPresentation` override for an explicit weekly-playlist
+route. That path reads only the isolated weekly cache through production
+providers; it does not copy, validate, log, or return ListenBrainz credentials
+or usernames.
+
 Desktop volume restart behavior has a focused manual runtime gate:
 
 ```bash
@@ -89,6 +95,14 @@ Flutter surface before and after a clean restart. It validates artifact
 containment, PNG metadata, hashes, and permissions, but the agent remains
 responsible for opening both images and inspecting the affected region.
 AT-SPI and external desktop automation are not substitutes for this gate.
+For Search ordering and presentation, set
+`NAVIS_PRESENTATION_SEARCH_QUERY`, use route `/search`, and optionally set
+`NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED=1`; the harness asserts relevance-
+first/source-tie ordering through the production provider and captures the
+settled results before and after restart.
+Set `NAVIS_PRESENTATION_SEARCH_FILTER=songs` and
+`NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE=1` to additionally play the first remote
+song through the production queue path and capture its Now Playing metadata.
 
 Desktop layout changes also run the isolated window-mode scenario:
 

@@ -19,6 +19,7 @@ import 'package:navis/src/features/settings/data/external_scrobble_credentials.d
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
@@ -38,6 +39,14 @@ class _MutableLibrarySyncController extends LibrarySyncController {
   set value(LibrarySyncState next) {
     state = next;
   }
+}
+
+class _CachedListenBrainzDiagnosticsOverridesController
+    extends SyncDiagnosticsOverridesController {
+  @override
+  SyncDiagnosticsOverrides build() => const SyncDiagnosticsOverrides(
+    cachedListenBrainzPresentation: true,
+  );
 }
 
 Future<void> _insertAlbum(
@@ -1372,6 +1381,37 @@ void main() {
       expect(result.single.playableSongs.single.id, 'song-jams');
       expect(fakeListenBrainz.recommendationPlaylistCalls, 0);
       expect(fakeApi.totalSearchCalls, 0);
+    },
+  );
+
+  test(
+    'clone diagnostics can present cached weekly playlists without credentials',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      final container = ProviderContainer(
+        overrides: withHomeShowcaseTestOverrides(
+          database,
+          overrides: <Override>[
+            networkTypeProvider.overrideWith((ref) => NetworkType.offline),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(AppSettingsModel.defaults()),
+            ),
+            _noListenBrainzTokenOverride(),
+            syncDiagnosticsOverridesProvider.overrideWith(
+              () => _CachedListenBrainzDiagnosticsOverridesController(),
+            ),
+          ],
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final result = await container.read(listenBrainzDiscoverProvider.future);
+
+      expect(result.single.playableSongs.single.id, 'song-jams');
     },
   );
 

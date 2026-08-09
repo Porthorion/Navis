@@ -70,8 +70,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Remote catalog artists, albums, and songs now show a cloud badge so you can distinguish them from music already in your server library',
+        'Search now keeps the best matches first while preferring music already on your server, and remote results use clearer context-aware Remote labels',
         type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Remote labels now appear consistently in weekly recommendations, Home song lists, liked songs, artist top tracks, Match Flow, queues, and downloads without changing row alignment',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Release validation now exercises live app-owned screenshots, responsive desktop states, playback indicators, volume restoration, and authentication lifecycle in isolated profiles',

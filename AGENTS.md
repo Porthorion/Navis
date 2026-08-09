@@ -160,6 +160,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
 ./tool/presentation_diagnostics.sh clone / home  # app-owned screenshot suite
+NAVIS_PRESENTATION_SEARCH_QUERY='query' ./tool/presentation_diagnostics.sh clone /search search  # Search ordering + screenshot
 ./tool/desktop_layout_diagnostics.sh  # Desktop View/Mini Player resize + screenshot suite
 ./tool/auth_lifecycle_diagnostics.sh clone  # isolated first-sync/logout suite
 
@@ -501,6 +502,11 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   browsing and reconcile song IDs only by same ID, one unique recording MBID,
   or one unique exact metadata match with compatible track/disc and duration
   within three seconds. Ambiguous matches must remain local.
+- User-facing Navis Search deduplicates local and `search3` results by ID, then
+  orders each entity type by relevance tier, on-server before external within
+  a tier, and original stable order. Keep this presentation policy out of the
+  shared API client and non-presentation matching workflows. An exact remote
+  match must still outrank a weaker on-server match.
 - External-catalog provenance is separate from provisional lifecycle state.
   API `isExternal` values are authoritative; only absent values may fall back
   to the observed `ext-*`, `remote-*`, and `pl-deezer-*` ID families. Persist
@@ -511,7 +517,17 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   and may expose provisional children on that detail page, while ordinary
   library browsing continues to hide them. Canonical catalog writes always
   clear `is_external`, so an item imported into the server library loses its
-  remote-source badge.
+  remote-source marker. Remote provenance is informational: grids use a
+  neutral artwork pill, dense rows and players use an inline label, and detail
+  screens use a metadata chip. On-server items remain unlabeled, Remote plus
+  Downloaded/Cached states are shown independently, and Hero artwork excludes
+  the source indicator. Every song-list implementation, including Home,
+  ListenBrainz weekly recommendations, liked songs, artist top tracks, Match
+  Flow, queues, and downloads, must hide the artwork overlay and compose its
+  subtitle with `RemoteSourceMetadataLine`. Metadata truncates before the
+  fixed-width indicator; adding provenance must not change row height or
+  leading/trailing alignment. Shared track and weekly rows keep a 64 dp
+  minimum height for local/remote parity.
 - Apply proven song-ID aliases to the audio handler before deleting the
   provisional row. Preserve an active losing cache file, resolve late cache
   completions through persisted aliases, and replay aliases during audio

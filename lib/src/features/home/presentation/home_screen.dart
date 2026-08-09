@@ -18,6 +18,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
@@ -4170,10 +4171,23 @@ class _SongListSection extends ConsumerWidget {
                   height: compactDensity ? 38 : 42,
                   placeholderIcon: Icons.music_note_outlined,
                   isExternalSource: song.isExternal,
+                  remoteSourceIndicatorPolicy:
+                      RemoteSourceIndicatorPolicy.hidden,
                 ),
               ),
               title: song.title,
-              subtitle: song.artistName,
+              subtitleWidget: RemoteSourceMetadataLine(
+                metadata: Text(
+                  song.artistName ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                isRemote: song.isExternal,
+                spacing: (song.artistName?.isEmpty ?? true) ? 0 : 6,
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => onTap(song),
               onSecondaryTapDown: (details) => showSongContextMenu(
@@ -4214,6 +4228,7 @@ class _SongListSection extends ConsumerWidget {
               borderRadius: BorderRadius.circular(6),
               placeholderIcon: Icons.music_note_outlined,
               isExternalSource: song.isExternal,
+              remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
             ),
           ),
         ),
@@ -4225,10 +4240,14 @@ class _SongListSection extends ConsumerWidget {
               ? TextStyle(color: Theme.of(context).colorScheme.primary)
               : null,
         ),
-        subtitle: Text(
-          song.artistName ?? '',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        subtitle: RemoteSourceMetadataLine(
+          metadata: Text(
+            song.artistName ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          isRemote: song.isExternal,
+          spacing: (song.artistName?.isEmpty ?? true) ? 0 : 6,
         ),
         dense: compactDensity || !tabletMode,
         visualDensity: compactDensity

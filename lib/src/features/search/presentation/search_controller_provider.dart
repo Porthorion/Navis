@@ -7,6 +7,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class SearchQueryNotifier extends Notifier<String> {
@@ -107,7 +108,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
     final filter = ref.watch(searchFilterProvider);
     final isOffline = ref.watch(searchIsOfflineProvider);
     final localResult = _filterResultByType(
-      _rankByRelevance(
+      rankSearchResult(
         await _searchLocal(ref, query, filter),
         query,
       ),
@@ -145,7 +146,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
 
     try {
       final apiResult = _filterResultByType(
-        _rankByRelevance(
+        rankSearchResult(
           await api.search3(
             query: query,
             artistCount: filter == null || filter == SearchResultType.artists
@@ -165,7 +166,11 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
       );
       yield SearchResultsState(
         result: _filterResultByType(
-          _mergeCacheFirst(localResult, apiResult),
+          mergeAndRankSearchResults(
+            local: localResult,
+            api: apiResult,
+            query: query,
+          ),
           filter,
         ),
         isWaitingForApi: false,
@@ -180,55 +185,6 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
     }
   },
 );
-
-SearchResult3 _mergeCacheFirst(SearchResult3 local, SearchResult3 remote) {
-  List<T> merge<T>(
-    List<T> localItems,
-    List<T> remoteItems,
-    String Function(T) id,
-    T Function(T local, T remote) mergeDuplicate,
-  ) {
-    final remoteById = <String, T>{
-      for (final item in remoteItems) id(item): item,
-    };
-    final seen = <String>{};
-    return <T>[
-      for (final localItem in localItems)
-        if (seen.add(id(localItem)))
-          remoteById[id(localItem)] == null
-              ? localItem
-              : mergeDuplicate(localItem, remoteById[id(localItem)] as T),
-      ...remoteItems.where((item) => seen.add(id(item))),
-    ];
-  }
-
-  return SearchResult3(
-    artists: merge(
-      local.artists,
-      remote.artists,
-      (artist) => artist.id,
-      (localItem, remoteItem) => localItem.copyWith(
-        isExternal: remoteItem.isExternal ?? localItem.isExternal,
-      ),
-    ),
-    albums: merge(
-      local.albums,
-      remote.albums,
-      (album) => album.id,
-      (localItem, remoteItem) => localItem.copyWith(
-        isExternal: remoteItem.isExternal ?? localItem.isExternal,
-      ),
-    ),
-    songs: merge(
-      local.songs,
-      remote.songs,
-      (song) => song.id,
-      (localItem, remoteItem) => localItem.copyWith(
-        isExternal: remoteItem.isExternal ?? localItem.isExternal,
-      ),
-    ),
-  );
-}
 
 SearchResult3 _filterResultByType(
   SearchResult3 result,
@@ -354,7 +310,7 @@ final expandedSearchProvider = FutureProvider.autoDispose
               params.query,
               limit: expandedLimit,
             );
-            return _rankByRelevance(
+            return rankSearchResult(
               SearchResult3(
                 artists: results
                     .map(
@@ -374,7 +330,7 @@ final expandedSearchProvider = FutureProvider.autoDispose
               params.query,
               limit: expandedLimit,
             );
-            return _rankByRelevance(
+            return rankSearchResult(
               SearchResult3(
                 albums: results
                     .map(
@@ -395,7 +351,7 @@ final expandedSearchProvider = FutureProvider.autoDispose
               params.query,
               limit: expandedLimit,
             );
-            return _rankByRelevance(
+            return rankSearchResult(
               SearchResult3(
                 songs: results
                     .map(
@@ -428,7 +384,7 @@ final expandedSearchProvider = FutureProvider.autoDispose
       const pageSize = 20;
 
       return _filterResultByType(
-        _rankByRelevance(
+        rankSearchResult(
           await api.search3(
             query: params.query,
             artistCount: params.type == SearchResultType.artists ? pageSize : 0,
@@ -450,51 +406,3 @@ final expandedSearchProvider = FutureProvider.autoDispose
         params.type,
       );
     });
-
-// ---------------------------------------------------------------------------
-// Relevance ranking helpers
-// ---------------------------------------------------------------------------
-
-/// Scores [field] against [query] (both already lowercased at call site).
-/// Lower score = better match.
-///
-/// 0 – exact match
-/// 1 – field starts with query
-/// 2 – field contains the full query as a substring
-/// 3 – field contains every individual query word (handles "troopers" ⊃ "trooper")
-/// 4 – no direct match
-int _relevanceScore(String field, String query) {
-  final f = field.toLowerCase();
-  final q = query.toLowerCase();
-  if (f == q) return 0;
-  if (f.startsWith(q)) return 1;
-  if (f.contains(q)) return 2;
-  final words = q.split(RegExp(r'\s+'));
-  if (words.length > 1 && words.every(f.contains)) return 3;
-  return 4;
-}
-
-/// Stably re-sorts each list in [result] so the items whose primary field
-/// best matches [query] come first.  Items with equal scores preserve their
-/// original (server-returned) order.
-SearchResult3 _rankByRelevance(SearchResult3 result, String query) {
-  if (query.isEmpty) return result;
-
-  List<T> rank<T>(List<T> items, String Function(T) field) {
-    final indexed = List<(int, T)>.generate(items.length, (i) => (i, items[i]));
-    indexed.sort((a, b) {
-      final diff = _relevanceScore(
-        field(a.$2),
-        query,
-      ).compareTo(_relevanceScore(field(b.$2), query));
-      return diff != 0 ? diff : a.$1.compareTo(b.$1);
-    });
-    return indexed.map((e) => e.$2).toList(growable: false);
-  }
-
-  return SearchResult3(
-    artists: rank(result.artists, (a) => a.name),
-    albums: rank(result.albums, (a) => a.name),
-    songs: rank(result.songs, (s) => s.title),
-  );
-}

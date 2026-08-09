@@ -5,6 +5,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -434,6 +435,8 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
                   height: 48,
                   borderRadius: BorderRadius.circular(4),
                   isExternalSource: song.isExternal,
+                  remoteSourceIndicatorPolicy:
+                      RemoteSourceIndicatorPolicy.hidden,
                 ),
               ),
               title: Text(
@@ -445,7 +448,15 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
                       )
                     : null,
               ),
-              subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
+              subtitle: RemoteSourceMetadataLine(
+                metadata: Text(
+                  song.artistName ?? l10n.queueUnknownArtist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                isRemote: song.isExternal,
+                spacing: 8,
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[

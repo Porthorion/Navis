@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/format_utils.dart';
@@ -58,6 +59,7 @@ class TrackListTile extends ConsumerWidget {
               size: 80,
               borderRadius: BorderRadius.circular(6),
               isExternalSource: song.isExternal,
+              remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
             ),
           )
         : (song.track == null
@@ -88,7 +90,7 @@ class TrackListTile extends ConsumerWidget {
 
     // Build a RichText subtitle: "Artist · Album" with differentiated styling.
     Widget? subtitleWidget;
-    if (hasArtist || hasAlbum || badge != null) {
+    if (hasArtist || hasAlbum || song.isExternal || badge != null) {
       final subtitleChildren = <InlineSpan>[];
       if (hasArtist) {
         subtitleChildren.add(
@@ -121,19 +123,30 @@ class TrackListTile extends ConsumerWidget {
         );
       }
 
+      final metadata = RichText(
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        text: TextSpan(children: subtitleChildren),
+      );
       subtitleWidget = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          if (subtitleChildren.isNotEmpty)
-            RichText(
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              text: TextSpan(children: subtitleChildren),
+          if (subtitleChildren.isNotEmpty || song.isExternal)
+            RemoteSourceMetadataLine(
+              metadata: metadata,
+              isRemote: song.isExternal,
+              spacing: subtitleChildren.isEmpty ? 0 : 6,
             ),
-          if (badge != null) ...[
-            const SizedBox(height: 2),
-            badge!,
+          if (badge != null) ...<Widget>[
+            if (subtitleChildren.isNotEmpty || song.isExternal)
+              const SizedBox(height: 2),
+            Wrap(
+              spacing: 6,
+              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: <Widget>[badge!],
+            ),
           ],
         ],
       );
@@ -141,6 +154,7 @@ class TrackListTile extends ConsumerWidget {
 
     final tile = ListTile(
       dense: true,
+      minTileHeight: 64,
       contentPadding: contentPadding,
       minLeadingWidth: showAlbumArt ? 48 : 32,
       horizontalTitleGap: horizontalTitleGap ?? 12,

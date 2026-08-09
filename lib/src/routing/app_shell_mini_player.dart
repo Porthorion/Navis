@@ -137,6 +137,8 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                             CoverArtLoadPriority.critical,
                                         isExternalSource:
                                             widget.isExternalSource,
+                                        remoteSourceIndicatorPolicy:
+                                            RemoteSourceIndicatorPolicy.hidden,
                                       );
                                     }
                                     if (!canNavigateAlbum) {
@@ -220,6 +222,11 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                                     height: 1.15,
                                                   ),
                                             ),
+                                      if (widget.isExternalSource)
+                                        const RemoteSourceIndicator(
+                                          variant: RemoteSourceIndicatorVariant
+                                              .inline,
+                                        ),
                                       const SizedBox(height: 1),
                                       canNavigateArtist
                                           ? GestureDetector(
@@ -688,6 +695,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             borderRadius: BorderRadius.circular(10),
                             loadPriority: CoverArtLoadPriority.critical,
                             isExternalSource: widget.isExternalSource,
+                            remoteSourceIndicatorPolicy:
+                                RemoteSourceIndicatorPolicy.hidden,
                           ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -704,6 +713,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 style: Theme.of(context).textTheme.bodyLarge
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
+                              if (widget.isExternalSource)
+                                const RemoteSourceIndicator(
+                                  variant: RemoteSourceIndicatorVariant.inline,
+                                ),
                               const SizedBox(height: 3),
                               Text(
                                 (songArtist == null ||
@@ -845,6 +858,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 borderRadius: BorderRadius.circular(8),
                                 loadPriority: CoverArtLoadPriority.critical,
                                 isExternalSource: widget.isExternalSource,
+                                remoteSourceIndicatorPolicy:
+                                    RemoteSourceIndicatorPolicy.hidden,
                               ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -864,6 +879,11 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                         .bodyMedium
                                         ?.copyWith(fontWeight: FontWeight.w600),
                                   ),
+                                  if (widget.isExternalSource)
+                                    const RemoteSourceIndicator(
+                                      variant:
+                                          RemoteSourceIndicatorVariant.inline,
+                                    ),
                                   const SizedBox(height: 2),
                                   Text(
                                     (songArtist == null ||

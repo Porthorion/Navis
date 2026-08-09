@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artist_grid_card.dart';
-import 'package:navis/src/common_widgets/external_source_badge.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -13,7 +13,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import '../../helpers/test_database.dart';
 
 void main() {
-  testWidgets('shared artist album and track cards badge external rows', (
+  testWidgets('shared artist album and track cards mark remote sources', (
     tester,
   ) async {
     if (!sqliteAvailable) return;
@@ -63,6 +63,23 @@ void main() {
           home: Scaffold(
             body: ListView(
               children: <Widget>[
+                Container(
+                  key: const ValueKey<String>('local-track-row'),
+                  color: Colors.transparent,
+                  child: TrackListTile(
+                    song: song.copyWith(
+                      id: 'local-song',
+                      title: 'Local Song',
+                      isExternal: false,
+                    ),
+                    showAlbumArt: true,
+                  ),
+                ),
+                Container(
+                  key: const ValueKey<String>('remote-track-row'),
+                  color: Colors.transparent,
+                  child: TrackListTile(song: song, showAlbumArt: true),
+                ),
                 SizedBox(
                   width: 150,
                   height: 150,
@@ -73,7 +90,6 @@ void main() {
                   height: 180,
                   child: ArtistGridCard(artist: artist),
                 ),
-                TrackListTile(song: song, showAlbumArt: true),
               ],
             ),
           ),
@@ -81,6 +97,10 @@ void main() {
       ),
     );
 
-    expect(find.byKey(ExternalSourceBadge.semanticsKey), findsNWidgets(3));
+    expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsNWidgets(3));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('local-track-row'))).height,
+      tester.getSize(find.byKey(const ValueKey('remote-track-row'))).height,
+    );
   });
 }

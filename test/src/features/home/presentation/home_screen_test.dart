@@ -8,6 +8,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -1318,6 +1319,18 @@ void main() {
 
       await tester.tap(find.text('Weekly Exploration'));
       await tester.pumpAndSettle();
+      final remoteTitle = find.text('Remote Song').last;
+      final remoteTile = find.ancestor(
+        of: remoteTitle,
+        matching: find.byType(ListTile),
+      );
+      expect(
+        find.descendant(
+          of: remoteTile,
+          matching: find.byKey(RemoteSourceIndicator.semanticsKey),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Remote Song').last);
       await tester.pumpAndSettle();
 

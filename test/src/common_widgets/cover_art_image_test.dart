@@ -8,7 +8,7 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/common_widgets/external_source_badge.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
@@ -255,7 +255,7 @@ void main() {
     });
 
     testWidgets(
-      'external badge uses thumbnail top-left geometry and semantics',
+      'remote indicator uses thumbnail top-left geometry and semantics',
       (
         tester,
       ) async {
@@ -275,7 +275,7 @@ void main() {
         );
 
         final artRect = tester.getRect(find.byType(CoverArtImage));
-        final badgeFinder = find.byKey(ExternalSourceBadge.semanticsKey);
+        final badgeFinder = find.byKey(RemoteSourceIndicator.semanticsKey);
         final badgeRect = tester.getRect(badgeFinder);
         expect(badgeRect.size, const Size.square(18));
         expect(badgeRect.topLeft, artRect.topLeft + const Offset(4, 4));
@@ -294,7 +294,7 @@ void main() {
     );
 
     testWidgets(
-      'external badge uses large-art geometry and stays absent locally',
+      'remote indicator uses large-art geometry and stays absent locally',
       (
         tester,
       ) async {
@@ -310,9 +310,11 @@ void main() {
         );
         final artRect = tester.getRect(find.byType(CoverArtImage));
         final badgeRect = tester.getRect(
-          find.byKey(ExternalSourceBadge.semanticsKey),
+          find.byKey(RemoteSourceIndicator.semanticsKey),
         );
-        expect(badgeRect.size, const Size.square(24));
+        expect(badgeRect.height, 24);
+        expect(badgeRect.width, greaterThan(60));
+        expect(find.text('Remote'), findsOneWidget);
         expect(badgeRect.topLeft, artRect.topLeft + const Offset(6, 6));
 
         await tester.pumpWidget(
@@ -324,8 +326,26 @@ void main() {
             ),
           ),
         );
-        expect(find.byKey(ExternalSourceBadge.semanticsKey), findsNothing);
+        expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsNothing);
       },
     );
+
+    testWidgets('artwork indicator policy can suppress a remote overlay', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _buildWidget(
+          child: const CoverArtImage(
+            coverArtId: null,
+            width: 150,
+            height: 150,
+            isExternalSource: true,
+            remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
+          ),
+        ),
+      );
+
+      expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsNothing);
+    });
   });
 }

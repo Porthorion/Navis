@@ -109,15 +109,20 @@ class DesktopListRow extends ConsumerWidget {
     super.key,
     this.leading,
     this.subtitle,
+    this.subtitleWidget,
     this.trailing,
     this.onTap,
     this.onSecondaryTapDown,
     this.playbackSongId,
-  });
+  }) : assert(
+         subtitle == null || subtitleWidget == null,
+         'Provide either subtitle or subtitleWidget, not both.',
+       );
 
   final Widget? leading;
   final String title;
   final String? subtitle;
+  final Widget? subtitleWidget;
   final Widget? trailing;
   final VoidCallback? onTap;
   final GestureTapDownCallback? onSecondaryTapDown;
@@ -174,18 +179,20 @@ class DesktopListRow extends ConsumerWidget {
                             )
                           : null,
                     ),
-                    if (subtitle != null)
+                    if (subtitle != null || subtitleWidget != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          subtitle!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
-                        ),
+                        child:
+                            subtitleWidget ??
+                            Text(
+                              subtitle!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                            ),
                       ),
                   ],
                 ),

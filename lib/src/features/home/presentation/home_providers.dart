@@ -21,6 +21,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
@@ -520,10 +521,31 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
   final startupIdleDelay = ref.watch(
     listenBrainzDiscoverStartupIdleDelayProvider,
   );
+  final useDiagnosticsCache = ref.watch(
+    syncDiagnosticsOverridesProvider.select(
+      (overrides) => overrides.cachedListenBrainzPresentation,
+    ),
+  );
   ref.watch(listenBrainzLibrarySyncRefreshBridgeProvider);
 
   final token = (await credentialStore.readListenBrainzToken())?.trim() ?? '';
   if (token.isEmpty) {
+    if (useDiagnosticsCache) {
+      final cachedUserName = await cacheDao
+          .getLatestListenBrainzWeeklyCacheUserName();
+      final cached = cachedUserName == null
+          ? const <ListenBrainzDiscoverPlaylist>[]
+          : await _loadListenBrainzWeeklyCache(
+              cacheDao: cacheDao,
+              userName: cachedUserName,
+            );
+      AppLogger.debug(
+        'ListenBrainz diagnostics cache presentation: count=${cached.length}.',
+      );
+      _listenBrainzDiscoverLastVisible = cached;
+      yield cached;
+      return;
+    }
     AppLogger.debug(
       'ListenBrainz discover skipped: no stored ListenBrainz token.',
     );

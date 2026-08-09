@@ -326,6 +326,54 @@ void main() {
       );
     });
 
+    test(
+      'ranks relevance before source and source before stable order',
+      () async {
+        if (!sqliteAvailable) return;
+
+        final database = createTestDatabase();
+        await _insertArtist(
+          database,
+          id: 'server-prefix',
+          name: 'Aurora Local',
+        );
+        final container = _createContainer(
+          database,
+          api: _FakeSearchApiClient(
+            (_) async => const SearchResult3(
+              artists: <Artist>[
+                Artist(
+                  id: 'remote-prefix',
+                  name: 'Aurora Remote',
+                  isExternal: true,
+                ),
+                Artist(
+                  id: 'remote-exact',
+                  name: 'Aurora',
+                  isExternal: true,
+                ),
+              ],
+            ),
+          ),
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        final emissions = <SearchResultsState>[];
+        final subscription = _listenToSearch(container, emissions);
+        addTearDown(subscription.close);
+        container.read(searchQueryProvider.notifier).submit('Aurora');
+        await _waitForEmissions(emissions, 2);
+
+        expect(
+          emissions.last.result.artists.map((artist) => artist.id),
+          <String>['remote-exact', 'server-prefix', 'remote-prefix'],
+        );
+      },
+    );
+
     for (final scenario
         in <
           ({

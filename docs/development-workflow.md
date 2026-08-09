@@ -179,9 +179,14 @@ The existing Linux profile diagnostics path is the starting control plane:
   status distinguishes render-boundary readiness from the post-bootstrap app
   frame, while screenshots capture the Flutter surface at a deterministic 1.0
   pixel ratio and return only protected artifact metadata.
+- Clone-only `POST /v1/presentation/search` submits a real query through the
+  production Search providers, navigates to `/search`, waits for the final
+  cached/API merge, and returns sanitized ordered IDs, relevance tiers, and
+  on-server/remote classifications for acceptance assertions.
 - The narrow `POST /v1/presentation/player-overlay` action shows or hides the
-  queue through `playerOverlayStackProvider`; add similarly narrow production-
-  controller actions for non-route UI instead of simulating coordinate clicks.
+  queue or Now Playing through `playerOverlayStackProvider`; add similarly
+  narrow production-controller actions for non-route UI instead of simulating
+  coordinate clicks.
 - Desktop volume memory exposes `GET /v1/playback/volume`, clone-only
   `POST /v1/playback/volume` with a numeric `value` from 0 through 1, and
   clone-only `POST /v1/playback/volume/toggle-mute`. The status response
@@ -234,6 +239,22 @@ signature, digest, dimensions, containment, and permissions, and records the
 artifact paths under `build/presentation-diagnostics/`. The agent must open and
 inspect both PNGs; the script intentionally cannot certify visual correctness
 from file existence alone.
+
+For `/library/listenbrainz/<sourcePatch>` routes, the script enables a
+clone-only cached-playlist presentation override through the authenticated
+diagnostics API. Navis reads the most recent weekly cache through the
+production discovery provider, without copying a ListenBrainz token or
+returning the cached username, so remote/local row alignment can be inspected
+before and after restart.
+
+For a Search scenario, set `NAVIS_PRESENTATION_SEARCH_QUERY`, navigate to
+`/search`, and optionally require both source classes with
+`NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED=1`. The script then invokes
+`POST /v1/presentation/search`, validates the relevance/source ordering without
+persisting display labels, and captures the settled result list on both runs.
+With the songs filter and `NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE=1`, it also
+uses `POST /v1/presentation/search/play` plus the player-overlay controller to
+capture the selected remote result in Now Playing.
 
 Use the focused volume-memory scenario for desktop volume changes:
 

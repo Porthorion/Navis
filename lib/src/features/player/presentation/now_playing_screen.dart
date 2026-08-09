@@ -10,6 +10,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -2220,6 +2221,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       artist: artist,
                       album: album,
                       compact: true,
+                      isExternalSource: !isRadio && (song?.isExternal ?? false),
                       onTitleTap: isRadio
                           ? (radioMeta?.nowPlayingTitle != null &&
                                     radioMeta!.nowPlayingTitle!.isNotEmpty
@@ -2652,6 +2654,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               artist: artist,
               album: album,
               compact: compactSpacing,
+              isExternalSource: !isRadio && (song?.isExternal ?? false),
               onTitleTap: isRadio
                   ? (radioMeta?.nowPlayingTitle != null &&
                             radioMeta!.nowPlayingTitle!.isNotEmpty
@@ -2985,6 +2988,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 artist: artist,
                 album: album,
                 compact: true,
+                isExternalSource: !isRadio && (song?.isExternal ?? false),
                 onTitleTap: isRadio
                     ? (radioMeta?.nowPlayingTitle != null &&
                               radioMeta!.nowPlayingTitle!.isNotEmpty

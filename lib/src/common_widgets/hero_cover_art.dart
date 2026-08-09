@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 
 class HeroCoverArt extends StatelessWidget {
   const HeroCoverArt({
@@ -17,6 +18,7 @@ class HeroCoverArt extends StatelessWidget {
     this.fadeInDuration,
     this.loadPriority = CoverArtLoadPriority.visible,
     this.isExternalSource = false,
+    this.remoteSourceIndicatorPolicy = RemoteSourceIndicatorPolicy.automatic,
   });
 
   final String? coverArtId;
@@ -41,10 +43,11 @@ class HeroCoverArt extends StatelessWidget {
   final Duration? fadeInDuration;
   final CoverArtLoadPriority loadPriority;
   final bool isExternalSource;
+  final RemoteSourceIndicatorPolicy remoteSourceIndicatorPolicy;
 
   @override
   Widget build(BuildContext context) {
-    return Hero(
+    final hero = Hero(
       tag: heroTag,
       transitionOnUserGestures: true,
       flightShuttleBuilder:
@@ -95,6 +98,7 @@ class HeroCoverArt extends StatelessWidget {
               lockedSize: lockedSize,
               loadPriority: CoverArtLoadPriority.critical,
               isExternalSource: isExternalSource,
+              remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
             );
           },
       child: CoverArtImage(
@@ -110,7 +114,15 @@ class HeroCoverArt extends StatelessWidget {
         fadeInDuration: fadeInDuration ?? const Duration(milliseconds: 150),
         loadPriority: loadPriority,
         isExternalSource: isExternalSource,
+        remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
       ),
+    );
+    return RemoteSourceArtworkOverlay(
+      isRemote: isExternalSource,
+      policy: remoteSourceIndicatorPolicy,
+      width: width,
+      height: height,
+      child: hero,
     );
   }
 }

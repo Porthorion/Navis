@@ -110,6 +110,10 @@ Located in `lib/src/providers/app_providers.dart`:
   and returns only kind, ID, display label, classified source, raw API flag,
   local-index presence, and provisional state; it never exposes credentials,
   URLs, or stream paths.
+  Authenticated `POST /v1/presentation/search` drives the production Search
+  providers, navigates to `/search`, waits for the final local/API merge, and
+  returns only ordered IDs, relevance tiers, and source classifications for
+  runtime and screenshot validation.
 - API, playback, download, and artwork response accounting captures the
   long-lived network usage meter directly. It must not read through a disposed
   provider `Ref` when connectivity rebuilds the Subsonic client mid-request.
@@ -227,9 +231,13 @@ frame before writing a 1.0-ratio PNG below the validated artifact root. The
 server creates filenames,
 returns only relative path/dimension/digest metadata, and protects the
 screenshots directory and files with modes `0700` and `0600`. Non-route UI uses
-narrow production-controller actions such as the queue-only
+narrow production-controller actions such as the queue/Now Playing
 `POST /v1/presentation/player-overlay`; the control plane has no generic
 coordinate-click interface.
+After a presentation search, clone-only
+`POST /v1/presentation/search/play` can select one of that sanitized result
+set through `QueueController.replaceWithSongs`; it exists only to validate the
+same remote-result playback and Now Playing path used by the Search UI.
 
 Desktop volume diagnostics use `GET /v1/playback/volume`,
 `POST /v1/playback/volume`, and
@@ -247,6 +255,13 @@ not a live accessibility-tree traversal. It does not return song metadata.
 `tool/playback_indicator_diagnostics.sh clone` verifies current, inactive,
 paused, switched-song, app-owned screenshots, and clean-restart behavior
 against an isolated Linux profile.
+
+Weekly-playlist presentation diagnostics can enable the clone-only
+`cachedListenBrainzPresentation` override. The production discovery provider
+then reads the most recent isolated `listenbrainz_weekly_cache` entry without
+copying a secure token, making mixed local/remote rows available to app-owned
+screenshots. The override never runs in primary-certification mode and neither
+the API response nor runtime evidence exposes the cached username.
 
 Authentication lifecycle diagnostics use bounded `GET /v1/session/status`
 plus clone-only initial-sync retry/mobile/cancel, sign-out, and
@@ -716,6 +731,12 @@ replay/end-of-queue feedback instead.
    match. Proven aliases are applied to playback before provisional cleanup, so
    cached remote songs auto-merge without interrupting the active source; late
    cache completion also resolves through the alias.
+   The Navis Search presentation path merges cached and API results by ID and
+   orders artists, albums, and songs by relevance tier, source preference, and
+   stable input order. Source preference only breaks relevance ties: exact
+   remote results stay above weaker on-server matches. This ordering is not
+   applied globally to `search3`, synchronization, discovery, or identity
+   matching.
    External-catalog provenance is an independent persisted property:
    `isExternal: true` means the item is remote-only, while `false` means it is
    on-server even if Navis has not indexed it locally. Explicit API values win;
@@ -724,6 +745,16 @@ replay/end-of-queue feedback instead.
    trees remain provisional and are visible only through exact artist/album
    relationships; canonical promotion clears `is_external` when the server
    later imports the item. Cache and download ownership do not affect source.
+   Remote status is rendered contextually: a neutral globe-and-Remote pill on
+   browsing artwork, an inline label in dense rows and playback metadata, and
+   a metadata chip on detail screens. Local/on-server media is intentionally
+   unlabeled, and cache/download indicators remain separate availability
+   states. Song lists use the shared `RemoteSourceMetadataLine`, which keeps
+   the indicator on the subtitle line and lets long metadata truncate first.
+   This contract covers Home, ListenBrainz weekly recommendations, liked
+   songs, artist top tracks, Match Flow, queues, and downloads; those rows
+   suppress artwork overlays and preserve the same height and alignment for
+   local and remote entries.
 9. Metered automation is a true hard probe: one conditional `getIndexes`
    request with retries disabled. Interactive artist/album/playlist hydration
    remains allowed with 16 MiB/response and 32 MiB/interaction budgets.

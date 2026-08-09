@@ -168,6 +168,19 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return query.get();
   }
 
+  Future<String?> getLatestListenBrainzWeeklyCacheUserName() async {
+    final query = selectOnly(listenBrainzWeeklyCacheTable)
+      ..addColumns(<Expression<Object>>[
+        listenBrainzWeeklyCacheTable.listenBrainzUserName,
+      ])
+      ..orderBy([
+        OrderingTerm.desc(listenBrainzWeeklyCacheTable.fetchedAt),
+      ])
+      ..limit(1);
+    final row = await query.getSingleOrNull();
+    return row?.read(listenBrainzWeeklyCacheTable.listenBrainzUserName);
+  }
+
   Future<void> upsertListenBrainzWeeklyCache(
     ListenBrainzWeeklyCacheTableCompanion companion,
   ) {

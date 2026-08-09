@@ -12,6 +12,7 @@ import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
@@ -163,12 +164,14 @@ void main() {
         'networkType': 'cellular',
         'nativeMetered': true,
         'requestReporting': true,
+        'cachedListenBrainzPresentation': true,
       },
     );
 
     expect(response.statusCode, HttpStatus.ok);
     expect(response.body['networkType'], 'cellular');
     expect(response.body['requestReporting'], isTrue);
+    expect(response.body['cachedListenBrainzPresentation'], isTrue);
 
     final cleared = await _request(
       fixture.port,
@@ -259,6 +262,8 @@ void main() {
         ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/search'),
+        ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),
       ]) {
         final response = await _request(
@@ -330,6 +335,19 @@ void main() {
       expect(overlay.statusCode, HttpStatus.ok);
       expect(overlay.body['visible'], isTrue);
 
+      final nowPlaying = await _request(
+        fixture.port,
+        '/v1/presentation/player-overlay',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{
+          'surface': 'nowPlaying',
+          'visible': true,
+        },
+      );
+      expect(nowPlaying.statusCode, HttpStatus.ok);
+      expect(nowPlaying.body['visible'], isTrue);
+
       when(
         () => presentation.capture(label: 'Bad Label'),
       ).thenThrow(const FormatException('invalid label'));
@@ -377,6 +395,8 @@ void main() {
         ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/search'),
+        ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),
       ]) {
         final forbidden = await _request(
@@ -394,6 +414,8 @@ void main() {
       for (final endpoint in <(String, String)>[
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/search'),
+        ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),
       ]) {
         final unavailable = await _request(
@@ -708,6 +730,134 @@ void main() {
     },
   );
 
+  test(
+    'presentation search drives production providers and returns ranked sources',
+    () async {
+      var location = '/';
+      final navigationDriver = _MockDiagnosticsNavigationDriver();
+      when(() => navigationDriver.location).thenAnswer((_) => location);
+      when(() => navigationDriver.go(any())).thenAnswer((invocation) {
+        location = invocation.positionalArguments.single as String;
+      });
+      final presentation = _MockPresentationController();
+      when(presentation.waitForFrame).thenAnswer((_) async {});
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        api: _SourceAuditApiClient(),
+        navigationDriver: navigationDriver,
+        presentationController: presentation,
+      );
+      addTearDown(fixture.close);
+      await fixture.database.libraryDao.upsertArtists(
+        <ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(
+            id: 'server-prefix',
+            name: 'Aurora Local',
+          ),
+        ],
+      );
+
+      final response = await _request(
+        fixture.port,
+        '/v1/presentation/search',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'query': 'Aurora'},
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.body['route'], '/search');
+      final artists = (response.body['artists'] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+      expect(
+        artists.map((record) => record['id']),
+        <String>['remote-exact', 'server-prefix', 'remote-prefix'],
+      );
+      expect(artists.first['relevance'], 'exact');
+      expect(artists.first['source'], 'remote');
+      expect(artists[1]['source'], 'onServer');
+      expect(
+        artists.expand((record) => record.keys),
+        everyElement(
+          isIn(<String>['id', 'source', 'relevance']),
+        ),
+      );
+    },
+  );
+
+  test(
+    'presentation search result playback uses the production queue path',
+    () async {
+      var location = '/';
+      final navigationDriver = _MockDiagnosticsNavigationDriver();
+      when(() => navigationDriver.location).thenAnswer((_) => location);
+      when(() => navigationDriver.go(any())).thenAnswer((invocation) {
+        location = invocation.positionalArguments.single as String;
+      });
+      final presentation = _MockPresentationController();
+      when(presentation.waitForFrame).thenAnswer((_) async {});
+      final handler = _MockPlaybackHandler();
+      when(() => handler.loadFailureStream).thenAnswer(
+        (_) => const Stream<PlaybackLoadFailure>.empty(),
+      );
+      when(() => handler.snapshot).thenReturn(const PlaybackSnapshot.idle());
+      when(() => handler.snapshotStream).thenAnswer(
+        (_) => const Stream<PlaybackSnapshot>.empty(),
+      );
+      when(
+        () => handler.replaceQueueWithData(
+          any(),
+          startIndex: any(named: 'startIndex'),
+          autoPlay: any(named: 'autoPlay'),
+          expandMatchFlows: any(named: 'expandMatchFlows'),
+        ),
+      ).thenAnswer((_) async {});
+      when(handler.play).thenAnswer((_) async {});
+      final fixture = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        api: _SourceAuditApiClient(),
+        handler: handler,
+        navigationDriver: navigationDriver,
+        presentationController: presentation,
+      );
+      addTearDown(fixture.close);
+
+      final search = await _request(
+        fixture.port,
+        '/v1/presentation/search',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{
+          'query': 'Remote Song',
+          'filter': 'songs',
+        },
+      );
+      expect(search.statusCode, HttpStatus.ok);
+
+      final play = await _request(
+        fixture.port,
+        '/v1/presentation/search/play',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'songId': 'provider-song-1'},
+      );
+      expect(play.statusCode, HttpStatus.accepted);
+      expect(play.body['source'], 'remote');
+      final persisted = await fixture.database.libraryDao.getSongById(
+        'provider-song-1',
+      );
+      expect(persisted?.isExternal, isTrue);
+      verify(
+        () => handler.replaceQueueWithData(
+          any(),
+          startIndex: 0,
+          autoPlay: true,
+          expandMatchFlows: true,
+        ),
+      ).called(1);
+    },
+  );
+
   test('current diagnostics playback source is resumed, not replaced', () {
     const active = PlaybackSnapshot(
       queueSongIds: <String>['song-1'],
@@ -757,6 +907,7 @@ Future<_DiagnosticsFixture> _startFixture(
       if (playbackSnapshot != null)
         playerStateProvider.overrideWithValue(playbackSnapshot),
       if (api != null) subsonicApiProvider.overrideWithValue(api),
+      if (api != null) searchIsOfflineProvider.overrideWithValue(false),
     ],
   );
   final handshake = File(p.join(temp.path, 'handshake.json'));
@@ -812,6 +963,15 @@ class _SourceAuditApiClient extends SubsonicApiClient {
     int songOffset = 0,
     CancelToken? cancelToken,
   }) async {
+    if (query == 'Aurora') {
+      return const SearchResult3(
+        artists: <Artist>[
+          Artist(id: 'remote-prefix', name: 'Aurora Remote', isExternal: true),
+          Artist(id: 'remote-exact', name: 'Aurora', isExternal: true),
+          Artist(id: 'server-prefix', name: 'Aurora Local', isExternal: false),
+        ],
+      );
+    }
     return const SearchResult3(
       artists: <Artist>[
         Artist(

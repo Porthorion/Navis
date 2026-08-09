@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -608,6 +609,8 @@ class _MatchFlowSongTile extends ConsumerWidget {
                     size: 80,
                     borderRadius: BorderRadius.circular(6),
                     isExternalSource: song.isExternal,
+                    remoteSourceIndicatorPolicy:
+                        RemoteSourceIndicatorPolicy.hidden,
                   ),
                 ),
               ),
@@ -640,14 +643,20 @@ class _MatchFlowSongTile extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  if (subtitle.isNotEmpty)
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  if (subtitle.isNotEmpty || (song?.isExternal ?? false))
+                    RemoteSourceMetadataLine(
+                      metadata: Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant,
+                        ),
                       ),
+                      isRemote: song?.isExternal ?? false,
+                      spacing: subtitle.isEmpty ? 0 : 6,
                     ),
                 ],
               ),

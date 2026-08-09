@@ -13,7 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
-import 'package:navis/src/common_widgets/external_source_badge.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -162,6 +162,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   // No photo — plain name row
                   return _ArtistNameHeader(
                     name: artistData.name,
+                    isExternalSource: artistData.isExternal,
                     isStarred: isStarred,
                     isStarring: _isStarring,
                     onStarToggle: _isStarring
@@ -172,6 +173,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 },
                 loading: () => _ArtistNameHeader(
                   name: artistData.name,
+                  isExternalSource: artistData.isExternal,
                   isStarred: isStarred,
                   isStarring: _isStarring,
                   onStarToggle: null,
@@ -179,6 +181,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 ),
                 error: (_, _) => _ArtistNameHeader(
                   name: artistData.name,
+                  isExternalSource: artistData.isExternal,
                   isStarred: isStarred,
                   isStarring: _isStarring,
                   onStarToggle: _isStarring
@@ -394,12 +397,6 @@ class _ArtistImageHeader extends StatelessWidget {
                 alignment: imageAlignment,
                 errorWidget: (_, _, _) => const SizedBox.shrink(),
               ),
-              if (isExternalSource)
-                const Positioned(
-                  top: 6,
-                  left: 6,
-                  child: ExternalSourceBadge(size: 24),
-                ),
               // Dual gradient: slight top vignette + heavy bottom scrim
               const DecoratedBox(
                 decoration: BoxDecoration(
@@ -424,32 +421,44 @@ class _ArtistImageHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: <Widget>[
                     Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.bottomLeft,
-                        child: Text(
-                          artistName,
-                          style: Theme.of(context).textTheme.displayLarge
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -1.0,
-                                height: 1.05,
-                                fontSize: 64,
-                                shadows: const <Shadow>[
-                                  Shadow(
-                                    blurRadius: 4,
-                                    color: Color(0xCC000000),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.bottomLeft,
+                            child: Text(
+                              artistName,
+                              style: Theme.of(context).textTheme.displayLarge
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -1.0,
+                                    height: 1.05,
+                                    fontSize: 64,
+                                    shadows: const <Shadow>[
+                                      Shadow(
+                                        blurRadius: 4,
+                                        color: Color(0xCC000000),
+                                      ),
+                                      Shadow(
+                                        blurRadius: 24,
+                                        color: Color(0xAA000000),
+                                      ),
+                                    ],
                                   ),
-                                  Shadow(
-                                    blurRadius: 24,
-                                    color: Color(0xAA000000),
-                                  ),
-                                ],
-                              ),
-                          maxLines: 1,
-                          overflow: TextOverflow.clip,
-                        ),
+                              maxLines: 1,
+                              overflow: TextOverflow.clip,
+                            ),
+                          ),
+                          if (isExternalSource) ...<Widget>[
+                            const SizedBox(height: 8),
+                            const RemoteSourceIndicator(
+                              variant: RemoteSourceIndicatorVariant.chip,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                     IconButton(
@@ -482,6 +491,7 @@ class _ArtistNameHeader extends StatelessWidget {
     required this.isStarring,
     required this.onStarToggle,
     required this.starTooltip,
+    required this.isExternalSource,
   });
 
   final String name;
@@ -489,6 +499,7 @@ class _ArtistNameHeader extends StatelessWidget {
   final bool isStarring;
   final VoidCallback? onStarToggle;
   final String starTooltip;
+  final bool isExternalSource;
 
   @override
   Widget build(BuildContext context) {
@@ -515,19 +526,31 @@ class _ArtistNameHeader extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                name,
-                style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.0,
-                  fontSize: 56,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    name,
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.0,
+                      fontSize: 56,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-              ),
+                if (isExternalSource) ...<Widget>[
+                  const SizedBox(height: 8),
+                  const RemoteSourceIndicator(
+                    variant: RemoteSourceIndicatorVariant.chip,
+                  ),
+                ],
+              ],
             ),
           ),
           IconButton(

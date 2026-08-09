@@ -17,6 +17,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -1938,12 +1939,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                 height: 40,
                                 placeholderIcon: Icons.music_note_outlined,
                                 isExternalSource: song.isExternal,
+                                remoteSourceIndicatorPolicy:
+                                    RemoteSourceIndicatorPolicy.hidden,
                               ),
                             ),
                             title: song.title,
-                            subtitle: subtitleParts.isEmpty
-                                ? null
-                                : subtitleParts.join(' • '),
+                            subtitleWidget: RemoteSourceMetadataLine(
+                              metadata: Text(
+                                subtitleParts.join(' • '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                              isRemote: song.isExternal,
+                              spacing: subtitleParts.isEmpty ? 0 : 6,
+                            ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[

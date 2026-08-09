@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -272,6 +273,8 @@ class _QueueItemTile extends ConsumerWidget {
                   size: 48,
                   borderRadius: BorderRadius.circular(6),
                   isExternalSource: song.isExternal,
+                  remoteSourceIndicatorPolicy:
+                      RemoteSourceIndicatorPolicy.hidden,
                 )
               : Container(
                   decoration: BoxDecoration(
@@ -295,7 +298,16 @@ class _QueueItemTile extends ConsumerWidget {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          if (artist.isNotEmpty) Text(artist, maxLines: 1),
+          if (artist.isNotEmpty || (song?.isExternal ?? false))
+            RemoteSourceMetadataLine(
+              metadata: Text(
+                artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              isRemote: song?.isExternal ?? false,
+              spacing: artist.isEmpty ? 0 : 6,
+            ),
           if (isActive)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -450,6 +462,8 @@ class _DownloadedTrackTile extends ConsumerWidget {
                   size: 48,
                   borderRadius: BorderRadius.circular(6),
                   isExternalSource: song.isExternal,
+                  remoteSourceIndicatorPolicy:
+                      RemoteSourceIndicatorPolicy.hidden,
                 )
               : Container(
                   decoration: BoxDecoration(
@@ -470,10 +484,14 @@ class _DownloadedTrackTile extends ConsumerWidget {
             ? TextStyle(color: Theme.of(context).colorScheme.primary)
             : null,
       ),
-      subtitle: Text(
-        '$artist · ${track.format.toUpperCase()} · ${formatBytes(track.fileSize)}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      subtitle: RemoteSourceMetadataLine(
+        metadata: Text(
+          '$artist · ${track.format.toUpperCase()} · ${formatBytes(track.fileSize)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        isRemote: song?.isExternal ?? false,
+        spacing: 8,
       ),
       trailing: IconButton(
         icon: const Icon(Icons.delete_outline),

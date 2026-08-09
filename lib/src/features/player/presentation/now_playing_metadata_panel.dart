@@ -24,6 +24,7 @@ class _CoverArt extends ConsumerWidget {
         size: kCoverArtStandardSize,
         loadPriority: CoverArtLoadPriority.critical,
         isExternalSource: isExternalSource,
+        remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
       );
     }
 
@@ -33,6 +34,7 @@ class _CoverArt extends ConsumerWidget {
       semanticLabel: semanticLabel,
       loadPriority: CoverArtLoadPriority.critical,
       isExternalSource: isExternalSource,
+      remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
     );
   }
 }
@@ -121,6 +123,7 @@ class _TrackInfo extends StatelessWidget {
     this.onArtistTap,
     this.onAlbumTap,
     this.artistLinks,
+    this.isExternalSource = false,
   });
 
   final String title;
@@ -136,6 +139,7 @@ class _TrackInfo extends StatelessWidget {
   /// When non-null, the artist row renders each entry as an individual
   /// tappable link separated by commas. Takes precedence over [onArtistTap].
   final List<_ArtistLink>? artistLinks;
+  final bool isExternalSource;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +164,12 @@ class _TrackInfo extends StatelessWidget {
           ),
         ),
         SizedBox(height: compact ? 2 : 4),
+        if (isExternalSource) ...<Widget>[
+          const RemoteSourceIndicator(
+            variant: RemoteSourceIndicatorVariant.inline,
+          ),
+          SizedBox(height: compact ? 2 : 4),
+        ],
         if (links != null && links.isNotEmpty)
           Wrap(
             alignment: WrapAlignment.center,

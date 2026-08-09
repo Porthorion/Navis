@@ -2059,6 +2059,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Remote source — not in your server library.';
 
   @override
+  String get remoteSourceLabel => 'Remote';
+
+  @override
   String get appearanceTitle => 'Appearance';
 
   @override

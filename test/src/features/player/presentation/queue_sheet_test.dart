@@ -8,7 +8,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/common_widgets/external_source_badge.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 
 class _QueueSpyController extends QueueController {
   _QueueSpyController(this.ids);
@@ -151,6 +151,6 @@ void main() {
       externalSongIds: const <String>{'song-2'},
     );
 
-    expect(find.byKey(ExternalSourceBadge.semanticsKey), findsOneWidget);
+    expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsOneWidget);
   });
 }

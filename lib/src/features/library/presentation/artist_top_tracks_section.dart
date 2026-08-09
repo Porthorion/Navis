@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/features/library/presentation/artist_top_tracks_provid
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 
 /// Top Tracks section for the artist detail page, powered by Last.fm.
 ///
@@ -346,6 +348,13 @@ class _TopTrackTile extends ConsumerWidget {
     final dbSong = resolvedId != null
         ? ref.watch(songByIdProvider(resolvedId)).asData?.value
         : null;
+    final resolvedSong = track.resolvedSong;
+    final isRemote =
+        resolvedSong != null &&
+        isExternalCatalogSource(
+          id: resolvedSong.id,
+          apiIsExternal: resolvedSong.isExternal,
+        );
 
     // ── Leading: rank number + album art thumbnail ──────────────────────
     final leading = SizedBox(
@@ -383,7 +392,8 @@ class _TopTrackTile extends ConsumerWidget {
               borderRadius: BorderRadius.circular(4),
               placeholderIcon: Icons.music_note_outlined,
               showLoadingPlaceholder: false,
-              isExternalSource: track.resolvedSong?.isExternal ?? false,
+              isExternalSource: isRemote,
+              remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
             ),
           ),
         ],
@@ -441,14 +451,17 @@ class _TopTrackTile extends ConsumerWidget {
           color: isSelected ? colorScheme.primary : null,
         ),
       ),
-      subtitle: subtitle != null
-          ? Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+      subtitle: subtitle != null || isRemote
+          ? RemoteSourceMetadataLine(
+              metadata: Text(
+                subtitle ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                ),
               ),
+              isRemote: isRemote,
             )
           : null,
       trailing: trailing,

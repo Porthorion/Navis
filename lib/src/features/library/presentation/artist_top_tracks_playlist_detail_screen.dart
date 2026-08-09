@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
@@ -20,6 +21,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 
 class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
   const ArtistTopTracksPlaylistDetailScreen({
@@ -317,6 +319,12 @@ class _RankedTopTrackRow extends ConsumerWidget {
         ? SongPlaybackIndicatorState.inactive
         : ref.watch(songPlaybackIndicatorStateProvider(song.id));
     final isSelected = playbackState.isSelected;
+    final isRemote = song == null
+        ? false
+        : isExternalCatalogSource(
+            id: song.id,
+            apiIsExternal: song.isExternal,
+          );
 
     final tile = ListTile(
       selected: isSelected,
@@ -352,7 +360,8 @@ class _RankedTopTrackRow extends ConsumerWidget {
               height: 44,
               borderRadius: BorderRadius.circular(4),
               placeholderIcon: Icons.music_note_outlined,
-              isExternalSource: song?.isExternal ?? false,
+              isExternalSource: isRemote,
+              remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
             ),
           ],
         ),
@@ -363,10 +372,13 @@ class _RankedTopTrackRow extends ConsumerWidget {
         overflow: TextOverflow.ellipsis,
         style: isSelected ? TextStyle(color: colorScheme.primary) : null,
       ),
-      subtitle: Text(
-        unavailable ? l10n.artistTopTracksPlaylistUnavailable : track.artist,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      subtitle: RemoteSourceMetadataLine(
+        metadata: Text(
+          unavailable ? l10n.artistTopTracksPlaylistUnavailable : track.artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        isRemote: isRemote,
       ),
       onTap: song == null
           ? null

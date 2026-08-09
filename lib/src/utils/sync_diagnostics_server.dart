@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
@@ -18,10 +19,13 @@ import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/search/domain/search_result_ranker.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -79,6 +83,7 @@ class SyncDiagnosticsServer {
   LibrarySyncState? _lastSync;
   Object? _lastSyncError;
   Map<String, int> _lastEndpointRequests = const <String, int>{};
+  Map<String, Song> _presentationSearchSongs = const <String, Song>{};
   StreamSubscription<Object?>? _playbackFailureSubscription;
   int _playbackFailureCount = 0;
 
@@ -284,27 +289,38 @@ class SyncDiagnosticsServer {
         final body = await _readJson(request);
         final surface = body['surface'];
         final visible = body['visible'];
-        if (surface != 'queue' || visible is! bool) {
+        if ((surface != 'queue' && surface != 'nowPlaying') ||
+            visible is! bool) {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
-            'error': 'surface must be queue and visible must be boolean',
+            'error':
+                'surface must be queue or nowPlaying and visible must be boolean',
           });
           return;
         }
         final controller = _container.read(
           playerOverlayStackProvider.notifier,
         );
-        if (visible) {
-          controller.hideQueue();
-          await presentation.waitForFrame();
-          controller.showQueueOnly();
+        final route = surface == 'queue'
+            ? PlayerOverlayRoute.queue
+            : PlayerOverlayRoute.nowPlaying;
+        if (surface == 'queue') {
+          if (visible) {
+            controller.hideQueue();
+            await presentation.waitForFrame();
+            controller.showQueueOnly();
+          } else {
+            controller.hideQueue();
+          }
+        } else if (visible) {
+          controller.expand();
         } else {
-          controller.hideQueue();
+          controller.collapse();
         }
         await presentation.waitForFrame();
         final stack = _container.read(playerOverlayStackProvider);
         await _respond(request, HttpStatus.ok, <String, Object?>{
-          'surface': 'queue',
-          'visible': stack.contains(PlayerOverlayRoute.queue),
+          'surface': surface,
+          'visible': stack.contains(route),
           'stack': stack.map((route) => route.name).toList(growable: false),
         });
         return;
@@ -461,6 +477,30 @@ class SyncDiagnosticsServer {
         await _runSourceAudit(request);
         return;
       }
+      if (request.method == 'POST' && path == '/v1/presentation/search') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        if (presentationController == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await _runPresentationSearch(request);
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/presentation/search/play') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        if (presentationController == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await _playPresentationSearchSong(request);
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/diagnostics/overrides') {
         await _respond(
           request,
@@ -482,6 +522,35 @@ class SyncDiagnosticsServer {
           notifier.reset();
         } else {
           notifier.patch(body);
+        }
+        if (body['cachedListenBrainzPresentation'] == true) {
+          final cachedUserName = await _container
+              .read(navisDatabaseProvider)
+              .cacheDao
+              .getLatestListenBrainzWeeklyCacheUserName();
+          if (cachedUserName != null) {
+            final completer = Completer<void>();
+            late final ProviderSubscription<
+              AsyncValue<List<ListenBrainzDiscoverPlaylist>>
+            >
+            subscription;
+            subscription = _container.listen(
+              listenBrainzDiscoverStreamProvider,
+              (_, next) {
+                if ((next.asData?.value.isNotEmpty ?? false) &&
+                    !completer.isCompleted) {
+                  completer.complete();
+                }
+              },
+              fireImmediately: true,
+            );
+            try {
+              await completer.future.timeout(const Duration(seconds: 5));
+            } finally {
+              subscription.close();
+            }
+          }
+          await presentationController?.waitForFrame();
         }
         await _respond(
           request,
@@ -957,6 +1026,152 @@ class SyncDiagnosticsServer {
       'query': query,
       'records': records,
     });
+  }
+
+  Future<void> _runPresentationSearch(HttpRequest request) async {
+    final body = await _readJson(request);
+    final rawQuery = body['query'];
+    final query = rawQuery is String ? rawQuery.trim() : '';
+    if (query.isEmpty) {
+      await _respond(request, HttpStatus.badRequest, <String, Object?>{
+        'error': 'query is required',
+      });
+      return;
+    }
+    final rawFilter = body['filter'];
+    final filterName = rawFilter == null
+        ? 'all'
+        : rawFilter is String
+        ? rawFilter.trim()
+        : '';
+    final filter = switch (filterName) {
+      'all' => null,
+      'artists' => SearchResultType.artists,
+      'albums' => SearchResultType.albums,
+      'songs' => SearchResultType.songs,
+      _ => SearchResultType.values.firstOrNull,
+    };
+    if (filterName != 'all' &&
+        !SearchResultType.values.any((value) => value.name == filterName)) {
+      await _respond(request, HttpStatus.badRequest, <String, Object?>{
+        'error': 'filter must be all, artists, albums, or songs',
+      });
+      return;
+    }
+
+    _navigationDriver.go('/search');
+    _presentationSearchSongs = const <String, Song>{};
+    _container.read(searchFilterProvider.notifier).select(filter);
+    _container.read(searchQueryProvider.notifier).submit(query);
+    _container.invalidate(debouncedSearchProvider);
+
+    final completer = Completer<SearchResultsState>();
+    late final ProviderSubscription<AsyncValue<SearchResultsState?>>
+    subscription;
+    subscription = _container.listen<AsyncValue<SearchResultsState?>>(
+      debouncedSearchProvider,
+      (_, next) {
+        if (next.hasError && !completer.isCompleted) {
+          completer.completeError(next.error!, next.stackTrace);
+          return;
+        }
+        final state = next.asData?.value;
+        if (state != null && !state.isWaitingForApi && !completer.isCompleted) {
+          completer.complete(state);
+        }
+      },
+      fireImmediately: true,
+    );
+
+    try {
+      final state = await completer.future.timeout(const Duration(seconds: 15));
+      final result = state.result;
+      _presentationSearchSongs = <String, Song>{
+        for (final song in result.songs) song.id: song,
+      };
+      await presentationController!.waitForFrame();
+      await _respond(request, HttpStatus.ok, <String, Object?>{
+        'filter': filter?.name ?? 'all',
+        'route': _navigationDriver.location,
+        'localOnly': state.isLocalOnly,
+        'artists': <Map<String, Object?>>[
+          for (final artist in result.artists)
+            _presentationSearchRecord(
+              id: artist.id,
+              label: artist.name,
+              apiIsExternal: artist.isExternal,
+              query: query,
+            ),
+        ],
+        'albums': <Map<String, Object?>>[
+          for (final album in result.albums)
+            _presentationSearchRecord(
+              id: album.id,
+              label: album.name,
+              apiIsExternal: album.isExternal,
+              query: query,
+            ),
+        ],
+        'songs': <Map<String, Object?>>[
+          for (final song in result.songs)
+            _presentationSearchRecord(
+              id: song.id,
+              label: song.title,
+              apiIsExternal: song.isExternal,
+              query: query,
+            ),
+        ],
+      });
+    } on TimeoutException {
+      await _respond(request, HttpStatus.gatewayTimeout, <String, Object?>{
+        'error': 'search did not settle before the diagnostics timeout',
+      });
+    } finally {
+      subscription.close();
+    }
+  }
+
+  Future<void> _playPresentationSearchSong(HttpRequest request) async {
+    final body = await _readJson(request);
+    final songId = (body['songId'] as String? ?? '').trim();
+    final song = _presentationSearchSongs[songId];
+    if (songId.isEmpty || song == null) {
+      await _respond(request, HttpStatus.notFound, <String, Object?>{
+        'error': 'song is not present in the latest presentation search',
+      });
+      return;
+    }
+    await _container.read(queueProvider.notifier).replaceWithSongs(<Song>[
+      song,
+    ]);
+    await presentationController!.waitForFrame();
+    await _respond(request, HttpStatus.accepted, <String, Object?>{
+      'songId': song.id,
+      'source':
+          isExternalCatalogSource(
+            id: song.id,
+            apiIsExternal: song.isExternal,
+          )
+          ? 'remote'
+          : 'onServer',
+    });
+  }
+
+  Map<String, Object?> _presentationSearchRecord({
+    required String id,
+    required String label,
+    required bool? apiIsExternal,
+    required String query,
+  }) {
+    final source = classifyCatalogSource(
+      id: id,
+      apiIsExternal: apiIsExternal,
+    );
+    return <String, Object?>{
+      'id': id,
+      'source': source == CatalogSource.external ? 'remote' : 'onServer',
+      'relevance': searchRelevanceTier(label, query).name,
+    };
   }
 
   Future<Map<String, Object?>> _sourceAuditRecord({

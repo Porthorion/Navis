@@ -13,6 +13,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -381,6 +382,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     width: artSize,
                                     height: artSize,
                                     isExternalSource: details.isExternal,
+                                    remoteSourceIndicatorPolicy:
+                                        RemoteSourceIndicatorPolicy.hidden,
                                     borderRadius: coverRadius,
                                     placeholderIcon: Icons.album_outlined,
                                     loadPriority: CoverArtLoadPriority.critical,
@@ -434,6 +437,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                                       colors.onSurfaceVariant,
                                                 ),
                                           ),
+                                          if (details.isExternal) ...<Widget>[
+                                            const SizedBox(width: 8),
+                                            const RemoteSourceIndicator(
+                                              variant:
+                                                  RemoteSourceIndicatorVariant
+                                                      .chip,
+                                            ),
+                                          ],
                                         ],
                                       ),
                                       const SizedBox(height: 20),
@@ -947,6 +958,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           width: artSize,
                                           height: artSize,
                                           isExternalSource: details.isExternal,
+                                          remoteSourceIndicatorPolicy:
+                                              RemoteSourceIndicatorPolicy
+                                                  .hidden,
                                           borderRadius: coverRadius,
                                           placeholderIcon: Icons.album_outlined,
                                           loadPriority:
@@ -992,6 +1006,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                                       colors.onSurfaceVariant,
                                                 ),
                                           ),
+                                        if (details.isExternal) ...<Widget>[
+                                          const SizedBox(width: 8),
+                                          const RemoteSourceIndicator(
+                                            variant:
+                                                RemoteSourceIndicatorVariant
+                                                    .chip,
+                                          ),
+                                        ],
                                       ],
                                     ),
                                     const SizedBox(height: 8),
@@ -1136,6 +1158,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           lockedSize: kCoverArtStandardSize,
                                           width: double.infinity,
                                           isExternalSource: details.isExternal,
+                                          remoteSourceIndicatorPolicy:
+                                              RemoteSourceIndicatorPolicy
+                                                  .hidden,
                                           height: double.infinity,
                                           fit: BoxFit.cover,
                                           fadeInDuration: Duration.zero,
@@ -1207,6 +1232,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               width: double.infinity,
                               height: double.infinity,
                               isExternalSource: details.isExternal,
+                              remoteSourceIndicatorPolicy:
+                                  RemoteSourceIndicatorPolicy.hidden,
                               fit: BoxFit.cover,
                               fadeInDuration: Duration.zero,
                               showLoadingPlaceholder: false,
@@ -1301,6 +1328,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     color: mobileColors.onSurfaceVariant,
                                   ),
                                 ),
+                              if (details.isExternal) ...<Widget>[
+                                const SizedBox(width: 8),
+                                const RemoteSourceIndicator(
+                                  variant: RemoteSourceIndicatorVariant.chip,
+                                ),
+                              ],
                             ],
                           ),
                         ),

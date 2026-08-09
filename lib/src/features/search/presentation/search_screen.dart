@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -724,6 +725,10 @@ class _ArtistResultsSection extends ConsumerWidget {
           itemCount: artists.length,
         ),
         ...visible.map((artist) {
+          final isRemote = isExternalCatalogSource(
+            id: artist.id,
+            apiIsExternal: artist.isExternal,
+          );
           final leading = ClipRRect(
             borderRadius: artistRadius,
             child: SizedBox(
@@ -736,10 +741,8 @@ class _ArtistResultsSection extends ConsumerWidget {
                 height: 40,
                 borderRadius: artistRadius,
                 placeholderIcon: Icons.person_outline,
-                isExternalSource: isExternalCatalogSource(
-                  id: artist.id,
-                  apiIsExternal: artist.isExternal,
-                ),
+                isExternalSource: isRemote,
+                remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
               ),
             ),
           );
@@ -747,9 +750,12 @@ class _ArtistResultsSection extends ConsumerWidget {
             return DesktopListRow(
               leading: leading,
               title: artist.name,
-              subtitle: artist.albumCount != null
-                  ? l10n.searchAlbumCount(artist.albumCount!)
-                  : null,
+              subtitleWidget: _SearchResultMetadata(
+                text: artist.albumCount != null
+                    ? l10n.searchAlbumCount(artist.albumCount!)
+                    : '',
+                isRemote: isRemote,
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => NavService.openArtistDetail(context, ref, artist.id),
             );
@@ -757,9 +763,12 @@ class _ArtistResultsSection extends ConsumerWidget {
           return ListTile(
             leading: leading,
             title: Text(artist.name),
-            subtitle: artist.albumCount != null
-                ? Text(l10n.searchAlbumCount(artist.albumCount!))
-                : null,
+            subtitle: _SearchResultMetadata(
+              text: artist.albumCount != null
+                  ? l10n.searchAlbumCount(artist.albumCount!)
+                  : '',
+              isRemote: isRemote,
+            ),
             onTap: () => NavService.openArtistDetail(context, ref, artist.id),
           );
         }),
@@ -798,22 +807,27 @@ class _AlbumResultsSection extends ConsumerWidget {
           itemCount: albums.length,
         ),
         ...visible.map((album) {
+          final isRemote = isExternalCatalogSource(
+            id: album.id,
+            apiIsExternal: album.isExternal,
+          );
           final leading = CoverArtImage(
             coverArtId: album.coverArt,
             size: 80,
             width: 48,
             height: 48,
             borderRadius: coverRadius,
-            isExternalSource: isExternalCatalogSource(
-              id: album.id,
-              apiIsExternal: album.isExternal,
-            ),
+            isExternalSource: isRemote,
+            remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
           );
           if (desktopMode) {
             return DesktopListRow(
               leading: leading,
               title: album.name,
-              subtitle: album.artist ?? '',
+              subtitleWidget: _SearchResultMetadata(
+                text: album.artist ?? '',
+                isRemote: isRemote,
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => NavService.openAlbumDetail(context, ref, album.id),
             );
@@ -821,7 +835,10 @@ class _AlbumResultsSection extends ConsumerWidget {
           return ListTile(
             leading: leading,
             title: Text(album.name),
-            subtitle: Text(album.artist ?? ''),
+            subtitle: _SearchResultMetadata(
+              text: album.artist ?? '',
+              isRemote: isRemote,
+            ),
             onTap: () => NavService.openAlbumDetail(context, ref, album.id),
           );
         }),
@@ -866,6 +883,14 @@ class _SongResultsSection extends ConsumerWidget {
               songPlaybackIndicatorStateProvider(song.id),
             );
             final isSelected = playbackState.isSelected;
+            final isRemote = isExternalCatalogSource(
+              id: song.id,
+              apiIsExternal: song.isExternal,
+            );
+            final metadata = <String>[
+              if (song.artist != null) song.artist!,
+              if (song.album != null) song.album!,
+            ].join(' • ');
 
             if (desktopMode) {
               return DesktopListRow(
@@ -876,16 +901,15 @@ class _SongResultsSection extends ConsumerWidget {
                   width: 46,
                   height: 46,
                   borderRadius: coverRadius,
-                  isExternalSource: isExternalCatalogSource(
-                    id: song.id,
-                    apiIsExternal: song.isExternal,
-                  ),
+                  isExternalSource: isRemote,
+                  remoteSourceIndicatorPolicy:
+                      RemoteSourceIndicatorPolicy.hidden,
                 ),
                 title: song.title,
-                subtitle: <String>[
-                  if (song.artist != null) song.artist!,
-                  if (song.album != null) song.album!,
-                ].join(' • '),
+                subtitleWidget: _SearchResultMetadata(
+                  text: metadata,
+                  isRemote: isRemote,
+                ),
                 trailing: Text(formatSeconds(song.duration, fallback: '')),
                 onTap: () {
                   unawaited(
@@ -917,10 +941,9 @@ class _SongResultsSection extends ConsumerWidget {
                   width: 48,
                   height: 48,
                   borderRadius: coverRadius,
-                  isExternalSource: isExternalCatalogSource(
-                    id: song.id,
-                    apiIsExternal: song.isExternal,
-                  ),
+                  isExternalSource: isRemote,
+                  remoteSourceIndicatorPolicy:
+                      RemoteSourceIndicatorPolicy.hidden,
                 ),
               ),
               title: Text(
@@ -929,11 +952,9 @@ class _SongResultsSection extends ConsumerWidget {
                     ? TextStyle(color: Theme.of(context).colorScheme.primary)
                     : null,
               ),
-              subtitle: Text(
-                <String>[
-                  if (song.artist != null) song.artist!,
-                  if (song.album != null) song.album!,
-                ].join(' • '),
+              subtitle: _SearchResultMetadata(
+                text: metadata,
+                isRemote: isRemote,
               ),
               trailing: Text(formatSeconds(song.duration, fallback: '')),
               onTap: () {
@@ -1131,6 +1152,30 @@ class _SongResultsSection extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SearchResultMetadata extends StatelessWidget {
+  const _SearchResultMetadata({required this.text, required this.isRemote});
+
+  final String text;
+  final bool isRemote;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
+    return RemoteSourceMetadataLine(
+      metadata: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      ),
+      isRemote: isRemote,
+      spacing: text.isEmpty ? 0 : 8,
     );
   }
 }

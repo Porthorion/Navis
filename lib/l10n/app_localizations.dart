@@ -3639,6 +3639,12 @@ abstract class AppLocalizations {
   /// **'Remote source — not in your server library.'**
   String get externalSourceBadgeLabel;
 
+  /// No description provided for @remoteSourceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote'**
+  String get remoteSourceLabel;
+
   /// No description provided for @appearanceTitle.
   ///
   /// In en, this message translates to:

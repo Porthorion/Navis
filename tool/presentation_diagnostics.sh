@@ -4,11 +4,21 @@ set -euo pipefail
 MODE="${1:-clone}"
 ROUTE="${2:-/}"
 LABEL="${3:-home}"
+SEARCH_QUERY="${NAVIS_PRESENTATION_SEARCH_QUERY:-}"
+SEARCH_FILTER="${NAVIS_PRESENTATION_SEARCH_FILTER:-all}"
+SEARCH_REQUIRE_MIXED="${NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED:-0}"
+SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
 if [[ "$MODE" != "clone" ]] ||
    [[ ! "$ROUTE" =~ ^/ ]] ||
    [[ "$ROUTE" =~ ^// ]] ||
-   [[ ! "$LABEL" =~ ^[a-z0-9][a-z0-9_-]{0,35}$ ]]; then
+   [[ ! "$LABEL" =~ ^[a-z0-9][a-z0-9_-]{0,35}$ ]] ||
+   [[ ! "$SEARCH_FILTER" =~ ^(all|artists|albums|songs)$ ]] ||
+   [[ ! "$SEARCH_REQUIRE_MIXED" =~ ^(0|1)$ ]] ||
+   [[ ! "$SEARCH_PLAY_REMOTE" =~ ^(0|1)$ ]] ||
+   [[ "$SEARCH_PLAY_REMOTE" == "1" && "$SEARCH_FILTER" != "songs" ]] ||
+   [[ -n "$SEARCH_QUERY" && "$ROUTE" != "/search" ]]; then
   echo "Usage: $0 clone [/local-route] [safe-label]" >&2
+  echo "Set NAVIS_PRESENTATION_SEARCH_QUERY only with the /search route." >&2
   exit 64
 fi
 
@@ -67,6 +77,40 @@ cleanup() {
     kill "$FLUTTER_PID" >/dev/null 2>&1 || true
     wait "$FLUTTER_PID" >/dev/null 2>&1 || true
   fi
+}
+
+remote_search_song_body() {
+  python3 - "$1" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+record = next((item for item in value.get("songs", []) if item.get("source") == "remote"), None)
+if record is None:
+    raise SystemExit("search returned no remote song to play")
+print(json.dumps({"songId": record["id"]}))
+PY
+}
+
+wait_for_search_song() {
+  local play_response="$1"
+  local output_file="$2"
+  local deadline=$((SECONDS + 90))
+  while (( SECONDS < deadline )); do
+    api GET /v1/playback/status > "$output_file"
+    if python3 - "$play_response" "$output_file" <<'PY'
+import json, sys
+expected = json.load(open(sys.argv[1], encoding="utf-8"))["songId"]
+value = json.load(open(sys.argv[2], encoding="utf-8"))
+raise SystemExit(0 if value.get("songId") == expected
+                 and value.get("playing") is True
+                 and value.get("isLoading") is not True else 1)
+PY
+    then
+      return
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for the remote Search song. See $APP_LOG" >&2
+  exit 70
 }
 trap cleanup EXIT INT TERM
 
@@ -131,6 +175,53 @@ screenshot_body() {
   python3 - "$1" <<'PY'
 import json, sys
 print(json.dumps({"label": sys.argv[1]}))
+PY
+}
+
+search_body() {
+  python3 - "$SEARCH_QUERY" "$SEARCH_FILTER" <<'PY'
+import json, sys
+print(json.dumps({"query": sys.argv[1], "filter": sys.argv[2]}))
+PY
+}
+
+validate_search() {
+  python3 - "$1" "$SEARCH_REQUIRE_MIXED" "$2" <<'PY'
+import json, sys
+path, require_mixed, summary_path = sys.argv[1:]
+value = json.load(open(path, encoding="utf-8"))
+tiers = {"exact": 0, "prefix": 1, "substring": 2, "tokens": 3, "other": 4}
+sources = {"onServer": 0, "remote": 1}
+counts = {"onServer": 0, "remote": 0}
+entity_counts = {}
+for kind in ("artists", "albums", "songs"):
+    records = value.get(kind)
+    if not isinstance(records, list):
+        raise SystemExit(f"missing {kind} search records")
+    previous = None
+    for record in records:
+        if set(record) != {"id", "source", "relevance"}:
+            raise SystemExit(f"search record is not sanitized: {record}")
+        if not isinstance(record["id"], str) or not record["id"]:
+            raise SystemExit(f"invalid search ID: {record}")
+        if record["source"] not in sources or record["relevance"] not in tiers:
+            raise SystemExit(f"invalid search classification: {record}")
+        order = (tiers[record["relevance"]], sources[record["source"]])
+        if previous is not None and order < previous:
+            raise SystemExit(f"search results are out of order in {kind}")
+        previous = order
+        counts[record["source"]] += 1
+    entity_counts[kind] = len(records)
+if require_mixed == "1" and (counts["onServer"] == 0 or counts["remote"] == 0):
+    raise SystemExit(f"search did not contain mixed sources: {counts}")
+with open(summary_path, "w", encoding="utf-8") as output:
+    json.dump({
+        "status": "passed",
+        "filter": value.get("filter"),
+        "localOnly": value.get("localOnly"),
+        "counts": entity_counts,
+        "sources": counts,
+    }, output)
 PY
 }
 
@@ -238,9 +329,35 @@ run_capture() {
   local capture_label="$prefix-$LABEL"
   api GET /v1/health > "$OUTPUT_ROOT/$prefix-health.json"
   wait_for_presentation "$OUTPUT_ROOT/$prefix-presentation-before.json"
+  if [[ "$ROUTE" =~ ^/library/listenbrainz/ ]]; then
+    api POST /v1/diagnostics/overrides \
+      '{"cachedListenBrainzPresentation":true}' \
+      > "$OUTPUT_ROOT/$prefix-listenbrainz-cache-override.json"
+  fi
   api POST /v1/presentation/navigate "$(navigation_body)" \
     > "$OUTPUT_ROOT/$prefix-navigation.json"
   validate_navigation "$OUTPUT_ROOT/$prefix-navigation.json"
+  if [[ -n "$SEARCH_QUERY" ]]; then
+    api POST /v1/presentation/search "$(search_body)" \
+      > "$OUTPUT_ROOT/$prefix-search.json"
+    chmod 600 "$OUTPUT_ROOT/$prefix-search.json"
+    validate_search \
+      "$OUTPUT_ROOT/$prefix-search.json" \
+      "$OUTPUT_ROOT/$prefix-search-summary.json"
+    capture_window_screenshot \
+      "$prefix-search-screenshot" "$prefix-search-results"
+    if [[ "$SEARCH_PLAY_REMOTE" == "1" ]]; then
+      api POST /v1/presentation/search/play \
+        "$(remote_search_song_body "$OUTPUT_ROOT/$prefix-search.json")" \
+        > "$OUTPUT_ROOT/$prefix-search-play.json"
+      wait_for_search_song \
+        "$OUTPUT_ROOT/$prefix-search-play.json" \
+        "$OUTPUT_ROOT/$prefix-search-playback.json"
+      api POST /v1/presentation/player-overlay \
+        '{"surface":"nowPlaying","visible":true}' \
+        > "$OUTPUT_ROOT/$prefix-now-playing-overlay.json"
+    fi
+  fi
   if [[ "${NAVIS_DESKTOP_LAYOUT_DIAGNOSTICS:-0}" == "1" ]]; then
     api GET /v1/presentation/window \
       > "$OUTPUT_ROOT/$prefix-window-before.json"
@@ -365,10 +482,12 @@ python3 - \
   "$ROUTE" \
   "${NAVIS_QUALITY_GATE_RESULT:-not-run}" \
   "$OUTPUT_ROOT/initial-screenshot.json" \
-  "$OUTPUT_ROOT/restart-screenshot.json" <<'PY'
+  "$OUTPUT_ROOT/restart-screenshot.json" \
+  "$([[ -n "$SEARCH_QUERY" ]] && echo 1 || echo 0)" \
+  "$SEARCH_PLAY_REMOTE" <<'PY'
 import json, sys
 screenshots = []
-for path in sys.argv[4:]:
+for path in sys.argv[4:6]:
     value = json.load(open(path, encoding="utf-8"))
     screenshots.append({
         "artifact": value["artifact"],
@@ -390,7 +509,13 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
             "POST /v1/presentation/navigate",
             "POST /v1/presentation/screenshot",
             "POST /v1/shutdown",
-        ],
+        ] + (["POST /v1/diagnostics/overrides"]
+             if sys.argv[2].startswith("/library/listenbrainz/") else [])
+          + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
+          + ([
+              "POST /v1/presentation/search/play",
+              "POST /v1/presentation/player-overlay",
+            ] if sys.argv[7] == "1" else []),
         "screenshots": screenshots,
         "visualInspection": "required-by-agent",
         "logReview": "no-hard-fail-patterns",

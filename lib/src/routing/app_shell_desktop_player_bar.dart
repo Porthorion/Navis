@@ -333,6 +333,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     borderRadius: BorderRadius.circular(8),
                     loadPriority: CoverArtLoadPriority.critical,
                     isExternalSource: widget.isExternalSource,
+                    remoteSourceIndicatorPolicy:
+                        RemoteSourceIndicatorPolicy.hidden,
                   );
                 }
 
@@ -561,6 +563,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             ?.copyWith(
                                               color: colors.onSurfaceVariant,
                                             ),
+                                      ),
+                                    if (widget.isExternalSource)
+                                      const RemoteSourceIndicator(
+                                        variant:
+                                            RemoteSourceIndicatorVariant.inline,
                                       ),
                                   ],
                                 ),

@@ -455,6 +455,12 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
         recommendation.status == ListenBrainzRecommendationMatchStatus.pending;
     final unavailable = !pending && !recommendation.isPlayable;
     final playableSong = unavailable ? null : song;
+    final isRemote =
+        playableSong != null &&
+        isExternalCatalogSource(
+          id: playableSong.id,
+          apiIsExternal: playableSong.isExternal,
+        );
     final playbackState = playableSong == null
         ? SongPlaybackIndicatorState.inactive
         : ref.watch(songPlaybackIndicatorStateProvider(playableSong.id));
@@ -488,6 +494,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
           selectedColor: cs.primary,
           selectedTileColor: cs.primary.withValues(alpha: 0.08),
           dense: true,
+          minTileHeight: 64,
           contentPadding: contentPadding,
           minLeadingWidth: 32,
           horizontalTitleGap: horizontalTitleGap,
@@ -517,15 +524,18 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
               color: isSelected ? cs.primary : null,
             ),
           ),
-          subtitle: Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: unavailable
-                  ? cs.onSurface.withValues(alpha: 0.55)
-                  : cs.onSurfaceVariant,
+          subtitle: RemoteSourceMetadataLine(
+            metadata: Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: unavailable
+                    ? cs.onSurface.withValues(alpha: 0.55)
+                    : cs.onSurfaceVariant,
+              ),
             ),
+            isRemote: isRemote,
           ),
           trailing: SizedBox(
             width: 76,

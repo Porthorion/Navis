@@ -183,6 +183,7 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         loadPriority: CoverArtLoadPriority.critical,
         isExternalSource: isExternalSource,
+        remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
       );
     } else {
       artwork = _MiniRemoteArt(
@@ -340,6 +341,13 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
                             color: colors.onSurfaceVariant,
                           ),
                     ),
+                    if (isExternalSource)
+                      const Align(
+                        alignment: Alignment.center,
+                        child: RemoteSourceIndicator(
+                          variant: RemoteSourceIndicatorVariant.inline,
+                        ),
+                      ),
                     if (playback.isRadioMode)
                       Align(
                         alignment: Alignment.center,

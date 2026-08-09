@@ -13,6 +13,7 @@ class SyncDiagnosticsOverrides {
     this.interactiveHydrationAllowed,
     this.meteredBudgetBytes,
     this.requestReporting = false,
+    this.cachedListenBrainzPresentation = false,
   });
 
   final NetworkType? networkType;
@@ -22,6 +23,7 @@ class SyncDiagnosticsOverrides {
   final bool? interactiveHydrationAllowed;
   final int? meteredBudgetBytes;
   final bool requestReporting;
+  final bool cachedListenBrainzPresentation;
 
   SyncDiagnosticsOverrides copyWith({
     NetworkType? networkType,
@@ -31,6 +33,7 @@ class SyncDiagnosticsOverrides {
     bool? interactiveHydrationAllowed,
     int? meteredBudgetBytes,
     bool? requestReporting,
+    bool? cachedListenBrainzPresentation,
     bool clearNetworkType = false,
     bool clearNativeMetered = false,
     bool clearBackgroundSyncUnmeteredOnly = false,
@@ -56,6 +59,8 @@ class SyncDiagnosticsOverrides {
           ? null
           : meteredBudgetBytes ?? this.meteredBudgetBytes,
       requestReporting: requestReporting ?? this.requestReporting,
+      cachedListenBrainzPresentation:
+          cachedListenBrainzPresentation ?? this.cachedListenBrainzPresentation,
     );
   }
 
@@ -67,6 +72,7 @@ class SyncDiagnosticsOverrides {
     'interactiveHydrationAllowed': interactiveHydrationAllowed,
     'meteredBudgetBytes': meteredBudgetBytes,
     'requestReporting': requestReporting,
+    'cachedListenBrainzPresentation': cachedListenBrainzPresentation,
   };
 
   static SyncDiagnosticsOverrides fromJson(Map<String, Object?> json) {
@@ -88,6 +94,8 @@ class SyncDiagnosticsOverrides {
       interactiveHydrationAllowed: json['interactiveHydrationAllowed'] as bool?,
       meteredBudgetBytes: json['meteredBudgetBytes'] as int?,
       requestReporting: json['requestReporting'] as bool? ?? false,
+      cachedListenBrainzPresentation:
+          json['cachedListenBrainzPresentation'] as bool? ?? false,
     );
   }
 }

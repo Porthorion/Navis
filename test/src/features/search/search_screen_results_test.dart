@@ -10,7 +10,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/external_source_badge.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -237,10 +237,62 @@ void main() {
       await _pumpUntilFound(tester, find.text('Remote Song'));
 
       expect(
-        find.byKey(ExternalSourceBadge.semanticsKey),
+        find.byKey(RemoteSourceIndicator.semanticsKey),
         findsNWidgets(3),
       );
       expect(find.text('Server Artist'), findsOneWidget);
+    });
+
+    testWidgets('renders relevance-first local-first artist order', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+
+      final database = createTestDatabase();
+      await _insertArtist(
+        database,
+        id: 'server-prefix',
+        name: 'Aurora Local',
+      );
+      final container = _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient(
+          (_) async => const SearchResult3(
+            artists: <Artist>[
+              Artist(
+                id: 'remote-prefix',
+                name: 'Aurora Remote',
+                isExternal: true,
+              ),
+              Artist(
+                id: 'remote-exact',
+                name: 'Aurora',
+                isExternal: true,
+              ),
+            ],
+          ),
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'Aurora');
+      await _pumpUntilFound(tester, find.text('Aurora Remote'));
+
+      final exactY = tester
+          .getTopLeft(
+            find.byWidgetPredicate(
+              (widget) => widget is Text && widget.data == 'Aurora',
+            ),
+          )
+          .dy;
+      final localY = tester.getTopLeft(find.text('Aurora Local')).dy;
+      final remoteY = tester.getTopLeft(find.text('Aurora Remote')).dy;
+      expect(exactY, lessThan(localY));
+      expect(localY, lessThan(remoteY));
     });
 
     testWidgets('cached results appear without waiting for API', (
