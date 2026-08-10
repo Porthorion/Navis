@@ -161,6 +161,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
 ./tool/presentation_diagnostics.sh clone / home  # app-owned screenshot suite
+NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=2 ./tool/presentation_diagnostics.sh clone / bootstrap-retry  # startup retry + loading screenshot suite
 NAVIS_PRESENTATION_SEARCH_QUERY='query' ./tool/presentation_diagnostics.sh clone /search search  # Search ordering + screenshot
 ./tool/desktop_layout_diagnostics.sh  # Desktop View/Mini Player resize + screenshot suite
 ./tool/auth_lifecycle_diagnostics.sh clone  # isolated first-sync/logout suite
@@ -288,6 +289,7 @@ presentation/ # screens, widgets, *_provider.dart files
 
 - Uses `UncontrolledProviderScope` with a pre-built container — **not** a bare `ProviderScope`.
 - `NavisApp(requirePlaybackBootstrap: true)` — UI reads playback via providers; never create handler state ad hoc.
+- Playback bootstrap keeps the loading gate visible during failures and retries every three seconds until ready. Timeout and stale/late completion guards remain active; clone diagnostics may inject initial failures only through `NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS` and observe safe attempt state through `GET /v1/playback/bootstrap/status`.
 
 ### Provider organization (`lib/src/providers/app_providers.dart`)
 

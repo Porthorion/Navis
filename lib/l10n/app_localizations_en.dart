@@ -1323,22 +1323,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Restoring your listening session…';
 
   @override
-  String get playbackBootstrapFailedTitle => 'Playback initialization failed';
-
-  @override
-  String get playbackBootstrapFailedSubtitle =>
-      'Could not initialize playback. Retry to continue.';
-
-  @override
-  String get playbackBootstrapRetryAction => 'Retry playback startup';
-
-  @override
   String get playbackUnavailableInitializing =>
       'Playback is still initializing. Try again in a moment.';
 
   @override
   String get playbackUnavailableStartupFailed =>
-      'Playback startup failed. Retry from the startup screen.';
+      'Playback is restarting. Try again in a moment.';
 
   @override
   String get playbackUnavailableSource =>

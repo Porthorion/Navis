@@ -233,8 +233,6 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
       });
     }
 
-    final isFailed = bootstrap.status == AudioBootstrapStatus.failed;
-
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
@@ -245,8 +243,6 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
             ringFill: _ringFill.value,
             isRingCompleting: _completionTriggered,
             exitProgress: _exit.value,
-            isFailed: isFailed,
-            onRetry: ref.read(audioBootstrapControllerProvider.notifier).retry,
           ),
         ),
       ],
@@ -259,8 +255,6 @@ class _BootstrapSplashScreen extends StatelessWidget {
     required this.ringFill,
     required this.isRingCompleting,
     required this.exitProgress,
-    required this.isFailed,
-    required this.onRetry,
   });
 
   // 0.0–1.0 value for the determinate ring once completion is triggered.
@@ -272,22 +266,16 @@ class _BootstrapSplashScreen extends StatelessWidget {
   // 0.0 = fully visible, 1.0 = fully gone (exit animation).
   final double exitProgress;
 
-  final bool isFailed;
-  final Future<void> Function() onRetry;
-
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final accentColors = NavisAccentColors.of(context);
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final screenSize = MediaQuery.sizeOf(context);
 
     final logoSize = screenSize.width >= 1200 ? 80.0 : 120.0;
     final strokeWidth = (logoSize * 0.055).clamp(2.2, 5.2);
-    final ringColor = isFailed ? colorScheme.error : accentColors.brand;
-    final ringTrackColor = isFailed
-        ? colorScheme.error.withValues(alpha: 0.15)
-        : accentColors.brandTrack;
+    final ringColor = accentColors.brand;
+    final ringTrackColor = accentColors.brandTrack;
     // Exit animation — logo lifts upward and fades out.
     final opacity = (1.0 - exitProgress).clamp(0.0, 1.0);
     final translateY = -screenSize.height * 0.35 * exitProgress;
@@ -336,40 +324,29 @@ class _BootstrapSplashScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (isFailed) ...<Widget>[
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32),
-                        child: Column(
-                          children: <Widget>[
-                            Text(
-                              AppLocalizations.of(
-                                context,
-                              )!.playbackBootstrapFailedTitle,
-                              style: Theme.of(context).textTheme.titleLarge,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              AppLocalizations.of(
-                                context,
-                              )!.playbackBootstrapFailedSubtitle,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            FilledButton(
-                              onPressed: onRetry,
-                              child: Text(
-                                AppLocalizations.of(
-                                  context,
-                                )!.playbackBootstrapRetryAction,
-                              ),
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(
+                        children: <Widget>[
+                          Text(
+                            AppLocalizations.of(
+                              context,
+                            )!.playbackBootstrapLoadingTitle,
+                            style: Theme.of(context).textTheme.titleLarge,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            AppLocalizations.of(
+                              context,
+                            )!.playbackBootstrapLoadingSubtitle,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),

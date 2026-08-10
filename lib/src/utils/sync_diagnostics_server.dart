@@ -785,6 +785,20 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, status);
         return;
       }
+      if (request.method == 'GET' && path == '/v1/playback/bootstrap/status') {
+        final bootstrap = _container.read(audioBootstrapControllerProvider);
+        final controller = _container.read(
+          audioBootstrapControllerProvider.notifier,
+        );
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'status': bootstrap.status.name,
+          'attempt': bootstrap.attempt,
+          'timedOut': bootstrap.timedOut,
+          'retryScheduled': controller.isRetryScheduled,
+          'handlerReady': bootstrap.isReady,
+        });
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/playback/seek') {
         final handler = await _waitForPlaybackHandler();
         await handler.waitUntilReady();

@@ -68,6 +68,8 @@ ProviderContainer _createRootProviderContainer({
   required _DesktopBootstrap? desktopBootstrap,
   NavisDatabase? databaseOverride,
 }) {
+  var remainingInjectedBootstrapFailures =
+      _diagnosticsAudioBootstrapFailureAttempts;
   return ProviderContainer(
     overrides: [
       if (databaseOverride != null || desktopBootstrap != null)
@@ -82,6 +84,14 @@ ProviderContainer _createRootProviderContainer({
         desktopWindowControllerProvider.overrideWith(
           (ref) => desktopBootstrap.controller,
         ),
+      if (_isCloneBootstrapFailureDiagnostics)
+        audioBootstrapAttemptGateProvider.overrideWithValue(() async {
+          if (remainingInjectedBootstrapFailures <= 0) {
+            return;
+          }
+          remainingInjectedBootstrapFailures -= 1;
+          throw StateError('Injected audio bootstrap failure for diagnostics.');
+        }),
     ],
   );
 }
@@ -271,6 +281,10 @@ const String _syncDiagnosticsDatabasePath = String.fromEnvironment(
 const String _syncDiagnosticsHandshakePath = String.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE',
 );
+const int _diagnosticsAudioBootstrapFailureAttempts = int.fromEnvironment(
+  'NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS',
+  defaultValue: 0,
+);
 
 SyncDiagnosticsMode? get _syncDiagnosticsMode =>
     SyncDiagnosticsMode.parse(_syncDiagnosticsModeValue);
@@ -281,6 +295,11 @@ bool get _syncDiagnosticsRuntimeEnabled =>
     !kIsWeb &&
     Platform.isLinux &&
     _syncDiagnosticsMode != null;
+
+bool get _isCloneBootstrapFailureDiagnostics =>
+    _syncDiagnosticsRuntimeEnabled &&
+    _syncDiagnosticsMode == SyncDiagnosticsMode.clone &&
+    _diagnosticsAudioBootstrapFailureAttempts > 0;
 
 bool get _shouldSkipDesktopMediaKitInitialization =>
     !_forceEnableMediaKitInDebug && kDebugMode && !kIsWeb && Platform.isMacOS;

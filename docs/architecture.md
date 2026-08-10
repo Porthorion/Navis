@@ -28,6 +28,9 @@ Located in `lib/src/providers/app_providers.dart`:
   - `playerStateProvider` - Simplified playback state
   - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses the
     app-owned SMTC bridge; Android, iOS, and macOS use `audio_service`
+  - Bootstrap remains behind the loading gate while initialization fails and
+    retries every three seconds; its existing timeout and stale-completion
+    protections continue to govern every attempt.
 
 - **Android Auto phone projection**
   - The canonical `com.ryanheise.audioservice.AudioService` is the exported

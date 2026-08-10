@@ -42,6 +42,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Playback startup now keeps loading and automatically retries transient audio initialization failures',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Mini Player now opens at a balanced 720×405, returns to that size after mode prompts, keeps volume neatly beneath its controls, and shows both resize choices in short windows',
         type: ChangelogEntryType.fix,
       ),

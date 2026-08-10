@@ -8,6 +8,7 @@ SEARCH_QUERY="${NAVIS_PRESENTATION_SEARCH_QUERY:-}"
 SEARCH_FILTER="${NAVIS_PRESENTATION_SEARCH_FILTER:-all}"
 SEARCH_REQUIRE_MIXED="${NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED:-0}"
 SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
+BOOTSTRAP_FAILURE_ATTEMPTS="${NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS:-0}"
 if [[ "$MODE" != "clone" ]] ||
    [[ ! "$ROUTE" =~ ^/ ]] ||
    [[ "$ROUTE" =~ ^// ]] ||
@@ -15,6 +16,7 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$SEARCH_FILTER" =~ ^(all|artists|albums|songs)$ ]] ||
    [[ ! "$SEARCH_REQUIRE_MIXED" =~ ^(0|1)$ ]] ||
    [[ ! "$SEARCH_PLAY_REMOTE" =~ ^(0|1)$ ]] ||
+   [[ ! "$BOOTSTRAP_FAILURE_ATTEMPTS" =~ ^[0-9]+$ ]] ||
    [[ "$SEARCH_PLAY_REMOTE" == "1" && "$SEARCH_FILTER" != "songs" ]] ||
    [[ -n "$SEARCH_QUERY" && "$ROUTE" != "/search" ]]; then
   echo "Usage: $0 clone [/local-route] [safe-label]" >&2
@@ -125,6 +127,7 @@ launch_app() {
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
+    --dart-define="NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=$BOOTSTRAP_FAILURE_ATTEMPTS" \
     >>"$APP_LOG" 2>&1 &
   FLUTTER_PID=$!
 
@@ -234,6 +237,19 @@ if value.get("actualLocation") != sys.argv[2]:
 PY
 }
 
+validate_bootstrap_retry() {
+  python3 - "$1" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+if value.get("handlerReady") is not False:
+    raise SystemExit(f"bootstrap unexpectedly became ready: {value}")
+if value.get("attempt", 0) < 1:
+    raise SystemExit(f"bootstrap did not start: {value}")
+if value.get("retryScheduled") is not True:
+    raise SystemExit(f"bootstrap retry was not scheduled: {value}")
+PY
+}
+
 wait_for_presentation() {
   local output_file="$1"
   local deadline=$((SECONDS + 60))
@@ -328,6 +344,22 @@ run_capture() {
   local prefix="$1"
   local capture_label="$prefix-$LABEL"
   api GET /v1/health > "$OUTPUT_ROOT/$prefix-health.json"
+  if (( BOOTSTRAP_FAILURE_ATTEMPTS > 0 )); then
+    local deadline=$((SECONDS + 30))
+    while (( SECONDS < deadline )); do
+      api GET /v1/playback/bootstrap/status > "$OUTPUT_ROOT/$prefix-bootstrap.json"
+      if validate_bootstrap_retry "$OUTPUT_ROOT/$prefix-bootstrap.json"; then
+        break
+      fi
+      sleep 1
+    done
+    if (( SECONDS >= deadline )); then
+      echo "Timed out waiting for the scheduled playback bootstrap retry." >&2
+      exit 70
+    fi
+    sleep 1
+    capture_window_screenshot "$prefix-bootstrap-loading" "$prefix-bootstrap-loading"
+  fi
   wait_for_presentation "$OUTPUT_ROOT/$prefix-presentation-before.json"
   if [[ "$ROUTE" =~ ^/library/listenbrainz/ ]]; then
     api POST /v1/diagnostics/overrides \
@@ -493,7 +525,8 @@ python3 - \
   "$OUTPUT_ROOT/initial-screenshot.json" \
   "$OUTPUT_ROOT/restart-screenshot.json" \
   "$([[ -n "$SEARCH_QUERY" ]] && echo 1 || echo 0)" \
-  "$SEARCH_PLAY_REMOTE" <<'PY'
+  "$SEARCH_PLAY_REMOTE" \
+  "$BOOTSTRAP_FAILURE_ATTEMPTS" <<'PY'
 import json, sys
 screenshots = []
 for path in sys.argv[4:6]:
@@ -518,7 +551,9 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
             "POST /v1/presentation/navigate",
             "POST /v1/presentation/screenshot",
             "POST /v1/shutdown",
-        ] + (["POST /v1/diagnostics/overrides"]
+        ] + (["GET /v1/playback/bootstrap/status"]
+             if int(sys.argv[8]) > 0 else [])
+          + (["POST /v1/diagnostics/overrides"]
              if sys.argv[2].startswith("/library/listenbrainz/") else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([

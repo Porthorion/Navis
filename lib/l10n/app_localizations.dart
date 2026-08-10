@@ -2409,24 +2409,6 @@ abstract class AppLocalizations {
   /// **'Restoring your listening session…'**
   String get playbackBootstrapLoadingSubtitle;
 
-  /// No description provided for @playbackBootstrapFailedTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Playback initialization failed'**
-  String get playbackBootstrapFailedTitle;
-
-  /// No description provided for @playbackBootstrapFailedSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not initialize playback. Retry to continue.'**
-  String get playbackBootstrapFailedSubtitle;
-
-  /// No description provided for @playbackBootstrapRetryAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Retry playback startup'**
-  String get playbackBootstrapRetryAction;
-
   /// No description provided for @playbackUnavailableInitializing.
   ///
   /// In en, this message translates to:
@@ -2436,7 +2418,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackUnavailableStartupFailed.
   ///
   /// In en, this message translates to:
-  /// **'Playback startup failed. Retry from the startup screen.'**
+  /// **'Playback is restarting. Try again in a moment.'**
   String get playbackUnavailableStartupFailed;
 
   /// No description provided for @playbackUnavailableSource.

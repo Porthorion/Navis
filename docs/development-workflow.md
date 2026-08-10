@@ -172,7 +172,8 @@ The existing Linux profile diagnostics path is the starting control plane:
   Library run without cancellation/restart scenarios affecting its result.
   handshake, authenticated requests, restart, reporting, and shutdown flow.
 - Current observation endpoints include `GET /v1/health`,
-  `GET /v1/sync/status`, `GET /v1/playback/status`, and
+  `GET /v1/sync/status`, `GET /v1/playback/status`,
+  `GET /v1/playback/bootstrap/status`, and
   `GET /v1/diagnostics/report`. Actions use feature-scoped `POST` endpoints;
   `POST /v1/shutdown` provides clean termination.
 - Presentation automation uses clone-only `GET /v1/presentation/status`,
@@ -241,6 +242,13 @@ signature, digest, dimensions, containment, and permissions, and records the
 artifact paths under `build/presentation-diagnostics/`. The agent must open and
 inspect both PNGs; the script intentionally cannot certify visual correctness
 from file existence alone.
+
+To validate seamless playback startup recovery, set
+`NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=2` for the same clone-only
+presentation command. The launcher injects two failures before audio-handler
+construction, asserts the authenticated bootstrap status reports a scheduled
+retry, captures the still-loading gate, then verifies normal post-bootstrap
+presentation after recovery.
 
 For `/library/listenbrainz/<sourcePatch>` routes, the script enables a
 clone-only cached-playlist presentation override through the authenticated

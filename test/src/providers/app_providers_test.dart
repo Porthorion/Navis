@@ -1426,6 +1426,126 @@ void main() {
       },
     );
 
+    test('audio bootstrap retries automatically after a failure', () async {
+      final handler = _FakePlaybackHandler();
+      var attempts = 0;
+      final container = ProviderContainer(
+        overrides: [
+          audioBootstrapRetryDelayProvider.overrideWith(
+            (_) => const Duration(milliseconds: 10),
+          ),
+          audioHandlerInitializerProvider.overrideWithValue(() async {
+            attempts += 1;
+            if (attempts <= 2) {
+              throw StateError('transient bootstrap failure');
+            }
+            return handler;
+          }),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
+
+      await container.read(audioBootstrapControllerProvider.notifier).retry();
+      expect(
+        container.read(audioBootstrapControllerProvider).status,
+        AudioBootstrapStatus.failed,
+      );
+      expect(
+        container
+            .read(audioBootstrapControllerProvider.notifier)
+            .isRetryScheduled,
+        isTrue,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final bootstrap = container.read(audioBootstrapControllerProvider);
+      expect(bootstrap.status, AudioBootstrapStatus.ready);
+      expect(bootstrap.handler, same(handler));
+      expect(bootstrap.attempt, 3);
+      expect(attempts, 3);
+    });
+
+    test(
+      'late timeout recovery cancels the scheduled automatic retry',
+      () async {
+        final delayedCompleter = Completer<NavisPlaybackHandler>();
+        final delayedHandler = _FakePlaybackHandler();
+        var attempts = 0;
+        final container = ProviderContainer(
+          overrides: [
+            audioBootstrapTimeoutProvider.overrideWith(
+              (_) => const Duration(milliseconds: 5),
+            ),
+            audioBootstrapRetryDelayProvider.overrideWith(
+              (_) => const Duration(milliseconds: 50),
+            ),
+            audioHandlerInitializerProvider.overrideWithValue(() {
+              attempts += 1;
+              return delayedCompleter.future;
+            }),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await delayedHandler.dispose();
+        });
+
+        await container.read(audioBootstrapControllerProvider.notifier).retry();
+        expect(
+          container
+              .read(audioBootstrapControllerProvider.notifier)
+              .isRetryScheduled,
+          isTrue,
+        );
+
+        delayedCompleter.complete(delayedHandler);
+        await Future<void>.delayed(const Duration(milliseconds: 15));
+        expect(
+          container.read(audioBootstrapControllerProvider).status,
+          AudioBootstrapStatus.ready,
+        );
+        expect(
+          container
+              .read(audioBootstrapControllerProvider.notifier)
+              .isRetryScheduled,
+          isFalse,
+        );
+
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        expect(attempts, 1);
+      },
+    );
+
+    test('audio bootstrap cancels a scheduled retry when disposed', () async {
+      var attempts = 0;
+      final container = ProviderContainer(
+        overrides: [
+          audioBootstrapRetryDelayProvider.overrideWith(
+            (_) => const Duration(milliseconds: 10),
+          ),
+          audioHandlerInitializerProvider.overrideWithValue(() async {
+            attempts += 1;
+            throw StateError('bootstrap failure');
+          }),
+        ],
+      );
+
+      await container.read(audioBootstrapControllerProvider.notifier).retry();
+      expect(
+        container
+            .read(audioBootstrapControllerProvider.notifier)
+            .isRetryScheduled,
+        isTrue,
+      );
+      container.dispose();
+
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(attempts, 1);
+    });
+
     test(
       'audio bootstrap ignores stale completion after a newer retry succeeds',
       () async {

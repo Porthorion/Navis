@@ -25,24 +25,16 @@ List<Override> _noDbOverrides({
 }
 
 class _StaticAudioBootstrapController extends AudioBootstrapController {
-  _StaticAudioBootstrapController({
-    required AudioBootstrapState state,
-    this.onRetry,
-  }) : _state = state;
+  _StaticAudioBootstrapController({required AudioBootstrapState state})
+    : _state = state;
 
   final AudioBootstrapState _state;
-  final VoidCallback? onRetry;
 
   @override
   AudioBootstrapState build() => _state;
 
   @override
   void ensureInitialized() {}
-
-  @override
-  Future<void> retry() async {
-    onRetry?.call();
-  }
 }
 
 void main() {
@@ -103,10 +95,9 @@ void main() {
     );
   });
 
-  testWidgets('shows retry action when playback bootstrap fails', (
+  testWidgets('keeps showing the loading gate when playback bootstrap fails', (
     tester,
   ) async {
-    var retried = false;
     await tester.pumpWidget(
       ProviderScope(
         overrides: _noDbOverrides(
@@ -115,7 +106,6 @@ void main() {
             audioBootstrapControllerProvider.overrideWith(
               () => _StaticAudioBootstrapController(
                 state: const AudioBootstrapState.failed('failed'),
-                onRetry: () => retried = true,
               ),
             ),
           ],
@@ -128,9 +118,9 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Playback initialization failed'), findsOneWidget);
-    await tester.tap(find.text('Retry playback startup'));
-    await tester.pump();
-    expect(retried, isTrue);
+    expect(find.text('Preparing playback'), findsOneWidget);
+    expect(find.text('Restoring your listening session…'), findsOneWidget);
+    expect(find.text('Playback initialization failed'), findsNothing);
+    expect(find.text('Retry playback startup'), findsNothing);
   });
 }

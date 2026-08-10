@@ -215,6 +215,32 @@ void main() {
   });
 
   test(
+    'playback bootstrap status is authenticated and exposes safe state',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/playback/bootstrap/status',
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      final status = await _request(
+        fixture.port,
+        '/v1/playback/bootstrap/status',
+        token: fixture.token,
+      );
+      expect(status.statusCode, HttpStatus.ok);
+      expect(status.body['status'], 'initializing');
+      expect(status.body['attempt'], 0);
+      expect(status.body['timedOut'], isFalse);
+      expect(status.body['retryScheduled'], isFalse);
+      expect(status.body['handlerReady'], isFalse);
+    },
+  );
+
+  test(
     'presentation endpoints use the authenticated clone control plane',
     () async {
       final presentation = _MockPresentationController();

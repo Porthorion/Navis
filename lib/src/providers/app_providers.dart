@@ -582,10 +582,23 @@ final listenBrainzFeedbackServiceProvider =
     });
 
 typedef AudioHandlerInitializer = Future<NavisPlaybackHandler> Function();
+typedef AudioBootstrapAttemptGate = Future<void> Function();
 
 final audioBootstrapTimeoutProvider = Provider<Duration>((_) {
   return const Duration(seconds: 5);
 });
+
+/// Waits briefly between failed startup attempts so transient platform audio
+/// initialization failures recover without requiring an action from the user.
+final audioBootstrapRetryDelayProvider = Provider<Duration>((_) {
+  return const Duration(seconds: 3);
+});
+
+/// A no-op production hook used only by isolated diagnostics to simulate a
+/// transient failure before constructing the platform audio handler.
+final audioBootstrapAttemptGateProvider = Provider<AudioBootstrapAttemptGate>(
+  (_) => () async {},
+);
 
 final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
   ref,
@@ -802,12 +815,20 @@ class AudioBootstrapState {
 
 class AudioBootstrapController extends Notifier<AudioBootstrapState> {
   Future<void>? _inFlight;
+  Timer? _retryTimer;
   bool _didAttempt = false;
   int _attemptEpoch = 0;
   int _activeAttempt = 0;
 
+  bool get isRetryScheduled => _retryTimer?.isActive ?? false;
+
   @override
-  AudioBootstrapState build() => const AudioBootstrapState.initializing();
+  AudioBootstrapState build() {
+    ref.onDispose(() {
+      _retryTimer?.cancel();
+    });
+    return const AudioBootstrapState.initializing();
+  }
 
   void ensureInitialized() {
     if (state.isReady) {
@@ -827,9 +848,32 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
     await state.handler?.resetSession();
   }
 
-  Future<void> retry() => _initialize(force: true);
+  Future<void> retry() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    return _initialize(force: true);
+  }
+
+  void _scheduleRetry() {
+    _retryTimer?.cancel();
+    final delay = ref.read(audioBootstrapRetryDelayProvider);
+    AppLogger.info(
+      'Audio bootstrap retry scheduled in ${delay.inMilliseconds}ms.',
+    );
+    _retryTimer = Timer(delay, () {
+      _retryTimer = null;
+      if (!ref.mounted || state.isReady) {
+        return;
+      }
+      unawaited(_initialize(force: true));
+    });
+  }
 
   Future<void> _initialize({bool force = false}) {
+    if (force) {
+      _retryTimer?.cancel();
+      _retryTimer = null;
+    }
     if (_inFlight != null && !force) {
       return _inFlight!;
     }
@@ -858,6 +902,8 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
         if (_activeAttempt != attemptId) {
           return;
         }
+        _retryTimer?.cancel();
+        _retryTimer = null;
         final audioHandlerState = ref.read(audioHandlerStateProvider.notifier);
         await audioHandlerState.setHandler(audioHandler);
         final elapsedMs = stopwatch.elapsedMilliseconds;
@@ -885,6 +931,7 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
 
       try {
         AppLogger.info('Audio bootstrap start (attempt=$attemptId).');
+        await ref.read(audioBootstrapAttemptGateProvider)();
         final initFuture = initializeHandler();
         unawaited(
           initFuture.then<void>(
@@ -937,6 +984,7 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
           elapsedMs: elapsedMs,
           timedOut: timedOut,
         );
+        _scheduleRetry();
         if (!completer.isCompleted) {
           completer.complete();
         }
