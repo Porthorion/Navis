@@ -45,7 +45,7 @@ repaired automatically. Repair Library remains an explicit recovery control.
 | 2026-08-10 | Cache fault controls | Isolated diagnostics can inspect cache counts, simulate a missing cache file, and invoke the production cache-maintenance path. |
 | 2026-08-10 | Live cache self-repair | Playback source resolution deletes a missing cache record before falling back to the stream, so stale cached/downloaded state cannot persist until the next startup sweep. |
 | 2026-08-10 | Linux authenticated run | A clean isolated profile connected through the app API, began the normal `fetchingArtists` path after a passive connect response, and showed Home plus the visible sync banner in an opened screenshot. A rolling-cache fault reported one missing entry and production maintenance reduced it to zero. The final playback retry encountered a remote-media timeout, so it is not used as cache-repair evidence. |
-| 2026-08-10 | Windows build attempt | The isolated Windows checkout reached native CMake configuration but repeatedly rejected the downloaded `media_kit_libs_windows_audio` MPV archive on integrity verification, including after removal of the exact generated archive and retry. |
+| 2026-08-10 | Windows build attempt | The VM cannot resolve GitHub, so its generated MPV archive was zero bytes. A Linux-downloaded archive was copied to the isolated build path and its expected MD5 verified. The next failure is Rust toolchain error 448 (`untrusted mount point`) while Cargokit invokes `rustc`; it persists after moving the disposable checkout from Documents to a fresh `C:` path. |
 
 ## Active investigation
 
