@@ -2035,6 +2035,10 @@ void main() {
     );
 
     final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+    expect(
+      find.byKey(const ValueKey<String>('homeLibrarySyncStatus')),
+      findsOneWidget,
+    );
     expect(ring, findsOneWidget);
     final indicator = tester.widget<CircularProgressIndicator>(ring);
     expect(indicator.value, closeTo(0.3, 0.001));
@@ -2069,6 +2073,10 @@ void main() {
     final accent = NavisAccentColors.of(context);
     final icon = tester.widget<NavisIcon>(find.byType(NavisIcon).first);
     final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+    expect(
+      find.byKey(const ValueKey<String>('homeLibrarySyncStatus')),
+      findsOneWidget,
+    );
     final indicator = tester.widget<CircularProgressIndicator>(ring);
 
     expect(icon.tintWithAccent, isTrue);

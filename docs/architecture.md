@@ -182,7 +182,7 @@ replacement boundary before its credentials can be stored.
 Routing derives a compact `SessionRoutePhase`. An authenticated profile with no
 committed generation enters Home immediately while `LibrarySyncController`
 starts the first catalog check on unmetered connectivity. The normal shell
-shows its durable running or failed state; offline and metered conditions retain
+shows its durable running or failed state on Home with a retry action; offline and metered conditions retain
 their retry/consent behavior. A promoted catalog clears the first-sync phase,
 while isolated hydration or auxiliary gaps continue with a visible warning.
 

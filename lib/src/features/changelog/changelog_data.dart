@@ -30,7 +30,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.0',
     entries: [
       ChangelogEntry(
-        'New connections now open Home immediately while the initial library sync continues in the background, and failed automatic syncs remain visible until a meaningful retry result replaces them',
+        'New connections now open Home immediately while the initial library sync continues in the background with visible progress and retryable failures; failed automatic syncs remain visible until a meaningful retry result replaces them',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

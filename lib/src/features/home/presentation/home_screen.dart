@@ -1171,6 +1171,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
           const SizedBox(height: 10),
         ],
+        if (syncState.isRunning || syncState.status == LibrarySyncStatus.failed)
+          Padding(
+            key: const ValueKey<String>('homeLibrarySyncStatus'),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Material(
+              color: syncState.isRunning
+                  ? Theme.of(context).colorScheme.surfaceContainerHighest
+                  : Theme.of(context).colorScheme.errorContainer,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: <Widget>[
+                    SizedBox.square(
+                      dimension: 18,
+                      child: syncState.isRunning
+                          ? const CircularProgressIndicator(strokeWidth: 2)
+                          : Icon(
+                              Icons.error_outline_rounded,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onErrorContainer,
+                            ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ExcludeSemantics(
+                        child: Text(
+                          syncState.isRunning
+                              ? l10n.librarySyncRunning
+                              : (syncState.errorMessage ??
+                                    l10n.librarySyncFailureFallback),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ),
+                    if (!syncState.isRunning)
+                      TextButton(
+                        onPressed: () => unawaited(
+                          ref
+                              .read(librarySyncControllerProvider.notifier)
+                              .syncNow(),
+                        ),
+                        child: Text(l10n.commonRetry),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         const _UpdateBanner(),
         for (final sectionId in order)
           if (!hidden.contains(sectionId))
