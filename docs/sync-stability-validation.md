@@ -50,13 +50,11 @@ repaired automatically. Repair Library remains an explicit recovery control.
 | 2026-08-10 | Windows toolchain refresh | The VM desktop is active, GitHub DNS is restored, and Rust was updated to 1.97.1. The former Rust error-448 no longer occurs. A separate official Flutter 3.44.6 SDK was installed to match Linux without changing the existing local SDK. A clean isolated profile build completed with zero native warnings/errors. |
 | 2026-08-10 | Windows diagnostics startup repair | The server had written its handshake before awaiting Unix `chmod`; Windows then bound the port but never began serving requests. Skipping the POSIX permission command on Windows restores the authenticated health response. A waking keyboard event also restored the VM framebuffer from black to the visible desktop. |
 | 2026-08-11 | Broad-sync control coalescing | Windows validation found that diagnostics broad actions could call the raw engine while the app's startup controller was already synchronizing, producing competing progress snapshots. Broad API actions now join the production controller, matching user-triggered sync behavior. |
+| 2026-08-11 | Windows live certification | An isolated profile connected to the real server through the authenticated app API. First login remained on Home while sync ran; its opened app-owned screenshot showed the sync banner. The full-repair candidate collected and atomically promoted 1,697 artists, 5,436 albums, and 54,109 songs while direct-stream playback had zero load failures. A simulated missing rolling-cache file was visible as one missing entry and production maintenance reduced cache entries/missing files to zero. After shutdown and rebuild, the same isolated profile restarted with the promoted catalog, restored rolling-cache entry and player state, and a deferred low-data compatibility audit with no error. The opened restart screenshot showed populated Home content. |
 
 ## Active investigation
 
-1. Complete the live Windows matrix through the authenticated app API: let the
-   current first-sync/Repair Library pass finish, then verify cache fault,
-   maintenance, explicit repair, screenshot, and clean restart.
-2. Run the full quality gate after any further behavior change. The current
+1. Run the full quality gate after the completed diagnostics-control changes. The current
    analyzer gate reports existing informational findings as a non-zero result;
    no error or warning was found in the inspected output.
 
@@ -65,5 +63,6 @@ repaired automatically. Repair Library remains an explicit recovery control.
 Completion requires focused tests, a clean Linux isolated-profile rerun, an
 opened Home progress/failure screenshot, a clean restart, and an interactive
 Windows isolated-profile run that exercises normal sync, Repair Library, cache
-fault/maintenance, and restart. Record each command/artifact location in
-`PROGRESS.md`; do not claim Windows completion from an SSH-only build.
+fault/maintenance, and restart. All runtime scenarios are recorded above; the
+remaining gate is the final repository quality check. Record each
+command/artifact location in `PROGRESS.md`.
