@@ -44,17 +44,16 @@ repaired automatically. Repair Library remains an explicit recovery control.
 | 2026-08-10 | Failure durability | A no-op/deferred automatic pass preserves a previously failed sync state instead of making the failure disappear. |
 | 2026-08-10 | Cache fault controls | Isolated diagnostics can inspect cache counts, simulate a missing cache file, and invoke the production cache-maintenance path. |
 | 2026-08-10 | Live cache self-repair | Playback source resolution deletes a missing cache record before falling back to the stream, so stale cached/downloaded state cannot persist until the next startup sweep. |
+| 2026-08-10 | Linux authenticated run | A clean isolated profile connected through the app API, began the normal `fetchingArtists` path after a passive connect response, and showed Home plus the visible sync banner in an opened screenshot. A rolling-cache fault reported one missing entry and production maintenance reduced it to zero. The final playback retry encountered a remote-media timeout, so it is not used as cache-repair evidence. |
+| 2026-08-10 | Windows build attempt | The isolated Windows checkout reached native CMake configuration but repeatedly rejected the downloaded `media_kit_libs_windows_audio` MPV archive on integrity verification, including after removal of the exact generated archive and retry. |
 
 ## Active investigation
 
-1. Ensure diagnostics observation does not instantiate the legacy initial-sync
-   controller and upgrade a normal initial sync into a user-requested repair.
-2. Add or prove an automatic cache-maintenance trigger that is safe under
-   Riverpod test/container lifecycles, then cover it through the app API.
-3. Run the full matrix on a live interactive Windows desktop session. The VM is
+1. Run the full matrix on a live interactive Windows desktop session. The VM is
    reachable by SSH, but the current remote console has no logged-in desktop
-   session, so GUI launch/handshake cannot yet be observed there.
-4. Repeat Linux normal/repair/cache-fault scenarios after each behavior change,
+   session, and its native media dependency currently fails an integrity check
+   during build.
+2. Repeat Linux normal/repair/cache-fault scenarios after each behavior change,
    then run the full quality gate. The current analyzer gate reports existing
    informational findings as a non-zero result; no error or warning was found
    in the inspected output.
