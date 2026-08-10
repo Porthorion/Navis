@@ -931,7 +931,15 @@ class SyncDiagnosticsServer {
             capabilitiesJson: jsonEncode(probe.capabilities.toJson()),
           ),
         );
-    await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+    // Connecting is a configuration operation. Do not instantiate the legacy
+    // initial-sync controller just to describe this response: that controller
+    // treats its start as an interactive retry, while the Home shell owns the
+    // normal startup sync.
+    await _respond(
+      request,
+      HttpStatus.ok,
+      await _sessionStatusJson(activateInitialSync: false),
+    );
   }
 
   Future<Map<String, Object?>> _cacheStatusJson() async {
@@ -999,7 +1007,9 @@ class SyncDiagnosticsServer {
     });
   }
 
-  Future<Map<String, Object?>> _sessionStatusJson() async {
+  Future<Map<String, Object?>> _sessionStatusJson({
+    bool activateInitialSync = true,
+  }) async {
     final database = _container.read(navisDatabaseProvider);
     final handler = _container.read(audioHandlerProvider);
     final playback = handler?.snapshot ?? const PlaybackSnapshot.idle();
@@ -1013,13 +1023,14 @@ class SyncDiagnosticsServer {
         _activeProgress ??
         _lastSync ??
         _container.read(librarySyncControllerProvider);
+    final phase = _container.read(sessionRoutePhaseProvider);
+    final initialSync = activateInitialSync
+        ? _container.read(initialServerSyncControllerProvider).status
+        : _passiveInitialSyncStatus(phase, sync);
     return <String, Object?>{
-      'phase': _container.read(sessionRoutePhaseProvider).name,
+      'phase': phase.name,
       'transition': _container.read(sessionTransitionProvider).name,
-      'initialSync': _container
-          .read(initialServerSyncControllerProvider)
-          .status
-          .name,
+      'initialSync': initialSync.name,
       'sync': <String, Object?>{
         'status': sync.status.name,
         'stage': sync.stage.name,
@@ -1037,6 +1048,23 @@ class SyncDiagnosticsServer {
         'mediaItemPresent': handler?.currentMediaItem != null,
         'rollingCacheActive': rollingCache.isCaching,
       },
+    };
+  }
+
+  InitialServerSyncStatus _passiveInitialSyncStatus(
+    SessionRoutePhase phase,
+    LibrarySyncState sync,
+  ) {
+    if (phase == SessionRoutePhase.ready) {
+      return InitialServerSyncStatus.complete;
+    }
+    if (phase != SessionRoutePhase.initialSyncRequired) {
+      return InitialServerSyncStatus.idle;
+    }
+    return switch (sync.status) {
+      LibrarySyncStatus.running => InitialServerSyncStatus.running,
+      LibrarySyncStatus.failed => InitialServerSyncStatus.failed,
+      _ => InitialServerSyncStatus.idle,
     };
   }
 

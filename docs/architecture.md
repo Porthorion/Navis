@@ -278,6 +278,12 @@ teardown, and setup cancellation. Clone-mode credential writes and clears stay
 in memory, so these destructive actions can never clear or replace device
 secure storage.
 
+Clone-only `POST /v1/session/connect` validates and saves a server session
+through the production connection service but does not instantiate the legacy
+initial-sync controller merely to build its response. The normal Home shell
+therefore owns first-sync scheduling; observing a newly connected session must
+not upgrade it into an interactive Repair Library request.
+
 Cache diagnostics expose sanitized `GET /v1/cache/status`. Clone-only
 `POST /v1/diagnostics/cache/corrupt` removes the backing file for a named
 isolated cache entry, while `POST /v1/cache/maintenance` runs the production
