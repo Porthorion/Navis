@@ -217,7 +217,9 @@ The current implementation starts `SyncDiagnosticsServer` on Linux and Windows:
    restrictions.
 3. After `runApp`, the server binds to IPv4 loopback on an ephemeral port,
    creates a random bearer token, and writes its port, token, process ID, and
-   mode to a mode-`0600` handshake file.
+   mode to a handshake file. Linux/macOS profiles apply mode `0600`; Windows
+   relies on its per-user diagnostics directory and does not invoke a POSIX
+   permission command before starting the request loop.
 4. Authenticated feature actions run through the root `ProviderContainer` and
    the same controllers, repositories, DAOs, and audio handler as production
    interactions. Status and report endpoints expose bounded, non-secret

@@ -316,7 +316,9 @@ Every diagnostic or agent-control surface must:
 
 - Be unavailable in production release builds, bind only to loopback on an
   ephemeral port, and require a random bearer token communicated through a
-  mode-`0600` handshake file.
+  handshake file. Linux/macOS profiles apply mode `0600`; Windows profiles use
+  their isolated per-user diagnostics directory and must not wait for a POSIX
+  permission command before serving requests.
 - Use an isolated clone of the configured database and cache by default. Use
   primary certification only when explicitly justified, after the clone
   scenario passes, with its backup and mutation restrictions intact.
