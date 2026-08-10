@@ -1471,34 +1471,6 @@ class SyncDiagnosticsServer {
     });
   }
 
-  Future<LibrarySyncState> _runCheck(
-    LibrarySyncEngine engine,
-    bool allowMeteredBroadOverride,
-    LibrarySyncProgressCallback onProgress,
-  ) {
-    if (engine is AdaptiveLibrarySyncCoordinator) {
-      return engine.syncNow(
-        onProgress: onProgress,
-        allowMeteredBroadOverride: allowMeteredBroadOverride,
-      );
-    }
-    return engine.syncNow(onProgress: onProgress);
-  }
-
-  Future<LibrarySyncState> _runRepair(
-    LibrarySyncEngine engine,
-    bool allowMeteredBroadOverride,
-    LibrarySyncProgressCallback onProgress,
-  ) {
-    if (engine is AdaptiveLibrarySyncCoordinator) {
-      return engine.forceFullSync(
-        onProgress: onProgress,
-        allowMeteredBroadOverride: allowMeteredBroadOverride,
-      );
-    }
-    return engine.forceFullSync(onProgress: onProgress);
-  }
-
   LibrarySyncTarget? _targetFromJson(Map<String, Object?> body) {
     final kindName = body['targetKind'] as String?;
     final entityId = (body['entityId'] as String? ?? '').trim();
