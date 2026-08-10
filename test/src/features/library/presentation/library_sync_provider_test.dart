@@ -797,83 +797,86 @@ void main() {
       expect(engine.staleCalls, 0);
     });
 
-    test('syncIfStale keeps the stale gate after a failed sync', () async {
-      var syncNowAttempts = 0;
-      final engine = _FakeLibrarySyncEngine(
-        ({
-          onProgress,
-        }) async {
-          return const LibrarySyncState(
-            status: LibrarySyncStatus.skipped,
-            stage: LibrarySyncStage.completed,
-          );
-        },
-        ({
-          forceFull = false,
-          onProgress,
-        }) async {
-          syncNowAttempts++;
-          if (syncNowAttempts == 1) {
+    test(
+      'syncIfStale keeps a failed sync visible after a no-op pass',
+      () async {
+        var syncNowAttempts = 0;
+        final engine = _FakeLibrarySyncEngine(
+          ({
+            onProgress,
+          }) async {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          },
+          ({
+            forceFull = false,
+            onProgress,
+          }) async {
+            syncNowAttempts++;
+            if (syncNowAttempts == 1) {
+              return LibrarySyncState(
+                status: LibrarySyncStatus.failed,
+                stage: LibrarySyncStage.completed,
+                completedAt: DateTime.now(),
+                errorMessage: 'Sync failed.',
+              );
+            }
             return LibrarySyncState(
-              status: LibrarySyncStatus.failed,
+              status: LibrarySyncStatus.succeeded,
               stage: LibrarySyncStage.completed,
               completedAt: DateTime.now(),
-              errorMessage: 'Sync failed.',
             );
-          }
-          return LibrarySyncState(
-            status: LibrarySyncStatus.succeeded,
-            stage: LibrarySyncStage.completed,
-            completedAt: DateTime.now(),
-          );
-        },
-      );
-      final database = createTestDatabase();
-      addTearDown(database.close);
+          },
+        );
+        final database = createTestDatabase();
+        addTearDown(database.close);
 
-      final container = ProviderContainer(
-        overrides: [
-          _manualSyncInterval,
-          serverConfigStateProvider.overrideWithValue(
-            const AsyncData(
-              ServerConfigModel(
-                url: 'https://example.com',
-                username: 'alice',
-                password: 'secret',
-                apiVersion: '1.16.1',
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
               ),
             ),
-          ),
-          serverReachabilityControllerProvider.overrideWith(
-            () => _StaticReachabilityController(
-              const ServerReachabilityState(
-                status: ServerReachabilityStatus.online,
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
               ),
             ),
-          ),
-          requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
-          navisDatabaseProvider.overrideWithValue(database),
-          librarySyncEngineProvider.overrideWithValue(engine),
-        ],
-      );
-      addTearDown(container.dispose);
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      final notifier = container.read(librarySyncControllerProvider.notifier);
-      await notifier.syncNow();
-      expect(
-        container.read(librarySyncControllerProvider).status,
-        LibrarySyncStatus.failed,
-      );
+        final notifier = container.read(librarySyncControllerProvider.notifier);
+        await notifier.syncNow();
+        expect(
+          container.read(librarySyncControllerProvider).status,
+          LibrarySyncStatus.failed,
+        );
 
-      await notifier.syncIfStale();
+        await notifier.syncIfStale();
 
-      expect(syncNowAttempts, 1);
-      expect(engine.staleCalls, 1);
-      expect(
-        container.read(librarySyncControllerProvider).status,
-        LibrarySyncStatus.skipped,
-      );
-    });
+        expect(syncNowAttempts, 1);
+        expect(engine.staleCalls, 1);
+        expect(
+          container.read(librarySyncControllerProvider).status,
+          LibrarySyncStatus.failed,
+        );
+      },
+    );
 
     test(
       'pending album hydration continues in short foreground passes',

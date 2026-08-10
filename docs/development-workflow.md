@@ -161,11 +161,11 @@ only for their OS-owned integration. They do not replace the Navis API for
 ordinary Flutter state. If the affected target is unavailable, mark the work
 unverified or blocked; only the user may explicitly accept deferred validation.
 
-### Linux app API
+### Desktop app API
 
-The existing Linux profile diagnostics path is the starting control plane:
+Linux and Windows profile diagnostics share the same control-plane contract:
 
-- `SyncDiagnosticsServer` is enabled only for a Linux profile build with valid
+- `SyncDiagnosticsServer` is enabled only for a Linux or Windows profile build with valid
   diagnostics defines.
 - `tool/sync_diagnostics.sh clone` demonstrates the supported isolated launch,
   while `tool/sync_diagnostics.sh throughput` measures one isolated Repair

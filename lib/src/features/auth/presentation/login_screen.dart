@@ -434,7 +434,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: l10n.loginConnectSuccess,
         level: AppNoticeLevel.success,
       );
-      context.go('/initial-sync');
+      // Initial catalog sync now runs from the normal shell so a successful
+      // login always lands on Home immediately.
+      context.go('/');
     } on Object catch (error) {
       if (!mounted) {
         return;

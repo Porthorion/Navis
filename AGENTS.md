@@ -605,9 +605,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 ### Routing (`lib/src/routing/app_router.dart`)
 
 - `StatefulShellRoute.indexedStack` in `AppShell`.
-- `SessionRoutePhase` is the top-level gate: loading, unauthenticated,
-  initial-sync-required, or ready. `/initial-sync` is outside the shell and
-  authenticated profiles without a committed catalog cannot bypass it.
+- `SessionRoutePhase` tracks loading, unauthenticated, initial-sync-required,
+  or ready. First-time catalog collection runs from the normal shell: a newly
+  authenticated profile lands on Home immediately and exposes the same sync
+  status/retry UI while its first candidate is collected.
 - **No top-level `/now-playing` route** — player is embedded in the shell.
 - `appRouterProvider` keeps one `GoRouter` instance and refreshes its
   auth/first-sync redirects through a `ValueNotifier`. Do not watch a
@@ -719,9 +720,8 @@ Full wipe, initial-sync cancellation, and confirmed profile replacement use
 `ServerDataResetService` to remove all server-scoped rows, audio files, and
 cover art before deleting the retained profile.
 
-`InitialServerSyncController` owns the first catalog run. Ordinary startup
-sync is suppressed while no committed generation exists. Unmetered setup
-starts automatically; offline setup waits for Retry and metered setup requires
+`LibrarySyncController` owns first and subsequent catalog runs from the normal
+shell. Unmetered setup starts automatically; offline setup waits for Retry and metered setup requires
 the existing one-time mobile-data override. Only an atomically promoted
 catalog (`currentGeneration > 0`, with legacy `lastSynced` fallback) unlocks
 the shell; non-applying auxiliary/hydration gaps may continue with a warning.

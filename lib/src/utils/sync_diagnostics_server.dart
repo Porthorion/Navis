@@ -11,7 +11,9 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
@@ -416,6 +418,14 @@ class SyncDiagnosticsServer {
           HttpStatus.ok,
           await _sessionStatusJson(),
         );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/session/connect') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _connectDiagnosticsSession(request);
         return;
       }
       if (request.method == 'POST' &&
@@ -871,6 +881,37 @@ class SyncDiagnosticsServer {
         'error': error.runtimeType.toString(),
       });
     }
+  }
+
+  Future<void> _connectDiagnosticsSession(HttpRequest request) async {
+    final body = await _readJson(request);
+    final url = (body['url'] as String? ?? '').trim();
+    final username = (body['username'] as String? ?? '').trim();
+    final password = body['password'] as String? ?? '';
+    if (url.isEmpty || username.isEmpty || password.isEmpty) {
+      await _respond(request, HttpStatus.badRequest, <String, Object?>{
+        'error': 'url, username, and password are required',
+      });
+      return;
+    }
+    final probe = await _container
+        .read(serverConnectionServiceProvider)
+        .probe(url: url, username: username, password: password);
+    final uri = Uri.tryParse(url);
+    await _container
+        .read(serverConfigProvider.notifier)
+        .save(
+          ServerConfigModel(
+            name: uri?.host.isEmpty ?? true ? null : uri!.host,
+            url: url,
+            username: username,
+            password: password,
+            apiVersion: probe.apiVersion,
+            useLegacyAuth: probe.useLegacyAuth,
+            capabilitiesJson: jsonEncode(probe.capabilities.toJson()),
+          ),
+        );
+    await _respond(request, HttpStatus.ok, await _sessionStatusJson());
   }
 
   Future<Map<String, Object?>> _sessionStatusJson() async {

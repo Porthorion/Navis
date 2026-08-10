@@ -166,7 +166,7 @@ NavisDatabase? _openDiagnosticsDatabase() {
   }
   if (!_syncDiagnosticsRuntimeEnabled) {
     throw StateError(
-      'Sync diagnostics require a Linux profile build and a valid mode.',
+      'Sync diagnostics require a Linux or Windows profile build and a valid mode.',
     );
   }
   if (_syncDiagnosticsMode == SyncDiagnosticsMode.primaryCertification) {
@@ -293,7 +293,7 @@ bool get _syncDiagnosticsRuntimeEnabled =>
     _syncDiagnosticsRequested &&
     kProfileMode &&
     !kIsWeb &&
-    Platform.isLinux &&
+    (Platform.isLinux || Platform.isWindows) &&
     _syncDiagnosticsMode != null;
 
 bool get _isCloneBootstrapFailureDiagnostics =>

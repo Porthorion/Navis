@@ -90,8 +90,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       return switch (sessionPhase.value) {
         SessionRoutePhase.unauthenticated => isLoginRoute ? null : '/login',
+        // A first catalog sync is resilient background work.  Do not trap a
+        // newly authenticated user behind it: Home can render its normal sync
+        // state and remains useful while the initial candidate is collected.
         SessionRoutePhase.initialSyncRequired =>
-          isInitialSyncRoute ? null : '/initial-sync',
+          (isLoginRoute || isInitialSyncRoute) ? '/' : null,
         SessionRoutePhase.ready =>
           (isLoginRoute || isInitialSyncRoute) ? '/' : null,
         SessionRoutePhase.loading => null,

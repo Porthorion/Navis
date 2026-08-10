@@ -130,6 +130,13 @@ void main() {
         librarySyncControllerProvider.overrideWith(
           _StaticLibrarySyncController.new,
         ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
       ],
     );
 
@@ -231,41 +238,70 @@ void main() {
     expect(find.text('Unknown track'), findsNothing);
   });
 
-  testWidgets('fresh authenticated profile is gated by initial sync', (
-    tester,
-  ) async {
-    final container = _createContainerWithDatabase(
-      initialSyncRequired: true,
-      overrides: [
-        serverConfigStateProvider.overrideWithValue(
-          const AsyncData(
-            ServerConfigModel(
-              id: 1,
-              url: 'https://example.com',
-              username: 'alice',
-              password: 'secret',
-              apiVersion: '1.16.1',
+  testWidgets(
+    'fresh authenticated profile reaches Home while initial sync runs',
+    (
+      tester,
+    ) async {
+      final container = _createContainerWithDatabase(
+        initialSyncRequired: true,
+        overrides: [
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                id: 1,
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
             ),
           ),
-        ),
-        initialServerSyncControllerProvider.overrideWith(
-          _StaticInitialServerSyncController.new,
-        ),
-        librarySyncControllerProvider.overrideWith(
-          _StaticLibrarySyncController.new,
-        ),
-      ],
-    );
+          initialServerSyncControllerProvider.overrideWith(
+            _StaticInitialServerSyncController.new,
+          ),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.online,
+              ),
+            ),
+          ),
+          homeRecentlyPlayedProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeFrequentAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeStarredSongsProvider.overrideWithValue(
+            const AsyncData(<Song>[]),
+          ),
+          artistInfoProvider.overrideWith((ref, artistId) async => null),
+        ],
+      );
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: _testApp),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: _testApp),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Initial server sync'), findsOneWidget);
-    expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsNothing);
-    expect(find.byKey(const ValueKey('initialSyncCancelButton')), findsOne);
-  });
+      expect(find.text('Initial server sync'), findsNothing);
+      expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsOne);
+      expect(
+        find.byKey(const ValueKey('initialSyncCancelButton')),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('shows offline banner when reachability is offline', (
     tester,

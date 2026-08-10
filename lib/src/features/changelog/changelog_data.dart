@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.0',
     entries: [
       ChangelogEntry(
+        'New connections now open Home immediately while the initial library sync continues in the background, and failed automatic syncs remain visible until a meaningful retry result replaces them',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'First-time server connections now show a cancellable initial library setup with clear progress, offline retry, and mobile-data consent',
         type: ChangelogEntryType.newFeature,
       ),

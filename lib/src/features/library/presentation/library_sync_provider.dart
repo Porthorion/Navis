@@ -559,11 +559,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
           epoch != _startupSyncEpoch) {
         return;
       }
-      if (persisted.currentGeneration <= 0) {
-        // Initial setup owns the first catalog snapshot so routing can keep
-        // the user on its recoverable, cancellable gate.
-        return;
-      }
+      // First-time catalog collection runs from the normal application shell.
+      // The planner still selects the full candidate snapshot when no
+      // generation is committed; routing must not be the sync owner.
     }
 
     final reachability = ref.read(serverReachabilityControllerProvider);
@@ -722,6 +720,18 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }
     }
 
+    // A no-op automatic pass must never erase a failure the user still needs
+    // to see and retry.  This commonly happened when startup/periodic work
+    // joined after a transient failure and returned `skipped`.
+    final preserveFailure =
+        !force &&
+        state.status == LibrarySyncStatus.failed &&
+        (result.status == LibrarySyncStatus.skipped ||
+            result.status == LibrarySyncStatus.deferred ||
+            result.status == LibrarySyncStatus.cancelled);
+    if (preserveFailure) {
+      return state;
+    }
     state = result;
     switch (result.status) {
       case LibrarySyncStatus.succeeded:

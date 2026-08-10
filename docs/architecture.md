@@ -105,8 +105,9 @@ Located in `lib/src/providers/app_providers.dart`:
   classification stay on the writer while ordinary app reads can continue,
   without a second `NavisDatabase` or candidate visibility in reactive
   providers.
-- Linux profile diagnostics are available only through
-  `tool/sync_diagnostics.sh`. The launcher uses a bearer-authenticated loopback
+- Linux and Windows profile diagnostics use the bearer-authenticated loopback
+  control plane. The Linux launcher is `tool/sync_diagnostics.sh`; Windows
+  launchers must use the same clone-only, isolated database/cache contract.
   API, isolates cloned database/cache paths for fault testing, and permits only
   non-fault-injected operations during backed-up primary certification. The
   read-only `POST /v1/search/source-audit` route runs the real `search3` path
@@ -179,13 +180,11 @@ row in place. A different identity must traverse the explicit destructive
 replacement boundary before its credentials can be stored.
 
 Routing derives a compact `SessionRoutePhase`. An authenticated profile with no
-committed generation is confined to `/initial-sync`; the shell and ordinary
-startup-sync owner are unavailable. `InitialServerSyncController` starts a
-normal user-initiated catalog check on unmetered connectivity, waits offline,
-or requests the ephemeral metered override. Completion requires a promoted
-catalog and no candidate in `applying`; isolated hydration or auxiliary gaps
-may continue after entry with a visible warning. Cancel awaits sync teardown,
-uses the production server-data reset, signs out, and returns to login.
+committed generation enters Home immediately while `LibrarySyncController`
+starts the first catalog check on unmetered connectivity. The normal shell
+shows its durable running or failed state; offline and metered conditions retain
+their retry/consent behavior. A promoted catalog clears the first-sync phase,
+while isolated hydration or auxiliary gaps continue with a visible warning.
 
 All logout callers use the injected, single-flight `SessionLifecycleService`.
 Its ordering is API cancellation → awaited sync/download stop → playback/radio
@@ -209,9 +208,9 @@ The agent runtime API is a non-production control and observation plane for a
 real Navis process. It complements automated tests; it does not replace the UI
 or introduce a second implementation of feature behavior.
 
-The current implementation starts from `SyncDiagnosticsServer` on Linux:
+The current implementation starts `SyncDiagnosticsServer` on Linux and Windows:
 
-1. `main.dart` accepts diagnostics only in a Linux profile build with a valid
+1. `main.dart` accepts diagnostics only in a Linux or Windows profile build with a valid
    mode and handshake path.
 2. Clone mode opens an isolated database and cache tree. Primary certification
    uses the normal profile only with the launcher's backup and mutation
@@ -398,7 +397,7 @@ Routes are defined in `lib/src/routing/app_router.dart`:
 ### Main Routes
 
 - `/login` - Login screen (unauthenticated)
-- `/initial-sync` - blocking first-catalog setup for authenticated profiles
+- `/initial-sync` - legacy recoverable first-catalog route; authenticated profiles redirect to Home
 - `/` - Home screen (default after login)
 - `/library` - Library tabs (albums, artists, playlists, liked albums)
 - `/library/artists/:id` - Artist detail
