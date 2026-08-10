@@ -244,34 +244,78 @@ void main() {
       );
     });
 
-    test('startup imports legacy Focus Player state as Mini Player', () async {
-      await repository.saveSettings(
-        const AppSettingsModel.defaults().copyWith(
-          desktopFocusPlayerModeEnabled: true,
-        ),
-      );
-      await stateFile.writeAsString(
-        '{"version":2,"activeMode":"focusPlayer","focusBounds":{"x":0,"y":0,"width":1400,"height":900}}',
-      );
+    test(
+      'startup restores the last Desktop bounds after closing in Mini Player',
+      () async {
+        final firstAdapter = _FakeWindowManagerAdapter(
+          bounds: const Rect.fromLTWH(70, 90, 1440, 880),
+        );
+        final firstController = DesktopWindowController(
+          desktopRuntime: true,
+          stateFile: stateFile,
+          settingsRepository: repository,
+          adapter: firstAdapter,
+        );
+        await firstController.initialize();
+        await firstController.setBoundsForDiagnostics(
+          const Rect.fromLTWH(70, 90, 1440, 880),
+        );
+        await firstController.setMiniPlayerMode(true);
+        firstAdapter.bounds = const Rect.fromLTWH(120, 150, 700, 400);
+        firstController.onWindowClose();
+        await Future<void>.delayed(Duration.zero);
 
-      final adapter = _FakeWindowManagerAdapter(
-        bounds: const Rect.fromLTWH(0, 0, 1200, 800),
-      );
-      final controller = DesktopWindowController(
-        desktopRuntime: true,
-        stateFile: stateFile,
-        settingsRepository: repository,
-        adapter: adapter,
-      );
+        final restartedAdapter = _FakeWindowManagerAdapter(
+          bounds: const Rect.fromLTWH(120, 150, 700, 400),
+        );
+        final restartedController = DesktopWindowController(
+          desktopRuntime: true,
+          stateFile: stateFile,
+          settingsRepository: repository,
+          adapter: restartedAdapter,
+        );
+        await restartedController.initialize();
 
-      await controller.initialize();
+        expect(restartedController.mode, DesktopWindowMode.desktop);
+        expect(
+          restartedAdapter.bounds,
+          const Rect.fromLTWH(70, 90, 1440, 880),
+        );
+        expect(restartedAdapter.alwaysOnTop, isFalse);
+      },
+    );
 
-      expect(controller.mode, DesktopWindowMode.miniPlayer);
-      expect(
-        adapter.bounds.size,
-        DesktopWindowController.miniDefaultSize,
-      );
-    });
+    test(
+      'startup ignores legacy Focus Player mode and opens Desktop View',
+      () async {
+        await repository.saveSettings(
+          const AppSettingsModel.defaults().copyWith(
+            desktopFocusPlayerModeEnabled: true,
+          ),
+        );
+        await stateFile.writeAsString(
+          '{"version":2,"activeMode":"focusPlayer","focusBounds":{"x":0,"y":0,"width":1400,"height":900}}',
+        );
+
+        final adapter = _FakeWindowManagerAdapter(
+          bounds: const Rect.fromLTWH(0, 0, 1200, 800),
+        );
+        final controller = DesktopWindowController(
+          desktopRuntime: true,
+          stateFile: stateFile,
+          settingsRepository: repository,
+          adapter: adapter,
+        );
+
+        await controller.initialize();
+
+        expect(controller.mode, DesktopWindowMode.desktop);
+        expect(
+          adapter.bounds.size,
+          const Size(1200, 760),
+        );
+      },
+    );
 
     test('resize crossing produces one settled transition request', () async {
       final adapter = _FakeWindowManagerAdapter(
@@ -343,7 +387,7 @@ void main() {
       },
     );
 
-    test('a small display starts and remains in Mini Player', () async {
+    test('a small display still starts in Desktop View', () async {
       final adapter = _FakeWindowManagerAdapter(
         bounds: const Rect.fromLTWH(0, 0, 700, 500),
       );
@@ -364,10 +408,9 @@ void main() {
       );
 
       await controller.initialize();
-      expect(controller.mode, DesktopWindowMode.miniPlayer);
+      expect(controller.mode, DesktopWindowMode.desktop);
       expect(controller.desktopViewAvailable, isFalse);
-      await controller.setMiniPlayerMode(false);
-      expect(controller.mode, DesktopWindowMode.miniPlayer);
+      expect(adapter.bounds.size, const Size(1200, 760));
     });
 
     test(

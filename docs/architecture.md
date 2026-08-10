@@ -531,12 +531,19 @@ embedded below transport/actions and fills the metadata pane. A window-manager
 size below 560×360 is blocked and automatically restored to 720×405. A 400 ms
 settled resize across the Desktop boundary blocks the invalid surface and
 requests an explicit mode decision. The last valid Desktop bounds, previous
-maximized Desktop state, active mode, Mini position, and optional Mini Player
-always-on-top preference are stored in `window_state.json` v3. Invalid Desktop
+maximized Desktop state, Mini position, and optional Mini Player
+always-on-top preference are stored in `window_state.json` v3. Navis always
+starts in Desktop View, restoring those Desktop bounds even when the previous
+shutdown occurred in Mini Player. Invalid Desktop
 bounds and prompt-triggering expanded Mini sizes are never restoration targets.
+The isolated Desktop-layout diagnostics deliberately shuts down from Mini
+Player and verifies the following launch starts in Desktop View at the last
+validated Desktop bounds.
 Mini window controls float as compact transparent icon buttons at the top-right edge,
 away from the metadata pane. They disappear whenever Queue, Lyrics, or another
 embedded panel is active, so those surfaces retain unobstructed controls. The
+controls fade quickly instead of popping when panel visibility changes, and
+their hover feedback highlights only the icon glyph. The
 compact Queue sheet remains mounted for its reverse slide/fade when closed, so
 button, Back, and swipe dismissal match its entrance rather than popping away.
 The

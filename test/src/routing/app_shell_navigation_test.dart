@@ -552,7 +552,17 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey<String>('miniPlayerFloatingWindowControls')),
-        findsNothing,
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<AnimatedOpacity>(
+              find.byKey(
+                const ValueKey<String>('miniPlayerFloatingWindowControlsFade'),
+              ),
+            )
+            .opacity,
+        0,
       );
 
       tester.widget<QueueSheet>(find.byType(QueueSheet)).onClose!.call();
@@ -566,7 +576,7 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey<String>('miniPlayerFloatingWindowControls')),
-        findsNothing,
+        findsOneWidget,
       );
 
       await tester.pumpAndSettle();

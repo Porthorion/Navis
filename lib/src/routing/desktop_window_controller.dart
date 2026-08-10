@@ -363,32 +363,27 @@ class DesktopWindowController extends ChangeNotifier
         (await _settingsRepository?.getSettings())
             ?.desktopFocusPlayerModeEnabled ??
         false;
-    _mode = _stateRecord.version >= DesktopWindowStateRecord.currentVersion
-        ? _stateRecord.activeMode
-        : (legacyFocusEnabled
-              ? DesktopWindowMode.miniPlayer
-              : _stateRecord.activeMode);
+    if (legacyFocusEnabled ||
+        _stateRecord.activeMode == DesktopWindowMode.miniPlayer) {
+      AppLogger.info(
+        '[DESKTOP_WINDOW] starting in Desktop View; retained Mini Player '
+        'state is used only for a later user-initiated switch.',
+      );
+    }
+    // Mini Player is a temporary presentation, never a startup destination.
+    // Its saved bounds and pin preference remain available, while Desktop
+    // bounds are restored independently even when the app last closed mini.
+    _mode = DesktopWindowMode.desktop;
     _miniAlwaysOnTop = _stateRecord.miniAlwaysOnTop;
     _stateRecord = _stateRecord.copyWith(
       version: DesktopWindowStateRecord.currentVersion,
       activeMode: _mode,
     );
 
-    final savedBounds = _mode == DesktopWindowMode.miniPlayer
-        ? _stateRecord.miniBounds?.bounds
-        : _stateRecord.normalBounds?.bounds;
-    var startupBounds = await _clampToVisibleWorkArea(
-      _mode == DesktopWindowMode.miniPlayer
-          ? _normalizeMiniBounds(savedBounds)
-          : _normalizeDesktopBounds(savedBounds),
+    final savedBounds = _stateRecord.normalBounds?.bounds;
+    final startupBounds = await _clampToVisibleWorkArea(
+      _normalizeDesktopBounds(savedBounds),
     );
-    if (_mode == DesktopWindowMode.desktop && !desktopViewAvailable) {
-      _mode = DesktopWindowMode.miniPlayer;
-      _stateRecord = _stateRecord.copyWith(activeMode: _mode);
-      startupBounds = await _clampToVisibleWorkArea(
-        _normalizeMiniBounds(_stateRecord.miniBounds?.bounds),
-      );
-    }
     final options = WindowOptions(
       minimumSize: normalMinSize,
       size: startupBounds.size,
@@ -397,9 +392,7 @@ class DesktopWindowController extends ChangeNotifier
 
     await adapter.waitUntilReadyToShow(options, () async {
       await _applyCommonWindowConstraints();
-      await adapter.setAlwaysOnTop(
-        isMiniPlayerMode && miniAlwaysOnTop,
-      );
+      await adapter.setAlwaysOnTop(false);
       await adapter.setBounds(startupBounds);
       if (savedBounds == null) await adapter.center();
       if (_mode == DesktopWindowMode.desktop &&

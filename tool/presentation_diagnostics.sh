@@ -361,6 +361,15 @@ run_capture() {
   if [[ "${NAVIS_DESKTOP_LAYOUT_DIAGNOSTICS:-0}" == "1" ]]; then
     api GET /v1/presentation/window \
       > "$OUTPUT_ROOT/$prefix-window-before.json"
+    if [[ "$prefix" == "restart" ]]; then
+      # Each preceding Desktop-layout run deliberately shuts down from Mini
+      # Player after recording a valid 800×600 Desktop View. A fresh launch
+      # must still select Desktop View and recover those Desktop bounds.
+      validate_window_response \
+        "$OUTPUT_ROOT/$prefix-window-before.json" desktop none 800 600
+      capture_window_screenshot \
+        "$prefix-startup-desktop-screenshot" "$prefix-startup-desktop"
+    fi
     api POST /v1/presentation/window \
       '{"mode":"desktop"}' \
       > "$OUTPUT_ROOT/$prefix-window-desktop-mode.json"

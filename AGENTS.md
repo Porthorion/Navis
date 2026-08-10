@@ -651,7 +651,9 @@ restores 720×405 bounds at the retained position.
 Mini Player window actions are compact transparent floating icons at the
 top-right edge, deliberately above rather than over the metadata pane. Hide them whenever
 an embedded Queue, Lyrics, or settings panel is active so they cannot intercept
-that panel's controls. Compact Queue panels keep themselves mounted until their
+that panel's controls; use a short opacity transition rather than a hard
+appearance/disappearance, and keep hover feedback on the icon glyph without a
+background fill. Compact Queue panels keep themselves mounted until their
 reverse slide/fade completes, so close, Back, and swipe dismissals are as smooth
 as opening. The default 720×405 entry retains the rich Mini Player
 composition; use the tight layout only below its usable size threshold.
@@ -660,10 +662,13 @@ deliberately disables it with an explanation because the compositor owns
 normal-window stacking; retain the stored preference for a later supported
 session such as Windows or X11.
 Crossing the 800×600 boundary is mediated by `DesktopWindowController`; it snapshots
-valid Desktop bounds in `window_state.json` v3, restores maximized Desktop
-state, keeps Mini position separately, and uses `screen_retriever` work areas
+valid Desktop bounds in `window_state.json` v3, always starts the app in
+Desktop View with those bounds (including after a Mini Player shutdown),
+restores maximized Desktop state, keeps Mini position separately, and uses `screen_retriever` work areas
 to keep windows visible. Bounds reported after Desktop has already crossed its
 minimum must never replace the last valid Desktop restoration target.
+`desktop_layout_diagnostics.sh` closes one pass in Mini Player and asserts the
+clean restart returns to the preceding 800×600 Desktop View.
 Resize-transition gates must remain height-aware and keep both decisions
 reachable at the 560×360 OS minimum; use a scroll fallback for text scaling or
 native frame reductions instead of allowing a gate to overflow.

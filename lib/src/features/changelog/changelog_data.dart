@@ -46,8 +46,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Mini Player controls are now compact transparent right-edge buttons that stay clear of track details and hide for Queue, Lyrics, and other embedded panels; Queue now closes with a matching smooth reverse transition, and Linux Wayland clearly explains when its compositor cannot provide always-on-top',
+        'Mini Player controls are now compact transparent right-edge buttons with icon-only hover feedback and quick panel-aware fades; they stay clear of track details and hide for Queue, Lyrics, and other embedded panels. Queue now closes with a matching smooth reverse transition, and Linux Wayland clearly explains when its compositor cannot provide always-on-top',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Navis now always starts in Desktop View and restores your last Desktop window size, even if it was closed while Mini Player was active',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Favorite, Lyrics, Queue, Mini Player, and volume now stay directly visible across every supported Desktop View size',
