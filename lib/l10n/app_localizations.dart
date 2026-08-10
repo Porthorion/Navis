@@ -5217,6 +5217,12 @@ abstract class AppLocalizations {
   /// **'Keep the compact player above other windows. This only applies in Mini Player.'**
   String get desktopMiniPlayerKeepOnTopDescription;
 
+  /// No description provided for @desktopMiniPlayerKeepOnTopUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Always-on-top is unavailable in this Linux Wayland session. Your desktop compositor controls window stacking.'**
+  String get desktopMiniPlayerKeepOnTopUnavailable;
+
   /// No description provided for @desktopMiniPlayerTooSmallTitle.
   ///
   /// In en, this message translates to:

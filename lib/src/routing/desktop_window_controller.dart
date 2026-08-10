@@ -252,10 +252,12 @@ class DesktopWindowController extends ChangeNotifier
     required SettingsRepository settingsRepository,
     WindowManagerAdapter? adapter,
     ScreenRetrieverAdapter? screenAdapter,
+    bool? alwaysOnTopSupported,
   }) : _desktopRuntime = desktopRuntime,
        _stateFile = stateFile,
        _settingsRepository = settingsRepository,
        _adapter = adapter ?? const WindowManagerDesktopWindowAdapter(),
+       _alwaysOnTopSupportedOverride = alwaysOnTopSupported,
        _screenAdapter =
            screenAdapter ??
            (adapter == null ? const SystemScreenRetrieverAdapter() : null);
@@ -265,6 +267,7 @@ class DesktopWindowController extends ChangeNotifier
       _stateFile = File(''),
       _settingsRepository = null,
       _adapter = null,
+      _alwaysOnTopSupportedOverride = null,
       _screenAdapter = null;
 
   static const Size normalMinSize = kDesktopMiniPlayerMinimumSize;
@@ -277,6 +280,7 @@ class DesktopWindowController extends ChangeNotifier
   final File _stateFile;
   final SettingsRepository? _settingsRepository;
   final WindowManagerAdapter? _adapter;
+  final bool? _alwaysOnTopSupportedOverride;
   final ScreenRetrieverAdapter? _screenAdapter;
 
   Timer? _persistDebounce;
@@ -296,7 +300,26 @@ class DesktopWindowController extends ChangeNotifier
   bool get isApplyingMode => _isApplyingMode;
   DesktopWindowMode get mode => _mode;
   bool get isMiniPlayerMode => _mode == DesktopWindowMode.miniPlayer;
-  bool get miniAlwaysOnTop => _miniAlwaysOnTop;
+
+  /// Whether the platform can honour an always-on-top request.
+  ///
+  /// GTK's `keep_above` request is deliberately not exposed as a working
+  /// feature on Linux Wayland: Wayland gives the compositor sole control over
+  /// normal-window stacking, so accepting the preference there would leave a
+  /// pin that looks enabled but cannot keep the window above another app.
+  /// Test and fallback controllers remain capable so the Mini Player surface
+  /// can exercise its normal control path without a native window.
+  bool get supportsMiniAlwaysOnTop =>
+      _alwaysOnTopSupportedOverride ??
+      !(_desktopRuntime &&
+          _adapter is WindowManagerDesktopWindowAdapter &&
+          Platform.isLinux &&
+          _isWaylandSession);
+
+  /// The effective state, rather than a preference that the current compositor
+  /// cannot apply. The stored preference is retained for a later supported
+  /// desktop session.
+  bool get miniAlwaysOnTop => supportsMiniAlwaysOnTop && _miniAlwaysOnTop;
   DesktopWindowTransitionRequest? get transitionRequest => _transitionRequest;
   Rect? get currentWorkArea => _currentWorkArea;
   bool get desktopViewAvailable =>
@@ -374,7 +397,9 @@ class DesktopWindowController extends ChangeNotifier
 
     await adapter.waitUntilReadyToShow(options, () async {
       await _applyCommonWindowConstraints();
-      await adapter.setAlwaysOnTop(isMiniPlayerMode && _miniAlwaysOnTop);
+      await adapter.setAlwaysOnTop(
+        isMiniPlayerMode && miniAlwaysOnTop,
+      );
       await adapter.setBounds(startupBounds);
       if (savedBounds == null) await adapter.center();
       if (_mode == DesktopWindowMode.desktop &&
@@ -498,6 +523,14 @@ class DesktopWindowController extends ChangeNotifier
   Future<void> toggleMiniPlayerMode() => setMiniPlayerMode(!isMiniPlayerMode);
 
   Future<void> setMiniAlwaysOnTop(bool enabled) async {
+    if (enabled && !supportsMiniAlwaysOnTop) {
+      AppLogger.info(
+        '[DESKTOP_WINDOW] Mini Player always-on-top is unavailable on '
+        'Linux Wayland.',
+      );
+      notifyListeners();
+      return;
+    }
     if (_miniAlwaysOnTop == enabled) return;
     _miniAlwaysOnTop = enabled;
     _stateRecord = _stateRecord.copyWith(miniAlwaysOnTop: enabled);
@@ -576,7 +609,7 @@ class DesktopWindowController extends ChangeNotifier
     );
     if (maximized) await adapter.unmaximize();
     await _applyCommonWindowConstraints();
-    await adapter.setAlwaysOnTop(_miniAlwaysOnTop);
+    await adapter.setAlwaysOnTop(miniAlwaysOnTop);
     final target = await _clampToVisibleWorkArea(
       _normalizeMiniBounds(_stateRecord.miniBounds?.bounds),
     );
@@ -717,6 +750,13 @@ class DesktopWindowController extends ChangeNotifier
       miniDefaultSize.width,
       miniDefaultSize.height,
     );
+  }
+
+  static bool get _isWaylandSession {
+    final sessionType = (Platform.environment['XDG_SESSION_TYPE'] ?? '')
+        .toLowerCase();
+    return sessionType == 'wayland' ||
+        (Platform.environment['WAYLAND_DISPLAY'] ?? '').isNotEmpty;
   }
 
   Future<Rect> _clampToVisibleWorkArea(Rect bounds) async {

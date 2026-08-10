@@ -2950,6 +2950,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Keep the compact player above other windows. This only applies in Mini Player.';
 
   @override
+  String get desktopMiniPlayerKeepOnTopUnavailable =>
+      'Always-on-top is unavailable in this Linux Wayland session. Your desktop compositor controls window stacking.';
+
+  @override
   String get desktopMiniPlayerTooSmallTitle => 'Mini Player is too small';
 
   @override

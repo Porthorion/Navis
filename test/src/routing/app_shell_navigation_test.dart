@@ -24,6 +24,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
@@ -469,7 +470,7 @@ void main() {
   });
 
   testWidgets(
-    '720x405 active Mini Player embeds expanded volume below actions',
+    '720x405 Mini Player opens the richer playback composition first',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(720, 405);
@@ -513,6 +514,71 @@ void main() {
         find.byKey(const ValueKey('desktopMiniPlayerSurface')),
         matchesGoldenFile('goldens/mini_player_active_720x405.png'),
       );
+    },
+  );
+
+  testWidgets(
+    'Mini Player animates Queue dismissal before restoring edge controls',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(720, 405);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final windowController = DesktopWindowController.fallback(
+        desktopRuntime: true,
+      );
+      await windowController.setMiniPlayerMode(true);
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          desktopWindowControllerProvider.overrideWith(
+            (ref) => windowController,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Queue'));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        find.byKey(const ValueKey<String>('compact-wide-queue')),
+        findsWidgets,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('miniPlayerFloatingWindowControls')),
+        findsNothing,
+      );
+
+      tester.widget<QueueSheet>(find.byType(QueueSheet)).onClose!.call();
+      await tester.pump();
+
+      // The close action must leave the sheet mounted while its reverse
+      // transition plays, rather than popping it out of the tree immediately.
+      expect(
+        find.byKey(const ValueKey<String>('compact-wide-queue')),
+        findsWidgets,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('miniPlayerFloatingWindowControls')),
+        findsNothing,
+      );
+
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey<String>('compact-wide-queue')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('miniPlayerFloatingWindowControls')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 
@@ -889,6 +955,36 @@ void main() {
           .textAlign,
       TextAlign.center,
     );
+    final floatingControls = tester.getRect(
+      find.byKey(const ValueKey<String>('miniPlayerFloatingWindowControls')),
+    );
+    final title = tester.getRect(
+      find.byKey(const ValueKey<String>('desktopMiniPlayerTitle')),
+    );
+    final pin = tester.getRect(
+      find.byKey(const ValueKey<String>('miniPlayerAlwaysOnTop')),
+    );
+    expect(
+      floatingControls.left,
+      greaterThan(
+        tester
+                .getSize(
+                  find.byKey(
+                    const ValueKey<String>('desktopMiniPlayerSurface'),
+                  ),
+                )
+                .width *
+            .8,
+      ),
+    );
+    expect(title.overlaps(floatingControls), isFalse);
+    expect(pin.left, greaterThanOrEqualTo(floatingControls.left));
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('miniPlayerAlwaysOnTop')),
+    );
+    await tester.pump();
+    expect(windowController.miniAlwaysOnTop, isTrue);
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byKey(const ValueKey('desktopMiniPlayerSurface')),

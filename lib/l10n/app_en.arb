@@ -1349,6 +1349,7 @@
   "desktopMiniPlayerKeepOnTop": "Keep Mini Player on top",
   "desktopMiniPlayerStopOnTop": "Stop keeping Mini Player on top",
   "desktopMiniPlayerKeepOnTopDescription": "Keep the compact player above other windows. This only applies in Mini Player.",
+  "desktopMiniPlayerKeepOnTopUnavailable": "Always-on-top is unavailable in this Linux Wayland session. Your desktop compositor controls window stacking.",
   "desktopMiniPlayerTooSmallTitle": "Mini Player is too small",
   "desktopMiniPlayerTooSmallDescription": "Mini Player needs at least 560 by 360 logical pixels. Restoring its last valid size.",
   "desktopNothingPlaying": "Nothing playing",

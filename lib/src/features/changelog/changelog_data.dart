@@ -46,6 +46,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Mini Player controls are now compact transparent right-edge buttons that stay clear of track details and hide for Queue, Lyrics, and other embedded panels; Queue now closes with a matching smooth reverse transition, and Linux Wayland clearly explains when its compositor cannot provide always-on-top',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Favorite, Lyrics, Queue, Mini Player, and volume now stay directly visible across every supported Desktop View size',
         type: ChangelogEntryType.fix,
       ),

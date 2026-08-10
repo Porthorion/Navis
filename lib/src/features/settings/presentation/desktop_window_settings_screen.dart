@@ -70,11 +70,17 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 secondary: const Icon(Icons.push_pin_outlined),
                 title: Text(l10n.desktopMiniPlayerKeepOnTop),
-                subtitle: Text(l10n.desktopMiniPlayerKeepOnTopDescription),
-                value: windowController.miniAlwaysOnTop,
-                onChanged: (value) => unawaited(
-                  windowController.setMiniAlwaysOnTop(value),
+                subtitle: Text(
+                  windowController.supportsMiniAlwaysOnTop
+                      ? l10n.desktopMiniPlayerKeepOnTopDescription
+                      : l10n.desktopMiniPlayerKeepOnTopUnavailable,
                 ),
+                value: windowController.miniAlwaysOnTop,
+                onChanged: windowController.supportsMiniAlwaysOnTop
+                    ? (value) => unawaited(
+                        windowController.setMiniAlwaysOnTop(value),
+                      )
+                    : null,
               ),
             ],
           ),

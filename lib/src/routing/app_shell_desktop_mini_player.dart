@@ -31,11 +31,11 @@ class _DesktopMiniPlayerSurface extends ConsumerStatefulWidget {
 class _DesktopMiniPlayerSurfaceState
     extends ConsumerState<_DesktopMiniPlayerSurface> {
   VoidCallback? _queueRequest;
+  bool _embeddedOverlayActive = false;
 
   @override
   Widget build(BuildContext context) {
     final controller = ref.watch(desktopWindowControllerProvider);
-    final l10n = AppLocalizations.of(context)!;
     final hasPlayback =
         widget.playback.isRadioMode ||
         (widget.playback.currentSongId ?? '').trim().isNotEmpty;
@@ -71,8 +71,14 @@ class _DesktopMiniPlayerSurfaceState
                             onShowQueue: () => _queueRequest?.call(),
                             onBackInterceptorChanged:
                                 widget.onBackInterceptorChanged,
-                            onCompactWideOverlayActiveChanged:
-                                widget.onCompactWideOverlayActiveChanged,
+                            onCompactWideOverlayActiveChanged: (active) {
+                              if (_embeddedOverlayActive != active) {
+                                setState(() {
+                                  _embeddedOverlayActive = active;
+                                });
+                              }
+                              widget.onCompactWideOverlayActiveChanged(active);
+                            },
                             onCompactWideQueueRequestChanged: (handler) {
                               _queueRequest = handler;
                               widget.onCompactWideQueueRequestChanged(handler);
@@ -84,53 +90,92 @@ class _DesktopMiniPlayerSurfaceState
                   )
                 : const _DesktopMiniPlayerEmptyState(),
           ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: SafeArea(
-              minimum: const EdgeInsets.all(4),
-              child: Material(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHigh.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(18),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    IconButton(
-                      key: const ValueKey<String>('miniPlayerAlwaysOnTop'),
-                      tooltip: controller.miniAlwaysOnTop
-                          ? l10n.desktopMiniPlayerStopOnTop
-                          : l10n.desktopMiniPlayerKeepOnTop,
-                      onPressed: controller.isApplyingMode
-                          ? null
-                          : () => unawaited(
-                              controller.setMiniAlwaysOnTop(
-                                !controller.miniAlwaysOnTop,
-                              ),
-                            ),
-                      icon: Icon(
-                        controller.miniAlwaysOnTop
-                            ? Icons.push_pin_rounded
-                            : Icons.push_pin_outlined,
+          if (!_embeddedOverlayActive)
+            _DesktopMiniPlayerFloatingWindowControls(controller: controller),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact, transparent edge controls sit in the top-right corner. They are
+/// removed while an embedded panel is active so Queue, Lyrics, and settings
+/// controls own their full surface.
+class _DesktopMiniPlayerFloatingWindowControls extends StatelessWidget {
+  const _DesktopMiniPlayerFloatingWindowControls({required this.controller});
+
+  final DesktopWindowController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final alwaysOnTopAvailable = controller.supportsMiniAlwaysOnTop;
+    final alwaysOnTopTooltip = !alwaysOnTopAvailable
+        ? l10n.desktopMiniPlayerKeepOnTopUnavailable
+        : controller.miniAlwaysOnTop
+        ? l10n.desktopMiniPlayerStopOnTop
+        : l10n.desktopMiniPlayerKeepOnTop;
+
+    return Positioned(
+      top: 6,
+      right: 6,
+      child: SafeArea(
+        minimum: const EdgeInsets.all(2),
+        bottom: false,
+        child: Row(
+          key: const ValueKey<String>('miniPlayerFloatingWindowControls'),
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Tooltip(
+              message: alwaysOnTopTooltip,
+              child: IconButton(
+                key: const ValueKey<String>('miniPlayerAlwaysOnTop'),
+                tooltip: null,
+                isSelected: controller.miniAlwaysOnTop,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(28, 28),
+                  maximumSize: const Size(28, 28),
+                  padding: const EdgeInsets.all(5),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero,
+                  ),
+                ),
+                onPressed: !alwaysOnTopAvailable || controller.isApplyingMode
+                    ? null
+                    : () => unawaited(
+                        controller.setMiniAlwaysOnTop(
+                          !controller.miniAlwaysOnTop,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      key: const ValueKey<String>('miniPlayerExitButton'),
-                      tooltip: l10n.desktopReturnToView,
-                      onPressed: controller.isApplyingMode
-                          ? null
-                          : () => unawaited(
-                              controller.setMiniPlayerMode(false),
-                            ),
-                      icon: const Icon(Icons.open_in_full_rounded),
-                    ),
-                  ],
+                icon: Icon(
+                  controller.miniAlwaysOnTop
+                      ? Icons.push_pin_rounded
+                      : Icons.push_pin_outlined,
                 ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 2),
+            Tooltip(
+              message: l10n.desktopReturnToView,
+              child: IconButton(
+                key: const ValueKey<String>('miniPlayerExitButton'),
+                tooltip: null,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(28, 28),
+                  maximumSize: const Size(28, 28),
+                  padding: const EdgeInsets.all(5),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero,
+                  ),
+                ),
+                onPressed: controller.isApplyingMode
+                    ? null
+                    : () => unawaited(controller.setMiniPlayerMode(false)),
+                icon: const Icon(Icons.open_in_full_rounded),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

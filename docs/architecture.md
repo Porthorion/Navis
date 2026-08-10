@@ -534,6 +534,18 @@ requests an explicit mode decision. The last valid Desktop bounds, previous
 maximized Desktop state, active mode, Mini position, and optional Mini Player
 always-on-top preference are stored in `window_state.json` v3. Invalid Desktop
 bounds and prompt-triggering expanded Mini sizes are never restoration targets.
+Mini window controls float as compact transparent icon buttons at the top-right edge,
+away from the metadata pane. They disappear whenever Queue, Lyrics, or another
+embedded panel is active, so those surfaces retain unobstructed controls. The
+compact Queue sheet remains mounted for its reverse slide/fade when closed, so
+button, Back, and swipe dismissal match its entrance rather than popping away.
+The
+default 720×405 entry uses the richer Mini Player composition; the tight layout
+is reserved for smaller usable viewports. Always-on-top is shown only when the
+current platform can honour the request. Linux Wayland disables the control
+because normal-window stacking is compositor-owned; its stored preference is
+retained for a future supported session rather than presenting a non-functional
+pin.
 Legacy Focus Player bounds/settings are imported once. `screen_retriever`
 work areas select the display with greatest window intersection and keep the
 title bar visible after display or DPI changes.

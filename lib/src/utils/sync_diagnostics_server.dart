@@ -177,6 +177,7 @@ class SyncDiagnosticsServer {
         final controller = _container.read(desktopWindowControllerProvider);
         final mode = body['mode'];
         final resolution = body['transitionResolution'];
+        final alwaysOnTop = body['miniAlwaysOnTop'];
         final width = (body['width'] as num?)?.toDouble();
         final height = (body['height'] as num?)?.toDouble();
         if (mode != null && mode != 'desktop' && mode != 'miniPlayer') {
@@ -190,6 +191,12 @@ class SyncDiagnosticsServer {
             resolution != 'restoreBounds') {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
             'error': 'transitionResolution must be switchMode or restoreBounds',
+          });
+          return;
+        }
+        if (alwaysOnTop != null && alwaysOnTop is! bool) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'miniAlwaysOnTop must be a boolean',
           });
           return;
         }
@@ -215,6 +222,9 @@ class SyncDiagnosticsServer {
         }
         if (mode != null) {
           await controller.setMiniPlayerMode(mode == 'miniPlayer');
+        }
+        if (alwaysOnTop case final bool enabled) {
+          await controller.setMiniAlwaysOnTop(enabled);
         }
         if (resolution != null) {
           await controller.resolveTransition(
@@ -900,6 +910,7 @@ class SyncDiagnosticsServer {
       'displayWorkArea': _rectJson(controller.currentWorkArea),
       'desktopViewAvailable': controller.desktopViewAvailable,
       'miniAlwaysOnTop': controller.miniAlwaysOnTop,
+      'miniAlwaysOnTopSupported': controller.supportsMiniAlwaysOnTop,
       'pendingTransition': transition == null
           ? null
           : <String, Object?>{

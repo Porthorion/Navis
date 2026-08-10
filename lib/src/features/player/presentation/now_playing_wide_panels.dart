@@ -386,6 +386,7 @@ class _CompactWideOverlaySheet extends StatefulWidget {
     required this.title,
     required this.onDismiss,
     required this.child,
+    this.dismissRequested = false,
     this.showTopBar = true,
     super.key,
   });
@@ -400,6 +401,7 @@ class _CompactWideOverlaySheet extends StatefulWidget {
   final String title;
   final VoidCallback onDismiss;
   final Widget child;
+  final bool dismissRequested;
   final bool showTopBar;
 
   @override
@@ -435,9 +437,24 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant _CompactWideOverlaySheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.dismissRequested && widget.dismissRequested) {
+      _startDismiss();
+    }
+  }
+
   void _onAnimationStatus(AnimationStatus status) {
     if (status == AnimationStatus.dismissed && _dismissing) {
-      widget.onDismiss();
+      // A programmatic dismissal can be requested while the parent is
+      // rebuilding this sheet. Remove it on the following frame so the host
+      // never receives setState during build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _dismissing) {
+          widget.onDismiss();
+        }
+      });
     }
   }
 
@@ -486,11 +503,20 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
   void _startDismiss({double? flingVelocity}) {
     if (_dismissing) return;
     _dismissing = true;
-    // Always use a physics fling so the dismiss animation matches the
-    // finger-driven swipe feel regardless of how it was triggered
-    // (gesture, back button, or programmatic close).
-    final v = flingVelocity ?? 3.0;
-    _controller.fling(velocity: -v);
+    if (flingVelocity != null) {
+      // Keep a real swipe tied to its gesture velocity.
+      _controller.fling(velocity: -flingVelocity);
+      return;
+    }
+    // Buttons, Back, and other programmatic closes should retrace the
+    // entrance at a readable speed instead of disappearing in one tick.
+    unawaited(
+      _controller.animateBack(
+        0,
+        duration: _controller.reverseDuration,
+        curve: Curves.easeInCubic,
+      ),
+    );
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {

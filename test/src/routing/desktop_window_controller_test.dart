@@ -320,6 +320,29 @@ void main() {
       expect(adapter.alwaysOnTop, isFalse);
     });
 
+    test(
+      'unavailable always-on-top never enables a misleading Mini Player pin',
+      () async {
+        final adapter = _FakeWindowManagerAdapter(
+          bounds: const Rect.fromLTWH(0, 0, 1200, 760),
+        );
+        final controller = DesktopWindowController(
+          desktopRuntime: true,
+          stateFile: stateFile,
+          settingsRepository: repository,
+          adapter: adapter,
+          alwaysOnTopSupported: false,
+        );
+        await controller.initialize();
+        await controller.setMiniPlayerMode(true);
+        await controller.setMiniAlwaysOnTop(true);
+
+        expect(controller.supportsMiniAlwaysOnTop, isFalse);
+        expect(controller.miniAlwaysOnTop, isFalse);
+        expect(adapter.alwaysOnTop, isFalse);
+      },
+    );
+
     test('a small display starts and remains in Mini Player', () async {
       final adapter = _FakeWindowManagerAdapter(
         bounds: const Rect.fromLTWH(0, 0, 700, 500),

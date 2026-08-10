@@ -1024,6 +1024,7 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
 class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     with SingleTickerProviderStateMixin {
   _WideNowPlayingPanel _widePanel = _WideNowPlayingPanel.none;
+  bool _isCompactWidePanelDismissing = false;
   bool _showLyrics = false;
   bool _showWideFullscreenLyrics = false;
   bool? _lastReportedCompactWideOverlayActive;
@@ -1055,9 +1056,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
 
   bool _dismissInternalOverlaysIfVisible() {
     if (_widePanel != _WideNowPlayingPanel.none) {
-      _updateWideOverlayState(() {
-        _widePanel = _WideNowPlayingPanel.none;
-      });
+      _dismissCompactWidePanel();
       return true;
     }
     if (_showWideFullscreenLyrics) {
@@ -1829,15 +1828,35 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   void _showQueuePanel() {
     _updateWideOverlayState(() {
       _showWideFullscreenLyrics = false;
+      _isCompactWidePanelDismissing = false;
       _widePanel = _WideNowPlayingPanel.queue;
+    });
+  }
+
+  /// Let the compact sheet finish its reverse transition before removing it
+  /// from the tree. Queue's close button used to clear [_widePanel] directly,
+  /// which skipped that transition and made dismissal visibly abrupt.
+  void _dismissCompactWidePanel() {
+    if (_widePanel == _WideNowPlayingPanel.none) {
+      return;
+    }
+    if (widget.compactWideLandscapeMode) {
+      if (_isCompactWidePanelDismissing) {
+        return;
+      }
+      _updateWideOverlayState(() {
+        _isCompactWidePanelDismissing = true;
+      });
+      return;
+    }
+    _updateWideOverlayState(() {
+      _widePanel = _WideNowPlayingPanel.none;
     });
   }
 
   void _dismissWideOverlayOrNowPlaying() {
     if (_widePanel != _WideNowPlayingPanel.none) {
-      _updateWideOverlayState(() {
-        _widePanel = _WideNowPlayingPanel.none;
-      });
+      _dismissCompactWidePanel();
       return;
     }
     if (_showWideFullscreenLyrics) {
@@ -2361,15 +2380,15 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               key: compactOverlayKey,
               title: l10n.queueTitle,
               showTopBar: false,
+              dismissRequested: _isCompactWidePanelDismissing,
               onDismiss: () => _updateWideOverlayState(() {
+                _isCompactWidePanelDismissing = false;
                 _widePanel = _WideNowPlayingPanel.none;
               }),
               child: QueueSheet(
                 scrollController: _embeddedQueueScrollController,
                 embeddedMode: true,
-                onClose: () => _updateWideOverlayState(() {
-                  _widePanel = _WideNowPlayingPanel.none;
-                }),
+                onClose: _dismissCompactWidePanel,
               ),
             );
           } else if (_widePanel == _WideNowPlayingPanel.mix &&
@@ -2378,7 +2397,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             compactOverlayPage = _CompactWideOverlaySheet(
               key: compactOverlayKey,
               title: l10n.nowPlayingInstantMixLabel,
+              dismissRequested: _isCompactWidePanelDismissing,
               onDismiss: () => _updateWideOverlayState(() {
+                _isCompactWidePanelDismissing = false;
                 _widePanel = _WideNowPlayingPanel.none;
               }),
               child: _EmbeddedMixPanel(seedSongId: playback.currentSongId!),
@@ -2388,7 +2409,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             compactOverlayPage = _CompactWideOverlaySheet(
               key: compactOverlayKey,
               title: l10n.settingsTitle,
+              dismissRequested: _isCompactWidePanelDismissing,
               onDismiss: () => _updateWideOverlayState(() {
+                _isCompactWidePanelDismissing = false;
                 _widePanel = _WideNowPlayingPanel.none;
               }),
               child: _NowPlayingSettingsPanel(

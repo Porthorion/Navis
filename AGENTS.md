@@ -648,6 +648,17 @@ width and height, centers metadata, and constrains its content canvas; volume
 sits below transport/actions and expands across the available metadata pane. If
 a window manager reports a smaller size, Navis blocks the invalid player and
 restores 720×405 bounds at the retained position.
+Mini Player window actions are compact transparent floating icons at the
+top-right edge, deliberately above rather than over the metadata pane. Hide them whenever
+an embedded Queue, Lyrics, or settings panel is active so they cannot intercept
+that panel's controls. Compact Queue panels keep themselves mounted until their
+reverse slide/fade completes, so close, Back, and swipe dismissals are as smooth
+as opening. The default 720×405 entry retains the rich Mini Player
+composition; use the tight layout only below its usable size threshold.
+Always-on-top is available only where the platform can honour it. Linux Wayland
+deliberately disables it with an explanation because the compositor owns
+normal-window stacking; retain the stored preference for a later supported
+session such as Windows or X11.
 Crossing the 800×600 boundary is mediated by `DesktopWindowController`; it snapshots
 valid Desktop bounds in `window_state.json` v3, restores maximized Desktop
 state, keeps Mini position separately, and uses `screen_retriever` work areas

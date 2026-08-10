@@ -453,6 +453,17 @@ void main() {
       expect(mini.statusCode, HttpStatus.ok);
       expect(mini.body['mode'], 'miniPlayer');
 
+      final pinned = await _request(
+        fixture.port,
+        '/v1/presentation/window',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'miniAlwaysOnTop': true},
+      );
+      expect(pinned.statusCode, HttpStatus.ok);
+      expect(pinned.body['miniAlwaysOnTopSupported'], isTrue);
+      expect(pinned.body['miniAlwaysOnTop'], isTrue);
+
       final invalid = await _request(
         fixture.port,
         '/v1/presentation/window',
