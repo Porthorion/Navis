@@ -55,6 +55,24 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.1', [
+    _Entry(
+      'Library sync is now more reliable: background, manual, and repair requests share one coordinated operation so progress and failures stay accurate instead of briefly disappearing',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Missing rolling-cache files are now detected and removed immediately before playback safely falls back to streaming, without requiring a manual library repair',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'New connections stay on Home while the library is syncing, with persistent progress and retryable failure feedback',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Repair Library and full sync now coordinate safely with startup work for a more dependable recovery experience',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.2.0', [
     _Entry(
       'First-time server connections now show a cancellable initial library setup with clear progress, offline retry, and mobile-data consent',

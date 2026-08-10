@@ -27,6 +27,27 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.1',
+    entries: [
+      ChangelogEntry(
+        'Library sync is now more reliable: background, manual, and repair requests share one coordinated operation so progress and failures stay accurate instead of briefly disappearing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Missing rolling-cache files are now detected and removed immediately before playback safely falls back to streaming, without requiring a manual library repair',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'New connections stay on Home while the library is syncing, with persistent progress and retryable failure feedback',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Repair Library and full sync now coordinate safely with startup work for a more dependable recovery experience',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.0',
     entries: [
       ChangelogEntry(
