@@ -59,6 +59,23 @@ void main() {
     );
     expect(cancel.statusCode, HttpStatus.forbidden);
 
+    final maintenance = await _request(
+      fixture.port,
+      '/v1/cache/maintenance',
+      method: 'POST',
+      token: fixture.token,
+    );
+    expect(maintenance.statusCode, HttpStatus.forbidden);
+
+    final corruptCache = await _request(
+      fixture.port,
+      '/v1/diagnostics/cache/corrupt',
+      method: 'POST',
+      token: fixture.token,
+      body: <String, Object?>{'songId': 'song-1'},
+    );
+    expect(corruptCache.statusCode, HttpStatus.forbidden);
+
     final mutation = await _request(
       fixture.port,
       '/v1/diagnostics/local-mutation',
@@ -125,6 +142,25 @@ void main() {
     expect(encoded, isNot(contains('password')));
     expect(encoded, isNot(contains('token')));
     expect(encoded, isNot(contains('url')));
+  });
+
+  test('cache status is authenticated and exposes no file paths', () async {
+    final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(fixture.close);
+
+    final response = await _request(
+      fixture.port,
+      '/v1/cache/status',
+      token: fixture.token,
+    );
+
+    expect(response.statusCode, HttpStatus.ok);
+    expect(response.body.keys, <String>[
+      'entries',
+      'rollingEntries',
+      'permanentEntries',
+      'missingFiles',
+    ]);
   });
 
   test('clone local mutation remains pending for sync precedence', () async {

@@ -665,6 +665,26 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'GET' && path == '/v1/cache/status') {
+        await _respond(request, HttpStatus.ok, await _cacheStatusJson());
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/cache/maintenance') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _runCacheMaintenance(request);
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/diagnostics/cache/corrupt') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _corruptCloneCacheEntry(request);
+        return;
+      }
       if (request.method == 'POST' &&
           path == '/v1/diagnostics/local-mutation') {
         if (!allowsMutations) {
@@ -912,6 +932,71 @@ class SyncDiagnosticsServer {
           ),
         );
     await _respond(request, HttpStatus.ok, await _sessionStatusJson());
+  }
+
+  Future<Map<String, Object?>> _cacheStatusJson() async {
+    final entries = await _container
+        .read(navisDatabaseProvider)
+        .cacheDao
+        .getCachedTracks();
+    var missingFiles = 0;
+    var rolling = 0;
+    var permanent = 0;
+    for (final entry in entries) {
+      if (!File(entry.filePath).existsSync()) {
+        missingFiles += 1;
+      }
+      if (entry.cacheType.name == 'rolling') {
+        rolling += 1;
+      } else {
+        permanent += 1;
+      }
+    }
+    return <String, Object?>{
+      'entries': entries.length,
+      'rollingEntries': rolling,
+      'permanentEntries': permanent,
+      'missingFiles': missingFiles,
+    };
+  }
+
+  Future<void> _runCacheMaintenance(HttpRequest request) async {
+    final cache = _container.read(rollingCacheManagerProvider);
+    await cache.pruneMissingFiles();
+    await cache.pruneMissingPermanentFiles();
+    await cache.cleanupOrphanedRollingFiles();
+    await _respond(request, HttpStatus.ok, await _cacheStatusJson());
+  }
+
+  Future<void> _corruptCloneCacheEntry(HttpRequest request) async {
+    final body = await _readJson(request);
+    final songId = (body['songId'] as String? ?? '').trim();
+    if (songId.isEmpty) {
+      await _respond(request, HttpStatus.badRequest, <String, Object?>{
+        'error': 'songId is required',
+      });
+      return;
+    }
+    final entry = await _container
+        .read(navisDatabaseProvider)
+        .cacheDao
+        .getCachedTrack(songId);
+    if (entry == null) {
+      await _respond(request, HttpStatus.notFound, <String, Object?>{
+        'error': 'cache entry not found',
+      });
+      return;
+    }
+    final file = File(entry.filePath);
+    final existed = file.existsSync();
+    if (existed) {
+      await file.delete();
+    }
+    await _respond(request, HttpStatus.ok, <String, Object?>{
+      'songId': songId,
+      'fileRemoved': existed,
+      'cache': await _cacheStatusJson(),
+    });
   }
 
   Future<Map<String, Object?>> _sessionStatusJson() async {

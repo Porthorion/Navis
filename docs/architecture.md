@@ -278,6 +278,11 @@ teardown, and setup cancellation. Clone-mode credential writes and clears stay
 in memory, so these destructive actions can never clear or replace device
 secure storage.
 
+Cache diagnostics expose sanitized `GET /v1/cache/status`. Clone-only
+`POST /v1/diagnostics/cache/corrupt` removes the backing file for a named
+isolated cache entry, while `POST /v1/cache/maintenance` runs the production
+cache-pruning path. Neither endpoint returns local file paths.
+
 New control-plane capabilities should remain feature-scoped, expose separate
 action and status/query contracts, return structured errors, and support
 deterministic completion or bounded polling. They must have server contract
