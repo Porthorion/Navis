@@ -161,7 +161,19 @@ class PlaybackSourceResolver {
       song: song,
       quality: quality,
     );
-    final cachedTrack = await _cacheDao.getCachedTrack(song.id);
+    var cachedTrack = await _cacheDao.getCachedTrack(song.id);
+    // Startup maintenance reconciles the cache in bulk, but a file can still
+    // disappear while Navis is running (manual cleanup, storage pressure, or
+    // filesystem damage). Repair that single stale record immediately before
+    // choosing a source so it cannot keep presenting as downloaded/cached.
+    if (cachedTrack != null && !File(cachedTrack.filePath).existsSync()) {
+      await _cacheDao.removeCachedTrack(song.id);
+      AppLogger.info(
+        'Removed missing ${cachedTrack.cacheType.name} cache entry for '
+        'song=${song.id} during source resolution.',
+      );
+      cachedTrack = null;
+    }
     if (song.serverDeletedAt != null) {
       if (cachedTrack != null &&
           cachedTrack.cacheType == CacheType.permanent &&

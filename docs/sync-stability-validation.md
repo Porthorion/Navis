@@ -43,6 +43,7 @@ repaired automatically. Repair Library remains an explicit recovery control.
 | 2026-08-10 | Initial Home flow | A first sync now starts from the normal shell and routing no longer forces `/initial-sync`. Home exposes progress and a retry action for failure. |
 | 2026-08-10 | Failure durability | A no-op/deferred automatic pass preserves a previously failed sync state instead of making the failure disappear. |
 | 2026-08-10 | Cache fault controls | Isolated diagnostics can inspect cache counts, simulate a missing cache file, and invoke the production cache-maintenance path. |
+| 2026-08-10 | Live cache self-repair | Playback source resolution deletes a missing cache record before falling back to the stream, so stale cached/downloaded state cannot persist until the next startup sweep. |
 
 ## Active investigation
 

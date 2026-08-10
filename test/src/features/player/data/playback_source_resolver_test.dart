@@ -218,6 +218,7 @@ void main() {
         expect(resolved.isLocal, isFalse);
         expect(resolved.cachedFilePath, isNotNull);
         expect(resolved.sidecarCacheFilePath, isNull);
+        expect(await database.cacheDao.getCachedTrack(song.id), isNull);
         expect(
           p.isWithin(rollingDir.path, resolved.cachedFilePath!),
           isTrue,

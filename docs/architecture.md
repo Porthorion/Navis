@@ -287,7 +287,10 @@ not upgrade it into an interactive Repair Library request.
 Cache diagnostics expose sanitized `GET /v1/cache/status`. Clone-only
 `POST /v1/diagnostics/cache/corrupt` removes the backing file for a named
 isolated cache entry, while `POST /v1/cache/maintenance` runs the production
-cache-pruning path. Neither endpoint returns local file paths.
+cache-pruning path. Startup performs the same bulk sweep, and playback source
+resolution removes an individual missing cache record before streaming fallback
+so a live filesystem deletion cannot leave stale cached/downloaded UI state.
+Neither endpoint returns local file paths.
 
 New control-plane capabilities should remain feature-scoped, expose separate
 action and status/query contracts, return structured errors, and support
