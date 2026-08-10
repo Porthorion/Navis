@@ -49,6 +49,7 @@ repaired automatically. Repair Library remains an explicit recovery control.
 | 2026-08-10 | Windows build attempt | The VM cannot resolve GitHub, so its generated MPV archive was zero bytes. A Linux-downloaded archive was copied to the isolated build path and its expected MD5 verified. The next failure is Rust toolchain error 448 (`untrusted mount point`) while Cargokit invokes `rustc`; it persists after moving the disposable checkout from Documents to a fresh `C:` path. |
 | 2026-08-10 | Windows toolchain refresh | The VM desktop is active, GitHub DNS is restored, and Rust was updated to 1.97.1. The former Rust error-448 no longer occurs. A separate official Flutter 3.44.6 SDK was installed to match Linux without changing the existing local SDK. A clean isolated profile build completed with zero native warnings/errors. |
 | 2026-08-10 | Windows diagnostics startup repair | The server had written its handshake before awaiting Unix `chmod`; Windows then bound the port but never began serving requests. Skipping the POSIX permission command on Windows restores the authenticated health response. A waking keyboard event also restored the VM framebuffer from black to the visible desktop. |
+| 2026-08-11 | Broad-sync control coalescing | Windows validation found that diagnostics broad actions could call the raw engine while the app's startup controller was already synchronizing, producing competing progress snapshots. Broad API actions now join the production controller, matching user-triggered sync behavior. |
 
 ## Active investigation
 

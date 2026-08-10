@@ -222,7 +222,9 @@ The current implementation starts `SyncDiagnosticsServer` on Linux and Windows:
    permission command before starting the request loop.
 4. Authenticated feature actions run through the root `ProviderContainer` and
    the same controllers, repositories, DAOs, and audio handler as production
-   interactions. Status and report endpoints expose bounded, non-secret
+   interactions. Broad sync actions specifically join the production
+   `LibrarySyncController`, so diagnostics cannot create a competing repair
+   alongside startup or UI work. Status and report endpoints expose bounded, non-secret
    observations for assertions.
 5. `POST /v1/shutdown` closes the server, removes the handshake, disposes the
    provider container and diagnostics database, and exits the process.

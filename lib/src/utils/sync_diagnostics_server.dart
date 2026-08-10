@@ -584,42 +584,33 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'POST' && path == '/v1/sync/automatic') {
-        final engine = _container.read(librarySyncEngineProvider);
-        if (engine == null) {
-          await _syncUnavailable(request);
-          return;
-        }
-        await _startSync(
+        await _startControllerSync(
           request,
-          (onProgress) => engine.syncIfStale(onProgress: onProgress),
+          () => _container
+              .read(librarySyncControllerProvider.notifier)
+              .syncIfStale(),
         );
         return;
       }
       if (request.method == 'POST' && path == '/v1/sync/check') {
-        final engine = _container.read(librarySyncEngineProvider);
-        if (engine == null) {
-          await _syncUnavailable(request);
-          return;
-        }
         final body = await _readJson(request);
         final allowOverride = body['allowMeteredBroadOverride'] == true;
-        await _startSync(
+        await _startControllerSync(
           request,
-          (onProgress) => _runCheck(engine, allowOverride, onProgress),
+          () => _container
+              .read(librarySyncControllerProvider.notifier)
+              .syncNow(allowMeteredBroadOverride: allowOverride),
         );
         return;
       }
       if (request.method == 'POST' && path == '/v1/sync/repair') {
-        final engine = _container.read(librarySyncEngineProvider);
-        if (engine == null) {
-          await _syncUnavailable(request);
-          return;
-        }
         final body = await _readJson(request);
         final allowOverride = body['allowMeteredBroadOverride'] == true;
-        await _startSync(
+        await _startControllerSync(
           request,
-          (onProgress) => _runRepair(engine, allowOverride, onProgress),
+          () => _container
+              .read(librarySyncControllerProvider.notifier)
+              .forceFullSync(allowMeteredBroadOverride: allowOverride),
         );
         return;
       }
@@ -1131,6 +1122,43 @@ class SyncDiagnosticsServer {
           .whenComplete(() {
             _activeSync = null;
             _activeProgress = null;
+          }),
+    );
+    await _respond(request, HttpStatus.accepted, <String, Object?>{
+      'status': 'started',
+    });
+  }
+
+  /// Uses the production controller for broad actions so a diagnostics
+  /// request joins startup, reconnect, and UI-triggered work instead of
+  /// beginning a second raw-engine operation with competing progress frames.
+  Future<void> _startControllerSync(
+    HttpRequest request,
+    Future<LibrarySyncState> Function() operation,
+  ) async {
+    if (_activeSync != null) {
+      await _respond(request, HttpStatus.conflict, <String, Object?>{
+        'error': 'sync already running',
+      });
+      return;
+    }
+    _lastSyncError = null;
+    _activeProgress = null;
+    final future = operation();
+    _activeSync = future;
+    unawaited(
+      future
+          .then<void>(
+            (state) {
+              _lastSync = state;
+              _captureEndpointRequests();
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              _lastSyncError = error;
+            },
+          )
+          .whenComplete(() {
+            _activeSync = null;
           }),
     );
     await _respond(request, HttpStatus.accepted, <String, Object?>{
