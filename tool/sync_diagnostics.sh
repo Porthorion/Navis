@@ -3,9 +3,9 @@ set -euo pipefail
 
 MODE="${1:-clone}"
 case "$MODE" in
-  clone|primary-certification|throughput) ;;
+  clone|primary-certification|throughput|cache-alias) ;;
   *)
-    echo "Usage: $0 [clone|primary-certification|throughput]" >&2
+    echo "Usage: $0 [clone|primary-certification|throughput|cache-alias]" >&2
     exit 64
     ;;
 esac
@@ -52,8 +52,9 @@ PY
   DATABASE_DEFINE=()
 else
   CLONE_DB="$OUTPUT_ROOT/navis-diagnostics.sqlite"
-  python3 - "$SOURCE_DB" "$CLONE_DB" "$OUTPUT_ROOT/cache" <<'PY'
-import os, shutil, sqlite3, sys
+  python3 - "$SOURCE_DB" "$CLONE_DB" "$OUTPUT_ROOT/cache" \
+    "${NAVIS_DIAGNOSTICS_USERNAME:-}" "$MODE" <<'PY'
+import json, os, shutil, sqlite3, sys, time
 source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 target = sqlite3.connect(sys.argv[2])
 source.backup(target)
@@ -71,6 +72,61 @@ for song_id, source_path in target.execute(
         "UPDATE cached_tracks SET file_path = ? WHERE song_id = ?",
         (destination, song_id),
     )
+username = sys.argv[4].strip()
+if username:
+    target.execute("UPDATE server_config SET username = ?", (username,))
+if sys.argv[5] == "cache-alias":
+  # Targeted hydration deliberately tests one selected canonical album. Do
+    # not let unrelated, persisted clone work replace that target or start a
+    # broad verification pass before the focused request can run.
+    for table in (
+        "library_sync_work",
+        "library_sync_candidate_artists",
+        "library_sync_candidate_albums",
+        "library_sync_candidate_songs",
+    ):
+        target.execute(f"DELETE FROM {table}")
+    now = int(time.time())
+    target.execute(
+        "UPDATE server_config SET last_synced = ?, last_full_synced = ?",
+        (now, now),
+    )
+    target.execute('''
+        UPDATE library_sync_state
+        SET last_checked_at = ?, last_catalog_synced_at = ?,
+            last_auxiliary_synced_at = ?, last_genres_synced_at = ?,
+            last_audit_at = ?, audit_offset = 0
+    ''', (now, now, now, now, now))
+    row = target.execute(
+        "SELECT id, capabilities FROM server_config ORDER BY id LIMIT 1"
+    ).fetchone()
+    if row is not None:
+        server_id, capabilities = row
+        try:
+            parsed = json.loads(capabilities) if capabilities else {}
+        except (TypeError, json.JSONDecodeError):
+            parsed = {}
+        navis = parsed.get("navis")
+        if not isinstance(navis, dict):
+            navis = {}
+            parsed["navis"] = navis
+        for key in (
+            "libraryPendingIndexesFingerprint",
+            "libraryPendingIndexesCursor",
+            "libraryPendingIndexesOffset",
+            "libraryPendingIndexesArtistIds",
+            "librarySyncFailureDiagnostics",
+            "librarySyncFailureRecordedAt",
+        ):
+            navis.pop(key, None)
+        navis["libraryFreshness"] = "current"
+        navis["libraryHealthCheckedAt"] = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)
+        )
+        target.execute(
+            "UPDATE server_config SET capabilities = ? WHERE id = ?",
+            (json.dumps(parsed, separators=(",", ":")), server_id),
+        )
 target.commit()
 target.close()
 PY
@@ -79,6 +135,15 @@ PY
     "--dart-define=NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT"
     "--dart-define=NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB"
   )
+  if [[ -n "${NAVIS_DIAGNOSTICS_CREDENTIAL_PATH:-}" ]]; then
+    if [[ ! -f "$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH" ]]; then
+      echo "Diagnostics credential file was not found." >&2
+      exit 66
+    fi
+    DATABASE_DEFINE+=(
+      "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
+    )
+  fi
 fi
 
 write_database_summary() {
@@ -148,7 +213,7 @@ FLUTTER_PID=0
 launch_app() {
   rm -f "$HANDSHAKE"
   local diagnostics_runtime_mode="$MODE"
-  if [[ "$MODE" == "throughput" ]]; then
+  if [[ "$MODE" == "throughput" || "$MODE" == "cache-alias" ]]; then
     diagnostics_runtime_mode="clone"
   fi
   flutter run -d linux --profile \
@@ -303,6 +368,132 @@ PY
 
 HEALTH="$(api GET /v1/health)"
 printf '%s\n' "$HEALTH" > "$OUTPUT_ROOT/health.json"
+
+if [[ "$MODE" == "cache-alias" ]]; then
+  # This intentionally creates the provisional row only in the isolated
+  # profile. The server supplies the canonical album response; the assertion
+  # below proves production hydration transfers cache ownership to that ID.
+  CACHE_ALIAS_ALBUM_ID="$(python3 - "$CLONE_DB" "$OUTPUT_ROOT/cache" \
+    "${NAVIS_DIAGNOSTICS_CACHE_ALIAS_OFFSET:-0}" <<'PY'
+import os, sqlite3, sys, time
+db = sqlite3.connect(sys.argv[1])
+cache_root = sys.argv[2]
+offset = max(0, int(sys.argv[3]))
+row = db.execute('''
+  WITH unique_recordings AS (
+    SELECT recording_mbid
+    FROM songs
+    WHERE recording_mbid IS NOT NULL
+      AND TRIM(recording_mbid) != ''
+      AND is_provisional = 0
+    GROUP BY recording_mbid
+    HAVING COUNT(*) = 1
+  )
+  SELECT s.title, s.album_id, s.artist_id, s.artist_name, s.album_name,
+         s.track, s.disc_number, s.duration, s.recording_mbid
+  FROM songs s
+  JOIN albums a ON a.id = s.album_id
+  JOIN unique_recordings unique_mbid ON unique_mbid.recording_mbid = s.recording_mbid
+  WHERE s.recording_mbid IS NOT NULL
+    AND TRIM(s.recording_mbid) != ''
+    AND a.songs_hydrated = 1
+  ORDER BY COALESCE(a.server_created_at, 0) DESC
+  LIMIT 1 OFFSET ?
+''', (offset,)).fetchone()
+if row is None:
+    raise SystemExit('No uniquely identifiable hydrated song is available.')
+title, album_id, artist_id, artist_name, album_name, track, disc, duration, mbid = row
+remote_id = 'navis-diagnostics-provisional-cache-alias'
+remote_album_id = 'navis-diagnostics-provisional-cache-alias-album'
+remote_artist_id = 'navis-diagnostics-provisional-cache-alias-artist'
+path = os.path.join(cache_root, remote_id + '.cache')
+with open(path, 'wb') as output:
+    output.write(b'isolated cache identity migration probe')
+db.execute('DELETE FROM cached_tracks WHERE song_id = ?', (remote_id,))
+db.execute('DELETE FROM songs WHERE id = ?', (remote_id,))
+db.execute('DELETE FROM song_identity_aliases WHERE old_song_id = ?', (remote_id,))
+db.execute('DELETE FROM albums WHERE id = ?', (remote_album_id,))
+db.execute('DELETE FROM artists WHERE id = ?', (remote_artist_id,))
+db.execute('''
+  INSERT INTO artists (id, name, is_provisional, is_external)
+  VALUES (?, ?, 1, 1)
+''', (remote_artist_id, artist_name))
+db.execute('''
+  INSERT INTO albums (
+    id, name, artist_id, artist_name, is_provisional, is_external
+  ) VALUES (?, ?, ?, ?, 1, 1)
+''', (remote_album_id, album_name, remote_artist_id, artist_name))
+db.execute('''
+  INSERT INTO songs (
+    id, title, album_id, artist_id, artist_name, album_name, track,
+    disc_number, duration, recording_mbid, is_provisional, is_external
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)
+''', (remote_id, title, remote_album_id, remote_artist_id, artist_name, album_name,
+      track, disc, duration, mbid))
+db.execute('''
+  INSERT INTO cached_tracks (
+    song_id, file_path, file_size, format, last_accessed_at, cache_type,
+    download_status
+  ) VALUES (?, ?, ?, 'cache', ?, 'rolling', 'complete')
+''', (remote_id, path, os.path.getsize(path), int(time.time())))
+db.commit()
+db.close()
+print(album_id)
+PY
+)"
+  api POST /v1/diagnostics/overrides \
+    '{"networkType":"wifi","nativeMetered":false,"interactiveHydrationAllowed":true,"requestReporting":true}' \
+    > "$OUTPUT_ROOT/cache-alias-overrides.json"
+  api POST /v1/sync/target "$(python3 - "$CACHE_ALIAS_ALBUM_ID" <<'PY'
+import json, sys
+print(json.dumps({'targetKind': 'album', 'entityId': sys.argv[1]}))
+PY
+)" > "$OUTPUT_ROOT/cache-alias-start.json"
+  wait_for_sync > "$OUTPUT_ROOT/cache-alias-result.json"
+  api POST /v1/shutdown > "$OUTPUT_ROOT/shutdown.json" || true
+  wait "$FLUTTER_PID" || true
+  FLUTTER_PID=0
+  trap - EXIT INT TERM
+  python3 - "$CLONE_DB" "$OUTPUT_ROOT/cache-alias-result.json" \
+    "$OUTPUT_ROOT/cache-alias-validation.json" <<'PY'
+import json, os, sqlite3, sys
+db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+result = json.load(open(sys.argv[2], encoding='utf-8'))
+remote_id = 'navis-diagnostics-provisional-cache-alias'
+alias = db.execute(
+    'SELECT canonical_song_id FROM song_identity_aliases WHERE old_song_id = ?',
+    (remote_id,),
+).fetchone()
+remote_cache_count = db.execute(
+    'SELECT COUNT(*) FROM cached_tracks WHERE song_id = ?', (remote_id,)
+).fetchone()[0]
+canonical_cache = None
+if alias is not None:
+    canonical_cache = db.execute(
+        'SELECT file_path FROM cached_tracks WHERE song_id = ?', (alias[0],)
+    ).fetchone()
+value = {
+    'syncStatus': result.get('status'),
+    'planKind': result.get('planKind'),
+    'requests': result.get('requests'),
+    'aliasCreated': alias is not None,
+    'remoteCacheRows': remote_cache_count,
+    'canonicalCacheRows': 1 if canonical_cache is not None else 0,
+    'cacheFilePresent': bool(canonical_cache and os.path.isfile(canonical_cache[0])),
+}
+with open(sys.argv[3], 'w', encoding='utf-8') as output:
+    json.dump(value, output)
+db.close()
+assert value['syncStatus'] in ('succeeded', 'partial'), value
+assert value['aliasCreated'], value
+assert value['remoteCacheRows'] == 0, value
+assert value['canonicalCacheRows'] == 1, value
+assert value['cacheFilePresent'], value
+PY
+  echo "Cache-alias diagnostics completed: $OUTPUT_ROOT"
+  exit 0
+fi
+
 IFS=$'\t' read -r SONG_ID ORIGINAL_STARRED < <(python3 - "$SOURCE_DB" <<'PY'
 import sqlite3, sys
 db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)

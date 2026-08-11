@@ -27,6 +27,23 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.2',
+    entries: [
+      ChangelogEntry(
+        'Startup sync now waits for its signed-in server connection to become ready instead of briefly showing a false metadata-sync failure',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Refreshing a large library now brings in newly added albums immediately instead of waiting for a long artist verification cycle',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Subsonic connections now identify Navis to work reliably with strict reverse proxies',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.1',
     entries: [
       ChangelogEntry(

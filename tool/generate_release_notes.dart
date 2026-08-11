@@ -55,6 +55,20 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.2', [
+    _Entry(
+      'Startup sync now waits for its signed-in server connection to become ready instead of briefly showing a false metadata-sync failure',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Refreshing a large library now brings in newly added albums immediately instead of waiting for a long artist verification cycle',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Subsonic connections now identify Navis to work reliably with strict reverse proxies',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.2.1', [
     _Entry(
       'Library sync is now more reliable: background, manual, and repair requests share one coordinated operation so progress and failures stay accurate instead of briefly disappearing',

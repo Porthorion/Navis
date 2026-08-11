@@ -2585,6 +2585,139 @@ void main() {
     );
 
     test(
+      'manual changed-index refresh immediately hydrates newest albums in a large library',
+      () async {
+        const artistCount = 2000;
+        const songsPerAlbum = 25;
+        final committedCursor = DateTime.utc(2026, 8, 1);
+        final changedCursor = DateTime.utc(2026, 8, 2);
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'libraryIndexesCursor': committedCursor.toIso8601String(),
+              'libraryHealthCheckedAt': DateTime.now()
+                  .toUtc()
+                  .toIso8601String(),
+            },
+          }),
+        );
+
+        final artists = List<ArtistsTableCompanion>.generate(
+          artistCount,
+          (index) => ArtistsTableCompanion.insert(
+            id: 'artist-$index',
+            name: 'Artist $index',
+            albumCount: const Value(1),
+          ),
+          growable: false,
+        );
+        final albums = List<AlbumsTableCompanion>.generate(
+          artistCount,
+          (index) => AlbumsTableCompanion.insert(
+            id: 'album-$index',
+            name: 'Album $index',
+            artistId: Value('artist-$index'),
+            artistName: Value('Artist $index'),
+            songCount: const Value(songsPerAlbum),
+            songsHydrated: const Value(true),
+          ),
+          growable: false,
+        );
+        final songs = List<SongsTableCompanion>.generate(
+          artistCount * songsPerAlbum,
+          (index) {
+            final artistIndex = index ~/ songsPerAlbum;
+            return SongsTableCompanion.insert(
+              id: 'song-$index',
+              title: 'Song $index',
+              albumId: Value('album-$artistIndex'),
+              artistId: Value('artist-$artistIndex'),
+            );
+          },
+          growable: false,
+        );
+        await database.libraryDao.replaceArtists(artists);
+        await database.libraryDao.replaceAlbums(albums);
+        await database.libraryDao.replaceSongs(songs);
+
+        api.indexes = Indexes(
+          lastModified: changedCursor,
+          indexes: <IndexesIndex>[
+            IndexesIndex(
+              name: 'A',
+              artists: List<Artist>.generate(
+                artistCount,
+                (index) => Artist(
+                  id: 'artist-$index',
+                  name: 'Artist $index',
+                  albumCount: 1,
+                ),
+                growable: false,
+              ),
+            ),
+          ],
+        );
+        for (var index = 0; index < artistCount; index++) {
+          api.artistDetails['artist-$index'] = Artist(
+            id: 'artist-$index',
+            name: 'Artist $index',
+            albumCount: 1,
+            albums: <Album>[
+              Album(
+                id: 'album-$index',
+                name: 'Album $index',
+                artistId: 'artist-$index',
+                artist: 'Artist $index',
+                songCount: songsPerAlbum,
+              ),
+            ],
+          );
+        }
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-new',
+            name: 'New Album',
+            artistId: 'artist-1999',
+            artist: 'Artist 1999',
+            songCount: 1,
+          ),
+        ];
+        api.albumDetails['album-new'] = const Album(
+          id: 'album-new',
+          name: 'New Album',
+          artistId: 'artist-1999',
+          artist: 'Artist 1999',
+          songCount: 1,
+          songs: <Song>[
+            Song(
+              id: 'song-new',
+              title: 'New Song',
+              albumId: 'album-new',
+              artistId: 'artist-1999',
+            ),
+          ],
+        );
+
+        final state = await engine.syncNow();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(await database.libraryDao.getAlbumById('album-new'), isNotNull);
+        expect(
+          (await database.libraryDao.watchSongsByAlbum('album-new').first)
+              .single
+              .id,
+          'song-new',
+        );
+        expect(api.calls, contains('getAlbumListPage:0:100'));
+        expect(api.calls, contains('getAlbum:album-new'));
+        expect(api.calls, isNot(contains('getArtist:artist-1999')));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'incremental sync persists play-count-only album metadata changes',
       () async {
         await saveSession(

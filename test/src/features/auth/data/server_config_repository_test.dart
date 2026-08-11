@@ -123,22 +123,26 @@ void main() {
       await database.close();
     });
 
-    test('save writes drift metadata and secure password', () async {
-      await repository.save(
-        const ServerConfigModel(
-          name: 'example.com',
-          url: 'https://example.com',
-          username: 'alice',
-          password: 'secret',
-          apiVersion: '1.16.1',
-        ),
-      );
+    test(
+      'save writes drift metadata and secure password',
+      () async {
+        await repository.save(
+          const ServerConfigModel(
+            name: 'example.com',
+            url: 'https://example.com',
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+        );
 
-      final row = await database.serverDao.getActiveServer();
-      expect(row?.url, 'https://example.com');
-      expect(row?.username, 'alice');
-      expect(credentials.password, 'secret');
-    }, skip: !sqliteAvailable);
+        final row = await database.serverDao.getActiveServer();
+        expect(row?.url, 'https://example.com');
+        expect(row?.username, 'alice');
+        expect(credentials.password, 'secret');
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'getActiveServer combines drift row with secure password',

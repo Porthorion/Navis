@@ -196,6 +196,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   int _startupSyncEpoch = 0;
   Future<LibrarySyncState>? _activeSync;
   Future<void>? _startupSyncTask;
+  bool _retryStartupWhenEngineReady = false;
   String? _startupSyncDoneFingerprint;
   String? _sessionFingerprint;
   ServerReachabilityStatus? _lastReachabilityStatus;
@@ -267,6 +268,18 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         }
       }
     });
+    ref.listen<LibrarySyncEngine?>(librarySyncEngineProvider, (previous, next) {
+      // A session can become visible before its credential-backed API client
+      // is ready. Do not strand the shell's startup pass in that brief gap;
+      // start it once the production engine is available.
+      if (next != null) {
+        if (_startupSyncTask != null) {
+          _retryStartupWhenEngineReady = true;
+          return;
+        }
+        _scheduleStartupSync();
+      }
+    });
 
     // Kick off the periodic timer with the current interval.
     final intervalMinutes = ref.read(syncIntervalMinutesProvider);
@@ -280,12 +293,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<LibrarySyncState> syncIfStale() {
-    return _runSync(force: false);
+    return _runSync(force: false, tolerateUnavailableEngine: true);
   }
 
   Future<LibrarySyncState> syncNow({bool allowMeteredBroadOverride = false}) {
     return _runSync(
       force: true,
+      tolerateUnavailableEngine: false,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
     );
   }
@@ -295,6 +309,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }) {
     return _runSync(
       force: true,
+      tolerateUnavailableEngine: false,
       forceFull: true,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
     );
@@ -430,6 +445,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _startupSyncSuppressed = true;
       _startupSyncEpoch++;
       _startupSyncInFlight = false;
+      _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = null;
       _cancelVerificationContinuation();
@@ -443,6 +459,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _startupSyncSuppressed = false;
       _startupSyncEpoch++;
       _startupSyncInFlight = false;
+      _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = fingerprint;
       _priorityAlbumIds.clear();
@@ -530,6 +547,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       task.whenComplete(() {
         if (identical(_startupSyncTask, task)) {
           _startupSyncTask = null;
+          if (_retryStartupWhenEngineReady) {
+            _retryStartupWhenEngineReady = false;
+            _scheduleStartupSync();
+          }
         }
       }),
     );
@@ -603,7 +624,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     try {
       final result = await (requiresSyncModelRepair && !deferFullResyncOnMobile
-          ? forceFullSync()
+          ? _runSync(
+              force: true,
+              forceFull: true,
+              tolerateUnavailableEngine: true,
+            )
           : syncIfStale());
       if (!ref.mounted || epoch != _startupSyncEpoch) {
         return;
@@ -639,6 +664,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   Future<LibrarySyncState> _runSync({
     required bool force,
+    required bool tolerateUnavailableEngine,
     bool forceFull = false,
     bool verificationContinuation = false,
     bool allowMeteredBroadOverride = false,
@@ -646,6 +672,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     return _joinOrStartSync(
       () => _runSyncOnce(
         force: force,
+        tolerateUnavailableEngine: tolerateUnavailableEngine,
         forceFull: forceFull,
         verificationContinuation: verificationContinuation,
         allowMeteredBroadOverride: allowMeteredBroadOverride,
@@ -672,6 +699,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   Future<LibrarySyncState> _runSyncOnce({
     required bool force,
+    required bool tolerateUnavailableEngine,
     required bool forceFull,
     required bool verificationContinuation,
     required bool allowMeteredBroadOverride,
@@ -679,6 +707,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final engine = ref.read(librarySyncEngineProvider);
     final notifier = ref.read(librarySyncNotifierProvider);
     if (engine == null) {
+      if (tolerateUnavailableEngine) {
+        // Startup/periodic work is not a user-visible failed sync merely
+        // because the credential-backed API provider is still initializing.
+        return state;
+      }
       state = state.copyWith(
         status: LibrarySyncStatus.failed,
         stage: LibrarySyncStage.completed,
@@ -941,6 +974,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       unawaited(
         _runSync(
           force: true,
+          tolerateUnavailableEngine: true,
           verificationContinuation: true,
         ),
       );

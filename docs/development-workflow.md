@@ -170,6 +170,9 @@ Linux and Windows profile diagnostics share the same control-plane contract:
 - `tool/sync_diagnostics.sh clone` demonstrates the supported isolated launch,
   while `tool/sync_diagnostics.sh throughput` measures one isolated Repair
   Library run without cancellation/restart scenarios affecting its result.
+  `tool/sync_diagnostics.sh cache-alias` seeds a cached provisional song only
+  in the clone, hydrates its canonical album from the configured server, and
+  asserts alias and cache ownership migration.
   handshake, authenticated requests, restart, reporting, and shutdown flow.
 - Current observation endpoints include `GET /v1/health`,
   `GET /v1/sync/status`, `GET /v1/playback/status`,
@@ -574,6 +577,25 @@ cannot unlink primary cache files. Clone mode can simulate metered/cellular
 policy through diagnostics overrides and asserts hard-probe, interactive
 hydration, budget, and one-time override guardrails without requiring a real
 modem.
+
+To validate cache migration for a provisional song after the server has
+canonicalized it, run the focused clone-only scenario:
+
+```bash
+./tool/sync_diagnostics.sh cache-alias
+```
+
+It creates a disposable cache row in the clone, uses the running Navis app API
+to hydrate the matching real album, and asserts that the persisted identity
+alias exists, the old cache row is gone, the canonical row owns the cache, and
+the cache file remains present. It never writes to the primary database or
+cache directory.
+
+When a newly changed server password has not yet been saved in desktop secure
+storage, provide a separately permissioned temporary credential file through
+`NAVIS_DIAGNOSTICS_CREDENTIAL_PATH`; the clone reads it without altering the
+primary credential store. `NAVIS_DIAGNOSTICS_USERNAME` similarly replaces the
+username only in the clone when validating a different account.
 
 Run primary certification only after the clone suite passes:
 

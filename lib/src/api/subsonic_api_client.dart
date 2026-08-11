@@ -33,9 +33,13 @@ class SubsonicApiClient {
                connectTimeout: const Duration(seconds: 15),
                receiveTimeout: const Duration(seconds: 30),
                sendTimeout: const Duration(seconds: 15),
+               headers: const <String, Object>{
+                 'User-Agent': _userAgent,
+               },
              ),
            ) {
     _configureTransport();
+    _dio.options.headers['User-Agent'] = _userAgent;
     _dio.interceptors.add(SubsonicAuthInterceptor(config: authConfig));
     if (enableLogging) {
       _dio.interceptors.add(SubsonicLoggingInterceptor());
@@ -49,6 +53,8 @@ class SubsonicApiClient {
   final bool enableLogging;
   final int? maxConnectionsPerHost;
   final NetworkUsageReporter? _reportNetworkUsage;
+
+  static const _userAgent = 'Navis/1.2.1';
 
   void close({bool force = true}) {
     _dio.close(force: force);

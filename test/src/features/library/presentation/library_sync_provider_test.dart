@@ -43,6 +43,17 @@ class _MutableReachabilityController extends ServerReachabilityController {
   }
 }
 
+class _MutableLibrarySyncEngine extends Notifier<LibrarySyncEngine?> {
+  @override
+  LibrarySyncEngine? build() => null;
+
+  // This simulates an asynchronous provider update in the startup race.
+  // ignore: use_setters_to_change_properties
+  void replace(LibrarySyncEngine? engine) {
+    state = engine;
+  }
+}
+
 class _FakeLibrarySyncEngine extends LibrarySyncEngine {
   _FakeLibrarySyncEngine(this._handlerIfStale, this._handlerNow);
 
@@ -112,6 +123,75 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('librarySyncControllerProvider', () {
+    test(
+      'startup waits for its API-backed engine without publishing failure',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+          ({forceFull = false, onProgress}) async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+        );
+        final engineState =
+            NotifierProvider<_MutableLibrarySyncEngine, LibrarySyncEngine?>(
+              _MutableLibrarySyncEngine.new,
+            );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            navisDatabaseProvider.overrideWithValue(database),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
+              ),
+            ),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWith(
+              (ref) => ref.watch(engineState),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        expect(
+          container.read(librarySyncControllerProvider).status,
+          LibrarySyncStatus.idle,
+        );
+        expect(container.read(librarySyncEngineProvider), isNull);
+
+        container.read(engineState.notifier).replace(engine);
+        expect(container.read(librarySyncEngineProvider), same(engine));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+
+        expect(engine.nowCalls, 1);
+        expect(
+          container.read(librarySyncControllerProvider).status,
+          LibrarySyncStatus.succeeded,
+        );
+      },
+    );
+
     test('startup trigger runs once when authenticated', () async {
       final database = createTestDatabase();
       addTearDown(database.close);

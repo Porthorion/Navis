@@ -466,6 +466,51 @@ void main() {
   );
 
   test(
+    'manual refresh consumes a changed-index follow-up in the same action',
+    () async {
+      await repository.save(
+        ServerConfigModel(
+          url: 'https://music.example.test',
+          username: 'listener',
+          password: 'secret',
+          apiVersion: '1.16.1',
+          lastSynced: DateTime.utc(2026, 8, 1),
+        ),
+      );
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          currentGeneration: Value(1),
+        ),
+      );
+      final probeEngine = _ProbeLibrarySyncEngine()..probeIndexChanged = true;
+      final manualCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+
+      final result = await manualCoordinator.syncNow();
+
+      expect(probeEngine.probeCalls, 1);
+      expect(probeEngine.syncNowCalls, 1);
+      expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(
+        await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+        ),
+        isNotNull,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'manual refresh resumes queued catalog work while playback is active',
     () async {
       final probeEngine = _ProbeLibrarySyncEngine();

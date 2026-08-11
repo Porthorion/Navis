@@ -838,6 +838,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     _api.beginRun();
     final startedAt = DateTime.now();
     final metrics = _SyncRunMetrics();
+    var failureEndpoint = 'getAlbum';
     var state = LibrarySyncState(
       status: LibrarySyncStatus.running,
       stage: LibrarySyncStage.fetchingSongs,
@@ -913,6 +914,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         pendingHydrationAlbumIds: <String>[normalizedId],
         inheritExternalWhenMissing: isExternalDetail,
       );
+      failureEndpoint = 'writeAlbum';
       await _database.transaction(() async {
         if (missingArtist != null) {
           if (isExternalDetail) {
@@ -933,6 +935,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             markAlbumsHydrated: true,
             albumMetadata: albumMetadata,
           );
+          failureEndpoint = 'reconcileSongIdentity';
           await _reconcileHydratedSongIds(
             canonicalSongIds: songs
                 .where((song) => song.id.present)
@@ -988,6 +991,17 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics,
       );
     } on Object catch (error) {
+      metrics.recordFailureDiagnostic(
+        stage: state.stage.name,
+        endpoint: failureEndpoint,
+        entityId: normalizedId,
+        error: error,
+        attempts: metrics.apiRequests,
+      );
+      await _persistFailureDiagnosticsBestEffort(
+        metrics,
+        clearWhenEmpty: false,
+      );
       state = _withMetrics(
         state.copyWith(
           status: _cancelled
@@ -3299,8 +3313,19 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       capabilitiesJson,
       _libraryHealthCheckedAtCapabilityKey,
     );
+    final targetCursor = indexesReliable ? indexes?.lastModified : null;
+    final cursorChanged =
+        targetCursor != null &&
+        (committedCursor == null ||
+            targetCursor.toUtc() != committedCursor.toUtc());
     final healthProbeDue =
         fallbackVerification ||
+        // `getIndexes` only tells us that the artist collection changed. It
+        // does not identify which artist changed, so a rotating artist audit
+        // can otherwise leave a new album behind thousands of unrelated
+        // artists. An explicit refresh with a newer cursor must inspect the
+        // bounded newest-album window immediately.
+        (manual && cursorChanged) ||
         lastHealthCheck == null ||
         now.difference(lastHealthCheck) >= _defaultHealthProbeStaleAfter;
     var healthProbe = const _NewestAlbumHealthProbe(
@@ -3313,12 +3338,15 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         <String, Object?>{_libraryHealthCheckedAtCapabilityKey: now},
         metrics,
       );
+      await _stageNewestAlbumsForHydration(
+        healthProbe.discrepantAlbums,
+        metrics,
+      );
     }
 
     final indexesFingerprint = indexesReliable && indexes != null
         ? _fingerprintIndexes(indexes)
         : _fingerprintArtistIds(snapshotArtists.keys);
-    final targetCursor = indexesReliable ? indexes?.lastModified : null;
     final pendingFingerprint = _readNavisStringCapability(
       capabilitiesJson,
       _libraryPendingFingerprintCapabilityKey,
@@ -3340,18 +3368,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             pendingTargetCursor == null ||
             targetCursor.toUtc() == pendingTargetCursor.toUtc());
 
-    final cursorChanged =
-        targetCursor != null &&
-        (committedCursor == null ||
-            targetCursor.toUtc() != committedCursor.toUtc());
     final urgentArtistIds = await _prioritizeVerificationArtists(
       snapshotArtists: snapshotArtists,
-      healthProbeArtistIds: healthProbe.artistIds,
+      healthProbeArtistIds: const <String>{},
       includeRemaining: false,
     );
     final fullAuditArtistIds = await _prioritizeVerificationArtists(
       snapshotArtists: snapshotArtists,
-      healthProbeArtistIds: healthProbe.artistIds,
+      healthProbeArtistIds: const <String>{},
     );
     final storedRemainingArtistIds = storedPendingArtistIds.sublist(
       storedPendingOffset,
@@ -3718,6 +3742,65 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       ),
       metrics,
     );
+  }
+
+  /// Makes the bounded `newest` feed useful as a direct change path.
+  ///
+  /// `getIndexes` is intentionally only an artist-collection invalidation
+  /// signal. Its contents cannot tell us which existing artist received a new
+  /// album. The newest feed does, and every listed album is subsequently
+  /// hydrated through the normal song and identity-reconciliation path.
+  Future<void> _stageNewestAlbumsForHydration(
+    Iterable<Album> albums,
+    _SyncRunMetrics metrics,
+  ) async {
+    final candidates = albums
+        .where(
+          (album) =>
+              album.id.trim().isNotEmpty &&
+              !isExternalCatalogSource(
+                id: album.id,
+                apiIsExternal: album.isExternal,
+              ),
+        )
+        .toList(growable: false);
+    if (candidates.isEmpty) {
+      return;
+    }
+    final knownArtistIds = await _database.libraryDao.getArtistIds();
+    final missingArtists = <ArtistsTableCompanion>[];
+    for (final album in candidates) {
+      final artistId = album.artistId?.trim();
+      if (artistId == null ||
+          artistId.isEmpty ||
+          !knownArtistIds.add(artistId)) {
+        continue;
+      }
+      missingArtists.add(
+        ArtistsTableCompanion.insert(
+          id: artistId,
+          name: album.artist?.trim().isNotEmpty == true
+              ? album.artist!.trim()
+              : 'Unknown Artist',
+        ),
+      );
+    }
+    final albumRows = await _toAlbumCompanions(
+      candidates,
+      pendingHydrationAlbumIds: candidates.map((album) => album.id),
+    );
+    await _database.transaction(() async {
+      if (missingArtists.isNotEmpty) {
+        await _database.libraryDao.upsertArtists(missingArtists);
+      }
+      await _database.libraryDao.upsertAlbums(albumRows);
+      await _database.libraryDao.markAlbumsPendingHydrationByIds(
+        candidates.map((album) => album.id),
+      );
+    });
+    metrics
+      ..metadataChanged = true
+      ..addDbWriteBatch();
   }
 
   Future<LibrarySyncState> _syncGenresAndPlaylistsBestEffort({

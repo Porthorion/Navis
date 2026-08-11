@@ -989,11 +989,28 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
     bool allowMeteredBroadOverride = false,
-  }) {
+  }) async {
+    final request = LibrarySyncRequest.checkForUpdates(
+      allowMeteredBroadOverride: allowMeteredBroadOverride,
+    );
+    final probeOrWork = await requestSync(
+      request,
+      priorityAlbumIds: priorityAlbumIds,
+      onProgress: onProgress,
+    );
+    // A check starts with a cheap conditional index probe because the planner
+    // cannot know whether the catalog changed yet. For an explicit user
+    // refresh, consume the durable follow-up immediately. Leaving it queued
+    // made the UI report updates available while showing no new albums until a
+    // later automatic run happened to pick it up.
+    if (probeOrWork.planKind != LibrarySyncPlanKind.probe ||
+        probeOrWork.status != LibrarySyncStatus.succeeded ||
+        (probeOrWork.probeIndexChanged != true &&
+            !probeOrWork.probeIndexesUnsupported)) {
+      return probeOrWork;
+    }
     return requestSync(
-      LibrarySyncRequest.checkForUpdates(
-        allowMeteredBroadOverride: allowMeteredBroadOverride,
-      ),
+      request,
       priorityAlbumIds: priorityAlbumIds,
       onProgress: onProgress,
     );

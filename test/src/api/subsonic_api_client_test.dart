@@ -55,6 +55,7 @@ void main() {
 
       expect(captured.path, '/rest/ping.view');
       expect(captured.queryParameters['f'], 'json');
+      expect(captured.headers['User-Agent'], 'Navis/1.2.1');
       expect(version, '1.16.1');
     });
 

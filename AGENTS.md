@@ -157,6 +157,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/verify_android_auto_manifest.sh  # Android Auto manifest/APK contract
 ./tool/sync_diagnostics.sh clone  # isolated Linux profile sync/API suite
 ./tool/sync_diagnostics.sh throughput  # isolated single-repair throughput sample
+./tool/sync_diagnostics.sh cache-alias  # isolated live cache/identity migration probe
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
@@ -483,9 +484,12 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   requested refresh is not silently postponed behind it.
 - `LibrarySyncController` coalesces overlapping app-level sync requests and
   returns their final shared result. Never treat an in-flight state as a
-  terminal failure, and never route away from a ready session for ordinary
-  sync completion. Confirmed missing detail entities remain on their route
-  with a user-controlled return to Library.
+  terminal failure. Startup/periodic work must wait for the credential-backed
+  engine to become available rather than publishing a transient unavailable
+  engine as metadata-sync failure; an explicit user retry may report a real
+  unavailable engine. Never route away from a ready session for ordinary sync
+  completion. Confirmed missing detail entities remain on their route with a
+  user-controlled return to Library.
 - A failed automatic sync remains failed until the next configured sync
   interval, a reconnect, or an explicit manual retry. Do not add short forced
   retry loops that repeatedly restart the same failing metadata pass.
@@ -501,6 +505,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   Local completion time is only for scheduling/UI; do not advance the server
   cursor until every candidate in the response has been verified and its album
   hydration has completed.
+- An explicit Check for updates runs its conditional cursor probe and consumes
+  any resulting durable delta/compatibility follow-up before reporting success.
+  Never leave a user-triggered changed probe as updates-available-only work for
+  a later automatic pass.
 - A returned index is a gated artist snapshot, not a changed-artist feed.
   Persist continuation state and drain it in bounded passes (48 artists on
   non-cellular networks, 24 for a manual cellular refresh). Non-cellular
@@ -509,9 +517,13 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   newly reported/suspicious artists, preserve the untouched tail, and move
   already-verified artists behind it. A fresh local completion timestamp must
   not suppress persisted pending verification.
-- Run the bounded newest-album health probe every 12 hours. Servers with
-  unsupported or unreliable indexes use bounded artist/newest-album
-  verification on normal non-cellular syncs and retry `getIndexes` daily.
+- Run the bounded newest-album health probe every 12 hours. An explicit
+  refresh with an advanced reliable `getIndexes` cursor must run that bounded
+  probe immediately, stage its discrepant on-server albums for normal song
+  hydration and identity/cache reconciliation, and must not wait for the
+  rotating artist audit to reach their artist. Servers with unsupported or
+  unreliable indexes use bounded artist/newest-album verification on normal
+  non-cellular syncs and retry `getIndexes` daily.
 - Starred content and playlist headers use the 12-hour auxiliary window.
   Genres refresh after catalog changes/repair or every seven days; playlist
   contents hydrate on interaction. Do not fetch auxiliary domains on every

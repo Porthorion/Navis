@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ---
 
@@ -18,6 +18,36 @@ Last updated: 2026-08-10
 > precedent. Current agent policy requires the authenticated Navis API and
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
+
+- [x] Large-library new-album detection follow-up — 2026-08-11 (explicit
+  refreshes with an advanced conditional `getIndexes` cursor now consume their
+  durable delta in the same action, stage the bounded
+  `getAlbumList2(type=newest)` discrepancies directly for normal song
+  hydration and identity/cache reconciliation, and no longer wait for the
+  rotating artist audit; evidence: 2,000-artist/2,000-album/50,000-song
+  regression in `library_sync_engine_test.dart`, coordinator changed-probe
+  follow-up regression, cached provisional-song identity regression, and an
+  isolated authenticated Linux clone app-API check against the configured
+  server. With only clone state made stale, the first explicit Check for
+  updates advanced into `deltaReconcile` and increased the clone catalog from
+  5,427 to 5,462 albums while retaining 54,074 songs. Its partial result
+  represents the bounded remaining artist audit; primary data was never
+  modified. The final isolated live cache-alias app-API assertion passed:
+  targeted hydration used one `getAlbum` request, created the identity alias,
+  removed the provisional cache row, moved cache ownership to the canonical
+  song, and retained the cache file.)
+
+- [x] Startup metadata-sync availability race — 2026-08-11 (automatic
+  startup/periodic passes now wait for the credential-backed sync engine and
+  retry when it arrives, while explicit user retries still report a real
+  unavailable engine; evidence: deterministic delayed-engine provider
+  regression plus 47 focused provider/Home tests passed, and an isolated
+  authenticated Linux Home app-API run captured a populated Home screen with
+  no metadata-sync-failure banner. The app-owned PNG was opened and inspected.
+  `./tool/check.sh` formatting and code generation passed, then analysis
+  stopped on the repository's 497 informational diagnostics; final direct
+  analysis contained no new diagnostics from this change and currently reports
+  495 informational diagnostics.)
 
 - [x] Post-1.2.0 sync and cache stability certification — 2026-08-11 (source of truth: `docs/sync-stability-validation.md`; Linux isolated clone and authenticated Home/cache-fault evidence passed. Windows now has matching Flutter 3.44.6/Dart 3.12.2, Rust 1.97.1, and a clean zero-warning profile build. Its authenticated app API first-login Home screenshot, real full-repair promotion (1,697 artists / 5,436 albums / 54,109 songs), active direct-stream playback without load failures, cache corruption plus automatic maintenance, and clean restart with populated Home/player/cache state all passed. Diagnostics no longer blocks on Windows `chmod`, and broad diagnostics sync actions now join the production controller. Focused diagnostics-server tests passed 20 tests and the full Flutter suite passed 1,060 tests with 1 skip. `./tool/check.sh` formatting and code generation passed, then analysis stopped on 496 pre-existing informational diagnostics despite `--no-fatal-infos`; inspected output contained no errors/warnings from this work. The isolated Windows app was shut down through its authenticated API after certification.)
 

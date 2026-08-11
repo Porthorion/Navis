@@ -389,23 +389,41 @@ final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
 });
 
 final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
-  final config = ref.watch(serverConfigStateProvider).asData?.value;
-  if (config == null || config.password.trim().isEmpty) {
+  // Sync progress updates capabilities and timestamps on the server config.
+  // Those fields must not tear down the active transport: a follow-up album
+  // request may still be using it. Rebuild only when its connection identity
+  // actually changes.
+  final connection = ref.watch(
+    serverConfigStateProvider.select((state) {
+      final config = state.asData?.value;
+      if (config == null || config.password.trim().isEmpty) {
+        return null;
+      }
+      return (
+        url: config.url,
+        username: config.username,
+        password: config.password,
+        apiVersion: config.apiVersion,
+        useLegacyAuth: config.useLegacyAuth,
+      );
+    }),
+  );
+  if (connection == null) {
     return null;
   }
   final networkType = ref.watch(networkTypeProvider);
   final networkUsageMeter = ref.read(networkUsageMeterProvider);
 
-  final authType = config.useLegacyAuth
+  final authType = connection.useLegacyAuth
       ? SubsonicAuthType.legacyPassword
       : SubsonicAuthType.token;
 
   final client = SubsonicApiClient(
-    baseUrl: config.url,
+    baseUrl: connection.url,
     authConfig: SubsonicAuthConfig(
-      username: config.username,
-      password: config.password,
-      apiVersion: config.apiVersion,
+      username: connection.username,
+      password: connection.password,
+      apiVersion: connection.apiVersion,
       authType: authType,
     ),
     maxConnectionsPerHost: switch (networkType) {

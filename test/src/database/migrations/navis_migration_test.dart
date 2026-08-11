@@ -1094,38 +1094,42 @@ SET group_listening_enabled = 1,
     skip: !sqliteAvailable,
   );
 
-  test('migrates v60 retained server as authenticated', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'navis_migration_v61_test_',
-    );
-    final dbPath = p.join(tempDir.path, 'navis.sqlite');
-    final seed = NavisDatabase(NativeDatabase(File(dbPath)));
-    await seed.serverDao.saveServer(
-      ServerConfigTableCompanion.insert(
-        url: 'https://example.test',
-        username: 'alice',
-        apiVersion: '1.16.1',
-      ),
-    );
-    await seed.close();
+  test(
+    'migrates v60 retained server as authenticated',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v61_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+      final seed = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seed.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'alice',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await seed.close();
 
-    final raw = sqlite3.open(dbPath);
-    try {
-      raw.execute('ALTER TABLE server_config DROP COLUMN is_authenticated;');
-      raw.execute('PRAGMA user_version = 60;');
-    } finally {
-      raw.close();
-    }
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute('ALTER TABLE server_config DROP COLUMN is_authenticated;');
+        raw.execute('PRAGMA user_version = 60;');
+      } finally {
+        raw.close();
+      }
 
-    final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
-    addTearDown(() async {
-      await migrated.close();
-      await tempDir.delete(recursive: true);
-    });
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
 
-    expect(migrated.schemaVersion, 61);
-    final retained = await migrated.serverDao.getRetainedServer();
-    expect(retained, isNotNull);
-    expect(retained!.isAuthenticated, isTrue);
-  }, skip: !sqliteAvailable);
+      expect(migrated.schemaVersion, 61);
+      final retained = await migrated.serverDao.getRetainedServer();
+      expect(retained, isNotNull);
+      expect(retained!.isAuthenticated, isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
 }

@@ -34,6 +34,16 @@ class _MockLrclibClient extends Mock implements LrclibClient {}
 
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient {}
 
+class _MutableServerConfigState
+    extends Notifier<AsyncValue<ServerConfigModel?>> {
+  @override
+  AsyncValue<ServerConfigModel?> build() => const AsyncData(null);
+
+  void set(ServerConfigModel? value) {
+    state = AsyncData(value);
+  }
+}
+
 class _FakePlaybackHandler implements NavisPlaybackHandler {
   final StreamController<PlaybackSnapshot> _controller =
       StreamController<PlaybackSnapshot>.broadcast();
@@ -783,6 +793,44 @@ void main() {
       addTearDown(container.dispose);
 
       expect(container.read(subsonicApiProvider), isNotNull);
+    });
+
+    test('subsonicApiProvider keeps its client for sync metadata updates', () {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final initial = ServerConfigModel(
+        url: 'https://example.com',
+        username: 'alice',
+        password: 'secret',
+        apiVersion: '1.16.1',
+      );
+      final configState =
+          NotifierProvider<
+            _MutableServerConfigState,
+            AsyncValue<ServerConfigModel?>
+          >(
+            _MutableServerConfigState.new,
+          );
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          networkTypeProvider.overrideWith((_) => NetworkType.other),
+          serverConfigStateProvider.overrideWith(
+            (ref) => ref.watch(configState),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(configState.notifier).set(initial);
+      final original = container.read(subsonicApiProvider)!;
+      container
+          .read(configState.notifier)
+          .set(
+            initial.copyWith(capabilitiesJson: '{"navis":{"lastChecked":1}}'),
+          );
+
+      expect(container.read(subsonicApiProvider), same(original));
     });
 
     test(
