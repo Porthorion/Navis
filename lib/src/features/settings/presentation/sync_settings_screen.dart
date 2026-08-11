@@ -299,9 +299,14 @@ class SyncSettingsScreen extends ConsumerWidget {
             icon: const Icon(Icons.sync),
             label: Text(
               isRunning
-                  ? l10n.serverSettingsForceFullSyncRunning
-                  : l10n.serverSettingsForceFullSync,
+                  ? l10n.syncSettingsRepairLibraryMetadataRunning
+                  : l10n.syncSettingsRepairLibraryMetadata,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.syncSettingsRepairLibraryMetadataDescription,
+            style: Theme.of(context).textTheme.bodySmall,
           ),
           if (isRunning) ...<Widget>[
             const SizedBox(height: 8),

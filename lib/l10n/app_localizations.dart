@@ -640,16 +640,34 @@ abstract class AppLocalizations {
   /// **'Sync using mobile data'**
   String get syncSettingsSyncUsingMobileData;
 
+  /// No description provided for @syncSettingsRepairLibraryMetadata.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair Library Metadata'**
+  String get syncSettingsRepairLibraryMetadata;
+
+  /// No description provided for @syncSettingsRepairLibraryMetadataDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild and reconcile library metadata. Keeps downloads, streaming cache, and artwork.'**
+  String get syncSettingsRepairLibraryMetadataDescription;
+
+  /// No description provided for @syncSettingsRepairLibraryMetadataRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Repairing library metadata...'**
+  String get syncSettingsRepairLibraryMetadataRunning;
+
   /// No description provided for @syncSettingsRepairMeteredConfirmTitle.
   ///
   /// In en, this message translates to:
-  /// **'Repair Library on mobile data?'**
+  /// **'Repair library metadata on mobile data?'**
   String get syncSettingsRepairMeteredConfirmTitle;
 
   /// No description provided for @syncSettingsRepairMeteredConfirmBody.
   ///
   /// In en, this message translates to:
-  /// **'Repair Library can download a large amount of metadata over your current connection.'**
+  /// **'Repairing library metadata can download a large amount of metadata over your current connection.'**
   String get syncSettingsRepairMeteredConfirmBody;
 
   /// No description provided for @syncSettingsRepairMeteredConfirmAction.
@@ -657,6 +675,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Repair on mobile data'**
   String get syncSettingsRepairMeteredConfirmAction;
+
+  /// No description provided for @cacheSettingsResetLibraryCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Library Cache'**
+  String get cacheSettingsResetLibraryCache;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear streaming cache, cover art, and local library metadata, then fully resync. Downloaded music is kept.'**
+  String get cacheSettingsResetLibraryCacheDescription;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Library Cache?'**
+  String get cacheSettingsResetLibraryCacheConfirmTitle;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music will be kept. Navis will then fully resync your library.'**
+  String get cacheSettingsResetLibraryCacheConfirmBody;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset cache'**
+  String get cacheSettingsResetLibraryCacheConfirmAction;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Library cache reset and full metadata resync completed.'**
+  String get cacheSettingsResetLibraryCacheSuccess;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache was reset, but full metadata resync failed.'**
+  String get cacheSettingsResetLibraryCacheFailure;
 
   /// No description provided for @playbackSettingsLoadError.
   ///

@@ -65,6 +65,16 @@ void main() {
 
       expect(find.text('1 cached track'), findsOneWidget);
       expect(find.textContaining('Caching current track'), findsNothing);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -1000));
+      await tester.pump();
+      expect(find.text('Reset Library Cache'), findsOneWidget);
+      expect(
+        find.text(
+          'Clear streaming cache, cover art, and local library metadata, then fully resync. Downloaded music is kept.',
+        ),
+        findsOneWidget,
+      );
     },
   );
 }

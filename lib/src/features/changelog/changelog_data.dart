@@ -29,6 +29,11 @@ const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.2.3',
     entries: [
+      ChangelogEntry('Loving you is as easy as 123'),
+      ChangelogEntry(
+        'Library recovery controls now clearly distinguish safe metadata repair from a cache reset that keeps downloaded music',
+        type: ChangelogEntryType.improvement,
+      ),
       ChangelogEntry(
         'Repair Library now shows progress immediately and keeps its final album fallback faster while music is playing',
         type: ChangelogEntryType.fix,

@@ -325,15 +325,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsSyncUsingMobileData => 'Sync using mobile data';
 
   @override
+  String get syncSettingsRepairLibraryMetadata => 'Repair Library Metadata';
+
+  @override
+  String get syncSettingsRepairLibraryMetadataDescription =>
+      'Rebuild and reconcile library metadata. Keeps downloads, streaming cache, and artwork.';
+
+  @override
+  String get syncSettingsRepairLibraryMetadataRunning =>
+      'Repairing library metadata...';
+
+  @override
   String get syncSettingsRepairMeteredConfirmTitle =>
-      'Repair Library on mobile data?';
+      'Repair library metadata on mobile data?';
 
   @override
   String get syncSettingsRepairMeteredConfirmBody =>
-      'Repair Library can download a large amount of metadata over your current connection.';
+      'Repairing library metadata can download a large amount of metadata over your current connection.';
 
   @override
   String get syncSettingsRepairMeteredConfirmAction => 'Repair on mobile data';
+
+  @override
+  String get cacheSettingsResetLibraryCache => 'Reset Library Cache';
+
+  @override
+  String get cacheSettingsResetLibraryCacheDescription =>
+      'Clear streaming cache, cover art, and local library metadata, then fully resync. Downloaded music is kept.';
+
+  @override
+  String get cacheSettingsResetLibraryCacheConfirmTitle =>
+      'Reset Library Cache?';
+
+  @override
+  String get cacheSettingsResetLibraryCacheConfirmBody =>
+      'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music will be kept. Navis will then fully resync your library.';
+
+  @override
+  String get cacheSettingsResetLibraryCacheConfirmAction => 'Reset cache';
+
+  @override
+  String get cacheSettingsResetLibraryCacheSuccess =>
+      'Library cache reset and full metadata resync completed.';
+
+  @override
+  String get cacheSettingsResetLibraryCacheFailure =>
+      'Cache was reset, but full metadata resync failed.';
 
   @override
   String playbackSettingsLoadError(Object message) {

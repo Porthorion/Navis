@@ -117,9 +117,15 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
     expect(find.text('Check for updates'), findsOneWidget);
-    expect(find.text('Repair Library'), findsOneWidget);
+    expect(find.text('Repair Library Metadata'), findsOneWidget);
+    expect(
+      find.text(
+        'Rebuild and reconcile library metadata. Keeps downloads, streaming cache, and artwork.',
+      ),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.text('Repair Library'));
+    await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
 
     expect(forceFullTriggered, isTrue);
@@ -253,15 +259,18 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Repair Library'));
+    await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
-    expect(find.text('Repair Library on mobile data?'), findsOneWidget);
+    expect(
+      find.text('Repair library metadata on mobile data?'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(allowOverride, isNull);
 
-    await tester.tap(find.text('Repair Library'));
+    await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Repair on mobile data'));
     await tester.pumpAndSettle();

@@ -10,6 +10,7 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -202,17 +203,13 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     }
   }
 
-  Future<void> _repairLibraryCache() async {
+  Future<void> _resetLibraryCache() async {
     final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Repair Library Cache'),
-        content: const Text(
-          'This will clear streaming cache, downloaded tracks, cover art cache, '
-          'and local library metadata, then force a full library resync. '
-          'This action cannot be undone.',
-        ),
+        title: Text(l10n.cacheSettingsResetLibraryCacheConfirmTitle),
+        content: Text(l10n.cacheSettingsResetLibraryCacheConfirmBody),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -224,26 +221,49 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
               foregroundColor: Theme.of(dialogContext).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Repair Library Cache'),
+            child: Text(l10n.cacheSettingsResetLibraryCacheConfirmAction),
           ),
         ],
       ),
     );
     if (confirm != true || !mounted) return;
 
+    var allowMeteredBroadOverride = false;
+    if (ref.read(syncNetworkPolicyProvider).isMetered) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.syncSettingsRepairMeteredConfirmTitle),
+          content: Text(l10n.syncSettingsRepairMeteredConfirmBody),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancelAction),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.syncSettingsRepairMeteredConfirmAction),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      allowMeteredBroadOverride = true;
+    }
+
     setState(() => _clearing = true);
     try {
       final db = ref.read(navisDatabaseProvider);
 
       await _clearCacheByType(CacheType.rolling);
-      await _clearCacheByType(CacheType.permanent);
-
       await ref.read(coverArtCacheManagerProvider).emptyCache();
       await db.libraryDao.clearLibraryData();
 
       final syncState = await ref
           .read(librarySyncControllerProvider.notifier)
-          .forceFullSync();
+          .forceFullSync(
+            allowMeteredBroadOverride: allowMeteredBroadOverride,
+          );
 
       if (!mounted) return;
       setState(() => _coverArtStorageBytes = 0);
@@ -253,7 +273,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
           syncState.status == LibrarySyncStatus.skipped) {
         showAppNotice(
           context,
-          message: 'Library cache repaired and full resync completed.',
+          message: l10n.cacheSettingsResetLibraryCacheSuccess,
           level: AppNoticeLevel.success,
         );
       } else {
@@ -262,8 +282,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
           message:
               syncState.errorMessage == null ||
                   syncState.errorMessage!.trim().isEmpty
-              ? 'Cache was cleared, but full resync failed.'
-              : 'Cache was cleared, but full resync failed: '
+              ? l10n.cacheSettingsResetLibraryCacheFailure
+              : '${l10n.cacheSettingsResetLibraryCacheFailure} '
                     '${syncState.errorMessage}',
           level: AppNoticeLevel.error,
         );
@@ -607,11 +627,11 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.build_circle_outlined),
-                  title: const Text('Repair Library Cache'),
-                  subtitle: const Text(
-                    'Clear all caches and force a full metadata resync.',
+                  title: Text(l10n.cacheSettingsResetLibraryCache),
+                  subtitle: Text(
+                    l10n.cacheSettingsResetLibraryCacheDescription,
                   ),
-                  onTap: _repairLibraryCache,
+                  onTap: _clearing ? null : _resetLibraryCache,
                 ),
               ],
             ),

@@ -56,6 +56,11 @@ String _label(_EntryType t) {
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
   _Version('1.2.3', [
+    _Entry('Loving you is as easy as 123'),
+    _Entry(
+      'Library recovery controls now clearly distinguish safe metadata repair from a cache reset that keeps downloaded music',
+      type: _EntryType.improvement,
+    ),
     _Entry(
       'Repair Library now shows progress immediately and keeps its final album fallback faster while music is playing',
       type: _EntryType.fix,
