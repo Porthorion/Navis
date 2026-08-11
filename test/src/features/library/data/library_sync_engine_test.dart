@@ -1777,6 +1777,85 @@ void main() {
     );
 
     test(
+      'carries forward a stable bulk-index tail before album-detail fallback',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+            songCount: 1,
+          ),
+          Album(
+            id: 'album-2',
+            name: 'Album 2',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+            songCount: 1,
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+          songs: <Song>[
+            Song(id: 'song-1', title: 'Song 1', artistId: 'artist-1'),
+          ],
+        );
+        api.albumDetails['album-2'] = const Album(
+          id: 'album-2',
+          name: 'Album 2',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+          songs: <Song>[
+            Song(id: 'song-2', title: 'Song 2', artistId: 'artist-1'),
+          ],
+        );
+
+        // Seed the committed catalog through the authoritative fallback: the
+        // completed bulk index omits both candidate albums.
+        api.bulkSongPages[0] = const <Song>[
+          Song(
+            id: 'unrelated-song',
+            title: 'Unrelated song',
+            albumId: 'unrelated-album',
+            artistId: 'artist-1',
+          ),
+        ];
+        final tailEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fallbackArtistConcurrency: 1,
+          wifiAlbumConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          otherAlbumConcurrency: 1,
+          writeChunkSize: 1,
+          isolateThreshold: 1000,
+        );
+        await tailEngine.forceFullSync();
+
+        // The compatible bulk index now completes but omits album-1, as a
+        // capped global song index does. Its unchanged hydrated local songs
+        // should be reused without another getAlbum call.
+        api..calls.clear();
+        final result = await tailEngine.forceFullSync();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('searchSongsPage::0:1000'));
+        expect(api.calls.where((call) => call == 'getAlbum:album-1'), isEmpty);
+        expect(api.calls.where((call) => call == 'getAlbum:album-2'), isEmpty);
+        final songs = await database.select(database.songsTable).get();
+        expect(songs.map((song) => song.id), contains('song-1'));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'bulk song hydration progress never counts observed albums as complete',
       () async {
         await saveSession();

@@ -2776,12 +2776,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           serverId: serverId,
           generation: catalogGeneration,
         );
-    final carriedForwardCount = pendingHydrationCount == 0
-        ? 0
-        : await _database.librarySyncCandidateDao.carryForwardPendingAlbums(
-            serverId: serverId,
-            generation: catalogGeneration,
-          );
+    final carriedForwardCount =
+        current.carriedForwardEntityCount +
+        (pendingHydrationCount == 0
+            ? 0
+            : (await _database.librarySyncCandidateDao
+                      .carryForwardPendingAlbums(
+                        serverId: serverId,
+                        generation: catalogGeneration,
+                      ))
+                  .length);
     current = _withMetrics(
       current.copyWith(
         stage: LibrarySyncStage.validatingCandidate,
@@ -4182,6 +4186,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       preferredQuery: storedBulkSongSearchQuery,
       metrics: metrics,
     );
+    var bulkIndexCompleted = false;
     if (bulkQuery != null && pendingAlbumIds.isNotEmpty) {
       current = _withMetrics(
         current.copyWith(fastPathActive: true, isHydrating: true),
@@ -4200,6 +4205,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           onHydratedChunk: publishProgress,
           onSongIndexProgress: publishSongIndexProgress,
         );
+        bulkIndexCompleted = true;
         final nextCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
           serverCapabilitiesJson,
           bulkQuery,
@@ -4239,6 +4245,31 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           metrics,
         );
         onProgress?.call(current);
+      }
+    }
+
+    // A server-capped bulk index can omit a stable tail of an otherwise
+    // complete library. Reuse locally authoritative tracks only for candidate
+    // albums whose complete metadata and song count still match. This keeps
+    // later full repairs fast without masking new or changed albums, which
+    // remain on the bounded getAlbum fallback.
+    if (candidateMode && bulkIndexCompleted && pendingAlbumIds.isNotEmpty) {
+      final carriedAlbumIds = await _database.librarySyncCandidateDao
+          .carryForwardPendingAlbums(
+            serverId: candidateServerId,
+            generation: catalogGeneration,
+            markHydrated: true,
+          );
+      if (carriedAlbumIds.isNotEmpty) {
+        metrics.addDbWriteBatch();
+        current = _withMetrics(
+          current.copyWith(
+            carriedForwardEntityCount:
+                current.carriedForwardEntityCount + carriedAlbumIds.length,
+          ),
+          metrics,
+        );
+        await publishProgress(carriedAlbumIds);
       }
     }
 

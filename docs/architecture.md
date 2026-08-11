@@ -769,6 +769,10 @@ replay/end-of-queue feedback instead.
    reading the previous committed catalog. Song pagination advances by each
    response's actual count rather than treating a short page as completion,
    since compatible servers can silently cap the requested result size.
+   When a completed bulk index omits a stable tail because of that cap, a later
+   repair can carry forward locally verified songs only when the candidate's
+   core album metadata and expected song count exactly match. New, changed, or
+   incomplete albums remain on the authoritative `getAlbum` fallback.
    Hydration progress advances only after an album has been written and marked
    hydrated; albums merely observed in a bulk search page are not presented as
    complete. Catalog discovery remains indeterminate because its page total is

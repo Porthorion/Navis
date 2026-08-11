@@ -75,10 +75,9 @@ for song_id, source_path in target.execute(
 username = sys.argv[4].strip()
 if username:
     target.execute("UPDATE server_config SET username = ?", (username,))
-if sys.argv[5] == "cache-alias":
-  # Targeted hydration deliberately tests one selected canonical album. Do
-    # not let unrelated, persisted clone work replace that target or start a
-    # broad verification pass before the focused request can run.
+if sys.argv[5] in ("cache-alias", "full-rescan"):
+    # Diagnostics run against a disposable clone. Start the selected scenario
+    # without a stale candidate or queued broad repair resuming ahead of it.
     for table in (
         "library_sync_work",
         "library_sync_candidate_artists",
@@ -95,7 +94,9 @@ if sys.argv[5] == "cache-alias":
         UPDATE library_sync_state
         SET last_checked_at = ?, last_catalog_synced_at = ?,
             last_auxiliary_synced_at = ?, last_genres_synced_at = ?,
-            last_audit_at = ?, audit_offset = 0
+            last_audit_at = ?, audit_offset = 0,
+            candidate_generation = NULL, candidate_status = NULL,
+            candidate_started_at = NULL, candidate_carried_forward_count = 0
     ''', (now, now, now, now, now))
     row = target.execute(
         "SELECT id, capabilities FROM server_config ORDER BY id LIMIT 1"

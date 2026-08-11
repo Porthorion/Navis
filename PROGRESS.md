@@ -19,6 +19,18 @@ Last updated: 2026-08-11
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
+  (a completed bulk-song index now carries forward only locally verified,
+  metadata-and-count-identical candidate albums before `getAlbum` fallback;
+  changed, new, incomplete, and unverified albums remain authoritative detail
+  fetches. Evidence: focused two-pass engine regression proves the second pass
+  performs zero `getAlbum` calls for a capped stable tail; isolated Linux
+  full-rescan diagnostics against the configured large server completed the
+  53-page live bulk index and promotion with no prolonged album-detail tail.
+  The app-owned preparing screenshot was captured and opened. Direct live
+  detail sampling also established that the server itself sustains only about
+  three album-detail requests per second, explaining the former long tail.)
+
 - [x] Full Repair Library progress and fallback throughput hardening —
   2026-08-11 (the controller now enters visible `preparing` state before
   durable planning, song-index scans now show a live count without implying a

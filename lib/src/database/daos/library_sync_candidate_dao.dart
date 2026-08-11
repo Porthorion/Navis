@@ -450,9 +450,18 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
     return <String, int?>{for (final row in rows) row.id: row.songCount};
   }
 
-  Future<int> carryForwardPendingAlbums({
+  /// Reuses authoritative local songs only when the candidate album has the
+  /// same complete metadata and expected song count.
+  ///
+  /// Some compatible servers cap their bulk `search3` index below a large
+  /// library's complete song set. These rows are absent from the index, not
+  /// necessarily changed on the server. Carrying forward a matching hydrated
+  /// local album avoids turning every later repair into redundant `getAlbum`
+  /// requests. New or changed albums remain pending for detail hydration.
+  Future<List<String>> carryForwardPendingAlbums({
     required int serverId,
     required int generation,
+    bool markHydrated = false,
   }) async {
     final pending =
         await (select(librarySyncCandidateAlbumsTable)..where(
@@ -462,14 +471,16 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                   table.songsHydrated.equals(false),
             ))
             .get();
-    var carried = 0;
+    final carriedIds = <String>[];
     for (final candidate in pending) {
       final existing =
           await (select(albumsTable)
                 ..where((table) => table.id.equals(candidate.id))
                 ..limit(1))
               .getSingleOrNull();
-      if (existing == null) {
+      if (existing == null ||
+          !existing.songsHydrated ||
+          !_candidateMatchesExistingAlbum(candidate, existing)) {
         continue;
       }
       final songs =
@@ -479,15 +490,17 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                     table.serverDeletedAt.isNull(),
               ))
               .get();
-      if (songs.isNotEmpty) {
-        await replaceSongsForAlbums(
-          serverId: serverId,
-          generation: generation,
-          songsByAlbum: <String, List<SongsTableCompanion>>{
-            candidate.id: songs.map(_liveSongCompanion).toList(),
-          },
-        );
+      final expectedSongCount = candidate.songCount;
+      if (expectedSongCount == null || songs.length != expectedSongCount) {
+        continue;
       }
+      await replaceSongsForAlbums(
+        serverId: serverId,
+        generation: generation,
+        songsByAlbum: <String, List<SongsTableCompanion>>{
+          candidate.id: songs.map(_liveSongCompanion).toList(),
+        },
+      );
       await (update(librarySyncCandidateAlbumsTable)..where(
             (table) =>
                 table.serverId.equals(serverId) &
@@ -495,13 +508,29 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
                 table.id.equals(candidate.id),
           ))
           .write(
-            const LibrarySyncCandidateAlbumsTableCompanion(
+            LibrarySyncCandidateAlbumsTableCompanion(
+              songsHydrated: markHydrated
+                  ? const Value(true)
+                  : const Value.absent(),
               carriedForward: Value(true),
             ),
           );
-      carried++;
+      carriedIds.add(candidate.id);
     }
-    return carried;
+    return carriedIds;
+  }
+
+  bool _candidateMatchesExistingAlbum(
+    LibrarySyncCandidateAlbumsTableData candidate,
+    AlbumsTableData existing,
+  ) {
+    return candidate.name == existing.name &&
+        candidate.artistId == existing.artistId &&
+        candidate.songCount == existing.songCount &&
+        candidate.duration == existing.duration &&
+        candidate.year == existing.year &&
+        candidate.genre == existing.genre &&
+        candidate.coverArt == existing.coverArt;
   }
 
   Future<List<LibrarySyncCandidateArtistsTableData>> getArtists({

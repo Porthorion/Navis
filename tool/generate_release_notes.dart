@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.4', [
+    _Entry(
+      'Repeat repairs of very large libraries now reuse verified unchanged album tracks when a server caps its bulk song index, avoiding a long late album-by-album wait',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.2.3', [
     _Entry('Loving you is as easy as 123'),
     _Entry(

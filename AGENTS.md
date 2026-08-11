@@ -455,7 +455,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   Its `search3` bulk-song pagination must advance by the returned count and
   continue after short pages: compatible servers may silently cap the requested
   page size, and stopping on that cap would incorrectly trigger the slow
-  per-album fallback.
+  per-album fallback. After a completed bulk index, a capped stable tail may
+  carry forward locally verified songs before detail fallback only when the
+  candidate's core album metadata and expected song count exactly match; new,
+  changed, incomplete, or unverified albums must still use `getAlbum`.
 - Song-hydration progress is durable: it advances only after an album's songs
   are written and the album is marked hydrated. Catalog/metadata stages use an
   indeterminate activity indicator because their page totals are estimates,
