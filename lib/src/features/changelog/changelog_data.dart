@@ -27,18 +27,13 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
-    version: '1.2.4',
+    version: '1.2.3',
     entries: [
+      ChangelogEntry('Loving you is as easy as 123'),
       ChangelogEntry(
         'Repeat repairs of very large libraries now reuse verified unchanged album tracks when a server caps its bulk song index, avoiding a long late album-by-album wait',
         type: ChangelogEntryType.fix,
       ),
-    ],
-  ),
-  ChangelogVersion(
-    version: '1.2.3',
-    entries: [
-      ChangelogEntry('Loving you is as easy as 123'),
       ChangelogEntry(
         'Library recovery controls now clearly distinguish safe metadata repair from a cache reset that keeps downloaded music',
         type: ChangelogEntryType.improvement,
