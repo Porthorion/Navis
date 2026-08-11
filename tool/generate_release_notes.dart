@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.2', [
     _Entry(
+      'Home now keeps library-sync status on the Navis logo, while Library provides the detailed progress and recovery controls',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Startup sync now waits for its signed-in server connection to become ready instead of briefly showing a false metadata-sync failure',
       type: _EntryType.fix,
     ),

@@ -57,30 +57,55 @@ class _SyncStatusBanner extends StatelessWidget {
   final Future<void> Function() onRetry;
   final VoidCallback? onCancel;
 
+  static const Key bannerKey = ValueKey<String>('library-sync-status-banner');
+  static const Key progressKey = ValueKey<String>(
+    'library-sync-status-progress',
+  );
+  static const Key cancelKey = ValueKey<String>('library-sync-status-cancel');
+  static const Key retryKey = ValueKey<String>('library-sync-status-retry');
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     if (syncState.status == LibrarySyncStatus.failed) {
-      return Material(
-        color: Theme.of(context).colorScheme.errorContainer,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  syncState.errorMessage ?? l10n.librarySyncFailureFallback,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onErrorContainer,
+      final theme = Theme.of(context);
+      final colors = theme.colorScheme;
+      final message = syncState.errorMessage ?? l10n.librarySyncFailureFallback;
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: l10n.syncSettingsStatusFailed,
+        child: Material(
+          key: bannerKey,
+          color: colors.errorContainer,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 12, 10),
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  Icons.error_outline_rounded,
+                  color: colors.onErrorContainer,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    message,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onErrorContainer,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: onRetry,
-                child: Text(l10n.commonRetry),
-              ),
-            ],
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  key: retryKey,
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: Text(l10n.commonRetry),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -91,6 +116,8 @@ class _SyncStatusBanner extends StatelessWidget {
     }
 
     if (syncState.isRunning) {
+      final theme = Theme.of(context);
+      final colors = theme.colorScheme;
       final total = syncState.total;
       final processed = syncState.processed ?? 0;
       // Metadata stages use different units (artists, catalog pages, and
@@ -101,43 +128,65 @@ class _SyncStatusBanner extends StatelessWidget {
           syncState.stage == LibrarySyncStage.fetchingSongs;
       final progress = !durableHydration || total == null || total == 0
           ? null
-          : processed / total.clamp(1, total);
-      return Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            LinearProgressIndicator(value: progress),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      _runningLabel(l10n, total, processed),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                  if (onCancel != null)
-                    SizedBox(
+          : (processed / total).clamp(0.0, 1.0);
+      final label = _runningLabel(l10n, total, processed);
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: label,
+        child: Material(
+          key: bannerKey,
+          color: colors.surfaceContainerHigh,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 8, 10),
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      width: 28,
                       height: 28,
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        onPressed: onCancel,
-                        child: Text(
-                          l10n.commonCancel,
-                          style: Theme.of(context).textTheme.bodySmall,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          value: progress,
+                          strokeWidth: 2,
+                          color: colors.primary,
+                          backgroundColor: colors.primary.withValues(
+                            alpha: 0.16,
+                          ),
                         ),
                       ),
                     ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(label, style: theme.textTheme.bodySmall),
+                    ),
+                    if (onCancel != null)
+                      TextButton.icon(
+                        key: cancelKey,
+                        onPressed: onCancel,
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        label: Text(l10n.commonCancel),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              LinearProgressIndicator(
+                key: progressKey,
+                value: progress,
+                minHeight: 3,
+                color: colors.primary,
+                backgroundColor: colors.primary.withValues(alpha: 0.12),
+              ),
+            ],
+          ),
         ),
       );
     }

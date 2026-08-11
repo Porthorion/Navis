@@ -19,6 +19,19 @@ Last updated: 2026-08-11
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Home logo-only sync status and Library sync-strip refinement —
+  2026-08-11 (Home now leaves all active and failed sync signalling to the
+  Navis logo ring, while Library has a compact tonal status strip with
+  determinate song-hydration progress, indeterminate metadata progress, and
+  Cancel/Retry controls; evidence: focused Home/Library widget suites passed,
+  including ring semantics and status-strip progress/action assertions; Linux
+  isolated-clone app-API runs at `/` and `/library` passed before and after
+  clean restart through health, presentation, navigation, screenshot, and
+  shutdown APIs. Opened app-owned Home and Library captures showed no Home
+  sync bar and no clipping/overflow. `tool/check.sh` formatting and code
+  generation passed, then analysis stopped on the documented repository-wide
+  496 informational diagnostics; no diagnostics originated in this change.)
+
 - [x] Large-library new-album detection follow-up — 2026-08-11 (explicit
   refreshes with an advanced conditional `getIndexes` cursor now consume their
   durable delta in the same action, stage the bounded

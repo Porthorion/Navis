@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.2',
     entries: [
       ChangelogEntry(
+        'Home now keeps library-sync status on the Navis logo, while Library provides the detailed progress and recovery controls',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Startup sync now waits for its signed-in server connection to become ready instead of briefly showing a false metadata-sync failure',
         type: ChangelogEntryType.fix,
       ),

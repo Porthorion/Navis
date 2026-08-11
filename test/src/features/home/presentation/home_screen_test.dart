@@ -2037,7 +2037,7 @@ void main() {
     final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
     expect(
       find.byKey(const ValueKey<String>('homeLibrarySyncStatus')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(ring, findsOneWidget);
     final indicator = tester.widget<CircularProgressIndicator>(ring);
@@ -2075,7 +2075,7 @@ void main() {
     final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
     expect(
       find.byKey(const ValueKey<String>('homeLibrarySyncStatus')),
-      findsOneWidget,
+      findsNothing,
     );
     final indicator = tester.widget<CircularProgressIndicator>(ring);
 
@@ -2122,6 +2122,10 @@ void main() {
     );
 
     final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+    expect(
+      find.byKey(const ValueKey<String>('homeLibrarySyncStatus')),
+      findsNothing,
+    );
     expect(ring, findsOneWidget);
     final indicator = tester.widget<CircularProgressIndicator>(ring);
     expect(indicator.value, isNull);

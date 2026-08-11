@@ -28,10 +28,15 @@ import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
-  _FakeLibrarySyncController(this._initialState, {this.onSyncNow});
+  _FakeLibrarySyncController(
+    this._initialState, {
+    this.onSyncNow,
+    this.onCancel,
+  });
 
   final LibrarySyncState _initialState;
   final VoidCallback? onSyncNow;
+  final VoidCallback? onCancel;
 
   @override
   LibrarySyncState build() => _initialState;
@@ -46,6 +51,9 @@ class _FakeLibrarySyncController extends LibrarySyncController {
     onSyncNow?.call();
     return _initialState;
   }
+
+  @override
+  void cancelSync() => onCancel?.call();
 }
 
 class _ShowRadioToggle extends Notifier<bool> {
@@ -515,9 +523,15 @@ void main() {
           findsOneWidget,
         );
         expect(
+          find.byKey(const ValueKey<String>('library-sync-status-banner')),
+          findsOneWidget,
+        );
+        expect(
           tester
               .widget<LinearProgressIndicator>(
-                find.byType(LinearProgressIndicator),
+                find.byKey(
+                  const ValueKey<String>('library-sync-status-progress'),
+                ),
               )
               .value,
           0.5,
@@ -560,11 +574,83 @@ void main() {
         expect(
           tester
               .widget<LinearProgressIndicator>(
-                find.byType(LinearProgressIndicator),
+                find.byKey(
+                  const ValueKey<String>('library-sync-status-progress'),
+                ),
               )
               .value,
           isNull,
         );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'running sync status strip exposes cancel action',
+      (tester) async {
+        var cancelCalls = 0;
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(
+                const LibrarySyncState(
+                  status: LibrarySyncStatus.running,
+                  stage: LibrarySyncStage.preparing,
+                ),
+                onCancel: () => cancelCalls++,
+              ),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+          settle: false,
+        );
+
+        await tester.tap(
+          find.byKey(const ValueKey<String>('library-sync-status-cancel')),
+        );
+        expect(cancelCalls, 1);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'failed sync status strip exposes retry action',
+      (tester) async {
+        var retryCalls = 0;
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(
+                const LibrarySyncState(
+                  status: LibrarySyncStatus.failed,
+                  stage: LibrarySyncStage.completed,
+                  errorMessage: 'Connection lost',
+                ),
+                onSyncNow: () => retryCalls++,
+              ),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(find.text('Connection lost'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey<String>('library-sync-status-retry')),
+        );
+        await tester.pump();
+        expect(retryCalls, 1);
       },
     );
 
