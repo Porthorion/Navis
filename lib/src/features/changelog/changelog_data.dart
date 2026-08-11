@@ -27,6 +27,23 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.3',
+    entries: [
+      ChangelogEntry(
+        'Repair Library now shows progress immediately and keeps its final album fallback faster while music is playing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Large-library scans now continue correctly when a compatible server returns shorter catalog pages than requested',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library repair now distinguishes song-index scanning from the remaining album-detail fallback and shows a live indexed-song count',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.2',
     entries: [
       ChangelogEntry(

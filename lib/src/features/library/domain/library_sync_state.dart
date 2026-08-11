@@ -47,6 +47,7 @@ class LibrarySyncState {
     this.metadataReady = false,
     this.isHydrating = false,
     this.fastPathActive = false,
+    this.songIndexEntriesScanned = 0,
     this.processed,
     this.total,
     this.hydratedAlbums,
@@ -102,6 +103,12 @@ class LibrarySyncState {
   final bool metadataReady;
   final bool isHydrating;
   final bool fastPathActive;
+
+  /// Number of songs observed while the server's bulk song index is scanned.
+  ///
+  /// This is an activity reference, not a completion percentage: compatible
+  /// Subsonic servers do not report a reliable total for the index.
+  final int songIndexEntriesScanned;
   final int? processed;
   final int? total;
   final int? hydratedAlbums;
@@ -150,6 +157,7 @@ class LibrarySyncState {
     bool? metadataReady,
     bool? isHydrating,
     bool? fastPathActive,
+    int? songIndexEntriesScanned,
     int? processed,
     bool clearProcessed = false,
     int? total,
@@ -216,6 +224,8 @@ class LibrarySyncState {
       metadataReady: metadataReady ?? this.metadataReady,
       isHydrating: isHydrating ?? this.isHydrating,
       fastPathActive: fastPathActive ?? this.fastPathActive,
+      songIndexEntriesScanned:
+          songIndexEntriesScanned ?? this.songIndexEntriesScanned,
       processed: clearProcessed ? null : processed ?? this.processed,
       total: clearTotal ? null : total ?? this.total,
       hydratedAlbums: clearHydratedAlbums

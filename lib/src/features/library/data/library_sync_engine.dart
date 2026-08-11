@@ -808,6 +808,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   }
 
   int get _fullCatalogAlbumConcurrency {
+    if (readActiveSongId?.call() != null) {
+      return switch (networkType) {
+        NetworkType.wifi => 4,
+        NetworkType.cellular => cellularAlbumConcurrency,
+        NetworkType.offline => 2,
+        NetworkType.other => 2,
+      };
+    }
     return switch (networkType) {
       NetworkType.wifi => wifiFullCatalogAlbumConcurrency,
       NetworkType.cellular => cellularAlbumConcurrency,
@@ -817,6 +825,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   }
 
   int get _fullCatalogMaxHydrationConcurrency {
+    if (readActiveSongId?.call() != null) {
+      return switch (networkType) {
+        NetworkType.wifi => 8,
+        NetworkType.cellular => cellularMaxAlbumConcurrency,
+        NetworkType.offline => 2,
+        NetworkType.other => 4,
+      };
+    }
     return switch (networkType) {
       NetworkType.wifi => wifiFullCatalogMaxAlbumConcurrency,
       NetworkType.cellular => cellularMaxAlbumConcurrency,
@@ -4000,8 +4016,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     var processed = 0;
     var pendingRemaining = pending;
     final hydrationStopwatch = Stopwatch()..start();
-    final fullCatalogHydration =
-        candidateMode && readActiveSongId?.call() == null;
+    // A user-requested full catalog repair keeps a bounded higher concurrency
+    // for its getAlbum fallback while audio is active, rather than collapsing
+    // to the ordinary two-request interactive cap near completion.
+    final fullCatalogHydration = candidateMode;
     final concurrencyController = _AdaptiveHydrationConcurrency(
       initial: fullCatalogHydration
           ? _fullCatalogAlbumConcurrency
@@ -4017,6 +4035,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metadataReady: true,
         isHydrating: true,
         fastPathActive: false,
+        songIndexEntriesScanned: 0,
         processed: 0,
         total: pending,
         hydratedAlbums: 0,
@@ -4052,6 +4071,19 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           hydratedAlbums: processed,
           pendingHydrationCount: pendingRemaining < 0 ? 0 : pendingRemaining,
           hydrationThroughputAlbumsPerSecond: throughput,
+        ),
+        metrics,
+      );
+      onProgress?.call(current);
+    }
+
+    Future<void> publishSongIndexProgress(int scannedEntries) async {
+      current = _withMetrics(
+        current.copyWith(
+          metadataReady: true,
+          isHydrating: true,
+          fastPathActive: true,
+          songIndexEntriesScanned: scannedEntries,
         ),
         metrics,
       );
@@ -4166,6 +4198,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           candidateServerId: candidateServerId,
           metrics: metrics,
           onHydratedChunk: publishProgress,
+          onSongIndexProgress: publishSongIndexProgress,
         );
         final nextCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
           serverCapabilitiesJson,
@@ -4355,6 +4388,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required _SyncRunMetrics metrics,
     required Future<void> Function(Iterable<String> hydratedAlbumIds)
     onHydratedChunk,
+    required Future<void> Function(int scannedEntries) onSongIndexProgress,
   }) async {
     var offset = 0;
     var pageCount = 0;
@@ -4498,6 +4532,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       // Advancing by the returned count also keeps pagination correct for that
       // cap. An empty or repeated page above is the reliable stop condition.
       offset += songs.length;
+      await onSongIndexProgress(offset);
       // Yield between bulk search pages for UI responsiveness.
       await Future<void>.delayed(Duration.zero);
     }
@@ -4586,7 +4621,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           if (!checkpoint.hasMore) {
             break;
           }
-          offset += fastPathPageSize;
+          offset += checkpoint.count;
           continue;
         }
       }
@@ -4625,7 +4660,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics.addDbWriteBatch();
       }
 
-      final hasMorePages = page.length >= fastPathPageSize;
+      // Compatible servers can cap responses below the requested page size.
+      // A short non-empty page is not EOF: advance by the returned count and
+      // stop only when an empty or repeated page proves the catalog ended.
+      final hasMorePages = page.isNotEmpty;
       discoveredCount += catalogPage.length;
       var work = existingWork;
       if (work == null) {
@@ -4663,7 +4701,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       if (!hasMorePages) {
         break;
       }
-      offset += fastPathPageSize;
+      offset += page.length;
     }
 
     final candidateIds = await _database.librarySyncCandidateDao.getAlbumIds(

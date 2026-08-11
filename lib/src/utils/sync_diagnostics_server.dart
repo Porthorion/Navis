@@ -401,13 +401,14 @@ class SyncDiagnosticsServer {
         // here as well so a long-running repair exposes its live endpoint mix
         // instead of the previous completed run's counts.
         _captureEndpointRequests();
+        final controllerState = _container.read(librarySyncControllerProvider);
         await _respond(
           request,
           HttpStatus.ok,
           _syncStateJson(
             _activeProgress ??
-                _lastSync ??
-                _container.read(librarySyncControllerProvider),
+                (_activeSync != null ? controllerState : _lastSync) ??
+                controllerState,
           ),
         );
         return;
@@ -1657,6 +1658,7 @@ class SyncDiagnosticsServer {
       'planReason': state.planReason,
       'processed': state.processed,
       'total': state.total,
+      'hydrationAlbumsPerSecond': state.hydrationThroughputAlbumsPerSecond,
       'pendingWork': state.pendingWorkCount,
       'candidateStatus': state.candidateStatus,
       'candidateGeneration': state.candidateGeneration,

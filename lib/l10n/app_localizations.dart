@@ -1675,7 +1675,7 @@ abstract class AppLocalizations {
   /// No description provided for @librarySyncStageSongs.
   ///
   /// In en, this message translates to:
-  /// **'Hydrating songs'**
+  /// **'Scanning songs'**
   String get librarySyncStageSongs;
 
   /// No description provided for @librarySyncStageGenres.
@@ -1702,22 +1702,28 @@ abstract class AppLocalizations {
   /// **'Library sync failed.'**
   String get librarySyncFailureFallback;
 
+  /// No description provided for @librarySyncScanningSongIndex.
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata ready. Scanning song index ({count} songs found)'**
+  String librarySyncScanningSongIndex(int count);
+
   /// No description provided for @librarySyncHydratingUnknown.
   ///
   /// In en, this message translates to:
-  /// **'Metadata ready. Hydrating songs...'**
+  /// **'Metadata ready. Fetching remaining album details...'**
   String get librarySyncHydratingUnknown;
 
   /// No description provided for @librarySyncHydratingProgress.
   ///
   /// In en, this message translates to:
-  /// **'Metadata ready. Hydrating songs ({processed}/{total}, {pending} remaining)'**
+  /// **'Metadata ready. Fetching remaining album details ({processed}/{total}, {pending} remaining)'**
   String librarySyncHydratingProgress(int processed, int total, int pending);
 
   /// No description provided for @librarySyncHydratingProgressWithRate.
   ///
   /// In en, this message translates to:
-  /// **'Metadata ready. Hydrating songs ({processed}/{total}, {pending} remaining, {rate} albums/s)'**
+  /// **'Metadata ready. Fetching remaining album details ({processed}/{total}, {pending} remaining, {rate} albums/s)'**
   String librarySyncHydratingProgressWithRate(
     int processed,
     int total,

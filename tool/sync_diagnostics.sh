@@ -3,9 +3,9 @@ set -euo pipefail
 
 MODE="${1:-clone}"
 case "$MODE" in
-  clone|primary-certification|throughput|cache-alias) ;;
+  clone|primary-certification|throughput|full-rescan|cache-alias) ;;
   *)
-    echo "Usage: $0 [clone|primary-certification|throughput|cache-alias]" >&2
+    echo "Usage: $0 [clone|primary-certification|throughput|full-rescan|cache-alias]" >&2
     exit 64
     ;;
 esac
@@ -213,10 +213,23 @@ FLUTTER_PID=0
 launch_app() {
   rm -f "$HANDSHAKE"
   local diagnostics_runtime_mode="$MODE"
-  if [[ "$MODE" == "throughput" || "$MODE" == "cache-alias" ]]; then
+  local diagnostics_data_home=""
+  local -a diagnostics_environment=()
+  if [[ "$MODE" != "primary-certification" ]]; then
+    diagnostics_data_home="$OUTPUT_ROOT/app-data"
+    diagnostics_environment+=("XDG_DATA_HOME=$diagnostics_data_home")
+    local changelog_version
+    changelog_version="$(awk '/^version:/ {split($2, parts, "+"); print parts[1]; exit}' "$PROJECT_DIR/pubspec.yaml")"
+    mkdir -p "$diagnostics_data_home/com.navis.app.navis"
+    # A first-run changelog dialog would mask the actual repair progress. Keep
+    # clone-only app-support state isolated and mark this build as already seen.
+    printf '%s\n' "$changelog_version" \
+      > "$diagnostics_data_home/com.navis.app.navis/changelog_seen_version.txt"
+  fi
+  if [[ "$MODE" == "throughput" || "$MODE" == "full-rescan" || "$MODE" == "cache-alias" ]]; then
     diagnostics_runtime_mode="clone"
   fi
-  flutter run -d linux --profile \
+  env "${diagnostics_environment[@]}" flutter run -d linux --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Diagnostics' \
@@ -509,7 +522,7 @@ db.close()
 print(f"{row[0]}\t{row[1]}" if row else "\t0")
 PY
 )
-if [[ -n "$SONG_ID" && "$MODE" != "throughput" ]]; then
+if [[ -n "$SONG_ID" && "$MODE" != "throughput" && "$MODE" != "full-rescan" ]]; then
   api POST /v1/playback/start "$(python3 - "$SONG_ID" <<'PY'
 import json, sys
 print(json.dumps({"songId": sys.argv[1]}))
@@ -517,7 +530,90 @@ PY
 )" > "$OUTPUT_ROOT/playback-start.json"
 fi
 
-if [[ "$MODE" == "throughput" ]]; then
+if [[ "$MODE" == "full-rescan" ]]; then
+  api POST /v1/diagnostics/overrides \
+    '{"networkType":"wifi","nativeMetered":false,"backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
+    > "$OUTPUT_ROOT/full-rescan-overrides.json"
+  api POST /v1/sync/repair > "$OUTPUT_ROOT/full-rescan-start.json"
+  # The repair request publishes its preparing state before durable planning
+  # begins. Capture that real Flutter frame so this diagnostic guards against
+  # the old idle/blank gap after the keyboard shortcut is pressed.
+  api POST /v1/presentation/screenshot '{"label":"full-rescan-preparing"}' \
+    > "$OUTPUT_ROOT/full-rescan-preparing-screenshot.json"
+  python3 - "$OUTPUT_ROOT/full-rescan-preparing-screenshot.json" "$OUTPUT_ROOT" \
+    "$OUTPUT_ROOT/full-rescan-preparing-screenshot-path.txt" <<'PY'
+import json, os, sys
+metadata_path, root, output_path = sys.argv[1:]
+value = json.load(open(metadata_path, encoding="utf-8"))
+artifact = value.get("artifact")
+if not isinstance(artifact, str) or os.path.isabs(artifact):
+    raise SystemExit("full-rescan screenshot artifact must be relative")
+root = os.path.realpath(root)
+path = os.path.realpath(os.path.join(root, artifact))
+if os.path.commonpath([root, path]) != root:
+    raise SystemExit("full-rescan screenshot escaped diagnostics root")
+with open(path, "rb") as screenshot:
+    if screenshot.read(8) != b"\x89PNG\r\n\x1a\n":
+        raise SystemExit("full-rescan screenshot is not a PNG")
+with open(output_path, "w", encoding="utf-8") as output:
+    output.write(path + "\n")
+PY
+  FULL_RESCAN_TRACE="$OUTPUT_ROOT/full-rescan-progress.jsonl"
+  FULL_RESCAN_STARTED_AT="$(date +%s)"
+  FULL_RESCAN_DEADLINE=$((SECONDS + 14400))
+  FULL_RESCAN_CONFIRMATION_ATTEMPTED=0
+  while (( SECONDS < FULL_RESCAN_DEADLINE )); do
+    STATUS="$(api GET /v1/sync/status)"
+    python3 - "$STATUS" "$FULL_RESCAN_STARTED_AT" >> "$FULL_RESCAN_TRACE" <<'PY'
+import json, sys
+value = json.loads(sys.argv[1])
+record = {
+    'elapsedSeconds': int(__import__('time').time()) - int(sys.argv[2]),
+    'requestActive': value.get('requestActive'),
+    'status': value.get('status'),
+    'stage': value.get('stage'),
+    'candidateStatus': value.get('candidateStatus'),
+    'processed': value.get('processed'),
+    'total': value.get('total'),
+    'hydrationAlbumsPerSecond': value.get('hydrationAlbumsPerSecond'),
+    'requests': value.get('requests'),
+    'endpointRequests': value.get('endpointRequests'),
+}
+print(json.dumps(record, separators=(',', ':')))
+PY
+    if python3 - "$STATUS" <<'PY'
+import json, sys
+value = json.loads(sys.argv[1])
+done = not value.get('requestActive', False) and value.get('status') not in ('running', 'idle')
+raise SystemExit(0 if done else 1)
+PY
+    then
+      if [[ "$FULL_RESCAN_CONFIRMATION_ATTEMPTED" == "0" ]] && \
+        python3 - "$STATUS" <<'PY'
+import json, sys
+raise SystemExit(0 if json.loads(sys.argv[1]).get('candidateStatus') else 1)
+PY
+      then
+        FULL_RESCAN_CONFIRMATION_ATTEMPTED=1
+        api POST /v1/sync/repair > "$OUTPUT_ROOT/full-rescan-confirmation-start.json"
+        continue
+      fi
+      printf '%s\n' "$STATUS" > "$OUTPUT_ROOT/full-rescan-result.json"
+      break
+    fi
+    sleep 1
+  done
+  if [[ ! -s "$OUTPUT_ROOT/full-rescan-result.json" ]]; then
+    echo "Timed out waiting for the full rescan." >&2
+    exit 70
+  fi
+  api GET /v1/diagnostics/report > "$OUTPUT_ROOT/full-rescan-report.json"
+  api POST /v1/shutdown > "$OUTPUT_ROOT/full-rescan-shutdown.json" || true
+  wait "$FLUTTER_PID" || true
+  FLUTTER_PID=0
+  echo "Full-rescan diagnostics completed: $OUTPUT_ROOT"
+  exit 0
+elif [[ "$MODE" == "throughput" ]]; then
   api POST /v1/diagnostics/overrides \
     '{"networkType":"wifi","nativeMetered":false,"backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
     > "$OUTPUT_ROOT/throughput-overrides.json"

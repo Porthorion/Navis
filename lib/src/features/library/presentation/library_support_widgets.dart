@@ -125,7 +125,12 @@ class _SyncStatusBanner extends StatelessWidget {
       // overall value. Reserve the determinate bar for durable song hydration.
       final durableHydration =
           syncState.metadataReady &&
-          syncState.stage == LibrarySyncStage.fetchingSongs;
+          syncState.stage == LibrarySyncStage.fetchingSongs &&
+          !syncState.fastPathActive;
+      final scanningSongIndex =
+          syncState.metadataReady &&
+          syncState.stage == LibrarySyncStage.fetchingSongs &&
+          syncState.fastPathActive;
       final progress = !durableHydration || total == null || total == 0
           ? null
           : (processed / total).clamp(0.0, 1.0);
@@ -178,13 +183,14 @@ class _SyncStatusBanner extends StatelessWidget {
                   ],
                 ),
               ),
-              LinearProgressIndicator(
-                key: progressKey,
-                value: progress,
-                minHeight: 3,
-                color: colors.primary,
-                backgroundColor: colors.primary.withValues(alpha: 0.12),
-              ),
+              if (!scanningSongIndex)
+                LinearProgressIndicator(
+                  key: progressKey,
+                  value: progress,
+                  minHeight: 3,
+                  color: colors.primary,
+                  backgroundColor: colors.primary.withValues(alpha: 0.12),
+                ),
             ],
           ),
         ),
@@ -202,6 +208,11 @@ class _SyncStatusBanner extends StatelessWidget {
     final pending = syncState.pendingHydrationCount ?? 0;
     if (syncState.metadataReady &&
         syncState.stage == LibrarySyncStage.fetchingSongs) {
+      if (syncState.fastPathActive) {
+        return l10n.librarySyncScanningSongIndex(
+          syncState.songIndexEntriesScanned,
+        );
+      }
       if (total == null || total == 0) {
         return l10n.librarySyncHydratingUnknown;
       }

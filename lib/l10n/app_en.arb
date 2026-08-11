@@ -394,13 +394,21 @@
   "librarySyncStageArtists": "Fetching artists",
   "librarySyncStageAlbums": "Fetching albums",
   "librarySyncStagePersisting": "Persisting metadata",
-  "librarySyncStageSongs": "Hydrating songs",
+  "librarySyncStageSongs": "Scanning songs",
   "librarySyncStageGenres": "Fetching genres",
   "librarySyncStagePlaylists": "Fetching playlists",
   "librarySyncStageFinalizing": "Finalizing",
   "librarySyncFailureFallback": "Library sync failed.",
-  "librarySyncHydratingUnknown": "Metadata ready. Hydrating songs...",
-  "librarySyncHydratingProgress": "Metadata ready. Hydrating songs ({processed}/{total}, {pending} remaining)",
+  "librarySyncScanningSongIndex": "Metadata ready. Scanning song index ({count} songs found)",
+  "@librarySyncScanningSongIndex": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "librarySyncHydratingUnknown": "Metadata ready. Fetching remaining album details...",
+  "librarySyncHydratingProgress": "Metadata ready. Fetching remaining album details ({processed}/{total}, {pending} remaining)",
   "@librarySyncHydratingProgress": {
     "placeholders": {
       "processed": {
@@ -414,7 +422,7 @@
       }
     }
   },
-  "librarySyncHydratingProgressWithRate": "Metadata ready. Hydrating songs ({processed}/{total}, {pending} remaining, {rate} albums/s)",
+  "librarySyncHydratingProgressWithRate": "Metadata ready. Fetching remaining album details ({processed}/{total}, {pending} remaining, {rate} albums/s)",
   "@librarySyncHydratingProgressWithRate": {
     "placeholders": {
       "processed": {

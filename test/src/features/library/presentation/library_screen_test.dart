@@ -483,6 +483,53 @@ void main() {
     });
 
     _testWidgetsWithCleanup(
+      'sync banner shows a live song-index reference without a progress bar',
+      (
+        tester,
+      ) async {
+        await _pumpLibraryScreen(
+          tester,
+          settle: false,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(
+                const LibrarySyncState(
+                  status: LibrarySyncStatus.running,
+                  stage: LibrarySyncStage.fetchingSongs,
+                  metadataReady: true,
+                  fastPathActive: true,
+                  songIndexEntriesScanned: 50000,
+                  processed: 0,
+                  total: 301,
+                  pendingHydrationCount: 301,
+                ),
+              ),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(
+          find.text('Metadata ready. Scanning song index (50000 songs found)'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey<String>('library-sync-status-progress')),
+          findsNothing,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
       'sync banner shows metadata-ready hydration progress',
       (
         tester,
@@ -518,7 +565,7 @@ void main() {
 
         expect(
           find.text(
-            'Metadata ready. Hydrating songs (5/10, 5 remaining, 2.5 albums/s)',
+            'Metadata ready. Fetching remaining album details (5/10, 5 remaining, 2.5 albums/s)',
           ),
           findsOneWidget,
         );

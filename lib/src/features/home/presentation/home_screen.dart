@@ -1677,7 +1677,8 @@ class _HomeSyncLogo extends StatelessWidget {
     final accentColors = NavisAccentColors.of(context);
     final clampedPullProgress = pullProgress.clamp(0.0, 1.0);
     final isRunning = syncState.isRunning;
-    final hasDeterminate = isRunning && (syncState.total ?? 0) > 0;
+    final hasDeterminate =
+        isRunning && !syncState.fastPathActive && (syncState.total ?? 0) > 0;
     final showFailure =
         !isRunning && syncState.status == LibrarySyncStatus.failed;
     final showBridgeRing =

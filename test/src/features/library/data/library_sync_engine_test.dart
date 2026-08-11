@@ -1366,6 +1366,60 @@ void main() {
     );
 
     test(
+      'continues catalog pagination after a server-capped short album page',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        for (var index = 0; index < 5; index++) {
+          final albumNumber = index + 1;
+          final album = Album(
+            id: 'album-$albumNumber',
+            name: 'Album $albumNumber',
+            artistId: 'artist-1',
+          );
+          api.fastPathPages
+              .putIfAbsent(
+                index < 2
+                    ? 0
+                    : index < 4
+                    ? 2
+                    : 4,
+                () => <Album>[],
+              )
+              .add(album);
+          api.albumDetails[album.id] = Album(
+            id: album.id,
+            name: album.name,
+            songs: <Song>[],
+          );
+        }
+        final cappedPageEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fastPathPageSize: 4,
+          writeChunkSize: 8,
+          isolateThreshold: 1000,
+        );
+
+        final state = await cappedPageEngine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          api.calls,
+          containsAll(<String>[
+            'getAlbumListPage:0:4',
+            'getAlbumListPage:2:4',
+            'getAlbumListPage:4:4',
+            'getAlbumListPage:5:4',
+          ]),
+        );
+        expect(await database.libraryDao.getAllAlbums(), hasLength(5));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'catalog snapshot resumes after its last committed page',
       () async {
         await saveSession();
@@ -1713,6 +1767,11 @@ void main() {
         expect(hydrationProgress, isNotEmpty);
         expect(hydrationProgress.any((count) => count > 0), isTrue);
         expect(hydrationProgress.last, greaterThanOrEqualTo(9));
+        final indexedSongs = progress
+            .where((state) => state.fastPathActive)
+            .map((state) => state.songIndexEntriesScanned)
+            .toList(growable: false);
+        expect(indexedSongs, containsAllInOrder(<int>[3, 6, 9]));
       },
       skip: !sqliteAvailable,
     );
@@ -3163,6 +3222,46 @@ void main() {
           api.calls.where((call) => call.startsWith('getAlbum:')).length,
           18,
         );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'full catalog fallback retains bounded concurrency during playback',
+      () async {
+        await saveSession();
+        api.albumDelay = const Duration(milliseconds: 2);
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = List<Album>.generate(
+          12,
+          (index) => Album(
+            id: 'album-${index + 1}',
+            name: 'Album ${index + 1}',
+            artistId: 'artist-1',
+          ),
+        );
+        for (var index = 0; index < 12; index++) {
+          final albumId = 'album-${index + 1}';
+          api.albumDetails[albumId] = Album(
+            id: albumId,
+            name: 'Album ${index + 1}',
+            songs: <Song>[Song(id: 'song-${index + 1}', title: 'Song')],
+          );
+        }
+        final activePlaybackEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          readActiveSongId: () => 'song-playing',
+          writeChunkSize: 12,
+          isolateThreshold: 1000,
+        );
+
+        final state = await activePlaybackEngine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.maxConcurrentAlbumRequests, greaterThanOrEqualTo(4));
       },
       skip: !sqliteAvailable,
     );

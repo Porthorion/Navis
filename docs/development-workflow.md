@@ -170,6 +170,9 @@ Linux and Windows profile diagnostics share the same control-plane contract:
 - `tool/sync_diagnostics.sh clone` demonstrates the supported isolated launch,
   while `tool/sync_diagnostics.sh throughput` measures one isolated Repair
   Library run without cancellation/restart scenarios affecting its result.
+  `tool/sync_diagnostics.sh full-rescan` executes a full Repair Library run
+  against an isolated copy of the configured library, records one-second
+  planning/hydration traces, and captures the initial preparing Flutter frame.
   `tool/sync_diagnostics.sh cache-alias` seeds a cached provisional song only
   in the clone, hydrates its canonical album from the configured server, and
   asserts alias and cache ownership migration.
@@ -590,6 +593,17 @@ to hydrate the matching real album, and asserts that the persisted identity
 alias exists, the old cache row is gone, the canonical row owns the cache, and
 the cache file remains present. It never writes to the primary database or
 cache directory.
+
+For a live-scale full Repair Library trace without changing primary data, run:
+
+```bash
+./tool/sync_diagnostics.sh full-rescan
+```
+
+The result records the immediate `preparing` state and captures its app-owned
+Flutter frame before durable planning, then records catalog hydration and the
+per-album fallback request counts. If deletion safety requires confirmation,
+the clone runner makes one explicit confirmation pass.
 
 When a newly changed server password has not yet been saved in desktop secure
 storage, provide a separately permissioned temporary credential file through

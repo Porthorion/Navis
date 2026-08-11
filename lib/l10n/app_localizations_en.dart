@@ -906,7 +906,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySyncStagePersisting => 'Persisting metadata';
 
   @override
-  String get librarySyncStageSongs => 'Hydrating songs';
+  String get librarySyncStageSongs => 'Scanning songs';
 
   @override
   String get librarySyncStageGenres => 'Fetching genres';
@@ -921,12 +921,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySyncFailureFallback => 'Library sync failed.';
 
   @override
+  String librarySyncScanningSongIndex(int count) {
+    return 'Metadata ready. Scanning song index ($count songs found)';
+  }
+
+  @override
   String get librarySyncHydratingUnknown =>
-      'Metadata ready. Hydrating songs...';
+      'Metadata ready. Fetching remaining album details...';
 
   @override
   String librarySyncHydratingProgress(int processed, int total, int pending) {
-    return 'Metadata ready. Hydrating songs ($processed/$total, $pending remaining)';
+    return 'Metadata ready. Fetching remaining album details ($processed/$total, $pending remaining)';
   }
 
   @override
@@ -936,7 +941,7 @@ class AppLocalizationsEn extends AppLocalizations {
     int pending,
     Object rate,
   ) {
-    return 'Metadata ready. Hydrating songs ($processed/$total, $pending remaining, $rate albums/s)';
+    return 'Metadata ready. Fetching remaining album details ($processed/$total, $pending remaining, $rate albums/s)';
   }
 
   @override

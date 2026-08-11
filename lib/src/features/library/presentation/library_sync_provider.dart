@@ -721,6 +721,42 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return state;
     }
 
+    final stateBeforeRequest = state;
+    // Planning performs durable work before its first detailed frame. Make an
+    // explicit rescan visibly running immediately instead of leaving the UI
+    // idle between the shortcut and catalog collection.
+    state = state.copyWith(
+      status: LibrarySyncStatus.running,
+      stage: LibrarySyncStage.preparing,
+      mode: forceFull
+          ? LibrarySyncMode.forceFull
+          : force
+          ? LibrarySyncMode.incremental
+          : state.mode,
+      metadataReady: false,
+      isHydrating: false,
+      fastPathActive: false,
+      clearProcessed: true,
+      clearTotal: true,
+      clearHydratedAlbums: true,
+      clearPendingHydrationCount: true,
+      startedAt: DateTime.now(),
+      clearCompletedAt: true,
+      clearErrorMessage: true,
+      clearHydrationThroughput: true,
+      planKind: forceFull
+          ? LibrarySyncPlanKind.fullRepair
+          : force
+          ? LibrarySyncPlanKind.deltaReconcile
+          : state.planKind,
+      clearPlanReason: true,
+      clearCandidateGeneration: true,
+      clearCandidateStatus: true,
+    );
+    if (!verificationContinuation) {
+      unawaited(notifier.showProgress(state));
+    }
+
     final result = await _executeSync(
       engine: engine,
       force: force,
@@ -758,12 +794,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // joined after a transient failure and returned `skipped`.
     final preserveFailure =
         !force &&
-        state.status == LibrarySyncStatus.failed &&
+        stateBeforeRequest.status == LibrarySyncStatus.failed &&
         (result.status == LibrarySyncStatus.skipped ||
             result.status == LibrarySyncStatus.deferred ||
             result.status == LibrarySyncStatus.cancelled);
     if (preserveFailure) {
-      return state;
+      state = stateBeforeRequest;
+      return stateBeforeRequest;
     }
     state = result;
     switch (result.status) {

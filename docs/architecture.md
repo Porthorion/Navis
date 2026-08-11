@@ -783,8 +783,10 @@ replay/end-of-queue feedback instead.
    normally performs one `getAlbum` request plus one song transaction.
    Background detail work adapts from two workers up to eight on Wi-Fi, four on
    other unmetered networks, and one on cellular; active playback caps it at two.
-   A foreground full-catalog repair with no active playback starts its
-   per-album fallback at eight workers and may ramp to 24 on Wi-Fi, so a server
+   A foreground full-catalog repair starts its per-album fallback at eight
+   workers and may ramp to 24 on idle Wi-Fi. During active playback, an
+   explicit repair remains bounded at four to eight Wi-Fi workers rather than
+   falling to the ordinary two-worker interactive cap, so a server
    search-result window cannot turn the repair tail into a serial crawl.
 6. The transport interceptor owns at most one immediate idempotent retry and
    honors `Retry-After`. Durable work owns later attempts with exponential

@@ -157,6 +157,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/verify_android_auto_manifest.sh  # Android Auto manifest/APK contract
 ./tool/sync_diagnostics.sh clone  # isolated Linux profile sync/API suite
 ./tool/sync_diagnostics.sh throughput  # isolated single-repair throughput sample
+./tool/sync_diagnostics.sh full-rescan  # isolated live-scale Repair Library trace + preparing-state capture
 ./tool/sync_diagnostics.sh cache-alias  # isolated live cache/identity migration probe
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
@@ -444,10 +445,13 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   Candidate analysis yields between pages and reduces its page size during
   playback or slow database responses. Cache-file unlinking happens after the
   database commit so filesystem latency cannot extend the visibility switch.
-  A foreground full-catalog candidate with no active playback may begin its
-  album-detail fallback at eight concurrent requests and ramp to 24 on Wi-Fi;
-  ordinary background and interactive hydration remain capped at their smaller
-  platform limits and back off only after transport retries.
+  A foreground full-catalog candidate starts its album-detail fallback at
+  eight concurrent requests and ramps to 24 on Wi-Fi when idle. While audio is
+  active, an explicit Repair Library remains bounded but uses four to eight
+  Wi-Fi requests so its final fallback cannot collapse to the ordinary
+  two-request interactive cap; ordinary background and interactive hydration
+  remain capped at their smaller platform limits and back off only after
+  transport retries.
   Its `search3` bulk-song pagination must advance by the returned count and
   continue after short pages: compatible servers may silently cap the requested
   page size, and stopping on that cap would incorrectly trigger the slow

@@ -2055,6 +2055,31 @@ void main() {
     );
   });
 
+  testWidgets(
+    'keeps the Home sync ring indeterminate while scanning the song index',
+    (
+      tester,
+    ) async {
+      await _pumpHomeWithSyncState(
+        tester,
+        const LibrarySyncState(
+          status: LibrarySyncStatus.running,
+          stage: LibrarySyncStage.fetchingSongs,
+          metadataReady: true,
+          fastPathActive: true,
+          songIndexEntriesScanned: 50000,
+          processed: 0,
+          total: 301,
+        ),
+        database,
+      );
+
+      final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+      expect(ring, findsOneWidget);
+      expect(tester.widget<CircularProgressIndicator>(ring).value, isNull);
+    },
+  );
+
   testWidgets('home logo and sync ring use exact safe brand accent', (
     tester,
   ) async {

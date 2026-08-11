@@ -8,6 +8,7 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -454,6 +455,55 @@ void main() {
         LibrarySyncStatus.succeeded,
       );
     });
+
+    test(
+      'forceFullSync becomes visibly preparing before engine planning',
+      () async {
+        final completer = Completer<LibrarySyncState>();
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async => completer.future,
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.checking,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final future = container
+            .read(librarySyncControllerProvider.notifier)
+            .forceFullSync();
+        await Future<void>.delayed(Duration.zero);
+
+        final preparing = container.read(librarySyncControllerProvider);
+        expect(preparing.status, LibrarySyncStatus.running);
+        expect(preparing.stage, LibrarySyncStage.preparing);
+        expect(preparing.mode, LibrarySyncMode.forceFull);
+        expect(preparing.planKind, LibrarySyncPlanKind.fullRepair);
+
+        completer.complete(
+          LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+        );
+        await future;
+      },
+    );
 
     test('syncNow transitions through running to failed state', () async {
       final engine = _FakeLibrarySyncEngine(

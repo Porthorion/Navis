@@ -19,6 +19,20 @@ Last updated: 2026-08-11
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Full Repair Library progress and fallback throughput hardening —
+  2026-08-11 (the controller now enters visible `preparing` state before
+  durable planning, song-index scans now show a live count without implying a
+  percentage before the separate remaining-album fallback begins, compatible
+  short catalog pages advance by their returned count instead of ending early,
+  and an explicit full repair retains a bounded four-to-eight Wi-Fi `getAlbum`
+  fallback while audio is active; evidence:
+  focused provider/engine/diagnostics tests, release-note generation, and
+  isolated authenticated Linux full-rescan diagnostics against the configured
+  large library. The completed trace recorded immediate `preparing`, 5,460
+  catalog albums, 53 paged bulk-song requests, 301 correctly completed
+  fallback album details, and a successful promotion; the app-owned Home
+  capture was opened and inspected after the clean clone launch.)
+
 - [x] Home logo-only sync status and Library sync-strip refinement —
   2026-08-11 (Home now leaves all active and failed sync signalling to the
   Navis logo ring, while Library has a compact tonal status strip with

@@ -55,6 +55,20 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.3', [
+    _Entry(
+      'Repair Library now shows progress immediately and keeps its final album fallback faster while music is playing',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Large-library scans now continue correctly when a compatible server returns shorter catalog pages than requested',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Library repair now distinguishes song-index scanning from the remaining album-detail fallback and shows a live indexed-song count',
+      type: _EntryType.improvement,
+    ),
+  ]),
   _Version('1.2.2', [
     _Entry(
       'Home now keeps library-sync status on the Navis logo, while Library provides the detailed progress and recovery controls',
