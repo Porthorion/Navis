@@ -2780,7 +2780,7 @@ void main() {
     );
 
     test(
-      'manual check discovers a new album despite a fresh unchanged index',
+      'manual check discovers a new album under an existing artist despite a fresh unchanged index',
       () async {
         final cursor = _FakeLibrarySyncApi.defaultIndexesCursor;
         await saveSession(
@@ -2796,20 +2796,37 @@ void main() {
           }),
         );
         api.indexes = Indexes(lastModified: cursor);
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(
+            id: 'artist-existing',
+            name: 'Existing Artist',
+          ),
+        ]);
         api.fastPathPages[0] = const <Album>[
-          Album(id: 'album-new', name: 'New Album', artistId: 'artist-new'),
+          Album(
+            id: 'album-new',
+            name: 'New Album',
+            artistId: 'artist-existing',
+            artist: 'Existing Artist',
+          ),
         ];
-        api.artistDetails['artist-new'] = const Artist(
-          id: 'artist-new',
-          name: 'New Artist',
+        api.artistDetails['artist-existing'] = const Artist(
+          id: 'artist-existing',
+          name: 'Existing Artist',
           albums: <Album>[
-            Album(id: 'album-new', name: 'New Album', artistId: 'artist-new'),
+            Album(
+              id: 'album-new',
+              name: 'New Album',
+              artistId: 'artist-existing',
+              artist: 'Existing Artist',
+            ),
           ],
         );
         api.albumDetails['album-new'] = const Album(
           id: 'album-new',
           name: 'New Album',
-          artistId: 'artist-new',
+          artistId: 'artist-existing',
+          artist: 'Existing Artist',
           songs: <Song>[Song(id: 'song-new', title: 'New Song')],
         );
 
@@ -2817,7 +2834,7 @@ void main() {
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('getAlbumListPage:0:100'));
-        expect(api.calls, contains('getArtist:artist-new'));
+        expect(api.calls, contains('getArtist:artist-existing'));
         expect(await database.libraryDao.getAlbumById('album-new'), isNotNull);
       },
       skip: !sqliteAvailable,

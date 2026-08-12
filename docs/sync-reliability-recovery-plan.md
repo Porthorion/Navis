@@ -125,7 +125,7 @@ Exit: deterministic manual-check reproduction and a trace separating catalog, Li
 2. Apply freshness gates only to automatic work. Manual no-change result is checkedNoChanges, never skipped. **Implemented:** manual requests select `manualCatalogDiscovery` instead of the automatic fresh-domain no-op.
 3. Always run bounded newest discovery for manual check despite unchanged getIndexes. **Implemented:** the engine runs the newest window for every manual incremental pass.
 4. Drain discovered follow-up in the same user operation or return explicit deferred reason.
-5. Add unit, coordinator, widget and API tests for fresh window, unchanged cursor/new album, changed cursor/new album, offline, cellular and duplicate taps.
+5. Add unit, coordinator, widget and API tests for fresh window, unchanged cursor/new album, changed cursor/new album, offline, cellular and duplicate taps. **Implemented at the engine boundary:** the deterministic regression starts with a committed existing artist, returns the same `getIndexes` cursor, and proves one manual check discovers, hydrates, and commits that artist's new album. Controller/API/UI certification remains in Phase 4.
 
 Exit: one manual check imports an album for existing artist in fixture and live clone; UI reports change counts.
 
