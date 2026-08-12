@@ -538,6 +538,47 @@ void main() {
   );
 
   test(
+    'automatic work does not resume a queued explicit full repair',
+    () async {
+      final probeEngine = _ProbeLibrarySyncEngine();
+      final automaticCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          currentGeneration: const Value(1),
+          lastCheckedAt: Value(DateTime.utc(2026, 8, 4)),
+        ),
+      );
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.fullRepair.name,
+        priority: 80,
+      );
+
+      final result = await automaticCoordinator.syncIfStale();
+
+    expect(result.status, isNot(LibrarySyncStatus.failed));
+      expect(probeEngine.forceFullSyncCalls, 0);
+      expect(
+        (await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.fullRepair.name,
+        ))?.status,
+        'queued',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'interactive album hydration is allowed on metered networks',
     () async {
       final probeEngine = _ProbeLibrarySyncEngine();

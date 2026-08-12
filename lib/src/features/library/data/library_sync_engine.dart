@@ -2057,19 +2057,48 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     final songStarredAt = <String, DateTime?>{
       for (final song in starred.songs) song.id: song.starred,
     };
+    final serverConfig = await _serverConfigRepository.getActiveServer();
+    final serverId = serverConfig?.id;
 
     await _database.transaction(() async {
+      final localAlbumIds = await _database.libraryDao.getStarredAlbumIds();
+      final localArtistIds = await _database.libraryDao.getStarredArtistIds();
+      final localSongIds = await _database.libraryDao.getStarredSongIds();
+      final confirmedAbsentAlbumIds = await _confirmedStarredAbsences(
+        serverId: serverId,
+        entityType: 'album',
+        localIds: localAlbumIds,
+        serverIds: albumStarredAt.keys.toSet(),
+        protectedIds: pendingByType['album']!,
+      );
+      final confirmedAbsentArtistIds = await _confirmedStarredAbsences(
+        serverId: serverId,
+        entityType: 'artist',
+        localIds: localArtistIds,
+        serverIds: artistStarredAt.keys.toSet(),
+        protectedIds: pendingByType['artist']!,
+      );
+      final confirmedAbsentSongIds = await _confirmedStarredAbsences(
+        serverId: serverId,
+        entityType: 'song',
+        localIds: localSongIds,
+        serverIds: songStarredAt.keys.toSet(),
+        protectedIds: pendingByType['song']!,
+      );
       await _database.libraryDao.batchReconcileAlbumStarred(
         albumStarredAt,
         excludeIds: pendingByType['album']!,
+        confirmedAbsentIds: confirmedAbsentAlbumIds,
       );
       await _database.libraryDao.batchReconcileArtistStarred(
         artistStarredAt,
         excludeIds: pendingByType['artist']!,
+        confirmedAbsentIds: confirmedAbsentArtistIds,
       );
       await _database.libraryDao.batchReconcileSongStarred(
         songStarredAt,
         excludeIds: pendingByType['song']!,
+        confirmedAbsentIds: confirmedAbsentSongIds,
       );
     });
     await _database.librarySyncDao.pruneLocalStarMutationsBefore(
@@ -2079,6 +2108,32 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     metrics
       ..addDbWriteBatch()
       ..starredSynchronized = true;
+  }
+
+  Future<Set<String>> _confirmedStarredAbsences({
+    required int? serverId,
+    required String entityType,
+    required Set<String> localIds,
+    required Set<String> serverIds,
+    required Set<String> protectedIds,
+  }) async {
+    if (serverId == null) {
+      // A successful snapshot can still add stars without a durable server
+      // identity, but it must never clear local data in that abnormal state.
+      return const <String>{};
+    }
+    await _database.librarySyncDao.clearStarredAbsenceCandidates(
+      serverId: serverId,
+      entityType: entityType,
+      ids: {...serverIds, ...protectedIds},
+    );
+    final absentIds = localIds.difference(serverIds).difference(protectedIds);
+    return _database.librarySyncDao.observeStarredAbsences(
+      serverId: serverId,
+      entityType: entityType,
+      ids: absentIds,
+      observedAt: DateTime.now(),
+    );
   }
 
   LibrarySyncMode _resolveMode(

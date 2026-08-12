@@ -52,6 +52,7 @@ import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/song_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
+import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -90,6 +91,7 @@ part 'navis_database.g.dart';
     LibrarySyncCandidateAlbumsTable,
     LibrarySyncCandidateSongsTable,
     LibrarySyncLocalMutationsTable,
+    StarredAbsenceCandidatesTable,
   ],
   daos: [
     AppSettingsDao,
@@ -135,7 +137,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 61;
+  int get schemaVersion => 62;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -338,6 +340,15 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 61 && to >= 61) {
       await from60To61(migrator);
+    }
+    if (from < 62 && to >= 62) {
+      await from61To62(migrator);
+    }
+  }
+
+  Future<void> from61To62(Migrator migrator) async {
+    if (!await _tableExists('starred_absence_candidates')) {
+      await migrator.createTable(starredAbsenceCandidatesTable);
     }
   }
 
@@ -1638,6 +1649,10 @@ FROM scrobble_queue;
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_library_sync_local_mutations_entity '
       'ON library_sync_local_mutations(entity_type, entity_id, created_at);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_starred_absence_candidates_server '
+      'ON starred_absence_candidates(server_id, entity_type, last_observed_at);',
     );
   }
 

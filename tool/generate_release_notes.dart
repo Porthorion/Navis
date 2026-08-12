@@ -76,6 +76,14 @@ const List<_Version> _changelogs = [
       'Repair Library now clearly shows when a large server-side deletion needs your confirmation before changing the local library',
       type: _EntryType.improvement,
     ),
+    _Entry(
+      'Liked music now stays visible after one incomplete server response; Navis waits for a second confirmed absence before removing a like locally',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Opening Navis no longer restarts a paused Repair Library operation; repairs resume only when you request them',
+      type: _EntryType.fix,
+    ),
   ]),
   _Version('1.2.3', [
     _Entry('Loving you is as easy as 123'),

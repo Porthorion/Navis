@@ -658,7 +658,7 @@ void main() {
     );
 
     test(
-      'targeted liked sync mirrors the server without overwriting pending local actions',
+      'targeted liked sync confirms server absence twice without overwriting pending local actions',
       () async {
         await saveSession(lastSynced: DateTime.now());
         final localStarredAt = DateTime(2026, 2, 1);
@@ -703,6 +703,13 @@ void main() {
           await database.libraryDao.getSongStarred('pending-local'),
           localStarredAt,
         );
+        expect(
+          await database.libraryDao.getSongStarred('server-unliked'),
+          DateTime(2026, 1, 1),
+        );
+
+        await engine.syncStarredContent();
+
         expect(
           await database.libraryDao.getSongStarred('server-unliked'),
           isNull,

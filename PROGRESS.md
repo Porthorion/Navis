@@ -31,8 +31,13 @@ Last updated: 2026-08-12
   path advanced 214→2,002 albums and 3,924→24,979 candidate songs in 15
   seconds. Settings now surfaces the durable server-missing deletion count and
   requires an explicit confirmation before the retry that can apply it; focused
-  Settings coverage passes. Remaining: complete API/runtime trace, screenshots,
-  clean restart, final quality gate, and next plan phases.)
+  Settings coverage passes. Starred reconciliation now retains a local like
+  after its first successful server absence and requires a persisted second
+  absence before clearing it; schema v62 and focused engine/migration/API tests
+  pass. Automatic startup/periodic calls now leave queued full repairs dormant
+  until an explicit Repair Library request; focused coordinator/provider/DAO
+  coverage passes. Remaining: complete API/runtime trace, screenshots, clean
+  restart, final quality gate, and next plan phases.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

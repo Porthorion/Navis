@@ -1059,24 +1059,47 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watchSingleOrNull().map((row) => row?.starred != null);
   }
 
+  Future<Set<String>> getStarredAlbumIds() async {
+    final rows =
+        await (select(albumsTable)..where(
+              (table) => table.starred.isNotNull(),
+            ))
+            .get();
+    return rows.map((row) => row.id).toSet();
+  }
+
+  Future<Set<String>> getStarredArtistIds() async {
+    final rows =
+        await (select(artistsTable)..where(
+              (table) => table.starred.isNotNull(),
+            ))
+            .get();
+    return rows.map((row) => row.id).toSet();
+  }
+
+  Future<Set<String>> getStarredSongIds() async {
+    final rows =
+        await (select(songsTable)..where(
+              (table) => table.starred.isNotNull(),
+            ))
+            .get();
+    return rows.map((row) => row.id).toSet();
+  }
+
   /// Efficiently reconcile starred state for all albums in a single
-  /// transaction.  Clears the [starred] column for albums not in
-  /// [starredMap], and sets it for those that are — skipping IDs in
-  /// [excludeIds] (e.g. items with pending offline star operations).
+  /// transaction. Applies server stars and clears only [confirmedAbsentIds],
+  /// which must have passed durable absence confirmation. [excludeIds] protect
+  /// pending local star operations.
   Future<void> batchReconcileAlbumStarred(
     Map<String, DateTime?> starredMap, {
     Set<String> excludeIds = const <String>{},
+    Set<String> confirmedAbsentIds = const <String>{},
   }) async {
     await transaction(() async {
-      // 1. Clear starred for all non-excluded albums.
-      if (excludeIds.isNotEmpty) {
+      final clearIds = confirmedAbsentIds.difference(excludeIds);
+      if (clearIds.isNotEmpty) {
         await (update(albumsTable)..where(
-              (t) => t.starred.isNotNull() & t.id.isNotIn(excludeIds.toList()),
-            ))
-            .write(const AlbumsTableCompanion(starred: Value(null)));
-      } else {
-        await (update(albumsTable)..where(
-              (t) => t.starred.isNotNull(),
+              (t) => t.starred.isNotNull() & t.id.isIn(clearIds.toList()),
             ))
             .write(const AlbumsTableCompanion(starred: Value(null)));
       }
@@ -1097,16 +1120,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<void> batchReconcileArtistStarred(
     Map<String, DateTime?> starredMap, {
     Set<String> excludeIds = const <String>{},
+    Set<String> confirmedAbsentIds = const <String>{},
   }) async {
     await transaction(() async {
-      if (excludeIds.isNotEmpty) {
+      final clearIds = confirmedAbsentIds.difference(excludeIds);
+      if (clearIds.isNotEmpty) {
         await (update(artistsTable)..where(
-              (t) => t.starred.isNotNull() & t.id.isNotIn(excludeIds.toList()),
-            ))
-            .write(const ArtistsTableCompanion(starred: Value(null)));
-      } else {
-        await (update(artistsTable)..where(
-              (t) => t.starred.isNotNull(),
+              (t) => t.starred.isNotNull() & t.id.isIn(clearIds.toList()),
             ))
             .write(const ArtistsTableCompanion(starred: Value(null)));
       }
@@ -1126,16 +1146,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<void> batchReconcileSongStarred(
     Map<String, DateTime?> starredMap, {
     Set<String> excludeIds = const <String>{},
+    Set<String> confirmedAbsentIds = const <String>{},
   }) async {
     await transaction(() async {
-      if (excludeIds.isNotEmpty) {
+      final clearIds = confirmedAbsentIds.difference(excludeIds);
+      if (clearIds.isNotEmpty) {
         await (update(songsTable)..where(
-              (t) => t.starred.isNotNull() & t.id.isNotIn(excludeIds.toList()),
-            ))
-            .write(const SongsTableCompanion(starred: Value(null)));
-      } else {
-        await (update(songsTable)..where(
-              (t) => t.starred.isNotNull(),
+              (t) => t.starred.isNotNull() & t.id.isIn(clearIds.toList()),
             ))
             .write(const SongsTableCompanion(starred: Value(null)));
       }

@@ -23050,6 +23050,458 @@ class LibrarySyncLocalMutationsTableCompanion
   }
 }
 
+class $StarredAbsenceCandidatesTableTable extends StarredAbsenceCandidatesTable
+    with
+        TableInfo<
+          $StarredAbsenceCandidatesTableTable,
+          StarredAbsenceCandidatesTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $StarredAbsenceCandidatesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _entityTypeMeta = const VerificationMeta(
+    'entityType',
+  );
+  @override
+  late final GeneratedColumn<String> entityType = GeneratedColumn<String>(
+    'entity_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _firstObservedAtMeta = const VerificationMeta(
+    'firstObservedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> firstObservedAt =
+      GeneratedColumn<DateTime>(
+        'first_observed_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _lastObservedAtMeta = const VerificationMeta(
+    'lastObservedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastObservedAt =
+      GeneratedColumn<DateTime>(
+        'last_observed_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _observationCountMeta = const VerificationMeta(
+    'observationCount',
+  );
+  @override
+  late final GeneratedColumn<int> observationCount = GeneratedColumn<int>(
+    'observation_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    entityType,
+    entityId,
+    firstObservedAt,
+    lastObservedAt,
+    observationCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'starred_absence_candidates';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<StarredAbsenceCandidatesTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('entity_type')) {
+      context.handle(
+        _entityTypeMeta,
+        entityType.isAcceptableOrUnknown(data['entity_type']!, _entityTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityTypeMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityIdMeta);
+    }
+    if (data.containsKey('first_observed_at')) {
+      context.handle(
+        _firstObservedAtMeta,
+        firstObservedAt.isAcceptableOrUnknown(
+          data['first_observed_at']!,
+          _firstObservedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_firstObservedAtMeta);
+    }
+    if (data.containsKey('last_observed_at')) {
+      context.handle(
+        _lastObservedAtMeta,
+        lastObservedAt.isAcceptableOrUnknown(
+          data['last_observed_at']!,
+          _lastObservedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastObservedAtMeta);
+    }
+    if (data.containsKey('observation_count')) {
+      context.handle(
+        _observationCountMeta,
+        observationCount.isAcceptableOrUnknown(
+          data['observation_count']!,
+          _observationCountMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId, entityType, entityId};
+  @override
+  StarredAbsenceCandidatesTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return StarredAbsenceCandidatesTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      entityType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_type'],
+      )!,
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_id'],
+      )!,
+      firstObservedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}first_observed_at'],
+      )!,
+      lastObservedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_observed_at'],
+      )!,
+      observationCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}observation_count'],
+      )!,
+    );
+  }
+
+  @override
+  $StarredAbsenceCandidatesTableTable createAlias(String alias) {
+    return $StarredAbsenceCandidatesTableTable(attachedDatabase, alias);
+  }
+}
+
+class StarredAbsenceCandidatesTableData extends DataClass
+    implements Insertable<StarredAbsenceCandidatesTableData> {
+  final int serverId;
+  final String entityType;
+  final String entityId;
+  final DateTime firstObservedAt;
+  final DateTime lastObservedAt;
+  final int observationCount;
+  const StarredAbsenceCandidatesTableData({
+    required this.serverId,
+    required this.entityType,
+    required this.entityId,
+    required this.firstObservedAt,
+    required this.lastObservedAt,
+    required this.observationCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    map['entity_type'] = Variable<String>(entityType);
+    map['entity_id'] = Variable<String>(entityId);
+    map['first_observed_at'] = Variable<DateTime>(firstObservedAt);
+    map['last_observed_at'] = Variable<DateTime>(lastObservedAt);
+    map['observation_count'] = Variable<int>(observationCount);
+    return map;
+  }
+
+  StarredAbsenceCandidatesTableCompanion toCompanion(bool nullToAbsent) {
+    return StarredAbsenceCandidatesTableCompanion(
+      serverId: Value(serverId),
+      entityType: Value(entityType),
+      entityId: Value(entityId),
+      firstObservedAt: Value(firstObservedAt),
+      lastObservedAt: Value(lastObservedAt),
+      observationCount: Value(observationCount),
+    );
+  }
+
+  factory StarredAbsenceCandidatesTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return StarredAbsenceCandidatesTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      entityType: serializer.fromJson<String>(json['entityType']),
+      entityId: serializer.fromJson<String>(json['entityId']),
+      firstObservedAt: serializer.fromJson<DateTime>(json['firstObservedAt']),
+      lastObservedAt: serializer.fromJson<DateTime>(json['lastObservedAt']),
+      observationCount: serializer.fromJson<int>(json['observationCount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'entityType': serializer.toJson<String>(entityType),
+      'entityId': serializer.toJson<String>(entityId),
+      'firstObservedAt': serializer.toJson<DateTime>(firstObservedAt),
+      'lastObservedAt': serializer.toJson<DateTime>(lastObservedAt),
+      'observationCount': serializer.toJson<int>(observationCount),
+    };
+  }
+
+  StarredAbsenceCandidatesTableData copyWith({
+    int? serverId,
+    String? entityType,
+    String? entityId,
+    DateTime? firstObservedAt,
+    DateTime? lastObservedAt,
+    int? observationCount,
+  }) => StarredAbsenceCandidatesTableData(
+    serverId: serverId ?? this.serverId,
+    entityType: entityType ?? this.entityType,
+    entityId: entityId ?? this.entityId,
+    firstObservedAt: firstObservedAt ?? this.firstObservedAt,
+    lastObservedAt: lastObservedAt ?? this.lastObservedAt,
+    observationCount: observationCount ?? this.observationCount,
+  );
+  StarredAbsenceCandidatesTableData copyWithCompanion(
+    StarredAbsenceCandidatesTableCompanion data,
+  ) {
+    return StarredAbsenceCandidatesTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      entityType: data.entityType.present
+          ? data.entityType.value
+          : this.entityType,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      firstObservedAt: data.firstObservedAt.present
+          ? data.firstObservedAt.value
+          : this.firstObservedAt,
+      lastObservedAt: data.lastObservedAt.present
+          ? data.lastObservedAt.value
+          : this.lastObservedAt,
+      observationCount: data.observationCount.present
+          ? data.observationCount.value
+          : this.observationCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StarredAbsenceCandidatesTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('entityType: $entityType, ')
+          ..write('entityId: $entityId, ')
+          ..write('firstObservedAt: $firstObservedAt, ')
+          ..write('lastObservedAt: $lastObservedAt, ')
+          ..write('observationCount: $observationCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    serverId,
+    entityType,
+    entityId,
+    firstObservedAt,
+    lastObservedAt,
+    observationCount,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is StarredAbsenceCandidatesTableData &&
+          other.serverId == this.serverId &&
+          other.entityType == this.entityType &&
+          other.entityId == this.entityId &&
+          other.firstObservedAt == this.firstObservedAt &&
+          other.lastObservedAt == this.lastObservedAt &&
+          other.observationCount == this.observationCount);
+}
+
+class StarredAbsenceCandidatesTableCompanion
+    extends UpdateCompanion<StarredAbsenceCandidatesTableData> {
+  final Value<int> serverId;
+  final Value<String> entityType;
+  final Value<String> entityId;
+  final Value<DateTime> firstObservedAt;
+  final Value<DateTime> lastObservedAt;
+  final Value<int> observationCount;
+  final Value<int> rowid;
+  const StarredAbsenceCandidatesTableCompanion({
+    this.serverId = const Value.absent(),
+    this.entityType = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.firstObservedAt = const Value.absent(),
+    this.lastObservedAt = const Value.absent(),
+    this.observationCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  StarredAbsenceCandidatesTableCompanion.insert({
+    required int serverId,
+    required String entityType,
+    required String entityId,
+    required DateTime firstObservedAt,
+    required DateTime lastObservedAt,
+    this.observationCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : serverId = Value(serverId),
+       entityType = Value(entityType),
+       entityId = Value(entityId),
+       firstObservedAt = Value(firstObservedAt),
+       lastObservedAt = Value(lastObservedAt);
+  static Insertable<StarredAbsenceCandidatesTableData> custom({
+    Expression<int>? serverId,
+    Expression<String>? entityType,
+    Expression<String>? entityId,
+    Expression<DateTime>? firstObservedAt,
+    Expression<DateTime>? lastObservedAt,
+    Expression<int>? observationCount,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (entityType != null) 'entity_type': entityType,
+      if (entityId != null) 'entity_id': entityId,
+      if (firstObservedAt != null) 'first_observed_at': firstObservedAt,
+      if (lastObservedAt != null) 'last_observed_at': lastObservedAt,
+      if (observationCount != null) 'observation_count': observationCount,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  StarredAbsenceCandidatesTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<String>? entityType,
+    Value<String>? entityId,
+    Value<DateTime>? firstObservedAt,
+    Value<DateTime>? lastObservedAt,
+    Value<int>? observationCount,
+    Value<int>? rowid,
+  }) {
+    return StarredAbsenceCandidatesTableCompanion(
+      serverId: serverId ?? this.serverId,
+      entityType: entityType ?? this.entityType,
+      entityId: entityId ?? this.entityId,
+      firstObservedAt: firstObservedAt ?? this.firstObservedAt,
+      lastObservedAt: lastObservedAt ?? this.lastObservedAt,
+      observationCount: observationCount ?? this.observationCount,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (entityType.present) {
+      map['entity_type'] = Variable<String>(entityType.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (firstObservedAt.present) {
+      map['first_observed_at'] = Variable<DateTime>(firstObservedAt.value);
+    }
+    if (lastObservedAt.present) {
+      map['last_observed_at'] = Variable<DateTime>(lastObservedAt.value);
+    }
+    if (observationCount.present) {
+      map['observation_count'] = Variable<int>(observationCount.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StarredAbsenceCandidatesTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('entityType: $entityType, ')
+          ..write('entityId: $entityId, ')
+          ..write('firstObservedAt: $firstObservedAt, ')
+          ..write('lastObservedAt: $lastObservedAt, ')
+          ..write('observationCount: $observationCount, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -23112,6 +23564,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   librarySyncCandidateSongsTable = $LibrarySyncCandidateSongsTableTable(this);
   late final $LibrarySyncLocalMutationsTableTable
   librarySyncLocalMutationsTable = $LibrarySyncLocalMutationsTableTable(this);
+  late final $StarredAbsenceCandidatesTableTable starredAbsenceCandidatesTable =
+      $StarredAbsenceCandidatesTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -23175,6 +23629,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     librarySyncCandidateAlbumsTable,
     librarySyncCandidateSongsTable,
     librarySyncLocalMutationsTable,
+    starredAbsenceCandidatesTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -23271,6 +23726,15 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       ),
       result: [TableUpdate('library_sync_work', kind: UpdateKind.delete)],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('starred_absence_candidates', kind: UpdateKind.delete),
+      ],
+    ),
   ]);
 }
 
@@ -23356,6 +23820,31 @@ final class $$ServerConfigTableTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _librarySyncWorkTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $StarredAbsenceCandidatesTableTable,
+    List<StarredAbsenceCandidatesTableData>
+  >
+  _starredAbsenceCandidatesTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.starredAbsenceCandidatesTable,
+        aliasName: 'server_config__id__starred_absence_candidates__server_id',
+      );
+
+  $$StarredAbsenceCandidatesTableTableProcessedTableManager
+  get starredAbsenceCandidatesTableRefs {
+    final manager = $$StarredAbsenceCandidatesTableTableTableManager(
+      $_db,
+      $_db.starredAbsenceCandidatesTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _starredAbsenceCandidatesTableRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -23465,6 +23954,35 @@ class $$ServerConfigTableTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> starredAbsenceCandidatesTableRefs(
+    Expression<bool> Function(
+      $$StarredAbsenceCandidatesTableTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$StarredAbsenceCandidatesTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.starredAbsenceCandidatesTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$StarredAbsenceCandidatesTableTableFilterComposer(
+                $db: $db,
+                $table: $db.starredAbsenceCandidatesTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -23621,6 +24139,35 @@ class $$ServerConfigTableTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> starredAbsenceCandidatesTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$StarredAbsenceCandidatesTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$StarredAbsenceCandidatesTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.starredAbsenceCandidatesTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$StarredAbsenceCandidatesTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.starredAbsenceCandidatesTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ServerConfigTableTableTableManager
@@ -23639,6 +24186,7 @@ class $$ServerConfigTableTableTableManager
           PrefetchHooks Function({
             bool librarySyncStateTableRefs,
             bool librarySyncWorkTableRefs,
+            bool starredAbsenceCandidatesTableRefs,
           })
         > {
   $$ServerConfigTableTableTableManager(
@@ -23713,12 +24261,15 @@ class $$ServerConfigTableTableTableManager
               ({
                 librarySyncStateTableRefs = false,
                 librarySyncWorkTableRefs = false,
+                starredAbsenceCandidatesTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (librarySyncStateTableRefs) db.librarySyncStateTable,
                     if (librarySyncWorkTableRefs) db.librarySyncWorkTable,
+                    if (starredAbsenceCandidatesTableRefs)
+                      db.starredAbsenceCandidatesTable,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -23765,6 +24316,27 @@ class $$ServerConfigTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (starredAbsenceCandidatesTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          StarredAbsenceCandidatesTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._starredAbsenceCandidatesTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).starredAbsenceCandidatesTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -23788,6 +24360,7 @@ typedef $$ServerConfigTableTableProcessedTableManager =
       PrefetchHooks Function({
         bool librarySyncStateTableRefs,
         bool librarySyncWorkTableRefs,
+        bool starredAbsenceCandidatesTableRefs,
       })
     >;
 typedef $$AppSettingsTableTableCreateCompanionBuilder =
@@ -36929,6 +37502,380 @@ typedef $$LibrarySyncLocalMutationsTableTableProcessedTableManager =
       LibrarySyncLocalMutationsTableData,
       PrefetchHooks Function()
     >;
+typedef $$StarredAbsenceCandidatesTableTableCreateCompanionBuilder =
+    StarredAbsenceCandidatesTableCompanion Function({
+      required int serverId,
+      required String entityType,
+      required String entityId,
+      required DateTime firstObservedAt,
+      required DateTime lastObservedAt,
+      Value<int> observationCount,
+      Value<int> rowid,
+    });
+typedef $$StarredAbsenceCandidatesTableTableUpdateCompanionBuilder =
+    StarredAbsenceCandidatesTableCompanion Function({
+      Value<int> serverId,
+      Value<String> entityType,
+      Value<String> entityId,
+      Value<DateTime> firstObservedAt,
+      Value<DateTime> lastObservedAt,
+      Value<int> observationCount,
+      Value<int> rowid,
+    });
+
+final class $$StarredAbsenceCandidatesTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $StarredAbsenceCandidatesTableTable,
+          StarredAbsenceCandidatesTableData
+        > {
+  $$StarredAbsenceCandidatesTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) => db
+      .serverConfigTable
+      .createAlias('starred_absence_candidates__server_id__server_config__id');
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$StarredAbsenceCandidatesTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $StarredAbsenceCandidatesTableTable> {
+  $$StarredAbsenceCandidatesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get firstObservedAt => $composableBuilder(
+    column: $table.firstObservedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastObservedAt => $composableBuilder(
+    column: $table.lastObservedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get observationCount => $composableBuilder(
+    column: $table.observationCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$StarredAbsenceCandidatesTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $StarredAbsenceCandidatesTableTable> {
+  $$StarredAbsenceCandidatesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get firstObservedAt => $composableBuilder(
+    column: $table.firstObservedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastObservedAt => $composableBuilder(
+    column: $table.lastObservedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get observationCount => $composableBuilder(
+    column: $table.observationCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$StarredAbsenceCandidatesTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $StarredAbsenceCandidatesTableTable> {
+  $$StarredAbsenceCandidatesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get firstObservedAt => $composableBuilder(
+    column: $table.firstObservedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastObservedAt => $composableBuilder(
+    column: $table.lastObservedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get observationCount => $composableBuilder(
+    column: $table.observationCount,
+    builder: (column) => column,
+  );
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$StarredAbsenceCandidatesTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $StarredAbsenceCandidatesTableTable,
+          StarredAbsenceCandidatesTableData,
+          $$StarredAbsenceCandidatesTableTableFilterComposer,
+          $$StarredAbsenceCandidatesTableTableOrderingComposer,
+          $$StarredAbsenceCandidatesTableTableAnnotationComposer,
+          $$StarredAbsenceCandidatesTableTableCreateCompanionBuilder,
+          $$StarredAbsenceCandidatesTableTableUpdateCompanionBuilder,
+          (
+            StarredAbsenceCandidatesTableData,
+            $$StarredAbsenceCandidatesTableTableReferences,
+          ),
+          StarredAbsenceCandidatesTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$StarredAbsenceCandidatesTableTableTableManager(
+    _$NavisDatabase db,
+    $StarredAbsenceCandidatesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$StarredAbsenceCandidatesTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$StarredAbsenceCandidatesTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$StarredAbsenceCandidatesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<String> entityType = const Value.absent(),
+                Value<String> entityId = const Value.absent(),
+                Value<DateTime> firstObservedAt = const Value.absent(),
+                Value<DateTime> lastObservedAt = const Value.absent(),
+                Value<int> observationCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => StarredAbsenceCandidatesTableCompanion(
+                serverId: serverId,
+                entityType: entityType,
+                entityId: entityId,
+                firstObservedAt: firstObservedAt,
+                lastObservedAt: lastObservedAt,
+                observationCount: observationCount,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int serverId,
+                required String entityType,
+                required String entityId,
+                required DateTime firstObservedAt,
+                required DateTime lastObservedAt,
+                Value<int> observationCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => StarredAbsenceCandidatesTableCompanion.insert(
+                serverId: serverId,
+                entityType: entityType,
+                entityId: entityId,
+                firstObservedAt: firstObservedAt,
+                lastObservedAt: lastObservedAt,
+                observationCount: observationCount,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$StarredAbsenceCandidatesTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.serverId,
+                                referencedTable:
+                                    $$StarredAbsenceCandidatesTableTableReferences
+                                        ._serverIdTable(db),
+                                referencedColumn:
+                                    $$StarredAbsenceCandidatesTableTableReferences
+                                        ._serverIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$StarredAbsenceCandidatesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $StarredAbsenceCandidatesTableTable,
+      StarredAbsenceCandidatesTableData,
+      $$StarredAbsenceCandidatesTableTableFilterComposer,
+      $$StarredAbsenceCandidatesTableTableOrderingComposer,
+      $$StarredAbsenceCandidatesTableTableAnnotationComposer,
+      $$StarredAbsenceCandidatesTableTableCreateCompanionBuilder,
+      $$StarredAbsenceCandidatesTableTableUpdateCompanionBuilder,
+      (
+        StarredAbsenceCandidatesTableData,
+        $$StarredAbsenceCandidatesTableTableReferences,
+      ),
+      StarredAbsenceCandidatesTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -37022,5 +37969,11 @@ class $NavisDatabaseManager {
       $$LibrarySyncLocalMutationsTableTableTableManager(
         _db,
         _db.librarySyncLocalMutationsTable,
+      );
+  $$StarredAbsenceCandidatesTableTableTableManager
+  get starredAbsenceCandidatesTable =>
+      $$StarredAbsenceCandidatesTableTableTableManager(
+        _db,
+        _db.starredAbsenceCandidatesTable,
       );
 }

@@ -751,7 +751,9 @@ replay/end-of-queue feedback instead.
    one terminal result, so setup, startup, user, and reconnect callers cannot
    mistake an in-flight state for a failed sync. Pending durable work resumes
    only through the configured automatic interval or an explicit action; there
-   is no short continuation timer. A startup or
+   is no short continuation timer. A queued full repair is the exception: it
+   remains resumable but dormant until an explicit Repair Library action, never
+   a startup, reconnect, resume, or periodic pass. A startup or
    periodic caller also treats a not-yet-constructed credential-backed engine
    as pending rather than failure, then restarts its startup pass once the
    engine is available.
@@ -813,6 +815,11 @@ replay/end-of-queue feedback instead.
    library repair confirmation before it makes the second repair request.
    Isolated detail 404s remain candidates until a parent or complete snapshot
    confirms deletion.
+   Starred reconciliation follows the same offline-safety principle: a local
+   star absent from one successful `getStarred2` response becomes a durable
+   absence candidate, not an immediate unstar. Only its second independent
+   successful absence clears the local star; a returned server star or pending
+   local mutation clears that candidate.
 8. Search and discovery metadata stays provisional. Canonical hydration uses
    same ID, one unique recording MBID, or one unique compatible exact metadata
    match. Proven aliases are applied to playback before provisional cleanup, so

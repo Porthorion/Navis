@@ -49,6 +49,14 @@ const List<ChangelogVersion> changelogs = [
         'Repair Library now clearly shows when a large server-side deletion needs your confirmation before changing the local library',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Liked music now stays visible after one incomplete server response; Navis waits for a second confirmed absence before removing a like locally',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Opening Navis no longer restarts a paused Repair Library operation; repairs resume only when you request them',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

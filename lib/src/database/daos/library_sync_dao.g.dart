@@ -12,6 +12,8 @@ mixin _$LibrarySyncDaoMixin on DatabaseAccessor<NavisDatabase> {
       attachedDatabase.librarySyncWorkTable;
   $LibrarySyncLocalMutationsTableTable get librarySyncLocalMutationsTable =>
       attachedDatabase.librarySyncLocalMutationsTable;
+  $StarredAbsenceCandidatesTableTable get starredAbsenceCandidatesTable =>
+      attachedDatabase.starredAbsenceCandidatesTable;
   LibrarySyncDaoManager get managers => LibrarySyncDaoManager(this);
 }
 
@@ -38,5 +40,11 @@ class LibrarySyncDaoManager {
       $$LibrarySyncLocalMutationsTableTableTableManager(
         _db.attachedDatabase,
         _db.librarySyncLocalMutationsTable,
+      );
+  $$StarredAbsenceCandidatesTableTableTableManager
+  get starredAbsenceCandidatesTable =>
+      $$StarredAbsenceCandidatesTableTableTableManager(
+        _db.attachedDatabase,
+        _db.starredAbsenceCandidatesTable,
       );
 }

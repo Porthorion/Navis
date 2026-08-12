@@ -50,9 +50,9 @@ External sources:
 | P0 | Manual discovery relies on getIndexes. syncNow queues follow-up only when probeIndexChanged; newest-album health probing is inside incremental sync and is not reached for an unchanged probe. | A new album under an existing artist can remain invisible. This is the main root cause for the reported missed album. |
 | P0 | Pending verification schedules a continuation every two minutes regardless of configured interval. Resume, reconnect, Wi-Fi and startup paths schedule additional work. | The app appears to spam sync; cadence is hidden and does not honor the setting. |
 | P0 | enqueueWork changes a completed conflicting work row back to queued. Partial catalog work then reaches markCancelled, which also means queued. | Work is resurrected and can run repeatedly, amplifying the continuation loop. |
-| P1 | Server configuration, reachability notifications, engine availability, Wi-Fi, resume, periodic re-arm and a microtask all submit startup work. Partial result does not set startup-done fingerprint. | Event storms can schedule more planning after a preceding pass ends. |
+| P1 | Server configuration, reachability notifications, engine availability, Wi-Fi, resume, periodic re-arm and a microtask all submit startup work. Partial result does not set startup-done fingerprint. Queued full repairs were also eligible for those automatic resume requests. | Event storms could schedule more planning after a preceding pass ends, and opening the app could restart an interrupted user Repair Library operation. **Fixed:** automatic callers now leave queued full repairs dormant; only an explicit Repair Library action may resume one. |
 | P1 | Entering the retained Liked tab watches an autoDispose provider that requests stale starred synchronization and writes global sync state. | Home to Library can look like catalog sync although it is a Liked refresh. |
-| P1 | Starred reconciliation clears every local star not in getStarred before applying the returned set, excluding only queued/concurrent mutations. | This is a code-proven destructive path that can explain items disappearing from Liked. Exact user row still needs a diagnostics trace. |
+| P1 | Starred reconciliation cleared every local star not in `getStarred2` before applying the returned set, excluding only queued/concurrent mutations. | This was a code-proven destructive path that could make Liked items disappear after one incomplete response. **Fixed:** absence candidates are persisted per server/entity; the first successful absence retains the local star and only a second independent successful absence clears it. Pending and concurrent local mutations remain protected. |
 | P1 | Large deletion repair returns awaitingDeletionConfirmation and requires a second repair request; UI showed only opaque status. | Repair could look like a no-op/failure. **Fixed:** Settings now names the pending server-missing count and requires an explicit Apply library repair confirmation before it issues that retry. |
 | P1 | Probe, repair, continuation, Liked sync and target hydration overwrite one global LibrarySyncState. | Navigation-adjacent work can replace broad-operation status and make causality unclear. |
 | P1 | A legacy persisted `*` bulk-song query ran before the standard empty query. In the isolated clone it collected 5,464 albums then remained at zero hydrated/candidate songs for more than 20 minutes; cancellation did not reach a terminal state within the next 20 seconds. | Repair appeared stalled despite a valid candidate. The wildcard capability is now discarded; the verified empty-query path advanced 214→2,002 albums and 3,924→24,979 songs in 15 seconds. |
@@ -62,7 +62,7 @@ External sources:
 
 There is no direct broad-catalog call on the Home to Library route change. The confirmed navigation trigger is Liked starred refresh; detail pages may request target hydration.
 
-Candidate promotion correctly preserves the visible committed catalog until validated promotion and must remain. The exact vanished row has not yet been reproduced. The destructive starred path is credible and code-proven, but its conflict policy must change only after a trace confirms snapshot completeness and mutation state.
+Candidate promotion correctly preserves the visible committed catalog until validated promotion and must remain. The exact vanished row has not yet been reproduced against the affected server. The previous destructive starred path is now guarded by durable two-observation confirmation; runtime traces still need to prove the affected navigation path and server response behavior.
 
 A full repair should discover all albums through its paginated candidate. If it misses the current server album, capture endpoint page/count evidence with the diagnostics API; do not hide the defect by making navigation or automatic checks perform full repair.
 
@@ -132,7 +132,7 @@ Exit: one manual check imports an album for existing artist in fixture and live 
 
 1. Add persisted automatic schedule and one scheduler entry point. Lifecycle/UI listeners submit typed cause only. **In progress:** the unpersisted two-minute continuation loop is removed; automatic pending work now waits for the configured interval.
 2. Coalesce manually: manual check supersedes automatic probe; repair supersedes broad automatic work; target work is independent.
-3. Correct work transitions: completed stays completed; cancelled has explicit backoff; a deletion-confirmation repair is terminal until the next explicit Repair Library action; partial broad parent names child work instead of requeueing itself. **Implemented:** ordinary conflict handling preserves terminal rows, while explicit user requests reactivate them.
+3. Correct work transitions: completed stays completed; cancelled has explicit backoff; a deletion-confirmation repair is terminal until the next explicit Repair Library action; partial broad parent names child work instead of requeueing itself. **Implemented:** ordinary conflict handling preserves terminal rows, explicit user requests reactivate them, and automatic callers cannot resume queued full repairs.
 4. Remove the two-minute loop. Pending durable work is resumed only by the configured automatic interval or an explicit user action, with visible next eligibility.
 5. Make startup completion a terminal scheduler decision; listener emissions cannot reset a fresh schedule.
 6. Keep only the standard empty-query `search3` bulk capability. Discard
@@ -145,7 +145,7 @@ Exit: a 60-minute no-action lifecycle stress test makes no catalog request befor
 
 1. Replace Liked autoDispose side effect with target-scoped work from explicit refresh or scheduler-due auxiliary event.
 2. Split CatalogSyncState from per-target operation state.
-3. Validate starred snapshot completeness before deletion; preserve values for uncertain response and pending journals.
+3. Validate starred snapshot completeness before deletion; preserve values for uncertain response and pending journals. **Implemented defensively:** retain a missing star after its first successful response and clear it only after a second independent successful absence; pending and concurrent local mutations clear any candidate and remain authoritative.
 4. Record before/after counts and reason code for every destructive catalog/starred transaction.
 5. Add invariant: Home to Library changes neither catalog nor liked count without successful accounted server snapshot.
 

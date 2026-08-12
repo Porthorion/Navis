@@ -3,6 +3,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/library_sync_state_table.dart';
 import 'package:navis/src/database/tables/library_sync_work_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
+import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 
 part 'library_sync_dao.g.dart';
 
@@ -11,6 +12,7 @@ part 'library_sync_dao.g.dart';
     LibrarySyncStateTable,
     LibrarySyncWorkTable,
     LibrarySyncLocalMutationsTable,
+    StarredAbsenceCandidatesTable,
   ],
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
@@ -19,6 +21,82 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
 
   Future<void> clearLocalMutations() {
     return delete(librarySyncLocalMutationsTable).go();
+  }
+
+  /// Records absent locally-starred IDs and returns only those observed absent
+  /// by two independent successful server snapshots.
+  Future<Set<String>> observeStarredAbsences({
+    required int serverId,
+    required String entityType,
+    required Set<String> ids,
+    required DateTime observedAt,
+  }) async {
+    if (ids.isEmpty) {
+      return const <String>{};
+    }
+    final confirmed = <String>{};
+    for (final id in ids) {
+      final existing =
+          await (select(starredAbsenceCandidatesTable)..where(
+                (table) =>
+                    table.serverId.equals(serverId) &
+                    table.entityType.equals(entityType) &
+                    table.entityId.equals(id),
+              ))
+              .getSingleOrNull();
+      if (existing == null) {
+        await into(starredAbsenceCandidatesTable).insert(
+          StarredAbsenceCandidatesTableCompanion.insert(
+            serverId: serverId,
+            entityType: entityType,
+            entityId: id,
+            firstObservedAt: observedAt,
+            lastObservedAt: observedAt,
+          ),
+        );
+        continue;
+      }
+      await (update(starredAbsenceCandidatesTable)..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.entityType.equals(entityType) &
+                table.entityId.equals(id),
+          ))
+          .write(
+            StarredAbsenceCandidatesTableCompanion(
+              lastObservedAt: Value(observedAt),
+              observationCount: Value(existing.observationCount + 1),
+            ),
+          );
+      if (existing.observationCount >= 1) {
+        confirmed.add(id);
+      }
+    }
+    return confirmed;
+  }
+
+  Future<void> clearStarredAbsenceCandidates({
+    required int serverId,
+    required String entityType,
+    required Set<String> ids,
+  }) async {
+    for (final chunk in _idChunks(ids)) {
+      await (delete(starredAbsenceCandidatesTable)..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.entityType.equals(entityType) &
+                table.entityId.isIn(chunk),
+          ))
+          .go();
+    }
+  }
+
+  Iterable<List<String>> _idChunks(Set<String> ids) sync* {
+    final values = ids.toList(growable: false);
+    for (var offset = 0; offset < values.length; offset += 500) {
+      final end = (offset + 500).clamp(0, values.length);
+      yield values.sublist(offset, end);
+    }
   }
 
   Future<void> clearWorkForServer(int serverId) {

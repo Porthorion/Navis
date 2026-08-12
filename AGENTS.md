@@ -476,6 +476,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   collected. Promotion and starred reconciliation preserve those newer local
   values, including across candidate restarts and the final apply transaction,
   and pending star queue actions always win over an older server snapshot.
+  A star missing from one successful `getStarred2` response is an absence
+  candidate, not an immediate unstar: only a second independent successful
+  absence may clear it. A returned star or pending/concurrent local mutation
+  clears the candidate.
 - Interactive artist, album, and playlist hydration is deduplicated and
   high-priority. Album hydration normally uses one request and one transaction;
   song-bearing targets still run conservative identity reconciliation so
@@ -490,6 +494,9 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 - Automatic broad catalog work defers while Navis is backgrounded or playing;
   an explicit user refresh may resume queued broad work in the foreground so a
   requested refresh is not silently postponed behind it.
+  A queued `fullRepair` is user-owned and must not resume from startup,
+  reconnect, resume, or periodic automation; only an explicit Repair Library
+  action may resume it.
 - `LibrarySyncController` coalesces overlapping app-level sync requests and
   returns their final shared result. Never treat an in-flight state as a
   terminal failure. Startup/periodic work must wait for the credential-backed

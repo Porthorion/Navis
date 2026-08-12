@@ -178,7 +178,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final resumedWork =
         request.target.kind == LibrarySyncTargetKind.catalog &&
             request.intent != LibrarySyncIntent.repair
-        ? _firstAllowedWork(runnableBeforePlanning, policy)
+        ? _firstAllowedWork(runnableBeforePlanning, policy, request)
         : null;
     final resumedPlan = resumedWork == null
         ? null
@@ -858,6 +858,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   LibrarySyncWorkTableData? _firstAllowedWork(
     List<LibrarySyncWorkTableData> runnable,
     SyncNetworkPolicy policy,
+    LibrarySyncRequest request,
   ) {
     for (final work in runnable) {
       final kind = LibrarySyncPlanKind.values.where(
@@ -867,6 +868,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         continue;
       }
       final planKind = kind.first;
+      if (planKind == LibrarySyncPlanKind.fullRepair &&
+          request.intent == LibrarySyncIntent.automatic) {
+        // Repair is an explicit, potentially expensive and destructive
+        // operation. A queued or interrupted user repair stays resumable, but
+        // opening the app or reaching the periodic interval must never restart
+        // it without a new Repair Library action.
+        continue;
+      }
       if (planKind == LibrarySyncPlanKind.probe) {
         if (policy.allowsHardProbe) {
           return work;
