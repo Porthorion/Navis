@@ -120,7 +120,7 @@ Keep candidate tables and atomic promotion. Deletion analysis is valid only afte
 3. Add opt-in redacted ledger endpoint retaining last 50 events; never return credentials, URLs, titles or paths. **Implemented for diagnostics-initiated controller actions:** `GET /v1/sync/ledger` records requested, started, terminal, and failed transitions with cause, target kind, plan/result, endpoint counts, and safe error type.
 4. Run isolated Linux clone against configured server: baseline counts, manual check, repair, post-run counts, clean restart, endpoint trace and logs.
 
-Exit: deterministic manual-check reproduction and a trace separating catalog, Liked and target work. **Met for unchanged-cursor manual discovery and navigation/target lanes; repair-confirmation runtime trace remains.**
+Exit: deterministic manual-check reproduction and a trace separating catalog, Liked and target work. **Met for unchanged-cursor manual discovery, navigation/target lanes, and repair confirmation; configured-server reproduction remains.**
 
 ### Phase 1: manual check correctness
 
