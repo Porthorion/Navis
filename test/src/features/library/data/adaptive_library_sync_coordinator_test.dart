@@ -565,7 +565,7 @@ void main() {
 
       final result = await automaticCoordinator.syncIfStale();
 
-    expect(result.status, isNot(LibrarySyncStatus.failed));
+      expect(result.status, isNot(LibrarySyncStatus.failed));
       expect(probeEngine.forceFullSyncCalls, 0);
       expect(
         (await database.librarySyncDao.getWork(

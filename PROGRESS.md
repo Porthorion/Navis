@@ -38,7 +38,10 @@ Last updated: 2026-08-12
   until an explicit Repair Library request, and resume no longer submits a
   redundant startup sync alongside its interval check; focused
   coordinator/provider/DAO coverage passes. Remaining: complete API/runtime
-  trace, screenshots, clean restart, final quality gate, and next plan phases.)
+  trace, screenshots, clean restart, final quality gate, and next plan phases.
+  The latest `./tool/check.sh` passed formatting and code generation, then
+  stopped at the repository-wide analyzer baseline of 495 informational
+  diagnostics; none were introduced by this recovery work.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

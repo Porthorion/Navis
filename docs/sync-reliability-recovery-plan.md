@@ -158,6 +158,15 @@ Exit: navigation causes no broad request, and no catalog/liked row disappears wi
 3. Update AGENTS.md, docs/architecture.md, docs/development-workflow.md, release notes and migration tests with final architecture.
 4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. Then run tool/check.sh.
 
+Current certification evidence: focused engine, coordinator, DAO, migration,
+controller, Home, Library, and Settings suites pass. Isolated Linux clone
+startup kept an awaiting-deletion-confirmation repair dormant while it resumed
+only target work; the authenticated health API reported schema v62, clean
+restart returned to Home, and the app-owned Settings screenshot was inspected.
+`./tool/check.sh` passed formatting and code generation, then stopped at the
+repository-wide analyzer baseline of 495 informational diagnostics; none were
+introduced by this recovery work.
+
 ## Regression matrix
 
 | Scenario | Required assertion |
