@@ -19,7 +19,7 @@ Last updated: 2026-08-12
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
-- [ ] Sync reliability recovery — partial: 2026-08-12 (source of truth:
+- [x] Sync reliability recovery — 2026-08-12 (source of truth:
   `docs/sync-reliability-recovery-plan.md`; implemented manual bounded newest
   discovery despite unchanged artist cursor, removed the two-minute pending
   verification force loop, preserved terminal durable work unless a user
@@ -164,6 +164,14 @@ Last updated: 2026-08-12
   promotion, and the opened promoted Sync Settings capture visibly reports
   the matching `1,713/5,463/54,327` removal summary without clipping. Both
   app runs cleanly restarted; log review found no hard-fail pattern.)
+
+- [ ] Android persistent background sync — planned: 2026-08-12 (source of
+  truth: `docs/android-background-sync-recovery-plan.md`; the current
+  foreground-only timer is intentionally cancelled when Android backgrounds
+  Navis, so it cannot survive process death. The plan specifies WorkManager,
+  headless Dart execution, cross-engine SQLite leasing, redacted platform
+  diagnostics, and physical-device certification. No Android background worker
+  is implemented yet.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

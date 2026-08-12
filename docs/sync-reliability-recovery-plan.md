@@ -249,3 +249,7 @@ existence as visual evidence.
 - Do not fix missed albums by running full repair on navigation or every timer; that increases data use and destructive surface area.
 - Do not remove candidate promotion; fix scheduling, discovery semantics and explanation around it.
 - Do not treat successful HTTP as current catalog proof. Commit plus operation-specific evidence is the success boundary.
+- Android background execution is not provided by the foreground timer. The
+  implementation plan for persistent Android scheduling, cross-engine
+  serialization, and device certification lives in
+  [android-background-sync-recovery-plan.md](android-background-sync-recovery-plan.md).
