@@ -49,7 +49,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 63);
+    expect(authorized.body['schemaVersion'], 64);
   });
 
   test('primary certification rejects mutation and cancellation', () async {
@@ -156,6 +156,7 @@ void main() {
     expect(status.body, containsPair('nextAutomaticCheckAt', isNull));
     expect(status.body, containsPair('nextRetryAt', isNull));
     expect(status.body, containsPair('deletionCandidateCount', 0));
+    expect(status.body, containsPair('durableOperations', isEmpty));
     expect(
       status.body['catalog'],
       <String, int>{'artists': 0, 'albums': 0, 'songs': 0},
@@ -181,6 +182,7 @@ void main() {
     expect(terminal['targetKind'], 'album');
     expect(terminal['result'], 'succeeded');
     expect(terminal.containsKey('endpointRequests'), isTrue);
+    expect(ledger.body['durableOperations'], isEmpty);
   });
 
   test(

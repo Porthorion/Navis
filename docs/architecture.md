@@ -82,6 +82,11 @@ Located in `lib/src/providers/app_providers.dart`:
 - `librarySyncEngineProvider` - Sync engine instance
 - `librarySyncControllerProvider` - Sync state and controls
 - `syncStaleAfterProvider` - Sync staleness threshold
+- `library_sync_operation_ledger` retains the last 50 safe aggregate catalog
+  promotions and confirmed starred-absence removals per server. The entry is
+  committed with the mutation and contains only reason, timestamp and
+  before/after/removal counts. Diagnostics may expose this redacted evidence;
+  no entity IDs, titles, URLs, filesystem paths, or credentials are stored.
 - Automatic catalog checks use the per-server durable
   `library_sync_state.next_automatic_check_at` deadline. The controller owns
   one foreground one-shot timer that re-arms from that value; startup,

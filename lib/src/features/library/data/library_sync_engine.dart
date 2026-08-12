@@ -2101,6 +2101,37 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         excludeIds: pendingByType['song']!,
         confirmedAbsentIds: confirmedAbsentSongIds,
       );
+      final confirmedRemovalCount =
+          confirmedAbsentAlbumIds.length +
+          confirmedAbsentArtistIds.length +
+          confirmedAbsentSongIds.length;
+      if (serverId != null && confirmedRemovalCount > 0) {
+        final afterAlbumIds = await _database.libraryDao.getStarredAlbumIds();
+        final afterArtistIds = await _database.libraryDao.getStarredArtistIds();
+        final afterSongIds = await _database.libraryDao.getStarredSongIds();
+        await _database.librarySyncDao.recordOperationLedgerEntry(
+          serverId: serverId,
+          operation: 'starredReconciliation',
+          reason: 'confirmedSecondAbsence',
+          details: <String, Object?>{
+            'before': <String, int>{
+              'artists': localArtistIds.length,
+              'albums': localAlbumIds.length,
+              'songs': localSongIds.length,
+            },
+            'after': <String, int>{
+              'artists': afterArtistIds.length,
+              'albums': afterAlbumIds.length,
+              'songs': afterSongIds.length,
+            },
+            'removed': <String, int>{
+              'artists': confirmedAbsentArtistIds.length,
+              'albums': confirmedAbsentAlbumIds.length,
+              'songs': confirmedAbsentSongIds.length,
+            },
+          },
+        );
+      }
     });
     await _database.librarySyncDao.pruneLocalStarMutationsBefore(
       snapshotStartedAt,
@@ -2966,6 +2997,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       ),
     );
     await _database.transaction(() async {
+      final beforeCatalog = await _database.libraryDao.getCatalogCounts();
       // Read the mutation journals inside the apply transaction so a local
       // write cannot land between the protection snapshot and the upserts.
       final localStarMutations = await _database.librarySyncDao
@@ -3158,12 +3190,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       final removableAlbumIds = staleAlbumIds
           .where((id) => !preserved.albumIds.contains(id))
           .toList(growable: false);
+      final removableArtistIds = staleArtistIds
+          .where((id) => !preserved.artistIds.contains(id))
+          .toList(growable: false);
       if (removableAlbumIds.isNotEmpty) {
         await _database.libraryDao.deleteAlbumsByIds(removableAlbumIds);
       }
-      await _database.libraryDao.deleteArtistsByIds(
-        staleArtistIds.where((id) => !preserved.artistIds.contains(id)),
-      );
+      await _database.libraryDao.deleteArtistsByIds(removableArtistIds);
+      final afterCatalog = await _database.libraryDao.getCatalogCounts();
       await _database.librarySyncDao.writeState(
         LibrarySyncStateTableCompanion(
           serverId: Value(serverId),
@@ -3199,6 +3233,36 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       // tasks, so a process exit after this transaction must not re-run the
       // entire snapshot on the next launch.
       await _database.librarySyncDao.completeRunningCatalogWork(serverId);
+      await _database.librarySyncDao.recordOperationLedgerEntry(
+        serverId: serverId,
+        operation: 'catalogPromotion',
+        reason: 'validatedFullCandidate',
+        details: <String, Object?>{
+          'generation': generation,
+          'before': <String, int>{
+            'artists': beforeCatalog.artists,
+            'albums': beforeCatalog.albums,
+            'songs': beforeCatalog.songs,
+          },
+          'after': <String, int>{
+            'artists': afterCatalog.artists,
+            'albums': afterCatalog.albums,
+            'songs': afterCatalog.songs,
+          },
+          'changed': analysis.changedCount,
+          'unchanged': analysis.unchangedCount,
+          'removed': <String, int>{
+            'artists': removableArtistIds.length,
+            'albums': removableAlbumIds.length,
+            'songs': removedSongCount,
+          },
+          'retained': <String, int>{
+            'artists': preserved.artistIds.length,
+            'albums': preserved.albumIds.length,
+            'songs': preserved.songIds.length,
+          },
+        },
+      );
     });
     stopwatch.stop();
     AppLogger.info(

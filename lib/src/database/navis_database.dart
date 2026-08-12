@@ -37,6 +37,7 @@ import 'package:navis/src/database/tables/library_sync_candidate_albums_table.da
 import 'package:navis/src/database/tables/library_sync_candidate_artists_table.dart';
 import 'package:navis/src/database/tables/library_sync_candidate_songs_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
+import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/match_flows_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
@@ -92,6 +93,7 @@ part 'navis_database.g.dart';
     LibrarySyncCandidateSongsTable,
     LibrarySyncLocalMutationsTable,
     StarredAbsenceCandidatesTable,
+    LibrarySyncOperationLedgerTable,
   ],
   daos: [
     AppSettingsDao,
@@ -137,7 +139,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 63;
+  int get schemaVersion => 64;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -346,6 +348,15 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 63 && to >= 63) {
       await from62To63(migrator);
+    }
+    if (from < 64 && to >= 64) {
+      await from63To64(migrator);
+    }
+  }
+
+  Future<void> from63To64(Migrator migrator) async {
+    if (!await _tableExists('library_sync_operation_ledger')) {
+      await migrator.createTable(librarySyncOperationLedgerTable);
     }
   }
 

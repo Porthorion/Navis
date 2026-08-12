@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/library_sync_state_table.dart';
 import 'package:navis/src/database/tables/library_sync_work_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
+import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 
 part 'library_sync_dao.g.dart';
@@ -13,6 +16,7 @@ part 'library_sync_dao.g.dart';
     LibrarySyncWorkTable,
     LibrarySyncLocalMutationsTable,
     StarredAbsenceCandidatesTable,
+    LibrarySyncOperationLedgerTable,
   ],
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
@@ -21,6 +25,58 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
 
   Future<void> clearLocalMutations() {
     return delete(librarySyncLocalMutationsTable).go();
+  }
+
+  /// Records a safe aggregate mutation summary and retains only the most
+  /// recent entries per server. Callers must invoke this inside the same
+  /// transaction as the described mutation.
+  Future<void> recordOperationLedgerEntry({
+    required int serverId,
+    required String operation,
+    required String reason,
+    required Map<String, Object?> details,
+    DateTime? occurredAt,
+  }) async {
+    final timestamp = (occurredAt ?? DateTime.now()).toUtc();
+    await into(librarySyncOperationLedgerTable).insert(
+      LibrarySyncOperationLedgerTableCompanion.insert(
+        serverId: serverId,
+        operation: operation,
+        reason: reason,
+        detailsJson: jsonEncode(details),
+        occurredAt: timestamp,
+      ),
+    );
+    await customStatement(
+      '''
+      DELETE FROM library_sync_operation_ledger
+      WHERE server_id = ?
+        AND id NOT IN (
+          SELECT id
+          FROM library_sync_operation_ledger
+          WHERE server_id = ?
+          ORDER BY occurred_at DESC, id DESC
+          LIMIT 50
+        );
+      ''',
+      <Object?>[serverId, serverId],
+    );
+  }
+
+  Future<List<LibrarySyncOperationLedgerTableData>>
+  getRecentOperationLedgerEntries(
+    int serverId, {
+    int limit = 50,
+  }) {
+    final safeLimit = limit.clamp(1, 50);
+    return (select(librarySyncOperationLedgerTable)
+          ..where((table) => table.serverId.equals(serverId))
+          ..orderBy([
+            (table) => OrderingTerm.desc(table.occurredAt),
+            (table) => OrderingTerm.desc(table.id),
+          ])
+          ..limit(safeLimit))
+        .get();
   }
 
   /// Records absent locally-starred IDs and returns only those observed absent

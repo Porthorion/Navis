@@ -89,8 +89,9 @@ Large-deletion repair confirmation has a separate deterministic gate:
 It creates a fixture candidate with enough server-missing rows to require the
 production confirmation boundary, verifies that the committed catalog survives
 the pending state and a clean restart, then issues the explicit confirming
-Repair Library action and verifies atomic promotion. The fixture is isolated
-and never modifies a configured server or primary profile.
+Repair Library action and verifies atomic promotion plus its durable redacted
+before/after/removal operation-ledger entry. The fixture is isolated and never
+modifies a configured server or primary profile.
 
 First-login and logout ownership are exercised separately with:
 

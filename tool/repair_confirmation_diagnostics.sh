@@ -202,13 +202,24 @@ before, status = (json.load(open(path)) for path in sys.argv[1:3])
 assert status["candidateStatus"] is None, status
 for key in ("artists", "albums", "songs"):
     assert 0 < status["catalog"][key] < before["catalog"][key], (before, status)
-events = json.load(open(sys.argv[3]))["events"]
+ledger_payload = json.load(open(sys.argv[3]))
+events = ledger_payload["events"]
 terminal = [event for event in events if event.get("cause") == "repair" and event.get("phase") == "terminal"]
 # The bounded in-memory diagnostic ledger is intentionally reset by the clean
 # restart. The first repair's durable awaiting state is asserted above; this
 # post-restart ledger proves the explicit confirmation reached its terminal
 # production-controller result.
 assert terminal and terminal[-1]["result"] == "succeeded", terminal
+operations = ledger_payload["durableOperations"]
+promotion = next(
+    operation for operation in operations
+    if operation.get("operation") == "catalogPromotion"
+)
+assert promotion["reason"] == "validatedFullCandidate", promotion
+details = promotion["details"]
+assert details["before"] == before["catalog"], (details, before)
+assert details["after"] == status["catalog"], (details, status)
+assert details["removed"]["songs"] > 0, details
 PY
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' > "$OUTPUT_ROOT/promoted-navigation.json"
 sleep 3

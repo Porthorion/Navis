@@ -393,6 +393,39 @@ void main() {
         expect(playlistRows.length, 1);
         expect(serverConfig?.lastSynced, isNotNull);
         expect(serverConfig?.lastFullSyncedAt, isNotNull);
+        final ledger = await database.librarySyncDao
+            .getRecentOperationLedgerEntries(serverConfig!.id!);
+        expect(ledger, hasLength(1));
+        expect(ledger.single.operation, 'catalogPromotion');
+        expect(ledger.single.reason, 'validatedFullCandidate');
+        expect(
+          jsonDecode(ledger.single.detailsJson),
+          <String, Object?>{
+            'generation': 1,
+            'before': <String, Object?>{
+              'artists': 0,
+              'albums': 0,
+              'songs': 0,
+            },
+            'after': <String, Object?>{
+              'artists': 2,
+              'albums': 2,
+              'songs': 2,
+            },
+            'changed': 6,
+            'unchanged': 0,
+            'removed': <String, Object?>{
+              'artists': 0,
+              'albums': 0,
+              'songs': 0,
+            },
+            'retained': <String, Object?>{
+              'artists': 0,
+              'albums': 0,
+              'songs': 0,
+            },
+          },
+        );
       },
       skip: !sqliteAvailable,
     );
@@ -713,6 +746,32 @@ void main() {
         expect(
           await database.libraryDao.getSongStarred('server-unliked'),
           isNull,
+        );
+        final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+        final ledger = await database.librarySyncDao
+            .getRecentOperationLedgerEntries(serverId);
+        expect(ledger, hasLength(1));
+        expect(ledger.single.operation, 'starredReconciliation');
+        expect(ledger.single.reason, 'confirmedSecondAbsence');
+        expect(
+          jsonDecode(ledger.single.detailsJson),
+          <String, Object?>{
+            'before': <String, Object?>{
+              'artists': 0,
+              'albums': 0,
+              'songs': 3,
+            },
+            'after': <String, Object?>{
+              'artists': 0,
+              'albums': 0,
+              'songs': 2,
+            },
+            'removed': <String, Object?>{
+              'artists': 0,
+              'albums': 0,
+              'songs': 1,
+            },
+          },
         );
       },
       skip: !sqliteAvailable,

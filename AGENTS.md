@@ -749,7 +749,7 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 63 |
+| **Schema version** | 64 |
 | **Tables** | 30 |
 | **DAOs** | 16 |
 
@@ -764,6 +764,11 @@ DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyn
   durable deadline is due. The controller must reload `next_eligible_at` as
   `LibrarySyncState.nextRetryAt`, and Sync Settings must show it separately so
   a cooldown never appears to be unexplained background syncing.
+- `library_sync_operation_ledger` retains the last 50 safe aggregate catalog
+  promotion and confirmed-starred-absence mutations per server. Each entry is
+  written in the same transaction as its change and includes only reason,
+  timestamp, and before/after/removal counts; never IDs, names, URLs, paths,
+  or credentials.
 - `server_config.is_authenticated` separates the retained non-secret
   server/account profile from an active credential session. Profile identity
   is normalized base URL plus trimmed username; same-profile login updates the

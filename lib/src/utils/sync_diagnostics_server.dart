@@ -423,6 +423,7 @@ class SyncDiagnosticsServer {
       if (request.method == 'GET' && path == '/v1/sync/ledger') {
         await _respond(request, HttpStatus.ok, <String, Object?>{
           'events': _syncLedger,
+          'durableOperations': await _durableOperationLedgerJson(),
         });
         return;
       }
@@ -1726,11 +1727,37 @@ class SyncDiagnosticsServer {
         'albums': catalog.albums,
         'songs': catalog.songs,
       },
+      'durableOperations': await _durableOperationLedgerJson(),
     };
     if (overrides.requestReporting) {
       json['endpointRequests'] = _lastEndpointRequests;
     }
     return json;
+  }
+
+  Future<List<Map<String, Object?>>> _durableOperationLedgerJson() async {
+    final serverId = _container
+        .read(serverConfigStateProvider)
+        .asData
+        ?.value
+        ?.id;
+    if (serverId == null) {
+      return const <Map<String, Object?>>[];
+    }
+    final rows = await _container
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .getRecentOperationLedgerEntries(serverId);
+    return rows
+        .map(
+          (row) => <String, Object?>{
+            'operation': row.operation,
+            'reason': row.reason,
+            'occurredAt': row.occurredAt.toUtc().toIso8601String(),
+            'details': _decodeSafeJson(row.detailsJson),
+          },
+        )
+        .toList(growable: false);
   }
 
   Object? _decodeSafeJson(String? value) {

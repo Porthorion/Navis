@@ -144,7 +144,17 @@ Last updated: 2026-08-12
   regression imports a second-page new album after 100 known rows. The
   isolated Linux loopback manual-check gate was rerun with the partial artist
   response guard, passed clean restart, and the two app-owned screenshots were
-  opened (the files are byte-identical); logs contained no hard-fail pattern.)
+  opened (the files are byte-identical); logs contained no hard-fail pattern.
+  Schema v64 now records each validated catalog promotion and confirmed second
+  starred absence in a bounded, per-server durable operation ledger. Entries
+  contain only a reason, timestamp, aggregate before/after counts, removals,
+  and retained rows, and are committed in the same transaction as the mutation.
+  The diagnostics ledger exposes this redacted evidence. The isolated Linux
+  repair-confirmation gate passed again: it held the 61,503-row deletion
+  candidate through restart, then verified the explicit promotion's stored
+  `1,714/5,463/54,327 → 2/1/1` aggregate counts and `54,327` removed songs
+  through the authenticated app API. Both awaiting and promoted Sync Settings
+  screenshots were opened and inspected; logs had no hard-fail pattern.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

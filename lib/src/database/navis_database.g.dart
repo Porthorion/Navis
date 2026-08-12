@@ -23571,6 +23571,426 @@ class StarredAbsenceCandidatesTableCompanion
   }
 }
 
+class $LibrarySyncOperationLedgerTableTable
+    extends LibrarySyncOperationLedgerTable
+    with
+        TableInfo<
+          $LibrarySyncOperationLedgerTableTable,
+          LibrarySyncOperationLedgerTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncOperationLedgerTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _operationMeta = const VerificationMeta(
+    'operation',
+  );
+  @override
+  late final GeneratedColumn<String> operation = GeneratedColumn<String>(
+    'operation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _detailsJsonMeta = const VerificationMeta(
+    'detailsJson',
+  );
+  @override
+  late final GeneratedColumn<String> detailsJson = GeneratedColumn<String>(
+    'details_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    serverId,
+    operation,
+    reason,
+    detailsJson,
+    occurredAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_operation_ledger';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncOperationLedgerTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('operation')) {
+      context.handle(
+        _operationMeta,
+        operation.isAcceptableOrUnknown(data['operation']!, _operationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_operationMeta);
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reasonMeta);
+    }
+    if (data.containsKey('details_json')) {
+      context.handle(
+        _detailsJsonMeta,
+        detailsJson.isAcceptableOrUnknown(
+          data['details_json']!,
+          _detailsJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_detailsJsonMeta);
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LibrarySyncOperationLedgerTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncOperationLedgerTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      operation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation'],
+      )!,
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      )!,
+      detailsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}details_json'],
+      )!,
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LibrarySyncOperationLedgerTableTable createAlias(String alias) {
+    return $LibrarySyncOperationLedgerTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncOperationLedgerTableData extends DataClass
+    implements Insertable<LibrarySyncOperationLedgerTableData> {
+  final int id;
+  final int serverId;
+  final String operation;
+  final String reason;
+  final String detailsJson;
+  final DateTime occurredAt;
+  const LibrarySyncOperationLedgerTableData({
+    required this.id,
+    required this.serverId,
+    required this.operation,
+    required this.reason,
+    required this.detailsJson,
+    required this.occurredAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['server_id'] = Variable<int>(serverId);
+    map['operation'] = Variable<String>(operation);
+    map['reason'] = Variable<String>(reason);
+    map['details_json'] = Variable<String>(detailsJson);
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    return map;
+  }
+
+  LibrarySyncOperationLedgerTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncOperationLedgerTableCompanion(
+      id: Value(id),
+      serverId: Value(serverId),
+      operation: Value(operation),
+      reason: Value(reason),
+      detailsJson: Value(detailsJson),
+      occurredAt: Value(occurredAt),
+    );
+  }
+
+  factory LibrarySyncOperationLedgerTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncOperationLedgerTableData(
+      id: serializer.fromJson<int>(json['id']),
+      serverId: serializer.fromJson<int>(json['serverId']),
+      operation: serializer.fromJson<String>(json['operation']),
+      reason: serializer.fromJson<String>(json['reason']),
+      detailsJson: serializer.fromJson<String>(json['detailsJson']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'serverId': serializer.toJson<int>(serverId),
+      'operation': serializer.toJson<String>(operation),
+      'reason': serializer.toJson<String>(reason),
+      'detailsJson': serializer.toJson<String>(detailsJson),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+    };
+  }
+
+  LibrarySyncOperationLedgerTableData copyWith({
+    int? id,
+    int? serverId,
+    String? operation,
+    String? reason,
+    String? detailsJson,
+    DateTime? occurredAt,
+  }) => LibrarySyncOperationLedgerTableData(
+    id: id ?? this.id,
+    serverId: serverId ?? this.serverId,
+    operation: operation ?? this.operation,
+    reason: reason ?? this.reason,
+    detailsJson: detailsJson ?? this.detailsJson,
+    occurredAt: occurredAt ?? this.occurredAt,
+  );
+  LibrarySyncOperationLedgerTableData copyWithCompanion(
+    LibrarySyncOperationLedgerTableCompanion data,
+  ) {
+    return LibrarySyncOperationLedgerTableData(
+      id: data.id.present ? data.id.value : this.id,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      operation: data.operation.present ? data.operation.value : this.operation,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      detailsJson: data.detailsJson.present
+          ? data.detailsJson.value
+          : this.detailsJson,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncOperationLedgerTableData(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('operation: $operation, ')
+          ..write('reason: $reason, ')
+          ..write('detailsJson: $detailsJson, ')
+          ..write('occurredAt: $occurredAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, serverId, operation, reason, detailsJson, occurredAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncOperationLedgerTableData &&
+          other.id == this.id &&
+          other.serverId == this.serverId &&
+          other.operation == this.operation &&
+          other.reason == this.reason &&
+          other.detailsJson == this.detailsJson &&
+          other.occurredAt == this.occurredAt);
+}
+
+class LibrarySyncOperationLedgerTableCompanion
+    extends UpdateCompanion<LibrarySyncOperationLedgerTableData> {
+  final Value<int> id;
+  final Value<int> serverId;
+  final Value<String> operation;
+  final Value<String> reason;
+  final Value<String> detailsJson;
+  final Value<DateTime> occurredAt;
+  const LibrarySyncOperationLedgerTableCompanion({
+    this.id = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.operation = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.detailsJson = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+  });
+  LibrarySyncOperationLedgerTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int serverId,
+    required String operation,
+    required String reason,
+    required String detailsJson,
+    required DateTime occurredAt,
+  }) : serverId = Value(serverId),
+       operation = Value(operation),
+       reason = Value(reason),
+       detailsJson = Value(detailsJson),
+       occurredAt = Value(occurredAt);
+  static Insertable<LibrarySyncOperationLedgerTableData> custom({
+    Expression<int>? id,
+    Expression<int>? serverId,
+    Expression<String>? operation,
+    Expression<String>? reason,
+    Expression<String>? detailsJson,
+    Expression<DateTime>? occurredAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (serverId != null) 'server_id': serverId,
+      if (operation != null) 'operation': operation,
+      if (reason != null) 'reason': reason,
+      if (detailsJson != null) 'details_json': detailsJson,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+    });
+  }
+
+  LibrarySyncOperationLedgerTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? serverId,
+    Value<String>? operation,
+    Value<String>? reason,
+    Value<String>? detailsJson,
+    Value<DateTime>? occurredAt,
+  }) {
+    return LibrarySyncOperationLedgerTableCompanion(
+      id: id ?? this.id,
+      serverId: serverId ?? this.serverId,
+      operation: operation ?? this.operation,
+      reason: reason ?? this.reason,
+      detailsJson: detailsJson ?? this.detailsJson,
+      occurredAt: occurredAt ?? this.occurredAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (operation.present) {
+      map['operation'] = Variable<String>(operation.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (detailsJson.present) {
+      map['details_json'] = Variable<String>(detailsJson.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncOperationLedgerTableCompanion(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('operation: $operation, ')
+          ..write('reason: $reason, ')
+          ..write('detailsJson: $detailsJson, ')
+          ..write('occurredAt: $occurredAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -23635,6 +24055,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   librarySyncLocalMutationsTable = $LibrarySyncLocalMutationsTableTable(this);
   late final $StarredAbsenceCandidatesTableTable starredAbsenceCandidatesTable =
       $StarredAbsenceCandidatesTableTable(this);
+  late final $LibrarySyncOperationLedgerTableTable
+  librarySyncOperationLedgerTable = $LibrarySyncOperationLedgerTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -23699,6 +24121,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     librarySyncCandidateSongsTable,
     librarySyncLocalMutationsTable,
     starredAbsenceCandidatesTable,
+    librarySyncOperationLedgerTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -23802,6 +24225,15 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       ),
       result: [
         TableUpdate('starred_absence_candidates', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_sync_operation_ledger', kind: UpdateKind.delete),
       ],
     ),
   ]);
@@ -23914,6 +24346,32 @@ final class $$ServerConfigTableTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _starredAbsenceCandidatesTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncOperationLedgerTableTable,
+    List<LibrarySyncOperationLedgerTableData>
+  >
+  _librarySyncOperationLedgerTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.librarySyncOperationLedgerTable,
+        aliasName:
+            'server_config__id__library_sync_operation_ledger__server_id',
+      );
+
+  $$LibrarySyncOperationLedgerTableTableProcessedTableManager
+  get librarySyncOperationLedgerTableRefs {
+    final manager = $$LibrarySyncOperationLedgerTableTableTableManager(
+      $_db,
+      $_db.librarySyncOperationLedgerTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncOperationLedgerTableRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -24046,6 +24504,35 @@ class $$ServerConfigTableTableFilterComposer
               }) => $$StarredAbsenceCandidatesTableTableFilterComposer(
                 $db: $db,
                 $table: $db.starredAbsenceCandidatesTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> librarySyncOperationLedgerTableRefs(
+    Expression<bool> Function(
+      $$LibrarySyncOperationLedgerTableTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$LibrarySyncOperationLedgerTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncOperationLedgerTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncOperationLedgerTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncOperationLedgerTable,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -24237,6 +24724,35 @@ class $$ServerConfigTableTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> librarySyncOperationLedgerTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibrarySyncOperationLedgerTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibrarySyncOperationLedgerTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncOperationLedgerTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncOperationLedgerTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncOperationLedgerTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ServerConfigTableTableTableManager
@@ -24256,6 +24772,7 @@ class $$ServerConfigTableTableTableManager
             bool librarySyncStateTableRefs,
             bool librarySyncWorkTableRefs,
             bool starredAbsenceCandidatesTableRefs,
+            bool librarySyncOperationLedgerTableRefs,
           })
         > {
   $$ServerConfigTableTableTableManager(
@@ -24331,6 +24848,7 @@ class $$ServerConfigTableTableTableManager
                 librarySyncStateTableRefs = false,
                 librarySyncWorkTableRefs = false,
                 starredAbsenceCandidatesTableRefs = false,
+                librarySyncOperationLedgerTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -24339,6 +24857,8 @@ class $$ServerConfigTableTableTableManager
                     if (librarySyncWorkTableRefs) db.librarySyncWorkTable,
                     if (starredAbsenceCandidatesTableRefs)
                       db.starredAbsenceCandidatesTable,
+                    if (librarySyncOperationLedgerTableRefs)
+                      db.librarySyncOperationLedgerTable,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -24406,6 +24926,27 @@ class $$ServerConfigTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (librarySyncOperationLedgerTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibrarySyncOperationLedgerTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._librarySyncOperationLedgerTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncOperationLedgerTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -24430,6 +24971,7 @@ typedef $$ServerConfigTableTableProcessedTableManager =
         bool librarySyncStateTableRefs,
         bool librarySyncWorkTableRefs,
         bool starredAbsenceCandidatesTableRefs,
+        bool librarySyncOperationLedgerTableRefs,
       })
     >;
 typedef $$AppSettingsTableTableCreateCompanionBuilder =
@@ -37966,6 +38508,375 @@ typedef $$StarredAbsenceCandidatesTableTableProcessedTableManager =
       StarredAbsenceCandidatesTableData,
       PrefetchHooks Function({bool serverId})
     >;
+typedef $$LibrarySyncOperationLedgerTableTableCreateCompanionBuilder =
+    LibrarySyncOperationLedgerTableCompanion Function({
+      Value<int> id,
+      required int serverId,
+      required String operation,
+      required String reason,
+      required String detailsJson,
+      required DateTime occurredAt,
+    });
+typedef $$LibrarySyncOperationLedgerTableTableUpdateCompanionBuilder =
+    LibrarySyncOperationLedgerTableCompanion Function({
+      Value<int> id,
+      Value<int> serverId,
+      Value<String> operation,
+      Value<String> reason,
+      Value<String> detailsJson,
+      Value<DateTime> occurredAt,
+    });
+
+final class $$LibrarySyncOperationLedgerTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncOperationLedgerTableTable,
+          LibrarySyncOperationLedgerTableData
+        > {
+  $$LibrarySyncOperationLedgerTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) =>
+      db.serverConfigTable.createAlias(
+        'library_sync_operation_ledger__server_id__server_config__id',
+      );
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibrarySyncOperationLedgerTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncOperationLedgerTableTable> {
+  $$LibrarySyncOperationLedgerTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncOperationLedgerTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncOperationLedgerTableTable> {
+  $$LibrarySyncOperationLedgerTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncOperationLedgerTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncOperationLedgerTableTable> {
+  $$LibrarySyncOperationLedgerTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get operation =>
+      $composableBuilder(column: $table.operation, builder: (column) => column);
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncOperationLedgerTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncOperationLedgerTableTable,
+          LibrarySyncOperationLedgerTableData,
+          $$LibrarySyncOperationLedgerTableTableFilterComposer,
+          $$LibrarySyncOperationLedgerTableTableOrderingComposer,
+          $$LibrarySyncOperationLedgerTableTableAnnotationComposer,
+          $$LibrarySyncOperationLedgerTableTableCreateCompanionBuilder,
+          $$LibrarySyncOperationLedgerTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncOperationLedgerTableData,
+            $$LibrarySyncOperationLedgerTableTableReferences,
+          ),
+          LibrarySyncOperationLedgerTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$LibrarySyncOperationLedgerTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncOperationLedgerTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncOperationLedgerTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncOperationLedgerTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncOperationLedgerTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> serverId = const Value.absent(),
+                Value<String> operation = const Value.absent(),
+                Value<String> reason = const Value.absent(),
+                Value<String> detailsJson = const Value.absent(),
+                Value<DateTime> occurredAt = const Value.absent(),
+              }) => LibrarySyncOperationLedgerTableCompanion(
+                id: id,
+                serverId: serverId,
+                operation: operation,
+                reason: reason,
+                detailsJson: detailsJson,
+                occurredAt: occurredAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int serverId,
+                required String operation,
+                required String reason,
+                required String detailsJson,
+                required DateTime occurredAt,
+              }) => LibrarySyncOperationLedgerTableCompanion.insert(
+                id: id,
+                serverId: serverId,
+                operation: operation,
+                reason: reason,
+                detailsJson: detailsJson,
+                occurredAt: occurredAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncOperationLedgerTableTableReferences(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.serverId,
+                                referencedTable:
+                                    $$LibrarySyncOperationLedgerTableTableReferences
+                                        ._serverIdTable(db),
+                                referencedColumn:
+                                    $$LibrarySyncOperationLedgerTableTableReferences
+                                        ._serverIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibrarySyncOperationLedgerTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncOperationLedgerTableTable,
+      LibrarySyncOperationLedgerTableData,
+      $$LibrarySyncOperationLedgerTableTableFilterComposer,
+      $$LibrarySyncOperationLedgerTableTableOrderingComposer,
+      $$LibrarySyncOperationLedgerTableTableAnnotationComposer,
+      $$LibrarySyncOperationLedgerTableTableCreateCompanionBuilder,
+      $$LibrarySyncOperationLedgerTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncOperationLedgerTableData,
+        $$LibrarySyncOperationLedgerTableTableReferences,
+      ),
+      LibrarySyncOperationLedgerTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -38065,5 +38976,11 @@ class $NavisDatabaseManager {
       $$StarredAbsenceCandidatesTableTableTableManager(
         _db,
         _db.starredAbsenceCandidatesTable,
+      );
+  $$LibrarySyncOperationLedgerTableTableTableManager
+  get librarySyncOperationLedgerTable =>
+      $$LibrarySyncOperationLedgerTableTableTableManager(
+        _db,
+        _db.librarySyncOperationLedgerTable,
       );
 }

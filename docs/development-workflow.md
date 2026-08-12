@@ -157,8 +157,10 @@ without deleting the retained sibling before or after restart.
 It uses an isolated fixture to require the production repair confirmation
 boundary, proves the committed catalog remains untouched across a clean
 restart, then verifies that only the explicit confirming repair request
-promotes the candidate. It is required after changing repair promotion,
-deletion analysis, or the confirmation presentation.
+promotes the candidate and that the durable operation ledger records matching
+safe before/after/removal counts. It is required after changing repair
+promotion, deletion analysis, ledger recording, or the confirmation
+presentation.
 
 The endpoint's local `/library#section` destinations are deliberately mapped to
 the production `librarySectionProvider`, matching the desktop rail and
