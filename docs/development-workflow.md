@@ -127,6 +127,12 @@ repositories, DAOs, and audio handlers as the UI. Unit-test method calls,
 direct database edits, checking only that a process exists, and test-only state
 changes that bypass the production path do not satisfy this requirement.
 
+The clone-only `tool/sync_target_lane_diagnostics.sh` may prepare an isolated
+database fixture with a known future automatic deadline before launch. That is
+test setup only: its acceptance assertions use the running app's authenticated
+`/v1/sync/automatic` and `/v1/sync/status` endpoints, including after a clean
+restart, so they still exercise the production controller and persistence path.
+
 The required precedence is: focused diagnostics script, existing authenticated
 Navis endpoints, then a new narrow endpoint with contract tests and a focused
 script. Do not search for an operating-system automation substitute when an

@@ -137,7 +137,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 62;
+  int get schemaVersion => 63;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -343,6 +343,18 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 62 && to >= 62) {
       await from61To62(migrator);
+    }
+    if (from < 63 && to >= 63) {
+      await from62To63(migrator);
+    }
+  }
+
+  Future<void> from62To63(Migrator migrator) async {
+    if (!await _columnExists('library_sync_state', 'next_automatic_check_at')) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.nextAutomaticCheckAt,
+      );
     }
   }
 

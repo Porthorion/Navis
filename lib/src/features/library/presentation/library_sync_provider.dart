@@ -183,6 +183,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   int _startupSyncEpoch = 0;
   Future<LibrarySyncState>? _activeCatalogSync;
   int? _activeCatalogSyncPriority;
+  Future<LibrarySyncState>? _activeAutomaticCheck;
   final Map<String, Future<LibrarySyncState>> _activeTargetSyncs =
       <String, Future<LibrarySyncState>>{};
   Future<void>? _startupSyncTask;
@@ -195,6 +196,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   static const int _maxPriorityAlbums = 120;
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
+  int _automaticScheduleEpoch = 0;
 
   @override
   LibrarySyncState build() {
@@ -239,7 +241,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     ref.listen<int>(
       syncIntervalMinutesProvider,
-      (previous, next) => _onSyncIntervalChanged(next),
+      (previous, next) {
+        // App settings hydrate asynchronously. That first value is not a user
+        // changing their preference and must not erase a server's persisted
+        // deadline simply because the controller was rebuilt.
+        if (previous != null && previous != next) {
+          _onSyncIntervalChanged(next);
+        }
+      },
     );
     ref.listen<NetworkType>(networkTypeProvider, (previous, next) {
       final becameAvailable =
@@ -278,7 +287,17 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<LibrarySyncState> syncIfStale() {
-    return _runSync(force: false, tolerateUnavailableEngine: true);
+    final active = _activeAutomaticCheck;
+    if (active != null) {
+      return active;
+    }
+    final task = _runAutomaticCheckIfDue();
+    _activeAutomaticCheck = task;
+    return task.whenComplete(() {
+      if (identical(_activeAutomaticCheck, task)) {
+        _activeAutomaticCheck = null;
+      }
+    });
   }
 
   Future<LibrarySyncState> syncNow({bool allowMeteredBroadOverride = false}) {
@@ -498,6 +517,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     state = state.copyWith(
       lastCheckedAt: persisted.lastCheckedAt,
+      nextAutomaticCheckAt: persisted.nextAutomaticCheckAt,
       lastCatalogUpdatedAt: persisted.lastCatalogSyncedAt,
       lastAuxiliarySyncedAt: persisted.lastAuxiliarySyncedAt,
       lastGenresSyncedAt: persisted.lastGenresSyncedAt,
@@ -510,6 +530,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       candidateStatus: persisted.candidateStatus,
       deletionCandidateCount: persisted.deletionCandidateCount,
     );
+    _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
   }
 
   void _onReachabilityChanged(ServerReachabilityState next) {
@@ -648,6 +669,86 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }
     } finally {
       _startupSyncInFlight = false;
+    }
+  }
+
+  Future<LibrarySyncState> _runAutomaticCheckIfDue() async {
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    // The controller can be constructed while a session is still being saved
+    // (and in narrow controller tests without a persisted server). There is
+    // no durable schedule to consult in that state, so retain the engine's
+    // existing bootstrap semantics rather than suppressing initial sync.
+    if (config?.id == null) {
+      return _runSync(force: false, tolerateUnavailableEngine: true);
+    }
+    final interval = ref.read(syncIntervalDurationProvider);
+    if (interval == null || !ref.mounted) {
+      return state;
+    }
+
+    final nextCheckAt = await _ensureAutomaticCheckSchedule(interval);
+    if (!ref.mounted || nextCheckAt == null) {
+      return state;
+    }
+    if (nextCheckAt.isAfter(DateTime.now().toUtc())) {
+      _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
+      return state;
+    }
+
+    final result = await _runSync(
+      force: false,
+      tolerateUnavailableEngine: true,
+    );
+    if (result.completedAt != null) {
+      await _recordAutomaticCheckCompletion(interval);
+    }
+    if (ref.mounted) {
+      _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
+    }
+    return result;
+  }
+
+  Future<DateTime?> _ensureAutomaticCheckSchedule(Duration interval) async {
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    final serverId = config?.id;
+    if (serverId == null) {
+      return null;
+    }
+    final dao = ref.read(navisDatabaseProvider).librarySyncDao;
+    final persisted = await dao.getOrCreateState(serverId);
+    final existing = persisted.nextAutomaticCheckAt;
+    if (existing != null) {
+      return existing;
+    }
+    final now = DateTime.now().toUtc();
+    final anchor = persisted.lastCheckedAt ?? config?.lastSynced;
+    final next = anchor == null ? now : anchor.add(interval);
+    await dao.setNextAutomaticCheckAt(
+      serverId: serverId,
+      nextAutomaticCheckAt: next,
+    );
+    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config!)) {
+      state = state.copyWith(nextAutomaticCheckAt: next);
+    }
+    return next;
+  }
+
+  Future<void> _recordAutomaticCheckCompletion(Duration interval) async {
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    final serverId = config?.id;
+    if (serverId == null) {
+      return;
+    }
+    final next = DateTime.now().toUtc().add(interval);
+    await ref
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .setNextAutomaticCheckAt(
+          serverId: serverId,
+          nextAutomaticCheckAt: next,
+        );
+    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config!)) {
+      state = state.copyWith(nextAutomaticCheckAt: next);
     }
   }
 
@@ -827,7 +928,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       state = stateBeforeRequest;
       return stateBeforeRequest;
     }
-    state = result;
+    // The engine owns catalog result fields, but automatic scheduling is a
+    // controller-owned durable contract. A manual result must not blank the
+    // in-memory deadline while the persisted value remains valid.
+    state = result.copyWith(nextAutomaticCheckAt: state.nextAutomaticCheckAt);
     switch (result.status) {
       case LibrarySyncStatus.succeeded:
       case LibrarySyncStatus.partial:
@@ -936,17 +1040,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     _isForeground = true;
     ref.read(librarySyncForegroundProvider.notifier).setForeground(true);
     if (!wasForeground) {
-      // Re-arm the periodic timer in case it drifted while backgrounded.
+      // Re-arm the one-shot deadline timer in case it elapsed while the app
+      // was backgrounded. The schedule gate decides whether it may run.
       final intervalMinutes = ref.read(syncIntervalMinutesProvider);
       _schedulePeriodicSync(intervalMinutes);
-
-      // The initial startup and reachability listeners own first-time and
-      // reconnect work. Resume owns only the interval check; scheduling both
-      // here creates two automatic requests for one lifecycle event and can
-      // briefly replace otherwise stable sync UI with redundant progress.
-      if (intervalMinutes > 0 && !state.isRunning) {
-        unawaited(syncIfStale());
-      }
     }
   }
 
@@ -955,28 +1052,76 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   // ---------------------------------------------------------------------------
 
   void _onSyncIntervalChanged(int minutes) {
-    _schedulePeriodicSync(minutes);
+    unawaited(_resetAutomaticCheckSchedule(minutes));
   }
 
   void _schedulePeriodicSync(int minutes) {
     _cancelPeriodicSync();
+    final epoch = _automaticScheduleEpoch;
+    unawaited(_armAutomaticCheckTimer(minutes, epoch));
+  }
+
+  Future<void> _armAutomaticCheckTimer(int minutes, int epoch) async {
     final interval = ref.read(syncIntervalDurationProvider);
     if (interval == null || !_isForeground) {
       return; // Manual-only mode or a backgrounded app — no timer.
     }
-    _periodicSyncTimer = Timer.periodic(interval, (_) {
-      AppLogger.debug(
-        'Periodic sync timer fired (interval: ${minutes}m, '
-        'foreground=$_isForeground).',
+    final nextCheckAt = await _ensureAutomaticCheckSchedule(interval);
+    if (!ref.mounted || !_isForeground || epoch != _automaticScheduleEpoch) {
+      return;
+    }
+    if (nextCheckAt == null) {
+      return;
+    }
+    final delay = nextCheckAt.difference(DateTime.now().toUtc());
+    _periodicSyncTimer = Timer(
+      delay.isNegative ? Duration.zero : delay,
+      () {
+        if (epoch != _automaticScheduleEpoch) {
+          return;
+        }
+        AppLogger.debug(
+          'Automatic sync deadline reached (interval: ${minutes}m, '
+          'foreground=$_isForeground).',
+        );
+        if (!_isForeground) {
+          return;
+        }
+        unawaited(syncIfStale());
+      },
+    );
+  }
+
+  Future<void> _resetAutomaticCheckSchedule(int minutes) async {
+    _cancelPeriodicSync();
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    final serverId = config?.id;
+    final interval = ref.read(syncIntervalDurationProvider);
+    if (serverId == null) {
+      _schedulePeriodicSync(minutes);
+      return;
+    }
+    final next = interval == null ? null : DateTime.now().toUtc().add(interval);
+    await ref
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .setNextAutomaticCheckAt(
+          serverId: serverId,
+          nextAutomaticCheckAt: next,
+        );
+    if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config!)) {
+      state = state.copyWith(
+        nextAutomaticCheckAt: next,
+        clearNextAutomaticCheckAt: next == null,
       );
-      if (!_isForeground) {
-        return;
-      }
-      unawaited(syncIfStale());
-    });
+    }
+    if (ref.mounted) {
+      _schedulePeriodicSync(minutes);
+    }
   }
 
   void _cancelPeriodicSync() {
+    _automaticScheduleEpoch++;
     _periodicSyncTimer?.cancel();
     _periodicSyncTimer = null;
   }

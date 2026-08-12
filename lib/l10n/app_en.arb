@@ -69,6 +69,8 @@
   "syncSettingsStatusCancelled": "Sync cancelled; work saved",
   "syncSettingsStatusFailed": "Last sync failed",
   "syncSettingsLastCheckedLabel": "Last checked",
+  "syncSettingsNextAutomaticCheckLabel": "Next automatic check",
+  "syncSettingsNextAutomaticCheckScheduling": "Scheduling…",
   "syncSettingsLastCatalogUpdateLabel": "Last catalog update",
   "syncSettingsLastAuxiliaryUpdateLabel": "Starred and playlist headers",
   "syncSettingsLastGenresUpdateLabel": "Genres",

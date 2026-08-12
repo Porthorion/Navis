@@ -109,6 +109,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sync Settings'), findsOneWidget);
+    expect(find.text('Next automatic check'), findsOneWidget);
+    expect(find.text('Scheduling…'), findsOneWidget);
     expect(find.text('Last catalog update'), findsOneWidget);
     expect(
       find.text('Background sync only on unmetered networks'),

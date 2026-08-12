@@ -47,7 +47,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 62);
+    expect(authorized.body['schemaVersion'], 63);
   });
 
   test('primary certification rejects mutation and cancellation', () async {
@@ -151,6 +151,7 @@ void main() {
     expect(status.statusCode, HttpStatus.ok);
     expect(status.body['status'], 'idle');
     expect(status.body['stage'], 'idle');
+    expect(status.body, containsPair('nextAutomaticCheckAt', isNull));
 
     engine.complete();
     await Future<void>.delayed(Duration.zero);

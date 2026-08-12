@@ -219,6 +219,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsLastCheckedLabel => 'Last checked';
 
   @override
+  String get syncSettingsNextAutomaticCheckLabel => 'Next automatic check';
+
+  @override
+  String get syncSettingsNextAutomaticCheckScheduling => 'Scheduling…';
+
+  @override
   String get syncSettingsLastCatalogUpdateLabel => 'Last catalog update';
 
   @override

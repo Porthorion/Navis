@@ -58,7 +58,17 @@ Last updated: 2026-08-12
   target-lane runtime gate also drove `/ → /library` twice through the live
   router and observed identical catalog state before/after each transition,
   then proved a target request changes only its own active lane. Remaining:
-  broader API/runtime trace and next plan phases, then the final quality gate.
+  schema v63 now persists the per-server next automatic-check deadline, with
+  one re-arming foreground timer and controller-level due gating so startup,
+  resume, reconnect, and provider reconstruction cannot create a new interval;
+  Sync Settings reports its next automatic check. Focused
+  controller/migration/Settings/diagnostics tests pass. The isolated Linux
+  clone runtime gate seeded a future deadline, exercised the production
+  automatic endpoint without catalog work, repeated Home-to-Library and target
+  hydration, and clean-restarted with the deadline unchanged; both app-owned
+  Settings captures were opened and inspected, and log review found no
+  hard-fail pattern. Remaining: broader API/runtime trace and next plan phases,
+  then the final quality gate.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational
   diagnostics; none were introduced by this recovery work.)

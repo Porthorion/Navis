@@ -66,6 +66,13 @@ class LibrarySyncStateTable extends Table {
 
   DateTimeColumn get nextEligibleAt => dateTime().nullable()();
 
+  /// The next time an automatic catalog check may start for this server.
+  ///
+  /// This is deliberately separate from [nextEligibleAt], which is the
+  /// endpoint-circuit cooldown. Lifecycle and timer events must use this
+  /// durable schedule instead of each starting a process-local interval.
+  DateTimeColumn get nextAutomaticCheckAt => dateTime().nullable()();
+
   TextColumn get lastPlanKind => text().nullable()();
 
   TextColumn get lastPlanReason => text().nullable()();

@@ -484,6 +484,18 @@ abstract class AppLocalizations {
   /// **'Last checked'**
   String get syncSettingsLastCheckedLabel;
 
+  /// No description provided for @syncSettingsNextAutomaticCheckLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Next automatic check'**
+  String get syncSettingsNextAutomaticCheckLabel;
+
+  /// No description provided for @syncSettingsNextAutomaticCheckScheduling.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduling…'**
+  String get syncSettingsNextAutomaticCheckScheduling;
+
   /// No description provided for @syncSettingsLastCatalogUpdateLabel.
   ///
   /// In en, this message translates to:

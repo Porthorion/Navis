@@ -728,7 +728,7 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 61 |
+| **Schema version** | 63 |
 | **Tables** | 30 |
 | **DAOs** | 16 |
 
@@ -737,6 +737,10 @@ DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyn
 - Stepwise migrations in `navis_database.dart`.
 - **Always** update `test/src/database/migrations/navis_migration_test.dart` when changing schema.
 - Access only through DAOs — no raw SQL in feature code.
+- `library_sync_state.next_automatic_check_at` is the per-server automatic
+  schedule deadline. It is distinct from `next_eligible_at` (retry/circuit
+  cooldown); automatic lifecycle events may only run catalog work when this
+  durable deadline is due.
 - `server_config.is_authenticated` separates the retained non-secret
   server/account profile from an active credential session. Profile identity
   is normalized base URL plus trimmed username; same-profile login updates the

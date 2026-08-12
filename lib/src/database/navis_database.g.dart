@@ -17022,6 +17022,17 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _nextAutomaticCheckAtMeta =
+      const VerificationMeta('nextAutomaticCheckAt');
+  @override
+  late final GeneratedColumn<DateTime> nextAutomaticCheckAt =
+      GeneratedColumn<DateTime>(
+        'next_automatic_check_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastPlanKindMeta = const VerificationMeta(
     'lastPlanKind',
   );
@@ -17119,6 +17130,7 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
     auditOffset,
     failureStreak,
     nextEligibleAt,
+    nextAutomaticCheckAt,
     lastPlanKind,
     lastPlanReason,
     lastRunBytes,
@@ -17378,6 +17390,15 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         ),
       );
     }
+    if (data.containsKey('next_automatic_check_at')) {
+      context.handle(
+        _nextAutomaticCheckAtMeta,
+        nextAutomaticCheckAt.isAcceptableOrUnknown(
+          data['next_automatic_check_at']!,
+          _nextAutomaticCheckAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_plan_kind')) {
       context.handle(
         _lastPlanKindMeta,
@@ -17552,6 +17573,10 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}next_eligible_at'],
       ),
+      nextAutomaticCheckAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_automatic_check_at'],
+      ),
       lastPlanKind: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_plan_kind'],
@@ -17614,6 +17639,13 @@ class LibrarySyncStateTableData extends DataClass
   final int auditOffset;
   final int failureStreak;
   final DateTime? nextEligibleAt;
+
+  /// The next time an automatic catalog check may start for this server.
+  ///
+  /// This is deliberately separate from [nextEligibleAt], which is the
+  /// endpoint-circuit cooldown. Lifecycle and timer events must use this
+  /// durable schedule instead of each starting a process-local interval.
+  final DateTime? nextAutomaticCheckAt;
   final String? lastPlanKind;
   final String? lastPlanReason;
   final int lastRunBytes;
@@ -17648,6 +17680,7 @@ class LibrarySyncStateTableData extends DataClass
     required this.auditOffset,
     required this.failureStreak,
     this.nextEligibleAt,
+    this.nextAutomaticCheckAt,
     this.lastPlanKind,
     this.lastPlanReason,
     required this.lastRunBytes,
@@ -17724,6 +17757,9 @@ class LibrarySyncStateTableData extends DataClass
     map['failure_streak'] = Variable<int>(failureStreak);
     if (!nullToAbsent || nextEligibleAt != null) {
       map['next_eligible_at'] = Variable<DateTime>(nextEligibleAt);
+    }
+    if (!nullToAbsent || nextAutomaticCheckAt != null) {
+      map['next_automatic_check_at'] = Variable<DateTime>(nextAutomaticCheckAt);
     }
     if (!nullToAbsent || lastPlanKind != null) {
       map['last_plan_kind'] = Variable<String>(lastPlanKind);
@@ -17806,6 +17842,9 @@ class LibrarySyncStateTableData extends DataClass
       nextEligibleAt: nextEligibleAt == null && nullToAbsent
           ? const Value.absent()
           : Value(nextEligibleAt),
+      nextAutomaticCheckAt: nextAutomaticCheckAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextAutomaticCheckAt),
       lastPlanKind: lastPlanKind == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPlanKind),
@@ -17879,6 +17918,9 @@ class LibrarySyncStateTableData extends DataClass
       auditOffset: serializer.fromJson<int>(json['auditOffset']),
       failureStreak: serializer.fromJson<int>(json['failureStreak']),
       nextEligibleAt: serializer.fromJson<DateTime?>(json['nextEligibleAt']),
+      nextAutomaticCheckAt: serializer.fromJson<DateTime?>(
+        json['nextAutomaticCheckAt'],
+      ),
       lastPlanKind: serializer.fromJson<String?>(json['lastPlanKind']),
       lastPlanReason: serializer.fromJson<String?>(json['lastPlanReason']),
       lastRunBytes: serializer.fromJson<int>(json['lastRunBytes']),
@@ -17930,6 +17972,9 @@ class LibrarySyncStateTableData extends DataClass
       'auditOffset': serializer.toJson<int>(auditOffset),
       'failureStreak': serializer.toJson<int>(failureStreak),
       'nextEligibleAt': serializer.toJson<DateTime?>(nextEligibleAt),
+      'nextAutomaticCheckAt': serializer.toJson<DateTime?>(
+        nextAutomaticCheckAt,
+      ),
       'lastPlanKind': serializer.toJson<String?>(lastPlanKind),
       'lastPlanReason': serializer.toJson<String?>(lastPlanReason),
       'lastRunBytes': serializer.toJson<int>(lastRunBytes),
@@ -17969,6 +18014,7 @@ class LibrarySyncStateTableData extends DataClass
     int? auditOffset,
     int? failureStreak,
     Value<DateTime?> nextEligibleAt = const Value.absent(),
+    Value<DateTime?> nextAutomaticCheckAt = const Value.absent(),
     Value<String?> lastPlanKind = const Value.absent(),
     Value<String?> lastPlanReason = const Value.absent(),
     int? lastRunBytes,
@@ -18037,6 +18083,9 @@ class LibrarySyncStateTableData extends DataClass
     nextEligibleAt: nextEligibleAt.present
         ? nextEligibleAt.value
         : this.nextEligibleAt,
+    nextAutomaticCheckAt: nextAutomaticCheckAt.present
+        ? nextAutomaticCheckAt.value
+        : this.nextAutomaticCheckAt,
     lastPlanKind: lastPlanKind.present ? lastPlanKind.value : this.lastPlanKind,
     lastPlanReason: lastPlanReason.present
         ? lastPlanReason.value
@@ -18132,6 +18181,9 @@ class LibrarySyncStateTableData extends DataClass
       nextEligibleAt: data.nextEligibleAt.present
           ? data.nextEligibleAt.value
           : this.nextEligibleAt,
+      nextAutomaticCheckAt: data.nextAutomaticCheckAt.present
+          ? data.nextAutomaticCheckAt.value
+          : this.nextAutomaticCheckAt,
       lastPlanKind: data.lastPlanKind.present
           ? data.lastPlanKind.value
           : this.lastPlanKind,
@@ -18187,6 +18239,7 @@ class LibrarySyncStateTableData extends DataClass
           ..write('auditOffset: $auditOffset, ')
           ..write('failureStreak: $failureStreak, ')
           ..write('nextEligibleAt: $nextEligibleAt, ')
+          ..write('nextAutomaticCheckAt: $nextAutomaticCheckAt, ')
           ..write('lastPlanKind: $lastPlanKind, ')
           ..write('lastPlanReason: $lastPlanReason, ')
           ..write('lastRunBytes: $lastRunBytes, ')
@@ -18228,6 +18281,7 @@ class LibrarySyncStateTableData extends DataClass
     auditOffset,
     failureStreak,
     nextEligibleAt,
+    nextAutomaticCheckAt,
     lastPlanKind,
     lastPlanReason,
     lastRunBytes,
@@ -18268,6 +18322,7 @@ class LibrarySyncStateTableData extends DataClass
           other.auditOffset == this.auditOffset &&
           other.failureStreak == this.failureStreak &&
           other.nextEligibleAt == this.nextEligibleAt &&
+          other.nextAutomaticCheckAt == this.nextAutomaticCheckAt &&
           other.lastPlanKind == this.lastPlanKind &&
           other.lastPlanReason == this.lastPlanReason &&
           other.lastRunBytes == this.lastRunBytes &&
@@ -18306,6 +18361,7 @@ class LibrarySyncStateTableCompanion
   final Value<int> auditOffset;
   final Value<int> failureStreak;
   final Value<DateTime?> nextEligibleAt;
+  final Value<DateTime?> nextAutomaticCheckAt;
   final Value<String?> lastPlanKind;
   final Value<String?> lastPlanReason;
   final Value<int> lastRunBytes;
@@ -18340,6 +18396,7 @@ class LibrarySyncStateTableCompanion
     this.auditOffset = const Value.absent(),
     this.failureStreak = const Value.absent(),
     this.nextEligibleAt = const Value.absent(),
+    this.nextAutomaticCheckAt = const Value.absent(),
     this.lastPlanKind = const Value.absent(),
     this.lastPlanReason = const Value.absent(),
     this.lastRunBytes = const Value.absent(),
@@ -18375,6 +18432,7 @@ class LibrarySyncStateTableCompanion
     this.auditOffset = const Value.absent(),
     this.failureStreak = const Value.absent(),
     this.nextEligibleAt = const Value.absent(),
+    this.nextAutomaticCheckAt = const Value.absent(),
     this.lastPlanKind = const Value.absent(),
     this.lastPlanReason = const Value.absent(),
     this.lastRunBytes = const Value.absent(),
@@ -18410,6 +18468,7 @@ class LibrarySyncStateTableCompanion
     Expression<int>? auditOffset,
     Expression<int>? failureStreak,
     Expression<DateTime>? nextEligibleAt,
+    Expression<DateTime>? nextAutomaticCheckAt,
     Expression<String>? lastPlanKind,
     Expression<String>? lastPlanReason,
     Expression<int>? lastRunBytes,
@@ -18456,6 +18515,8 @@ class LibrarySyncStateTableCompanion
       if (auditOffset != null) 'audit_offset': auditOffset,
       if (failureStreak != null) 'failure_streak': failureStreak,
       if (nextEligibleAt != null) 'next_eligible_at': nextEligibleAt,
+      if (nextAutomaticCheckAt != null)
+        'next_automatic_check_at': nextAutomaticCheckAt,
       if (lastPlanKind != null) 'last_plan_kind': lastPlanKind,
       if (lastPlanReason != null) 'last_plan_reason': lastPlanReason,
       if (lastRunBytes != null) 'last_run_bytes': lastRunBytes,
@@ -18495,6 +18556,7 @@ class LibrarySyncStateTableCompanion
     Value<int>? auditOffset,
     Value<int>? failureStreak,
     Value<DateTime?>? nextEligibleAt,
+    Value<DateTime?>? nextAutomaticCheckAt,
     Value<String?>? lastPlanKind,
     Value<String?>? lastPlanReason,
     Value<int>? lastRunBytes,
@@ -18534,6 +18596,7 @@ class LibrarySyncStateTableCompanion
       auditOffset: auditOffset ?? this.auditOffset,
       failureStreak: failureStreak ?? this.failureStreak,
       nextEligibleAt: nextEligibleAt ?? this.nextEligibleAt,
+      nextAutomaticCheckAt: nextAutomaticCheckAt ?? this.nextAutomaticCheckAt,
       lastPlanKind: lastPlanKind ?? this.lastPlanKind,
       lastPlanReason: lastPlanReason ?? this.lastPlanReason,
       lastRunBytes: lastRunBytes ?? this.lastRunBytes,
@@ -18645,6 +18708,11 @@ class LibrarySyncStateTableCompanion
     if (nextEligibleAt.present) {
       map['next_eligible_at'] = Variable<DateTime>(nextEligibleAt.value);
     }
+    if (nextAutomaticCheckAt.present) {
+      map['next_automatic_check_at'] = Variable<DateTime>(
+        nextAutomaticCheckAt.value,
+      );
+    }
     if (lastPlanKind.present) {
       map['last_plan_kind'] = Variable<String>(lastPlanKind.value);
     }
@@ -18704,6 +18772,7 @@ class LibrarySyncStateTableCompanion
           ..write('auditOffset: $auditOffset, ')
           ..write('failureStreak: $failureStreak, ')
           ..write('nextEligibleAt: $nextEligibleAt, ')
+          ..write('nextAutomaticCheckAt: $nextAutomaticCheckAt, ')
           ..write('lastPlanKind: $lastPlanKind, ')
           ..write('lastPlanReason: $lastPlanReason, ')
           ..write('lastRunBytes: $lastRunBytes, ')
@@ -34425,6 +34494,7 @@ typedef $$LibrarySyncStateTableTableCreateCompanionBuilder =
       Value<int> auditOffset,
       Value<int> failureStreak,
       Value<DateTime?> nextEligibleAt,
+      Value<DateTime?> nextAutomaticCheckAt,
       Value<String?> lastPlanKind,
       Value<String?> lastPlanReason,
       Value<int> lastRunBytes,
@@ -34461,6 +34531,7 @@ typedef $$LibrarySyncStateTableTableUpdateCompanionBuilder =
       Value<int> auditOffset,
       Value<int> failureStreak,
       Value<DateTime?> nextEligibleAt,
+      Value<DateTime?> nextAutomaticCheckAt,
       Value<String?> lastPlanKind,
       Value<String?> lastPlanReason,
       Value<int> lastRunBytes,
@@ -34637,6 +34708,11 @@ class $$LibrarySyncStateTableTableFilterComposer
 
   ColumnFilters<DateTime> get nextEligibleAt => $composableBuilder(
     column: $table.nextEligibleAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextAutomaticCheckAt => $composableBuilder(
+    column: $table.nextAutomaticCheckAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -34831,6 +34907,11 @@ class $$LibrarySyncStateTableTableOrderingComposer
 
   ColumnOrderings<DateTime> get nextEligibleAt => $composableBuilder(
     column: $table.nextEligibleAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextAutomaticCheckAt => $composableBuilder(
+    column: $table.nextAutomaticCheckAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -35029,6 +35110,11 @@ class $$LibrarySyncStateTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<DateTime> get nextAutomaticCheckAt => $composableBuilder(
+    column: $table.nextAutomaticCheckAt,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get lastPlanKind => $composableBuilder(
     column: $table.lastPlanKind,
     builder: (column) => column,
@@ -35152,6 +35238,7 @@ class $$LibrarySyncStateTableTableTableManager
                 Value<int> auditOffset = const Value.absent(),
                 Value<int> failureStreak = const Value.absent(),
                 Value<DateTime?> nextEligibleAt = const Value.absent(),
+                Value<DateTime?> nextAutomaticCheckAt = const Value.absent(),
                 Value<String?> lastPlanKind = const Value.absent(),
                 Value<String?> lastPlanReason = const Value.absent(),
                 Value<int> lastRunBytes = const Value.absent(),
@@ -35187,6 +35274,7 @@ class $$LibrarySyncStateTableTableTableManager
                 auditOffset: auditOffset,
                 failureStreak: failureStreak,
                 nextEligibleAt: nextEligibleAt,
+                nextAutomaticCheckAt: nextAutomaticCheckAt,
                 lastPlanKind: lastPlanKind,
                 lastPlanReason: lastPlanReason,
                 lastRunBytes: lastRunBytes,
@@ -35224,6 +35312,7 @@ class $$LibrarySyncStateTableTableTableManager
                 Value<int> auditOffset = const Value.absent(),
                 Value<int> failureStreak = const Value.absent(),
                 Value<DateTime?> nextEligibleAt = const Value.absent(),
+                Value<DateTime?> nextAutomaticCheckAt = const Value.absent(),
                 Value<String?> lastPlanKind = const Value.absent(),
                 Value<String?> lastPlanReason = const Value.absent(),
                 Value<int> lastRunBytes = const Value.absent(),
@@ -35259,6 +35348,7 @@ class $$LibrarySyncStateTableTableTableManager
                 auditOffset: auditOffset,
                 failureStreak: failureStreak,
                 nextEligibleAt: nextEligibleAt,
+                nextAutomaticCheckAt: nextAutomaticCheckAt,
                 lastPlanKind: lastPlanKind,
                 lastPlanReason: lastPlanReason,
                 lastRunBytes: lastRunBytes,

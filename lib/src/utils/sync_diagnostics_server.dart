@@ -1602,6 +1602,9 @@ class SyncDiagnosticsServer {
       'mode': state.mode?.name,
       'planKind': state.planKind?.name,
       'planReason': state.planReason,
+      'nextAutomaticCheckAt': state.nextAutomaticCheckAt
+          ?.toUtc()
+          .toIso8601String(),
       'processed': state.processed,
       'total': state.total,
       'hydrationAlbumsPerSecond': state.hydrationThroughputAlbumsPerSecond,

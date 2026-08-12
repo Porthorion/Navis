@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Proves that a production-controller target hydration does not change the
-# catalog status shown by Library/Settings. The run is isolated: it copies the
+# catalog status shown by Library/Settings, and that a persisted automatic
+# deadline survives startup and restart. The run is isolated: it copies the
 # database and rewrites cache paths below its own diagnostics root.
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,7 +25,7 @@ mkdir -p "$CACHE_ROOT"
 chmod 700 "$OUTPUT_ROOT"
 
 python3 - "$SOURCE_DB" "$CLONE_DB" "$CACHE_ROOT" <<'PY'
-import hashlib, os, sqlite3, sys
+import datetime, hashlib, os, sqlite3, sys
 source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 target = sqlite3.connect(sys.argv[2])
 source.backup(target)
@@ -41,7 +42,45 @@ for song_id, source_path in target.execute(
         with open(source_path, "rb") as input_file, open(destination, "wb") as output_file:
             while chunk := input_file.read(1024 * 1024):
                 output_file.write(chunk)
-    target.execute("UPDATE cached_tracks SET file_path = ? WHERE song_id = ?", (destination, song_id))
+target.execute("UPDATE cached_tracks SET file_path = ? WHERE song_id = ?", (destination, song_id))
+# Start well inside an automatic interval. This deterministic fixture setup
+# lets the running app API prove that startup, navigation, and restart do not
+# recreate or consume the server's schedule. It does not drive sync behavior
+# directly; every assertion below observes the production controller.
+columns = {
+    row[1] for row in target.execute("PRAGMA table_info(library_sync_state)")
+}
+if "next_automatic_check_at" not in columns:
+    # The source profile may still be on the pre-v63 schema. This fixture
+    # column matches the guarded app migration and lets the scheduled-run
+    # scenario start with a deterministic value.
+    target.execute(
+        "ALTER TABLE library_sync_state ADD COLUMN next_automatic_check_at INTEGER"
+    )
+deadline = int(
+    (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1))
+    .replace(microsecond=0)
+    .timestamp()
+)
+server_ids = target.execute(
+    "SELECT id FROM server_config WHERE is_authenticated = 1"
+).fetchall()
+if not server_ids:
+    raise SystemExit("isolated clone has no authenticated server")
+for (server_id,) in server_ids:
+    existing = target.execute(
+        "SELECT 1 FROM library_sync_state WHERE server_id = ?", (server_id,)
+    ).fetchone()
+    if existing is None:
+        target.execute(
+            "INSERT INTO library_sync_state (server_id, next_automatic_check_at) VALUES (?, ?)",
+            (server_id, deadline),
+        )
+    else:
+        target.execute(
+            "UPDATE library_sync_state SET next_automatic_check_at = ? WHERE server_id = ?",
+            (deadline, server_id),
+        )
 target.commit()
 integrity = target.execute("PRAGMA integrity_check").fetchone()[0]
 foreign_keys = target.execute("PRAGMA foreign_key_check").fetchall()
@@ -118,7 +157,8 @@ wait_for_stable_catalog_status() {
     if python3 - "$output" <<'PY'
 import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
-raise SystemExit(0 if value.get("status") != "running" else 1)
+settled = value.get("status") != "running" and not value.get("requestActive")
+raise SystemExit(0 if settled else 1)
 PY
     then
       return
@@ -174,6 +214,29 @@ launch
 api GET /v1/health > "$OUTPUT_ROOT/health.json"
 wait_for_presentation "$OUTPUT_ROOT/presentation-before.json"
 wait_for_stable_catalog_status "$OUTPUT_ROOT/catalog-before.json"
+
+# The app reads the clone's future deadline via its production controller.
+# Asking the automatic endpoint before it is due must not start a catalog run
+# or clear/recalculate that durable deadline.
+api POST /v1/sync/automatic > "$OUTPUT_ROOT/automatic-before-deadline.json"
+wait_for_stable_catalog_status "$OUTPUT_ROOT/catalog-after-automatic.json"
+python3 - "$OUTPUT_ROOT/catalog-before.json" \
+  "$OUTPUT_ROOT/catalog-after-automatic.json" <<'PY'
+import datetime, json, sys
+before = json.load(open(sys.argv[1], encoding="utf-8"))
+actual = json.load(open(sys.argv[2], encoding="utf-8"))
+deadline = actual.get("nextAutomaticCheckAt")
+if not isinstance(deadline, str):
+    raise SystemExit("production status omitted nextAutomaticCheckAt")
+parsed = datetime.datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+if parsed <= datetime.datetime.now(datetime.timezone.utc):
+    raise SystemExit(f"automatic deadline was not future: {deadline}")
+if actual != before:
+    raise SystemExit(
+        "automatic check before its deadline changed catalog status: "
+        f"{actual}"
+    )
+PY
 
 # Home and Library are local-catalog read surfaces. Repeatedly switching
 # between them must not start or relabel a catalog operation. This reproduces
@@ -247,6 +310,22 @@ launch
 api GET /v1/health > "$OUTPUT_ROOT/restart-health.json"
 wait_for_presentation "$OUTPUT_ROOT/restart-presentation-before.json"
 wait_for_stable_catalog_status "$OUTPUT_ROOT/restart-catalog-status.json"
+python3 - "$OUTPUT_ROOT/catalog-before.json" \
+  "$OUTPUT_ROOT/restart-catalog-status.json" <<'PY'
+import datetime, json, sys
+before = json.load(open(sys.argv[1], encoding="utf-8"))
+restart = json.load(open(sys.argv[2], encoding="utf-8"))
+before_deadline = before.get("nextAutomaticCheckAt")
+restart_deadline = restart.get("nextAutomaticCheckAt")
+if not isinstance(before_deadline, str) or not isinstance(restart_deadline, str):
+    raise SystemExit("restart status omitted nextAutomaticCheckAt")
+start = datetime.datetime.fromisoformat(before_deadline.replace("Z", "+00:00"))
+end = datetime.datetime.fromisoformat(restart_deadline.replace("Z", "+00:00"))
+if abs((end - start).total_seconds()) >= 1:
+    raise SystemExit(
+        f"restart changed automatic deadline: {before_deadline} -> {restart_deadline}"
+    )
+PY
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \
   > "$OUTPUT_ROOT/restart-navigation.json"
 sleep 5
@@ -274,9 +353,9 @@ json.dump({
     "status": "passed",
     "target": "linux",
     "profile": "isolated-clone",
-    "scenario": "Home-to-Library navigation and target hydration preserve catalog status",
+    "scenario": "Future automatic deadline, Home-to-Library navigation, and target hydration preserve catalog status",
     "endpoints": [
-        "GET /v1/health", "GET /v1/sync/status", "POST /v1/sync/target",
+        "GET /v1/health", "GET /v1/sync/status", "POST /v1/sync/automatic", "POST /v1/sync/target",
         "POST /v1/presentation/navigate", "POST /v1/presentation/screenshot",
         "POST /v1/shutdown"
     ],

@@ -188,6 +188,20 @@ class SyncSettingsScreen extends ConsumerWidget {
                   subtitle: Text(_formatTimestamp(context, l10n, lastChecked)),
                 ),
                 ListTile(
+                  title: Text(l10n.syncSettingsNextAutomaticCheckLabel),
+                  subtitle: Text(
+                    currentInterval <= 0
+                        ? l10n.syncSettingsIntervalManual
+                        : syncState.nextAutomaticCheckAt == null
+                        ? l10n.syncSettingsNextAutomaticCheckScheduling
+                        : _formatTimestamp(
+                            context,
+                            l10n,
+                            syncState.nextAutomaticCheckAt,
+                          ),
+                  ),
+                ),
+                ListTile(
                   title: Text(l10n.syncSettingsLastCatalogUpdateLabel),
                   subtitle: Text(
                     '${_formatTimestamp(context, l10n, lastCatalogUpdate)}'

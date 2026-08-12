@@ -43,11 +43,14 @@ Target-hydration controller isolation has a separate clone-only Linux gate:
 ./tool/sync_target_lane_diagnostics.sh
 ```
 
-It drives a repeated Home-to-Library transition through the live router and
-asserts the catalog status is unchanged, then sends an album target request
-through the production controller and makes the same assertion while that
-request is active. It captures the Sync Settings presentation and repeats the
-health/status/screenshot checks after a clean restart.
+It seeds a future per-server automatic deadline in the isolated fixture, then
+uses the production automatic-sync endpoint to prove that the app does not
+start or relabel catalog work before that deadline. It drives a repeated
+Home-to-Library transition through the live router and asserts the catalog
+status is unchanged, then sends an album target request through the production
+controller and makes the same assertion while that request is active. It
+captures the Sync Settings presentation and repeats the health/status/screenshot
+checks after a clean restart, asserting that the deadline itself did not move.
 
 First-login and logout ownership are exercised separately with:
 

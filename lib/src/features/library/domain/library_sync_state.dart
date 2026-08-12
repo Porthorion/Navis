@@ -57,6 +57,7 @@ class LibrarySyncState {
     this.errorMessage,
     this.lastSyncedAt,
     this.lastCheckedAt,
+    this.nextAutomaticCheckAt,
     this.lastCatalogUpdatedAt,
     this.lastAuxiliarySyncedAt,
     this.lastGenresSyncedAt,
@@ -119,6 +120,7 @@ class LibrarySyncState {
   final String? errorMessage;
   final DateTime? lastSyncedAt;
   final DateTime? lastCheckedAt;
+  final DateTime? nextAutomaticCheckAt;
   final DateTime? lastCatalogUpdatedAt;
   final DateTime? lastAuxiliarySyncedAt;
   final DateTime? lastGenresSyncedAt;
@@ -180,6 +182,8 @@ class LibrarySyncState {
     bool clearLastSyncedAt = false,
     DateTime? lastCheckedAt,
     bool clearLastCheckedAt = false,
+    DateTime? nextAutomaticCheckAt,
+    bool clearNextAutomaticCheckAt = false,
     DateTime? lastCatalogUpdatedAt,
     bool clearLastCatalogUpdatedAt = false,
     DateTime? lastAuxiliarySyncedAt,
@@ -250,6 +254,9 @@ class LibrarySyncState {
       lastCheckedAt: clearLastCheckedAt
           ? null
           : lastCheckedAt ?? this.lastCheckedAt,
+      nextAutomaticCheckAt: clearNextAutomaticCheckAt
+          ? null
+          : nextAutomaticCheckAt ?? this.nextAutomaticCheckAt,
       lastCatalogUpdatedAt: clearLastCatalogUpdatedAt
           ? null
           : lastCatalogUpdatedAt ?? this.lastCatalogUpdatedAt,

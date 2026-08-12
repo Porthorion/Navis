@@ -38,6 +38,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Automatic library checks now keep their next scheduled time across app restarts, so reopening Navis does not restart the sync interval',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Opening Liked now stays offline-first and no longer starts a background library synchronization',
         type: ChangelogEntryType.fix,
       ),

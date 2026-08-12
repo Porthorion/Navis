@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -21,6 +23,30 @@ final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
 final _shortSyncInterval = syncIntervalDurationProvider.overrideWithValue(
   const Duration(milliseconds: 10),
 );
+
+Future<ServerConfigModel> _saveAuthenticatedServer(
+  NavisDatabase database, {
+  DateTime? lastSynced,
+}) async {
+  await database.serverDao.saveServer(
+    ServerConfigTableCompanion.insert(
+      url: 'https://example.com',
+      username: 'alice',
+      apiVersion: '1.16.1',
+      isAuthenticated: const Value(true),
+      lastSynced: Value(lastSynced),
+    ),
+  );
+  final server = await database.serverDao.getActiveServer();
+  return ServerConfigModel(
+    id: server!.id,
+    url: server.url,
+    username: server.username,
+    password: 'secret',
+    apiVersion: server.apiVersion,
+    lastSynced: server.lastSynced,
+  );
+}
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -285,6 +311,135 @@ void main() {
       expect(engine.staleCalls, 1);
       expect(engine.nowCalls, 0);
     });
+
+    test(
+      'automatic checks honor a persisted deadline and manual checks leave it unchanged',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final deadline = DateTime.now().add(const Duration(hours: 1));
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: deadline,
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await controller.syncIfStale();
+        expect(engine.staleCalls, 0);
+
+        await controller.syncNow();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+        expect(engine.nowCalls, 1);
+        expect(
+          persisted.nextAutomaticCheckAt!.difference(deadline).abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
+        expect(
+          container
+              .read(librarySyncControllerProvider)
+              .nextAutomaticCheckAt!
+              .difference(deadline)
+              .abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
+      },
+    );
+
+    test(
+      'expired automatic deadline runs once and persists the next deadline',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+          ({forceFull = false, onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        final startedAt = DateTime.now();
+        final container = ProviderContainer(
+          overrides: [
+            syncIntervalMinutesProvider.overrideWithValue(60),
+            syncIntervalDurationProvider.overrideWithValue(
+              const Duration(hours: 1),
+            ),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.offline,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final result = await container
+            .read(librarySyncControllerProvider.notifier)
+            .syncIfStale();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(engine.staleCalls, 1);
+        expect(persisted.nextAutomaticCheckAt, isNotNull);
+        expect(persisted.nextAutomaticCheckAt!.isAfter(startedAt), isTrue);
+        expect(
+          persisted.nextAutomaticCheckAt!.difference(startedAt),
+          greaterThan(const Duration(minutes: 59)),
+        );
+      },
+    );
 
     test(
       'cancelAndWait drains and suppresses scheduled startup sync',

@@ -1,8 +1,8 @@
 # Sync Reliability Recovery Plan
 
 Status: active recovery plan. Phase 1 manual discovery, the first Phase 2
-queue/scheduler checkpoint, and explicit large-deletion repair confirmation are
-implemented; runtime certification is in progress.
+queue/scheduler checkpoints, and explicit large-deletion repair confirmation
+are implemented; runtime certification is in progress.
 Date: 2026-08-12
 Scope: library metadata sync, offline browsing, manual refresh and repair, and navigation-adjacent hydration. This is the source of truth for correcting the current sync model.
 
@@ -48,7 +48,7 @@ External sources:
 | --- | --- | --- |
 | P0 | Manual Check for updates is time-gated like automatic work. The planner fresh-domain branch returns allDomainsFresh with shouldExecute false without distinguishing checkForUpdates. syncNow returns unless the first call was a successful probe. | The button can perform no request immediately after another check. |
 | P0 | Manual discovery relies on getIndexes. syncNow queues follow-up only when probeIndexChanged; newest-album health probing is inside incremental sync and is not reached for an unchanged probe. | A new album under an existing artist can remain invisible. This is the main root cause for the reported missed album. |
-| P0 | Pending verification schedules a continuation every two minutes regardless of configured interval. Resume, reconnect, Wi-Fi and startup paths schedule additional work. | The app appears to spam sync; cadence is hidden and does not honor the setting. |
+| P0 | Pending verification scheduled a continuation every two minutes regardless of configured interval. Resume, reconnect, Wi-Fi and startup paths could schedule additional work. **Fixed:** a server-scoped durable deadline and one foreground one-shot timer now gate every automatic check; lifecycle events only re-arm/ask whether that deadline is due. | The app appeared to spam sync; cadence was hidden and did not honor the setting. |
 | P0 | enqueueWork changes a completed conflicting work row back to queued. Partial catalog work then reaches markCancelled, which also means queued. | Work is resurrected and can run repeatedly, amplifying the continuation loop. |
 | P1 | Server configuration, reachability notifications, engine availability, Wi-Fi, resume, periodic re-arm and a microtask all submit startup work. Partial result does not set startup-done fingerprint. Queued full repairs were also eligible for those automatic resume requests. | Event storms could schedule more planning after a preceding pass ends, app resume submitted both startup and interval work, and opening the app could restart an interrupted user Repair Library operation. **Fixed:** resume now submits only its interval check; automatic callers leave queued full repairs dormant, and only an explicit Repair Library action may resume one. |
 | P1 | Entering the retained Liked tab watches an autoDispose provider that requests stale starred synchronization and writes global sync state. | Home to Library can look like catalog sync although it is a Liked refresh. |
@@ -131,10 +131,10 @@ Exit: one manual check imports an album for existing artist in fixture and live 
 
 ### Phase 2: schedule and queue correctness
 
-1. Add persisted automatic schedule and one scheduler entry point. Lifecycle/UI listeners submit typed cause only. **In progress:** the unpersisted two-minute continuation loop is removed; automatic pending work now waits for the configured interval.
+1. Add persisted automatic schedule and one scheduler entry point. Lifecycle/UI listeners submit typed cause only. **Implemented:** schema v63 stores the server-scoped `nextAutomaticCheckAt`; automatic checks coalesce at the controller, a one-shot foreground timer re-arms from that deadline, and app/settings hydration cannot erase a persisted schedule.
 2. Coalesce manually: manual check supersedes automatic probe; repair supersedes broad automatic work; target work is independent. **Implemented in the controller:** an active stronger catalog request satisfies weaker work, while a stronger request is queued after a weaker active request; duplicate target work shares only its durable target key.
 3. Correct work transitions: completed stays completed; cancelled has explicit backoff; a deletion-confirmation repair is terminal until the next explicit Repair Library action; partial broad parent names child work instead of requeueing itself. **Implemented:** ordinary conflict handling preserves terminal rows, explicit user requests reactivate them, and automatic callers cannot resume queued full repairs.
-4. Remove the two-minute loop. Pending durable work is resumed only by the configured automatic interval or an explicit user action, with visible next eligibility.
+4. Remove the two-minute loop. Pending durable work is resumed only by the configured automatic interval or an explicit user action, with visible next eligibility. **Implemented:** Sync Settings shows the persisted next automatic check (or manual-only/scheduling state).
 5. Make startup completion a terminal scheduler decision; listener emissions cannot reset a fresh schedule.
 6. Keep only the standard empty-query `search3` bulk capability. Discard
    legacy wildcard capabilities, record request progress before the first page,
@@ -176,8 +176,8 @@ capture showed the same completed catalog status rather than a global running
 target state. Its current isolated Linux run also drove `/ → /library` twice:
 the live router accepted both requested locations and each post-navigation
 catalog status was identical to its pre-navigation result. Isolated Linux clone startup also kept an
-awaiting-deletion-confirmation repair dormant while it resumed only target
-work; the authenticated health API reported schema v62, clean restart returned
+  awaiting-deletion-confirmation repair dormant while it resumed only target
+  work; the authenticated health API reported schema v62, clean restart returned
 to Home, and the app-owned Settings screenshot was inspected. The focused
 full-rescan rerun against a current-library clone began with 1,714 artists,
 5,463 albums, and 54,327 songs; the authenticated repair collected 5,464
@@ -191,6 +191,19 @@ acknowledgement and transitions to settle before taking visual evidence.
 `./tool/check.sh` passed formatting and code generation, then stopped at the
 repository-wide analyzer baseline of 493 informational diagnostics; none were
 introduced by this recovery work.
+
+Schema v63 persists `nextAutomaticCheckAt` per server. Focused
+migration/controller tests prove a future deadline blocks automatic work,
+manual actions leave it untouched, an expired deadline executes one automatic
+pass and records the next deadline, and a first-sync schedule write cannot
+silently update zero rows. The isolated Linux clone gate seeded a future
+deadline, invoked the production automatic endpoint without starting catalog
+work, preserved status through repeated Home-to-Library navigation and target
+hydration, then clean-restarted with the same deadline. Both app-owned Sync
+Settings captures were inspected; the initial capture kept the expected idle
+catalog status visible behind the existing What's New modal, while the restart
+capture was dimmed by the existing modal/scrim presentation state and did not
+show a new sync-layout regression.
 
 ## Regression matrix
 

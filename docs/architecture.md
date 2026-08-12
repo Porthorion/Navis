@@ -82,6 +82,12 @@ Located in `lib/src/providers/app_providers.dart`:
 - `librarySyncEngineProvider` - Sync engine instance
 - `librarySyncControllerProvider` - Sync state and controls
 - `syncStaleAfterProvider` - Sync staleness threshold
+- Automatic catalog checks use the per-server durable
+  `library_sync_state.next_automatic_check_at` deadline. The controller owns
+  one foreground one-shot timer that re-arms from that value; startup,
+  reconnect, resume, and UI reconstruction only ask whether the deadline is
+  due. They do not create independent periodic schedules. Manual checks and
+  repairs bypass this automatic deadline.
 - `requiredLibrarySyncModelVersionProvider` - One-time sync model `56` repair
   gate for the schema-v56 candidate-catalog contract; app build updates do not
   force full sync, and a promoted catalog satisfies the gate even when

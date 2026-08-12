@@ -217,6 +217,23 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     return into(librarySyncStateTable).insertOnConflictUpdate(state);
   }
 
+  Future<void> setNextAutomaticCheckAt({
+    required int serverId,
+    required DateTime? nextAutomaticCheckAt,
+  }) async {
+    // A newly authenticated server may not have run a sync yet. Persist the
+    // per-server row first so configuring its schedule is never a silent
+    // zero-row update.
+    await getOrCreateState(serverId);
+    await (update(
+      librarySyncStateTable,
+    )..where((table) => table.serverId.equals(serverId))).write(
+      LibrarySyncStateTableCompanion(
+        nextAutomaticCheckAt: Value(nextAutomaticCheckAt),
+      ),
+    );
+  }
+
   Future<void> enqueueWork({
     required int serverId,
     required String kind,
