@@ -88,6 +88,9 @@ Located in `lib/src/providers/app_providers.dart`:
   reconnect, resume, and UI reconstruction only ask whether the deadline is
   due. They do not create independent periodic schedules. Manual checks and
   repairs bypass this automatic deadline.
+- Durable sync work uses terminal `completed`, `cancelled`, `failed`, and
+  `awaitingConfirmation` states. The next app lifecycle event must not revive
+  a cancelled operation; only a new compatible user action reactivates it.
 - `requiredLibrarySyncModelVersionProvider` - One-time sync model `56` repair
   gate for the schema-v56 candidate-catalog contract; app build updates do not
   force full sync, and a promoted catalog satisfies the gate even when

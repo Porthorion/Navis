@@ -424,6 +424,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   its broad task is completed in the same promotion transaction; any
   unavailable albums continue as targeted hydration. A restart after promotion
   must never replay the broad repair while auxiliary work is still finishing.
+- Durable work transitions are explicit: completed, cancelled, failed, and
+  awaiting-confirmation rows are not runnable. Only an explicit compatible
+  user action may reactivate a terminal row; cancellation must never fall
+  through to the next automatic lifecycle pass.
 - Complete catalog snapshots collect into generation-keyed candidate artist,
   album, and song tables that app providers never watch. Page checkpoints and
   pending hydration survive cancellation or restart, while the previously

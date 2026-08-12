@@ -232,6 +232,46 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test(
+    'cancelled work stays terminal until an explicit action reactivates it',
+    () async {
+      final now = DateTime.utc(2026, 8, 4);
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'catalogSnapshot',
+        priority: 20,
+        now: now,
+      );
+      final work = (await database.librarySyncDao.getRunnableWork(
+        serverId: 1,
+        now: now,
+      )).single;
+
+      await database.librarySyncDao.markCancelled(work.id, now: now);
+      expect(
+        await database.librarySyncDao.getRunnableWork(serverId: 1, now: now),
+        isEmpty,
+      );
+      expect(await database.librarySyncDao.countPendingWork(1), 0);
+
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'catalogSnapshot',
+        priority: 60,
+        reactivateTerminal: true,
+        now: now.add(const Duration(minutes: 1)),
+      );
+      final reactivated = await database.librarySyncDao.getRunnableWork(
+        serverId: 1,
+        now: now.add(const Duration(minutes: 1)),
+      );
+      expect(reactivated, hasLength(1));
+      expect(reactivated.single.status, 'queued');
+      expect(reactivated.single.lastErrorType, isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'provider profile persists independently for each server',
     () async {
       await database.librarySyncDao.writeState(

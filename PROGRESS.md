@@ -23,7 +23,8 @@ Last updated: 2026-08-12
   `docs/sync-reliability-recovery-plan.md`; implemented manual bounded newest
   discovery despite unchanged artist cursor, removed the two-minute pending
   verification force loop, preserved terminal durable work unless a user
-  explicitly reactivates it, and stopped opening Liked from requesting stale
+  explicitly reactivates it, made user-cancelled durable work terminal instead
+  of immediately queueing it for another automatic pass, and stopped opening Liked from requesting stale
   synchronization. Focused planner, engine, coordinator, DAO, controller, and
   Library widget suites pass. A later isolated Linux throughput trace proved
   the legacy wildcard bulk-song capability could stall after candidate

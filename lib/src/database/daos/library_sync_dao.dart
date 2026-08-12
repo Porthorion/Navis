@@ -440,7 +440,13 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       librarySyncWorkTable,
     )..where((table) => table.id.equals(id))).write(
       LibrarySyncWorkTableCompanion(
-        status: const Value('queued'),
+        // Cancellation is a user-visible terminal transition. Re-queueing it
+        // here lets the next lifecycle event restart work the user just
+        // stopped, which is both surprising and indistinguishable from an
+        // automatic-sync loop. Explicit actions may reactivate this row.
+        status: const Value('cancelled'),
+        notBefore: const Value(null),
+        lastErrorType: const Value('cancelled'),
         updatedAt: Value(now ?? DateTime.now()),
       ),
     );
