@@ -108,6 +108,7 @@ const List<_Version> _changelogs = [
       'Opening Navis no longer restarts a paused Repair Library operation; repairs resume only when you request them',
       type: _EntryType.fix,
     ),
+    _Entry('Already missing 1.2.3'),
     _Entry(
       'Returning to Navis no longer submits duplicate automatic sync checks for the same lifecycle event',
       type: _EntryType.fix,
