@@ -54,7 +54,10 @@ Last updated: 2026-08-12
   Linux full-rescan clone then collected 5,464 albums, indexed 57 song pages,
   completed five detail fallbacks and promoted successfully with candidate and
   deletion state cleared; its post-restart Sync Settings screenshot was opened
-  and shows `Last sync succeeded` without a deletion confirmation. Remaining:
+  and shows `Last sync succeeded` without a deletion confirmation. The current
+  target-lane runtime gate also drove `/ → /library` twice through the live
+  router and observed identical catalog state before/after each transition,
+  then proved a target request changes only its own active lane. Remaining:
   broader API/runtime trace and next plan phases, then the final quality gate.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational

@@ -150,6 +150,10 @@ Exit: a 60-minute no-action lifecycle stress test makes no catalog request befor
 4. Record before/after counts and reason code for every destructive catalog/starred transaction.
 5. Add invariant: Home to Library changes neither catalog nor liked count without successful accounted server snapshot.
 
+   **Implemented as a runtime gate:** the target-lane clone diagnostics now
+   drives repeated Home-to-Library navigation and asserts that the production
+   catalog status remains byte-for-byte unchanged before it tests target work.
+
 Exit: navigation causes no broad request, and no catalog/liked row disappears without a ledger event.
 
 ### Phase 4: repair UX and certification
@@ -169,7 +173,9 @@ diagnostics target request cannot bypass that boundary. Its latest run accepted
 an album target request while every catalog-status field remained unchanged,
 then clean-restarted successfully; the inspected post-restart Sync Settings
 capture showed the same completed catalog status rather than a global running
-target state. Isolated Linux clone startup also kept an
+target state. Its current isolated Linux run also drove `/ → /library` twice:
+the live router accepted both requested locations and each post-navigation
+catalog status was identical to its pre-navigation result. Isolated Linux clone startup also kept an
 awaiting-deletion-confirmation repair dormant while it resumed only target
 work; the authenticated health API reported schema v62, clean restart returned
 to Home, and the app-owned Settings screenshot was inspected. The focused

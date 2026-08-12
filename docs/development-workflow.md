@@ -180,10 +180,11 @@ Linux and Windows profile diagnostics share the same control-plane contract:
   asserts alias and cache ownership migration.
   handshake, authenticated requests, restart, reporting, and shutdown flow.
 - `tool/sync_target_lane_diagnostics.sh` launches one isolated Linux clone,
-  sends `POST /v1/sync/target` through the production controller, asserts that
-  the catalog status does not change, captures Sync Settings, and repeats the
+  drives repeated Home-to-Library navigation and then sends
+  `POST /v1/sync/target` through the production controller. It asserts neither
+  action changes catalog status, captures Sync Settings, and repeats the
   health/status/screenshot checks after a clean restart. Use it when changing
-  catalog/target scheduling or global sync presentation.
+  navigation, catalog/target scheduling, or global sync presentation.
 - Current observation endpoints include `GET /v1/health`,
   `GET /v1/sync/status`, `GET /v1/playback/status`,
   `GET /v1/playback/bootstrap/status`, and

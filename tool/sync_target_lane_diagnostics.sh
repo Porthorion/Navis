@@ -175,6 +175,35 @@ api GET /v1/health > "$OUTPUT_ROOT/health.json"
 wait_for_presentation "$OUTPUT_ROOT/presentation-before.json"
 wait_for_stable_catalog_status "$OUTPUT_ROOT/catalog-before.json"
 
+# Home and Library are local-catalog read surfaces. Repeatedly switching
+# between them must not start or relabel a catalog operation. This reproduces
+# the navigation pattern that previously looked like a sync because Liked and
+# target work shared the global controller state.
+for index in 1 2; do
+  api POST /v1/presentation/navigate '{"location":"/"}' \
+    > "$OUTPUT_ROOT/home-$index-navigation.json"
+  sleep 2
+  api POST /v1/presentation/navigate '{"location":"/library"}' \
+    > "$OUTPUT_ROOT/library-$index-navigation.json"
+  sleep 2
+  api GET /v1/sync/status > "$OUTPUT_ROOT/catalog-after-library-$index.json"
+done
+
+python3 - "$OUTPUT_ROOT/catalog-before.json" \
+  "$OUTPUT_ROOT/catalog-after-library-1.json" \
+  "$OUTPUT_ROOT/catalog-after-library-2.json" <<'PY'
+import json, sys
+before = json.load(open(sys.argv[1], encoding="utf-8"))
+keys = ("status", "stage", "planKind", "planReason", "errorMessage")
+expected = {key: before.get(key) for key in keys}
+for path in sys.argv[2:]:
+    actual = json.load(open(path, encoding="utf-8"))
+    if {key: actual.get(key) for key in keys} != expected:
+        raise SystemExit(
+            f"Home-to-Library navigation changed catalog status: {actual}"
+        )
+PY
+
 ALBUM_ID="$(python3 - "$CLONE_DB" <<'PY'
 import sqlite3, sys
 db = sqlite3.connect(sys.argv[1])
@@ -209,7 +238,7 @@ api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \
   > "$OUTPUT_ROOT/navigation.json"
 # Navigation returns after GoRouter accepts the route, before the next rendered
 # desktop frame. Let the app-owned presentation surface settle before capture.
-sleep 2
+sleep 5
 capture_screenshot "$OUTPUT_ROOT/screenshot.json" > "$OUTPUT_ROOT/screenshot-path.txt"
 api POST /v1/shutdown > "$OUTPUT_ROOT/shutdown.json" || true
 wait "$FLUTTER_PID" || true
@@ -221,7 +250,7 @@ wait_for_presentation "$OUTPUT_ROOT/restart-presentation-before.json"
 wait_for_stable_catalog_status "$OUTPUT_ROOT/restart-catalog-status.json"
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \
   > "$OUTPUT_ROOT/restart-navigation.json"
-sleep 2
+sleep 5
 capture_screenshot "$OUTPUT_ROOT/restart-screenshot.json" \
   > "$OUTPUT_ROOT/restart-screenshot-path.txt"
 api POST /v1/shutdown > "$OUTPUT_ROOT/restart-shutdown.json" || true
@@ -246,7 +275,7 @@ json.dump({
     "status": "passed",
     "target": "linux",
     "profile": "isolated-clone",
-    "scenario": "target hydration preserves catalog status",
+    "scenario": "Home-to-Library navigation and target hydration preserve catalog status",
     "endpoints": [
         "GET /v1/health", "GET /v1/sync/status", "POST /v1/sync/target",
         "POST /v1/presentation/navigate", "POST /v1/presentation/screenshot",
