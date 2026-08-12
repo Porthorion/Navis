@@ -72,6 +72,18 @@ the redacted terminal ledger for `getIndexes`, newest-list, artist-detail, and
 album-detail calls, then opens the discovered album after a clean restart. It
 rejects blank compositor screenshots and never sends data to a real server.
 
+Large-deletion repair confirmation has a separate deterministic gate:
+
+```bash
+./tool/repair_confirmation_diagnostics.sh
+```
+
+It creates a fixture candidate with enough server-missing rows to require the
+production confirmation boundary, verifies that the committed catalog survives
+the pending state and a clean restart, then issues the explicit confirming
+Repair Library action and verifies atomic promotion. The fixture is isolated
+and never modifies a configured server or primary profile.
+
 First-login and logout ownership are exercised separately with:
 
 ```bash

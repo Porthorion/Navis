@@ -46,6 +46,91 @@ void main() {
     );
 
     test(
+      'removeServerSongsForPromotion batches stale rows and keeps permanent downloads',
+      () async {
+        final tempDir = Directory.systemTemp.createTempSync(
+          'navis_library_dao_',
+        );
+        addTearDown(() {
+          if (tempDir.existsSync()) {
+            tempDir.deleteSync(recursive: true);
+          }
+        });
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'stale-artist', name: 'Stale'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'stale-album',
+            name: 'Stale',
+            artistId: const Value('stale-artist'),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs(
+          List<SongsTableCompanion>.generate(
+            501,
+            (index) => SongsTableCompanion.insert(
+              id: 'stale-song-$index',
+              title: 'Stale Song $index',
+              albumId: const Value('stale-album'),
+              artistId: const Value('stale-artist'),
+            ),
+            growable: false,
+          ),
+        );
+        final permanentFile = File(p.join(tempDir.path, 'permanent.mp3'));
+        final rollingFile = File(p.join(tempDir.path, 'rolling.mp3'));
+        await permanentFile.writeAsBytes(<int>[1]);
+        await rollingFile.writeAsBytes(<int>[2]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'stale-song-0',
+            filePath: permanentFile.path,
+            fileSize: 1,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'stale-song-500',
+            filePath: rollingFile.path,
+            fileSize: 1,
+            format: 'mp3',
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        final deferredFiles = await database.libraryDao
+            .removeServerSongsForPromotion(
+              await database.select(database.songsTable).get(),
+            );
+
+        final preserved = await database.libraryDao.getSongById(
+          'stale-song-0',
+        );
+        expect(preserved?.serverDeletedAt, isNotNull);
+        expect(preserved?.albumId, isNull);
+        expect(await database.libraryDao.getSongById('stale-song-500'), isNull);
+        expect(
+          await database.cacheDao.getCachedTrack('stale-song-0'),
+          isNotNull,
+        );
+        expect(
+          await database.cacheDao.getCachedTrack('stale-song-500'),
+          isNull,
+        );
+        expect(deferredFiles, contains(rollingFile.path));
+        expect(await database.select(database.songsTable).get(), hasLength(1));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'watchSongsFromLikedAlbums returns liked album tracks in stable order',
       () async {
         await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[

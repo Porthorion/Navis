@@ -145,6 +145,13 @@ production detail route, and repeats after clean restart. The fixture must use
 the standard singular `artist.album` response shape, because the production
 client is responsible for normalizing that protocol shape before sync logic.
 
+`tool/repair_confirmation_diagnostics.sh` is the bounded deletion-safety gate.
+It uses an isolated fixture to require the production repair confirmation
+boundary, proves the committed catalog remains untouched across a clean
+restart, then verifies that only the explicit confirming repair request
+promotes the candidate. It is required after changing repair promotion,
+deletion analysis, or the confirmation presentation.
+
 The endpoint's local `/library#section` destinations are deliberately mapped to
 the production `librarySectionProvider`, matching the desktop rail and
 navigation history. The target-lane gate uses `/library#liked` to prove that
@@ -204,6 +211,9 @@ Linux and Windows profile diagnostics share the same control-plane contract:
   in the clone, hydrates its canonical album from the configured server, and
   asserts alias and cache ownership migration.
   handshake, authenticated requests, restart, reporting, and shutdown flow.
+- `tool/repair_confirmation_diagnostics.sh` covers the explicit large-deletion
+  confirmation lifecycle in an isolated fixture: pending confirmation,
+  restart persistence, deliberate confirmation, and atomic promotion.
 - `tool/sync_target_lane_diagnostics.sh` launches one isolated Linux clone,
   drives repeated Home-to-Library navigation and then sends
   `POST /v1/sync/target` through the production controller. It asserts neither

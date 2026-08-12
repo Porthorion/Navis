@@ -87,9 +87,15 @@ Last updated: 2026-08-12
   second repair atomically promoted the fixture catalog. The same trace found
   and fixed per-song/per-artist promotion deletes that made large confirmation
   applies pathological; bounded bulk deletion retains permanent downloads.
-  Both Sync Settings screenshots were opened and inspected. Remaining: configured-server
-  certification, repair-confirmation lifecycle trace, broader API/runtime trace
-  and next plan phases,
+  Both Sync Settings screenshots were opened and inspected. A subsequent
+  configured-server `sync_diagnostics.sh clone` run used an isolated copy of
+  the primary catalog and completed policy, interruption/restart,
+  local-mutation, active-playback, and repeated-repair certification without
+  changing the primary profile. The final catalog remained 1,714 artists /
+  5,464 albums / 54,329 songs after clean restart; the converged repair
+  classified all 61,507 rows unchanged, removed zero songs, and applied in
+  117 ms. Remaining: the 60-minute no-action scheduler stress, any future
+  affected-server vanished-row reproduction, and next plan phases,
   then the final quality gate.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational

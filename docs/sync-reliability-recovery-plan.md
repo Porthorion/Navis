@@ -2,7 +2,8 @@
 
 Status: active recovery plan. Phase 1 manual discovery, the first Phase 2
 queue/scheduler checkpoints, and explicit large-deletion repair confirmation
-are implemented; unchanged-cursor manual discovery is runtime-certified.
+are implemented; unchanged-cursor manual discovery and configured-server clone
+repair certification are runtime-certified.
 Date: 2026-08-12
 Scope: library metadata sync, offline browsing, manual refresh and repair, and navigation-adjacent hydration. This is the source of truth for correcting the current sync model.
 
@@ -118,9 +119,9 @@ Keep candidate tables and atomic promotion. Deletion analysis is valid only afte
 1. Add clone fixture with a new album under existing artist and unchanged getIndexes lastModified. Drive API check and assert real Library provider shows album. **Implemented and certified:** the loopback fixture returns the standard `artist.album` payload and a fixed cursor. The authenticated app check discovers, hydrates, persists, routes to, screenshots, and clean-restarts the new album.
 2. Add Home to Library to Liked to Home to Liked trace recording request IDs, cause, plan, target scope, endpoint counts and catalog counts. Capture and inspect screenshots. **Implemented:** the isolated Linux target-lane gate drives the visible Library-section provider through `/library#liked`, asserts that every navigation leaves sync status and aggregate catalog counts unchanged, and proves that no controller ledger event was added. Its inspected Liked and Sync Settings screenshots are captured before a clean restart.
 3. Add opt-in redacted ledger endpoint retaining last 50 events; never return credentials, URLs, titles or paths. **Implemented for diagnostics-initiated controller actions:** `GET /v1/sync/ledger` records requested, started, terminal, and failed transitions with cause, target kind, plan/result, endpoint counts, and safe error type.
-4. Run isolated Linux clone against configured server: baseline counts, manual check, repair, post-run counts, clean restart, endpoint trace and logs.
+4. Run isolated Linux clone against configured server: baseline counts, manual check, repair, post-run counts, clean restart, endpoint trace and logs. **Implemented and certified:** the primary catalog was copied into an isolated Linux profile; normal policy, interruption/restart, local-mutation precedence, active playback, two Repair Library passes, and final target work completed through the authenticated app API. The committed catalog remained 1,714 artists / 5,464 albums / 54,329 songs over clean restart. The second repair classified 61,507 rows unchanged, removed zero songs, and recorded a 117 ms apply. This certifies current-server lifecycle and repair convergence without changing the primary profile or claiming a live user-created-album reproduction.
 
-Exit: deterministic manual-check reproduction and a trace separating catalog, Liked and target work. **Met for unchanged-cursor manual discovery, navigation/target lanes, and repair confirmation; configured-server reproduction remains.**
+Exit: deterministic manual-check reproduction and a trace separating catalog, Liked and target work. **Met:** unchanged-cursor manual discovery, navigation/target lanes, repair confirmation, and configured-server isolated clone lifecycle all have app-API evidence. A direct affected-server vanished-row reproduction remains a focused diagnostic follow-up if it recurs.
 
 ### Phase 1: manual check correctness
 
@@ -130,7 +131,7 @@ Exit: deterministic manual-check reproduction and a trace separating catalog, Li
 4. Drain discovered follow-up in the same user operation or return explicit deferred reason.
 5. Add unit, coordinator, widget and API tests for fresh window, unchanged cursor/new album, changed cursor/new album, offline, cellular and duplicate taps. **Implemented for the unchanged-cursor path:** unit coverage verifies standard `artist.album` normalization; the deterministic engine regression verifies discovery and hydration; and the isolated app API gate verifies the persisted album and its rendered detail view before and after clean restart. Remaining scenarios stay in the matrix below.
 
-Exit: one manual check imports an album for existing artist in fixture and live clone; UI reports change counts. **Fixture clone exit met; configured-server certification remains a separate non-destructive follow-up.**
+Exit: one manual check imports an album for existing artist in fixture and live clone; UI reports change counts. **Fixture clone exit met; configured-server lifecycle/repair certification is met. A controlled, live user-created-album reproduction remains optional only if the reported symptom recurs, because this gate does not mutate the configured server.**
 
 ### Phase 2: schedule and queue correctness
 
@@ -166,7 +167,7 @@ Exit: navigation causes no broad request, and no catalog/liked row disappears wi
 1. Build explicit repair deletion confirmation, durable token and discard action. **Implemented:** the persisted fingerprint/count remains the durable remote-evidence token; Settings exposes its count and requires a deliberate Apply library repair confirmation before retrying, or a separate confirmed discard that clears only the uncommitted candidate and repair work. Candidate song collection/carry-forward precedes token calculation, and unresolved candidate albums protect committed tracks.
 2. Show operation type, remote check time, change counts, defer reason, retry time and safe endpoint failure type in Settings/Library.
 3. Update AGENTS.md, docs/architecture.md, docs/development-workflow.md, release notes and migration tests with final architecture.
-4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. **Partially implemented:** the target-lane clone gate has passed online and offline Home/Library/Liked browsing plus clean restart with inspected Liked/Settings screenshots. `tool/manual_discovery_diagnostics.sh` certifies unchanged-cursor album discovery; `tool/repair_confirmation_diagnostics.sh` certifies that a 61,503-row deletion candidate does not alter the committed catalog before explicit confirmation, remains awaiting confirmation over restart, then promotes atomically. Configured-server certification remains. Then run `tool/check.sh`.
+4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. **Implemented except the 60-minute idle stress:** the target-lane clone gate has passed online and offline Home/Library/Liked browsing plus clean restart with inspected Liked/Settings screenshots. `tool/manual_discovery_diagnostics.sh` certifies unchanged-cursor album discovery; `tool/repair_confirmation_diagnostics.sh` certifies that a 61,503-row deletion candidate does not alter the committed catalog before explicit confirmation, remains awaiting confirmation over restart, then promotes atomically. `tool/sync_diagnostics.sh clone` completed the configured-server isolated lifecycle, interruption/restart, active-playback and repeated-repair sequence with an unchanged converged catalog. Then run `tool/check.sh`.
 
 Current certification evidence: focused engine, coordinator, DAO, migration,
 controller, Home, Library, and Settings suites pass. The controller regression
