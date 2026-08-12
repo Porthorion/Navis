@@ -154,7 +154,16 @@ Last updated: 2026-08-12
   candidate through restart, then verified the explicit promotion's stored
   `1,714/5,463/54,327 → 2/1/1` aggregate counts and `54,327` removed songs
   through the authenticated app API. Both awaiting and promoted Sync Settings
-  screenshots were opened and inspected; logs had no hard-fail pattern.)
+  screenshots were opened and inspected; logs had no hard-fail pattern. Sync
+  Settings now streams the same durable ledger and presents the newest operation
+  with actual removals rather than allowing a later no-op promotion to hide the
+  explanation; its widget regression covers that ordering contract. The
+  isolated Linux repair gate was rerun at
+  `build/repair-confirmation-diagnostics/20260812T165729Z-clone`: its
+  authenticated ledger reported the same `1,714/5,463/54,327 → 2/1/1`
+  promotion, and the opened promoted Sync Settings capture visibly reports
+  the matching `1,713/5,463/54,327` removal summary without clipping. Both
+  app runs cleanly restarted; log review found no hard-fail pattern.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

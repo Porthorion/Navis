@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -36,6 +39,11 @@ class SyncSettingsScreen extends ConsumerWidget {
     final awaitingDeletionConfirmation =
         syncState.candidateStatus == 'awaitingDeletionConfirmation' &&
         syncState.deletionCandidateCount > 0;
+    final destructiveOperation = _lastDestructiveOperation(
+      l10n,
+      ref.watch(librarySyncOperationLedgerProvider).asData?.value ??
+          const <LibrarySyncOperationLedgerTableData>[],
+    );
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.syncSettingsTitle)),
@@ -169,6 +177,26 @@ class SyncSettingsScreen extends ConsumerWidget {
                       l10n.syncSettingsIdentitySummary(
                         syncState.canonicalizedSongCount,
                         syncState.ambiguousMatchCount,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (destructiveOperation != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsLastLibraryChangeLabel,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      destructiveOperation.summary,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Text(
+                      _formatTimestamp(
+                        context,
+                        l10n,
+                        destructiveOperation.occurredAt,
                       ),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
@@ -558,4 +586,94 @@ class SyncSettingsScreen extends ConsumerWidget {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
+
+  _DestructiveOperation? _lastDestructiveOperation(
+    AppLocalizations l10n,
+    List<LibrarySyncOperationLedgerTableData> operations,
+  ) {
+    for (final operation in operations) {
+      final removed = _removedCounts(operation.detailsJson);
+      if (removed == null || removed.total == 0) {
+        continue;
+      }
+      final summary = switch (operation.operation) {
+        'catalogPromotion' => l10n.syncSettingsCatalogPromotionRemovalSummary(
+          removed.artists,
+          removed.albums,
+          removed.songs,
+        ),
+        'starredReconciliation' =>
+          l10n.syncSettingsStarredReconciliationRemovalSummary(
+            removed.artists,
+            removed.albums,
+            removed.songs,
+          ),
+        _ => null,
+      };
+      if (summary != null) {
+        return _DestructiveOperation(
+          summary: summary,
+          occurredAt: operation.occurredAt,
+        );
+      }
+    }
+    return null;
+  }
+
+  _OperationCounts? _removedCounts(String detailsJson) {
+    try {
+      final decoded = jsonDecode(detailsJson);
+      if (decoded is! Map<String, Object?>) {
+        return null;
+      }
+      final removed = decoded['removed'];
+      if (removed is! Map<String, Object?>) {
+        return null;
+      }
+      return _OperationCounts(
+        artists: _asCount(removed['artists']),
+        albums: _asCount(removed['albums']),
+        songs: _asCount(removed['songs']),
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  int _asCount(Object? value) {
+    if (value is int) {
+      return value < 0 ? 0 : value;
+    }
+    if (value is num) {
+      return value < 0 ? 0 : value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
+}
+
+class _DestructiveOperation {
+  const _DestructiveOperation({
+    required this.summary,
+    required this.occurredAt,
+  });
+
+  final String summary;
+  final DateTime occurredAt;
+}
+
+class _OperationCounts {
+  const _OperationCounts({
+    required this.artists,
+    required this.albums,
+    required this.songs,
+  });
+
+  final int artists;
+  final int albums;
+  final int songs;
+
+  int get total => artists + albums + songs;
 }

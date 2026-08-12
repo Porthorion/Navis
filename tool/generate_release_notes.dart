@@ -116,6 +116,10 @@ const List<_Version> _changelogs = [
       'A partial server artist response can no longer remove an existing offline album during an incremental sync',
       type: _EntryType.fix,
     ),
+    _Entry(
+      'Sync Settings now shows the latest safe library removal and its aggregate counts, even after later no-op checks',
+      type: _EntryType.improvement,
+    ),
   ]),
   _Version('1.2.3', [
     _Entry('Loving you is as easy as 123'),

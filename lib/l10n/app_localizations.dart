@@ -520,6 +520,32 @@ abstract class AppLocalizations {
   /// **'Genres'**
   String get syncSettingsLastGenresUpdateLabel;
 
+  /// No description provided for @syncSettingsLastLibraryChangeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Last library change'**
+  String get syncSettingsLastLibraryChangeLabel;
+
+  /// No description provided for @syncSettingsCatalogPromotionRemovalSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Catalog promotion removed {artists} artist(s), {albums} album(s), and {songs} song(s).'**
+  String syncSettingsCatalogPromotionRemovalSummary(
+    Object artists,
+    Object albums,
+    Object songs,
+  );
+
+  /// No description provided for @syncSettingsStarredReconciliationRemovalSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed server update removed {artists} artist(s), {albums} album(s), and {songs} song(s) from Liked.'**
+  String syncSettingsStarredReconciliationRemovalSummary(
+    Object artists,
+    Object albums,
+    Object songs,
+  );
+
   /// No description provided for @syncSettingsDegradation.
   ///
   /// In en, this message translates to:

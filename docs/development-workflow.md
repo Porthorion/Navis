@@ -160,7 +160,9 @@ restart, then verifies that only the explicit confirming repair request
 promotes the candidate and that the durable operation ledger records matching
 safe before/after/removal counts. It is required after changing repair
 promotion, deletion analysis, ledger recording, or the confirmation
-presentation.
+presentation. Open the resulting Sync Settings screenshot and verify the
+`Last library change` summary matches the authenticated ledger counts; a later
+no-op operation must not displace that destructive-operation explanation.
 
 The endpoint's local `/library#section` destinations are deliberately mapped to
 the production `librarySectionProvider`, matching the desktop rail and

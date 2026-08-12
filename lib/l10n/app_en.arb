@@ -75,6 +75,23 @@
   "syncSettingsLastCatalogUpdateLabel": "Last catalog update",
   "syncSettingsLastAuxiliaryUpdateLabel": "Starred and playlist headers",
   "syncSettingsLastGenresUpdateLabel": "Genres",
+  "syncSettingsLastLibraryChangeLabel": "Last library change",
+  "syncSettingsCatalogPromotionRemovalSummary": "Catalog promotion removed {artists} artist(s), {albums} album(s), and {songs} song(s).",
+  "@syncSettingsCatalogPromotionRemovalSummary": {
+    "placeholders": {
+      "artists": {},
+      "albums": {},
+      "songs": {}
+    }
+  },
+  "syncSettingsStarredReconciliationRemovalSummary": "Confirmed server update removed {artists} artist(s), {albums} album(s), and {songs} song(s) from Liked.",
+  "@syncSettingsStarredReconciliationRemovalSummary": {
+    "placeholders": {
+      "artists": {},
+      "albums": {},
+      "songs": {}
+    }
+  },
   "syncSettingsDegradation": "Degraded domain: {category}",
   "@syncSettingsDegradation": {
     "placeholders": {

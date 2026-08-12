@@ -768,7 +768,9 @@ DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyn
   promotion and confirmed-starred-absence mutations per server. Each entry is
   written in the same transaction as its change and includes only reason,
   timestamp, and before/after/removal counts; never IDs, names, URLs, paths,
-  or credentials.
+  or credentials. Sync Settings reads this durable ledger and shows the newest
+  operation that actually removed local rows, so a later no-op check cannot
+  erase the user-visible explanation for a disappearance.
 - `server_config.is_authenticated` separates the retained non-secret
   server/account profile from an active credential session. Profile identity
   is normalized base URL plus trimmed username; same-profile login updates the

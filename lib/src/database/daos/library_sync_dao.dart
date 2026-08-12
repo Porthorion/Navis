@@ -79,6 +79,26 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         .get();
   }
 
+  /// Emits the newest safe operation summaries for one retained server.
+  ///
+  /// The Settings screen uses this rather than controller state so a catalog
+  /// change remains explainable after an app restart or a later no-op check.
+  Stream<List<LibrarySyncOperationLedgerTableData>>
+  watchRecentOperationLedgerEntries(
+    int serverId, {
+    int limit = 50,
+  }) {
+    final safeLimit = limit.clamp(1, 50);
+    return (select(librarySyncOperationLedgerTable)
+          ..where((table) => table.serverId.equals(serverId))
+          ..orderBy([
+            (table) => OrderingTerm.desc(table.occurredAt),
+            (table) => OrderingTerm.desc(table.id),
+          ])
+          ..limit(safeLimit))
+        .watch();
+  }
+
   /// Records absent locally-starred IDs and returns only those observed absent
   /// by two independent successful server snapshots.
   Future<Set<String>> observeStarredAbsences({

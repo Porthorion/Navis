@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -62,6 +63,94 @@ class _FakeLibrarySyncController extends LibrarySyncController {
 }
 
 void main() {
+  testWidgets('shows the latest destructive library change from the ledger', (
+    tester,
+  ) async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final serverId = await database
+        .into(database.serverConfigTable)
+        .insert(
+          ServerConfigTableCompanion.insert(
+            url: 'https://example.com',
+            username: 'alice',
+            apiVersion: '1.16.1',
+          ),
+        );
+    await database.librarySyncDao.recordOperationLedgerEntry(
+      serverId: serverId,
+      operation: 'catalogPromotion',
+      reason: 'validatedFullCandidate',
+      occurredAt: DateTime.utc(2026, 2, 20, 12),
+      details: const <String, Object?>{
+        'removed': <String, int>{'artists': 3, 'albums': 4, 'songs': 5},
+      },
+    );
+    // A later no-op promotion must not hide the last operation that actually
+    // changed the offline catalog.
+    await database.librarySyncDao.recordOperationLedgerEntry(
+      serverId: serverId,
+      operation: 'catalogPromotion',
+      reason: 'validatedFullCandidate',
+      occurredAt: DateTime.utc(2026, 2, 20, 13),
+      details: const <String, Object?>{
+        'removed': <String, int>{'artists': 0, 'albums': 0, 'songs': 0},
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...withTestDatabase(database),
+          serverConfigStateProvider.overrideWithValue(
+            AsyncData(
+              ServerConfigModel(
+                id: serverId,
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              stateValue: LibrarySyncState.idle(),
+            ),
+          ),
+          syncNetworkPolicyProvider.overrideWith(
+            (_) => const SyncNetworkPolicy(
+              networkType: NetworkType.wifi,
+              isMetered: false,
+              allowsBackgroundSync: true,
+              allowsHardProbe: true,
+              allowsInteractiveHydration: true,
+            ),
+          ),
+          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+        ],
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SyncSettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Last library change'), findsOneWidget);
+    expect(
+      find.text(
+        'Catalog promotion removed 3 artist(s), 4 album(s), and 5 song(s).',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
   testWidgets('renders last synced and triggers force full sync', (
     tester,
   ) async {

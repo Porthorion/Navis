@@ -238,6 +238,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsLastGenresUpdateLabel => 'Genres';
 
   @override
+  String get syncSettingsLastLibraryChangeLabel => 'Last library change';
+
+  @override
+  String syncSettingsCatalogPromotionRemovalSummary(
+    Object artists,
+    Object albums,
+    Object songs,
+  ) {
+    return 'Catalog promotion removed $artists artist(s), $albums album(s), and $songs song(s).';
+  }
+
+  @override
+  String syncSettingsStarredReconciliationRemovalSummary(
+    Object artists,
+    Object albums,
+    Object songs,
+  ) {
+    return 'Confirmed server update removed $artists artist(s), $albums album(s), and $songs song(s) from Liked.';
+  }
+
+  @override
   String syncSettingsDegradation(Object category) {
     return 'Degraded domain: $category';
   }

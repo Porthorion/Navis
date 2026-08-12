@@ -87,6 +87,9 @@ Located in `lib/src/providers/app_providers.dart`:
   committed with the mutation and contains only reason, timestamp and
   before/after/removal counts. Diagnostics may expose this redacted evidence;
   no entity IDs, titles, URLs, filesystem paths, or credentials are stored.
+  Sync Settings streams the ledger and presents the latest operation that
+  actually removed local rows, rather than the merely latest sync, so a
+  following no-op check does not hide the cause of a visible disappearance.
 - Automatic catalog checks use the per-server durable
   `library_sync_state.next_automatic_check_at` deadline. The controller owns
   one foreground one-shot timer that re-arms from that value; startup,

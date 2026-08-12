@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -53,6 +54,29 @@ final syncStaleAfterProvider = Provider<Duration>((ref) {
   final toleranceSeconds = (minutes * 60 * 0.05).round().clamp(10, 120);
   return Duration(seconds: minutes * 60 - toleranceSeconds);
 });
+
+/// Durable, server-scoped mutation evidence for Sync Settings.
+///
+/// This deliberately reads the operation ledger directly instead of keeping a
+/// second in-memory history in the controller: a successful promotion must
+/// remain explainable across navigation and process restarts.
+final librarySyncOperationLedgerProvider =
+    StreamProvider<List<LibrarySyncOperationLedgerTableData>>((ref) {
+      final serverId = ref.watch(
+        serverConfigStateProvider.select(
+          (config) => config.asData?.value?.id,
+        ),
+      );
+      if (serverId == null) {
+        return Stream<List<LibrarySyncOperationLedgerTableData>>.value(
+          const <LibrarySyncOperationLedgerTableData>[],
+        );
+      }
+      return ref
+          .watch(navisDatabaseProvider)
+          .librarySyncDao
+          .watchRecentOperationLedgerEntries(serverId);
+    });
 
 final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
   return const SystemLibrarySyncNotifier();

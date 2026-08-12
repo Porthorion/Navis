@@ -89,6 +89,10 @@ const List<ChangelogVersion> changelogs = [
         'A partial server artist response can no longer remove an existing offline album during an incremental sync',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Sync Settings now shows the latest safe library removal and its aggregate counts, even after later no-op checks',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(
