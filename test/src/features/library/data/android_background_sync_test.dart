@@ -12,7 +12,8 @@ void main() {
   const channel = MethodChannel('com.navis.app/background_sync');
 
   tearDown(() {
-    channel.setMockMethodCallHandler(null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
   });
 
   test('profile key is stable across harmless server URL normalization', () {
@@ -37,15 +38,16 @@ void main() {
   test('scheduler sends only opaque scheduling data to native code', () async {
     final profileKey = 'a'.padRight(32, 'a');
     MethodCall? captured;
-    channel.setMockMethodCallHandler((call) async {
-      captured = call;
-      return <String, Object>{
-        'available': true,
-        'state': 'scheduled',
-        'workId': '76bceb9a-6e54-4f78-a07c-f5c33c2b591c',
-        'attemptCount': 0,
-      };
-    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          captured = call;
+          return <String, Object>{
+            'available': true,
+            'state': 'scheduled',
+            'workId': '76bceb9a-6e54-4f78-a07c-f5c33c2b591c',
+            'attemptCount': 0,
+          };
+        });
     final scheduler = AndroidBackgroundSyncScheduler(
       channel: channel,
       supported: true,
@@ -83,15 +85,16 @@ void main() {
         serverId: 1,
         enabled: true,
       );
-      channel.setMockMethodCallHandler((call) async {
-        expect(call.method, 'configurePeriodic');
-        return <String, Object>{
-          'available': true,
-          'state': 'scheduled',
-          'workId': '76bceb9a-6e54-4f78-a07c-f5c33c2b591c',
-          'attemptCount': 2,
-        };
-      });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            expect(call.method, 'configurePeriodic');
+            return <String, Object>{
+              'available': true,
+              'state': 'scheduled',
+              'workId': '76bceb9a-6e54-4f78-a07c-f5c33c2b591c',
+              'attemptCount': 2,
+            };
+          });
       final reconciler = AndroidBackgroundSyncReconciler(
         database: database,
         scheduler: AndroidBackgroundSyncScheduler(

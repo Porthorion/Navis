@@ -3,15 +3,16 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
-import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_cost_bridge.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
@@ -29,7 +30,10 @@ Future<void> navisBackgroundSyncEntrypoint() async {
   _backgroundSyncChannel.setMethodCallHandler((call) async {
     switch (call.method) {
       case 'runAutomaticBackgroundSync':
-        return runner.run();
+        final arguments = call.arguments;
+        final hasActivePlayback =
+            arguments is Map && arguments['hasActivePlayback'] == true;
+        return runner.run(hasActivePlayback: hasActivePlayback);
       case 'cancel':
         await runner.cancel();
         return true;
@@ -51,10 +55,12 @@ class _HeadlessBackgroundSyncRunner {
   Future<Map<String, Object?>>? _running;
   AdaptiveLibrarySyncCoordinator? _coordinator;
 
-  Future<Map<String, Object?>> run() {
-    return _running ??= _run().whenComplete(() {
-      _running = null;
-    });
+  Future<Map<String, Object?>> run({required bool hasActivePlayback}) {
+    return _running ??= _run(hasActivePlayback: hasActivePlayback).whenComplete(
+      () {
+        _running = null;
+      },
+    );
   }
 
   Future<void> cancel() async {
@@ -64,8 +70,9 @@ class _HeadlessBackgroundSyncRunner {
     }
   }
 
-  Future<Map<String, Object?>> _run() async {
-    final database = NavisDatabase();
+  Future<Map<String, Object?>> _run({required bool hasActivePlayback}) async {
+    final container = ProviderContainer();
+    final database = container.read(navisDatabaseProvider);
     SubsonicApiClient? client;
     int? activeServerId;
     try {
@@ -88,6 +95,15 @@ class _HeadlessBackgroundSyncRunner {
         return _result('credentialUnavailable');
       }
       activeServerId = config.id;
+
+      if (hasActivePlayback) {
+        await database.librarySyncDao.writeAndroidBackgroundStatus(
+          serverId: config.id!,
+          workerCompletedAt: DateTime.now(),
+          workerResult: 'deferredPolicy',
+        );
+        return _result('deferredPolicy');
+      }
 
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,
@@ -210,7 +226,7 @@ class _HeadlessBackgroundSyncRunner {
     } finally {
       _coordinator = null;
       client?.close(force: true);
-      await database.close();
+      container.dispose();
     }
   }
 

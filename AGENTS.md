@@ -227,6 +227,7 @@ These strings in test output cause `check.sh` to fail:
 | Desktop audio | just_audio_media_kit | ^2.1.0 |
 | Linux media | dbus | ^0.7.10 |
 | Windows media | smtc_windows | ^1.1.0 |
+| Android scheduling | androidx.work:work-runtime-ktx | 2.11.2 |
 
 **Providers are hand-written** (`NotifierProvider`, `Provider`, `StreamProvider`, etc.) — **not** `@riverpod` codegen. `riverpod_generator` is not in `pubspec.yaml`.
 
@@ -502,6 +503,17 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   memberships, prune only IDs absent from the authoritative header list, and
   enqueue new or changed playlist contents as durable targeted hydration.
 - Automatic library sync is **low-data by default** after initial sync.
+- Android automatic sync is scheduled through one WorkManager periodic request
+  per opaque profile key, not the foreground timer. It uses `UPDATE`, an
+  unmetered or connected constraint matching the durable policy, and a
+  separate `KEEP` catch-up request. Its headless Dart entrypoint runs the same
+  planner/coordinator with `androidWorker` execution ownership; it must never
+  bootstrap UI, audio, playback, notifications, or diagnostics. The
+  `library_sync_execution_lease` serializes the headless engine with the
+  foreground controller, while redacted WorkManager observations remain on
+  `library_sync_state`. The durable Android-only capability flag defaults off
+  and is enabled for internal builds only with
+  `NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC=true`.
 - Automatic broad catalog work defers while Navis is backgrounded or playing;
   an explicit user refresh may resume queued broad work in the foreground so a
   requested refresh is not silently postponed behind it.
@@ -749,8 +761,8 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 64 |
-| **Tables** | 30 |
+| **Schema version** | 65 |
+| **Tables** | 31 |
 | **DAOs** | 16 |
 
 DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyncCandidateDao`, `SongIdentityDao`, `PlaylistDao`, `CacheDao`, `DownloadQueueDao`, `HistoryDao`, `PlayQueueDao`, `MatchFlowDao`, `ScrobbleDao`, `StarSyncDao`, `ListenBrainzFeedbackDao`, `NetworkUsageDao`.
@@ -771,6 +783,12 @@ DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyn
   or credentials. Sync Settings reads this durable ledger and shows the newest
   operation that actually removed local rows, so a later no-op check cannot
   erase the user-visible explanation for a disappearance.
+- `library_sync_execution_lease` provides one expiring, heartbeat-renewed
+  broad-sync owner per server across foreground and Android headless Flutter
+  engines. Only the holder may renew or release it. Android schedule and
+  worker observations are fields on `library_sync_state`; they contain only
+  requested interval, opaque WorkManager ID/state/attempts, timing, and a
+  bounded terminal/stop category.
 - `server_config.is_authenticated` separates the retained non-secret
   server/account profile from an active credential session. Profile identity
   is normalized base URL plus trimmed username; same-profile login updates the
@@ -936,7 +954,7 @@ Commits reference issues as `fix(#N):` or `(issue #N)`.
 | **macOS release** | Native Control Centre bridge (`MPRemoteCommandCenter`) still pending |
 | **Linux** | MPRIS via the app-owned `dbus` bridge |
 | **Windows** | SMTC via `smtc_windows` |
-| **Android** | `audio_service` media session and Android Auto phone projection in `features/auto/`; manifest service class must remain the canonical plugin `AudioService` |
+| **Android** | `audio_service` media session and Android Auto phone projection in `features/auto/`; constrained WorkManager background library sync is internally gated and uses a headless Dart entrypoint; manifest service class must remain the canonical plugin `AudioService` |
 | **iOS** | CarPlay and media-session parity under audit |
 | **Listen Together** | Retired; no active UI files remain and no Voyage sibling repo is required |
 

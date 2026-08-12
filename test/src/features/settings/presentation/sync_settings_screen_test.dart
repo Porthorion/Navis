@@ -238,6 +238,86 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('shows redacted Android background schedule state', (
+    tester,
+  ) async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final serverId = await database
+        .into(database.serverConfigTable)
+        .insert(
+          ServerConfigTableCompanion.insert(
+            url: 'https://example.com',
+            username: 'alice',
+            apiVersion: '1.16.1',
+          ),
+        );
+    await database.librarySyncDao.setAndroidBackgroundSyncEnabled(
+      serverId: serverId,
+      enabled: true,
+    );
+    await database.librarySyncDao.writeAndroidBackgroundStatus(
+      serverId: serverId,
+      requestedIntervalMinutes: 60,
+      workState: 'blocked',
+      workerCompletedAt: DateTime.utc(2026, 8, 12, 10),
+      workerResult: 'deferredPolicy',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...withTestDatabase(database),
+          serverConfigStateProvider.overrideWithValue(
+            AsyncData(
+              ServerConfigModel(
+                id: serverId,
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              stateValue: LibrarySyncState.idle(),
+            ),
+          ),
+          androidBackgroundSyncAvailableProvider.overrideWith((_) => true),
+          syncNetworkPolicyProvider.overrideWith(
+            (_) => const SyncNetworkPolicy(
+              networkType: NetworkType.wifi,
+              isMetered: false,
+              allowsBackgroundSync: true,
+              allowsHardProbe: true,
+              allowsInteractiveHydration: true,
+            ),
+          ),
+          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+        ],
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SyncSettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Android background sync'), findsOneWidget);
+    expect(
+      find.textContaining('Requested cadence: every 60 minutes'),
+      findsOneWidget,
+    );
+    expect(find.text('Waiting for an unmetered network.'), findsOneWidget);
+    expect(find.text('Outcome: deferred policy'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
   testWidgets('shows mobile data sync action when updates are deferred', (
     tester,
   ) async {

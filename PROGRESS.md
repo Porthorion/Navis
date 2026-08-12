@@ -165,13 +165,20 @@ Last updated: 2026-08-12
   the matching `1,713/5,463/54,327` removal summary without clipping. Both
   app runs cleanly restarted; log review found no hard-fail pattern.)
 
-- [ ] Android persistent background sync — planned: 2026-08-12 (source of
-  truth: `docs/android-background-sync-recovery-plan.md`; the current
-  foreground-only timer is intentionally cancelled when Android backgrounds
-  Navis, so it cannot survive process death. The plan specifies WorkManager,
-  headless Dart execution, cross-engine SQLite leasing, redacted platform
-  diagnostics, and physical-device certification. No Android background worker
-  is implemented yet.)
+- [ ] Android persistent background sync — partial: 2026-08-12 (implemented
+  source: `docs/android-background-sync-recovery-plan.md`; schema v65 adds an
+  expiring heartbeat SQLite execution lease plus redacted Android scheduler and
+  worker state; WorkManager 2.11.2 now owns one opaque-keyed periodic `UPDATE`
+  request and one `KEEP` catch-up request; the worker registers plugins and
+  invokes a retained UI-free Dart entrypoint that uses the existing planner,
+  coordinator, durable work queue, operation ledger, and network policy.
+  Sync Settings shows requested eventual cadence, unmetered wait, and safe
+  terminal state. Focused DAO/migration/coordinator/bridge/widget tests,
+  Android scheduler unit tests, and `:app:testSideloadDebugUnitTest` pass.
+  Remaining: required Android 12/14/current-target physical-device matrix
+  (constraint hold/release, swipe-away, process death, reboot, foreground
+  overlap, metered, playback/repair, stop) plus authenticated app-API and
+  inspected Sync Settings screenshot evidence before default enablement.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

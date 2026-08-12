@@ -88,6 +88,10 @@ final androidBackgroundSyncSchedulerProvider =
       return AndroidBackgroundSyncScheduler();
     });
 
+final androidBackgroundSyncAvailableProvider = Provider<bool>((ref) {
+  return AndroidBackgroundSyncScheduler.isSupported;
+});
+
 final androidBackgroundSyncReconcilerProvider =
     Provider<AndroidBackgroundSyncReconciler>((ref) {
       return AndroidBackgroundSyncReconciler(
@@ -315,11 +319,16 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         }
       },
     );
-    ref.listen<bool>(backgroundSyncUnmeteredOnlyProvider, (previous, next) {
-      if (previous != null && previous != next) {
-        unawaited(_reconcileAndroidBackgroundSchedule());
-      }
-    });
+    // Do not create the app-settings-backed network-policy provider on other
+    // platforms. Besides avoiding needless database work, this preserves the
+    // controller's test and desktop lifecycle without a mobile scheduler.
+    if (ref.read(androidBackgroundSyncAvailableProvider)) {
+      ref.listen<bool>(backgroundSyncUnmeteredOnlyProvider, (previous, next) {
+        if (previous != null && previous != next) {
+          unawaited(_reconcileAndroidBackgroundSchedule());
+        }
+      });
+    }
     ref.listen<NetworkType>(networkTypeProvider, (previous, next) {
       final becameAvailable =
           previous == NetworkType.offline && next != NetworkType.offline;
@@ -588,6 +597,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   Future<void> _reconcileAndroidBackgroundSchedule([
     ServerConfigModel? config,
   ]) async {
+    if (!ref.read(androidBackgroundSyncAvailableProvider)) {
+      return;
+    }
     final active = config ?? ref.read(serverConfigStateProvider).asData?.value;
     if (active == null || !ref.mounted) {
       return;

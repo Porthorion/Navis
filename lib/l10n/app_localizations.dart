@@ -526,6 +526,54 @@ abstract class AppLocalizations {
   /// **'Last library change'**
   String get syncSettingsLastLibraryChangeLabel;
 
+  /// No description provided for @syncSettingsAndroidBackgroundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Android background sync'**
+  String get syncSettingsAndroidBackgroundTitle;
+
+  /// No description provided for @syncSettingsAndroidBackgroundDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled for this app build.'**
+  String get syncSettingsAndroidBackgroundDisabled;
+
+  /// No description provided for @syncSettingsAndroidBackgroundManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual-only sync has no Android background schedule.'**
+  String get syncSettingsAndroidBackgroundManual;
+
+  /// No description provided for @syncSettingsAndroidBackgroundCadence.
+  ///
+  /// In en, this message translates to:
+  /// **'Requested cadence: every {minutes} minutes. Android may delay runs to meet system conditions.'**
+  String syncSettingsAndroidBackgroundCadence(Object minutes);
+
+  /// No description provided for @syncSettingsAndroidBackgroundLastAttempt.
+  ///
+  /// In en, this message translates to:
+  /// **'Last Android attempt'**
+  String get syncSettingsAndroidBackgroundLastAttempt;
+
+  /// No description provided for @syncSettingsAndroidBackgroundNoAttempt.
+  ///
+  /// In en, this message translates to:
+  /// **'No Android attempt recorded yet.'**
+  String get syncSettingsAndroidBackgroundNoAttempt;
+
+  /// No description provided for @syncSettingsAndroidBackgroundWaitingUnmetered.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for an unmetered network.'**
+  String get syncSettingsAndroidBackgroundWaitingUnmetered;
+
+  /// No description provided for @syncSettingsAndroidBackgroundOutcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Outcome: {outcome}'**
+  String syncSettingsAndroidBackgroundOutcome(Object outcome);
+
   /// No description provided for @syncSettingsCatalogPromotionRemovalSummary.
   ///
   /// In en, this message translates to:

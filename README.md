@@ -6,7 +6,7 @@ Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library br
 
 | Platform | Status | Notes |
 |---|---|---|
-| Android | Supported | Primary mobile target; `audio_service` media session plus Android Auto phone projection |
+| Android | Supported | Primary mobile target; `audio_service` media session, Android Auto phone projection, and internally gated WorkManager library-sync recovery |
 | iOS | Supported | Built from macOS/Xcode; playback path active, CarPlay and media-session parity still under audit |
 | macOS | Supported | Native desktop build with adaptive shell and shortcuts; native Control Centre bridge still pending |
 | Linux | Supported | Native desktop build with adaptive shell, shortcuts, and MPRIS integration |
@@ -28,6 +28,10 @@ Minimum tested versions:
   items, playlist headers, and changed playlist contents. Full repairs compare
   hidden catalog pages first and apply only actual changes, keeping memory and
   the final visibility switch bounded.
+- Android uses constrained WorkManager scheduling for eventual automatic
+  library checks after normal process death. It respects the sync network
+  preference and never promises an exact run time; this capability is enabled
+  gradually for internal testing.
 - Gapless/background playback and lock-screen controls
 - Queue management, instant mix, and smart queue behaviors
 - Synced/unsynced lyrics with full-screen now playing
@@ -58,6 +62,7 @@ Minimum tested versions:
 | Navigation | go_router | ^17.1.0 |
 | Local database | drift + drift_flutter | ^2.32.1 |
 | Audio playback | just_audio + audio_service | ^0.10.5 / ^0.18.18 |
+| Android background work | WorkManager | 2.11.2 |
 | Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.12.0 |
 | Linux desktop media | dbus | ^0.7.10 |
 | Windows desktop media | smtc_windows | ^1.1.0 |

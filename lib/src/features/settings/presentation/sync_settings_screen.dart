@@ -44,6 +44,13 @@ class SyncSettingsScreen extends ConsumerWidget {
       ref.watch(librarySyncOperationLedgerProvider).asData?.value ??
           const <LibrarySyncOperationLedgerTableData>[],
     );
+    final androidBackgroundState = ref
+        .watch(androidBackgroundSyncStatusProvider)
+        .asData
+        ?.value;
+    final androidBackgroundAvailable = ref.watch(
+      androidBackgroundSyncAvailableProvider,
+    );
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.syncSettingsTitle)),
@@ -267,6 +274,80 @@ class SyncSettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
+
+          if (androidBackgroundAvailable && serverConfig != null) ...<Widget>[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      l10n.syncSettingsAndroidBackgroundTitle,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    if (androidBackgroundState?.androidBackgroundSyncEnabled !=
+                        true)
+                      Text(
+                        l10n.syncSettingsAndroidBackgroundDisabled,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      )
+                    else if (currentInterval <= 0)
+                      Text(
+                        l10n.syncSettingsAndroidBackgroundManual,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      )
+                    else
+                      Text(
+                        l10n.syncSettingsAndroidBackgroundCadence(
+                          androidBackgroundState
+                                  ?.androidRequestedIntervalMinutes ??
+                              currentInterval,
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    if (androidBackgroundState?.androidWorkState == 'blocked' &&
+                        backgroundUnmeteredOnly) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n.syncSettingsAndroidBackgroundWaitingUnmetered,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsAndroidBackgroundLastAttempt,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Text(
+                      androidBackgroundState?.androidWorkerCompletedAt == null
+                          ? l10n.syncSettingsAndroidBackgroundNoAttempt
+                          : _formatTimestamp(
+                              context,
+                              l10n,
+                              androidBackgroundState!.androidWorkerCompletedAt,
+                            ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    if (androidBackgroundState?.androidWorkerResult !=
+                        null) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.syncSettingsAndroidBackgroundOutcome(
+                          _humanize(
+                            androidBackgroundState!.androidWorkerResult!,
+                          ),
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // ---- Mobile sync guardrails ----
           Card(

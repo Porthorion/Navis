@@ -17,7 +17,21 @@ Located in `lib/src/providers/app_providers.dart`:
   - `connectivityProvider` - Network connectivity state
   - `networkTypeProvider` - Resolved network type (wifi/cellular/offline)
   - `syncNetworkPolicyProvider` - Metering-aware sync policy (background vs
-    interactive vs hard probe eligibility)
+  interactive vs hard probe eligibility)
+
+- **Android background sync**
+  - `androidBackgroundSyncSchedulerProvider` and
+    `androidBackgroundSyncReconcilerProvider` own only native WorkManager
+    scheduling reconciliation; sync domain logic remains in the library
+    planner/coordinator.
+  - `navisBackgroundSyncEntrypoint` is a retained, UI-free headless Dart
+    entrypoint. It loads the active encrypted credentials and builds only the
+    database/API/sync pipeline. It holds the same durable execution lease as
+    foreground catalog work, so a worker cannot overlap a visible sync.
+  - Android scheduler state is durable and redacted: opaque work identifiers,
+    state, attempts, timing, and bounded terminal categories only. Sync
+    Settings presents this as requested eventual cadence, never a guaranteed
+    next OS execution time.
   - `subsonicApiProvider` - Configured Subsonic API client
 
 - **Audio System**

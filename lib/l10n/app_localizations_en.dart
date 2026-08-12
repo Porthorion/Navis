@@ -241,6 +241,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsLastLibraryChangeLabel => 'Last library change';
 
   @override
+  String get syncSettingsAndroidBackgroundTitle => 'Android background sync';
+
+  @override
+  String get syncSettingsAndroidBackgroundDisabled =>
+      'Disabled for this app build.';
+
+  @override
+  String get syncSettingsAndroidBackgroundManual =>
+      'Manual-only sync has no Android background schedule.';
+
+  @override
+  String syncSettingsAndroidBackgroundCadence(Object minutes) {
+    return 'Requested cadence: every $minutes minutes. Android may delay runs to meet system conditions.';
+  }
+
+  @override
+  String get syncSettingsAndroidBackgroundLastAttempt => 'Last Android attempt';
+
+  @override
+  String get syncSettingsAndroidBackgroundNoAttempt =>
+      'No Android attempt recorded yet.';
+
+  @override
+  String get syncSettingsAndroidBackgroundWaitingUnmetered =>
+      'Waiting for an unmetered network.';
+
+  @override
+  String syncSettingsAndroidBackgroundOutcome(Object outcome) {
+    return 'Outcome: $outcome';
+  }
+
+  @override
   String syncSettingsCatalogPromotionRemovalSummary(
     Object artists,
     Object albums,

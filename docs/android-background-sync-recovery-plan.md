@@ -1,6 +1,6 @@
 # Android Background Sync Recovery Plan
 
-**Status:** proposed implementation plan  
+**Status:** implementation complete; physical-device certification pending
 **Owner:** Navis library-sync architecture  
 **Last reviewed:** 2026-08-12  
 **Related:** [sync-reliability-recovery-plan.md](sync-reliability-recovery-plan.md)
@@ -299,6 +299,17 @@ never an automatic prompt.
    enable by default only after the physical-device matrix passes.
 
 ## Required validation
+
+### Implementation status (2026-08-12)
+
+Phases A–D are implemented behind the durable Android-only internal feature
+flag (`NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC=true`): schema v65 adds the
+cross-engine lease and redacted execution status; the Android module uses
+WorkManager 2.11.2; the Worker launches the retained headless Dart entrypoint;
+and Sync Settings renders the requested cadence and latest safe outcome.
+Focused Dart/DAO/widget tests and Android scheduler unit tests pass. The
+physical-device matrix below remains mandatory before the flag is enabled by
+default.
 
 Static tests do not prove Android background behavior. Every implementation
 iteration must include Linux startup smoke plus Android device validation using

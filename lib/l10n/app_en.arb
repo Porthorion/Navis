@@ -76,6 +76,24 @@
   "syncSettingsLastAuxiliaryUpdateLabel": "Starred and playlist headers",
   "syncSettingsLastGenresUpdateLabel": "Genres",
   "syncSettingsLastLibraryChangeLabel": "Last library change",
+  "syncSettingsAndroidBackgroundTitle": "Android background sync",
+  "syncSettingsAndroidBackgroundDisabled": "Disabled for this app build.",
+  "syncSettingsAndroidBackgroundManual": "Manual-only sync has no Android background schedule.",
+  "syncSettingsAndroidBackgroundCadence": "Requested cadence: every {minutes} minutes. Android may delay runs to meet system conditions.",
+  "@syncSettingsAndroidBackgroundCadence": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "syncSettingsAndroidBackgroundLastAttempt": "Last Android attempt",
+  "syncSettingsAndroidBackgroundNoAttempt": "No Android attempt recorded yet.",
+  "syncSettingsAndroidBackgroundWaitingUnmetered": "Waiting for an unmetered network.",
+  "syncSettingsAndroidBackgroundOutcome": "Outcome: {outcome}",
+  "@syncSettingsAndroidBackgroundOutcome": {
+    "placeholders": {
+      "outcome": {}
+    }
+  },
   "syncSettingsCatalogPromotionRemovalSummary": "Catalog promotion removed {artists} artist(s), {albums} album(s), and {songs} song(s).",
   "@syncSettingsCatalogPromotionRemovalSummary": {
     "placeholders": {

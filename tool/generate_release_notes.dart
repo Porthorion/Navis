@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.4', [
     _Entry(
+      'Android can now recover eligible automatic library checks through the system scheduler after the app process exits, with Sync Settings showing the requested cadence and safe outcome',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Check for updates now always looks for recent new albums, even when a server reports no artist-library change',
       type: _EntryType.fix,
     ),

@@ -1,6 +1,7 @@
 package com.navis.app.navis
 
 import android.content.Context
+import android.media.AudioManager
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.WorkerParameters
@@ -52,7 +53,10 @@ class NavisBackgroundSyncWorker(
             )
             withTimeout(engineReadyTimeoutMillis) { ready.await() }
             val response = withTimeout(workerTimeoutMillis) {
-                channel.invokeMapMethod("runAutomaticBackgroundSync")
+                channel.invokeMapMethod(
+                    "runAutomaticBackgroundSync",
+                    mapOf("hasActivePlayback" to isMusicActive()),
+                )
             }
             when (response?.get("category") as? String) {
                 "transientFailure" -> Result.retry()
@@ -95,11 +99,19 @@ class NavisBackgroundSyncWorker(
             .putString(profileKeyDataKey, profileKey)
             .build()
     }
+
+    private fun isMusicActive(): Boolean {
+        val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return audioManager.isMusicActive
+    }
 }
 
-private suspend fun MethodChannel.invokeMapMethod(method: String): Map<String, Any?>? =
+private suspend fun MethodChannel.invokeMapMethod(
+    method: String,
+    arguments: Any? = null,
+): Map<String, Any?>? =
     suspendCancellableCoroutine { continuation ->
-        invokeMethod(method, null, object : MethodChannel.Result {
+        invokeMethod(method, arguments, object : MethodChannel.Result {
             override fun success(result: Any?) {
                 @Suppress("UNCHECKED_CAST")
                 continuation.resume(result as? Map<String, Any?>)
