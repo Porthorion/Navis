@@ -55,6 +55,8 @@ class SyncDiagnosticsServer {
     required this.handshakePath,
     required this.onShutdown,
     this.presentationController,
+    this.androidHandshakePublisher,
+    this.androidHandshakeClearer,
     DiagnosticsNavigationDriver? navigationDriver,
     Random? random,
   }) : _container = container,
@@ -70,6 +72,9 @@ class SyncDiagnosticsServer {
   final String handshakePath;
   final Future<void> Function() onShutdown;
   final DiagnosticsPresentationController? presentationController;
+  final Future<void> Function(Map<String, Object?> handshake)?
+  androidHandshakePublisher;
+  final Future<void> Function()? androidHandshakeClearer;
   final DiagnosticsNavigationDriver _navigationDriver;
   final Random _random;
   final List<int> _frameMicros = <int>[];
@@ -97,9 +102,9 @@ class SyncDiagnosticsServer {
     if (_server != null) {
       return;
     }
-    _token = base64Url.encode(
-      List<int>.generate(32, (_) => _random.nextInt(256)),
-    );
+    _token = base64Url
+        .encode(List<int>.generate(32, (_) => _random.nextInt(256)))
+        .replaceAll('=', '');
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     _server = server;
     SchedulerBinding.instance.addTimingsCallback(_recordFrameTimings);
@@ -111,19 +116,35 @@ class SyncDiagnosticsServer {
     _playbackFailureSubscription = handler?.loadFailureStream.listen((_) {
       _playbackFailureCount++;
     });
-    await _writeHandshake(server.port);
+    try {
+      await _writeHandshake(server.port);
+    } on Object {
+      await close();
+      rethrow;
+    }
     unawaited(_serve(server));
   }
 
   Future<void> close() async {
+    final server = _server;
+    if (server == null) {
+      return;
+    }
+    _server = null;
     _canaryTimer?.cancel();
+    _canaryTimer = null;
     SchedulerBinding.instance.removeTimingsCallback(_recordFrameTimings);
     await _playbackFailureSubscription?.cancel();
-    await _server?.close(force: true);
-    _server = null;
-    final file = File(handshakePath);
-    if (await file.exists()) {
-      await file.delete();
+    _playbackFailureSubscription = null;
+    await server.close(force: true);
+    final clearer = androidHandshakeClearer;
+    if (clearer != null) {
+      await clearer();
+    } else {
+      final file = File(handshakePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
     }
   }
 
@@ -1894,17 +1915,20 @@ class SyncDiagnosticsServer {
   }
 
   Future<void> _writeHandshake(int port) async {
+    final handshake = <String, Object?>{
+      'port': port,
+      'token': _token,
+      'pid': pid,
+      'mode': mode.name,
+    };
+    final androidPublisher = androidHandshakePublisher;
+    if (androidPublisher != null) {
+      await androidPublisher(handshake);
+      return;
+    }
     final file = File(handshakePath);
     await file.parent.create(recursive: true);
-    await file.writeAsString(
-      jsonEncode(<String, Object?>{
-        'port': port,
-        'token': _token,
-        'pid': pid,
-        'mode': mode.name,
-      }),
-      flush: true,
-    );
+    await file.writeAsString(jsonEncode(handshake), flush: true);
     // Windows has no POSIX chmod executable. More importantly, diagnostics
     // must begin serving after the handshake is written; awaiting a missing
     // Unix command here bound the loopback port without ever starting its

@@ -17,6 +17,7 @@ import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.Locale
 
@@ -28,6 +29,7 @@ class MainActivity : AudioServiceActivity() {
     private val deviceChannelName = "com.navis.app/device"
     private val networkCostChannelName = "com.navis.app/network_cost"
     private val backgroundSyncChannelName = "com.navis.app/background_sync"
+    private val diagnosticsHandshakeChannelName = "com.navis.app/diagnostics_handshake"
     @Volatile
     private var pendingCloseAfterInstallerHandoff = false
 
@@ -173,6 +175,94 @@ class MainActivity : AudioServiceActivity() {
             } catch (_: Exception) {
                 result.error("SCHEDULER_FAILURE", "Native schedule reconciliation failed.", null)
             }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            diagnosticsHandshakeChannelName
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "publish" -> {
+                    val port = call.argument<Int>("port")
+                    val token = call.argument<String>("token")
+                    val pid = call.argument<Int>("pid")
+                    val mode = call.argument<String>("mode")
+                    if (
+                        port == null || port !in 1..65535 ||
+                        token == null || !token.matches(Regex("[A-Za-z0-9_-]{43}")) ||
+                        pid == null || pid < 1 ||
+                        mode !in setOf("clone", "primaryCertification")
+                    ) {
+                        result.error("INVALID_ARGUMENT", "Invalid diagnostics handshake.", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        writeDiagnosticsHandshake(port, token, pid, requireNotNull(mode))
+                        result.success(null)
+                    } catch (_: Exception) {
+                        result.error(
+                            "HANDSHAKE_WRITE_FAILED",
+                            "Could not publish diagnostics handshake.",
+                            null,
+                        )
+                    }
+                }
+                "clear" -> {
+                    try {
+                        clearDiagnosticsHandshake()
+                        result.success(null)
+                    } catch (_: Exception) {
+                        result.error(
+                            "HANDSHAKE_CLEAR_FAILED",
+                            "Could not clear diagnostics handshake.",
+                            null,
+                        )
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun diagnosticsHandshakeFile(): File {
+        val externalFiles = getExternalFilesDir(null)
+            ?: throw IllegalStateException("External app files directory is unavailable")
+        return File(File(externalFiles, "navis-diagnostics"), "handshake.json")
+    }
+
+    private fun writeDiagnosticsHandshake(port: Int, token: String, pid: Int, mode: String) {
+        val target = diagnosticsHandshakeFile()
+        val directory = target.parentFile
+            ?: throw IllegalStateException("Diagnostics handshake directory is unavailable")
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw IllegalStateException("Could not create diagnostics handshake directory")
+        }
+        val temporary = File.createTempFile("handshake-", ".tmp", directory)
+        try {
+            FileOutputStream(temporary).bufferedWriter(Charsets.UTF_8).use { writer ->
+                writer.write(
+                    "{\"port\":$port,\"token\":\"$token\",\"pid\":$pid," +
+                        "\"mode\":\"$mode\"}",
+                )
+                writer.flush()
+            }
+            if (target.exists() && !target.delete()) {
+                throw IllegalStateException("Could not replace diagnostics handshake")
+            }
+            if (!temporary.renameTo(target)) {
+                throw IllegalStateException("Could not publish diagnostics handshake")
+            }
+        } finally {
+            if (temporary.exists()) {
+                temporary.delete()
+            }
+        }
+    }
+
+    private fun clearDiagnosticsHandshake() {
+        val target = diagnosticsHandshakeFile()
+        if (target.exists() && !target.delete()) {
+            throw IllegalStateException("Could not clear diagnostics handshake")
         }
     }
 

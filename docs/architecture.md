@@ -248,10 +248,15 @@ The agent runtime API is a non-production control and observation plane for a
 real Navis process. It complements automated tests; it does not replace the UI
 or introduce a second implementation of feature behavior.
 
-The current implementation starts `SyncDiagnosticsServer` on Linux and Windows:
+The current implementation starts `SyncDiagnosticsServer` on Linux, Windows,
+and Android profile builds:
 
-1. `main.dart` accepts diagnostics only in a Linux or Windows profile build with a valid
-   mode and handshake path.
+1. `main.dart` accepts diagnostics only in a supported profile build with a
+   valid mode and a desktop handshake path when applicable. Android supports
+   read-only `primary-certification` observation with a handshake in the app-specific
+   external files directory; host tooling reaches loopback through `adb
+   forward`. Clone diagnostics remain desktop-only because their isolated
+   database/cache contract is filesystem-owned by the launcher.
 2. Clone mode opens an isolated database and cache tree. Primary certification
    uses the normal profile only with the launcher's backup and mutation
    restrictions.
@@ -259,7 +264,11 @@ The current implementation starts `SyncDiagnosticsServer` on Linux and Windows:
    creates a random bearer token, and writes its port, token, process ID, and
    mode to a handshake file. Linux/macOS profiles apply mode `0600`; Windows
    relies on its per-user diagnostics directory and does not invoke a POSIX
-   permission command before starting the request loop.
+   permission command before starting the request loop. On Android, the host
+   receives the handshake from the app-owned native bridge in
+   `getExternalFilesDir()/navis-diagnostics`; raw Dart I/O cannot create the
+   scoped-storage path. The bridge validates the bounded record and replaces
+   it before the loopback server begins serving.
 4. Authenticated feature actions run through the root `ProviderContainer` and
    the same controllers, repositories, DAOs, and audio handler as production
    interactions. Broad sync actions specifically join the production

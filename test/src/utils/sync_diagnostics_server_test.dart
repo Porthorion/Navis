@@ -52,6 +52,51 @@ void main() {
     expect(authorized.body['schemaVersion'], 65);
   });
 
+  test(
+    'diagnostics server publishes and clears an Android handshake',
+    () async {
+      final database = createTestDatabase();
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWith((ref) => database),
+        ],
+      );
+      final published = <Map<String, Object?>>[];
+      var clearCount = 0;
+      final server = SyncDiagnosticsServer(
+        container: container,
+        mode: SyncDiagnosticsMode.primaryCertification,
+        handshakePath: '/unused/android-handshake.json',
+        androidHandshakePublisher: (handshake) async {
+          published.add(handshake);
+        },
+        androidHandshakeClearer: () async {
+          clearCount++;
+        },
+        onShutdown: () async {},
+      );
+      addTearDown(() async {
+        await server.close();
+        container.dispose();
+        await database.close();
+      });
+
+      await server.start();
+
+      expect(published, hasLength(1));
+      expect(published.single['port'], isA<int>());
+      expect(published.single['pid'], isA<int>());
+      expect(published.single['mode'], 'primaryCertification');
+      expect(
+        published.single['token'],
+        matches(RegExp(r'^[A-Za-z0-9_-]{43}$')),
+      );
+
+      await server.close();
+      expect(clearCount, 1);
+    },
+  );
+
   test('primary certification rejects mutation and cancellation', () async {
     final fixture = await _startFixture(
       SyncDiagnosticsMode.primaryCertification,

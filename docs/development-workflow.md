@@ -207,10 +207,11 @@ unverified or blocked; only the user may explicitly accept deferred validation.
 
 ### Desktop app API
 
-Linux and Windows profile diagnostics share the same control-plane contract:
+Linux, Windows, and Android profile diagnostics share the same authenticated
+control-plane contract. Android is observation-only:
 
-- `SyncDiagnosticsServer` is enabled only for a Linux or Windows profile build with valid
-  diagnostics defines.
+- `SyncDiagnosticsServer` is enabled only for a supported profile build with
+  valid diagnostics defines. Android supports only `primary-certification`.
 - `tool/sync_diagnostics.sh clone` demonstrates the supported isolated launch,
   while `tool/sync_diagnostics.sh throughput` measures one isolated Repair
   Library run without cancellation/restart scenarios affecting its result.
@@ -381,7 +382,9 @@ Every diagnostic or agent-control surface must:
   ephemeral port, and require a random bearer token communicated through a
   handshake file. Linux/macOS profiles apply mode `0600`; Windows profiles use
   their isolated per-user diagnostics directory and must not wait for a POSIX
-  permission command before serving requests.
+  permission command before serving requests. Android publishes the same
+  bounded handshake through an app-owned native bridge to its external-files
+  directory; do not attempt to create `/sdcard/Android/data/...` with Dart I/O.
 - Use an isolated clone of the configured database and cache by default. Use
   primary certification only when explicitly justified, after the clone
   scenario passes, with its backup and mutation restrictions intact.
@@ -681,6 +684,18 @@ and cancellation endpoints, requires the normal Linux database path, and
 retains a timestamped SQLite online backup in
 `~/Documents/navis-certification-backups` unless
 `NAVIS_DIAGNOSTICS_BACKUP_ROOT` overrides that location.
+
+### Android read-only scheduler observation
+
+For a connected Android device, build an isolated profile sidecar with the
+internal background-sync and diagnostics flags. The user must authenticate in
+the sidecar; do not pass credentials as Dart defines or through ADB. The app
+publishes the loopback handshake through `getExternalFilesDir()`; retrieve it
+from `/sdcard/Android/data/<sidecar-package>/files/navis-diagnostics/handshake.json`
+without printing its bearer token, then forward its port with `adb forward`.
+Use the token only for authenticated `GET /v1/sync/status` and `GET /v1/health`
+requests. Android diagnostics supports only `primary-certification`: it is
+observation-only and must not schedule, cancel, or mutate work.
 
 ## MacBook Testing Guide
 

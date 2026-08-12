@@ -100,6 +100,20 @@ android {
             else
                 signingConfigs.getByName("debug")
         }
+        getByName("profile") {
+            // Flutter profile builds are used for authenticated, app-owned
+            // mobile diagnostics. Preserve the sidecar identity here as well
+            // as debug/release so they can never target a user's stable app.
+            if (sidecarAppIdSuffix.isNotEmpty()) {
+                applicationIdSuffix = sidecarAppIdSuffix
+                versionNameSuffix = "-sidecar"
+            }
+            resValue("string", "app_name", sidecarAppName)
+            signingConfig = if (keyPropertiesFile.exists())
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
+        }
         release {
             if (sidecarAppIdSuffix.isNotEmpty()) {
                 applicationIdSuffix = sidecarAppIdSuffix

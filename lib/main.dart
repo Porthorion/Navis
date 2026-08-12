@@ -166,7 +166,7 @@ NavisDatabase? _openDiagnosticsDatabase() {
   }
   if (!_syncDiagnosticsRuntimeEnabled) {
     throw StateError(
-      'Sync diagnostics require a Linux or Windows profile build and a valid mode.',
+      'Sync diagnostics require a supported profile build and a valid mode.',
     );
   }
   if (_syncDiagnosticsMode == SyncDiagnosticsMode.primaryCertification) {
@@ -198,15 +198,22 @@ Future<void> _startSyncDiagnostics({
   required DiagnosticsPresentationController? presentationController,
 }) async {
   final mode = _syncDiagnosticsMode;
-  if (mode == null || _syncDiagnosticsHandshakePath.isEmpty) {
+  if (mode == null ||
+      (!_isAndroidRuntime && _syncDiagnosticsHandshakePath.isEmpty)) {
     throw StateError('Sync diagnostics mode and handshake path are required.');
   }
   late final SyncDiagnosticsServer server;
   server = SyncDiagnosticsServer(
     container: container,
     mode: mode,
-    handshakePath: _syncDiagnosticsHandshakePath,
+    handshakePath: _isAndroidRuntime ? '' : _syncDiagnosticsHandshakePath,
     presentationController: presentationController,
+    androidHandshakePublisher: _isAndroidRuntime
+        ? _publishAndroidDiagnosticsHandshake
+        : null,
+    androidHandshakeClearer: _isAndroidRuntime
+        ? _clearAndroidDiagnosticsHandshake
+        : null,
     onShutdown: () async {
       await server.close();
       runApp(const SizedBox.shrink());
@@ -219,6 +226,22 @@ Future<void> _startSyncDiagnostics({
   await server.start();
   AppLogger.info('Sync diagnostics API started in ${mode.name} mode.');
 }
+
+const MethodChannel _androidDiagnosticsHandshakeChannel = MethodChannel(
+  'com.navis.app/diagnostics_handshake',
+);
+
+Future<void> _publishAndroidDiagnosticsHandshake(
+  Map<String, Object?> handshake,
+) async {
+  await _androidDiagnosticsHandshakeChannel.invokeMethod<void>(
+    'publish',
+    handshake,
+  );
+}
+
+Future<void> _clearAndroidDiagnosticsHandshake() =>
+    _androidDiagnosticsHandshakeChannel.invokeMethod<void>('clear');
 
 DiagnosticsPresentationController? _createDiagnosticsPresentationController() {
   if (!_syncDiagnosticsRuntimeEnabled ||
@@ -246,6 +269,8 @@ bool get _isDesktopRuntime =>
     !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
 bool get _isMobileRuntime => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+bool get _isAndroidRuntime => !kIsWeb && Platform.isAndroid;
 
 Future<void> _unlockMobileOrientations() async {
   if (!_isMobileRuntime) {
@@ -293,7 +318,7 @@ bool get _syncDiagnosticsRuntimeEnabled =>
     _syncDiagnosticsRequested &&
     kProfileMode &&
     !kIsWeb &&
-    (Platform.isLinux || Platform.isWindows) &&
+    (Platform.isLinux || Platform.isWindows || Platform.isAndroid) &&
     _syncDiagnosticsMode != null;
 
 bool get _isCloneBootstrapFailureDiagnostics =>

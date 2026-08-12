@@ -12,6 +12,7 @@ import io.flutter.plugins.GeneratedPluginRegistrant
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.coroutineScope
@@ -24,72 +25,78 @@ class NavisBackgroundSyncWorker(
     appContext: Context,
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result = coroutineScope {
-        val profileKey = inputData.getString(profileKeyDataKey)
-        if (profileKey == null || !profileKey.matches(Regex("[0-9a-f]{32}"))) {
-            return@coroutineScope Result.failure()
-        }
-        val engine = FlutterEngine(applicationContext)
-        val ready = CompletableDeferred<Unit>()
-        val channel = MethodChannel(engine.dartExecutor.binaryMessenger, channelName)
-        try {
-            GeneratedPluginRegistrant.registerWith(engine)
-            channel.setMethodCallHandler { call, result ->
-                if (call.method == "ready") {
-                    if (!ready.isCompleted) {
-                        ready.complete(Unit)
-                    }
-                    result.success(true)
-                } else {
-                    result.notImplemented()
-                }
+    // WorkManager calls CoroutineWorker on a background dispatcher, while all
+    // FlutterEngine and binary-messenger setup must happen on Android's main
+    // thread. The Dart sync itself remains asynchronous; this dispatcher only
+    // owns the Android embedding lifecycle and never performs network I/O.
+    override suspend fun doWork(): Result = withContext(Dispatchers.Main.immediate) {
+        coroutineScope {
+            val profileKey = inputData.getString(profileKeyDataKey)
+            if (profileKey == null || !profileKey.matches(Regex("[0-9a-f]{32}"))) {
+                return@coroutineScope Result.failure()
             }
-            val loader = FlutterInjector.instance().flutterLoader()
-            engine.dartExecutor.executeDartEntrypoint(
-                DartExecutor.DartEntrypoint(
-                    loader.findAppBundlePath(),
-                    "navisBackgroundSyncEntrypoint",
-                ),
-            )
-            withTimeout(engineReadyTimeoutMillis) { ready.await() }
-            val response = withTimeout(workerTimeoutMillis) {
-                channel.invokeMapMethod(
-                    "runAutomaticBackgroundSync",
-                    mapOf(
-                        "profileKey" to profileKey,
-                        "workId" to id.toString(),
-                        "attemptCount" to runAttemptCount.coerceIn(0, maxReportedAttemptCount),
-                        "hasActivePlayback" to isMusicActive(),
+            val engine = FlutterEngine(applicationContext)
+            val ready = CompletableDeferred<Unit>()
+            val channel = MethodChannel(engine.dartExecutor.binaryMessenger, channelName)
+            try {
+                GeneratedPluginRegistrant.registerWith(engine)
+                channel.setMethodCallHandler { call, result ->
+                    if (call.method == "ready") {
+                        if (!ready.isCompleted) {
+                            ready.complete(Unit)
+                        }
+                        result.success(true)
+                    } else {
+                        result.notImplemented()
+                    }
+                }
+                val loader = FlutterInjector.instance().flutterLoader()
+                engine.dartExecutor.executeDartEntrypoint(
+                    DartExecutor.DartEntrypoint(
+                        loader.findAppBundlePath(),
+                        "navisBackgroundSyncEntrypoint",
                     ),
                 )
-            }
-            when (BackgroundSyncWorkerResultMapper.directiveFor(response?.get("category") as? String)) {
-                BackgroundSyncWorkerDirective.RETRY -> Result.retry()
-                BackgroundSyncWorkerDirective.FAILURE -> Result.failure()
-                BackgroundSyncWorkerDirective.SUCCESS -> Result.success()
-            }
-        } catch (_: TimeoutCancellationException) {
-            Result.retry()
-        } catch (error: CancellationException) {
-            withContext(NonCancellable) {
-                runCatching {
-                    withTimeout(cancellationCheckpointTimeoutMillis) {
-                        channel.invokeVoidMethod("cancel")
+                withTimeout(engineReadyTimeoutMillis) { ready.await() }
+                val response = withTimeout(workerTimeoutMillis) {
+                    channel.invokeMapMethod(
+                        "runAutomaticBackgroundSync",
+                        mapOf(
+                            "profileKey" to profileKey,
+                            "workId" to id.toString(),
+                            "attemptCount" to runAttemptCount.coerceIn(0, maxReportedAttemptCount),
+                            "hasActivePlayback" to isMusicActive(),
+                        ),
+                    )
+                }
+                when (BackgroundSyncWorkerResultMapper.directiveFor(response?.get("category") as? String)) {
+                    BackgroundSyncWorkerDirective.RETRY -> Result.retry()
+                    BackgroundSyncWorkerDirective.FAILURE -> Result.failure()
+                    BackgroundSyncWorkerDirective.SUCCESS -> Result.success()
+                }
+            } catch (_: TimeoutCancellationException) {
+                Result.retry()
+            } catch (error: CancellationException) {
+                withContext(NonCancellable + Dispatchers.Main.immediate) {
+                    runCatching {
+                        withTimeout(cancellationCheckpointTimeoutMillis) {
+                            channel.invokeVoidMethod("cancel")
+                        }
                     }
                 }
-            }
-            throw error
-        } catch (_: Throwable) {
-            Result.retry()
-        } finally {
-            withContext(NonCancellable) {
-                runCatching {
-                    withTimeout(cancellationCheckpointTimeoutMillis) {
-                        channel.invokeVoidMethod("shutdown")
+                throw error
+            } catch (_: Throwable) {
+                Result.retry()
+            } finally {
+                withContext(NonCancellable + Dispatchers.Main.immediate) {
+                    runCatching {
+                        withTimeout(cancellationCheckpointTimeoutMillis) {
+                            channel.invokeVoidMethod("shutdown")
+                        }
                     }
                 }
+                engine.destroy()
             }
-            engine.destroy()
         }
     }
 
