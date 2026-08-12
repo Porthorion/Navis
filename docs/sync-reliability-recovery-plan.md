@@ -21,7 +21,10 @@ Every operation needs one owner, a durable cause, start and end time, result, an
 
 ## Audit evidence
 
-Reviewed production controller, coordinator, planner, engine, state/work DAOs, route entry points, diagnostics, and focused tests. No production code was changed by this audit.
+Reviewed production controller, coordinator, planner, engine, state/work DAOs,
+route entry points, diagnostics, and focused tests. The confirmed Phase 1 and
+Phase 2 fixes below are implemented; the remaining phases stay active until
+their runtime criteria pass.
 
 Key paths:
 
@@ -35,6 +38,7 @@ External sources:
 
 - [Subsonic getIndexes specification](https://www.subsonic.org/pages/api.jsp): ifModifiedSince applies to the artist collection, not album changes.
 - [Navidrome Subsonic compatibility](https://www.navidrome.org/docs/developers/subsonic-api/): a client must not assume a richer server-side delta feed.
+- [OpenSubsonic search3 specification](https://opensubsonic.netlify.app/docs/endpoints/search3/): an empty query is the portable all-library form; `query` is required and paging is defined by the returned category offsets.
 - [Android offline-first data guidance](https://developer.android.com/topic/architecture/data-layer/offline-first): local data serves the UI; connectivity drains durable queued work with bounded retry/backoff.
 
 ## Confirmed faults
@@ -50,6 +54,7 @@ External sources:
 | P1 | Starred reconciliation clears every local star not in getStarred before applying the returned set, excluding only queued/concurrent mutations. | This is a code-proven destructive path that can explain items disappearing from Liked. Exact user row still needs a diagnostics trace. |
 | P1 | Large deletion repair returns awaitingDeletionConfirmation and requires a second repair request; UI shows only opaque status. | Repair can look like a no-op/failure. |
 | P1 | Probe, repair, continuation, Liked sync and target hydration overwrite one global LibrarySyncState. | Navigation-adjacent work can replace broad-operation status and make causality unclear. |
+| P1 | A legacy persisted `*` bulk-song query ran before the standard empty query. In the isolated clone it collected 5,464 albums then remained at zero hydrated/candidate songs for more than 20 minutes; cancellation did not reach a terminal state within the next 20 seconds. | Repair appeared stalled despite a valid candidate. The wildcard capability is now discarded; the verified empty-query path advanced 214→2,002 albums and 3,924→24,979 songs in 15 seconds. |
 | P2 | Existing tests omit manual fresh-window checks, unchanged artist cursor plus new album, repeated Liked entry, and completed work remaining completed. | Current tests can pass while the user controls fail. |
 
 ## Boundaries and non-claims
@@ -129,6 +134,9 @@ Exit: one manual check imports an album for existing artist in fixture and live 
 3. Correct work transitions: completed stays completed; cancelled has explicit backoff; a deletion-confirmation repair is terminal until the next explicit Repair Library action; partial broad parent names child work instead of requeueing itself. **Implemented:** ordinary conflict handling preserves terminal rows, while explicit user requests reactivate them.
 4. Remove the two-minute loop. Pending durable work is resumed only by the configured automatic interval or an explicit user action, with visible next eligibility.
 5. Make startup completion a terminal scheduler decision; listener emissions cannot reset a fresh schedule.
+6. Keep only the standard empty-query `search3` bulk capability. Discard
+   legacy wildcard capabilities, record request progress before the first page,
+   and use the authoritative album-detail fallback if bulk enumeration fails.
 
 Exit: a 60-minute no-action lifecycle stress test makes no catalog request before nextAutomaticCheckAt and shows no resurrected work.
 

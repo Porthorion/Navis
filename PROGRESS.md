@@ -25,9 +25,12 @@ Last updated: 2026-08-12
   verification force loop, preserved terminal durable work unless a user
   explicitly reactivates it, and stopped opening Liked from requesting stale
   synchronization. Focused planner, engine, coordinator, DAO, controller, and
-  Library widget suites pass. Isolated Linux clone runtime certification is
-  currently collecting its repair candidate; remaining: complete API/runtime
-  trace, screenshots, clean restart, final quality gate, and next plan phases.)
+  Library widget suites pass. A later isolated Linux throughput trace proved
+  the legacy wildcard bulk-song capability could stall after candidate
+  collection; the recovery discards it and the standards-compliant empty-query
+  path advanced 214→2,002 albums and 3,924→24,979 candidate songs in 15
+  seconds. Remaining: complete API/runtime trace, screenshots, clean restart,
+  final quality gate, and next plan phases.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

@@ -453,7 +453,7 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   two-request interactive cap; ordinary background and interactive hydration
   remain capped at their smaller platform limits and back off only after
   transport retries.
-  Its `search3` bulk-song pagination must advance by the returned count and
+  Its empty-query `search3` bulk-song pagination must advance by the returned count and
   continue after short pages: compatible servers may silently cap the requested
   page size, and stopping on that cap would incorrectly trigger the slow
   per-album fallback. After a completed bulk index, a capped stable tail may

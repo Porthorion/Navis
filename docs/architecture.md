@@ -764,7 +764,8 @@ replay/end-of-queue feedback instead.
    albums use ordinary song hydration and identity/cache reconciliation, so a
    new album does not wait behind a large rotating artist audit.
 4. Bulk-capable providers enumerate independent album/song pages with
-   `getAlbumList2` and blank or wildcard `search3`. Full-snapshot pages are
+   `getAlbumList2` and empty-query `search3` (the OpenSubsonic all-library
+   form). Full-snapshot pages are
    validated and checkpointed into generation-keyed candidate tables that no
    app provider watches. A restart skips collected pages while users continue
    reading the previous committed catalog. Song pagination advances by each

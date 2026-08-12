@@ -2132,6 +2132,48 @@ void main() {
     );
 
     test(
+      'legacy wildcard bulk-song query is discarded instead of issued',
+      () async {
+        await saveSession(
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'bulkSongSearchWildcardQuery': '*',
+            },
+          }),
+        );
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: 'artist-1',
+            songCount: 1,
+          ),
+        ];
+        api.bulkSongPages[0] = const <Song>[
+          Song(
+            id: 'song-1',
+            title: 'Song 1',
+            albumId: 'album-1',
+            artistId: 'artist-1',
+          ),
+        ];
+
+        final state = await engine.forceFullSync();
+        final config = await serverConfigRepository.getActiveServer();
+        final capabilities =
+            jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
+        final navis = capabilities['navis'] as Map<String, dynamic>;
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, isNot(contains('searchSongsPage:*:0:1')));
+        expect(api.calls, contains('getAlbum:album-1'));
+        expect(navis.containsKey('bulkSongSearchWildcardQuery'), isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'bulk song fast path hydrates complete albums and falls back for partial albums',
       () async {
         await saveSession();

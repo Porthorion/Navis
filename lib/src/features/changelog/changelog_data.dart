@@ -41,6 +41,10 @@ const List<ChangelogVersion> changelogs = [
         'Opening Liked now stays offline-first and no longer starts a background library synchronization',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Repair Library now uses the standard full-library song index and safely falls back to album details instead of resuming a legacy wildcard search',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

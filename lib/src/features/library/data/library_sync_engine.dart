@@ -697,7 +697,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     this.fastPathMaxPages = 200,
     this.bulkSearchPageSize = 1000,
     this.bulkSearchMaxPages = 200,
-    this.bulkSearchProbeQueries = const <String>['', '*'],
+    this.bulkSearchProbeQueries = const <String>[''],
     this.fallbackArtistConcurrency = 4,
     this.wifiAlbumConcurrency = 2,
     this.cellularAlbumConcurrency = 1,
@@ -4180,9 +4180,28 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       await publishProgress(hydratedAlbumIds);
     }
 
+    // OpenSubsonic defines an empty search3 query as the portable all-library
+    // query. Older Navis releases persisted `*` after probing legacy servers;
+    // do not let that non-standard, potentially unbounded search keep a full
+    // repair from reaching the authoritative getAlbum fallback.
+    final preferredBulkQuery = storedBulkSongSearchQuery == ''
+        ? storedBulkSongSearchQuery
+        : null;
+    if (storedBulkSongSearchQuery != null && preferredBulkQuery == null) {
+      final clearedCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
+        serverCapabilitiesJson,
+        null,
+      );
+      if (clearedCapabilitiesJson != serverCapabilitiesJson) {
+        await _serverConfigRepository.updateCapabilitiesJson(
+          clearedCapabilitiesJson,
+        );
+        metrics.addDbWriteBatch();
+      }
+    }
     final bulkQuery = await _probeBulkSongFastPath(
       pendingAlbumIds: pendingAlbumIds,
-      preferredQuery: storedBulkSongSearchQuery,
+      preferredQuery: preferredBulkQuery,
       metrics: metrics,
     );
     var bulkIndexCompleted = false;
@@ -4218,7 +4237,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       } on SyncCancelledException {
         rethrow;
       } on Object catch (error, stackTrace) {
-        if (bulkQuery == storedBulkSongSearchQuery) {
+        if (bulkQuery == preferredBulkQuery) {
           final nextCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
             serverCapabilitiesJson,
             null,

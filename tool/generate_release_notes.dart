@@ -68,6 +68,10 @@ const List<_Version> _changelogs = [
       'Opening Liked now stays offline-first and no longer starts a background library synchronization',
       type: _EntryType.fix,
     ),
+    _Entry(
+      'Repair Library now uses the standard full-library song index and safely falls back to album details instead of resuming a legacy wildcard search',
+      type: _EntryType.fix,
+    ),
   ]),
   _Version('1.2.3', [
     _Entry('Loving you is as easy as 123'),
