@@ -20,6 +20,7 @@ class LibrarySyncPlannerContext {
     required this.repairRequired,
     required this.isForeground,
     required this.hasActivePlayback,
+    this.isBackgroundExecutor = false,
   });
 
   final LibrarySyncRequest request;
@@ -37,6 +38,10 @@ class LibrarySyncPlannerContext {
   final bool repairRequired;
   final bool isForeground;
   final bool hasActivePlayback;
+
+  /// True only for the constrained Android WorkManager entrypoint. This is a
+  /// scheduler capability, not a general permission to run in a hidden app.
+  final bool isBackgroundExecutor;
 }
 
 class LibrarySyncPlanner {
@@ -228,7 +233,8 @@ class LibrarySyncPlanner {
     final unsafeToAutoRun =
         unavailable ||
         (context.request.intent == LibrarySyncIntent.automatic &&
-            (!context.isForeground || context.hasActivePlayback));
+            ((!context.isForeground && !context.isBackgroundExecutor) ||
+                context.hasActivePlayback));
     if (unsafeToAutoRun) {
       return LibrarySyncPlan(
         kind: kind,

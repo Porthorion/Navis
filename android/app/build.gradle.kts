@@ -126,7 +126,10 @@ flutter {
 }
 
 dependencies {
+    val workManagerVersion = "2.11.2"
     implementation("androidx.media:media:1.7.0")
+    implementation("androidx.work:work-runtime-ktx:$workManagerVersion")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.work:work-testing:$workManagerVersion")
 }

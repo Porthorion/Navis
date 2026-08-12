@@ -24,6 +24,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     DateTime Function()? now,
     LibrarySyncPlanner planner = const LibrarySyncPlanner(),
     String executionOwnerKind = 'foreground',
+    bool isBackgroundExecution = false,
   }) : _executor = executor,
        _database = database,
        _serverConfigRepository = serverConfigRepository,
@@ -33,7 +34,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
        _readIsForeground = readIsForeground ?? _alwaysForeground,
        _now = now ?? DateTime.now,
        _planner = planner,
-       _executionOwnerKind = _validateOwnerKind(executionOwnerKind);
+       _executionOwnerKind = _validateOwnerKind(executionOwnerKind),
+       _isBackgroundExecution = isBackgroundExecution;
 
   static bool _alwaysForeground() => true;
 
@@ -63,6 +65,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   final DateTime Function() _now;
   final LibrarySyncPlanner _planner;
   final String _executionOwnerKind;
+  final bool _isBackgroundExecution;
   final Set<int> _recoveredServers = <int>{};
   Future<LibrarySyncState>? _inFlight;
 
@@ -232,6 +235,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 request.trigger == LibrarySyncTrigger.invariant,
             isForeground: _readIsForeground(),
             hasActivePlayback: _readHasActivePlayback(),
+            isBackgroundExecutor: _isBackgroundExecution,
           ),
         );
 

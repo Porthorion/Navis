@@ -11,6 +11,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
+import 'package:navis/src/features/library/data/android_background_sync.dart';
 import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -81,6 +82,41 @@ final librarySyncOperationLedgerProvider =
 final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
   return const SystemLibrarySyncNotifier();
 });
+
+final androidBackgroundSyncSchedulerProvider =
+    Provider<AndroidBackgroundSyncScheduler>((ref) {
+      return AndroidBackgroundSyncScheduler();
+    });
+
+final androidBackgroundSyncReconcilerProvider =
+    Provider<AndroidBackgroundSyncReconciler>((ref) {
+      return AndroidBackgroundSyncReconciler(
+        database: ref.watch(navisDatabaseProvider),
+        scheduler: ref.watch(androidBackgroundSyncSchedulerProvider),
+      );
+    });
+
+/// Durable redacted native scheduler state for Sync Settings and diagnostics.
+final androidBackgroundSyncStatusProvider =
+    StreamProvider<LibrarySyncStateTableData?>((ref) {
+      final serverId = ref.watch(
+        serverConfigStateProvider.select(
+          (config) => config.asData?.value?.id,
+        ),
+      );
+      if (serverId == null) {
+        return Stream<LibrarySyncStateTableData?>.value(null);
+      }
+      return ref
+          .watch(navisDatabaseProvider)
+          .librarySyncDao
+          .watchState(serverId);
+    });
+
+const bool _enableAndroidBackgroundSyncForInternalBuild = bool.fromEnvironment(
+  'NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC',
+  defaultValue: false,
+);
 
 class LibrarySyncForegroundController extends Notifier<bool> {
   @override
@@ -219,6 +255,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   String? _sessionFingerprint;
   ServerReachabilityStatus? _lastReachabilityStatus;
   bool _isForeground = true;
+  ServerConfigModel? _androidScheduledConfig;
   final Queue<String> _priorityAlbumIds = Queue<String>();
   static const int _maxPriorityAlbums = 120;
   late final AppLifecycleListener _lifecycleListener;
@@ -253,6 +290,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (serverConfig != null) {
       _sessionFingerprint = _toSessionFingerprint(serverConfig);
       unawaited(_loadPersistedSyncState(serverConfig));
+      unawaited(_reconcileAndroidBackgroundSchedule(serverConfig));
     }
     _lastReachabilityStatus = ref
         .read(serverReachabilityControllerProvider)
@@ -277,6 +315,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         }
       },
     );
+    ref.listen<bool>(backgroundSyncUnmeteredOnlyProvider, (previous, next) {
+      if (previous != null && previous != next) {
+        unawaited(_reconcileAndroidBackgroundSchedule());
+      }
+    });
     ref.listen<NetworkType>(networkTypeProvider, (previous, next) {
       final becameAvailable =
           previous == NetworkType.offline && next != NetworkType.offline;
@@ -503,6 +546,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final serverConfig = next.asData?.value;
     if (serverConfig == null) {
+      final scheduled = _androidScheduledConfig;
+      if (scheduled != null) {
+        unawaited(
+          ref
+              .read(androidBackgroundSyncReconcilerProvider)
+              .cancelFor(scheduled),
+        );
+      }
+      _androidScheduledConfig = null;
       _startupSyncSuppressed = true;
       _startupSyncEpoch++;
       _startupSyncInFlight = false;
@@ -529,7 +581,47 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       );
       unawaited(_loadPersistedSyncState(serverConfig));
     }
+    unawaited(_reconcileAndroidBackgroundSchedule(serverConfig));
     _scheduleStartupSync();
+  }
+
+  Future<void> _reconcileAndroidBackgroundSchedule([
+    ServerConfigModel? config,
+  ]) async {
+    final active = config ?? ref.read(serverConfigStateProvider).asData?.value;
+    if (active == null || !ref.mounted) {
+      return;
+    }
+    final previous = _androidScheduledConfig;
+    if (previous != null &&
+        AndroidBackgroundSyncScheduler.profileKeyFor(previous) !=
+            AndroidBackgroundSyncScheduler.profileKeyFor(active)) {
+      await ref
+          .read(androidBackgroundSyncReconcilerProvider)
+          .cancelFor(previous);
+    }
+    final serverId = active.id;
+    if (serverId == null) {
+      return;
+    }
+    final dao = ref.read(navisDatabaseProvider).librarySyncDao;
+    if (_enableAndroidBackgroundSyncForInternalBuild) {
+      await dao.setAndroidBackgroundSyncEnabled(
+        serverId: serverId,
+        enabled: true,
+      );
+    }
+    if (!ref.mounted || _sessionFingerprint != _toSessionFingerprint(active)) {
+      return;
+    }
+    await ref
+        .read(androidBackgroundSyncReconcilerProvider)
+        .reconcile(
+          config: active,
+          intervalMinutes: ref.read(syncIntervalMinutesProvider),
+          unmeteredOnly: ref.read(backgroundSyncUnmeteredOnlyProvider),
+        );
+    _androidScheduledConfig = active;
   }
 
   LibrarySyncFreshness _readPersistedFreshness(String? capabilitiesJson) {
@@ -1138,6 +1230,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _onSyncIntervalChanged(int minutes) {
     unawaited(_resetAutomaticCheckSchedule(minutes));
+    unawaited(_reconcileAndroidBackgroundSchedule());
   }
 
   void _schedulePeriodicSync(int minutes) {

@@ -27,6 +27,7 @@ class MainActivity : AudioServiceActivity() {
     private val powerChannelName = "com.navis.app/power"
     private val deviceChannelName = "com.navis.app/device"
     private val networkCostChannelName = "com.navis.app/network_cost"
+    private val backgroundSyncChannelName = "com.navis.app/background_sync"
     @Volatile
     private var pendingCloseAfterInstallerHandoff = false
 
@@ -110,6 +111,67 @@ class MainActivity : AudioServiceActivity() {
                     result.success(isActiveNetworkMetered())
                 }
                 else -> result.notImplemented()
+            }
+        }
+
+        val backgroundScheduler = AndroidBackgroundSyncScheduler(applicationContext)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            backgroundSyncChannelName
+        ).setMethodCallHandler { call, result ->
+            val profileKey = call.argument<String>("profileKey")
+            if (profileKey == null || !profileKey.matches(Regex("[0-9a-f]{32}"))) {
+                result.error("INVALID_ARGUMENT", "Invalid opaque profile key.", null)
+                return@setMethodCallHandler
+            }
+            try {
+                when (call.method) {
+                    "configurePeriodic" -> {
+                        val intervalMinutes = call.argument<Int>("intervalMinutes")?.toLong()
+                        val unmeteredOnly = call.argument<Boolean>("unmeteredOnly")
+                        if (intervalMinutes == null || unmeteredOnly == null) {
+                            result.error("INVALID_ARGUMENT", "Missing schedule parameters.", null)
+                            return@setMethodCallHandler
+                        }
+                        val spec = BackgroundSyncScheduleSpec(
+                            profileKey = profileKey,
+                            intervalMinutes = intervalMinutes,
+                            unmeteredOnly = unmeteredOnly,
+                        )
+                        result.success(backgroundScheduler.configurePeriodic(spec).toMap())
+                    }
+                    "enqueueCatchup" -> {
+                        val unmeteredOnly = call.argument<Boolean>("unmeteredOnly")
+                        if (unmeteredOnly == null) {
+                            result.error("INVALID_ARGUMENT", "Missing network constraint.", null)
+                            return@setMethodCallHandler
+                        }
+                        val spec = BackgroundSyncScheduleSpec(
+                            profileKey = profileKey,
+                            intervalMinutes = 15,
+                            unmeteredOnly = unmeteredOnly,
+                        )
+                        result.success(backgroundScheduler.enqueueCatchup(spec).toMap())
+                    }
+                    "cancel" -> {
+                        result.success(backgroundScheduler.cancel(profileKey).toMap())
+                    }
+                    "status" -> {
+                        Thread {
+                            val observation = runCatching {
+                                backgroundScheduler.status(profileKey)
+                            }.getOrElse {
+                                BackgroundSyncScheduleObservation(state = "platformFailure")
+                            }
+                            runOnUiThread { result.success(observation.toMap()) }
+                        }.start()
+                    }
+                    else -> result.notImplemented()
+                }
+            } catch (_: IllegalArgumentException) {
+                result.error("INVALID_ARGUMENT", "Unsupported schedule parameters.", null)
+            } catch (_: Exception) {
+                result.error("SCHEDULER_FAILURE", "Native schedule reconciliation failed.", null)
             }
         }
     }

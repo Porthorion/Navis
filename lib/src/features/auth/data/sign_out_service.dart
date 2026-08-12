@@ -51,6 +51,16 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
     },
     cancelSync: () =>
         ref.read(librarySyncControllerProvider.notifier).cancelAndWait(),
+    cancelAndroidBackgroundSync: () async {
+      final config = await ref
+          .read(serverConfigRepositoryProvider)
+          .getActiveServer();
+      if (config != null) {
+        await ref
+            .read(androidBackgroundSyncReconcilerProvider)
+            .cancelFor(config);
+      }
+    },
     stopDownloads: () => ref.read(downloadServiceProvider).stopAndWait(),
     resetPlayback: () async {
       await ref
@@ -84,6 +94,7 @@ class SessionLifecycleService implements SignOutService {
     required NavisDatabase database,
     Future<void> Function()? cancelApiRequests,
     Future<void> Function()? cancelSync,
+    Future<void> Function()? cancelAndroidBackgroundSync,
     Future<void> Function()? stopDownloads,
     Future<void> Function()? resetPlayback,
     Future<void> Function()? resetTransientUi,
@@ -94,6 +105,7 @@ class SessionLifecycleService implements SignOutService {
        _database = database,
        _cancelApiRequests = cancelApiRequests,
        _cancelSync = cancelSync,
+       _cancelAndroidBackgroundSync = cancelAndroidBackgroundSync,
        _stopDownloads = stopDownloads,
        _resetPlayback = resetPlayback,
        _resetTransientUi = resetTransientUi,
@@ -107,6 +119,7 @@ class SessionLifecycleService implements SignOutService {
   final NavisDatabase _database;
   final Future<void> Function()? _cancelApiRequests;
   final Future<void> Function()? _cancelSync;
+  final Future<void> Function()? _cancelAndroidBackgroundSync;
   final Future<void> Function()? _stopDownloads;
   final Future<void> Function()? _resetPlayback;
   final Future<void> Function()? _resetTransientUi;
@@ -146,6 +159,9 @@ class SessionLifecycleService implements SignOutService {
       });
       await attempt('cancel library sync', () async {
         await _cancelSync?.call();
+      });
+      await attempt('cancel Android background sync', () async {
+        await _cancelAndroidBackgroundSync?.call();
       });
       await attempt('stop downloads', () async {
         await _stopDownloads?.call();
