@@ -183,7 +183,9 @@ Last updated: 2026-08-12
   `./tool/check.sh`; isolated Linux clone Settings diagnostics completed with
   clean app-API startup/restart and inspected initial screenshot
   `background-recovery-final` (Android-only card correctly absent on Linux;
-  restart capture showed the transient loading skeleton). Remaining: required
+  restart capture showed the transient loading skeleton). An internally gated
+  APK also built, installed, and started cleanly on an Android API 37 emulator
+  with no Flutter/Android fatal log entry. Remaining: required
   Android 12/14/current-target physical-device matrix
   (constraint hold/release, swipe-away, process death, reboot, foreground
   overlap, metered, playback/repair, stop) plus authenticated app-API and
