@@ -17033,6 +17033,132 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _androidBackgroundSyncEnabledMeta =
+      const VerificationMeta('androidBackgroundSyncEnabled');
+  @override
+  late final GeneratedColumn<bool> androidBackgroundSyncEnabled =
+      GeneratedColumn<bool>(
+        'android_background_sync_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("android_background_sync_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _androidScheduleReconciledAtMeta =
+      const VerificationMeta('androidScheduleReconciledAt');
+  @override
+  late final GeneratedColumn<DateTime> androidScheduleReconciledAt =
+      GeneratedColumn<DateTime>(
+        'android_schedule_reconciled_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _androidRequestedIntervalMinutesMeta =
+      const VerificationMeta('androidRequestedIntervalMinutes');
+  @override
+  late final GeneratedColumn<int> androidRequestedIntervalMinutes =
+      GeneratedColumn<int>(
+        'android_requested_interval_minutes',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _androidWorkIdMeta = const VerificationMeta(
+    'androidWorkId',
+  );
+  @override
+  late final GeneratedColumn<String> androidWorkId = GeneratedColumn<String>(
+    'android_work_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _androidWorkStateMeta = const VerificationMeta(
+    'androidWorkState',
+  );
+  @override
+  late final GeneratedColumn<String> androidWorkState = GeneratedColumn<String>(
+    'android_work_state',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _androidWorkAttemptCountMeta =
+      const VerificationMeta('androidWorkAttemptCount');
+  @override
+  late final GeneratedColumn<int> androidWorkAttemptCount =
+      GeneratedColumn<int>(
+        'android_work_attempt_count',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _androidWorkerStartedAtMeta =
+      const VerificationMeta('androidWorkerStartedAt');
+  @override
+  late final GeneratedColumn<DateTime> androidWorkerStartedAt =
+      GeneratedColumn<DateTime>(
+        'android_worker_started_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _androidWorkerCompletedAtMeta =
+      const VerificationMeta('androidWorkerCompletedAt');
+  @override
+  late final GeneratedColumn<DateTime> androidWorkerCompletedAt =
+      GeneratedColumn<DateTime>(
+        'android_worker_completed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _androidWorkerDurationMsMeta =
+      const VerificationMeta('androidWorkerDurationMs');
+  @override
+  late final GeneratedColumn<int> androidWorkerDurationMs =
+      GeneratedColumn<int>(
+        'android_worker_duration_ms',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _androidWorkerResultMeta =
+      const VerificationMeta('androidWorkerResult');
+  @override
+  late final GeneratedColumn<String> androidWorkerResult =
+      GeneratedColumn<String>(
+        'android_worker_result',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _androidWorkerStopReasonMeta =
+      const VerificationMeta('androidWorkerStopReason');
+  @override
+  late final GeneratedColumn<String> androidWorkerStopReason =
+      GeneratedColumn<String>(
+        'android_worker_stop_reason',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastPlanKindMeta = const VerificationMeta(
     'lastPlanKind',
   );
@@ -17131,6 +17257,17 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
     failureStreak,
     nextEligibleAt,
     nextAutomaticCheckAt,
+    androidBackgroundSyncEnabled,
+    androidScheduleReconciledAt,
+    androidRequestedIntervalMinutes,
+    androidWorkId,
+    androidWorkState,
+    androidWorkAttemptCount,
+    androidWorkerStartedAt,
+    androidWorkerCompletedAt,
+    androidWorkerDurationMs,
+    androidWorkerResult,
+    androidWorkerStopReason,
     lastPlanKind,
     lastPlanReason,
     lastRunBytes,
@@ -17399,6 +17536,105 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         ),
       );
     }
+    if (data.containsKey('android_background_sync_enabled')) {
+      context.handle(
+        _androidBackgroundSyncEnabledMeta,
+        androidBackgroundSyncEnabled.isAcceptableOrUnknown(
+          data['android_background_sync_enabled']!,
+          _androidBackgroundSyncEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_schedule_reconciled_at')) {
+      context.handle(
+        _androidScheduleReconciledAtMeta,
+        androidScheduleReconciledAt.isAcceptableOrUnknown(
+          data['android_schedule_reconciled_at']!,
+          _androidScheduleReconciledAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_requested_interval_minutes')) {
+      context.handle(
+        _androidRequestedIntervalMinutesMeta,
+        androidRequestedIntervalMinutes.isAcceptableOrUnknown(
+          data['android_requested_interval_minutes']!,
+          _androidRequestedIntervalMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_work_id')) {
+      context.handle(
+        _androidWorkIdMeta,
+        androidWorkId.isAcceptableOrUnknown(
+          data['android_work_id']!,
+          _androidWorkIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_work_state')) {
+      context.handle(
+        _androidWorkStateMeta,
+        androidWorkState.isAcceptableOrUnknown(
+          data['android_work_state']!,
+          _androidWorkStateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_work_attempt_count')) {
+      context.handle(
+        _androidWorkAttemptCountMeta,
+        androidWorkAttemptCount.isAcceptableOrUnknown(
+          data['android_work_attempt_count']!,
+          _androidWorkAttemptCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_worker_started_at')) {
+      context.handle(
+        _androidWorkerStartedAtMeta,
+        androidWorkerStartedAt.isAcceptableOrUnknown(
+          data['android_worker_started_at']!,
+          _androidWorkerStartedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_worker_completed_at')) {
+      context.handle(
+        _androidWorkerCompletedAtMeta,
+        androidWorkerCompletedAt.isAcceptableOrUnknown(
+          data['android_worker_completed_at']!,
+          _androidWorkerCompletedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_worker_duration_ms')) {
+      context.handle(
+        _androidWorkerDurationMsMeta,
+        androidWorkerDurationMs.isAcceptableOrUnknown(
+          data['android_worker_duration_ms']!,
+          _androidWorkerDurationMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_worker_result')) {
+      context.handle(
+        _androidWorkerResultMeta,
+        androidWorkerResult.isAcceptableOrUnknown(
+          data['android_worker_result']!,
+          _androidWorkerResultMeta,
+        ),
+      );
+    }
+    if (data.containsKey('android_worker_stop_reason')) {
+      context.handle(
+        _androidWorkerStopReasonMeta,
+        androidWorkerStopReason.isAcceptableOrUnknown(
+          data['android_worker_stop_reason']!,
+          _androidWorkerStopReasonMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_plan_kind')) {
       context.handle(
         _lastPlanKindMeta,
@@ -17577,6 +17813,50 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}next_automatic_check_at'],
       ),
+      androidBackgroundSyncEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}android_background_sync_enabled'],
+      )!,
+      androidScheduleReconciledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}android_schedule_reconciled_at'],
+      ),
+      androidRequestedIntervalMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}android_requested_interval_minutes'],
+      ),
+      androidWorkId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}android_work_id'],
+      ),
+      androidWorkState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}android_work_state'],
+      ),
+      androidWorkAttemptCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}android_work_attempt_count'],
+      )!,
+      androidWorkerStartedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}android_worker_started_at'],
+      ),
+      androidWorkerCompletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}android_worker_completed_at'],
+      ),
+      androidWorkerDurationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}android_worker_duration_ms'],
+      ),
+      androidWorkerResult: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}android_worker_result'],
+      ),
+      androidWorkerStopReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}android_worker_stop_reason'],
+      ),
       lastPlanKind: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_plan_kind'],
@@ -17646,6 +17926,24 @@ class LibrarySyncStateTableData extends DataClass
   /// endpoint-circuit cooldown. Lifecycle and timer events must use this
   /// durable schedule instead of each starting a process-local interval.
   final DateTime? nextAutomaticCheckAt;
+
+  /// Android-only WorkManager capability gate. It is intentionally durable so
+  /// an internal rollout cannot be enabled merely by restarting the process.
+  final bool androidBackgroundSyncEnabled;
+  final DateTime? androidScheduleReconciledAt;
+  final int? androidRequestedIntervalMinutes;
+  final String? androidWorkId;
+  final String? androidWorkState;
+  final int androidWorkAttemptCount;
+  final DateTime? androidWorkerStartedAt;
+  final DateTime? androidWorkerCompletedAt;
+  final int? androidWorkerDurationMs;
+
+  /// A bounded redacted category, never an exception string or server detail.
+  final String? androidWorkerResult;
+
+  /// Safe WorkManager stop category when the platform exposes one.
+  final String? androidWorkerStopReason;
   final String? lastPlanKind;
   final String? lastPlanReason;
   final int lastRunBytes;
@@ -17681,6 +17979,17 @@ class LibrarySyncStateTableData extends DataClass
     required this.failureStreak,
     this.nextEligibleAt,
     this.nextAutomaticCheckAt,
+    required this.androidBackgroundSyncEnabled,
+    this.androidScheduleReconciledAt,
+    this.androidRequestedIntervalMinutes,
+    this.androidWorkId,
+    this.androidWorkState,
+    required this.androidWorkAttemptCount,
+    this.androidWorkerStartedAt,
+    this.androidWorkerCompletedAt,
+    this.androidWorkerDurationMs,
+    this.androidWorkerResult,
+    this.androidWorkerStopReason,
     this.lastPlanKind,
     this.lastPlanReason,
     required this.lastRunBytes,
@@ -17760,6 +18069,49 @@ class LibrarySyncStateTableData extends DataClass
     }
     if (!nullToAbsent || nextAutomaticCheckAt != null) {
       map['next_automatic_check_at'] = Variable<DateTime>(nextAutomaticCheckAt);
+    }
+    map['android_background_sync_enabled'] = Variable<bool>(
+      androidBackgroundSyncEnabled,
+    );
+    if (!nullToAbsent || androidScheduleReconciledAt != null) {
+      map['android_schedule_reconciled_at'] = Variable<DateTime>(
+        androidScheduleReconciledAt,
+      );
+    }
+    if (!nullToAbsent || androidRequestedIntervalMinutes != null) {
+      map['android_requested_interval_minutes'] = Variable<int>(
+        androidRequestedIntervalMinutes,
+      );
+    }
+    if (!nullToAbsent || androidWorkId != null) {
+      map['android_work_id'] = Variable<String>(androidWorkId);
+    }
+    if (!nullToAbsent || androidWorkState != null) {
+      map['android_work_state'] = Variable<String>(androidWorkState);
+    }
+    map['android_work_attempt_count'] = Variable<int>(androidWorkAttemptCount);
+    if (!nullToAbsent || androidWorkerStartedAt != null) {
+      map['android_worker_started_at'] = Variable<DateTime>(
+        androidWorkerStartedAt,
+      );
+    }
+    if (!nullToAbsent || androidWorkerCompletedAt != null) {
+      map['android_worker_completed_at'] = Variable<DateTime>(
+        androidWorkerCompletedAt,
+      );
+    }
+    if (!nullToAbsent || androidWorkerDurationMs != null) {
+      map['android_worker_duration_ms'] = Variable<int>(
+        androidWorkerDurationMs,
+      );
+    }
+    if (!nullToAbsent || androidWorkerResult != null) {
+      map['android_worker_result'] = Variable<String>(androidWorkerResult);
+    }
+    if (!nullToAbsent || androidWorkerStopReason != null) {
+      map['android_worker_stop_reason'] = Variable<String>(
+        androidWorkerStopReason,
+      );
     }
     if (!nullToAbsent || lastPlanKind != null) {
       map['last_plan_kind'] = Variable<String>(lastPlanKind);
@@ -17845,6 +18197,37 @@ class LibrarySyncStateTableData extends DataClass
       nextAutomaticCheckAt: nextAutomaticCheckAt == null && nullToAbsent
           ? const Value.absent()
           : Value(nextAutomaticCheckAt),
+      androidBackgroundSyncEnabled: Value(androidBackgroundSyncEnabled),
+      androidScheduleReconciledAt:
+          androidScheduleReconciledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidScheduleReconciledAt),
+      androidRequestedIntervalMinutes:
+          androidRequestedIntervalMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidRequestedIntervalMinutes),
+      androidWorkId: androidWorkId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidWorkId),
+      androidWorkState: androidWorkState == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidWorkState),
+      androidWorkAttemptCount: Value(androidWorkAttemptCount),
+      androidWorkerStartedAt: androidWorkerStartedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidWorkerStartedAt),
+      androidWorkerCompletedAt: androidWorkerCompletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidWorkerCompletedAt),
+      androidWorkerDurationMs: androidWorkerDurationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidWorkerDurationMs),
+      androidWorkerResult: androidWorkerResult == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidWorkerResult),
+      androidWorkerStopReason: androidWorkerStopReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(androidWorkerStopReason),
       lastPlanKind: lastPlanKind == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPlanKind),
@@ -17921,6 +18304,35 @@ class LibrarySyncStateTableData extends DataClass
       nextAutomaticCheckAt: serializer.fromJson<DateTime?>(
         json['nextAutomaticCheckAt'],
       ),
+      androidBackgroundSyncEnabled: serializer.fromJson<bool>(
+        json['androidBackgroundSyncEnabled'],
+      ),
+      androidScheduleReconciledAt: serializer.fromJson<DateTime?>(
+        json['androidScheduleReconciledAt'],
+      ),
+      androidRequestedIntervalMinutes: serializer.fromJson<int?>(
+        json['androidRequestedIntervalMinutes'],
+      ),
+      androidWorkId: serializer.fromJson<String?>(json['androidWorkId']),
+      androidWorkState: serializer.fromJson<String?>(json['androidWorkState']),
+      androidWorkAttemptCount: serializer.fromJson<int>(
+        json['androidWorkAttemptCount'],
+      ),
+      androidWorkerStartedAt: serializer.fromJson<DateTime?>(
+        json['androidWorkerStartedAt'],
+      ),
+      androidWorkerCompletedAt: serializer.fromJson<DateTime?>(
+        json['androidWorkerCompletedAt'],
+      ),
+      androidWorkerDurationMs: serializer.fromJson<int?>(
+        json['androidWorkerDurationMs'],
+      ),
+      androidWorkerResult: serializer.fromJson<String?>(
+        json['androidWorkerResult'],
+      ),
+      androidWorkerStopReason: serializer.fromJson<String?>(
+        json['androidWorkerStopReason'],
+      ),
       lastPlanKind: serializer.fromJson<String?>(json['lastPlanKind']),
       lastPlanReason: serializer.fromJson<String?>(json['lastPlanReason']),
       lastRunBytes: serializer.fromJson<int>(json['lastRunBytes']),
@@ -17975,6 +18387,33 @@ class LibrarySyncStateTableData extends DataClass
       'nextAutomaticCheckAt': serializer.toJson<DateTime?>(
         nextAutomaticCheckAt,
       ),
+      'androidBackgroundSyncEnabled': serializer.toJson<bool>(
+        androidBackgroundSyncEnabled,
+      ),
+      'androidScheduleReconciledAt': serializer.toJson<DateTime?>(
+        androidScheduleReconciledAt,
+      ),
+      'androidRequestedIntervalMinutes': serializer.toJson<int?>(
+        androidRequestedIntervalMinutes,
+      ),
+      'androidWorkId': serializer.toJson<String?>(androidWorkId),
+      'androidWorkState': serializer.toJson<String?>(androidWorkState),
+      'androidWorkAttemptCount': serializer.toJson<int>(
+        androidWorkAttemptCount,
+      ),
+      'androidWorkerStartedAt': serializer.toJson<DateTime?>(
+        androidWorkerStartedAt,
+      ),
+      'androidWorkerCompletedAt': serializer.toJson<DateTime?>(
+        androidWorkerCompletedAt,
+      ),
+      'androidWorkerDurationMs': serializer.toJson<int?>(
+        androidWorkerDurationMs,
+      ),
+      'androidWorkerResult': serializer.toJson<String?>(androidWorkerResult),
+      'androidWorkerStopReason': serializer.toJson<String?>(
+        androidWorkerStopReason,
+      ),
       'lastPlanKind': serializer.toJson<String?>(lastPlanKind),
       'lastPlanReason': serializer.toJson<String?>(lastPlanReason),
       'lastRunBytes': serializer.toJson<int>(lastRunBytes),
@@ -18015,6 +18454,17 @@ class LibrarySyncStateTableData extends DataClass
     int? failureStreak,
     Value<DateTime?> nextEligibleAt = const Value.absent(),
     Value<DateTime?> nextAutomaticCheckAt = const Value.absent(),
+    bool? androidBackgroundSyncEnabled,
+    Value<DateTime?> androidScheduleReconciledAt = const Value.absent(),
+    Value<int?> androidRequestedIntervalMinutes = const Value.absent(),
+    Value<String?> androidWorkId = const Value.absent(),
+    Value<String?> androidWorkState = const Value.absent(),
+    int? androidWorkAttemptCount,
+    Value<DateTime?> androidWorkerStartedAt = const Value.absent(),
+    Value<DateTime?> androidWorkerCompletedAt = const Value.absent(),
+    Value<int?> androidWorkerDurationMs = const Value.absent(),
+    Value<String?> androidWorkerResult = const Value.absent(),
+    Value<String?> androidWorkerStopReason = const Value.absent(),
     Value<String?> lastPlanKind = const Value.absent(),
     Value<String?> lastPlanReason = const Value.absent(),
     int? lastRunBytes,
@@ -18086,6 +18536,37 @@ class LibrarySyncStateTableData extends DataClass
     nextAutomaticCheckAt: nextAutomaticCheckAt.present
         ? nextAutomaticCheckAt.value
         : this.nextAutomaticCheckAt,
+    androidBackgroundSyncEnabled:
+        androidBackgroundSyncEnabled ?? this.androidBackgroundSyncEnabled,
+    androidScheduleReconciledAt: androidScheduleReconciledAt.present
+        ? androidScheduleReconciledAt.value
+        : this.androidScheduleReconciledAt,
+    androidRequestedIntervalMinutes: androidRequestedIntervalMinutes.present
+        ? androidRequestedIntervalMinutes.value
+        : this.androidRequestedIntervalMinutes,
+    androidWorkId: androidWorkId.present
+        ? androidWorkId.value
+        : this.androidWorkId,
+    androidWorkState: androidWorkState.present
+        ? androidWorkState.value
+        : this.androidWorkState,
+    androidWorkAttemptCount:
+        androidWorkAttemptCount ?? this.androidWorkAttemptCount,
+    androidWorkerStartedAt: androidWorkerStartedAt.present
+        ? androidWorkerStartedAt.value
+        : this.androidWorkerStartedAt,
+    androidWorkerCompletedAt: androidWorkerCompletedAt.present
+        ? androidWorkerCompletedAt.value
+        : this.androidWorkerCompletedAt,
+    androidWorkerDurationMs: androidWorkerDurationMs.present
+        ? androidWorkerDurationMs.value
+        : this.androidWorkerDurationMs,
+    androidWorkerResult: androidWorkerResult.present
+        ? androidWorkerResult.value
+        : this.androidWorkerResult,
+    androidWorkerStopReason: androidWorkerStopReason.present
+        ? androidWorkerStopReason.value
+        : this.androidWorkerStopReason,
     lastPlanKind: lastPlanKind.present ? lastPlanKind.value : this.lastPlanKind,
     lastPlanReason: lastPlanReason.present
         ? lastPlanReason.value
@@ -18184,6 +18665,40 @@ class LibrarySyncStateTableData extends DataClass
       nextAutomaticCheckAt: data.nextAutomaticCheckAt.present
           ? data.nextAutomaticCheckAt.value
           : this.nextAutomaticCheckAt,
+      androidBackgroundSyncEnabled: data.androidBackgroundSyncEnabled.present
+          ? data.androidBackgroundSyncEnabled.value
+          : this.androidBackgroundSyncEnabled,
+      androidScheduleReconciledAt: data.androidScheduleReconciledAt.present
+          ? data.androidScheduleReconciledAt.value
+          : this.androidScheduleReconciledAt,
+      androidRequestedIntervalMinutes:
+          data.androidRequestedIntervalMinutes.present
+          ? data.androidRequestedIntervalMinutes.value
+          : this.androidRequestedIntervalMinutes,
+      androidWorkId: data.androidWorkId.present
+          ? data.androidWorkId.value
+          : this.androidWorkId,
+      androidWorkState: data.androidWorkState.present
+          ? data.androidWorkState.value
+          : this.androidWorkState,
+      androidWorkAttemptCount: data.androidWorkAttemptCount.present
+          ? data.androidWorkAttemptCount.value
+          : this.androidWorkAttemptCount,
+      androidWorkerStartedAt: data.androidWorkerStartedAt.present
+          ? data.androidWorkerStartedAt.value
+          : this.androidWorkerStartedAt,
+      androidWorkerCompletedAt: data.androidWorkerCompletedAt.present
+          ? data.androidWorkerCompletedAt.value
+          : this.androidWorkerCompletedAt,
+      androidWorkerDurationMs: data.androidWorkerDurationMs.present
+          ? data.androidWorkerDurationMs.value
+          : this.androidWorkerDurationMs,
+      androidWorkerResult: data.androidWorkerResult.present
+          ? data.androidWorkerResult.value
+          : this.androidWorkerResult,
+      androidWorkerStopReason: data.androidWorkerStopReason.present
+          ? data.androidWorkerStopReason.value
+          : this.androidWorkerStopReason,
       lastPlanKind: data.lastPlanKind.present
           ? data.lastPlanKind.value
           : this.lastPlanKind,
@@ -18240,6 +18755,21 @@ class LibrarySyncStateTableData extends DataClass
           ..write('failureStreak: $failureStreak, ')
           ..write('nextEligibleAt: $nextEligibleAt, ')
           ..write('nextAutomaticCheckAt: $nextAutomaticCheckAt, ')
+          ..write(
+            'androidBackgroundSyncEnabled: $androidBackgroundSyncEnabled, ',
+          )
+          ..write('androidScheduleReconciledAt: $androidScheduleReconciledAt, ')
+          ..write(
+            'androidRequestedIntervalMinutes: $androidRequestedIntervalMinutes, ',
+          )
+          ..write('androidWorkId: $androidWorkId, ')
+          ..write('androidWorkState: $androidWorkState, ')
+          ..write('androidWorkAttemptCount: $androidWorkAttemptCount, ')
+          ..write('androidWorkerStartedAt: $androidWorkerStartedAt, ')
+          ..write('androidWorkerCompletedAt: $androidWorkerCompletedAt, ')
+          ..write('androidWorkerDurationMs: $androidWorkerDurationMs, ')
+          ..write('androidWorkerResult: $androidWorkerResult, ')
+          ..write('androidWorkerStopReason: $androidWorkerStopReason, ')
           ..write('lastPlanKind: $lastPlanKind, ')
           ..write('lastPlanReason: $lastPlanReason, ')
           ..write('lastRunBytes: $lastRunBytes, ')
@@ -18282,6 +18812,17 @@ class LibrarySyncStateTableData extends DataClass
     failureStreak,
     nextEligibleAt,
     nextAutomaticCheckAt,
+    androidBackgroundSyncEnabled,
+    androidScheduleReconciledAt,
+    androidRequestedIntervalMinutes,
+    androidWorkId,
+    androidWorkState,
+    androidWorkAttemptCount,
+    androidWorkerStartedAt,
+    androidWorkerCompletedAt,
+    androidWorkerDurationMs,
+    androidWorkerResult,
+    androidWorkerStopReason,
     lastPlanKind,
     lastPlanReason,
     lastRunBytes,
@@ -18323,6 +18864,20 @@ class LibrarySyncStateTableData extends DataClass
           other.failureStreak == this.failureStreak &&
           other.nextEligibleAt == this.nextEligibleAt &&
           other.nextAutomaticCheckAt == this.nextAutomaticCheckAt &&
+          other.androidBackgroundSyncEnabled ==
+              this.androidBackgroundSyncEnabled &&
+          other.androidScheduleReconciledAt ==
+              this.androidScheduleReconciledAt &&
+          other.androidRequestedIntervalMinutes ==
+              this.androidRequestedIntervalMinutes &&
+          other.androidWorkId == this.androidWorkId &&
+          other.androidWorkState == this.androidWorkState &&
+          other.androidWorkAttemptCount == this.androidWorkAttemptCount &&
+          other.androidWorkerStartedAt == this.androidWorkerStartedAt &&
+          other.androidWorkerCompletedAt == this.androidWorkerCompletedAt &&
+          other.androidWorkerDurationMs == this.androidWorkerDurationMs &&
+          other.androidWorkerResult == this.androidWorkerResult &&
+          other.androidWorkerStopReason == this.androidWorkerStopReason &&
           other.lastPlanKind == this.lastPlanKind &&
           other.lastPlanReason == this.lastPlanReason &&
           other.lastRunBytes == this.lastRunBytes &&
@@ -18362,6 +18917,17 @@ class LibrarySyncStateTableCompanion
   final Value<int> failureStreak;
   final Value<DateTime?> nextEligibleAt;
   final Value<DateTime?> nextAutomaticCheckAt;
+  final Value<bool> androidBackgroundSyncEnabled;
+  final Value<DateTime?> androidScheduleReconciledAt;
+  final Value<int?> androidRequestedIntervalMinutes;
+  final Value<String?> androidWorkId;
+  final Value<String?> androidWorkState;
+  final Value<int> androidWorkAttemptCount;
+  final Value<DateTime?> androidWorkerStartedAt;
+  final Value<DateTime?> androidWorkerCompletedAt;
+  final Value<int?> androidWorkerDurationMs;
+  final Value<String?> androidWorkerResult;
+  final Value<String?> androidWorkerStopReason;
   final Value<String?> lastPlanKind;
   final Value<String?> lastPlanReason;
   final Value<int> lastRunBytes;
@@ -18397,6 +18963,17 @@ class LibrarySyncStateTableCompanion
     this.failureStreak = const Value.absent(),
     this.nextEligibleAt = const Value.absent(),
     this.nextAutomaticCheckAt = const Value.absent(),
+    this.androidBackgroundSyncEnabled = const Value.absent(),
+    this.androidScheduleReconciledAt = const Value.absent(),
+    this.androidRequestedIntervalMinutes = const Value.absent(),
+    this.androidWorkId = const Value.absent(),
+    this.androidWorkState = const Value.absent(),
+    this.androidWorkAttemptCount = const Value.absent(),
+    this.androidWorkerStartedAt = const Value.absent(),
+    this.androidWorkerCompletedAt = const Value.absent(),
+    this.androidWorkerDurationMs = const Value.absent(),
+    this.androidWorkerResult = const Value.absent(),
+    this.androidWorkerStopReason = const Value.absent(),
     this.lastPlanKind = const Value.absent(),
     this.lastPlanReason = const Value.absent(),
     this.lastRunBytes = const Value.absent(),
@@ -18433,6 +19010,17 @@ class LibrarySyncStateTableCompanion
     this.failureStreak = const Value.absent(),
     this.nextEligibleAt = const Value.absent(),
     this.nextAutomaticCheckAt = const Value.absent(),
+    this.androidBackgroundSyncEnabled = const Value.absent(),
+    this.androidScheduleReconciledAt = const Value.absent(),
+    this.androidRequestedIntervalMinutes = const Value.absent(),
+    this.androidWorkId = const Value.absent(),
+    this.androidWorkState = const Value.absent(),
+    this.androidWorkAttemptCount = const Value.absent(),
+    this.androidWorkerStartedAt = const Value.absent(),
+    this.androidWorkerCompletedAt = const Value.absent(),
+    this.androidWorkerDurationMs = const Value.absent(),
+    this.androidWorkerResult = const Value.absent(),
+    this.androidWorkerStopReason = const Value.absent(),
     this.lastPlanKind = const Value.absent(),
     this.lastPlanReason = const Value.absent(),
     this.lastRunBytes = const Value.absent(),
@@ -18469,6 +19057,17 @@ class LibrarySyncStateTableCompanion
     Expression<int>? failureStreak,
     Expression<DateTime>? nextEligibleAt,
     Expression<DateTime>? nextAutomaticCheckAt,
+    Expression<bool>? androidBackgroundSyncEnabled,
+    Expression<DateTime>? androidScheduleReconciledAt,
+    Expression<int>? androidRequestedIntervalMinutes,
+    Expression<String>? androidWorkId,
+    Expression<String>? androidWorkState,
+    Expression<int>? androidWorkAttemptCount,
+    Expression<DateTime>? androidWorkerStartedAt,
+    Expression<DateTime>? androidWorkerCompletedAt,
+    Expression<int>? androidWorkerDurationMs,
+    Expression<String>? androidWorkerResult,
+    Expression<String>? androidWorkerStopReason,
     Expression<String>? lastPlanKind,
     Expression<String>? lastPlanReason,
     Expression<int>? lastRunBytes,
@@ -18517,6 +19116,26 @@ class LibrarySyncStateTableCompanion
       if (nextEligibleAt != null) 'next_eligible_at': nextEligibleAt,
       if (nextAutomaticCheckAt != null)
         'next_automatic_check_at': nextAutomaticCheckAt,
+      if (androidBackgroundSyncEnabled != null)
+        'android_background_sync_enabled': androidBackgroundSyncEnabled,
+      if (androidScheduleReconciledAt != null)
+        'android_schedule_reconciled_at': androidScheduleReconciledAt,
+      if (androidRequestedIntervalMinutes != null)
+        'android_requested_interval_minutes': androidRequestedIntervalMinutes,
+      if (androidWorkId != null) 'android_work_id': androidWorkId,
+      if (androidWorkState != null) 'android_work_state': androidWorkState,
+      if (androidWorkAttemptCount != null)
+        'android_work_attempt_count': androidWorkAttemptCount,
+      if (androidWorkerStartedAt != null)
+        'android_worker_started_at': androidWorkerStartedAt,
+      if (androidWorkerCompletedAt != null)
+        'android_worker_completed_at': androidWorkerCompletedAt,
+      if (androidWorkerDurationMs != null)
+        'android_worker_duration_ms': androidWorkerDurationMs,
+      if (androidWorkerResult != null)
+        'android_worker_result': androidWorkerResult,
+      if (androidWorkerStopReason != null)
+        'android_worker_stop_reason': androidWorkerStopReason,
       if (lastPlanKind != null) 'last_plan_kind': lastPlanKind,
       if (lastPlanReason != null) 'last_plan_reason': lastPlanReason,
       if (lastRunBytes != null) 'last_run_bytes': lastRunBytes,
@@ -18557,6 +19176,17 @@ class LibrarySyncStateTableCompanion
     Value<int>? failureStreak,
     Value<DateTime?>? nextEligibleAt,
     Value<DateTime?>? nextAutomaticCheckAt,
+    Value<bool>? androidBackgroundSyncEnabled,
+    Value<DateTime?>? androidScheduleReconciledAt,
+    Value<int?>? androidRequestedIntervalMinutes,
+    Value<String?>? androidWorkId,
+    Value<String?>? androidWorkState,
+    Value<int>? androidWorkAttemptCount,
+    Value<DateTime?>? androidWorkerStartedAt,
+    Value<DateTime?>? androidWorkerCompletedAt,
+    Value<int?>? androidWorkerDurationMs,
+    Value<String?>? androidWorkerResult,
+    Value<String?>? androidWorkerStopReason,
     Value<String?>? lastPlanKind,
     Value<String?>? lastPlanReason,
     Value<int>? lastRunBytes,
@@ -18597,6 +19227,26 @@ class LibrarySyncStateTableCompanion
       failureStreak: failureStreak ?? this.failureStreak,
       nextEligibleAt: nextEligibleAt ?? this.nextEligibleAt,
       nextAutomaticCheckAt: nextAutomaticCheckAt ?? this.nextAutomaticCheckAt,
+      androidBackgroundSyncEnabled:
+          androidBackgroundSyncEnabled ?? this.androidBackgroundSyncEnabled,
+      androidScheduleReconciledAt:
+          androidScheduleReconciledAt ?? this.androidScheduleReconciledAt,
+      androidRequestedIntervalMinutes:
+          androidRequestedIntervalMinutes ??
+          this.androidRequestedIntervalMinutes,
+      androidWorkId: androidWorkId ?? this.androidWorkId,
+      androidWorkState: androidWorkState ?? this.androidWorkState,
+      androidWorkAttemptCount:
+          androidWorkAttemptCount ?? this.androidWorkAttemptCount,
+      androidWorkerStartedAt:
+          androidWorkerStartedAt ?? this.androidWorkerStartedAt,
+      androidWorkerCompletedAt:
+          androidWorkerCompletedAt ?? this.androidWorkerCompletedAt,
+      androidWorkerDurationMs:
+          androidWorkerDurationMs ?? this.androidWorkerDurationMs,
+      androidWorkerResult: androidWorkerResult ?? this.androidWorkerResult,
+      androidWorkerStopReason:
+          androidWorkerStopReason ?? this.androidWorkerStopReason,
       lastPlanKind: lastPlanKind ?? this.lastPlanKind,
       lastPlanReason: lastPlanReason ?? this.lastPlanReason,
       lastRunBytes: lastRunBytes ?? this.lastRunBytes,
@@ -18713,6 +19363,57 @@ class LibrarySyncStateTableCompanion
         nextAutomaticCheckAt.value,
       );
     }
+    if (androidBackgroundSyncEnabled.present) {
+      map['android_background_sync_enabled'] = Variable<bool>(
+        androidBackgroundSyncEnabled.value,
+      );
+    }
+    if (androidScheduleReconciledAt.present) {
+      map['android_schedule_reconciled_at'] = Variable<DateTime>(
+        androidScheduleReconciledAt.value,
+      );
+    }
+    if (androidRequestedIntervalMinutes.present) {
+      map['android_requested_interval_minutes'] = Variable<int>(
+        androidRequestedIntervalMinutes.value,
+      );
+    }
+    if (androidWorkId.present) {
+      map['android_work_id'] = Variable<String>(androidWorkId.value);
+    }
+    if (androidWorkState.present) {
+      map['android_work_state'] = Variable<String>(androidWorkState.value);
+    }
+    if (androidWorkAttemptCount.present) {
+      map['android_work_attempt_count'] = Variable<int>(
+        androidWorkAttemptCount.value,
+      );
+    }
+    if (androidWorkerStartedAt.present) {
+      map['android_worker_started_at'] = Variable<DateTime>(
+        androidWorkerStartedAt.value,
+      );
+    }
+    if (androidWorkerCompletedAt.present) {
+      map['android_worker_completed_at'] = Variable<DateTime>(
+        androidWorkerCompletedAt.value,
+      );
+    }
+    if (androidWorkerDurationMs.present) {
+      map['android_worker_duration_ms'] = Variable<int>(
+        androidWorkerDurationMs.value,
+      );
+    }
+    if (androidWorkerResult.present) {
+      map['android_worker_result'] = Variable<String>(
+        androidWorkerResult.value,
+      );
+    }
+    if (androidWorkerStopReason.present) {
+      map['android_worker_stop_reason'] = Variable<String>(
+        androidWorkerStopReason.value,
+      );
+    }
     if (lastPlanKind.present) {
       map['last_plan_kind'] = Variable<String>(lastPlanKind.value);
     }
@@ -18773,6 +19474,21 @@ class LibrarySyncStateTableCompanion
           ..write('failureStreak: $failureStreak, ')
           ..write('nextEligibleAt: $nextEligibleAt, ')
           ..write('nextAutomaticCheckAt: $nextAutomaticCheckAt, ')
+          ..write(
+            'androidBackgroundSyncEnabled: $androidBackgroundSyncEnabled, ',
+          )
+          ..write('androidScheduleReconciledAt: $androidScheduleReconciledAt, ')
+          ..write(
+            'androidRequestedIntervalMinutes: $androidRequestedIntervalMinutes, ',
+          )
+          ..write('androidWorkId: $androidWorkId, ')
+          ..write('androidWorkState: $androidWorkState, ')
+          ..write('androidWorkAttemptCount: $androidWorkAttemptCount, ')
+          ..write('androidWorkerStartedAt: $androidWorkerStartedAt, ')
+          ..write('androidWorkerCompletedAt: $androidWorkerCompletedAt, ')
+          ..write('androidWorkerDurationMs: $androidWorkerDurationMs, ')
+          ..write('androidWorkerResult: $androidWorkerResult, ')
+          ..write('androidWorkerStopReason: $androidWorkerStopReason, ')
           ..write('lastPlanKind: $lastPlanKind, ')
           ..write('lastPlanReason: $lastPlanReason, ')
           ..write('lastRunBytes: $lastRunBytes, ')
@@ -23991,6 +24707,435 @@ class LibrarySyncOperationLedgerTableCompanion
   }
 }
 
+class $LibrarySyncExecutionLeaseTableTable
+    extends LibrarySyncExecutionLeaseTable
+    with
+        TableInfo<
+          $LibrarySyncExecutionLeaseTableTable,
+          LibrarySyncExecutionLeaseTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncExecutionLeaseTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _ownerTokenMeta = const VerificationMeta(
+    'ownerToken',
+  );
+  @override
+  late final GeneratedColumn<String> ownerToken = GeneratedColumn<String>(
+    'owner_token',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ownerKindMeta = const VerificationMeta(
+    'ownerKind',
+  );
+  @override
+  late final GeneratedColumn<String> ownerKind = GeneratedColumn<String>(
+    'owner_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _heartbeatAtMeta = const VerificationMeta(
+    'heartbeatAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> heartbeatAt = GeneratedColumn<DateTime>(
+    'heartbeat_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    ownerToken,
+    ownerKind,
+    startedAt,
+    heartbeatAt,
+    expiresAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_execution_lease';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncExecutionLeaseTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('owner_token')) {
+      context.handle(
+        _ownerTokenMeta,
+        ownerToken.isAcceptableOrUnknown(data['owner_token']!, _ownerTokenMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ownerTokenMeta);
+    }
+    if (data.containsKey('owner_kind')) {
+      context.handle(
+        _ownerKindMeta,
+        ownerKind.isAcceptableOrUnknown(data['owner_kind']!, _ownerKindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ownerKindMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('heartbeat_at')) {
+      context.handle(
+        _heartbeatAtMeta,
+        heartbeatAt.isAcceptableOrUnknown(
+          data['heartbeat_at']!,
+          _heartbeatAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_heartbeatAtMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId};
+  @override
+  LibrarySyncExecutionLeaseTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncExecutionLeaseTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      ownerToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_token'],
+      )!,
+      ownerKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_kind'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      heartbeatAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}heartbeat_at'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LibrarySyncExecutionLeaseTableTable createAlias(String alias) {
+    return $LibrarySyncExecutionLeaseTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncExecutionLeaseTableData extends DataClass
+    implements Insertable<LibrarySyncExecutionLeaseTableData> {
+  final int serverId;
+  final String ownerToken;
+  final String ownerKind;
+  final DateTime startedAt;
+  final DateTime heartbeatAt;
+  final DateTime expiresAt;
+  const LibrarySyncExecutionLeaseTableData({
+    required this.serverId,
+    required this.ownerToken,
+    required this.ownerKind,
+    required this.startedAt,
+    required this.heartbeatAt,
+    required this.expiresAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    map['owner_token'] = Variable<String>(ownerToken);
+    map['owner_kind'] = Variable<String>(ownerKind);
+    map['started_at'] = Variable<DateTime>(startedAt);
+    map['heartbeat_at'] = Variable<DateTime>(heartbeatAt);
+    map['expires_at'] = Variable<DateTime>(expiresAt);
+    return map;
+  }
+
+  LibrarySyncExecutionLeaseTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncExecutionLeaseTableCompanion(
+      serverId: Value(serverId),
+      ownerToken: Value(ownerToken),
+      ownerKind: Value(ownerKind),
+      startedAt: Value(startedAt),
+      heartbeatAt: Value(heartbeatAt),
+      expiresAt: Value(expiresAt),
+    );
+  }
+
+  factory LibrarySyncExecutionLeaseTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncExecutionLeaseTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      ownerToken: serializer.fromJson<String>(json['ownerToken']),
+      ownerKind: serializer.fromJson<String>(json['ownerKind']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      heartbeatAt: serializer.fromJson<DateTime>(json['heartbeatAt']),
+      expiresAt: serializer.fromJson<DateTime>(json['expiresAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'ownerToken': serializer.toJson<String>(ownerToken),
+      'ownerKind': serializer.toJson<String>(ownerKind),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'heartbeatAt': serializer.toJson<DateTime>(heartbeatAt),
+      'expiresAt': serializer.toJson<DateTime>(expiresAt),
+    };
+  }
+
+  LibrarySyncExecutionLeaseTableData copyWith({
+    int? serverId,
+    String? ownerToken,
+    String? ownerKind,
+    DateTime? startedAt,
+    DateTime? heartbeatAt,
+    DateTime? expiresAt,
+  }) => LibrarySyncExecutionLeaseTableData(
+    serverId: serverId ?? this.serverId,
+    ownerToken: ownerToken ?? this.ownerToken,
+    ownerKind: ownerKind ?? this.ownerKind,
+    startedAt: startedAt ?? this.startedAt,
+    heartbeatAt: heartbeatAt ?? this.heartbeatAt,
+    expiresAt: expiresAt ?? this.expiresAt,
+  );
+  LibrarySyncExecutionLeaseTableData copyWithCompanion(
+    LibrarySyncExecutionLeaseTableCompanion data,
+  ) {
+    return LibrarySyncExecutionLeaseTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      ownerToken: data.ownerToken.present
+          ? data.ownerToken.value
+          : this.ownerToken,
+      ownerKind: data.ownerKind.present ? data.ownerKind.value : this.ownerKind,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      heartbeatAt: data.heartbeatAt.present
+          ? data.heartbeatAt.value
+          : this.heartbeatAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncExecutionLeaseTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('ownerToken: $ownerToken, ')
+          ..write('ownerKind: $ownerKind, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('heartbeatAt: $heartbeatAt, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    serverId,
+    ownerToken,
+    ownerKind,
+    startedAt,
+    heartbeatAt,
+    expiresAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncExecutionLeaseTableData &&
+          other.serverId == this.serverId &&
+          other.ownerToken == this.ownerToken &&
+          other.ownerKind == this.ownerKind &&
+          other.startedAt == this.startedAt &&
+          other.heartbeatAt == this.heartbeatAt &&
+          other.expiresAt == this.expiresAt);
+}
+
+class LibrarySyncExecutionLeaseTableCompanion
+    extends UpdateCompanion<LibrarySyncExecutionLeaseTableData> {
+  final Value<int> serverId;
+  final Value<String> ownerToken;
+  final Value<String> ownerKind;
+  final Value<DateTime> startedAt;
+  final Value<DateTime> heartbeatAt;
+  final Value<DateTime> expiresAt;
+  const LibrarySyncExecutionLeaseTableCompanion({
+    this.serverId = const Value.absent(),
+    this.ownerToken = const Value.absent(),
+    this.ownerKind = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.heartbeatAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+  });
+  LibrarySyncExecutionLeaseTableCompanion.insert({
+    this.serverId = const Value.absent(),
+    required String ownerToken,
+    required String ownerKind,
+    required DateTime startedAt,
+    required DateTime heartbeatAt,
+    required DateTime expiresAt,
+  }) : ownerToken = Value(ownerToken),
+       ownerKind = Value(ownerKind),
+       startedAt = Value(startedAt),
+       heartbeatAt = Value(heartbeatAt),
+       expiresAt = Value(expiresAt);
+  static Insertable<LibrarySyncExecutionLeaseTableData> custom({
+    Expression<int>? serverId,
+    Expression<String>? ownerToken,
+    Expression<String>? ownerKind,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? heartbeatAt,
+    Expression<DateTime>? expiresAt,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (ownerToken != null) 'owner_token': ownerToken,
+      if (ownerKind != null) 'owner_kind': ownerKind,
+      if (startedAt != null) 'started_at': startedAt,
+      if (heartbeatAt != null) 'heartbeat_at': heartbeatAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
+    });
+  }
+
+  LibrarySyncExecutionLeaseTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<String>? ownerToken,
+    Value<String>? ownerKind,
+    Value<DateTime>? startedAt,
+    Value<DateTime>? heartbeatAt,
+    Value<DateTime>? expiresAt,
+  }) {
+    return LibrarySyncExecutionLeaseTableCompanion(
+      serverId: serverId ?? this.serverId,
+      ownerToken: ownerToken ?? this.ownerToken,
+      ownerKind: ownerKind ?? this.ownerKind,
+      startedAt: startedAt ?? this.startedAt,
+      heartbeatAt: heartbeatAt ?? this.heartbeatAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (ownerToken.present) {
+      map['owner_token'] = Variable<String>(ownerToken.value);
+    }
+    if (ownerKind.present) {
+      map['owner_kind'] = Variable<String>(ownerKind.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (heartbeatAt.present) {
+      map['heartbeat_at'] = Variable<DateTime>(heartbeatAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncExecutionLeaseTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('ownerToken: $ownerToken, ')
+          ..write('ownerKind: $ownerKind, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('heartbeatAt: $heartbeatAt, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -24057,6 +25202,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $StarredAbsenceCandidatesTableTable(this);
   late final $LibrarySyncOperationLedgerTableTable
   librarySyncOperationLedgerTable = $LibrarySyncOperationLedgerTableTable(this);
+  late final $LibrarySyncExecutionLeaseTableTable
+  librarySyncExecutionLeaseTable = $LibrarySyncExecutionLeaseTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -24122,6 +25269,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     librarySyncLocalMutationsTable,
     starredAbsenceCandidatesTable,
     librarySyncOperationLedgerTable,
+    librarySyncExecutionLeaseTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -24234,6 +25382,15 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       ),
       result: [
         TableUpdate('library_sync_operation_ledger', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_sync_execution_lease', kind: UpdateKind.delete),
       ],
     ),
   ]);
@@ -24372,6 +25529,31 @@ final class $$ServerConfigTableTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _librarySyncOperationLedgerTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncExecutionLeaseTableTable,
+    List<LibrarySyncExecutionLeaseTableData>
+  >
+  _librarySyncExecutionLeaseTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.librarySyncExecutionLeaseTable,
+        aliasName: 'server_config__id__library_sync_execution_lease__server_id',
+      );
+
+  $$LibrarySyncExecutionLeaseTableTableProcessedTableManager
+  get librarySyncExecutionLeaseTableRefs {
+    final manager = $$LibrarySyncExecutionLeaseTableTableTableManager(
+      $_db,
+      $_db.librarySyncExecutionLeaseTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncExecutionLeaseTableRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -24533,6 +25715,35 @@ class $$ServerConfigTableTableFilterComposer
               }) => $$LibrarySyncOperationLedgerTableTableFilterComposer(
                 $db: $db,
                 $table: $db.librarySyncOperationLedgerTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> librarySyncExecutionLeaseTableRefs(
+    Expression<bool> Function(
+      $$LibrarySyncExecutionLeaseTableTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$LibrarySyncExecutionLeaseTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncExecutionLeaseTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncExecutionLeaseTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncExecutionLeaseTable,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -24753,6 +25964,35 @@ class $$ServerConfigTableTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> librarySyncExecutionLeaseTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibrarySyncExecutionLeaseTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibrarySyncExecutionLeaseTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncExecutionLeaseTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncExecutionLeaseTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncExecutionLeaseTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ServerConfigTableTableTableManager
@@ -24773,6 +26013,7 @@ class $$ServerConfigTableTableTableManager
             bool librarySyncWorkTableRefs,
             bool starredAbsenceCandidatesTableRefs,
             bool librarySyncOperationLedgerTableRefs,
+            bool librarySyncExecutionLeaseTableRefs,
           })
         > {
   $$ServerConfigTableTableTableManager(
@@ -24849,6 +26090,7 @@ class $$ServerConfigTableTableTableManager
                 librarySyncWorkTableRefs = false,
                 starredAbsenceCandidatesTableRefs = false,
                 librarySyncOperationLedgerTableRefs = false,
+                librarySyncExecutionLeaseTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -24859,6 +26101,8 @@ class $$ServerConfigTableTableTableManager
                       db.starredAbsenceCandidatesTable,
                     if (librarySyncOperationLedgerTableRefs)
                       db.librarySyncOperationLedgerTable,
+                    if (librarySyncExecutionLeaseTableRefs)
+                      db.librarySyncExecutionLeaseTable,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -24947,6 +26191,27 @@ class $$ServerConfigTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (librarySyncExecutionLeaseTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibrarySyncExecutionLeaseTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._librarySyncExecutionLeaseTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncExecutionLeaseTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -24972,6 +26237,7 @@ typedef $$ServerConfigTableTableProcessedTableManager =
         bool librarySyncWorkTableRefs,
         bool starredAbsenceCandidatesTableRefs,
         bool librarySyncOperationLedgerTableRefs,
+        bool librarySyncExecutionLeaseTableRefs,
       })
     >;
 typedef $$AppSettingsTableTableCreateCompanionBuilder =
@@ -35037,6 +36303,17 @@ typedef $$LibrarySyncStateTableTableCreateCompanionBuilder =
       Value<int> failureStreak,
       Value<DateTime?> nextEligibleAt,
       Value<DateTime?> nextAutomaticCheckAt,
+      Value<bool> androidBackgroundSyncEnabled,
+      Value<DateTime?> androidScheduleReconciledAt,
+      Value<int?> androidRequestedIntervalMinutes,
+      Value<String?> androidWorkId,
+      Value<String?> androidWorkState,
+      Value<int> androidWorkAttemptCount,
+      Value<DateTime?> androidWorkerStartedAt,
+      Value<DateTime?> androidWorkerCompletedAt,
+      Value<int?> androidWorkerDurationMs,
+      Value<String?> androidWorkerResult,
+      Value<String?> androidWorkerStopReason,
       Value<String?> lastPlanKind,
       Value<String?> lastPlanReason,
       Value<int> lastRunBytes,
@@ -35074,6 +36351,17 @@ typedef $$LibrarySyncStateTableTableUpdateCompanionBuilder =
       Value<int> failureStreak,
       Value<DateTime?> nextEligibleAt,
       Value<DateTime?> nextAutomaticCheckAt,
+      Value<bool> androidBackgroundSyncEnabled,
+      Value<DateTime?> androidScheduleReconciledAt,
+      Value<int?> androidRequestedIntervalMinutes,
+      Value<String?> androidWorkId,
+      Value<String?> androidWorkState,
+      Value<int> androidWorkAttemptCount,
+      Value<DateTime?> androidWorkerStartedAt,
+      Value<DateTime?> androidWorkerCompletedAt,
+      Value<int?> androidWorkerDurationMs,
+      Value<String?> androidWorkerResult,
+      Value<String?> androidWorkerStopReason,
       Value<String?> lastPlanKind,
       Value<String?> lastPlanReason,
       Value<int> lastRunBytes,
@@ -35255,6 +36543,61 @@ class $$LibrarySyncStateTableTableFilterComposer
 
   ColumnFilters<DateTime> get nextAutomaticCheckAt => $composableBuilder(
     column: $table.nextAutomaticCheckAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get androidBackgroundSyncEnabled => $composableBuilder(
+    column: $table.androidBackgroundSyncEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get androidScheduleReconciledAt => $composableBuilder(
+    column: $table.androidScheduleReconciledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get androidRequestedIntervalMinutes => $composableBuilder(
+    column: $table.androidRequestedIntervalMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get androidWorkId => $composableBuilder(
+    column: $table.androidWorkId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get androidWorkState => $composableBuilder(
+    column: $table.androidWorkState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get androidWorkAttemptCount => $composableBuilder(
+    column: $table.androidWorkAttemptCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get androidWorkerStartedAt => $composableBuilder(
+    column: $table.androidWorkerStartedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get androidWorkerCompletedAt => $composableBuilder(
+    column: $table.androidWorkerCompletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get androidWorkerDurationMs => $composableBuilder(
+    column: $table.androidWorkerDurationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get androidWorkerResult => $composableBuilder(
+    column: $table.androidWorkerResult,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get androidWorkerStopReason => $composableBuilder(
+    column: $table.androidWorkerStopReason,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35454,6 +36797,63 @@ class $$LibrarySyncStateTableTableOrderingComposer
 
   ColumnOrderings<DateTime> get nextAutomaticCheckAt => $composableBuilder(
     column: $table.nextAutomaticCheckAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get androidBackgroundSyncEnabled => $composableBuilder(
+    column: $table.androidBackgroundSyncEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get androidScheduleReconciledAt =>
+      $composableBuilder(
+        column: $table.androidScheduleReconciledAt,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<int> get androidRequestedIntervalMinutes =>
+      $composableBuilder(
+        column: $table.androidRequestedIntervalMinutes,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<String> get androidWorkId => $composableBuilder(
+    column: $table.androidWorkId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get androidWorkState => $composableBuilder(
+    column: $table.androidWorkState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get androidWorkAttemptCount => $composableBuilder(
+    column: $table.androidWorkAttemptCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get androidWorkerStartedAt => $composableBuilder(
+    column: $table.androidWorkerStartedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get androidWorkerCompletedAt => $composableBuilder(
+    column: $table.androidWorkerCompletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get androidWorkerDurationMs => $composableBuilder(
+    column: $table.androidWorkerDurationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get androidWorkerResult => $composableBuilder(
+    column: $table.androidWorkerResult,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get androidWorkerStopReason => $composableBuilder(
+    column: $table.androidWorkerStopReason,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -35657,6 +37057,63 @@ class $$LibrarySyncStateTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get androidBackgroundSyncEnabled => $composableBuilder(
+    column: $table.androidBackgroundSyncEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get androidScheduleReconciledAt =>
+      $composableBuilder(
+        column: $table.androidScheduleReconciledAt,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get androidRequestedIntervalMinutes =>
+      $composableBuilder(
+        column: $table.androidRequestedIntervalMinutes,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<String> get androidWorkId => $composableBuilder(
+    column: $table.androidWorkId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get androidWorkState => $composableBuilder(
+    column: $table.androidWorkState,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get androidWorkAttemptCount => $composableBuilder(
+    column: $table.androidWorkAttemptCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get androidWorkerStartedAt => $composableBuilder(
+    column: $table.androidWorkerStartedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get androidWorkerCompletedAt => $composableBuilder(
+    column: $table.androidWorkerCompletedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get androidWorkerDurationMs => $composableBuilder(
+    column: $table.androidWorkerDurationMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get androidWorkerResult => $composableBuilder(
+    column: $table.androidWorkerResult,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get androidWorkerStopReason => $composableBuilder(
+    column: $table.androidWorkerStopReason,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get lastPlanKind => $composableBuilder(
     column: $table.lastPlanKind,
     builder: (column) => column,
@@ -35781,6 +37238,20 @@ class $$LibrarySyncStateTableTableTableManager
                 Value<int> failureStreak = const Value.absent(),
                 Value<DateTime?> nextEligibleAt = const Value.absent(),
                 Value<DateTime?> nextAutomaticCheckAt = const Value.absent(),
+                Value<bool> androidBackgroundSyncEnabled = const Value.absent(),
+                Value<DateTime?> androidScheduleReconciledAt =
+                    const Value.absent(),
+                Value<int?> androidRequestedIntervalMinutes =
+                    const Value.absent(),
+                Value<String?> androidWorkId = const Value.absent(),
+                Value<String?> androidWorkState = const Value.absent(),
+                Value<int> androidWorkAttemptCount = const Value.absent(),
+                Value<DateTime?> androidWorkerStartedAt = const Value.absent(),
+                Value<DateTime?> androidWorkerCompletedAt =
+                    const Value.absent(),
+                Value<int?> androidWorkerDurationMs = const Value.absent(),
+                Value<String?> androidWorkerResult = const Value.absent(),
+                Value<String?> androidWorkerStopReason = const Value.absent(),
                 Value<String?> lastPlanKind = const Value.absent(),
                 Value<String?> lastPlanReason = const Value.absent(),
                 Value<int> lastRunBytes = const Value.absent(),
@@ -35817,6 +37288,18 @@ class $$LibrarySyncStateTableTableTableManager
                 failureStreak: failureStreak,
                 nextEligibleAt: nextEligibleAt,
                 nextAutomaticCheckAt: nextAutomaticCheckAt,
+                androidBackgroundSyncEnabled: androidBackgroundSyncEnabled,
+                androidScheduleReconciledAt: androidScheduleReconciledAt,
+                androidRequestedIntervalMinutes:
+                    androidRequestedIntervalMinutes,
+                androidWorkId: androidWorkId,
+                androidWorkState: androidWorkState,
+                androidWorkAttemptCount: androidWorkAttemptCount,
+                androidWorkerStartedAt: androidWorkerStartedAt,
+                androidWorkerCompletedAt: androidWorkerCompletedAt,
+                androidWorkerDurationMs: androidWorkerDurationMs,
+                androidWorkerResult: androidWorkerResult,
+                androidWorkerStopReason: androidWorkerStopReason,
                 lastPlanKind: lastPlanKind,
                 lastPlanReason: lastPlanReason,
                 lastRunBytes: lastRunBytes,
@@ -35855,6 +37338,20 @@ class $$LibrarySyncStateTableTableTableManager
                 Value<int> failureStreak = const Value.absent(),
                 Value<DateTime?> nextEligibleAt = const Value.absent(),
                 Value<DateTime?> nextAutomaticCheckAt = const Value.absent(),
+                Value<bool> androidBackgroundSyncEnabled = const Value.absent(),
+                Value<DateTime?> androidScheduleReconciledAt =
+                    const Value.absent(),
+                Value<int?> androidRequestedIntervalMinutes =
+                    const Value.absent(),
+                Value<String?> androidWorkId = const Value.absent(),
+                Value<String?> androidWorkState = const Value.absent(),
+                Value<int> androidWorkAttemptCount = const Value.absent(),
+                Value<DateTime?> androidWorkerStartedAt = const Value.absent(),
+                Value<DateTime?> androidWorkerCompletedAt =
+                    const Value.absent(),
+                Value<int?> androidWorkerDurationMs = const Value.absent(),
+                Value<String?> androidWorkerResult = const Value.absent(),
+                Value<String?> androidWorkerStopReason = const Value.absent(),
                 Value<String?> lastPlanKind = const Value.absent(),
                 Value<String?> lastPlanReason = const Value.absent(),
                 Value<int> lastRunBytes = const Value.absent(),
@@ -35891,6 +37388,18 @@ class $$LibrarySyncStateTableTableTableManager
                 failureStreak: failureStreak,
                 nextEligibleAt: nextEligibleAt,
                 nextAutomaticCheckAt: nextAutomaticCheckAt,
+                androidBackgroundSyncEnabled: androidBackgroundSyncEnabled,
+                androidScheduleReconciledAt: androidScheduleReconciledAt,
+                androidRequestedIntervalMinutes:
+                    androidRequestedIntervalMinutes,
+                androidWorkId: androidWorkId,
+                androidWorkState: androidWorkState,
+                androidWorkAttemptCount: androidWorkAttemptCount,
+                androidWorkerStartedAt: androidWorkerStartedAt,
+                androidWorkerCompletedAt: androidWorkerCompletedAt,
+                androidWorkerDurationMs: androidWorkerDurationMs,
+                androidWorkerResult: androidWorkerResult,
+                androidWorkerStopReason: androidWorkerStopReason,
                 lastPlanKind: lastPlanKind,
                 lastPlanReason: lastPlanReason,
                 lastRunBytes: lastRunBytes,
@@ -38877,6 +40386,371 @@ typedef $$LibrarySyncOperationLedgerTableTableProcessedTableManager =
       LibrarySyncOperationLedgerTableData,
       PrefetchHooks Function({bool serverId})
     >;
+typedef $$LibrarySyncExecutionLeaseTableTableCreateCompanionBuilder =
+    LibrarySyncExecutionLeaseTableCompanion Function({
+      Value<int> serverId,
+      required String ownerToken,
+      required String ownerKind,
+      required DateTime startedAt,
+      required DateTime heartbeatAt,
+      required DateTime expiresAt,
+    });
+typedef $$LibrarySyncExecutionLeaseTableTableUpdateCompanionBuilder =
+    LibrarySyncExecutionLeaseTableCompanion Function({
+      Value<int> serverId,
+      Value<String> ownerToken,
+      Value<String> ownerKind,
+      Value<DateTime> startedAt,
+      Value<DateTime> heartbeatAt,
+      Value<DateTime> expiresAt,
+    });
+
+final class $$LibrarySyncExecutionLeaseTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncExecutionLeaseTableTable,
+          LibrarySyncExecutionLeaseTableData
+        > {
+  $$LibrarySyncExecutionLeaseTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) =>
+      db.serverConfigTable.createAlias(
+        'library_sync_execution_lease__server_id__server_config__id',
+      );
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibrarySyncExecutionLeaseTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncExecutionLeaseTableTable> {
+  $$LibrarySyncExecutionLeaseTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get ownerToken => $composableBuilder(
+    column: $table.ownerToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerKind => $composableBuilder(
+    column: $table.ownerKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get heartbeatAt => $composableBuilder(
+    column: $table.heartbeatAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncExecutionLeaseTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncExecutionLeaseTableTable> {
+  $$LibrarySyncExecutionLeaseTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get ownerToken => $composableBuilder(
+    column: $table.ownerToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerKind => $composableBuilder(
+    column: $table.ownerKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get heartbeatAt => $composableBuilder(
+    column: $table.heartbeatAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncExecutionLeaseTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncExecutionLeaseTableTable> {
+  $$LibrarySyncExecutionLeaseTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get ownerToken => $composableBuilder(
+    column: $table.ownerToken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ownerKind =>
+      $composableBuilder(column: $table.ownerKind, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get heartbeatAt => $composableBuilder(
+    column: $table.heartbeatAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncExecutionLeaseTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncExecutionLeaseTableTable,
+          LibrarySyncExecutionLeaseTableData,
+          $$LibrarySyncExecutionLeaseTableTableFilterComposer,
+          $$LibrarySyncExecutionLeaseTableTableOrderingComposer,
+          $$LibrarySyncExecutionLeaseTableTableAnnotationComposer,
+          $$LibrarySyncExecutionLeaseTableTableCreateCompanionBuilder,
+          $$LibrarySyncExecutionLeaseTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncExecutionLeaseTableData,
+            $$LibrarySyncExecutionLeaseTableTableReferences,
+          ),
+          LibrarySyncExecutionLeaseTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$LibrarySyncExecutionLeaseTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncExecutionLeaseTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncExecutionLeaseTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncExecutionLeaseTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncExecutionLeaseTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<String> ownerToken = const Value.absent(),
+                Value<String> ownerKind = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<DateTime> heartbeatAt = const Value.absent(),
+                Value<DateTime> expiresAt = const Value.absent(),
+              }) => LibrarySyncExecutionLeaseTableCompanion(
+                serverId: serverId,
+                ownerToken: ownerToken,
+                ownerKind: ownerKind,
+                startedAt: startedAt,
+                heartbeatAt: heartbeatAt,
+                expiresAt: expiresAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                required String ownerToken,
+                required String ownerKind,
+                required DateTime startedAt,
+                required DateTime heartbeatAt,
+                required DateTime expiresAt,
+              }) => LibrarySyncExecutionLeaseTableCompanion.insert(
+                serverId: serverId,
+                ownerToken: ownerToken,
+                ownerKind: ownerKind,
+                startedAt: startedAt,
+                heartbeatAt: heartbeatAt,
+                expiresAt: expiresAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncExecutionLeaseTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.serverId,
+                                referencedTable:
+                                    $$LibrarySyncExecutionLeaseTableTableReferences
+                                        ._serverIdTable(db),
+                                referencedColumn:
+                                    $$LibrarySyncExecutionLeaseTableTableReferences
+                                        ._serverIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibrarySyncExecutionLeaseTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncExecutionLeaseTableTable,
+      LibrarySyncExecutionLeaseTableData,
+      $$LibrarySyncExecutionLeaseTableTableFilterComposer,
+      $$LibrarySyncExecutionLeaseTableTableOrderingComposer,
+      $$LibrarySyncExecutionLeaseTableTableAnnotationComposer,
+      $$LibrarySyncExecutionLeaseTableTableCreateCompanionBuilder,
+      $$LibrarySyncExecutionLeaseTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncExecutionLeaseTableData,
+        $$LibrarySyncExecutionLeaseTableTableReferences,
+      ),
+      LibrarySyncExecutionLeaseTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -38982,5 +40856,11 @@ class $NavisDatabaseManager {
       $$LibrarySyncOperationLedgerTableTableTableManager(
         _db,
         _db.librarySyncOperationLedgerTable,
+      );
+  $$LibrarySyncExecutionLeaseTableTableTableManager
+  get librarySyncExecutionLeaseTable =>
+      $$LibrarySyncExecutionLeaseTableTableTableManager(
+        _db,
+        _db.librarySyncExecutionLeaseTable,
       );
 }

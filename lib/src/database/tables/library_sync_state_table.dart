@@ -73,6 +73,35 @@ class LibrarySyncStateTable extends Table {
   /// durable schedule instead of each starting a process-local interval.
   DateTimeColumn get nextAutomaticCheckAt => dateTime().nullable()();
 
+  /// Android-only WorkManager capability gate. It is intentionally durable so
+  /// an internal rollout cannot be enabled merely by restarting the process.
+  BoolColumn get androidBackgroundSyncEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  DateTimeColumn get androidScheduleReconciledAt => dateTime().nullable()();
+
+  IntColumn get androidRequestedIntervalMinutes => integer().nullable()();
+
+  TextColumn get androidWorkId => text().nullable()();
+
+  TextColumn get androidWorkState => text().nullable()();
+
+  IntColumn get androidWorkAttemptCount => integer().withDefault(
+    const Constant(0),
+  )();
+
+  DateTimeColumn get androidWorkerStartedAt => dateTime().nullable()();
+
+  DateTimeColumn get androidWorkerCompletedAt => dateTime().nullable()();
+
+  IntColumn get androidWorkerDurationMs => integer().nullable()();
+
+  /// A bounded redacted category, never an exception string or server detail.
+  TextColumn get androidWorkerResult => text().nullable()();
+
+  /// Safe WorkManager stop category when the platform exposes one.
+  TextColumn get androidWorkerStopReason => text().nullable()();
+
   TextColumn get lastPlanKind => text().nullable()();
 
   TextColumn get lastPlanReason => text().nullable()();

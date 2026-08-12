@@ -16,6 +16,8 @@ mixin _$LibrarySyncDaoMixin on DatabaseAccessor<NavisDatabase> {
       attachedDatabase.starredAbsenceCandidatesTable;
   $LibrarySyncOperationLedgerTableTable get librarySyncOperationLedgerTable =>
       attachedDatabase.librarySyncOperationLedgerTable;
+  $LibrarySyncExecutionLeaseTableTable get librarySyncExecutionLeaseTable =>
+      attachedDatabase.librarySyncExecutionLeaseTable;
   LibrarySyncDaoManager get managers => LibrarySyncDaoManager(this);
 }
 
@@ -54,5 +56,11 @@ class LibrarySyncDaoManager {
       $$LibrarySyncOperationLedgerTableTableTableManager(
         _db.attachedDatabase,
         _db.librarySyncOperationLedgerTable,
+      );
+  $$LibrarySyncExecutionLeaseTableTableTableManager
+  get librarySyncExecutionLeaseTable =>
+      $$LibrarySyncExecutionLeaseTableTableTableManager(
+        _db.attachedDatabase,
+        _db.librarySyncExecutionLeaseTable,
       );
 }

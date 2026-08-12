@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -22,6 +23,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     bool Function()? readIsForeground,
     DateTime Function()? now,
     LibrarySyncPlanner planner = const LibrarySyncPlanner(),
+    String executionOwnerKind = 'foreground',
   }) : _executor = executor,
        _database = database,
        _serverConfigRepository = serverConfigRepository,
@@ -30,9 +32,21 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
        _readHasActivePlayback = readHasActivePlayback,
        _readIsForeground = readIsForeground ?? _alwaysForeground,
        _now = now ?? DateTime.now,
-       _planner = planner;
+       _planner = planner,
+       _executionOwnerKind = _validateOwnerKind(executionOwnerKind);
 
   static bool _alwaysForeground() => true;
+
+  static String _validateOwnerKind(String value) {
+    return switch (value) {
+      'foreground' || 'androidWorker' => value,
+      _ => throw ArgumentError.value(
+        value,
+        'executionOwnerKind',
+        'must be foreground or androidWorker',
+      ),
+    };
+  }
 
   final LibrarySyncEngine _executor;
   DriftLibrarySyncEngine? get driftExecutor => switch (_executor) {
@@ -48,8 +62,18 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   final bool Function() _readIsForeground;
   final DateTime Function() _now;
   final LibrarySyncPlanner _planner;
+  final String _executionOwnerKind;
   final Set<int> _recoveredServers = <int>{};
   Future<LibrarySyncState>? _inFlight;
+
+  static const Duration _executionLeaseTtl = Duration(minutes: 10);
+  static const Duration _executionLeaseHeartbeatInterval = Duration(minutes: 1);
+
+  String _newLeaseToken() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(24, (_) => random.nextInt(256));
+    return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  }
 
   SyncNetworkPolicy get _syncPolicy {
     final reader = _readSyncNetworkPolicy;
@@ -350,216 +374,268 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       );
     }
 
-    final runnable = await _database.librarySyncDao.getRunnableWork(
-      serverId: serverId,
-      now: startedAt,
-    );
-    final work = runnable.where(
-      (row) => row.kind == plan.kind.name && row.entityId == targetWorkKey,
-    );
-    final activeWork = work.isEmpty ? null : work.first;
-    if (activeWork != null) {
-      await _database.librarySyncDao.markRunning(activeWork.id, now: startedAt);
-    }
-
-    final driftExecutor = switch (_executor) {
-      final DriftLibrarySyncEngine engine => engine,
-      _ => null,
-    };
-    final previousOverride = driftExecutor?.allowMeteredBackgroundOverride;
-    if (driftExecutor != null) {
-      driftExecutor.allowMeteredBackgroundOverride =
-          request.allowMeteredBroadOverride;
-    }
-
-    LibrarySyncState result;
-    try {
-      result = await _executeDelegate(
-        request: request,
-        plan: plan,
-        targetId: targetId,
-        priorityAlbumIds: priorityAlbumIds,
-        onProgress: (progress) {
-          onProgress?.call(
-            progress.copyWith(planKind: plan.kind, planReason: plan.reason),
-          );
-        },
-      );
-    } on Object catch (error) {
-      if (activeWork != null && !(await _workIsCompleted(activeWork))) {
-        await _markWorkFailure(activeWork, error.runtimeType.toString());
-      }
-      rethrow;
-    } finally {
-      if (driftExecutor != null) {
-        driftExecutor.allowMeteredBackgroundOverride =
-            previousOverride ?? false;
-      }
-    }
-
-    if (plan.kind == LibrarySyncPlanKind.probe &&
-        result.status == LibrarySyncStatus.succeeded) {
-      await _enqueueProbeFollowUp(
+    final needsLease = request.target.kind == LibrarySyncTargetKind.catalog;
+    final ownerToken = needsLease ? _newLeaseToken() : null;
+    Timer? leaseHeartbeat;
+    if (needsLease) {
+      final acquired = await _database.librarySyncDao.acquireExecutionLease(
         serverId: serverId,
-        result: result,
+        ownerToken: ownerToken!,
+        ownerKind: _executionOwnerKind,
+        now: startedAt,
+        ttl: _executionLeaseTtl,
+      );
+      if (!acquired) {
+        return LibrarySyncState(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: _now(),
+          planKind: plan.kind,
+          planReason: 'leaseHeld',
+          pendingWorkCount: await _database.librarySyncDao.countPendingWork(
+            serverId,
+          ),
+        );
+      }
+      leaseHeartbeat = Timer.periodic(_executionLeaseHeartbeatInterval, (_) {
+        unawaited(
+          _database.librarySyncDao
+              .heartbeatExecutionLease(
+                serverId: serverId,
+                ownerToken: ownerToken,
+                now: _now(),
+                ttl: _executionLeaseTtl,
+              )
+              .catchError((Object _) => false),
+        );
+      });
+    }
+
+    try {
+      final runnable = await _database.librarySyncDao.getRunnableWork(
+        serverId: serverId,
         now: startedAt,
       );
-    }
+      final work = runnable.where(
+        (row) => row.kind == plan.kind.name && row.entityId == targetWorkKey,
+      );
+      final activeWork = work.isEmpty ? null : work.first;
+      if (activeWork != null) {
+        await _database.librarySyncDao.markRunning(
+          activeWork.id,
+          now: startedAt,
+        );
+      }
 
-    final usage = await _database.networkUsageDao.getCategoryTotalSince(
-      category: 'library_sync',
-      since: startedAt,
-    );
-    final cancelled =
-        result.errorMessage == 'Sync cancelled.' ||
-        result.errorMessage?.startsWith('Sync cancelled') == true;
-    final deferred = result.status == LibrarySyncStatus.deferred;
-    final hasPending =
-        (result.pendingHydrationCount ?? 0) > 0 ||
-        result.remainingVerificationCount > 0;
-    final status = cancelled
-        ? LibrarySyncStatus.cancelled
-        : deferred
-        ? LibrarySyncStatus.deferred
-        : result.status == LibrarySyncStatus.succeeded && hasPending
-        ? LibrarySyncStatus.partial
-        : result.status;
-    final failed =
-        status == LibrarySyncStatus.failed ||
-        (status == LibrarySyncStatus.skipped && result.errorMessage != null);
+      final driftExecutor = switch (_executor) {
+        final DriftLibrarySyncEngine engine => engine,
+        _ => null,
+      };
+      final previousOverride = driftExecutor?.allowMeteredBackgroundOverride;
+      if (driftExecutor != null) {
+        driftExecutor.allowMeteredBackgroundOverride =
+            request.allowMeteredBroadOverride;
+      }
 
-    if (activeWork != null && !(await _workIsCompleted(activeWork))) {
-      if (cancelled) {
-        await _database.librarySyncDao.markCancelled(activeWork.id);
-      } else if (deferred) {
-        // Preserve checkpoints; return the row to the queue for later.
-        await _database.librarySyncDao.requeue(activeWork.id, now: _now());
-      } else if (failed) {
-        await _markWorkFailure(activeWork, 'sync');
-      } else if (status == LibrarySyncStatus.partial &&
-          !_didCommitCatalogCandidate(plan, result)) {
-        if (result.candidateStatus == 'awaitingDeletionConfirmation') {
-          await _database.librarySyncDao.markAwaitingConfirmation(
-            activeWork.id,
-            now: _now(),
-          );
-        } else {
-          await _database.librarySyncDao.markCancelled(activeWork.id);
+      LibrarySyncState result;
+      try {
+        result = await _executeDelegate(
+          request: request,
+          plan: plan,
+          targetId: targetId,
+          priorityAlbumIds: priorityAlbumIds,
+          onProgress: (progress) {
+            onProgress?.call(
+              progress.copyWith(planKind: plan.kind, planReason: plan.reason),
+            );
+          },
+        );
+      } on Object catch (error) {
+        if (activeWork != null && !(await _workIsCompleted(activeWork))) {
+          await _markWorkFailure(activeWork, error.runtimeType.toString());
         }
-      } else {
-        await _database.librarySyncDao.markCompleted(activeWork.id);
+        rethrow;
+      } finally {
+        if (driftExecutor != null) {
+          driftExecutor.allowMeteredBackgroundOverride =
+              previousOverride ?? false;
+        }
+      }
+
+      if (plan.kind == LibrarySyncPlanKind.probe &&
+          result.status == LibrarySyncStatus.succeeded) {
+        await _enqueueProbeFollowUp(
+          serverId: serverId,
+          result: result,
+          now: startedAt,
+        );
+      }
+
+      final usage = await _database.networkUsageDao.getCategoryTotalSince(
+        category: 'library_sync',
+        since: startedAt,
+      );
+      final cancelled =
+          result.errorMessage == 'Sync cancelled.' ||
+          result.errorMessage?.startsWith('Sync cancelled') == true;
+      final deferred = result.status == LibrarySyncStatus.deferred;
+      final hasPending =
+          (result.pendingHydrationCount ?? 0) > 0 ||
+          result.remainingVerificationCount > 0;
+      final status = cancelled
+          ? LibrarySyncStatus.cancelled
+          : deferred
+          ? LibrarySyncStatus.deferred
+          : result.status == LibrarySyncStatus.succeeded && hasPending
+          ? LibrarySyncStatus.partial
+          : result.status;
+      final failed =
+          status == LibrarySyncStatus.failed ||
+          (status == LibrarySyncStatus.skipped && result.errorMessage != null);
+
+      if (activeWork != null && !(await _workIsCompleted(activeWork))) {
+        if (cancelled) {
+          await _database.librarySyncDao.markCancelled(activeWork.id);
+        } else if (deferred) {
+          // Preserve checkpoints; return the row to the queue for later.
+          await _database.librarySyncDao.requeue(activeWork.id, now: _now());
+        } else if (failed) {
+          await _markWorkFailure(activeWork, 'sync');
+        } else if (status == LibrarySyncStatus.partial &&
+            !_didCommitCatalogCandidate(plan, result)) {
+          if (result.candidateStatus == 'awaitingDeletionConfirmation') {
+            await _database.librarySyncDao.markAwaitingConfirmation(
+              activeWork.id,
+              now: _now(),
+            );
+          } else {
+            await _database.librarySyncDao.markCancelled(activeWork.id);
+          }
+        } else {
+          await _database.librarySyncDao.markCompleted(activeWork.id);
+        }
+      }
+      final pendingCount = await _database.librarySyncDao.countPendingWork(
+        serverId,
+      );
+      try {
+        await _refreshProviderProfile(serverId, result);
+      } on Object {
+        // The compatibility profile is advisory. A malformed legacy capability
+        // value must never turn a successfully committed catalog pass into a
+        // failed run.
+      }
+      final persisted = await _database.librarySyncDao.getOrCreateState(
+        serverId,
+      );
+      final completedAt = result.completedAt ?? _now();
+      final catalogUpdated =
+          status == LibrarySyncStatus.succeeded &&
+          !hasPending &&
+          (plan.kind == LibrarySyncPlanKind.deltaReconcile ||
+              plan.kind == LibrarySyncPlanKind.catalogSnapshot ||
+              plan.kind == LibrarySyncPlanKind.fullRepair);
+      final catalogChecked =
+          request.target.kind == LibrarySyncTargetKind.catalog &&
+          (plan.kind == LibrarySyncPlanKind.probe ||
+              plan.kind == LibrarySyncPlanKind.deltaReconcile ||
+              plan.kind == LibrarySyncPlanKind.catalogSnapshot ||
+              plan.kind == LibrarySyncPlanKind.fullRepair ||
+              plan.kind == LibrarySyncPlanKind.compatibilityAudit);
+      final circuitRelevant =
+          request.target.kind == LibrarySyncTargetKind.catalog && !deferred;
+      final auxiliaryUpdated =
+          result.status == LibrarySyncStatus.succeeded &&
+          result.starredSynchronized &&
+          result.playlistHeadersSynchronized;
+      final genresUpdated =
+          result.status == LibrarySyncStatus.succeeded &&
+          result.genresSynchronized;
+      final nextRetryAt = circuitRelevant && failed
+          ? _cooldownUntil(persisted.failureStreak + 1)
+          : circuitRelevant
+          ? null
+          : persisted.nextEligibleAt;
+      await _database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          lastCheckedAt: Value(
+            catalogChecked ? completedAt : persisted.lastCheckedAt,
+          ),
+          lastCatalogSyncedAt: Value(
+            catalogUpdated ? completedAt : persisted.lastCatalogSyncedAt,
+          ),
+          lastAuxiliarySyncedAt: Value(
+            auxiliaryUpdated ? completedAt : persisted.lastAuxiliarySyncedAt,
+          ),
+          lastGenresSyncedAt: Value(
+            genresUpdated ? completedAt : persisted.lastGenresSyncedAt,
+          ),
+          failureStreak: Value(
+            circuitRelevant
+                ? failed
+                      ? persisted.failureStreak + 1
+                      : 0
+                : persisted.failureStreak,
+          ),
+          nextEligibleAt: Value(nextRetryAt),
+          lastPlanKind: Value(plan.kind.name),
+          lastPlanReason: Value(plan.reason),
+          lastRunBytes: Value(usage.bytes),
+          lastRunRequests: Value(usage.requestCount),
+        ),
+      );
+      await _database.librarySyncDao.pruneCompletedBefore(
+        completedAt.subtract(const Duration(days: 7)),
+      );
+      final finalState = result.copyWith(
+        status: status,
+        planKind: plan.kind,
+        planReason: plan.reason,
+        pendingWorkCount: pendingCount,
+        lastRunBytes: usage.bytes,
+        apiRequests: usage.requestCount > 0
+            ? usage.requestCount
+            : result.apiRequests,
+        lastCheckedAt: catalogChecked ? completedAt : persisted.lastCheckedAt,
+        lastCatalogUpdatedAt: catalogUpdated
+            ? completedAt
+            : persisted.lastCatalogSyncedAt,
+        lastAuxiliarySyncedAt: auxiliaryUpdated
+            ? completedAt
+            : persisted.lastAuxiliarySyncedAt,
+        lastGenresSyncedAt: genresUpdated
+            ? completedAt
+            : persisted.lastGenresSyncedAt,
+        failureCategory: failed ? 'sync' : null,
+        clearFailureCategory: !failed,
+        nextRetryAt: nextRetryAt,
+        clearNextRetryAt: nextRetryAt == null,
+        candidateGeneration:
+            result.candidateGeneration ?? persisted.candidateGeneration,
+        candidateStatus: result.candidateStatus ?? persisted.candidateStatus,
+        deletionCandidateCount: persisted.deletionCandidateCount,
+        carriedForwardEntityCount: result.carriedForwardEntityCount > 0
+            ? result.carriedForwardEntityCount
+            : persisted.candidateCarriedForwardCount,
+        lastApplyDurationMs: persisted.lastApplyDurationMs,
+        updatesAvailable:
+            result.updatesAvailable ||
+            deferred ||
+            (result.probeIndexChanged == true) ||
+            result.probeIndexesUnsupported,
+      );
+      onProgress?.call(finalState);
+      return finalState;
+    } finally {
+      leaseHeartbeat?.cancel();
+      if (ownerToken != null) {
+        await _database.librarySyncDao.releaseExecutionLease(
+          serverId: serverId,
+          ownerToken: ownerToken,
+        );
       }
     }
-    final pendingCount = await _database.librarySyncDao.countPendingWork(
-      serverId,
-    );
-    try {
-      await _refreshProviderProfile(serverId, result);
-    } on Object {
-      // The compatibility profile is advisory. A malformed legacy capability
-      // value must never turn a successfully committed catalog pass into a
-      // failed run.
-    }
-    final persisted = await _database.librarySyncDao.getOrCreateState(serverId);
-    final completedAt = result.completedAt ?? _now();
-    final catalogUpdated =
-        status == LibrarySyncStatus.succeeded &&
-        !hasPending &&
-        (plan.kind == LibrarySyncPlanKind.deltaReconcile ||
-            plan.kind == LibrarySyncPlanKind.catalogSnapshot ||
-            plan.kind == LibrarySyncPlanKind.fullRepair);
-    final catalogChecked =
-        request.target.kind == LibrarySyncTargetKind.catalog &&
-        (plan.kind == LibrarySyncPlanKind.probe ||
-            plan.kind == LibrarySyncPlanKind.deltaReconcile ||
-            plan.kind == LibrarySyncPlanKind.catalogSnapshot ||
-            plan.kind == LibrarySyncPlanKind.fullRepair ||
-            plan.kind == LibrarySyncPlanKind.compatibilityAudit);
-    final circuitRelevant =
-        request.target.kind == LibrarySyncTargetKind.catalog && !deferred;
-    final auxiliaryUpdated =
-        result.status == LibrarySyncStatus.succeeded &&
-        result.starredSynchronized &&
-        result.playlistHeadersSynchronized;
-    final genresUpdated =
-        result.status == LibrarySyncStatus.succeeded &&
-        result.genresSynchronized;
-    final nextRetryAt = circuitRelevant && failed
-        ? _cooldownUntil(persisted.failureStreak + 1)
-        : circuitRelevant
-        ? null
-        : persisted.nextEligibleAt;
-    await _database.librarySyncDao.writeState(
-      LibrarySyncStateTableCompanion(
-        serverId: Value(serverId),
-        lastCheckedAt: Value(
-          catalogChecked ? completedAt : persisted.lastCheckedAt,
-        ),
-        lastCatalogSyncedAt: Value(
-          catalogUpdated ? completedAt : persisted.lastCatalogSyncedAt,
-        ),
-        lastAuxiliarySyncedAt: Value(
-          auxiliaryUpdated ? completedAt : persisted.lastAuxiliarySyncedAt,
-        ),
-        lastGenresSyncedAt: Value(
-          genresUpdated ? completedAt : persisted.lastGenresSyncedAt,
-        ),
-        failureStreak: Value(
-          circuitRelevant
-              ? failed
-                    ? persisted.failureStreak + 1
-                    : 0
-              : persisted.failureStreak,
-        ),
-        nextEligibleAt: Value(nextRetryAt),
-        lastPlanKind: Value(plan.kind.name),
-        lastPlanReason: Value(plan.reason),
-        lastRunBytes: Value(usage.bytes),
-        lastRunRequests: Value(usage.requestCount),
-      ),
-    );
-    await _database.librarySyncDao.pruneCompletedBefore(
-      completedAt.subtract(const Duration(days: 7)),
-    );
-    final finalState = result.copyWith(
-      status: status,
-      planKind: plan.kind,
-      planReason: plan.reason,
-      pendingWorkCount: pendingCount,
-      lastRunBytes: usage.bytes,
-      apiRequests: usage.requestCount > 0
-          ? usage.requestCount
-          : result.apiRequests,
-      lastCheckedAt: catalogChecked ? completedAt : persisted.lastCheckedAt,
-      lastCatalogUpdatedAt: catalogUpdated
-          ? completedAt
-          : persisted.lastCatalogSyncedAt,
-      lastAuxiliarySyncedAt: auxiliaryUpdated
-          ? completedAt
-          : persisted.lastAuxiliarySyncedAt,
-      lastGenresSyncedAt: genresUpdated
-          ? completedAt
-          : persisted.lastGenresSyncedAt,
-      failureCategory: failed ? 'sync' : null,
-      clearFailureCategory: !failed,
-      nextRetryAt: nextRetryAt,
-      clearNextRetryAt: nextRetryAt == null,
-      candidateGeneration:
-          result.candidateGeneration ?? persisted.candidateGeneration,
-      candidateStatus: result.candidateStatus ?? persisted.candidateStatus,
-      deletionCandidateCount: persisted.deletionCandidateCount,
-      carriedForwardEntityCount: result.carriedForwardEntityCount > 0
-          ? result.carriedForwardEntityCount
-          : persisted.candidateCarriedForwardCount,
-      lastApplyDurationMs: persisted.lastApplyDurationMs,
-      updatesAvailable:
-          result.updatesAvailable ||
-          deferred ||
-          (result.probeIndexChanged == true) ||
-          result.probeIndexesUnsupported,
-    );
-    onProgress?.call(finalState);
-    return finalState;
   }
 
   Future<void> _enqueueProbeFollowUp({

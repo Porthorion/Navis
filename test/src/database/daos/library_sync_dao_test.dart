@@ -232,6 +232,87 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test(
+    'execution lease rejects a fresh competing owner and recovers expiry',
+    () async {
+      final now = DateTime.utc(2026, 8, 12, 10);
+      expect(
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: 1,
+          ownerToken: 'foreground-token',
+          ownerKind: 'foreground',
+          now: now,
+          ttl: const Duration(minutes: 10),
+        ),
+        isTrue,
+      );
+      expect(
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: 1,
+          ownerToken: 'worker-token',
+          ownerKind: 'androidWorker',
+          now: now.add(const Duration(minutes: 9)),
+          ttl: const Duration(minutes: 10),
+        ),
+        isFalse,
+      );
+      expect(
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: 1,
+          ownerToken: 'worker-token',
+          ownerKind: 'androidWorker',
+          now: now.add(const Duration(minutes: 10)),
+          ttl: const Duration(minutes: 10),
+        ),
+        isTrue,
+      );
+      final lease = await database.librarySyncDao.getExecutionLease(1);
+      expect(lease?.ownerToken, 'worker-token');
+      expect(lease?.ownerKind, 'androidWorker');
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('lease heartbeat and release are ownership guarded', () async {
+    final now = DateTime.utc(2026, 8, 12, 10);
+    await database.librarySyncDao.acquireExecutionLease(
+      serverId: 1,
+      ownerToken: 'owner-a',
+      ownerKind: 'foreground',
+      now: now,
+      ttl: const Duration(minutes: 10),
+    );
+
+    expect(
+      await database.librarySyncDao.heartbeatExecutionLease(
+        serverId: 1,
+        ownerToken: 'owner-b',
+        now: now.add(const Duration(minutes: 1)),
+        ttl: const Duration(minutes: 10),
+      ),
+      isFalse,
+    );
+    expect(
+      await database.librarySyncDao.heartbeatExecutionLease(
+        serverId: 1,
+        ownerToken: 'owner-a',
+        now: now.add(const Duration(minutes: 1)),
+        ttl: const Duration(minutes: 10),
+      ),
+      isTrue,
+    );
+    await database.librarySyncDao.releaseExecutionLease(
+      serverId: 1,
+      ownerToken: 'owner-b',
+    );
+    expect(await database.librarySyncDao.getExecutionLease(1), isNotNull);
+    await database.librarySyncDao.releaseExecutionLease(
+      serverId: 1,
+      ownerToken: 'owner-a',
+    );
+    expect(await database.librarySyncDao.getExecutionLease(1), isNull);
+  }, skip: !sqliteAvailable);
+
+  test(
     'discarding an awaiting repair candidate keeps the committed catalog',
     () async {
       await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[

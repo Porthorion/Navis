@@ -38,6 +38,7 @@ import 'package:navis/src/database/tables/library_sync_candidate_artists_table.d
 import 'package:navis/src/database/tables/library_sync_candidate_songs_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
+import 'package:navis/src/database/tables/library_sync_execution_lease_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/match_flows_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
@@ -94,6 +95,7 @@ part 'navis_database.g.dart';
     LibrarySyncLocalMutationsTable,
     StarredAbsenceCandidatesTable,
     LibrarySyncOperationLedgerTable,
+    LibrarySyncExecutionLeaseTable,
   ],
   daos: [
     AppSettingsDao,
@@ -139,7 +141,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 64;
+  int get schemaVersion => 65;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -351,6 +353,108 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 64 && to >= 64) {
       await from63To64(migrator);
+    }
+    if (from < 65 && to >= 65) {
+      await from64To65(migrator);
+    }
+  }
+
+  Future<void> from64To65(Migrator migrator) async {
+    if (!await _tableExists('library_sync_execution_lease')) {
+      await migrator.createTable(librarySyncExecutionLeaseTable);
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_background_sync_enabled',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidBackgroundSyncEnabled,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_schedule_reconciled_at',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidScheduleReconciledAt,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_requested_interval_minutes',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidRequestedIntervalMinutes,
+      );
+    }
+    if (!await _columnExists('library_sync_state', 'android_work_id')) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidWorkId,
+      );
+    }
+    if (!await _columnExists('library_sync_state', 'android_work_state')) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidWorkState,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_work_attempt_count',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidWorkAttemptCount,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_worker_started_at',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidWorkerStartedAt,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_worker_completed_at',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidWorkerCompletedAt,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_worker_duration_ms',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidWorkerDurationMs,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_worker_result',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidWorkerResult,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_state',
+      'android_worker_stop_reason',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.androidWorkerStopReason,
+      );
     }
   }
 

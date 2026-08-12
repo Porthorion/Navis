@@ -6,6 +6,7 @@ import 'package:navis/src/database/tables/library_sync_state_table.dart';
 import 'package:navis/src/database/tables/library_sync_work_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
+import 'package:navis/src/database/tables/library_sync_execution_lease_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 
 part 'library_sync_dao.g.dart';
@@ -17,11 +18,180 @@ part 'library_sync_dao.g.dart';
     LibrarySyncLocalMutationsTable,
     StarredAbsenceCandidatesTable,
     LibrarySyncOperationLedgerTable,
+    LibrarySyncExecutionLeaseTable,
   ],
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     with _$LibrarySyncDaoMixin {
   LibrarySyncDao(super.attachedDatabase);
+
+  /// Attempts to acquire the server's broad-sync lease.
+  ///
+  /// The UPSERT is the ownership decision: a fresh lease belonging to another
+  /// engine is never overwritten, while an expired lease can be recovered by
+  /// exactly one writer. Reusing the same token is an idempotent heartbeat,
+  /// which makes retries around a busy database safe.
+  Future<bool> acquireExecutionLease({
+    required int serverId,
+    required String ownerToken,
+    required String ownerKind,
+    required DateTime now,
+    required Duration ttl,
+  }) async {
+    final timestamp = now.toUtc();
+    final expiry = timestamp.add(ttl);
+    return transaction(() async {
+      await customStatement(
+        '''
+        INSERT INTO library_sync_execution_lease (
+          server_id, owner_token, owner_kind, started_at, heartbeat_at,
+          expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(server_id) DO UPDATE SET
+          owner_token = excluded.owner_token,
+          owner_kind = excluded.owner_kind,
+          started_at = CASE
+            WHEN library_sync_execution_lease.owner_token = excluded.owner_token
+            THEN library_sync_execution_lease.started_at
+            ELSE excluded.started_at
+          END,
+          heartbeat_at = excluded.heartbeat_at,
+          expires_at = excluded.expires_at
+        WHERE library_sync_execution_lease.expires_at <= ?
+           OR library_sync_execution_lease.owner_token = excluded.owner_token;
+        ''',
+        <Object?>[
+          serverId,
+          ownerToken,
+          ownerKind,
+          timestamp.millisecondsSinceEpoch ~/ 1000,
+          timestamp.millisecondsSinceEpoch ~/ 1000,
+          expiry.millisecondsSinceEpoch ~/ 1000,
+          timestamp.millisecondsSinceEpoch ~/ 1000,
+        ],
+      );
+      final lease = await getExecutionLease(serverId);
+      return lease?.ownerToken == ownerToken;
+    });
+  }
+
+  Future<bool> heartbeatExecutionLease({
+    required int serverId,
+    required String ownerToken,
+    required DateTime now,
+    required Duration ttl,
+  }) async {
+    final timestamp = now.toUtc();
+    final changed = await customUpdate(
+      '''
+      UPDATE library_sync_execution_lease
+      SET heartbeat_at = ?, expires_at = ?
+      WHERE server_id = ? AND owner_token = ? AND expires_at > ?;
+      ''',
+      variables: <Variable<Object>>[
+        Variable.withDateTime(timestamp),
+        Variable.withDateTime(timestamp.add(ttl)),
+        Variable.withInt(serverId),
+        Variable.withString(ownerToken),
+        Variable.withDateTime(timestamp),
+      ],
+      updates: {librarySyncExecutionLeaseTable},
+    );
+    return changed == 1;
+  }
+
+  Future<void> releaseExecutionLease({
+    required int serverId,
+    required String ownerToken,
+  }) {
+    return (delete(librarySyncExecutionLeaseTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.ownerToken.equals(ownerToken),
+        ))
+        .go();
+  }
+
+  Future<LibrarySyncExecutionLeaseTableData?> getExecutionLease(int serverId) {
+    return (select(
+      librarySyncExecutionLeaseTable,
+    )..where((table) => table.serverId.equals(serverId))).getSingleOrNull();
+  }
+
+  Stream<LibrarySyncStateTableData?> watchState(int serverId) {
+    return (select(
+      librarySyncStateTable,
+    )..where((table) => table.serverId.equals(serverId))).watchSingleOrNull();
+  }
+
+  Future<void> setAndroidBackgroundSyncEnabled({
+    required int serverId,
+    required bool enabled,
+    DateTime? now,
+  }) async {
+    await getOrCreateState(serverId);
+    await (update(
+      librarySyncStateTable,
+    )..where((table) => table.serverId.equals(serverId))).write(
+      LibrarySyncStateTableCompanion(
+        androidBackgroundSyncEnabled: Value(enabled),
+        androidScheduleReconciledAt: Value((now ?? DateTime.now()).toUtc()),
+      ),
+    );
+  }
+
+  /// Persists only redacted Android scheduler observations. Values are
+  /// validated at the API boundary so raw platform exceptions cannot leak into
+  /// the durable diagnostic surface.
+  Future<void> writeAndroidBackgroundStatus({
+    required int serverId,
+    DateTime? scheduleReconciledAt,
+    int? requestedIntervalMinutes,
+    String? workId,
+    String? workState,
+    int? attemptCount,
+    DateTime? workerStartedAt,
+    DateTime? workerCompletedAt,
+    int? workerDurationMs,
+    String? workerResult,
+    String? workerStopReason,
+  }) async {
+    await getOrCreateState(serverId);
+    await (update(
+      librarySyncStateTable,
+    )..where((table) => table.serverId.equals(serverId))).write(
+      LibrarySyncStateTableCompanion(
+        androidScheduleReconciledAt: scheduleReconciledAt == null
+            ? const Value.absent()
+            : Value(scheduleReconciledAt.toUtc()),
+        androidRequestedIntervalMinutes: requestedIntervalMinutes == null
+            ? const Value.absent()
+            : Value(requestedIntervalMinutes),
+        androidWorkId: workId == null ? const Value.absent() : Value(workId),
+        androidWorkState: workState == null
+            ? const Value.absent()
+            : Value(workState),
+        androidWorkAttemptCount: attemptCount == null
+            ? const Value.absent()
+            : Value(attemptCount),
+        androidWorkerStartedAt: workerStartedAt == null
+            ? const Value.absent()
+            : Value(workerStartedAt.toUtc()),
+        androidWorkerCompletedAt: workerCompletedAt == null
+            ? const Value.absent()
+            : Value(workerCompletedAt.toUtc()),
+        androidWorkerDurationMs: workerDurationMs == null
+            ? const Value.absent()
+            : Value(workerDurationMs),
+        androidWorkerResult: workerResult == null
+            ? const Value.absent()
+            : Value(workerResult),
+        androidWorkerStopReason: workerStopReason == null
+            ? const Value.absent()
+            : Value(workerStopReason),
+      ),
+    );
+  }
 
   Future<void> clearLocalMutations() {
     return delete(librarySyncLocalMutationsTable).go();
