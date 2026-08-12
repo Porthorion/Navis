@@ -466,7 +466,7 @@ void main() {
   );
 
   test(
-    'manual refresh consumes a changed-index follow-up in the same action',
+    'manual refresh runs catalog discovery even when automatic work is fresh',
     () async {
       await repository.save(
         ServerConfigModel(
@@ -483,7 +483,7 @@ void main() {
           currentGeneration: Value(1),
         ),
       );
-      final probeEngine = _ProbeLibrarySyncEngine()..probeIndexChanged = true;
+      final probeEngine = _ProbeLibrarySyncEngine();
       final manualCoordinator = AdaptiveLibrarySyncCoordinator(
         executor: probeEngine,
         database: database,
@@ -496,7 +496,7 @@ void main() {
 
       final result = await manualCoordinator.syncNow();
 
-      expect(probeEngine.probeCalls, 1);
+      expect(probeEngine.probeCalls, 0);
       expect(probeEngine.syncNowCalls, 1);
       expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
       expect(

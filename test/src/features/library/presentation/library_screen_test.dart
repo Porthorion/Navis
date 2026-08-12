@@ -16,6 +16,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -32,11 +33,13 @@ class _FakeLibrarySyncController extends LibrarySyncController {
     this._initialState, {
     this.onSyncNow,
     this.onCancel,
+    this.onTargetIfStale,
   });
 
   final LibrarySyncState _initialState;
   final VoidCallback? onSyncNow;
   final VoidCallback? onCancel;
+  final void Function(LibrarySyncTarget target)? onTargetIfStale;
 
   @override
   LibrarySyncState build() => _initialState;
@@ -49,6 +52,14 @@ class _FakeLibrarySyncController extends LibrarySyncController {
     bool allowMeteredBroadOverride = false,
   }) async {
     onSyncNow?.call();
+    return _initialState;
+  }
+
+  @override
+  Future<LibrarySyncState> requestTargetIfStale(
+    LibrarySyncTarget target,
+  ) async {
+    onTargetIfStale?.call(target);
     return _initialState;
   }
 
@@ -1264,17 +1275,21 @@ void main() {
     );
 
     _testWidgetsWithCleanup(
-      'liked songs switch to desktop rows only in desktop-wide mode',
+      'opening Liked reads local data without requesting stale synchronization',
       (
         tester,
       ) async {
+        final staleTargetRequests = <LibrarySyncTarget>[];
         setAdaptiveTestViewport(tester, const Size(700, 1200));
         await _pumpLibraryScreen(
           tester,
           overrides: [
             showLikedPageProvider.overrideWithValue(true),
             librarySyncControllerProvider.overrideWith(
-              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              () => _FakeLibrarySyncController(
+                const LibrarySyncState.idle(),
+                onTargetIfStale: staleTargetRequests.add,
+              ),
             ),
             artistsProvider.overrideWithValue(
               const AsyncData(<ArtistsTableData>[]),
@@ -1307,6 +1322,8 @@ void main() {
 
         await tester.tap(find.text('Liked'));
         await tester.pumpAndSettle();
+
+        expect(staleTargetRequests, isEmpty);
 
         expect(find.byType(TrackListTile), findsOneWidget);
         expect(find.byType(DesktopListRow), findsNothing);

@@ -3341,11 +3341,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     final healthProbeDue =
         fallbackVerification ||
         // `getIndexes` only tells us that the artist collection changed. It
-        // does not identify which artist changed, so a rotating artist audit
-        // can otherwise leave a new album behind thousands of unrelated
-        // artists. An explicit refresh with a newer cursor must inspect the
-        // bounded newest-album window immediately.
-        (manual && cursorChanged) ||
+        // does not identify which artist changed, so it cannot rule out a new
+        // album under an existing artist. A user-requested check always runs
+        // the bounded newest-album discovery, independent of that cursor.
+        manual ||
         lastHealthCheck == null ||
         now.difference(lastHealthCheck) >= _defaultHealthProbeStaleAfter;
     var healthProbe = const _NewestAlbumHealthProbe(

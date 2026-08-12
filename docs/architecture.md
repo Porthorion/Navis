@@ -748,20 +748,21 @@ replay/end-of-queue feedback instead.
    defers while Navis is backgrounded or playing; an explicit user refresh may
    resume queued broad work in the foreground, including during playback.
    `LibrarySyncController` also coalesces overlapping app-level requests onto
-   one terminal result, so setup, startup, user, reconnect, and continuation
-   callers cannot mistake an in-flight state for a failed sync. A startup or
+   one terminal result, so setup, startup, user, and reconnect callers cannot
+   mistake an in-flight state for a failed sync. Pending durable work resumes
+   only through the configured automatic interval or an explicit action; there
+   is no short continuation timer. A startup or
    periodic caller also treats a not-yet-constructed credential-backed engine
    as pending rather than failure, then restarts its startup pass once the
    engine is available.
 3. Reliable providers use conditional `getIndexes(ifModifiedSince)` as a cheap
-   check. The response is a conditional artist index, not a change feed, so its
-   cursor advances only after every candidate and hydration completes. When an
-   explicit refresh advances that cursor, Navis immediately pages the bounded
-   `getAlbumList2(type=newest)` window and stages discrepant on-server albums
-   for ordinary song hydration and identity/cache reconciliation. This avoids
-   delaying a new album behind a large rotating artist audit. The explicit
-   action consumes the probe's queued delta before returning; automatic probes
-   retain their durable low-priority follow-up behavior.
+   automatic check. The response is a conditional artist index, not a change
+   feed, so its cursor advances only after every candidate and hydration
+   completes. An explicit refresh is not freshness-gated: it runs bounded
+   delta reconciliation and always pages the `getAlbumList2(type=newest)`
+   window, even when the artist cursor is unchanged. Discrepant on-server
+   albums use ordinary song hydration and identity/cache reconciliation, so a
+   new album does not wait behind a large rotating artist audit.
 4. Bulk-capable providers enumerate independent album/song pages with
    `getAlbumList2` and blank or wildcard `search3`. Full-snapshot pages are
    validated and checkpointed into generation-keyed candidate tables that no

@@ -106,7 +106,7 @@ void main() {
   );
 
   test(
-    'a completed task starts a fresh retry budget when re-enqueued',
+    'ordinary enqueue preserves a completed task until explicit reactivation',
     () async {
       final now = DateTime.utc(2026, 8, 4);
       await database.librarySyncDao.enqueueWork(
@@ -135,11 +135,75 @@ void main() {
         priority: 20,
         now: now.add(const Duration(minutes: 1)),
       );
+      expect(
+        await database.librarySyncDao.getRunnableWork(
+          serverId: 1,
+          now: now.add(const Duration(minutes: 1)),
+        ),
+        isEmpty,
+      );
+
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'targetedHydration',
+        entityId: 'album:album-1',
+        priority: 20,
+        reactivateTerminal: true,
+        now: now.add(const Duration(minutes: 2)),
+      );
       work = (await database.librarySyncDao.getRunnableWork(
         serverId: 1,
-        now: now.add(const Duration(minutes: 1)),
+        now: now.add(const Duration(minutes: 2)),
       )).single;
       expect(work.attemptCount, 0);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'confirmation-blocked work stays terminal until explicit reactivation',
+    () async {
+      final now = DateTime.utc(2026, 8, 4);
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'fullRepair',
+        priority: 80,
+        now: now,
+      );
+      final work = (await database.librarySyncDao.getRunnableWork(
+        serverId: 1,
+        now: now,
+      )).single;
+      await database.librarySyncDao.markAwaitingConfirmation(work.id, now: now);
+
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'fullRepair',
+        priority: 80,
+        now: now.add(const Duration(minutes: 1)),
+      );
+      expect(
+        await database.librarySyncDao.getRunnableWork(
+          serverId: 1,
+          now: now.add(const Duration(minutes: 1)),
+        ),
+        isEmpty,
+      );
+
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'fullRepair',
+        priority: 80,
+        reactivateTerminal: true,
+        now: now.add(const Duration(minutes: 2)),
+      );
+      expect(
+        await database.librarySyncDao.getRunnableWork(
+          serverId: 1,
+          now: now.add(const Duration(minutes: 2)),
+        ),
+        hasLength(1),
+      );
     },
     skip: !sqliteAvailable,
   );

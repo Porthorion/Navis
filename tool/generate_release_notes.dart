@@ -55,6 +55,20 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.4', [
+    _Entry(
+      'Check for updates now always looks for recent new albums, even when a server reports no artist-library change',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Library sync now honors the configured automatic interval instead of repeatedly forcing pending verification work every two minutes',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Opening Liked now stays offline-first and no longer starts a background library synchronization',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.2.3', [
     _Entry('Loving you is as easy as 123'),
     _Entry(

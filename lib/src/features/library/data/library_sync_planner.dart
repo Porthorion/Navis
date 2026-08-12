@@ -111,6 +111,24 @@ class LibrarySyncPlanner {
       );
     }
 
+    // A user-requested check is a discovery operation, not an automatic
+    // freshness-gated poll. `getIndexes` only invalidates the artist
+    // collection, so the executor must also inspect the bounded newest-album
+    // window even when that cursor is unchanged.
+    if (request.intent == LibrarySyncIntent.checkForUpdates) {
+      if (context.restrictsBackgroundSync &&
+          !request.allowMeteredBroadOverride) {
+        return const LibrarySyncPlan(
+          kind: LibrarySyncPlanKind.probe,
+          reason: 'manualMeteredProbe',
+        );
+      }
+      return const LibrarySyncPlan(
+        kind: LibrarySyncPlanKind.deltaReconcile,
+        reason: 'manualCatalogDiscovery',
+      );
+    }
+
     // Metered automatic catalog work is a hard probe only — pending hydration
     // must not expand into background artist/album verification on cellular.
     if (request.intent == LibrarySyncIntent.automatic &&

@@ -1590,7 +1590,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Widget _buildLikedTab(BuildContext context, {required bool desktopMode}) {
     final l10n = AppLocalizations.of(context)!;
-    ref.watch(starredContentSyncProvider);
     // Recent 6 liked albums (ordered by starred desc) for the capped grid.
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
     // Full list used only for the total count; data is not rendered directly.

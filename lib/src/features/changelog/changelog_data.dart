@@ -27,6 +27,23 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.4',
+    entries: [
+      ChangelogEntry(
+        'Check for updates now always looks for recent new albums, even when a server reports no artist-library change',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library sync now honors the configured automatic interval instead of repeatedly forcing pending verification work every two minutes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Opening Liked now stays offline-first and no longer starts a background library synchronization',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.3',
     entries: [
       ChangelogEntry('Loving you is as easy as 123'),

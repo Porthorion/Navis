@@ -2678,7 +2678,7 @@ void main() {
     );
 
     test(
-      'newest-album health probe repairs a faulty unchanged index',
+      'manual check discovers a new album despite a fresh unchanged index',
       () async {
         final cursor = _FakeLibrarySyncApi.defaultIndexesCursor;
         await saveSession(
@@ -2688,7 +2688,6 @@ void main() {
             'navis': <String, Object?>{
               'libraryIndexesCursor': cursor.toIso8601String(),
               'libraryHealthCheckedAt': DateTime.now()
-                  .subtract(const Duration(hours: 13))
                   .toUtc()
                   .toIso8601String(),
             },

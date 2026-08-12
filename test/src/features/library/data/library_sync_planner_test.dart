@@ -151,6 +151,21 @@ void main() {
     expect(plan.shouldExecute, isFalse);
   });
 
+  test('manual check bypasses automatic freshness and runs discovery', () {
+    final plan = planner.plan(
+      context(
+        request: const LibrarySyncRequest.checkForUpdates(),
+        due: false,
+        auxiliaryDue: false,
+        auditDue: false,
+      ),
+    );
+
+    expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
+    expect(plan.shouldExecute, isTrue);
+    expect(plan.reason, 'manualCatalogDiscovery');
+  });
+
   test('explainable index change selects bounded delta reconciliation', () {
     final plan = planner.plan(
       context(indexChanged: true, explainable: true),

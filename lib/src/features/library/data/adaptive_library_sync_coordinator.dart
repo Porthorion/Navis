@@ -237,6 +237,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 'targetKind': request.target.kind.name,
               }),
         releaseCooldown: canProbeCircuitEarly,
+        reactivateTerminal: request.intent != LibrarySyncIntent.automatic,
         now: timestamp,
       );
     }
@@ -436,7 +437,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         await _markWorkFailure(activeWork, 'sync');
       } else if (status == LibrarySyncStatus.partial &&
           !_didCommitCatalogCandidate(plan, result)) {
-        await _database.librarySyncDao.markCancelled(activeWork.id);
+        if (result.candidateStatus == 'awaitingDeletionConfirmation') {
+          await _database.librarySyncDao.markAwaitingConfirmation(
+            activeWork.id,
+            now: _now(),
+          );
+        } else {
+          await _database.librarySyncDao.markCancelled(activeWork.id);
+        }
       } else {
         await _database.librarySyncDao.markCompleted(activeWork.id);
       }
@@ -993,22 +1001,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final request = LibrarySyncRequest.checkForUpdates(
       allowMeteredBroadOverride: allowMeteredBroadOverride,
     );
-    final probeOrWork = await requestSync(
-      request,
-      priorityAlbumIds: priorityAlbumIds,
-      onProgress: onProgress,
-    );
-    // A check starts with a cheap conditional index probe because the planner
-    // cannot know whether the catalog changed yet. For an explicit user
-    // refresh, consume the durable follow-up immediately. Leaving it queued
-    // made the UI report updates available while showing no new albums until a
-    // later automatic run happened to pick it up.
-    if (probeOrWork.planKind != LibrarySyncPlanKind.probe ||
-        probeOrWork.status != LibrarySyncStatus.succeeded ||
-        (probeOrWork.probeIndexChanged != true &&
-            !probeOrWork.probeIndexesUnsupported)) {
-      return probeOrWork;
-    }
     return requestSync(
       request,
       priorityAlbumIds: priorityAlbumIds,

@@ -39,11 +39,6 @@ final syncIntervalDurationProvider = Provider<Duration?>((ref) {
   return Duration(minutes: minutes);
 });
 
-@visibleForTesting
-final verificationContinuationDelayProvider = Provider<Duration>((ref) {
-  return const Duration(minutes: 2);
-});
-
 final syncStaleAfterProvider = Provider<Duration>((ref) {
   final minutes = ref.watch(syncIntervalMinutesProvider);
   if (minutes <= 0) {
@@ -182,14 +177,6 @@ final librarySyncControllerProvider =
       LibrarySyncController.new,
     );
 
-final starredContentSyncProvider = FutureProvider.autoDispose<void>((
-  ref,
-) async {
-  await ref
-      .read(librarySyncControllerProvider.notifier)
-      .requestTargetIfStale(const LibrarySyncTarget.starred());
-});
-
 class LibrarySyncController extends Notifier<LibrarySyncState> {
   bool _startupSyncInFlight = false;
   bool _startupSyncSuppressed = false;
@@ -205,7 +192,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   static const int _maxPriorityAlbums = 120;
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
-  Timer? _verificationContinuationTimer;
 
   @override
   LibrarySyncState build() {
@@ -229,7 +215,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ref.onDispose(() {
       _lifecycleListener.dispose();
       _cancelPeriodicSync();
-      _cancelVerificationContinuation();
     });
 
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
@@ -263,9 +248,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }
       if (becameAvailable || becameWifi) {
         _scheduleStartupSync();
-        if (_hasPendingVerificationWork) {
-          _scheduleVerificationContinuation();
-        }
       }
     });
     ref.listen<LibrarySyncEngine?>(librarySyncEngineProvider, (previous, next) {
@@ -330,7 +312,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<void> cancelAndWait() async {
-    _cancelVerificationContinuation();
     _cancelPeriodicSync();
     _startupSyncSuppressed = true;
     _startupSyncEpoch++;
@@ -448,7 +429,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = null;
-      _cancelVerificationContinuation();
       state = const LibrarySyncState.idle();
       _priorityAlbumIds.clear();
       return;
@@ -643,6 +623,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
                   result.candidateStatus == null));
       final completedStartupPass =
           result.status == LibrarySyncStatus.succeeded ||
+          result.status == LibrarySyncStatus.partial ||
           completedSyncModelRepair ||
           result.status == LibrarySyncStatus.failed ||
           (!deferFullResyncOnMobile &&
@@ -666,7 +647,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool force,
     required bool tolerateUnavailableEngine,
     bool forceFull = false,
-    bool verificationContinuation = false,
     bool allowMeteredBroadOverride = false,
   }) async {
     return _joinOrStartSync(
@@ -674,7 +654,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         force: force,
         tolerateUnavailableEngine: tolerateUnavailableEngine,
         forceFull: forceFull,
-        verificationContinuation: verificationContinuation,
         allowMeteredBroadOverride: allowMeteredBroadOverride,
       ),
     );
@@ -701,7 +680,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool force,
     required bool tolerateUnavailableEngine,
     required bool forceFull,
-    required bool verificationContinuation,
     required bool allowMeteredBroadOverride,
   }) async {
     final engine = ref.read(librarySyncEngineProvider);
@@ -753,19 +731,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       clearCandidateGeneration: true,
       clearCandidateStatus: true,
     );
-    if (!verificationContinuation) {
-      unawaited(notifier.showProgress(state));
-    }
+    unawaited(notifier.showProgress(state));
 
     final result = await _executeSync(
       engine: engine,
       force: force,
       forceFull: forceFull,
-      verificationContinuation: verificationContinuation,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
       onProgressExternal: (progress) {
-        if (!verificationContinuation &&
-            progress.status == LibrarySyncStatus.running) {
+        if (progress.status == LibrarySyncStatus.running) {
           unawaited(notifier.showProgress(progress));
         }
       },
@@ -806,18 +780,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     switch (result.status) {
       case LibrarySyncStatus.succeeded:
       case LibrarySyncStatus.partial:
-        if (!verificationContinuation) {
-          unawaited(notifier.showComplete(result));
-        }
-        if (_hasPendingVerificationWork) {
-          _scheduleVerificationContinuation();
-        } else {
-          _cancelVerificationContinuation();
-        }
+        unawaited(notifier.showComplete(result));
       case LibrarySyncStatus.failed:
-        if (!verificationContinuation) {
-          unawaited(notifier.showFailed(result));
-        }
+        unawaited(notifier.showFailed(result));
       case LibrarySyncStatus.skipped:
       case LibrarySyncStatus.deferred:
       case LibrarySyncStatus.cancelled:
@@ -869,7 +834,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required LibrarySyncEngine engine,
     required bool force,
     required bool forceFull,
-    required bool verificationContinuation,
     required bool allowMeteredBroadOverride,
     required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
@@ -880,12 +844,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       onProgressExternal(progress);
     }
 
-    if (verificationContinuation) {
-      return engine.continueVerification(
-        priorityAlbumIds: _priorityAlbumIds,
-        onProgress: updateProgress,
-      );
-    }
     if (engine is AdaptiveLibrarySyncCoordinator) {
       return force
           ? forceFull
@@ -923,7 +881,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   void _onAppBackgrounded() {
     _isForeground = false;
     ref.read(librarySyncForegroundProvider.notifier).setForeground(false);
-    _cancelVerificationContinuation();
+    _cancelPeriodicSync();
   }
 
   void _onAppResumed() {
@@ -944,9 +902,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       if (intervalMinutes > 0 && !state.isRunning) {
         unawaited(syncIfStale());
       }
-      if (_hasPendingVerificationWork) {
-        _scheduleVerificationContinuation();
-      }
     }
   }
 
@@ -961,8 +916,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   void _schedulePeriodicSync(int minutes) {
     _cancelPeriodicSync();
     final interval = ref.read(syncIntervalDurationProvider);
-    if (interval == null) {
-      return; // Manual-only mode — no timer.
+    if (interval == null || !_isForeground) {
+      return; // Manual-only mode or a backgrounded app — no timer.
     }
     _periodicSyncTimer = Timer.periodic(interval, (_) {
       AppLogger.debug(
@@ -979,51 +934,5 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   void _cancelPeriodicSync() {
     _periodicSyncTimer?.cancel();
     _periodicSyncTimer = null;
-  }
-
-  void _scheduleVerificationContinuation() {
-    _cancelVerificationContinuation();
-    if (!_hasPendingVerificationWork ||
-        !_isForeground ||
-        ref.read(serverConfigStateProvider).asData?.value == null ||
-        ref.read(networkTypeProvider) == NetworkType.cellular ||
-        ref.read(networkTypeProvider) == NetworkType.offline) {
-      return;
-    }
-    final delay = ref.read(verificationContinuationDelayProvider);
-    final pendingAlbums = state.pendingHydrationCount ?? 0;
-    AppLogger.debug(
-      'Scheduling metadata verification continuation in '
-      '${delay.inSeconds}s (artists=${state.remainingVerificationCount}, '
-      'albums=$pendingAlbums).',
-    );
-    _verificationContinuationTimer = Timer(delay, () {
-      if (!ref.mounted || !_isForeground) {
-        return;
-      }
-      final networkType = ref.read(networkTypeProvider);
-      if (state.isRunning ||
-          networkType == NetworkType.cellular ||
-          networkType == NetworkType.offline) {
-        _scheduleVerificationContinuation();
-        return;
-      }
-      unawaited(
-        _runSync(
-          force: true,
-          tolerateUnavailableEngine: true,
-          verificationContinuation: true,
-        ),
-      );
-    });
-  }
-
-  bool get _hasPendingVerificationWork =>
-      state.remainingVerificationCount > 0 ||
-      (state.pendingHydrationCount ?? 0) > 0;
-
-  void _cancelVerificationContinuation() {
-    _verificationContinuationTimer?.cancel();
-    _verificationContinuationTimer = null;
   }
 }

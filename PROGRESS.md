@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ---
 
@@ -18,6 +18,16 @@ Last updated: 2026-08-11
 > precedent. Current agent policy requires the authenticated Navis API and
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
+
+- [ ] Sync reliability recovery — partial: 2026-08-12 (source of truth:
+  `docs/sync-reliability-recovery-plan.md`; implemented manual bounded newest
+  discovery despite unchanged artist cursor, removed the two-minute pending
+  verification force loop, preserved terminal durable work unless a user
+  explicitly reactivates it, and stopped opening Liked from requesting stale
+  synchronization. Focused planner, engine, coordinator, DAO, controller, and
+  Library widget suites pass. Isolated Linux clone runtime certification is
+  currently collecting its repair candidate; remaining: complete API/runtime
+  trace, screenshots, clean restart, final quality gate, and next plan phases.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

@@ -1009,7 +1009,7 @@ void main() {
     );
 
     test(
-      'pending album hydration continues in short foreground passes',
+      'manual-only mode leaves pending hydration for the next explicit action',
       () async {
         var boundedPass = 0;
         final engine = _FakeLibrarySyncEngine(
@@ -1042,9 +1042,6 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             _manualSyncInterval,
-            verificationContinuationDelayProvider.overrideWithValue(
-              const Duration(milliseconds: 10),
-            ),
             requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
             serverConfigStateProvider.overrideWithValue(
               const AsyncData(
@@ -1078,10 +1075,10 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
         expect(engine.nowCalls, 1);
-        expect(engine.continuationCalls, 1);
+        expect(engine.continuationCalls, 0);
         expect(
           container.read(librarySyncControllerProvider).freshness,
-          LibrarySyncFreshness.current,
+          LibrarySyncFreshness.verificationPending,
         );
       },
     );

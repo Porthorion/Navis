@@ -147,12 +147,15 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     String workClass = 'background',
     String? checkpointJson,
     bool releaseCooldown = false,
+    bool reactivateTerminal = false,
     DateTime? now,
   }) async {
     final timestamp = now ?? DateTime.now();
     final normalizedClass = workClass == 'interactive'
         ? 'interactive'
         : 'background';
+    final reactivateTerminalValue = reactivateTerminal ? 1 : 0;
+    final releaseCooldownValue = releaseCooldown ? 1 : 0;
     await customStatement(
       '''
       INSERT INTO library_sync_work (
@@ -169,15 +172,18 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           ELSE 'background'
         END,
         status = CASE
-          WHEN library_sync_work.status = 'running' THEN 'running'
-          ELSE 'queued'
+          WHEN library_sync_work.status IN ('queued', 'running', 'failed')
+          THEN library_sync_work.status
+          WHEN ? = 1 THEN 'queued'
+          ELSE library_sync_work.status
         END,
         checkpoint_json = COALESCE(
           excluded.checkpoint_json,
           library_sync_work.checkpoint_json
         ),
         attempt_count = CASE
-          WHEN library_sync_work.status = 'completed' THEN 0
+          WHEN ? = 1 AND library_sync_work.status NOT IN
+            ('queued', 'running', 'failed') THEN 0
           ELSE library_sync_work.attempt_count
         END,
         not_before = CASE
@@ -196,7 +202,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         checkpointJson,
         timestamp.millisecondsSinceEpoch ~/ 1000,
         timestamp.millisecondsSinceEpoch ~/ 1000,
-        releaseCooldown ? 1 : 0,
+        reactivateTerminalValue,
+        reactivateTerminalValue,
+        releaseCooldownValue,
       ],
     );
   }
@@ -338,6 +346,23 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     )..where((table) => table.id.equals(id))).write(
       LibrarySyncWorkTableCompanion(
         status: const Value('queued'),
+        updatedAt: Value(now ?? DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stops automatic retries until an explicit user action reactivates it.
+  ///
+  /// The candidate checkpoint is deliberately retained so Repair Library can
+  /// present a concrete confirmation instead of rebuilding the same snapshot.
+  Future<void> markAwaitingConfirmation(int id, {DateTime? now}) {
+    return (update(
+      librarySyncWorkTable,
+    )..where((table) => table.id.equals(id))).write(
+      LibrarySyncWorkTableCompanion(
+        status: const Value('awaitingConfirmation'),
+        notBefore: const Value(null),
+        lastErrorType: const Value(null),
         updatedAt: Value(now ?? DateTime.now()),
       ),
     );
