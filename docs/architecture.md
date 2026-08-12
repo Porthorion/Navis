@@ -753,7 +753,9 @@ replay/end-of-queue feedback instead.
    only through the configured automatic interval or an explicit action; there
    is no short continuation timer. A queued full repair is the exception: it
    remains resumable but dormant until an explicit Repair Library action, never
-   a startup, reconnect, resume, or periodic pass. A startup or
+   a startup, reconnect, resume, or periodic pass. Resume re-arms the periodic
+   timer and submits at most its one staleness check; it never also schedules a
+   startup pass. A startup or
    periodic caller also treats a not-yet-constructed credential-backed engine
    as pending rather than failure, then restarts its startup pass once the
    engine is available.

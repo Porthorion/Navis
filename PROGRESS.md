@@ -35,9 +35,10 @@ Last updated: 2026-08-12
   after its first successful server absence and requires a persisted second
   absence before clearing it; schema v62 and focused engine/migration/API tests
   pass. Automatic startup/periodic calls now leave queued full repairs dormant
-  until an explicit Repair Library request; focused coordinator/provider/DAO
-  coverage passes. Remaining: complete API/runtime trace, screenshots, clean
-  restart, final quality gate, and next plan phases.)
+  until an explicit Repair Library request, and resume no longer submits a
+  redundant startup sync alongside its interval check; focused
+  coordinator/provider/DAO coverage passes. Remaining: complete API/runtime
+  trace, screenshots, clean restart, final quality gate, and next plan phases.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

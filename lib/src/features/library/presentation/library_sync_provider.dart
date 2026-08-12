@@ -896,12 +896,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       final intervalMinutes = ref.read(syncIntervalMinutesProvider);
       _schedulePeriodicSync(intervalMinutes);
 
-      // On resume, run a startup sync for first-time / reconnect scenarios
-      // and also run syncIfStale for periodic interval scenarios.  The
-      // startup-done fingerprint gates _maybeRunStartupSync so it won't
-      // duplicate if it already ran, while syncIfStale checks staleness
-      // independently so the periodic interval actually fires on resume.
-      _scheduleStartupSync();
+      // The initial startup and reachability listeners own first-time and
+      // reconnect work. Resume owns only the interval check; scheduling both
+      // here creates two automatic requests for one lifecycle event and can
+      // briefly replace otherwise stable sync UI with redundant progress.
       if (intervalMinutes > 0 && !state.isRunning) {
         unawaited(syncIfStale());
       }
