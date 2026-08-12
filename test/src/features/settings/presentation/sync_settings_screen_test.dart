@@ -19,12 +19,14 @@ class _FakeLibrarySyncController extends LibrarySyncController {
     required this.stateValue,
     this.onSyncNow,
     this.onForceFullSync,
+    this.onDiscardRepairCandidate,
   });
 
   final LibrarySyncState stateValue;
   final void Function({required bool allowMeteredBroadOverride})? onSyncNow;
   final void Function({required bool allowMeteredBroadOverride})?
   onForceFullSync;
+  final Future<bool> Function()? onDiscardRepairCandidate;
 
   @override
   LibrarySyncState build() => stateValue;
@@ -51,6 +53,11 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   @override
   Future<LibrarySyncState> syncUsingMobileData() {
     return syncNow(allowMeteredBroadOverride: true);
+  }
+
+  @override
+  Future<bool> discardAwaitingRepairCandidate() async {
+    return onDiscardRepairCandidate?.call() ?? false;
   }
 }
 
@@ -286,6 +293,7 @@ void main() {
     tester,
   ) async {
     var forceFullTriggered = false;
+    var candidateDiscarded = false;
     final database = createTestDatabase();
     addTearDown(database.close);
 
@@ -316,6 +324,10 @@ void main() {
                 forceFullTriggered = true;
                 expect(allowMeteredBroadOverride, isFalse);
               },
+              onDiscardRepairCandidate: () async {
+                candidateDiscarded = true;
+                return true;
+              },
             ),
           ),
           syncNetworkPolicyProvider.overrideWith(
@@ -345,6 +357,15 @@ void main() {
     );
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
+    expect(find.text('Discard repair candidate'), findsOneWidget);
+    await tester.tap(find.text('Discard repair candidate'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard pending library repair?'), findsOneWidget);
+    expect(candidateDiscarded, isFalse);
+    await tester.tap(find.text('Discard repair candidate').last);
+    await tester.pumpAndSettle();
+    expect(candidateDiscarded, isTrue);
+
     await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
 

@@ -334,6 +334,16 @@ class SyncSettingsScreen extends ConsumerWidget {
             l10n.syncSettingsRepairLibraryMetadataDescription,
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          if (awaitingDeletionConfirmation) ...<Widget>[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: isRunning
+                  ? null
+                  : () => _discardRepairCandidate(context, ref),
+              icon: const Icon(Icons.delete_outline),
+              label: Text(l10n.syncSettingsRepairDiscardCandidate),
+            ),
+          ],
           if (isRunning) ...<Widget>[
             const SizedBox(height: 8),
             OutlinedButton.icon(
@@ -428,6 +438,35 @@ class SyncSettingsScreen extends ConsumerWidget {
     await ref
         .read(librarySyncControllerProvider.notifier)
         .forceFullSync(allowMeteredBroadOverride: allowMeteredBroadOverride);
+  }
+
+  Future<void> _discardRepairCandidate(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.syncSettingsRepairDiscardCandidateTitle),
+        content: Text(l10n.syncSettingsRepairDiscardCandidateBody),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.syncSettingsRepairDiscardCandidate),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await ref
+          .read(librarySyncControllerProvider.notifier)
+          .discardAwaitingRepairCandidate();
+    }
   }
 
   static bool _showUpdatesMessaging(LibrarySyncState state) {

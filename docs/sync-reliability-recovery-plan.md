@@ -158,7 +158,7 @@ Exit: navigation causes no broad request, and no catalog/liked row disappears wi
 
 ### Phase 4: repair UX and certification
 
-1. Build explicit repair deletion confirmation, durable token and discard action. **Partially implemented:** the persisted fingerprint/count remains the durable remote-evidence token; Settings exposes its count and requires a deliberate Apply library repair confirmation before retrying. Candidate song collection/carry-forward now precedes the token calculation, and unresolved candidate albums protect committed tracks. A distinct discard-candidate action remains outstanding.
+1. Build explicit repair deletion confirmation, durable token and discard action. **Implemented:** the persisted fingerprint/count remains the durable remote-evidence token; Settings exposes its count and requires a deliberate Apply library repair confirmation before retrying, or a separate confirmed discard that clears only the uncommitted candidate and repair work. Candidate song collection/carry-forward precedes token calculation, and unresolved candidate albums protect committed tracks.
 2. Show operation type, remote check time, change counts, defer reason, retry time and safe endpoint failure type in Settings/Library.
 3. Update AGENTS.md, docs/architecture.md, docs/development-workflow.md, release notes and migration tests with final architecture.
 4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. Then run tool/check.sh.

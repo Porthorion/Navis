@@ -319,6 +319,35 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
   }
 
+  /// Abandons an uncommitted deletion-confirmation candidate while retaining
+  /// the currently committed offline catalog.
+  Future<bool> discardAwaitingRepairCandidate() async {
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    final serverId = config?.id;
+    final generation = state.candidateGeneration;
+    if (serverId == null ||
+        generation == null ||
+        state.candidateStatus != 'awaitingDeletionConfirmation') {
+      return false;
+    }
+    final discarded = await ref
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .discardAwaitingRepairCandidate(
+          serverId: serverId,
+          generation: generation,
+        );
+    if (discarded && ref.mounted) {
+      state = state.copyWith(
+        clearCandidateGeneration: true,
+        clearCandidateStatus: true,
+        deletionCandidateCount: 0,
+        carriedForwardEntityCount: 0,
+      );
+    }
+    return discarded;
+  }
+
   Future<LibrarySyncState> syncUsingMobileData() {
     return syncNow(allowMeteredBroadOverride: true);
   }

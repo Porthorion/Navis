@@ -694,6 +694,24 @@ abstract class AppLocalizations {
   /// **'Apply library repair'**
   String get syncSettingsRepairDeletionConfirmationAction;
 
+  /// No description provided for @syncSettingsRepairDiscardCandidate.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard repair candidate'**
+  String get syncSettingsRepairDiscardCandidate;
+
+  /// No description provided for @syncSettingsRepairDiscardCandidateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard pending library repair?'**
+  String get syncSettingsRepairDiscardCandidateTitle;
+
+  /// No description provided for @syncSettingsRepairDiscardCandidateBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the uncommitted repair candidate and its deletion confirmation. Your current local library, downloads, and cached audio stay unchanged.'**
+  String get syncSettingsRepairDiscardCandidateBody;
+
   /// No description provided for @syncSettingsRepairMeteredConfirmTitle.
   ///
   /// In en, this message translates to:

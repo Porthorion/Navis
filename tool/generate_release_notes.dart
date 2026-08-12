@@ -81,6 +81,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
+      'You can now discard a pending Repair Library candidate without changing your current offline library',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Repair Library now completes song collection before evaluating server-missing tracks, preventing a false large-deletion warning on an existing library',
       type: _EntryType.fix,
     ),

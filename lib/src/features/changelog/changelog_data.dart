@@ -54,6 +54,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'You can now discard a pending Repair Library candidate without changing your current offline library',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Repair Library now completes song collection before evaluating server-missing tracks, preventing a false large-deletion warning on an existing library',
         type: ChangelogEntryType.fix,
       ),

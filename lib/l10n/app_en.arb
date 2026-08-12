@@ -173,6 +173,9 @@
     }
   },
   "syncSettingsRepairDeletionConfirmationAction": "Apply library repair",
+  "syncSettingsRepairDiscardCandidate": "Discard repair candidate",
+  "syncSettingsRepairDiscardCandidateTitle": "Discard pending library repair?",
+  "syncSettingsRepairDiscardCandidateBody": "This removes the uncommitted repair candidate and its deletion confirmation. Your current local library, downloads, and cached audio stay unchanged.",
   "syncSettingsRepairMeteredConfirmTitle": "Repair library metadata on mobile data?",
   "syncSettingsRepairMeteredConfirmBody": "Repairing library metadata can download a large amount of metadata over your current connection.",
   "syncSettingsRepairMeteredConfirmAction": "Repair on mobile data",

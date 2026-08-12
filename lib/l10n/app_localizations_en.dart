@@ -360,6 +360,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Apply library repair';
 
   @override
+  String get syncSettingsRepairDiscardCandidate => 'Discard repair candidate';
+
+  @override
+  String get syncSettingsRepairDiscardCandidateTitle =>
+      'Discard pending library repair?';
+
+  @override
+  String get syncSettingsRepairDiscardCandidateBody =>
+      'This removes the uncommitted repair candidate and its deletion confirmation. Your current local library, downloads, and cached audio stay unchanged.';
+
+  @override
   String get syncSettingsRepairMeteredConfirmTitle =>
       'Repair library metadata on mobile data?';
 

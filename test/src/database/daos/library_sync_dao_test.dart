@@ -232,6 +232,75 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test(
+    'discarding an awaiting repair candidate keeps the committed catalog',
+    () async {
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(id: 'album-1', name: 'Committed'),
+      ]);
+      await database.librarySyncCandidateDao.upsertAlbums(
+        serverId: 1,
+        generation: 8,
+        albums: <AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Uncommitted candidate',
+            songsHydrated: const Value(false),
+          ),
+        ],
+      );
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          candidateGeneration: Value(8),
+          candidateStatus: Value('awaitingDeletionConfirmation'),
+          deletionCandidateFingerprint: Value('fingerprint'),
+          deletionCandidateCount: Value(1),
+        ),
+      );
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'fullRepair',
+        priority: 80,
+      );
+      final repair = (await database.librarySyncDao.getRunnableWork(
+        serverId: 1,
+        now: DateTime.now(),
+      )).single;
+      await database.librarySyncDao.markAwaitingConfirmation(repair.id);
+
+      expect(
+        await database.librarySyncDao.discardAwaitingRepairCandidate(
+          serverId: 1,
+          generation: 8,
+        ),
+        isTrue,
+      );
+      expect(
+        (await database.libraryDao.getAlbumById('album-1'))?.name,
+        'Committed',
+      );
+      expect(
+        await database.librarySyncCandidateDao.getAlbums(
+          serverId: 1,
+          generation: 8,
+        ),
+        isEmpty,
+      );
+      final state = await database.librarySyncDao.getOrCreateState(1);
+      expect(state.candidateGeneration, isNull);
+      expect(state.deletionCandidateCount, 0);
+      expect(
+        await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: 'fullRepair',
+        ),
+        isNull,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'cancelled work stays terminal until an explicit action reactivates it',
     () async {
       final now = DateTime.utc(2026, 8, 4);

@@ -31,7 +31,8 @@ Last updated: 2026-08-12
   collection; the recovery discards it and the standards-compliant empty-query
   path advanced 214→2,002 albums and 3,924→24,979 candidate songs in 15
   seconds. Settings now surfaces the durable server-missing deletion count and
-  requires an explicit confirmation before the retry that can apply it; focused
+  requires an explicit confirmation before the retry that can apply it, or a
+  confirmed discard that keeps the committed offline catalog untouched; focused
   Settings coverage passes. Starred reconciliation now retains a local like
   after its first successful server absence and requires a persisted second
   absence before clearing it; schema v62 and focused engine/migration/API tests

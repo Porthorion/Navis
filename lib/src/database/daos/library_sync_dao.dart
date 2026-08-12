@@ -135,6 +135,46 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  /// Discards only an uncommitted repair candidate after the user declines a
+  /// large-deletion confirmation. The committed catalog is never touched.
+  Future<bool> discardAwaitingRepairCandidate({
+    required int serverId,
+    required int generation,
+  }) {
+    return transaction(() async {
+      final state = await getOrCreateState(serverId);
+      if (state.candidateGeneration != generation ||
+          state.candidateStatus != 'awaitingDeletionConfirmation') {
+        return false;
+      }
+      await attachedDatabase.librarySyncCandidateDao.clearGeneration(
+        serverId: serverId,
+        generation: generation,
+      );
+      await (delete(librarySyncWorkTable)..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.kind.equals('fullRepair') &
+                table.status.equals('awaitingConfirmation'),
+          ))
+          .go();
+      await (update(librarySyncStateTable)..where(
+            (table) => table.serverId.equals(serverId),
+          ))
+          .write(
+            const LibrarySyncStateTableCompanion(
+              candidateGeneration: Value(null),
+              candidateStatus: Value(null),
+              candidateStartedAt: Value(null),
+              candidateCarriedForwardCount: Value(0),
+              deletionCandidateFingerprint: Value(null),
+              deletionCandidateCount: Value(0),
+            ),
+          );
+      return true;
+    });
+  }
+
   Future<void> clearCatalogPageWork({
     required int serverId,
     required int generation,
