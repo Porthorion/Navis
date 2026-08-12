@@ -179,7 +179,12 @@ Last updated: 2026-08-12
   Sync Settings shows requested eventual cadence, unmetered wait, and safe
   terminal state. Focused DAO/migration/coordinator/bridge/widget tests,
   Android scheduler unit tests, and `:app:testSideloadDebugUnitTest` pass.
-  Remaining: required Android 12/14/current-target physical-device matrix
+  2026-08-12 follow-up hardening also passed all 1,109 Flutter tests and
+  `./tool/check.sh`; isolated Linux clone Settings diagnostics completed with
+  clean app-API startup/restart and inspected initial screenshot
+  `background-recovery-final` (Android-only card correctly absent on Linux;
+  restart capture showed the transient loading skeleton). Remaining: required
+  Android 12/14/current-target physical-device matrix
   (constraint hold/release, swipe-away, process death, reboot, foreground
   overlap, metered, playback/repair, stop) plus authenticated app-API and
   inspected Sync Settings screenshot evidence before default enablement.)
