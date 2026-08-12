@@ -279,4 +279,91 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
+
+  testWidgets('repair requires confirmation before applying server deletions', (
+    tester,
+  ) async {
+    var forceFullTriggered = false;
+    final database = createTestDatabase();
+    addTearDown(database.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...withTestDatabase(database),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              stateValue: LibrarySyncState(
+                status: LibrarySyncStatus.partial,
+                stage: LibrarySyncStage.validatingCandidate,
+                candidateGeneration: 12,
+                candidateStatus: 'awaitingDeletionConfirmation',
+                deletionCandidateCount: 531,
+              ),
+              onForceFullSync: ({required allowMeteredBroadOverride}) {
+                forceFullTriggered = true;
+                expect(allowMeteredBroadOverride, isFalse);
+              },
+            ),
+          ),
+          syncNetworkPolicyProvider.overrideWith(
+            (_) => const SyncNetworkPolicy(
+              networkType: NetworkType.wifi,
+              isMetered: false,
+              allowsBackgroundSync: true,
+              allowsHardProbe: true,
+              allowsInteractiveHydration: true,
+            ),
+          ),
+          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+        ],
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SyncSettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('531 server-missing item(s) are waiting'),
+      findsOneWidget,
+    );
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Repair Library Metadata'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm library repair'), findsOneWidget);
+    expect(
+      find.textContaining('server no longer reports 531 item(s)'),
+      findsOneWidget,
+    );
+    expect(forceFullTriggered, isFalse);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(forceFullTriggered, isFalse);
+
+    await tester.tap(find.text('Repair Library Metadata'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apply library repair'));
+    await tester.pumpAndSettle();
+    expect(forceFullTriggered, isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
 }

@@ -336,6 +336,24 @@ class AppLocalizationsEn extends AppLocalizations {
       'Repairing library metadata...';
 
   @override
+  String syncSettingsRepairDeletionConfirmationPending(Object count) {
+    return '$count server-missing item(s) are waiting for your confirmation before Navis removes them from the local library.';
+  }
+
+  @override
+  String get syncSettingsRepairDeletionConfirmationTitle =>
+      'Confirm library repair';
+
+  @override
+  String syncSettingsRepairDeletionConfirmationBody(Object count) {
+    return 'The server no longer reports $count item(s). Applying this repair will remove them from Navis\'s local library. Downloads and cached audio are kept.';
+  }
+
+  @override
+  String get syncSettingsRepairDeletionConfirmationAction =>
+      'Apply library repair';
+
+  @override
   String get syncSettingsRepairMeteredConfirmTitle =>
       'Repair library metadata on mobile data?';
 

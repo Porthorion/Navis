@@ -586,7 +586,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   bootstrap so synchronization cannot invalidate the active remote source.
 - A detail 404 is only a deletion candidate. A complete catalog snapshot or
   parent response must confirm it. Deletion sets over 10% of an entity type or
-  500 songs require the same remote fingerprint twice before removal.
+  500 songs require the same remote fingerprint twice before removal. The
+  pending fingerprint/count is durable, shown in Sync Settings, and must be
+  explicitly confirmed there before the follow-up Repair Library action can
+  apply it.
 - Transport may perform at most one immediate retry (including `Retry-After`).
   Later attempts belong to durable work with a 15-minute exponential cooldown,
   a six-hour cap, and an endpoint circuit after three consecutive failures.

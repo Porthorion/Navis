@@ -80,6 +80,7 @@ class LibrarySyncState {
     this.failureCategory,
     this.candidateGeneration,
     this.candidateStatus,
+    this.deletionCandidateCount = 0,
     this.carriedForwardEntityCount = 0,
     this.lastApplyDurationMs,
     this.probeIndexChanged,
@@ -141,6 +142,9 @@ class LibrarySyncState {
   final String? failureCategory;
   final int? candidateGeneration;
   final String? candidateStatus;
+
+  /// Number of server-missing entities awaiting an explicit repair retry.
+  final int deletionCandidateCount;
   final int carriedForwardEntityCount;
   final int? lastApplyDurationMs;
   final bool? probeIndexChanged;
@@ -209,6 +213,7 @@ class LibrarySyncState {
     bool clearCandidateGeneration = false,
     String? candidateStatus,
     bool clearCandidateStatus = false,
+    int? deletionCandidateCount,
     int? carriedForwardEntityCount,
     int? lastApplyDurationMs,
     bool clearLastApplyDuration = false,
@@ -288,6 +293,8 @@ class LibrarySyncState {
       candidateStatus: clearCandidateStatus
           ? null
           : candidateStatus ?? this.candidateStatus,
+      deletionCandidateCount:
+          deletionCandidateCount ?? this.deletionCandidateCount,
       carriedForwardEntityCount:
           carriedForwardEntityCount ?? this.carriedForwardEntityCount,
       lastApplyDurationMs: clearLastApplyDuration

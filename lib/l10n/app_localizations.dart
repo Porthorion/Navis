@@ -658,6 +658,30 @@ abstract class AppLocalizations {
   /// **'Repairing library metadata...'**
   String get syncSettingsRepairLibraryMetadataRunning;
 
+  /// No description provided for @syncSettingsRepairDeletionConfirmationPending.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} server-missing item(s) are waiting for your confirmation before Navis removes them from the local library.'**
+  String syncSettingsRepairDeletionConfirmationPending(Object count);
+
+  /// No description provided for @syncSettingsRepairDeletionConfirmationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm library repair'**
+  String get syncSettingsRepairDeletionConfirmationTitle;
+
+  /// No description provided for @syncSettingsRepairDeletionConfirmationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The server no longer reports {count} item(s). Applying this repair will remove them from Navis\'s local library. Downloads and cached audio are kept.'**
+  String syncSettingsRepairDeletionConfirmationBody(Object count);
+
+  /// No description provided for @syncSettingsRepairDeletionConfirmationAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply library repair'**
+  String get syncSettingsRepairDeletionConfirmationAction;
+
   /// No description provided for @syncSettingsRepairMeteredConfirmTitle.
   ///
   /// In en, this message translates to:

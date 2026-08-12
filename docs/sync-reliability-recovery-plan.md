@@ -1,7 +1,8 @@
 # Sync Reliability Recovery Plan
 
-Status: active recovery plan. Phase 1 manual discovery and the first Phase 2
-queue/scheduler checkpoint are implemented; runtime certification is in progress.
+Status: active recovery plan. Phase 1 manual discovery, the first Phase 2
+queue/scheduler checkpoint, and explicit large-deletion repair confirmation are
+implemented; runtime certification is in progress.
 Date: 2026-08-12
 Scope: library metadata sync, offline browsing, manual refresh and repair, and navigation-adjacent hydration. This is the source of truth for correcting the current sync model.
 
@@ -52,7 +53,7 @@ External sources:
 | P1 | Server configuration, reachability notifications, engine availability, Wi-Fi, resume, periodic re-arm and a microtask all submit startup work. Partial result does not set startup-done fingerprint. | Event storms can schedule more planning after a preceding pass ends. |
 | P1 | Entering the retained Liked tab watches an autoDispose provider that requests stale starred synchronization and writes global sync state. | Home to Library can look like catalog sync although it is a Liked refresh. |
 | P1 | Starred reconciliation clears every local star not in getStarred before applying the returned set, excluding only queued/concurrent mutations. | This is a code-proven destructive path that can explain items disappearing from Liked. Exact user row still needs a diagnostics trace. |
-| P1 | Large deletion repair returns awaitingDeletionConfirmation and requires a second repair request; UI shows only opaque status. | Repair can look like a no-op/failure. |
+| P1 | Large deletion repair returns awaitingDeletionConfirmation and requires a second repair request; UI showed only opaque status. | Repair could look like a no-op/failure. **Fixed:** Settings now names the pending server-missing count and requires an explicit Apply library repair confirmation before it issues that retry. |
 | P1 | Probe, repair, continuation, Liked sync and target hydration overwrite one global LibrarySyncState. | Navigation-adjacent work can replace broad-operation status and make causality unclear. |
 | P1 | A legacy persisted `*` bulk-song query ran before the standard empty query. In the isolated clone it collected 5,464 albums then remained at zero hydrated/candidate songs for more than 20 minutes; cancellation did not reach a terminal state within the next 20 seconds. | Repair appeared stalled despite a valid candidate. The wildcard capability is now discarded; the verified empty-query path advanced 214→2,002 albums and 3,924→24,979 songs in 15 seconds. |
 | P2 | Existing tests omit manual fresh-window checks, unchanged artist cursor plus new album, repeated Liked entry, and completed work remaining completed. | Current tests can pass while the user controls fail. |
@@ -152,7 +153,7 @@ Exit: navigation causes no broad request, and no catalog/liked row disappears wi
 
 ### Phase 4: repair UX and certification
 
-1. Build explicit repair deletion confirmation, durable token and discard action.
+1. Build explicit repair deletion confirmation, durable token and discard action. **Partially implemented:** the persisted fingerprint/count remains the durable remote-evidence token; Settings exposes its count and requires a deliberate Apply library repair confirmation before retrying. A distinct discard-candidate action remains outstanding.
 2. Show operation type, remote check time, change counts, defer reason, retry time and safe endpoint failure type in Settings/Library.
 3. Update AGENTS.md, docs/architecture.md, docs/development-workflow.md, release notes and migration tests with final architecture.
 4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. Then run tool/check.sh.

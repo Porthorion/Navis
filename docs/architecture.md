@@ -808,8 +808,11 @@ replay/end-of-queue feedback instead.
    restarts and the atomic apply boundary. After promotion, unavailable albums
    continue as targeted hydration instead of rerunning the broad snapshot. Large
    deletion candidates (over 10% of an entity type or over 500 songs) require
-   the same fingerprint twice. Isolated detail 404s remain candidates until a
-   parent or complete snapshot confirms deletion.
+   the same fingerprint twice. That fingerprint and its server-missing count
+   are durable; Settings exposes the count and requires an explicit Apply
+   library repair confirmation before it makes the second repair request.
+   Isolated detail 404s remain candidates until a parent or complete snapshot
+   confirms deletion.
 8. Search and discovery metadata stays provisional. Canonical hydration uses
    same ID, one unique recording MBID, or one unique compatible exact metadata
    match. Proven aliases are applied to playback before provisional cleanup, so

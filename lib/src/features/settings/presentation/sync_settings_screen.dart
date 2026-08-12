@@ -33,6 +33,9 @@ class SyncSettingsScreen extends ConsumerWidget {
     final showUpdatesMessaging = _showUpdatesMessaging(syncState);
     final showMobileDataAction =
         syncPolicy.isMetered && showUpdatesMessaging && !isRunning;
+    final awaitingDeletionConfirmation =
+        syncState.candidateStatus == 'awaitingDeletionConfirmation' &&
+        syncState.deletionCandidateCount > 0;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.syncSettingsTitle)),
@@ -108,6 +111,15 @@ class SyncSettingsScreen extends ConsumerWidget {
                       l10n.syncSettingsCandidate(
                         syncState.candidateGeneration!,
                         _humanize(syncState.candidateStatus!),
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (awaitingDeletionConfirmation) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.syncSettingsRepairDeletionConfirmationPending(
+                        syncState.deletionCandidateCount,
                       ),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
@@ -341,9 +353,42 @@ class SyncSettingsScreen extends ConsumerWidget {
     WidgetRef ref,
     bool isMetered,
   ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final syncState = ref.read(librarySyncControllerProvider);
+    final awaitingDeletionConfirmation =
+        syncState.candidateStatus == 'awaitingDeletionConfirmation' &&
+        syncState.deletionCandidateCount > 0;
+    if (awaitingDeletionConfirmation) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.syncSettingsRepairDeletionConfirmationTitle),
+          content: Text(
+            l10n.syncSettingsRepairDeletionConfirmationBody(
+              syncState.deletionCandidateCount,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancelAction),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.syncSettingsRepairDeletionConfirmationAction),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) {
+        return;
+      }
+      if (!context.mounted) {
+        return;
+      }
+    }
     var allowMeteredBroadOverride = false;
     if (isMetered) {
-      final l10n = AppLocalizations.of(context)!;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(

@@ -72,6 +72,10 @@ const List<_Version> _changelogs = [
       'Repair Library now uses the standard full-library song index and safely falls back to album details instead of resuming a legacy wildcard search',
       type: _EntryType.fix,
     ),
+    _Entry(
+      'Repair Library now clearly shows when a large server-side deletion needs your confirmation before changing the local library',
+      type: _EntryType.improvement,
+    ),
   ]),
   _Version('1.2.3', [
     _Entry('Loving you is as easy as 123'),

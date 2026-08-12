@@ -501,6 +501,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       pendingWorkCount: pending,
       lastRunBytes: persisted.lastRunBytes,
       apiRequests: persisted.lastRunRequests,
+      candidateGeneration: persisted.candidateGeneration,
+      candidateStatus: persisted.candidateStatus,
+      deletionCandidateCount: persisted.deletionCandidateCount,
     );
   }
 
@@ -551,7 +554,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final serverId = config.id;
     if (serverId != null && config.lastSynced == null) {
-      final persisted = await ref
+      await ref
           .read(navisDatabaseProvider)
           .librarySyncDao
           .getOrCreateState(serverId);

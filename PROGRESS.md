@@ -29,8 +29,10 @@ Last updated: 2026-08-12
   the legacy wildcard bulk-song capability could stall after candidate
   collection; the recovery discards it and the standards-compliant empty-query
   path advanced 214→2,002 albums and 3,924→24,979 candidate songs in 15
-  seconds. Remaining: complete API/runtime trace, screenshots, clean restart,
-  final quality gate, and next plan phases.)
+  seconds. Settings now surfaces the durable server-missing deletion count and
+  requires an explicit confirmation before the retry that can apply it; focused
+  Settings coverage passes. Remaining: complete API/runtime trace, screenshots,
+  clean restart, final quality gate, and next plan phases.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

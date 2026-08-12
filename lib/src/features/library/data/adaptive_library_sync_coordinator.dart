@@ -545,6 +545,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       candidateGeneration:
           result.candidateGeneration ?? persisted.candidateGeneration,
       candidateStatus: result.candidateStatus ?? persisted.candidateStatus,
+      deletionCandidateCount: persisted.deletionCandidateCount,
       carriedForwardEntityCount: result.carriedForwardEntityCount > 0
           ? result.carriedForwardEntityCount
           : persisted.candidateCarriedForwardCount,

@@ -45,6 +45,10 @@ const List<ChangelogVersion> changelogs = [
         'Repair Library now uses the standard full-library song index and safely falls back to album details instead of resuming a legacy wildcard search',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Repair Library now clearly shows when a large server-side deletion needs your confirmation before changing the local library',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

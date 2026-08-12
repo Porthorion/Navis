@@ -157,6 +157,20 @@
   "syncSettingsRepairLibraryMetadata": "Repair Library Metadata",
   "syncSettingsRepairLibraryMetadataDescription": "Rebuild and reconcile library metadata. Keeps downloads, streaming cache, and artwork.",
   "syncSettingsRepairLibraryMetadataRunning": "Repairing library metadata...",
+  "syncSettingsRepairDeletionConfirmationPending": "{count} server-missing item(s) are waiting for your confirmation before Navis removes them from the local library.",
+  "@syncSettingsRepairDeletionConfirmationPending": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "syncSettingsRepairDeletionConfirmationTitle": "Confirm library repair",
+  "syncSettingsRepairDeletionConfirmationBody": "The server no longer reports {count} item(s). Applying this repair will remove them from Navis's local library. Downloads and cached audio are kept.",
+  "@syncSettingsRepairDeletionConfirmationBody": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "syncSettingsRepairDeletionConfirmationAction": "Apply library repair",
   "syncSettingsRepairMeteredConfirmTitle": "Repair library metadata on mobile data?",
   "syncSettingsRepairMeteredConfirmBody": "Repairing library metadata can download a large amount of metadata over your current connection.",
   "syncSettingsRepairMeteredConfirmAction": "Repair on mobile data",
