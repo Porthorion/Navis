@@ -84,6 +84,8 @@ class SyncDiagnosticsServer {
   LibrarySyncState? _lastSync;
   Object? _lastSyncError;
   Map<String, int> _lastEndpointRequests = const <String, int>{};
+  final List<Map<String, Object?>> _syncLedger = <Map<String, Object?>>[];
+  int _nextSyncLedgerId = 1;
   Map<String, Song> _presentationSearchSongs = const <String, Song>{};
   StreamSubscription<Object?>? _playbackFailureSubscription;
   int _playbackFailureCount = 0;
@@ -411,6 +413,12 @@ class SyncDiagnosticsServer {
         );
         return;
       }
+      if (request.method == 'GET' && path == '/v1/sync/ledger') {
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'events': _syncLedger,
+        });
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/session/status') {
         await _respond(
           request,
@@ -585,7 +593,8 @@ class SyncDiagnosticsServer {
       if (request.method == 'POST' && path == '/v1/sync/automatic') {
         await _startControllerSync(
           request,
-          () => _container
+          cause: 'automatic',
+          operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .syncIfStale(),
         );
@@ -596,7 +605,8 @@ class SyncDiagnosticsServer {
         final allowOverride = body['allowMeteredBroadOverride'] == true;
         await _startControllerSync(
           request,
-          () => _container
+          cause: 'manualCheck',
+          operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .syncNow(allowMeteredBroadOverride: allowOverride),
         );
@@ -607,7 +617,8 @@ class SyncDiagnosticsServer {
         final allowOverride = body['allowMeteredBroadOverride'] == true;
         await _startControllerSync(
           request,
-          () => _container
+          cause: 'repair',
+          operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .forceFullSync(allowMeteredBroadOverride: allowOverride),
         );
@@ -631,7 +642,9 @@ class SyncDiagnosticsServer {
         // isolation and make this endpoint unsuitable for runtime validation.
         await _startControllerSync(
           request,
-          () => _container
+          cause: 'targetHydration',
+          targetKind: target.kind.name,
+          operation: () => _container
               .read(librarySyncControllerProvider.notifier)
               .requestTarget(target),
         );
@@ -1087,9 +1100,11 @@ class SyncDiagnosticsServer {
   /// request joins startup, reconnect, and UI-triggered work instead of
   /// beginning a second raw-engine operation with competing progress frames.
   Future<void> _startControllerSync(
-    HttpRequest request,
-    Future<LibrarySyncState> Function() operation,
-  ) async {
+    HttpRequest request, {
+    required String cause,
+    String? targetKind,
+    required Future<LibrarySyncState> Function() operation,
+  }) async {
     if (_activeSync != null) {
       await _respond(request, HttpStatus.conflict, <String, Object?>{
         'error': 'sync already running',
@@ -1097,17 +1112,39 @@ class SyncDiagnosticsServer {
       return;
     }
     _lastSyncError = null;
+    _recordSyncLedgerEvent(
+      phase: 'requested',
+      cause: cause,
+      targetKind: targetKind,
+    );
     final future = operation();
     _activeSync = future;
+    _recordSyncLedgerEvent(
+      phase: 'started',
+      cause: cause,
+      targetKind: targetKind,
+    );
     unawaited(
       future
           .then<void>(
             (state) {
               _lastSync = state;
               _captureEndpointRequests();
+              _recordSyncLedgerEvent(
+                phase: 'terminal',
+                cause: cause,
+                targetKind: targetKind,
+                state: state,
+              );
             },
             onError: (Object error, StackTrace stackTrace) {
               _lastSyncError = error;
+              _recordSyncLedgerEvent(
+                phase: 'failed',
+                cause: cause,
+                targetKind: targetKind,
+                errorType: error.runtimeType.toString(),
+              );
             },
           )
           .whenComplete(() {
@@ -1117,6 +1154,30 @@ class SyncDiagnosticsServer {
     await _respond(request, HttpStatus.accepted, <String, Object?>{
       'status': 'started',
     });
+  }
+
+  void _recordSyncLedgerEvent({
+    required String phase,
+    required String cause,
+    String? targetKind,
+    LibrarySyncState? state,
+    String? errorType,
+  }) {
+    _syncLedger.add(<String, Object?>{
+      'id': _nextSyncLedgerId++,
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'phase': phase,
+      'cause': cause,
+      'targetKind': targetKind,
+      'planKind': state?.planKind?.name,
+      'planReason': state?.planReason,
+      'result': state?.status.name,
+      'endpointRequests': state == null ? null : _lastEndpointRequests,
+      'errorType': errorType,
+    });
+    if (_syncLedger.length > 50) {
+      _syncLedger.removeRange(0, _syncLedger.length - 50);
+    }
   }
 
   Future<Map<String, Object?>> _playbackVolumeStatus() async {

@@ -155,6 +155,24 @@ void main() {
 
     engine.complete();
     await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    final ledger = await _request(
+      fixture.port,
+      '/v1/sync/ledger',
+      token: fixture.token,
+    );
+    expect(ledger.statusCode, HttpStatus.ok);
+    final events = ledger.body['events'] as List<Object?>;
+    expect(events, hasLength(3));
+    expect(
+      events.map((event) => (event! as Map<String, Object?>)['phase']),
+      <String>['requested', 'started', 'terminal'],
+    );
+    final terminal = events.last! as Map<String, Object?>;
+    expect(terminal['cause'], 'targetHydration');
+    expect(terminal['targetKind'], 'album');
+    expect(terminal['result'], 'succeeded');
+    expect(terminal.containsKey('endpointRequests'), isTrue);
   });
 
   test('session status exposes only lifecycle activity fields', () async {
