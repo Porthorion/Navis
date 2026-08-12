@@ -66,11 +66,14 @@ Unchanged-cursor manual album discovery has its own isolated Linux gate:
 
 It copies the primary database into an isolated profile, points it at a
 loopback Subsonic fixture that adds one album to a known artist without moving
-`getIndexes.lastModified`, and invokes the running app's Check for updates API.
-The gate observes only a narrow authenticated album-existence contract, checks
-the redacted terminal ledger for `getIndexes`, newest-list, artist-detail, and
-album-detail calls, then opens the discovered album after a clean restart. It
-rejects blank compositor screenshots and never sends data to a real server.
+`getIndexes.lastModified`, and invokes the running app's Check for updates API
+while the running app is offline. The gate verifies deferred delta discovery in
+the redacted ledger, restores Wi-Fi, and invokes the production automatic entry
+point to prove the queued user work runs before its otherwise-future automatic
+deadline. It observes only a narrow authenticated album-existence contract,
+checks the resumed terminal ledger for `getIndexes`, newest-list, artist-detail,
+and album-detail calls, then opens the discovered album after a clean restart.
+It rejects blank compositor screenshots and never sends data to a real server.
 
 Large-deletion repair confirmation has a separate deterministic gate:
 

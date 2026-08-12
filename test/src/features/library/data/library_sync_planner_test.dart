@@ -166,6 +166,24 @@ void main() {
     expect(plan.reason, 'manualCatalogDiscovery');
   });
 
+  test(
+    'offline manual check retains bounded discovery for eligible resume',
+    () {
+      final plan = planner.plan(
+        context(
+          request: const LibrarySyncRequest.checkForUpdates(),
+          networkType: NetworkType.offline,
+          due: false,
+        ),
+      );
+
+      expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
+      expect(plan.shouldExecute, isFalse);
+      expect(plan.deferred, isTrue);
+      expect(plan.reason, 'manualCatalogDiscoveryOffline');
+    },
+  );
+
   test('explainable index change selects bounded delta reconciliation', () {
     final plan = planner.plan(
       context(indexChanged: true, explainable: true),

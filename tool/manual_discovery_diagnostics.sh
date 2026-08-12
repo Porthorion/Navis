@@ -195,7 +195,30 @@ python3 - "$OUTPUT_ROOT/album-before.json" <<'PY'
 import json, sys
 assert json.load(open(sys.argv[1])) == {"id": "fixture-new-album", "exists": False}
 PY
-api POST /v1/sync/check '{}' > "$OUTPUT_ROOT/check-start.json"
+api POST /v1/diagnostics/overrides \
+  '{"networkType":"offline","requestReporting":true}' \
+  > "$OUTPUT_ROOT/offline-overrides.json"
+api POST /v1/sync/check '{}' > "$OUTPUT_ROOT/offline-check-start.json"
+wait_for_idle "$OUTPUT_ROOT/offline-check-status.json"
+api GET /v1/sync/ledger > "$OUTPUT_ROOT/offline-sync-ledger.json"
+api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/offline-album.json"
+python3 - "$OUTPUT_ROOT/offline-check-status.json" \
+  "$OUTPUT_ROOT/offline-sync-ledger.json" "$OUTPUT_ROOT/offline-album.json" <<'PY'
+import json, sys
+status = json.load(open(sys.argv[1]))
+assert status["status"] == "deferred", status
+assert status["planKind"] == "deltaReconcile", status
+assert status["planReason"] == "manualCatalogDiscoveryOffline", status
+events = json.load(open(sys.argv[2]))["events"]
+terminal = next(event for event in reversed(events) if event.get("cause") == "manualCheck" and event.get("phase") == "terminal")
+assert terminal["planKind"] == "deltaReconcile", terminal
+assert terminal["planReason"] == "manualCatalogDiscoveryOffline", terminal
+assert json.load(open(sys.argv[3])) == {"id": "fixture-new-album", "exists": False}
+PY
+api POST /v1/diagnostics/overrides \
+  '{"networkType":"wifi","nativeMetered":false,"requestReporting":true}' \
+  > "$OUTPUT_ROOT/online-overrides.json"
+api POST /v1/sync/automatic > "$OUTPUT_ROOT/reconnect-automatic-start.json"
 wait_for_idle "$OUTPUT_ROOT/status-after.json"
 api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/album-after.json"
 api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
@@ -204,8 +227,8 @@ import json, sys
 album = json.load(open(sys.argv[1]))
 assert album == {"id": "fixture-new-album", "exists": True, "songsHydrated": True, "songCount": 1}, album
 events = json.load(open(sys.argv[2]))["events"]
-terminal = next(event for event in reversed(events) if event.get("cause") == "manualCheck" and event.get("phase") == "terminal")
-assert terminal["planKind"] == "deltaReconcile" and terminal["planReason"] == "manualCatalogDiscovery", terminal
+terminal = next(event for event in reversed(events) if event.get("cause") == "automatic" and event.get("phase") == "terminal")
+assert terminal["planKind"] == "deltaReconcile" and terminal["planReason"] == "resumedeltaReconcile", terminal
 for endpoint in ("getIndexes", "getNewestAlbumList2", "getArtist", "getAlbum"):
     assert terminal["endpointRequests"].get(endpoint, 0) >= 1, terminal
 PY
@@ -243,10 +266,11 @@ json.dump({
     "status": "passed",
     "target": "linux",
     "profile": "isolated-loopback-clone",
-    "scenario": "Manual Check for updates discovers a new album under an existing artist while getIndexes is unchanged",
+    "scenario": "Offline Manual Check for updates retains newest-album discovery and resumes it after reconnect while getIndexes is unchanged",
     "endpoints": [
         "GET /v1/health", "GET /v1/sync/status", "GET /v1/sync/ledger",
-        "GET /v1/library/album", "POST /v1/sync/check",
+        "GET /v1/library/album", "POST /v1/diagnostics/overrides",
+        "POST /v1/sync/check", "POST /v1/sync/automatic",
         "POST /v1/presentation/navigate", "POST /v1/presentation/screenshot",
         "POST /v1/shutdown",
     ],

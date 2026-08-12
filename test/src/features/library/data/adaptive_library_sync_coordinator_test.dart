@@ -511,6 +511,103 @@ void main() {
   );
 
   test(
+    'manual refresh preserves offline catalog discovery for eligible resume',
+    () async {
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          currentGeneration: Value(1),
+        ),
+      );
+      final probeEngine = _ProbeLibrarySyncEngine();
+      final offlineCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.offline,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+
+      final result = await offlineCoordinator.syncNow();
+
+      expect(result.status, LibrarySyncStatus.deferred);
+      expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(result.planReason, 'manualCatalogDiscoveryOffline');
+      expect(probeEngine.probeCalls, 0);
+      expect(probeEngine.syncNowCalls, 0);
+      expect(
+        (await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+        ))?.status,
+        'queued',
+      );
+
+      final onlineCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      final resumed = await onlineCoordinator.syncIfStale();
+
+      expect(resumed.status, LibrarySyncStatus.succeeded);
+      expect(resumed.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(probeEngine.syncNowCalls, 1);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'manual cellular refresh requires an explicit broad-data override',
+    () async {
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          currentGeneration: Value(1),
+        ),
+      );
+      final probeEngine = _ProbeLibrarySyncEngine();
+      const policy = SyncNetworkPolicy(
+        networkType: NetworkType.cellular,
+        isMetered: true,
+        allowsBackgroundSync: false,
+        allowsHardProbe: true,
+        allowsInteractiveHydration: true,
+      );
+      final meteredCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        readSyncNetworkPolicy: () => policy,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+
+      final probeResult = await meteredCoordinator.syncNow();
+
+      expect(probeResult.planKind, LibrarySyncPlanKind.probe);
+      expect(probeResult.planReason, 'manualMeteredProbe');
+      expect(probeEngine.probeCalls, 1);
+      expect(probeEngine.syncNowCalls, 0);
+
+      final discoveryResult = await meteredCoordinator.syncNow(
+        allowMeteredBroadOverride: true,
+      );
+
+      expect(discoveryResult.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(probeEngine.syncNowCalls, 1);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'manual refresh resumes queued catalog work while playback is active',
     () async {
       final probeEngine = _ProbeLibrarySyncEngine();

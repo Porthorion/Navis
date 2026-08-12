@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
     _Entry(
+      'A Check for updates started offline now resumes its full new-album discovery after reconnecting instead of stopping at an unchanged server cursor',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Library sync now honors the configured automatic interval instead of repeatedly forcing pending verification work every two minutes',
       type: _EntryType.fix,
     ),

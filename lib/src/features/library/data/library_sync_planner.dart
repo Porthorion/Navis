@@ -116,6 +116,18 @@ class LibrarySyncPlanner {
     // collection, so the executor must also inspect the bounded newest-album
     // window even when that cursor is unchanged.
     if (request.intent == LibrarySyncIntent.checkForUpdates) {
+      // Preserve manual discovery intent while offline. Downgrading it to a
+      // probe would lose the newest-album check when the queued work resumes:
+      // an unchanged getIndexes cursor cannot prove that an existing artist
+      // has not received a new album.
+      if (context.networkType == NetworkType.offline) {
+        return const LibrarySyncPlan(
+          kind: LibrarySyncPlanKind.deltaReconcile,
+          reason: 'manualCatalogDiscoveryOffline',
+          shouldExecute: false,
+          deferred: true,
+        );
+      }
       if (context.restrictsBackgroundSync &&
           !request.allowMeteredBroadOverride) {
         return const LibrarySyncPlan(

@@ -161,7 +161,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/sync_diagnostics.sh cache-alias  # isolated live cache/identity migration probe
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 ./tool/sync_target_lane_diagnostics.sh  # isolated Home↔Library and target-hydration/catalog-status boundary suite
-./tool/manual_discovery_diagnostics.sh  # isolated unchanged-indexes new-album check
+./tool/manual_discovery_diagnostics.sh  # isolated offline-reconnect unchanged-indexes new-album check
 ./tool/repair_confirmation_diagnostics.sh  # isolated explicit large-deletion repair gate
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
@@ -535,7 +535,14 @@ actions use a short directional snapback with replay/end-of-queue feedback.
 - An explicit Check for updates is a bounded delta/discovery operation, not an
   automatic freshness-gated probe. It must inspect the newest-album window even
   when `getIndexes` is unchanged, then commit, defer, or fail discovered work
-  before reporting success.
+  before reporting success. An offline manual check must retain that delta work
+  for eligible resume rather than downgrade it to an indexes-only probe; on a
+  metered network, broad discovery requires the explicit one-time mobile-data
+  override and the ordinary action remains a cheap probe.
+- Long-lived library engines must read live network policy from the root
+  `ProviderContainer`, not their construction `Ref`: provider-local reads can
+  retain the first offline policy across reconnect. Keep the engine/coordinator
+  stable while policy changes; do not watch connectivity merely to rebuild it.
 - Normalize protocol field names at the API boundary before models enter sync
   logic. In particular, the standard `getArtist` response uses singular
   `artist.album`; Navis's `Artist.albums` model must receive that normalized

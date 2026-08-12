@@ -93,8 +93,11 @@ final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
   final database = ref.watch(navisDatabaseProvider);
   final repository = ref.watch(serverConfigRepositoryProvider);
   final staleAfter = ref.watch(syncStaleAfterProvider);
-  // Read live policy at call time; do not watch network providers here so
-  // diagnostics overrides cannot dispose an in-flight coordinator.
+  // Read policy from the live root container at call time; do not watch network
+  // providers here so a connectivity change cannot dispose an in-flight
+  // coordinator. Reads through this provider's Ref are cached after the first
+  // lookup, which can otherwise leave a long-lived engine on the old network
+  // policy after reconnect.
   SyncNetworkPolicy readPolicy() {
     if (!ref.mounted) {
       return resolveSyncNetworkPolicy(
@@ -103,7 +106,7 @@ final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
         backgroundSyncUnmeteredOnly: true,
       );
     }
-    return ref.read(syncNetworkPolicyProvider);
+    return ref.container.read(syncNetworkPolicyProvider);
   }
 
   final executor = DriftLibrarySyncEngine(
@@ -703,11 +706,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   Future<LibrarySyncState> _runAutomaticCheckIfDue() async {
     final config = ref.read(serverConfigStateProvider).asData?.value;
+    final serverId = config?.id;
     // The controller can be constructed while a session is still being saved
     // (and in narrow controller tests without a persisted server). There is
     // no durable schedule to consult in that state, so retain the engine's
     // existing bootstrap semantics rather than suppressing initial sync.
-    if (config?.id == null) {
+    if (serverId == null) {
       return _runSync(force: false, tolerateUnavailableEngine: true);
     }
     final interval = ref.read(syncIntervalDurationProvider);
@@ -719,7 +723,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (!ref.mounted || nextCheckAt == null) {
       return state;
     }
-    if (nextCheckAt.isAfter(DateTime.now().toUtc())) {
+    final now = DateTime.now().toUtc();
+    final automaticCheckIsDue = !nextCheckAt.isAfter(now);
+    final hasEligibleManualCatalogWork = await _hasEligibleManualCatalogWork(
+      serverId,
+      now,
+    );
+    if (!automaticCheckIsDue && !hasEligibleManualCatalogWork) {
       _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
       return state;
     }
@@ -728,13 +738,34 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       force: false,
       tolerateUnavailableEngine: true,
     );
-    if (result.completedAt != null) {
+    if (automaticCheckIsDue && result.completedAt != null) {
       await _recordAutomaticCheckCompletion(interval);
     }
     if (ref.mounted) {
       _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
     }
     return result;
+  }
+
+  /// A deferred user action must not be held behind a future automatic
+  /// deadline. In particular, an offline Check for updates preserves bounded
+  /// delta discovery for the next eligible connection. Full repair remains
+  /// deliberately excluded because it always requires another explicit Repair
+  /// Library action.
+  Future<bool> _hasEligibleManualCatalogWork(
+    int serverId,
+    DateTime now,
+  ) async {
+    final work = await ref
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .getRunnableWork(serverId: serverId, now: now, limit: 8);
+    return work.any(
+      (item) =>
+          item.entityId.isEmpty &&
+          item.kind != LibrarySyncPlanKind.fullRepair.name &&
+          item.priority >= 60,
+    );
   }
 
   Future<DateTime?> _ensureAutomaticCheckSchedule(Duration interval) async {

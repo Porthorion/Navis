@@ -34,6 +34,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'A Check for updates started offline now resumes its full new-album discovery after reconnecting instead of stopping at an unchanged server cursor',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Library sync now honors the configured automatic interval instead of repeatedly forcing pending verification work every two minutes',
         type: ChangelogEntryType.fix,
       ),

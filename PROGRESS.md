@@ -97,8 +97,22 @@ Last updated: 2026-08-12
   117 ms. A controller regression also sets the production 60-minute interval
   with a persisted near-future deadline and proves the one-shot timer makes no
   early catalog call, then exactly one automatic call and persists the next
-  interval. Remaining: an optional wall-clock 60-minute foreground soak, any
-  future affected-server vanished-row reproduction, and next plan phases,
+  interval. A subsequent planner/coordinator audit found and fixed one more
+  manual-discovery loss: an offline Check for updates had been persisted as an
+  indexes-only probe, which could finish unchanged after reconnect and never
+  run newest-album discovery. It now retains deferred delta work and drains on
+  an eligible connection; metered broad discovery remains available only by
+  the explicit mobile-data override. The first app-level offline→Wi-Fi run
+  then exposed a second layer: the stable engine could retain an offline policy
+  from its construction `Ref` even after the visible policy changed. It now
+  reads live policy from the root provider container. The rerun passed through
+  the authenticated Linux app API: offline Check returned deferred
+  `manualCatalogDiscoveryOffline`, reconnect dispatched 9 requests including
+  `getIndexes`, newest-list, artist and album, and committed the new hydrated
+  album/song before clean restart. Its two opened app-owned album-detail PNGs
+  were byte-identical and visibly showed the new album and song; log review had
+  no hard-fail pattern. Remaining: an optional wall-clock 60-minute foreground
+  soak, any future affected-server vanished-row reproduction, and next plan phases,
   then the final quality gate.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational

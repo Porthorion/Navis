@@ -773,9 +773,18 @@ replay/end-of-queue feedback instead.
    feed, so its cursor advances only after every candidate and hydration
    completes. An explicit refresh is not freshness-gated: it runs bounded
    delta reconciliation and always pages the `getAlbumList2(type=newest)`
-   window, even when the artist cursor is unchanged. Discrepant on-server
-   albums use ordinary song hydration and identity/cache reconciliation, so a
-   new album does not wait behind a large rotating artist audit.
+   window, even when the artist cursor is unchanged. If that explicit request
+   is made offline, its durable work remains delta reconciliation and resumes
+   when an eligible connection returns; it must never be degraded to an
+   indexes-only probe. On a metered connection, ordinary Check for updates is
+   intentionally a cheap probe until the user gives the one-time mobile-data
+   consent for broad discovery. Discrepant on-server albums use ordinary song
+   hydration and identity/cache reconciliation, so a new album does not wait
+   behind a large rotating artist audit.
+   The long-lived engine reads this policy directly from the root provider
+   container at operation time; provider-local reads can retain the policy from
+   an earlier offline operation after reconnect, while watching it would
+   unnecessarily replace an in-flight coordinator.
 4. Bulk-capable providers enumerate independent album/song pages with
    `getAlbumList2` and empty-query `search3` (the OpenSubsonic all-library
    form). Full-snapshot pages are

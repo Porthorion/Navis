@@ -442,6 +442,68 @@ void main() {
     );
 
     test(
+      'eligible user catalog work bypasses a fresh automatic deadline',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final deadline = DateTime.now().add(const Duration(hours: 1));
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: deadline,
+        );
+        await database.librarySyncDao.enqueueWork(
+          serverId: config.id!,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+          priority: 60,
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+          ({forceFull = false, onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            syncIntervalMinutesProvider.overrideWithValue(60),
+            syncIntervalDurationProvider.overrideWithValue(
+              const Duration(hours: 1),
+            ),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(engine.staleCalls, 1);
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+        expect(
+          persisted.nextAutomaticCheckAt!.difference(deadline).abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
+      },
+    );
+
+    test(
       'automatic timer waits for the persisted deadline before one catalog pass',
       () async {
         final database = createTestDatabase();
@@ -450,7 +512,7 @@ void main() {
         await database.librarySyncDao.setNextAutomaticCheckAt(
           serverId: config.id!,
           nextAutomaticCheckAt: DateTime.now().add(
-            const Duration(milliseconds: 700),
+            const Duration(milliseconds: 1500),
           ),
         );
         final engine = _FakeLibrarySyncEngine(
@@ -486,10 +548,10 @@ void main() {
         addTearDown(container.dispose);
 
         container.read(librarySyncControllerProvider);
-        await Future<void>.delayed(const Duration(milliseconds: 250));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
         expect(engine.staleCalls, 0);
 
-        await Future<void>.delayed(const Duration(milliseconds: 700));
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
         expect(engine.staleCalls, 1);
         final persisted = await database.librarySyncDao.getOrCreateState(
           config.id!,
