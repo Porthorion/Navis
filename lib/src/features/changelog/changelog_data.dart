@@ -34,6 +34,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Check for updates now scans a wider recent-album window, so new albums beyond the first server page are discovered',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A Check for updates started offline now resumes its full new-album discovery after reconnecting instead of stopping at an unchanged server cursor',
         type: ChangelogEntryType.fix,
       ),

@@ -399,6 +399,7 @@ const _normalArtistVerificationLimit = 48;
 const _cellularManualArtistVerificationLimit = 24;
 const _compatibilityArtistVerificationLimit = 24;
 const _newestAlbumHealthProbePageSize = 100;
+const _manualNewestAlbumHealthProbeMaxPages = 5;
 
 String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
   return _readNavisStringCapability(
@@ -2279,8 +2280,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   }
 
   Future<_NewestAlbumHealthProbe> _runNewestAlbumHealthProbe(
-    _SyncRunMetrics metrics,
-  ) async {
+    _SyncRunMetrics metrics, {
+    required bool manual,
+  }) async {
     final localAlbums = await _database.libraryDao.getAllAlbums();
     final localById = <String, AlbumsTableData>{
       for (final album in localAlbums) album.id: album,
@@ -2294,37 +2296,40 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       }
     }
 
-    final firstPage = await _withRetry(
-      () => _api.getNewestAlbumListPage(
-        size: _newestAlbumHealthProbePageSize,
-        offset: 0,
-      ),
-      metrics: metrics,
-      endpoint: 'getNewestAlbumList2',
-    );
-    final pages = <Album>[...firstPage];
-    final firstPageEntirelyNewerOrUnknown =
-        firstPage.length == _newestAlbumHealthProbePageSize &&
-        firstPage.every((album) {
-          if (!localById.containsKey(album.id)) {
-            return true;
-          }
-          final created = album.created;
-          return created != null &&
-              (latestLocalCreated == null ||
-                  created.isAfter(latestLocalCreated));
-        });
-    if (firstPageEntirelyNewerOrUnknown) {
-      pages.addAll(
-        await _withRetry(
-          () => _api.getNewestAlbumListPage(
-            size: _newestAlbumHealthProbePageSize,
-            offset: _newestAlbumHealthProbePageSize,
-          ),
-          metrics: metrics,
-          endpoint: 'getNewestAlbumList2',
+    // `newest` is a direct discovery path, but servers can have a much larger
+    // recent window than one response page. A manual check deliberately
+    // scans a fixed 500-album window, independent of `getIndexes`; automatic
+    // checks retain the original low-data one-page probe plus a look-ahead
+    // only when that first page is entirely newer or unknown.
+    final maxPages = manual ? _manualNewestAlbumHealthProbeMaxPages : 2;
+    final pages = <Album>[];
+    for (var pageIndex = 0; pageIndex < maxPages; pageIndex++) {
+      final page = await _withRetry(
+        () => _api.getNewestAlbumListPage(
+          size: _newestAlbumHealthProbePageSize,
+          offset: pageIndex * _newestAlbumHealthProbePageSize,
         ),
+        metrics: metrics,
+        endpoint: 'getNewestAlbumList2',
       );
+      pages.addAll(page);
+      if (page.length < _newestAlbumHealthProbePageSize) {
+        break;
+      }
+      if (manual) {
+        continue;
+      }
+      final firstPageEntirelyNewerOrUnknown = page.every((album) {
+        if (!localById.containsKey(album.id)) {
+          return true;
+        }
+        final created = album.created;
+        return created != null &&
+            (latestLocalCreated == null || created.isAfter(latestLocalCreated));
+      });
+      if (!firstPageEntirelyNewerOrUnknown) {
+        break;
+      }
     }
 
     final discrepantAlbums = <Album>[];
@@ -3408,7 +3413,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       discrepantAlbums: <Album>[],
     );
     if (healthProbeDue) {
-      healthProbe = await _runNewestAlbumHealthProbe(metrics);
+      healthProbe = await _runNewestAlbumHealthProbe(metrics, manual: manual);
       await _updateVerificationCapabilities(
         <String, Object?>{_libraryHealthCheckedAtCapabilityKey: now},
         metrics,

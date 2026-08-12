@@ -772,8 +772,9 @@ replay/end-of-queue feedback instead.
    automatic check. The response is a conditional artist index, not a change
    feed, so its cursor advances only after every candidate and hydration
    completes. An explicit refresh is not freshness-gated: it runs bounded
-   delta reconciliation and always pages the `getAlbumList2(type=newest)`
-   window, even when the artist cursor is unchanged. If that explicit request
+   delta reconciliation and always scans the first five
+   `getAlbumList2(type=newest)` pages (500 entries), even when the artist
+   cursor is unchanged. If that explicit request
    is made offline, its durable work remains delta reconciliation and resumes
    when an eligible connection returns; it must never be degraded to an
    indexes-only probe. On a metered connection, ordinary Check for updates is

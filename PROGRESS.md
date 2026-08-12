@@ -137,7 +137,14 @@ Last updated: 2026-08-12
   capture was opened and inspected; its restart capture was byte-identical.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational
-  diagnostics; none were introduced by this recovery work.)
+  diagnostics; none were introduced by this recovery work. The subsequent
+  discovery audit found that manual newest-album discovery normally inspected
+  only the first 100 server results. It now scans a bounded five-page,
+  500-album manual window while automatic work remains low-data; the engine
+  regression imports a second-page new album after 100 known rows. The
+  isolated Linux loopback manual-check gate was rerun with the partial artist
+  response guard, passed clean restart, and the two app-owned screenshots were
+  opened (the files are byte-identical); logs contained no hard-fail pattern.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

@@ -2841,6 +2841,92 @@ void main() {
     );
 
     test(
+      'manual check scans beyond the first newest-album page',
+      () async {
+        final cursor = _FakeLibrarySyncApi.defaultIndexesCursor;
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'libraryIndexesCursor': cursor.toIso8601String(),
+              'libraryHealthCheckedAt': DateTime.now()
+                  .toUtc()
+                  .toIso8601String(),
+            },
+          }),
+        );
+        api.indexes = Indexes(lastModified: cursor);
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(
+            id: 'artist-existing',
+            name: 'Existing Artist',
+          ),
+        ]);
+        final knownAlbums = List<Album>.generate(
+          100,
+          (index) => Album(
+            id: 'album-known-$index',
+            name: 'Known Album $index',
+            artistId: 'artist-existing',
+            artist: 'Existing Artist',
+          ),
+          growable: false,
+        );
+        await database.libraryDao.upsertAlbums(
+          knownAlbums
+              .map(
+                (album) => AlbumsTableCompanion.insert(
+                  id: album.id,
+                  name: album.name,
+                  artistId: Value(album.artistId),
+                  artistName: Value(album.artist),
+                  songsHydrated: const Value(true),
+                ),
+              )
+              .toList(growable: false),
+        );
+        api.fastPathPages[0] = knownAlbums;
+        api.fastPathPages[100] = const <Album>[
+          Album(
+            id: 'album-new-on-second-page',
+            name: 'New Album',
+            artistId: 'artist-existing',
+            artist: 'Existing Artist',
+          ),
+        ];
+        api.artistDetails['artist-existing'] = const Artist(
+          id: 'artist-existing',
+          name: 'Existing Artist',
+          albums: <Album>[
+            Album(
+              id: 'album-new-on-second-page',
+              name: 'New Album',
+              artistId: 'artist-existing',
+              artist: 'Existing Artist',
+            ),
+          ],
+        );
+        api.albumDetails['album-new-on-second-page'] = const Album(
+          id: 'album-new-on-second-page',
+          name: 'New Album',
+          artistId: 'artist-existing',
+          songs: <Song>[Song(id: 'song-new', title: 'New Song')],
+        );
+
+        final state = await engine.syncNow();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('getAlbumListPage:100:100'));
+        expect(
+          await database.libraryDao.getAlbumById('album-new-on-second-page'),
+          isNotNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'manual changed-index refresh immediately hydrates newest albums in a large library',
       () async {
         const artistCount = 2000;

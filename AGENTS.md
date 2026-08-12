@@ -534,8 +534,9 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   cursor until every candidate in the response has been verified and its album
   hydration has completed.
 - An explicit Check for updates is a bounded delta/discovery operation, not an
-  automatic freshness-gated probe. It must inspect the newest-album window even
-  when `getIndexes` is unchanged, then commit, defer, or fail discovered work
+  automatic freshness-gated probe. It must inspect the first five newest-album
+  pages (500 entries) even when `getIndexes` is unchanged, then commit, defer,
+  or fail discovered work
   before reporting success. An offline manual check must retain that delta work
   for eligible resume rather than downgrade it to an indexes-only probe; on a
   metered network, broad discovery requires the explicit one-time mobile-data
@@ -557,7 +558,7 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   already-verified artists behind it. A fresh local completion timestamp must
   not suppress persisted pending verification.
 - Run the bounded newest-album health probe every 12 hours. Every explicit
-  refresh must run that bounded probe regardless of the reliable `getIndexes`
+  refresh must scan its five-page discovery window regardless of the reliable `getIndexes`
   cursor, stage its discrepant on-server albums for normal song hydration and
   identity/cache reconciliation, and must not wait for the
   rotating artist audit to reach their artist. Servers with unsupported or
