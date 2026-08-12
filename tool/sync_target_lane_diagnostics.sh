@@ -285,7 +285,6 @@ print(json.dumps({"targetKind": "album", "entityId": sys.argv[1]}))
 PY
 )" > "$OUTPUT_ROOT/target-start.json"
 api GET /v1/sync/status > "$OUTPUT_ROOT/catalog-during-target.json"
-api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
 
 python3 - "$OUTPUT_ROOT/catalog-before.json" "$OUTPUT_ROOT/catalog-during-target.json" <<'PY'
 import json, sys
@@ -296,6 +295,9 @@ during.pop("requestActive", None)
 if during != before:
     raise SystemExit("target hydration changed controller catalog status")
 PY
+
+wait_for_stable_catalog_status "$OUTPUT_ROOT/catalog-after-target.json"
+api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
 
 python3 - "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
 import json, sys
@@ -308,8 +310,11 @@ for event in events:
     forbidden = {"url", "username", "password", "title", "path"} & set(event)
     if forbidden:
         raise SystemExit(f"sync diagnostics ledger exposed sensitive keys: {forbidden}")
-if not any(event.get("cause") == "targetHydration" for event in events):
+target_events = [event for event in events if event.get("cause") == "targetHydration"]
+if not target_events:
     raise SystemExit("sync diagnostics ledger omitted target hydration")
+if not any(event.get("phase") == "terminal" for event in target_events):
+    raise SystemExit("sync diagnostics ledger omitted target terminal event")
 PY
 
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \

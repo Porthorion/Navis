@@ -133,8 +133,8 @@ test setup only: its acceptance assertions use the running app's authenticated
 `/v1/sync/automatic` and `/v1/sync/status` endpoints, including after a clean
 restart, so they still exercise the production controller and persistence path.
 The same gate reads the bounded redacted `GET /v1/sync/ledger` trace to verify
-that diagnostic actions are attributable without exposing server or library
-data.
+that diagnostic actions are attributable and reach a terminal transition,
+without exposing server or library data.
 
 The required precedence is: focused diagnostics script, existing authenticated
 Navis endpoints, then a new narrow endpoint with contract tests and a focused
