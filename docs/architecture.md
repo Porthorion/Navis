@@ -269,6 +269,10 @@ and Android profile builds:
    `getExternalFilesDir()/navis-diagnostics`; raw Dart I/O cannot create the
    scoped-storage path. The bridge validates the bounded record and replaces
    it before the loopback server begins serving.
+   The headless background-sync callback is also retained as a
+   `@pragma('vm:entry-point')` root-library forwarder in `main.dart`: Android's
+   named `DartEntrypoint` resolves from that root library in profile/release
+   builds, then delegates to the UI-free library-sync entrypoint.
 4. Authenticated feature actions run through the root `ProviderContainer` and
    the same controllers, repositories, DAOs, and audio handler as production
    interactions. Broad sync actions specifically join the production

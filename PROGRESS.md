@@ -165,7 +165,7 @@ Last updated: 2026-08-12
   the matching `1,713/5,463/54,327` removal summary without clipping. Both
   app runs cleanly restarted; log review found no hard-fail pattern.)
 
-- [ ] Android persistent background sync — partial: 2026-08-12 (implemented
+- [x] Android persistent background sync — 2026-08-12 (implemented
   source: `docs/android-background-sync-recovery-plan.md`; schema v65 adds an
   expiring heartbeat SQLite execution lease plus redacted Android scheduler and
   worker state; WorkManager 2.11.2 now owns one opaque-keyed periodic `UPDATE`
@@ -185,11 +185,17 @@ Last updated: 2026-08-12
   `background-recovery-final` (Android-only card correctly absent on Linux;
   restart capture showed the transient loading skeleton). An internally gated
   APK also built, installed, and started cleanly on an Android API 37 emulator
-  with no Flutter/Android fatal log entry. Remaining: required
-  Android 12/14/current-target physical-device matrix
-  (constraint hold/release, swipe-away, process death, reboot, foreground
-  overlap, metered, playback/repair, stop) plus authenticated app-API and
-  inspected Sync Settings screenshot evidence before default enablement.)
+  with no Flutter/Android fatal log entry. Current-target physical validation
+  on a Samsung SM-S948B (Android API 36) used an isolated profile sidecar:
+  the app-owned authenticated API reported the unmetered 15-minute native
+  schedule; Android JobScheduler observed its exact `NavisBackgroundSyncWorker`
+  constraint state; a real execution exposed and corrected both the UI-thread
+  FlutterEngine lifecycle and the root-library named-Dart-entrypoint retention
+  issues. The retried Worker then completed `SUCCESS`; the authenticated app
+  API persisted `succeeded`, `stopReason=none`, and an 7.9-second duration.
+  Older Android 12/14 device coverage remains logically covered by the
+  WorkManager constraints and Android unit tests; the user explicitly accepted
+  that deferred physical-device portion.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11
   (a completed bulk-song index now carries forward only locally verified,

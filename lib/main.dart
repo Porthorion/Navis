@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart'
+    as android_background_sync;
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -17,6 +19,15 @@ import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/notifications/notification_bootstrap.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as path;
+
+/// Root-library entrypoint resolved by Android's headless FlutterEngine.
+///
+/// [DartExecutor.DartEntrypoint] resolves a named function from the app's root
+/// library, so retaining the implementation only in a feature library is not
+/// sufficient for profile or release builds even when it has its own pragma.
+@pragma('vm:entry-point')
+Future<void> navisBackgroundSyncEntrypoint() =>
+    android_background_sync.navisBackgroundSyncEntrypoint();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
