@@ -100,9 +100,17 @@ trap cleanup EXIT INT TERM
 
 launch() {
   rm -f "$HANDSHAKE"
+  local diagnostics_data_home="$OUTPUT_ROOT/app-data"
+  local changelog_version
+  changelog_version="$(awk '/^version:/ {split($2, parts, "+"); print parts[1]; exit}' "$PROJECT_DIR/pubspec.yaml")"
+  mkdir -p "$diagnostics_data_home/com.navis.app.navis"
+  # Keep clone-only app-support state isolated. A first-run changelog dialog
+  # would cover the Liked surface that this gate has to inspect.
+  printf '%s\n' "$changelog_version" \
+    > "$diagnostics_data_home/com.navis.app.navis/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    flutter run -d linux --profile \
+    env "XDG_DATA_HOME=$diagnostics_data_home" flutter run -d linux --profile \
       --dart-define=NAVIS_UPDATE_CHANNEL=dev \
       --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
       --dart-define=NAVIS_APP_NAME='Navis Target Lane Diagnostics' \
@@ -192,7 +200,12 @@ PY
 
 capture_screenshot() {
   local metadata="$1"
-  api POST /v1/presentation/screenshot '{"label":"target-lane"}' > "$metadata"
+  local label="$2"
+  api POST /v1/presentation/screenshot "$(python3 - "$label" <<'PY'
+import json, sys
+print(json.dumps({"label": sys.argv[1]}))
+PY
+)" > "$metadata"
   python3 - "$metadata" "$OUTPUT_ROOT" <<'PY'
 import hashlib, json, os, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -238,32 +251,50 @@ if actual != before:
     )
 PY
 
-# Home and Library are local-catalog read surfaces. Repeatedly switching
-# between them must not start or relabel a catalog operation. This reproduces
-# the navigation pattern that previously looked like a sync because Liked and
-# target work shared the global controller state.
-for index in 1 2; do
-  api POST /v1/presentation/navigate '{"location":"/"}' \
-    > "$OUTPUT_ROOT/home-$index-navigation.json"
+# Home, Library, and Liked are local-catalog read surfaces. The sequence uses
+# the same virtual Library-section destination that desktop navigation history
+# and the visible rail use. None of these transitions may start or relabel
+# catalog work, change catalog counts, or add a controller ledger event.
+api GET /v1/sync/ledger > "$OUTPUT_ROOT/ledger-before-navigation.json"
+locations=(/ /library /library#liked / /library#liked)
+for index in "${!locations[@]}"; do
+  location="${locations[$index]}"
+  api POST /v1/presentation/navigate "$(python3 - "$location" <<'PY'
+import json, sys
+print(json.dumps({"location": sys.argv[1]}))
+PY
+)" > "$OUTPUT_ROOT/navigation-$index.json"
   sleep 2
-  api POST /v1/presentation/navigate '{"location":"/library"}' \
-    > "$OUTPUT_ROOT/library-$index-navigation.json"
-  sleep 2
-  api GET /v1/sync/status > "$OUTPUT_ROOT/catalog-after-library-$index.json"
+  api GET /v1/sync/status > "$OUTPUT_ROOT/catalog-after-navigation-$index.json"
 done
+api GET /v1/sync/ledger > "$OUTPUT_ROOT/ledger-after-navigation.json"
 
 python3 - "$OUTPUT_ROOT/catalog-before.json" \
-  "$OUTPUT_ROOT/catalog-after-library-1.json" \
-  "$OUTPUT_ROOT/catalog-after-library-2.json" <<'PY'
+  "$OUTPUT_ROOT/catalog-after-navigation-0.json" \
+  "$OUTPUT_ROOT/catalog-after-navigation-1.json" \
+  "$OUTPUT_ROOT/catalog-after-navigation-2.json" \
+  "$OUTPUT_ROOT/catalog-after-navigation-3.json" \
+  "$OUTPUT_ROOT/catalog-after-navigation-4.json" \
+  "$OUTPUT_ROOT/ledger-before-navigation.json" \
+  "$OUTPUT_ROOT/ledger-after-navigation.json" <<'PY'
 import json, sys
 before = json.load(open(sys.argv[1], encoding="utf-8"))
-for path in sys.argv[2:]:
+for path in sys.argv[2:-2]:
     actual = json.load(open(path, encoding="utf-8"))
     if actual != before:
         raise SystemExit(
-            f"Home-to-Library navigation changed catalog status: {actual}"
+            f"local navigation changed catalog status or counts: {actual}"
         )
+before_ledger = json.load(open(sys.argv[-2], encoding="utf-8"))
+after_ledger = json.load(open(sys.argv[-1], encoding="utf-8"))
+if after_ledger != before_ledger:
+    raise SystemExit("local navigation added a controller sync ledger event")
 PY
+
+# Capture the production Library/Liked state that just completed the trace.
+sleep 3
+capture_screenshot "$OUTPUT_ROOT/liked-screenshot.json" "liked-navigation" \
+  > "$OUTPUT_ROOT/liked-screenshot-path.txt"
 
 ALBUM_ID="$(python3 - "$CLONE_DB" <<'PY'
 import sqlite3, sys
@@ -322,7 +353,8 @@ api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \
 # Navigation returns after GoRouter accepts the route, before the next rendered
 # desktop frame. Let the app-owned presentation surface settle before capture.
 sleep 5
-capture_screenshot "$OUTPUT_ROOT/screenshot.json" > "$OUTPUT_ROOT/screenshot-path.txt"
+capture_screenshot "$OUTPUT_ROOT/screenshot.json" "target-lane" \
+  > "$OUTPUT_ROOT/screenshot-path.txt"
 api POST /v1/shutdown > "$OUTPUT_ROOT/shutdown.json" || true
 wait "$FLUTTER_PID" || true
 FLUTTER_PID=0
@@ -350,7 +382,7 @@ PY
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \
   > "$OUTPUT_ROOT/restart-navigation.json"
 sleep 5
-capture_screenshot "$OUTPUT_ROOT/restart-screenshot.json" \
+capture_screenshot "$OUTPUT_ROOT/restart-screenshot.json" "target-lane-restart" \
   > "$OUTPUT_ROOT/restart-screenshot-path.txt"
 api POST /v1/shutdown > "$OUTPUT_ROOT/restart-shutdown.json" || true
 wait "$FLUTTER_PID" || true
@@ -365,22 +397,24 @@ fi
 
 python3 - \
   "$OUTPUT_ROOT/runtime-validation.json" \
+  "$OUTPUT_ROOT/liked-screenshot-path.txt" \
   "$OUTPUT_ROOT/screenshot-path.txt" \
   "$OUTPUT_ROOT/restart-screenshot-path.txt" <<'PY'
 import json, sys
-initial = open(sys.argv[2], encoding="utf-8").read().strip()
-restart = open(sys.argv[3], encoding="utf-8").read().strip()
+liked = open(sys.argv[2], encoding="utf-8").read().strip()
+initial = open(sys.argv[3], encoding="utf-8").read().strip()
+restart = open(sys.argv[4], encoding="utf-8").read().strip()
 json.dump({
     "status": "passed",
     "target": "linux",
     "profile": "isolated-clone",
-    "scenario": "Future automatic deadline, Home-to-Library navigation, and target hydration preserve catalog status",
+    "scenario": "Future automatic deadline, Home-Library-Liked navigation, and target hydration preserve catalog status and counts",
     "endpoints": [
         "GET /v1/health", "GET /v1/sync/status", "GET /v1/sync/ledger", "POST /v1/sync/automatic", "POST /v1/sync/target",
         "POST /v1/presentation/navigate", "POST /v1/presentation/screenshot",
         "POST /v1/shutdown"
     ],
-    "screenshots": [initial, restart],
+    "screenshots": [liked, initial, restart],
     "visualInspection": "required-by-agent",
     "logReview": "no-hard-fail-patterns",
     "cleanRestart": "passed",

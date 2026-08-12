@@ -14,6 +14,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -152,6 +153,10 @@ void main() {
     expect(status.body['status'], 'idle');
     expect(status.body['stage'], 'idle');
     expect(status.body, containsPair('nextAutomaticCheckAt', isNull));
+    expect(
+      status.body['catalog'],
+      <String, int>{'artists': 0, 'albums': 0, 'songs': 0},
+    );
 
     engine.complete();
     await Future<void>.delayed(Duration.zero);
@@ -445,6 +450,20 @@ void main() {
       expect(redirected.statusCode, HttpStatus.ok);
       expect(redirected.body['actualLocation'], '/target');
       expect(redirected.body['redirected'], isTrue);
+
+      final likedNavigation = await _request(
+        fixture.port,
+        '/v1/presentation/navigate',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'location': '/library#liked'},
+      );
+      expect(likedNavigation.statusCode, HttpStatus.ok);
+      expect(likedNavigation.body['actualLocation'], '/library#liked');
+      expect(
+        fixture.container.read(librarySectionProvider),
+        LibrarySection.liked,
+      );
 
       final overlay = await _request(
         fixture.port,

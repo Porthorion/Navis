@@ -113,7 +113,7 @@ Keep candidate tables and atomic promotion. Deletion analysis is valid only afte
 ### Phase 0: reproduce and observe
 
 1. Add clone fixture with a new album under existing artist and unchanged getIndexes lastModified. Drive API check and assert real Library provider shows album.
-2. Add Home to Library to Liked to Home to Liked trace recording request IDs, cause, plan, target scope, endpoint counts and catalog counts. Capture and inspect screenshots.
+2. Add Home to Library to Liked to Home to Liked trace recording request IDs, cause, plan, target scope, endpoint counts and catalog counts. Capture and inspect screenshots. **Implemented:** the isolated Linux target-lane gate drives the visible Library-section provider through `/library#liked`, asserts that every navigation leaves sync status and aggregate catalog counts unchanged, and proves that no controller ledger event was added. Its inspected Liked and Sync Settings screenshots are captured before a clean restart.
 3. Add opt-in redacted ledger endpoint retaining last 50 events; never return credentials, URLs, titles or paths. **Implemented for diagnostics-initiated controller actions:** `GET /v1/sync/ledger` records requested, started, terminal, and failed transitions with cause, target kind, plan/result, endpoint counts, and safe error type.
 4. Run isolated Linux clone against configured server: baseline counts, manual check, repair, post-run counts, clean restart, endpoint trace and logs.
 

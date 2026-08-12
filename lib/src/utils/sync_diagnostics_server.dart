@@ -20,6 +20,7 @@ import 'package:navis/src/features/library/data/adaptive_library_sync_coordinato
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -279,6 +280,12 @@ class SyncDiagnosticsServer {
           return;
         }
         _navigationDriver.go(location);
+        final librarySection = _librarySectionForDiagnosticsLocation(location);
+        if (librarySection != null) {
+          _container
+              .read(librarySectionProvider.notifier)
+              .setSection(librarySection);
+        }
         await presentation.waitForFrame();
         final actualLocation = _navigationDriver.location;
         await _respond(request, HttpStatus.ok, <String, Object?>{
@@ -406,7 +413,7 @@ class SyncDiagnosticsServer {
         await _respond(
           request,
           HttpStatus.ok,
-          _syncStateJson(
+          await _syncStateJson(
             (_activeSync != null ? controllerState : _lastSync) ??
                 controllerState,
           ),
@@ -1627,7 +1634,7 @@ class SyncDiagnosticsServer {
         'albums': counts.albums,
         'songs': counts.songs,
       },
-      'sync': _syncStateJson(
+      'sync': await _syncStateJson(
         _lastSync ?? _container.read(librarySyncControllerProvider),
       ),
       'syncErrorType': _lastSyncError?.runtimeType.toString(),
@@ -1653,9 +1660,13 @@ class SyncDiagnosticsServer {
     };
   }
 
-  Map<String, Object?> _syncStateJson(LibrarySyncState state) {
+  Future<Map<String, Object?>> _syncStateJson(LibrarySyncState state) async {
     final policy = _container.read(syncNetworkPolicyProvider);
     final overrides = _container.read(syncDiagnosticsOverridesProvider);
+    final catalog = await _container
+        .read(navisDatabaseProvider)
+        .libraryDao
+        .getCatalogCounts();
     final json = <String, Object?>{
       'requestActive': _activeSync != null,
       'status': state.status.name,
@@ -1684,6 +1695,11 @@ class SyncDiagnosticsServer {
       'isMetered': policy.isMetered,
       'allowsBackgroundSync': policy.allowsBackgroundSync,
       'allowsInteractiveHydration': policy.allowsInteractiveHydration,
+      'catalog': <String, int>{
+        'artists': catalog.artists,
+        'albums': catalog.albums,
+        'songs': catalog.songs,
+      },
     };
     if (overrides.requestReporting) {
       json['endpointRequests'] = _lastEndpointRequests;
@@ -1835,6 +1851,22 @@ bool _isValidDiagnosticsLocation(String value) {
       uri.path.startsWith('/') &&
       !uri.hasScheme &&
       !uri.hasAuthority;
+}
+
+/// Decodes the virtual Library destinations used by desktop navigation
+/// history. The diagnostics route uses this so that an app-API navigation to
+/// `/library#liked` drives the same section provider as the visible rail.
+LibrarySection? _librarySectionForDiagnosticsLocation(String value) {
+  final uri = Uri.tryParse(value);
+  if (uri == null || uri.path != '/library' || uri.fragment.isEmpty) {
+    return null;
+  }
+  for (final section in LibrarySection.values) {
+    if (section.name == uri.fragment) {
+      return section;
+    }
+  }
+  return null;
 }
 
 bool canResumeDiagnosticsPlayback({
