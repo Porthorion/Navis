@@ -37,10 +37,10 @@ Key paths:
 
 External sources:
 
-- [Subsonic getIndexes specification](https://www.subsonic.org/pages/api.jsp): ifModifiedSince applies to the artist collection, not album changes.
-- [Navidrome Subsonic compatibility](https://www.navidrome.org/docs/developers/subsonic-api/): a client must not assume a richer server-side delta feed.
-- [OpenSubsonic search3 specification](https://opensubsonic.netlify.app/docs/endpoints/search3/): an empty query is the portable all-library form; `query` is required and paging is defined by the returned category offsets.
-- [Android offline-first data guidance](https://developer.android.com/topic/architecture/data-layer/offline-first): local data serves the UI; connectivity drains durable queued work with bounded retry/backoff.
+- [OpenSubsonic getIndexes specification](https://opensubsonic.netlify.app/docs/endpoints/getindexes/): `ifModifiedSince` applies to the indexed artist collection, so it cannot prove that an album under an unchanged artist did not change.
+- [Navidrome Subsonic compatibility](https://www.navidrome.org/docs/developers/subsonic-api/): Navidrome implements the separate `getAlbumList2`, `getIndexes`, `search3`, starred, and playlist endpoints, while `search3` supports only simple autocomplete queries; a client must not invent a richer delta or wildcard-query contract.
+- [OpenSubsonic endpoint reference](https://opensubsonic.netlify.app/docs/endpoints/): `getAlbumList2`, `getAlbum`, `getIndexes`, and `search3` are distinct compatible operations. Navis's empty-query bulk behavior is a tested server capability, not a protocol assumption.
+- [Android offline-first data guidance](https://developer.android.com/topic/architecture/data-layer/offline-first): local data serves the UI; connectivity drains durable queued work with bounded retry/backoff, and network work updates the local source rather than becoming a screen's read source.
 
 ## Confirmed faults
 
@@ -54,7 +54,7 @@ External sources:
 | P1 | Entering the retained Liked tab watches an autoDispose provider that requests stale starred synchronization and writes global sync state. | Home to Library can look like catalog sync although it is a Liked refresh. |
 | P1 | Starred reconciliation cleared every local star not in `getStarred2` before applying the returned set, excluding only queued/concurrent mutations. | This was a code-proven destructive path that could make Liked items disappear after one incomplete response. **Fixed:** absence candidates are persisted per server/entity; the first successful absence retains the local star and only a second independent successful absence clears it. Pending and concurrent local mutations remain protected. |
 | P1 | Large deletion repair returns awaitingDeletionConfirmation and requires a second repair request; UI showed only opaque status. | Repair could look like a no-op/failure. **Fixed:** Settings now names the pending server-missing count and requires an explicit Apply library repair confirmation before it issues that retry. |
-| P1 | Probe, repair, continuation, Liked sync and target hydration overwrite one global LibrarySyncState. | Navigation-adjacent work can replace broad-operation status and make causality unclear. |
+| P1 | Probe, repair, continuation, Liked sync and target hydration previously shared one controller in-flight future and wrote one global `LibrarySyncState`. A target could therefore satisfy a catalog command, and target progress could replace broad-operation status. **Fixed at the controller boundary:** catalog work now coalesces by precedence (automatic < manual check < repair), while target work coalesces only by its durable target key and never writes catalog UI state. | Navigation-adjacent work no longer masquerades as a library-wide sync, and a manual Check requested during an automatic pass is guaranteed to run after it. |
 | P1 | A legacy persisted `*` bulk-song query ran before the standard empty query. In the isolated clone it collected 5,464 albums then remained at zero hydrated/candidate songs for more than 20 minutes; cancellation did not reach a terminal state within the next 20 seconds. | Repair appeared stalled despite a valid candidate. The wildcard capability is now discarded; the verified empty-query path advanced 214→2,002 albums and 3,924→24,979 songs in 15 seconds. |
 | P2 | Existing tests omit manual fresh-window checks, unchanged artist cursor plus new album, repeated Liked entry, and completed work remaining completed. | Current tests can pass while the user controls fail. |
 
@@ -131,7 +131,7 @@ Exit: one manual check imports an album for existing artist in fixture and live 
 ### Phase 2: schedule and queue correctness
 
 1. Add persisted automatic schedule and one scheduler entry point. Lifecycle/UI listeners submit typed cause only. **In progress:** the unpersisted two-minute continuation loop is removed; automatic pending work now waits for the configured interval.
-2. Coalesce manually: manual check supersedes automatic probe; repair supersedes broad automatic work; target work is independent.
+2. Coalesce manually: manual check supersedes automatic probe; repair supersedes broad automatic work; target work is independent. **Implemented in the controller:** an active stronger catalog request satisfies weaker work, while a stronger request is queued after a weaker active request; duplicate target work shares only its durable target key.
 3. Correct work transitions: completed stays completed; cancelled has explicit backoff; a deletion-confirmation repair is terminal until the next explicit Repair Library action; partial broad parent names child work instead of requeueing itself. **Implemented:** ordinary conflict handling preserves terminal rows, explicit user requests reactivate them, and automatic callers cannot resume queued full repairs.
 4. Remove the two-minute loop. Pending durable work is resumed only by the configured automatic interval or an explicit user action, with visible next eligibility.
 5. Make startup completion a terminal scheduler decision; listener emissions cannot reset a fresh schedule.
@@ -144,7 +144,7 @@ Exit: a 60-minute no-action lifecycle stress test makes no catalog request befor
 ### Phase 3: navigation and disappearance safety
 
 1. Replace Liked autoDispose side effect with target-scoped work from explicit refresh or scheduler-due auxiliary event.
-2. Split CatalogSyncState from per-target operation state.
+2. Split CatalogSyncState from per-target operation state. **Controller isolation implemented:** target progress/results no longer write catalog state, and the album/playlist explicit refresh surfaces already own their local loading/error state. Follow up by extracting a typed target-operation provider for non-explicit interaction hydration and diagnostics.
 3. Validate starred snapshot completeness before deletion; preserve values for uncertain response and pending journals. **Implemented defensively:** retain a missing star after its first successful response and clear it only after a second independent successful absence; pending and concurrent local mutations clear any candidate and remain authoritative.
 4. Record before/after counts and reason code for every destructive catalog/starred transaction.
 5. Add invariant: Home to Library changes neither catalog nor liked count without successful accounted server snapshot.
@@ -159,7 +159,10 @@ Exit: navigation causes no broad request, and no catalog/liked row disappears wi
 4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. Then run tool/check.sh.
 
 Current certification evidence: focused engine, coordinator, DAO, migration,
-controller, Home, Library, and Settings suites pass. Isolated Linux clone
+controller, Home, Library, and Settings suites pass. The controller regression
+suite now proves that duplicate album hydration coalesces locally, a concurrent
+manual refresh still executes, and the target terminal result cannot replace
+the catalog result. Isolated Linux clone
 startup kept an awaiting-deletion-confirmation repair dormant while it resumed
 only target work; the authenticated health API reported schema v62, clean
 restart returned to Home, and the app-owned Settings screenshot was inspected.

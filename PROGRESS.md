@@ -37,8 +37,12 @@ Last updated: 2026-08-12
   pass. Automatic startup/periodic calls now leave queued full repairs dormant
   until an explicit Repair Library request, and resume no longer submits a
   redundant startup sync alongside its interval check; focused
-  coordinator/provider/DAO coverage passes. Remaining: complete API/runtime
-  trace, screenshots, clean restart, final quality gate, and next plan phases.
+  coordinator/provider/DAO coverage passes. Catalog and target controller lanes
+  are now separated: target hydration is deduplicated only by durable target
+  key and cannot overwrite catalog status or swallow a user Check for updates;
+  the focused controller suite passes 17 tests including concurrent target and
+  catalog cases. Remaining: complete API/runtime trace, screenshots, clean
+  restart, final quality gate, and next plan phases.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 495 informational
   diagnostics; none were introduced by this recovery work.)

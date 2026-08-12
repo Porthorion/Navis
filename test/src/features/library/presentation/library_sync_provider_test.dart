@@ -56,7 +56,11 @@ class _MutableLibrarySyncEngine extends Notifier<LibrarySyncEngine?> {
 }
 
 class _FakeLibrarySyncEngine extends LibrarySyncEngine {
-  _FakeLibrarySyncEngine(this._handlerIfStale, this._handlerNow);
+  _FakeLibrarySyncEngine(
+    this._handlerIfStale,
+    this._handlerNow, {
+    this.requestHandler,
+  });
 
   final Future<LibrarySyncState> Function({
     LibrarySyncProgressCallback? onProgress,
@@ -67,11 +71,33 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
     LibrarySyncProgressCallback? onProgress,
   })
   _handlerNow;
+  final Future<LibrarySyncState> Function(
+    LibrarySyncRequest request, {
+    LibrarySyncProgressCallback? onProgress,
+  })?
+  requestHandler;
 
   int staleCalls = 0;
   int nowCalls = 0;
   int continuationCalls = 0;
   final List<bool> forceFullCalls = <bool>[];
+
+  @override
+  Future<LibrarySyncState> requestSync(
+    LibrarySyncRequest request, {
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    final handler = requestHandler;
+    if (handler != null) {
+      return handler(request, onProgress: onProgress);
+    }
+    return super.requestSync(
+      request,
+      priorityAlbumIds: priorityAlbumIds,
+      onProgress: onProgress,
+    );
+  }
 
   @override
   Future<LibrarySyncState> syncIfStale({
@@ -455,6 +481,153 @@ void main() {
         LibrarySyncStatus.succeeded,
       );
     });
+
+    test(
+      'manual refresh runs after an already-active automatic check',
+      () async {
+        final automaticCompletion = Completer<LibrarySyncState>();
+        final manualResult = LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          planKind: LibrarySyncPlanKind.deltaReconcile,
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) => automaticCompletion.future,
+          ({forceFull = false, onProgress}) async => manualResult,
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.checking,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final notifier = container.read(librarySyncControllerProvider.notifier);
+        final automatic = notifier.syncIfStale();
+        final manual = notifier.syncNow();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(engine.staleCalls, 1);
+        expect(engine.nowCalls, 0);
+
+        automaticCompletion.complete(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        await automatic;
+
+        expect(await manual, same(manualResult));
+        expect(engine.nowCalls, 1);
+        expect(
+          container.read(librarySyncControllerProvider).planKind,
+          LibrarySyncPlanKind.deltaReconcile,
+        );
+      },
+    );
+
+    test(
+      'target hydration neither replaces catalog status nor swallows a refresh',
+      () async {
+        final targetCompletion = Completer<LibrarySyncState>();
+        var targetRequests = 0;
+        final catalogResult = LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          planKind: LibrarySyncPlanKind.deltaReconcile,
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async {
+            onProgress?.call(catalogResult);
+            return catalogResult;
+          },
+          requestHandler: (request, {onProgress}) {
+            expect(request.target.kind, LibrarySyncTargetKind.album);
+            targetRequests++;
+            onProgress?.call(
+              LibrarySyncState(
+                status: LibrarySyncStatus.running,
+                stage: LibrarySyncStage.fetchingSongs,
+                planKind: LibrarySyncPlanKind.targetedHydration,
+              ),
+            );
+            return targetCompletion.future;
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.checking,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final notifier = container.read(librarySyncControllerProvider.notifier);
+        final firstTarget = notifier.requestTarget(
+          const LibrarySyncTarget.album('album-1'),
+        );
+        final duplicateTarget = notifier.requestTarget(
+          const LibrarySyncTarget.album('album-1'),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(targetRequests, 1);
+        expect(
+          container.read(librarySyncControllerProvider).status,
+          LibrarySyncStatus.idle,
+        );
+
+        final refreshed = await notifier.syncNow();
+        expect(refreshed, same(catalogResult));
+        expect(engine.nowCalls, 1);
+        expect(
+          container.read(librarySyncControllerProvider).planKind,
+          LibrarySyncPlanKind.deltaReconcile,
+        );
+
+        targetCompletion.complete(
+          LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            planKind: LibrarySyncPlanKind.targetedHydration,
+          ),
+        );
+        await Future.wait(<Future<LibrarySyncState>>[
+          firstTarget,
+          duplicateTarget,
+        ]);
+
+        expect(
+          container.read(librarySyncControllerProvider).planKind,
+          LibrarySyncPlanKind.deltaReconcile,
+        );
+      },
+    );
 
     test(
       'forceFullSync becomes visibly preparing before engine planning',

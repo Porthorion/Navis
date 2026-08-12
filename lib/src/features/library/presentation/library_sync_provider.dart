@@ -181,7 +181,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   bool _startupSyncInFlight = false;
   bool _startupSyncSuppressed = false;
   int _startupSyncEpoch = 0;
-  Future<LibrarySyncState>? _activeSync;
+  Future<LibrarySyncState>? _activeCatalogSync;
+  int? _activeCatalogSyncPriority;
+  final Map<String, Future<LibrarySyncState>> _activeTargetSyncs =
+      <String, Future<LibrarySyncState>>{};
   Future<void>? _startupSyncTask;
   bool _retryStartupWhenEngineReady = false;
   String? _startupSyncDoneFingerprint;
@@ -341,7 +344,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (engine == null) {
       return state;
     }
-    return _joinOrStartSync(
+    return _joinOrStartTargetSync(
+      target,
       () => _runRequest(
         engine,
         LibrarySyncRequest(
@@ -360,7 +364,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (engine == null) {
       return state;
     }
-    return _joinOrStartSync(
+    return _joinOrStartTargetSync(
+      target,
       () => _runRequest(
         engine,
         LibrarySyncRequest(
@@ -652,8 +657,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     bool forceFull = false,
     bool allowMeteredBroadOverride = false,
   }) async {
-    return _joinOrStartSync(
-      () => _runSyncOnce(
+    return _joinOrQueueCatalogSync(
+      priority: forceFull
+          ? 2
+          : force
+          ? 1
+          : 0,
+      start: () => _runSyncOnce(
         force: force,
         tolerateUnavailableEngine: tolerateUnavailableEngine,
         forceFull: forceFull,
@@ -662,19 +672,57 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
   }
 
-  Future<LibrarySyncState> _joinOrStartSync(
+  /// Coalesces equivalent catalog work while preserving stronger user intent.
+  ///
+  /// In particular, a manual refresh or repair requested while an automatic
+  /// interval check is active must run after that check; returning the weaker
+  /// request's result makes an explicit command appear to have succeeded
+  /// without ever performing its requested work.
+  Future<LibrarySyncState> _joinOrQueueCatalogSync({
+    required int priority,
+    required Future<LibrarySyncState> Function() start,
+  }) {
+    final active = _activeCatalogSync;
+    final activePriority = _activeCatalogSyncPriority;
+    if (active != null &&
+        activePriority != null &&
+        activePriority >= priority) {
+      return active;
+    }
+
+    final task = active == null
+        ? start()
+        : active.then<LibrarySyncState>(
+            (_) => start(),
+            onError: (error, _) => start(),
+          );
+    _activeCatalogSync = task;
+    _activeCatalogSyncPriority = priority;
+    return task.whenComplete(() {
+      if (identical(_activeCatalogSync, task)) {
+        _activeCatalogSync = null;
+        _activeCatalogSyncPriority = null;
+      }
+    });
+  }
+
+  /// Target hydration is page-scoped. It may share a durable executor with
+  /// catalog sync, but it must not share catalog UI state or satisfy a catalog
+  /// request. Dedupe only the same durable target key.
+  Future<LibrarySyncState> _joinOrStartTargetSync(
+    LibrarySyncTarget target,
     Future<LibrarySyncState> Function() start,
   ) {
-    final active = _activeSync;
+    final key = librarySyncTargetWorkKey(target);
+    final active = _activeTargetSyncs[key];
     if (active != null) {
       return active;
     }
-    late final Future<LibrarySyncState> task;
-    task = start();
-    _activeSync = task;
+    final task = start();
+    _activeTargetSyncs[key] = task;
     return task.whenComplete(() {
-      if (identical(_activeSync, task)) {
-        _activeSync = null;
+      if (identical(_activeTargetSyncs[key], task)) {
+        unawaited(_activeTargetSyncs.remove(key));
       }
     });
   }
@@ -805,15 +853,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final result = await engine.requestSync(
       request,
       priorityAlbumIds: _priorityAlbumIds,
-      onProgress: (progress) {
-        if (ref.mounted) {
-          state = progress;
-        }
-      },
+      // Target hydration has its own page-level loading/error surfaces. Do
+      // not overwrite the persistent catalog status while a detail page or
+      // playlist asks for one entity.
+      onProgress: null,
     );
-    if (ref.mounted) {
-      state = result;
-    }
     return result;
   }
 
