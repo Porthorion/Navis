@@ -442,6 +442,69 @@ void main() {
     );
 
     test(
+      'automatic timer waits for the persisted deadline before one catalog pass',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().add(
+            const Duration(milliseconds: 700),
+          ),
+        );
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          ),
+          ({forceFull = false, onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            syncIntervalMinutesProvider.overrideWithValue(60),
+            syncIntervalDurationProvider.overrideWithValue(
+              const Duration(hours: 1),
+            ),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(null),
+            serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.offline,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        expect(engine.staleCalls, 0);
+
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        expect(engine.staleCalls, 1);
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+        expect(persisted.nextAutomaticCheckAt, isNotNull);
+        expect(
+          persisted.nextAutomaticCheckAt!.isAfter(
+            DateTime.now().subtract(const Duration(minutes: 59)),
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test(
       'cancelAndWait drains and suppresses scheduled startup sync',
       () async {
         final database = createTestDatabase();

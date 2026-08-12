@@ -94,8 +94,11 @@ Last updated: 2026-08-12
   changing the primary profile. The final catalog remained 1,714 artists /
   5,464 albums / 54,329 songs after clean restart; the converged repair
   classified all 61,507 rows unchanged, removed zero songs, and applied in
-  117 ms. Remaining: the 60-minute no-action scheduler stress, any future
-  affected-server vanished-row reproduction, and next plan phases,
+  117 ms. A controller regression also sets the production 60-minute interval
+  with a persisted near-future deadline and proves the one-shot timer makes no
+  early catalog call, then exactly one automatic call and persists the next
+  interval. Remaining: an optional wall-clock 60-minute foreground soak, any
+  future affected-server vanished-row reproduction, and next plan phases,
   then the final quality gate.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational
