@@ -55,13 +55,18 @@ class NavisBackgroundSyncWorker(
             val response = withTimeout(workerTimeoutMillis) {
                 channel.invokeMapMethod(
                     "runAutomaticBackgroundSync",
-                    mapOf("hasActivePlayback" to isMusicActive()),
+                    mapOf(
+                        "profileKey" to profileKey,
+                        "workId" to id.toString(),
+                        "attemptCount" to runAttemptCount.coerceIn(0, maxReportedAttemptCount),
+                        "hasActivePlayback" to isMusicActive(),
+                    ),
                 )
             }
-            when (response?.get("category") as? String) {
-                "transientFailure" -> Result.retry()
-                "permanentFailure" -> Result.failure()
-                else -> Result.success()
+            when (BackgroundSyncWorkerResultMapper.directiveFor(response?.get("category") as? String)) {
+                BackgroundSyncWorkerDirective.RETRY -> Result.retry()
+                BackgroundSyncWorkerDirective.FAILURE -> Result.failure()
+                BackgroundSyncWorkerDirective.SUCCESS -> Result.success()
             }
         } catch (_: TimeoutCancellationException) {
             Result.retry()
@@ -94,6 +99,7 @@ class NavisBackgroundSyncWorker(
         private const val engineReadyTimeoutMillis = 15_000L
         private const val workerTimeoutMillis = 8 * 60 * 1000L
         private const val cancellationCheckpointTimeoutMillis = 10_000L
+        private const val maxReportedAttemptCount = 100
 
         fun inputData(profileKey: String): Data = Data.Builder()
             .putString(profileKeyDataKey, profileKey)
@@ -103,6 +109,19 @@ class NavisBackgroundSyncWorker(
     private fun isMusicActive(): Boolean {
         val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         return audioManager.isMusicActive
+    }
+}
+
+/** Maps the small, redacted Dart protocol to WorkManager semantics. */
+internal enum class BackgroundSyncWorkerDirective { SUCCESS, RETRY, FAILURE }
+
+internal object BackgroundSyncWorkerResultMapper {
+    fun directiveFor(category: String?): BackgroundSyncWorkerDirective = when (category) {
+        // Only failures that occurred before the coordinator had a chance to
+        // persist its own cooldown are retried by WorkManager.
+        "transientFailure" -> BackgroundSyncWorkerDirective.RETRY
+        "permanentFailure" -> BackgroundSyncWorkerDirective.FAILURE
+        else -> BackgroundSyncWorkerDirective.SUCCESS
     }
 }
 

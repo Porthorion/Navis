@@ -132,7 +132,7 @@ void main() {
       find.byType(LinearProgressIndicator),
     );
     expect(progress.value, 0.5);
-    expect(find.text('Hydrating songs'), findsOneWidget);
+    expect(find.text('Scanning songs'), findsOneWidget);
     final semantics = tester.getSemantics(
       find.byKey(const ValueKey('initialSyncProgressSemantics')),
     );

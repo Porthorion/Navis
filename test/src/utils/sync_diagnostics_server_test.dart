@@ -49,7 +49,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 64);
+    expect(authorized.body['schemaVersion'], 65);
   });
 
   test('primary certification rejects mutation and cancellation', () async {

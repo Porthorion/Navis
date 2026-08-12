@@ -309,7 +309,10 @@ WorkManager 2.11.2; the Worker launches the retained headless Dart entrypoint;
 and Sync Settings renders the requested cadence and latest safe outcome.
 Focused Dart/DAO/widget tests and Android scheduler unit tests pass. The
 physical-device matrix below remains mandatory before the flag is enabled by
-default.
+default. The shared `LibrarySyncExecutionBootstrap` now constructs both
+foreground and headless production sync pipelines; the headless command also
+validates its opaque profile key against the active retained profile before it
+can make a request.
 
 Static tests do not prove Android background behavior. Every implementation
 iteration must include Linux startup smoke plus Android device validation using

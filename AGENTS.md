@@ -513,7 +513,11 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   foreground controller, while redacted WorkManager observations remain on
   `library_sync_state`. The durable Android-only capability flag defaults off
   and is enabled for internal builds only with
-  `NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC=true`.
+  `NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC=true`. A worker validates its opaque
+  profile key against the active profile before any request, so a late
+  cancelled/replaced schedule cannot run the new account. Manual-only and
+  logout reconciliation clear the persisted requested cadence; relevant
+  enable/network/interval changes use the separate `KEEP` catch-up request.
 - Automatic broad catalog work defers while Navis is backgrounded or playing;
   an explicit user refresh may resume queued broad work in the foreground so a
   requested refresh is not silently postponed behind it.

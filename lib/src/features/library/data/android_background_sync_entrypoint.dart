@@ -9,6 +9,8 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
+import 'package:navis/src/features/library/data/android_background_sync.dart';
+import 'package:navis/src/features/library/data/library_sync_execution_bootstrap.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -30,10 +32,11 @@ Future<void> navisBackgroundSyncEntrypoint() async {
   _backgroundSyncChannel.setMethodCallHandler((call) async {
     switch (call.method) {
       case 'runAutomaticBackgroundSync':
-        final arguments = call.arguments;
-        final hasActivePlayback =
-            arguments is Map && arguments['hasActivePlayback'] == true;
-        return runner.run(hasActivePlayback: hasActivePlayback);
+        final command = _BackgroundWorkerCommand.tryParse(call.arguments);
+        if (command == null) {
+          return const <String, Object?>{'category': 'permanentFailure'};
+        }
+        return runner.run(command);
       case 'cancel':
         await runner.cancel();
         return true;
@@ -55,12 +58,10 @@ class _HeadlessBackgroundSyncRunner {
   Future<Map<String, Object?>>? _running;
   AdaptiveLibrarySyncCoordinator? _coordinator;
 
-  Future<Map<String, Object?>> run({required bool hasActivePlayback}) {
-    return _running ??= _run(hasActivePlayback: hasActivePlayback).whenComplete(
-      () {
-        _running = null;
-      },
-    );
+  Future<Map<String, Object?>> run(_BackgroundWorkerCommand command) {
+    return _running ??= _run(command).whenComplete(() {
+      _running = null;
+    });
   }
 
   Future<void> cancel() async {
@@ -70,7 +71,9 @@ class _HeadlessBackgroundSyncRunner {
     }
   }
 
-  Future<Map<String, Object?>> _run({required bool hasActivePlayback}) async {
+  Future<Map<String, Object?>> _run(
+    _BackgroundWorkerCommand command,
+  ) async {
     final container = ProviderContainer();
     final database = container.read(navisDatabaseProvider);
     SubsonicApiClient? client;
@@ -86,9 +89,12 @@ class _HeadlessBackgroundSyncRunner {
       activeServerId = serverId;
       if (config == null || config.id == null) {
         if (serverId != null) {
+          final startedAt = DateTime.now();
           await database.librarySyncDao.writeAndroidBackgroundStatus(
             serverId: serverId,
-            workerCompletedAt: DateTime.now(),
+            workerStartedAt: startedAt,
+            workerCompletedAt: startedAt,
+            workerDurationMs: 0,
             workerResult: 'credentialUnavailable',
           );
         }
@@ -96,10 +102,31 @@ class _HeadlessBackgroundSyncRunner {
       }
       activeServerId = config.id;
 
-      if (hasActivePlayback) {
+      // A cancelled/replaced profile can leave a WorkManager dispatch racing
+      // with reconciliation. The worker input contains only this opaque key,
+      // which is enough to reject that stale request without touching the new
+      // active account or making a network request.
+      if (AndroidBackgroundSyncScheduler.profileKeyFor(config) !=
+          command.profileKey) {
+        return _result('noWorkDue');
+      }
+
+      final startedAt = DateTime.now();
+      await database.librarySyncDao.writeAndroidBackgroundStatus(
+        serverId: config.id!,
+        workId: command.workId,
+        workState: 'running',
+        attemptCount: command.attemptCount,
+        workerStartedAt: startedAt,
+        workerStopReason: 'none',
+      );
+
+      if (command.hasActivePlayback) {
+        final completedAt = DateTime.now();
         await database.librarySyncDao.writeAndroidBackgroundStatus(
           serverId: config.id!,
-          workerCompletedAt: DateTime.now(),
+          workerCompletedAt: completedAt,
+          workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
           workerResult: 'deferredPolicy',
         );
         return _result('deferredPolicy');
@@ -110,9 +137,11 @@ class _HeadlessBackgroundSyncRunner {
       );
       if (!persisted.androidBackgroundSyncEnabled ||
           persisted.currentGeneration == 0) {
+        final completedAt = DateTime.now();
         await database.librarySyncDao.writeAndroidBackgroundStatus(
           serverId: config.id!,
-          workerCompletedAt: DateTime.now(),
+          workerCompletedAt: completedAt,
+          workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
           workerResult: 'noWorkDue',
         );
         return _result('noWorkDue');
@@ -129,9 +158,11 @@ class _HeadlessBackgroundSyncRunner {
             settings?.backgroundSyncUnmeteredOnly ?? true,
       );
       if (!policy.allowsBackgroundSync) {
+        final completedAt = DateTime.now();
         await database.librarySyncDao.writeAndroidBackgroundStatus(
           serverId: config.id!,
-          workerCompletedAt: DateTime.now(),
+          workerCompletedAt: completedAt,
+          workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
           workerResult: 'deferredPolicy',
         );
         return _result('deferredPolicy');
@@ -161,20 +192,11 @@ class _HeadlessBackgroundSyncRunner {
           );
         },
       );
-      final executor = DriftLibrarySyncEngine(
-        api: SubsonicLibrarySyncApi(client),
+      final coordinator = LibrarySyncExecutionBootstrap.createCoordinator(
+        client: client,
         database: database,
         serverConfigRepository: repository,
-        networkType: policy.networkType,
-        readSyncNetworkPolicy: () => policy,
-        staleAfter: Duration(
-          minutes: settings?.syncIntervalMinutes ?? 60,
-        ),
-      );
-      final coordinator = AdaptiveLibrarySyncCoordinator(
-        executor: executor,
-        database: database,
-        serverConfigRepository: repository,
+        initialNetworkType: policy.networkType,
         readSyncNetworkPolicy: () => policy,
         staleAfter: Duration(
           minutes: settings?.syncIntervalMinutes ?? 60,
@@ -185,12 +207,6 @@ class _HeadlessBackgroundSyncRunner {
         isBackgroundExecution: true,
       );
       _coordinator = coordinator;
-      final startedAt = DateTime.now();
-      await database.librarySyncDao.writeAndroidBackgroundStatus(
-        serverId: config.id!,
-        workerStartedAt: startedAt,
-        workerStopReason: 'none',
-      );
       final state = await coordinator.requestSync(
         const LibrarySyncRequest.automatic(),
       );
@@ -205,9 +221,10 @@ class _HeadlessBackgroundSyncRunner {
       return _result(category, state: state);
     } on SyncCancelledException {
       if (activeServerId != null) {
+        final completedAt = DateTime.now();
         await database.librarySyncDao.writeAndroidBackgroundStatus(
           serverId: activeServerId,
-          workerCompletedAt: DateTime.now(),
+          workerCompletedAt: completedAt,
           workerResult: 'stoppedBySystem',
         );
       }
@@ -216,9 +233,10 @@ class _HeadlessBackgroundSyncRunner {
       // The coordinator persists sync-domain failures itself. Reaching here
       // means bootstrap or engine setup failed before it owned the pass.
       if (activeServerId != null) {
+        final completedAt = DateTime.now();
         await database.librarySyncDao.writeAndroidBackgroundStatus(
           serverId: activeServerId,
-          workerCompletedAt: DateTime.now(),
+          workerCompletedAt: completedAt,
           workerResult: 'transientFailure',
         );
       }
@@ -256,5 +274,43 @@ class _HeadlessBackgroundSyncRunner {
       'requests': state?.apiRequests ?? 0,
       'bytes': state?.lastRunBytes ?? 0,
     };
+  }
+}
+
+/// Strictly validates the small Kotlin-to-Dart work protocol. No profile
+/// identity or credential can cross this boundary.
+class _BackgroundWorkerCommand {
+  const _BackgroundWorkerCommand({
+    required this.profileKey,
+    required this.workId,
+    required this.attemptCount,
+    required this.hasActivePlayback,
+  });
+
+  final String profileKey;
+  final String workId;
+  final int attemptCount;
+  final bool hasActivePlayback;
+
+  static _BackgroundWorkerCommand? tryParse(Object? value) {
+    if (value is! Map) {
+      return null;
+    }
+    final profileKey = value['profileKey'];
+    final workId = value['workId'];
+    final attempts = value['attemptCount'];
+    if (profileKey is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(profileKey) ||
+        workId is! String ||
+        !RegExp(r'^[0-9a-fA-F-]{1,64}$').hasMatch(workId) ||
+        attempts is! int) {
+      return null;
+    }
+    return _BackgroundWorkerCommand(
+      profileKey: profileKey,
+      workId: workId,
+      attemptCount: attempts.clamp(0, 100),
+      hasActivePlayback: value['hasActivePlayback'] == true,
+    );
   }
 }

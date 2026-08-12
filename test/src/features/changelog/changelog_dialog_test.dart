@@ -64,10 +64,12 @@ void main() {
     expect(find.text(l10n.aboutChangelog), findsOneWidget);
     expect(find.text('Version ${changelogs.first.version}'), findsOneWidget);
 
-    await tester.scrollUntilVisible(
+    final list = find.byType(ListView);
+    expect(list, findsOneWidget);
+    await tester.dragUntilVisible(
       find.text('Version 1.0.10'),
-      120,
-      scrollable: find.byType(Scrollable),
+      list,
+      const Offset(0, -240),
     );
 
     expect(find.text('Version 1.0.10'), findsOneWidget);

@@ -1722,6 +1722,7 @@ class SyncDiagnosticsServer {
       'isMetered': policy.isMetered,
       'allowsBackgroundSync': policy.allowsBackgroundSync,
       'allowsInteractiveHydration': policy.allowsInteractiveHydration,
+      'androidBackground': await _androidBackgroundSyncJson(),
       'catalog': <String, int>{
         'artists': catalog.artists,
         'albums': catalog.albums,
@@ -1733,6 +1734,42 @@ class SyncDiagnosticsServer {
       json['endpointRequests'] = _lastEndpointRequests;
     }
     return json;
+  }
+
+  /// Redacted WorkManager observation for debug diagnostics. It intentionally
+  /// excludes the opaque profile key, WorkManager input, raw work id, server
+  /// identity, and all exception text.
+  Future<Map<String, Object?>?> _androidBackgroundSyncJson() async {
+    final serverId = _container
+        .read(serverConfigStateProvider)
+        .asData
+        ?.value
+        ?.id;
+    if (serverId == null) {
+      return null;
+    }
+    final persisted = await _container
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .getOrCreateState(serverId);
+    return <String, Object?>{
+      'enabled': persisted.androidBackgroundSyncEnabled,
+      'requestedIntervalMinutes': persisted.androidRequestedIntervalMinutes,
+      'scheduleReconciledAt': persisted.androidScheduleReconciledAt
+          ?.toUtc()
+          .toIso8601String(),
+      'state': persisted.androidWorkState,
+      'attemptCount': persisted.androidWorkAttemptCount,
+      'workerStartedAt': persisted.androidWorkerStartedAt
+          ?.toUtc()
+          .toIso8601String(),
+      'workerCompletedAt': persisted.androidWorkerCompletedAt
+          ?.toUtc()
+          .toIso8601String(),
+      'workerDurationMs': persisted.androidWorkerDurationMs,
+      'result': persisted.androidWorkerResult,
+      'stopReason': persisted.androidWorkerStopReason,
+    };
   }
 
   Future<List<Map<String, Object?>>> _durableOperationLedgerJson() async {

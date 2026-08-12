@@ -171,7 +171,11 @@ Last updated: 2026-08-12
   worker state; WorkManager 2.11.2 now owns one opaque-keyed periodic `UPDATE`
   request and one `KEEP` catch-up request; the worker registers plugins and
   invokes a retained UI-free Dart entrypoint that uses the existing planner,
-  coordinator, durable work queue, operation ledger, and network policy.
+  coordinator, durable work queue, operation ledger, and network policy. A
+  late worker now proves its opaque profile key before touching the active
+  session, records its own work id/attempt as a redacted running state, and
+  manual-only cancellation clears stale cadence state; debug diagnostics
+  expose only the safe durable observation.
   Sync Settings shows requested eventual cadence, unmetered wait, and safe
   terminal state. Focused DAO/migration/coordinator/bridge/widget tests,
   Android scheduler unit tests, and `:app:testSideloadDebugUnitTest` pass.

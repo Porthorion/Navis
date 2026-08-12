@@ -40,4 +40,24 @@ class AndroidBackgroundSyncSchedulerTest {
             BackgroundSyncScheduleSpec("c".repeat(32), 10, true)
         }
     }
+
+    @Test
+    fun `only bootstrap failures ask WorkManager to retry`() {
+        assertEquals(
+            BackgroundSyncWorkerDirective.RETRY,
+            BackgroundSyncWorkerResultMapper.directiveFor("transientFailure"),
+        )
+        assertEquals(
+            BackgroundSyncWorkerDirective.FAILURE,
+            BackgroundSyncWorkerResultMapper.directiveFor("permanentFailure"),
+        )
+        assertEquals(
+            BackgroundSyncWorkerDirective.SUCCESS,
+            BackgroundSyncWorkerResultMapper.directiveFor("leaseHeld"),
+        )
+        assertEquals(
+            BackgroundSyncWorkerDirective.SUCCESS,
+            BackgroundSyncWorkerResultMapper.directiveFor(null),
+        )
+    }
 }

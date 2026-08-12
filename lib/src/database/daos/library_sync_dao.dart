@@ -147,7 +147,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     required int serverId,
     DateTime? scheduleReconciledAt,
     int? requestedIntervalMinutes,
+    bool clearRequestedIntervalMinutes = false,
     String? workId,
+    bool clearWorkId = false,
     String? workState,
     int? attemptCount,
     DateTime? workerStartedAt,
@@ -164,10 +166,16 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         androidScheduleReconciledAt: scheduleReconciledAt == null
             ? const Value.absent()
             : Value(scheduleReconciledAt.toUtc()),
-        androidRequestedIntervalMinutes: requestedIntervalMinutes == null
+        androidRequestedIntervalMinutes: clearRequestedIntervalMinutes
+            ? const Value(null)
+            : requestedIntervalMinutes == null
             ? const Value.absent()
             : Value(requestedIntervalMinutes),
-        androidWorkId: workId == null ? const Value.absent() : Value(workId),
+        androidWorkId: clearWorkId
+            ? const Value(null)
+            : workId == null
+            ? const Value.absent()
+            : Value(workId),
         androidWorkState: workState == null
             ? const Value.absent()
             : Value(workState),

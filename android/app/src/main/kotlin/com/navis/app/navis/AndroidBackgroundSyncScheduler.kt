@@ -1,6 +1,9 @@
 package com.navis.app.navis
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import androidx.lifecycle.Observer
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -11,6 +14,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.CountDownLatch
 
 internal data class BackgroundSyncScheduleSpec(
     val profileKey: String,
@@ -107,9 +111,15 @@ internal class AndroidBackgroundSyncScheduler(
 
     fun status(profileKey: String): BackgroundSyncScheduleObservation {
         val spec = BackgroundSyncScheduleSpec(profileKey, 15, true)
-        val info = workManager.getWorkInfosForUniqueWorkLiveData(spec.periodicWorkName)
-            .value
-            ?.maxByOrNull { it.runAttemptCount }
+        // MainActivity invokes this from a background thread. LiveData.value
+        // is often null until observed, so observe on the main thread and wait
+        // briefly for one snapshot instead of falsely reporting no work.
+        val info = listOf(spec.periodicWorkName, spec.catchupWorkName)
+            .flatMap(::workInfosForUniqueName)
+            .maxWithOrNull(
+                compareBy<WorkInfo> { it.state.observationPriority }
+                    .thenBy { it.runAttemptCount }
+            )
             ?: return BackgroundSyncScheduleObservation(state = "none")
         return BackgroundSyncScheduleObservation(
             state = info.state.toChannelState(),
@@ -120,6 +130,31 @@ internal class AndroidBackgroundSyncScheduler(
 
     private fun constraintsFor(spec: BackgroundSyncScheduleSpec): Constraints =
         Constraints.Builder().setRequiredNetworkType(spec.networkType).build()
+
+    private fun workInfosForUniqueName(name: String): List<WorkInfo> {
+        check(Looper.myLooper() != Looper.getMainLooper()) {
+            "WorkManager status must be queried away from the main thread."
+        }
+        val liveData = workManager.getWorkInfosForUniqueWorkLiveData(name)
+        val latch = CountDownLatch(1)
+        var snapshot: List<WorkInfo> = emptyList()
+        val observer = Observer<List<WorkInfo>> { values ->
+            snapshot = values ?: emptyList()
+            latch.countDown()
+        }
+        val mainHandler = Handler(Looper.getMainLooper())
+        mainHandler.post { liveData.observeForever(observer) }
+        try {
+            latch.await(statusQueryTimeoutMillis, TimeUnit.MILLISECONDS)
+        } finally {
+            mainHandler.post { liveData.removeObserver(observer) }
+        }
+        return snapshot
+    }
+
+    private companion object {
+        const val statusQueryTimeoutMillis = 2_000L
+    }
 }
 
 private fun WorkInfo.State.toChannelState(): String = when (this) {
@@ -129,3 +164,12 @@ private fun WorkInfo.State.toChannelState(): String = when (this) {
     WorkInfo.State.CANCELLED -> "cancelled"
     WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED -> "none"
 }
+
+private val WorkInfo.State.observationPriority: Int
+    get() = when (this) {
+        WorkInfo.State.RUNNING -> 4
+        WorkInfo.State.ENQUEUED -> 3
+        WorkInfo.State.BLOCKED -> 2
+        WorkInfo.State.CANCELLED -> 1
+        WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED -> 0
+    }

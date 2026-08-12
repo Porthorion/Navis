@@ -10,7 +10,6 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:path_provider/path_provider.dart';
 

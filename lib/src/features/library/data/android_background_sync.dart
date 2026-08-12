@@ -188,6 +188,7 @@ class AndroidBackgroundSyncReconciler {
     required ServerConfigModel config,
     required int intervalMinutes,
     required bool unmeteredOnly,
+    bool enqueueCatchup = false,
   }) async {
     final serverId = config.id;
     if (serverId == null) {
@@ -201,6 +202,8 @@ class AndroidBackgroundSyncReconciler {
         serverId: serverId,
         observation: observation,
         intervalMinutes: null,
+        clearRequestedIntervalMinutes: true,
+        clearWorkId: true,
       );
       return;
     }
@@ -214,6 +217,12 @@ class AndroidBackgroundSyncReconciler {
       observation: observation,
       intervalMinutes: intervalMinutes,
     );
+    if (enqueueCatchup) {
+      await this.enqueueCatchup(
+        config: config,
+        unmeteredOnly: unmeteredOnly,
+      );
+    }
   }
 
   Future<void> enqueueCatchup({
@@ -251,6 +260,8 @@ class AndroidBackgroundSyncReconciler {
       serverId: serverId,
       observation: observation,
       intervalMinutes: null,
+      clearRequestedIntervalMinutes: true,
+      clearWorkId: true,
     );
   }
 
@@ -258,12 +269,16 @@ class AndroidBackgroundSyncReconciler {
     required int serverId,
     required AndroidBackgroundScheduleObservation observation,
     required int? intervalMinutes,
+    bool clearRequestedIntervalMinutes = false,
+    bool clearWorkId = false,
   }) {
     return _database.librarySyncDao.writeAndroidBackgroundStatus(
       serverId: serverId,
       scheduleReconciledAt: DateTime.now(),
       requestedIntervalMinutes: intervalMinutes,
+      clearRequestedIntervalMinutes: clearRequestedIntervalMinutes,
       workId: observation.workId,
+      clearWorkId: clearWorkId,
       workState: observation.state,
       attemptCount: observation.attemptCount,
     );

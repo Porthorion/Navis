@@ -26,12 +26,17 @@ Located in `lib/src/providers/app_providers.dart`:
     planner/coordinator.
   - `navisBackgroundSyncEntrypoint` is a retained, UI-free headless Dart
     entrypoint. It loads the active encrypted credentials and builds only the
-    database/API/sync pipeline. It holds the same durable execution lease as
-    foreground catalog work, so a worker cannot overlap a visible sync.
+    database/API/sync pipeline through `LibrarySyncExecutionBootstrap`, the
+    same production bootstrap used by foreground sync. It validates the
+    opaque native profile key before any request and holds the same durable
+    execution lease as foreground catalog work, so a late worker cannot run a
+    replaced account or overlap a visible sync.
   - Android scheduler state is durable and redacted: opaque work identifiers,
     state, attempts, timing, and bounded terminal categories only. Sync
     Settings presents this as requested eventual cadence, never a guaranteed
-    next OS execution time.
+    next OS execution time. Manual-only cancellation clears its persisted
+    cadence, while relevant enablement/policy changes enqueue one `KEEP`
+    catch-up request.
   - `subsonicApiProvider` - Configured Subsonic API client
 
 - **Audio System**
