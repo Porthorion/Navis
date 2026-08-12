@@ -162,6 +162,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 ./tool/sync_target_lane_diagnostics.sh  # isolated Home↔Library, target/catalog boundary, and durable schedule/cooldown Settings suite
 ./tool/manual_discovery_diagnostics.sh  # isolated offline-reconnect unchanged-indexes new-album check
+NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1 NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME=1 ./tool/manual_discovery_diagnostics.sh  # partial artist response must retain existing offline albums
 ./tool/repair_confirmation_diagnostics.sh  # isolated explicit large-deletion repair gate
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
@@ -612,9 +613,11 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   provisional row. Preserve an active losing cache file, resolve late cache
   completions through persisted aliases, and replay aliases during audio
   bootstrap so synchronization cannot invalidate the active remote source.
-- A detail 404 is only a deletion candidate. A complete catalog snapshot or
-  parent response must confirm it. Deletion sets over 10% of an entity type or
-  500 songs require the same remote fingerprint twice before removal. The
+- A detail 404 or an album omitted by one artist-detail response is only a
+  deletion candidate. Incremental artist reconciliation may add/update but
+  must never delete catalog rows; a complete catalog snapshot must confirm
+  removal. Deletion sets over 10% of an entity type or 500 songs require the
+  same remote fingerprint twice before removal. The
   pending fingerprint/count is durable, shown in Sync Settings, and must be
   explicitly confirmed there before the follow-up Repair Library action can
   apply it.

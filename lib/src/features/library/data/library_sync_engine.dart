@@ -3533,7 +3533,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
     onProgress?.call(current);
 
-    final deletedArtistIds = <String>{};
     final failedArtistIds = <String>{};
     final details = await _mapConcurrent<String, Artist?>(
       passArtistIds,
@@ -3560,11 +3559,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           publishArtistProgress();
           return artist;
         } on SubsonicNotFoundException {
-          if (snapshotArtists.containsKey(artistId)) {
-            failedArtistIds.add(artistId);
-          } else {
-            deletedArtistIds.add(artistId);
-          }
+          // A detail 404 is not deletion authority. Keep the locally known
+          // artist pending until a complete catalog candidate can verify it.
+          failedArtistIds.add(artistId);
           publishArtistProgress();
           return null;
         } on Object catch (error) {
@@ -3621,7 +3618,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         changedArtistDetails.add(artist);
       }
     }
-    if (changedArtistDetails.isNotEmpty || deletedArtistIds.isNotEmpty) {
+    if (changedArtistDetails.isNotEmpty) {
       metrics.metadataChanged = true;
     }
 
@@ -3700,27 +3697,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         );
         metrics.addDbWriteBatch();
       }
-      for (final entry in albumsByArtist.entries) {
-        final nextAlbumIds = entry.value.map((album) => album.id).toSet();
-        final existingAlbums = existingAlbumsForChanged.values.where(
-          (album) => album.artistId == entry.key,
-        );
-        final staleAlbumIds = existingAlbums
-            .map((album) => album.id)
-            .where((id) => !nextAlbumIds.contains(id))
-            .toList(growable: false);
-        if (staleAlbumIds.isNotEmpty) {
-          metrics.metadataChanged = true;
-          await _database.libraryDao.deleteAlbumsByIds(staleAlbumIds);
-          metrics.addDbWriteBatch();
-        }
-      }
-
-      for (final deletedArtistId in deletedArtistIds) {
-        metrics.metadataChanged = true;
-        await _database.libraryDao.removeArtistTree(deletedArtistId);
-        metrics.addDbWriteBatch();
-      }
+      // Artist-detail and bounded index responses are discovery evidence, not
+      // a deletion authority. A compatible server can return a partial artist
+      // payload during maintenance or capability fallback; deleting its local
+      // albums here made ordinary incremental work remove offline library rows
+      // after one response. Full candidate promotion is the only catalog
+      // deletion path because it validates a complete snapshot and applies the
+      // explicit large-deletion confirmation contract.
+      //
+      // A detail 404 likewise remains a failed verification item (see above)
+      // rather than removing its local tree.
     });
 
     current = await _hydratePendingSongs(

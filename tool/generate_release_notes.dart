@@ -108,6 +108,10 @@ const List<_Version> _changelogs = [
       'Sync Settings now shows when automatic catalog work is waiting for a retry cooldown after a failed sync',
       type: _EntryType.improvement,
     ),
+    _Entry(
+      'A partial server artist response can no longer remove an existing offline album during an incremental sync',
+      type: _EntryType.fix,
+    ),
   ]),
   _Version('1.2.3', [
     _Entry('Loving you is as easy as 123'),

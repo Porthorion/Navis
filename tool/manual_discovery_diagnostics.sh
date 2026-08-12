@@ -32,10 +32,14 @@ trap cleanup EXIT INT TERM
 
 printf '%s\n' 'navis-manual-discovery-fixture' > "$CREDENTIAL_FILE"
 chmod 600 "$CREDENTIAL_FILE"
+fixture_args=()
+if [[ "${NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING:-0}" == "1" ]]; then
+  fixture_args+=(--omit-existing-artist-album)
+fi
 python3 "$PROJECT_DIR/tool/auth_lifecycle_fixture_server.py" \
   --handshake "$FIXTURE_HANDSHAKE" \
   --failure-flag "$OUTPUT_ROOT/unused-failure-flag" \
-  --scenario manual-discovery >"$OUTPUT_ROOT/fixture.log" 2>&1 &
+  --scenario manual-discovery "${fixture_args[@]}" >"$OUTPUT_ROOT/fixture.log" 2>&1 &
 FIXTURE_PID=$!
 for _ in $(seq 1 30); do [[ -s "$FIXTURE_HANDSHAKE" ]] && break; sleep 1; done
 [[ -s "$FIXTURE_HANDSHAKE" ]] || { echo "Fixture startup failed" >&2; exit 70; }
@@ -191,9 +195,11 @@ api GET /v1/health > "$OUTPUT_ROOT/health.json"
 wait_for_presentation
 wait_for_idle "$OUTPUT_ROOT/status-before.json"
 api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/album-before.json"
-python3 - "$OUTPUT_ROOT/album-before.json" <<'PY'
+api GET '/v1/library/album?id=fixture-existing-album' > "$OUTPUT_ROOT/existing-album-before.json"
+python3 - "$OUTPUT_ROOT/album-before.json" "$OUTPUT_ROOT/existing-album-before.json" <<'PY'
 import json, sys
 assert json.load(open(sys.argv[1])) == {"id": "fixture-new-album", "exists": False}
+assert json.load(open(sys.argv[2])).get("exists") is True
 PY
 api POST /v1/diagnostics/overrides \
   '{"networkType":"offline","requestReporting":true}' \
@@ -218,16 +224,28 @@ PY
 api POST /v1/diagnostics/overrides \
   '{"networkType":"wifi","nativeMetered":false,"requestReporting":true}' \
   > "$OUTPUT_ROOT/online-overrides.json"
-api POST /v1/sync/automatic > "$OUTPUT_ROOT/reconnect-automatic-start.json"
+resume_path='/v1/sync/automatic'
+resume_body=''
+resume_cause='automatic'
+if [[ "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" == "1" ]]; then
+  resume_path='/v1/sync/check'
+  resume_body='{}'
+  resume_cause='manualCheck'
+fi
+api POST "$resume_path" "$resume_body" > "$OUTPUT_ROOT/reconnect-resume-start.json"
 wait_for_idle "$OUTPUT_ROOT/status-after.json"
 api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/album-after.json"
+api GET '/v1/library/album?id=fixture-existing-album' > "$OUTPUT_ROOT/existing-album-after.json"
 api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
-python3 - "$OUTPUT_ROOT/album-after.json" "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
+python3 - "$resume_cause" "$OUTPUT_ROOT/album-after.json" "$OUTPUT_ROOT/existing-album-after.json" "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
 import json, sys
-album = json.load(open(sys.argv[1]))
+resume_cause = sys.argv[1]
+album = json.load(open(sys.argv[2]))
 assert album == {"id": "fixture-new-album", "exists": True, "songsHydrated": True, "songCount": 1}, album
-events = json.load(open(sys.argv[2]))["events"]
-terminal = next(event for event in reversed(events) if event.get("cause") == "automatic" and event.get("phase") == "terminal")
+existing = json.load(open(sys.argv[3]))
+assert existing.get("exists") and existing.get("songsHydrated"), existing
+events = json.load(open(sys.argv[4]))["events"]
+terminal = next(event for event in reversed(events) if event.get("cause") == resume_cause and event.get("phase") == "terminal")
 assert terminal["planKind"] == "deltaReconcile" and terminal["planReason"] == "resumedeltaReconcile", terminal
 for endpoint in ("getIndexes", "getNewestAlbumList2", "getArtist", "getAlbum"):
     assert terminal["endpointRequests"].get(endpoint, 0) >= 1, terminal
@@ -243,10 +261,13 @@ launch
 wait_for_presentation
 wait_for_idle "$OUTPUT_ROOT/restart-status.json"
 api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/restart-album.json"
-python3 - "$OUTPUT_ROOT/restart-album.json" <<'PY'
+api GET '/v1/library/album?id=fixture-existing-album' > "$OUTPUT_ROOT/restart-existing-album.json"
+python3 - "$OUTPUT_ROOT/restart-album.json" "$OUTPUT_ROOT/restart-existing-album.json" <<'PY'
 import json, sys
 album = json.load(open(sys.argv[1]))
 assert album.get("exists") and album.get("songsHydrated"), album
+existing = json.load(open(sys.argv[2]))
+assert existing.get("exists") and existing.get("songsHydrated"), existing
 PY
 api POST /v1/presentation/navigate '{"location":"/library/albums/fixture-new-album"}' > "$OUTPUT_ROOT/restart-navigation.json"
 sleep 5
@@ -266,7 +287,7 @@ json.dump({
     "status": "passed",
     "target": "linux",
     "profile": "isolated-loopback-clone",
-    "scenario": "Offline Manual Check for updates retains newest-album discovery and resumes it after reconnect while getIndexes is unchanged",
+    "scenario": "Offline Manual Check for updates retains newest-album discovery and resumes it after reconnect while getIndexes is unchanged; partial artist responses retain existing sibling albums when requested",
     "endpoints": [
         "GET /v1/health", "GET /v1/sync/status", "GET /v1/sync/ledger",
         "GET /v1/library/album", "POST /v1/diagnostics/overrides",

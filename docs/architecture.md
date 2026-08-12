@@ -840,8 +840,9 @@ replay/end-of-queue feedback instead.
    That fingerprint and its server-missing count are durable; Settings exposes
    the count and requires an explicit Apply library repair confirmation before
    it makes the second repair request.
-   Isolated detail 404s remain candidates until a parent or complete snapshot
-   confirms deletion.
+   Isolated detail 404s and an album omitted from one artist-detail response
+   remain candidates until a complete snapshot confirms deletion; incremental
+   artist reconciliation may only add or update catalog rows.
    Starred reconciliation follows the same offline-safety principle: a local
    star absent from one successful `getStarred2` response becomes a durable
    absence candidate, not an immediate unstar. Only its second independent

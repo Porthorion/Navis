@@ -71,7 +71,7 @@ INDEX_LAST_MODIFIED = 1780000000000
 FAILURE_FLAG = ""
 
 
-def _configure_manual_discovery_fixture():
+def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
     """Expose a new album without changing the artist-index cursor.
 
     This intentionally models the Navidrome/Subsonic gap that Navis must
@@ -125,7 +125,7 @@ def _configure_manual_discovery_fixture():
         "coverArt": "fixture-cover",
         "created": "2026-08-01T00:00:00Z",
     }
-    ARTIST_ALBUMS = [existing_album, ALBUM]
+    ARTIST_ALBUMS = [ALBUM] if omit_existing_artist_album else [existing_album, ALBUM]
 
 
 def _root(**content):
@@ -285,10 +285,15 @@ def main():
         choices=("auth-lifecycle", "manual-discovery"),
         default="auth-lifecycle",
     )
+    parser.add_argument(
+        "--omit-existing-artist-album",
+        action="store_true",
+        help="Return a partial getArtist album list in manual-discovery mode.",
+    )
     args = parser.parse_args()
     FAILURE_FLAG = os.path.realpath(args.failure_flag)
     if args.scenario == "manual-discovery":
-        _configure_manual_discovery_fixture()
+        _configure_manual_discovery_fixture(args.omit_existing_artist_album)
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     os.makedirs(os.path.dirname(os.path.realpath(args.handshake)), exist_ok=True)
     with open(args.handshake, "w", encoding="utf-8") as output:

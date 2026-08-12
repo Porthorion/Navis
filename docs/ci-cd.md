@@ -75,6 +75,10 @@ deadline. It observes only a narrow authenticated album-existence contract,
 checks the resumed terminal ledger for `getIndexes`, newest-list, artist-detail,
 and album-detail calls, then opens the discovered album after a clean restart.
 It rejects blank compositor screenshots and never sends data to a real server.
+With `NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1` and
+`NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME=1`, the same isolated gate returns
+a partial artist detail and proves a user Check for updates retains an omitted
+existing sibling album while importing the new one.
 
 Large-deletion repair confirmation has a separate deterministic gate:
 

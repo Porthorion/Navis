@@ -81,6 +81,10 @@ const List<ChangelogVersion> changelogs = [
         'Sync Settings now shows when automatic catalog work is waiting for a retry cooldown after a failed sync',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'A partial server artist response can no longer remove an existing offline album during an incremental sync',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

@@ -3879,6 +3879,59 @@ void main() {
     );
 
     test(
+      'incremental artist detail omission preserves the local album',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-retained',
+            name: 'Retained Album',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(true),
+          ),
+        ]);
+        api.indexes = const Indexes(
+          shortcut: <Artist>[Artist(id: 'artist-1', name: 'Artist 1')],
+        );
+        api.artistDetails['artist-1'] = const Artist(
+          id: 'artist-1',
+          name: 'Artist 1',
+          albums: <Album>[
+            Album(
+              id: 'album-live',
+              name: 'Live Album',
+              artistId: 'artist-1',
+            ),
+          ],
+        );
+        api.albumDetails['album-live'] = const Album(
+          id: 'album-live',
+          name: 'Live Album',
+          songs: <Song>[],
+        );
+
+        final state = await engine.syncNow();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          await database.libraryDao.getAlbumById('album-retained'),
+          isNotNull,
+        );
+        expect(
+          await database.libraryDao.getAlbumById('album-live'),
+          isNotNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'sync lock returns same in-flight future for concurrent calls',
       () async {
         await saveSession();

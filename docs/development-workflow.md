@@ -147,6 +147,11 @@ ledger, and minimal album-existence APIs, renders the production detail route,
 and repeats after clean restart. The fixture must use the standard singular
 `artist.album` response shape, because the production client is responsible for
 normalizing that protocol shape before sync logic.
+For the narrower partial-detail disappearance regression, run it with
+`NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1` and
+`NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME=1`. That fixture omits an existing
+sibling from `getArtist`, then the running app must add the newest-feed album
+without deleting the retained sibling before or after restart.
 
 `tool/repair_confirmation_diagnostics.sh` is the bounded deletion-safety gate.
 It uses an isolated fixture to require the production repair confirmation

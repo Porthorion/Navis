@@ -125,7 +125,16 @@ Last updated: 2026-08-12
   offline Home→Library→Liked navigation plus target hydration, and retained
   both values over clean restart. The two app-owned Sync Settings captures
   were opened and inspected; each shows the separate retry row with no
-  clipping. Log review found no hard-fail pattern.
+  clipping. Log review found no hard-fail pattern. The follow-up disappearance
+  audit found an unguarded incremental deletion: one partial `getArtist`
+  response could remove all absent local sibling albums. Incremental artist
+  reconciliation now only adds/updates; destructive removal remains
+  exclusively in validated full-candidate promotion. Focused engine coverage
+  and an isolated Linux loopback app run seeded an existing album, returned
+  only the new sibling from `getArtist`, then verified through authenticated
+  app APIs that the new album/song was hydrated while the omitted album
+  remained hydrated before and after restart. The app-owned album-detail
+  capture was opened and inspected; its restart capture was byte-identical.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational
   diagnostics; none were introduced by this recovery work.)
