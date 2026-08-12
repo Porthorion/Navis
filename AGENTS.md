@@ -160,6 +160,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/sync_diagnostics.sh full-rescan  # isolated live-scale Repair Library trace + preparing-state capture
 ./tool/sync_diagnostics.sh cache-alias  # isolated live cache/identity migration probe
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
+./tool/sync_target_lane_diagnostics.sh  # isolated target-hydration/catalog-status boundary suite
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
 ./tool/presentation_diagnostics.sh clone / home  # app-owned screenshot suite

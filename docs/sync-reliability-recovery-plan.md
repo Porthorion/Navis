@@ -162,10 +162,16 @@ Current certification evidence: focused engine, coordinator, DAO, migration,
 controller, Home, Library, and Settings suites pass. The controller regression
 suite now proves that duplicate album hydration coalesces locally, a concurrent
 manual refresh still executes, and the target terminal result cannot replace
-the catalog result. Isolated Linux clone
-startup kept an awaiting-deletion-confirmation repair dormant while it resumed
-only target work; the authenticated health API reported schema v62, clean
-restart returned to Home, and the app-owned Settings screenshot was inspected.
+the catalog result. `tool/sync_target_lane_diagnostics.sh` is the matching
+controller-backed isolated Linux runtime gate; its endpoint contract proves the
+diagnostics target request cannot bypass that boundary. Its latest run accepted
+an album target request while every catalog-status field remained unchanged,
+then clean-restarted successfully; the inspected post-restart Sync Settings
+capture showed the same completed catalog status rather than a global running
+target state. Isolated Linux clone startup also kept an
+awaiting-deletion-confirmation repair dormant while it resumed only target
+work; the authenticated health API reported schema v62, clean restart returned
+to Home, and the app-owned Settings screenshot was inspected.
 `./tool/check.sh` passed formatting and code generation, then stopped at the
 repository-wide analyzer baseline of 495 informational diagnostics; none were
 introduced by this recovery work.

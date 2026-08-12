@@ -81,7 +81,6 @@ class SyncDiagnosticsServer {
   Timer? _canaryTimer;
   bool _canaryRunning = false;
   Future<LibrarySyncState>? _activeSync;
-  LibrarySyncState? _activeProgress;
   LibrarySyncState? _lastSync;
   Object? _lastSyncError;
   Map<String, int> _lastEndpointRequests = const <String, int>{};
@@ -406,8 +405,7 @@ class SyncDiagnosticsServer {
           request,
           HttpStatus.ok,
           _syncStateJson(
-            _activeProgress ??
-                (_activeSync != null ? controllerState : _lastSync) ??
+            (_activeSync != null ? controllerState : _lastSync) ??
                 controllerState,
           ),
         );
@@ -620,11 +618,6 @@ class SyncDiagnosticsServer {
           await _forbidden(request);
           return;
         }
-        final engine = _container.read(librarySyncEngineProvider);
-        if (engine == null) {
-          await _syncUnavailable(request);
-          return;
-        }
         final body = await _readJson(request);
         final target = _targetFromJson(body);
         if (target == null) {
@@ -633,16 +626,14 @@ class SyncDiagnosticsServer {
           });
           return;
         }
-        await _startSync(
+        // Exercise the same controller boundary that route-entry hydration
+        // uses. Calling the raw engine here would bypass target/catalog lane
+        // isolation and make this endpoint unsuitable for runtime validation.
+        await _startControllerSync(
           request,
-          (onProgress) => engine.requestSync(
-            LibrarySyncRequest(
-              trigger: LibrarySyncTrigger.interaction,
-              intent: LibrarySyncIntent.checkForUpdates,
-              target: target,
-            ),
-            onProgress: onProgress,
-          ),
+          () => _container
+              .read(librarySyncControllerProvider.notifier)
+              .requestTarget(target),
         );
         return;
       }
@@ -1011,10 +1002,10 @@ class SyncDiagnosticsServer {
     final pendingWork = await database
         .select(database.librarySyncWorkTable)
         .get();
-    final LibrarySyncState sync =
-        _activeProgress ??
-        _lastSync ??
-        _container.read(librarySyncControllerProvider);
+    final controllerSync = _container.read(librarySyncControllerProvider);
+    final sync = _activeSync != null
+        ? controllerSync
+        : _lastSync ?? controllerSync;
     final phase = _container.read(sessionRoutePhaseProvider);
     final initialSync = activateInitialSync
         ? _container.read(initialServerSyncControllerProvider).status
@@ -1092,44 +1083,6 @@ class SyncDiagnosticsServer {
           'height': rect.height,
         };
 
-  Future<void> _startSync(
-    HttpRequest request,
-    Future<LibrarySyncState> Function(
-      LibrarySyncProgressCallback onProgress,
-    )
-    operation,
-  ) async {
-    if (_activeSync != null) {
-      await _respond(request, HttpStatus.conflict, <String, Object?>{
-        'error': 'sync already running',
-      });
-      return;
-    }
-    _lastSyncError = null;
-    _activeProgress = _container.read(librarySyncControllerProvider);
-    final future = operation((progress) => _activeProgress = progress);
-    _activeSync = future;
-    unawaited(
-      future
-          .then<void>(
-            (state) {
-              _lastSync = state;
-              _captureEndpointRequests();
-            },
-            onError: (Object error, StackTrace stackTrace) {
-              _lastSyncError = error;
-            },
-          )
-          .whenComplete(() {
-            _activeSync = null;
-            _activeProgress = null;
-          }),
-    );
-    await _respond(request, HttpStatus.accepted, <String, Object?>{
-      'status': 'started',
-    });
-  }
-
   /// Uses the production controller for broad actions so a diagnostics
   /// request joins startup, reconnect, and UI-triggered work instead of
   /// beginning a second raw-engine operation with competing progress frames.
@@ -1144,7 +1097,6 @@ class SyncDiagnosticsServer {
       return;
     }
     _lastSyncError = null;
-    _activeProgress = null;
     final future = operation();
     _activeSync = future;
     unawaited(
@@ -1466,12 +1418,6 @@ class SyncDiagnosticsServer {
     };
   }
 
-  Future<void> _syncUnavailable(HttpRequest request) {
-    return _respond(request, HttpStatus.serviceUnavailable, <String, Object?>{
-      'error': 'sync unavailable',
-    });
-  }
-
   LibrarySyncTarget? _targetFromJson(Map<String, Object?> body) {
     final kindName = body['targetKind'] as String?;
     final entityId = (body['entityId'] as String? ?? '').trim();
@@ -1734,8 +1680,7 @@ class SyncDiagnosticsServer {
   Future<void> _runDatabaseCanary() async {
     if (_canaryRunning) return;
     _canaryRunning = true;
-    final LibrarySyncState sync =
-        _activeProgress ?? _container.read(librarySyncControllerProvider);
+    final sync = _container.read(librarySyncControllerProvider);
     final phase = sync.candidateStatus ?? sync.stage.name;
     final stopwatch = Stopwatch()..start();
     try {

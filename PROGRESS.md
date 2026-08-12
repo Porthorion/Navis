@@ -41,8 +41,12 @@ Last updated: 2026-08-12
   are now separated: target hydration is deduplicated only by durable target
   key and cannot overwrite catalog status or swallow a user Check for updates;
   the focused controller suite passes 17 tests including concurrent target and
-  catalog cases. Remaining: complete API/runtime trace, screenshots, clean
-  restart, final quality gate, and next plan phases.
+  catalog cases. `tool/sync_target_lane_diagnostics.sh` now validates the
+  controller boundary on an isolated Linux clone: authenticated health/status,
+  an accepted album target request with unchanged catalog state, an inspected
+  Settings screenshot, clean restart, and log review all passed. Remaining:
+  complete the broader API/runtime trace and next plan phases, then the final
+  quality gate.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 495 informational
   diagnostics; none were introduced by this recovery work.)

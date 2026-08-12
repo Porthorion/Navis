@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -10,6 +11,10 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -114,6 +119,41 @@ void main() {
       token: fixture.token,
     );
     expect(reset.statusCode, HttpStatus.forbidden);
+  });
+
+  test('target sync diagnostics exercises controller-scoped status', () async {
+    final engine = _TargetProgressSyncEngine();
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      librarySyncEngine: engine,
+    );
+    addTearDown(fixture.close);
+
+    final start = await _request(
+      fixture.port,
+      '/v1/sync/target',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{
+        'targetKind': 'album',
+        'entityId': 'album-1',
+      },
+    );
+    expect(start.statusCode, HttpStatus.accepted);
+    await Future<void>.delayed(Duration.zero);
+    expect(engine.requestCount, 1);
+
+    final status = await _request(
+      fixture.port,
+      '/v1/sync/status',
+      token: fixture.token,
+    );
+    expect(status.statusCode, HttpStatus.ok);
+    expect(status.body['status'], 'idle');
+    expect(status.body['stage'], 'idle');
+
+    engine.complete();
+    await Future<void>.delayed(Duration.zero);
   });
 
   test('session status exposes only lifecycle activity fields', () async {
@@ -972,6 +1012,7 @@ void main() {
 Future<_DiagnosticsFixture> _startFixture(
   SyncDiagnosticsMode mode, {
   SubsonicApiClient? api,
+  LibrarySyncEngine? librarySyncEngine,
   NavisPlaybackHandler? handler,
   PlaybackSnapshot? playbackSnapshot,
   DiagnosticsPresentationController? presentationController,
@@ -987,6 +1028,8 @@ Future<_DiagnosticsFixture> _startFixture(
         playerStateProvider.overrideWithValue(playbackSnapshot),
       if (api != null) subsonicApiProvider.overrideWithValue(api),
       if (api != null) searchIsOfflineProvider.overrideWithValue(false),
+      if (librarySyncEngine != null)
+        librarySyncEngineProvider.overrideWithValue(librarySyncEngine),
     ],
   );
   final handshake = File(p.join(temp.path, 'handshake.json'));
@@ -1019,6 +1062,65 @@ class _MockPresentationController extends Mock
 
 class _MockDiagnosticsNavigationDriver extends Mock
     implements DiagnosticsNavigationDriver {}
+
+class _TargetProgressSyncEngine extends LibrarySyncEngine {
+  final Completer<LibrarySyncState> _completion = Completer<LibrarySyncState>();
+  int requestCount = 0;
+
+  @override
+  Future<LibrarySyncState> requestSync(
+    LibrarySyncRequest request, {
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    requestCount++;
+    onProgress?.call(
+      const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingSongs,
+      ),
+    );
+    return _completion.future;
+  }
+
+  void complete() {
+    _completion.complete(
+      const LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      ),
+    );
+  }
+
+  @override
+  Future<LibrarySyncState> continueVerification({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) => _completion.future;
+
+  @override
+  Future<LibrarySyncState> forceFullSync({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) => _completion.future;
+
+  @override
+  Future<LibrarySyncState> probeCatalog({
+    LibrarySyncProgressCallback? onProgress,
+  }) => _completion.future;
+
+  @override
+  Future<LibrarySyncState> syncIfStale({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) => _completion.future;
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) => _completion.future;
+}
 
 class _SourceAuditApiClient extends SubsonicApiClient {
   _SourceAuditApiClient()

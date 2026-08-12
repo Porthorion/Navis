@@ -37,6 +37,17 @@ Library sync metered-network guardrails are exercised by the clone diagnostics
 suite (`./tool/sync_diagnostics.sh clone`), which can simulate network cost
 overrides without cellular hardware.
 
+Target-hydration controller isolation has a separate clone-only Linux gate:
+
+```bash
+./tool/sync_target_lane_diagnostics.sh
+```
+
+It sends an album target request through the production controller, asserts the
+catalog status is unchanged while that request is active, captures the Sync
+Settings presentation, and repeats the health/status/screenshot checks after a
+clean restart.
+
 First-login and logout ownership are exercised separately with:
 
 ```bash
