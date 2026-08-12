@@ -169,16 +169,16 @@ suite now proves that duplicate album hydration coalesces locally, a concurrent
 manual refresh still executes, and the target terminal result cannot replace
 the catalog result. `tool/sync_target_lane_diagnostics.sh` is the matching
 controller-backed isolated Linux runtime gate; its endpoint contract proves the
-diagnostics target request cannot bypass that boundary. Its latest run accepted
-an album target request while every catalog-status field remained unchanged,
-then clean-restarted successfully; the inspected post-restart Sync Settings
-capture showed the same completed catalog status rather than a global running
-target state. Its current isolated Linux run also drove `/ → /library` twice:
-the live router accepted both requested locations and each post-navigation
-catalog status was identical to its pre-navigation result. Isolated Linux clone startup also kept an
-  awaiting-deletion-confirmation repair dormant while it resumed only target
-  work; the authenticated health API reported schema v62, clean restart returned
-to Home, and the app-owned Settings screenshot was inspected. The focused
+diagnostics target request cannot bypass that boundary. Its latest run used
+schema v63 and drove `/ → /library → /library#liked → / → /library#liked`.
+Every post-navigation status, including aggregate artists/albums/songs counts,
+matched the pre-navigation state and the bounded controller ledger gained no
+event. It then accepted an album target request while catalog status/counts
+remained unchanged, recorded a terminal target result, and clean-restarted with
+the same future automatic deadline. The inspected Liked and Sync Settings
+captures were unobscured by first-run UI and showed no running catalog state.
+Isolated Linux clone startup also kept an awaiting-deletion-confirmation repair
+dormant while it resumed only target work. The focused
 full-rescan rerun against a current-library clone began with 1,714 artists,
 5,463 albums, and 54,327 songs; the authenticated repair collected 5,464
 albums, indexed songs through 57 `search3` pages, used five authoritative
@@ -198,12 +198,11 @@ manual actions leave it untouched, an expired deadline executes one automatic
 pass and records the next deadline, and a first-sync schedule write cannot
 silently update zero rows. The isolated Linux clone gate seeded a future
 deadline, invoked the production automatic endpoint without starting catalog
-work, preserved status through repeated Home-to-Library navigation and target
-hydration, then clean-restarted with the same deadline. Both app-owned Sync
-Settings captures were inspected; the initial capture kept the expected idle
-catalog status visible behind the existing What's New modal, while the restart
-capture was dimmed by the existing modal/scrim presentation state and did not
-show a new sync-layout regression.
+work, preserved status/counts and the ledger through Home-to-Library-to-Liked
+navigation and target hydration, then clean-restarted with the same deadline.
+The clone isolates its app-support state and marks the current changelog seen,
+so the inspected Liked and Sync Settings captures directly show the affected
+surfaces rather than a first-run modal.
 
 ## Regression matrix
 
