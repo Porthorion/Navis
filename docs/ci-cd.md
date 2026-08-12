@@ -51,6 +51,8 @@ status is unchanged, then sends an album target request through the production
 controller and makes the same assertion while that request is active. It
 captures the Sync Settings presentation and repeats the health/status/screenshot
 checks after a clean restart, asserting that the deadline itself did not move.
+It also exports and validates the bounded redacted sync ledger, ensuring target
+hydration is attributable without sensitive server or library fields.
 
 First-login and logout ownership are exercised separately with:
 

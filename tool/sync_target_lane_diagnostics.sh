@@ -285,6 +285,7 @@ print(json.dumps({"targetKind": "album", "entityId": sys.argv[1]}))
 PY
 )" > "$OUTPUT_ROOT/target-start.json"
 api GET /v1/sync/status > "$OUTPUT_ROOT/catalog-during-target.json"
+api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
 
 python3 - "$OUTPUT_ROOT/catalog-before.json" "$OUTPUT_ROOT/catalog-during-target.json" <<'PY'
 import json, sys
@@ -294,6 +295,21 @@ before.pop("requestActive", None)
 during.pop("requestActive", None)
 if during != before:
     raise SystemExit("target hydration changed controller catalog status")
+PY
+
+python3 - "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
+import json, sys
+events = json.load(open(sys.argv[1], encoding="utf-8")).get("events")
+if not isinstance(events, list) or not events:
+    raise SystemExit("sync diagnostics ledger returned no events")
+for event in events:
+    if not isinstance(event, dict):
+        raise SystemExit("sync diagnostics ledger event is not an object")
+    forbidden = {"url", "username", "password", "title", "path"} & set(event)
+    if forbidden:
+        raise SystemExit(f"sync diagnostics ledger exposed sensitive keys: {forbidden}")
+if not any(event.get("cause") == "targetHydration" for event in events):
+    raise SystemExit("sync diagnostics ledger omitted target hydration")
 PY
 
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \
@@ -355,7 +371,7 @@ json.dump({
     "profile": "isolated-clone",
     "scenario": "Future automatic deadline, Home-to-Library navigation, and target hydration preserve catalog status",
     "endpoints": [
-        "GET /v1/health", "GET /v1/sync/status", "POST /v1/sync/automatic", "POST /v1/sync/target",
+        "GET /v1/health", "GET /v1/sync/status", "GET /v1/sync/ledger", "POST /v1/sync/automatic", "POST /v1/sync/target",
         "POST /v1/presentation/navigate", "POST /v1/presentation/screenshot",
         "POST /v1/shutdown"
     ],

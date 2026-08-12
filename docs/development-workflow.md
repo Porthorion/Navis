@@ -132,6 +132,9 @@ database fixture with a known future automatic deadline before launch. That is
 test setup only: its acceptance assertions use the running app's authenticated
 `/v1/sync/automatic` and `/v1/sync/status` endpoints, including after a clean
 restart, so they still exercise the production controller and persistence path.
+The same gate reads the bounded redacted `GET /v1/sync/ledger` trace to verify
+that diagnostic actions are attributable without exposing server or library
+data.
 
 The required precedence is: focused diagnostics script, existing authenticated
 Navis endpoints, then a new narrow endpoint with contract tests and a focused
@@ -189,7 +192,7 @@ Linux and Windows profile diagnostics share the same control-plane contract:
   drives repeated Home-to-Library navigation and then sends
   `POST /v1/sync/target` through the production controller. It asserts neither
   action changes catalog status, captures Sync Settings, and repeats the
-  health/status/screenshot checks after a clean restart. Use it when changing
+  health/status/ledger/screenshot checks after a clean restart. Use it when changing
   navigation, catalog/target scheduling, or global sync presentation.
 - Current observation endpoints include `GET /v1/health`,
   `GET /v1/sync/status`, `GET /v1/playback/status`,
