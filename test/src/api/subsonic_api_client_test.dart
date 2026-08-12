@@ -115,6 +115,41 @@ void main() {
       expect(capabilities.extensions.first.name, 'transcodeOffset');
     });
 
+    test('normalizes standard artist album entries for hydration', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok(<String, dynamic>{
+                  'artist': <String, dynamic>{
+                    'id': 'artist-1',
+                    'name': 'Artist',
+                    'album': <Map<String, dynamic>>[
+                      <String, dynamic>{
+                        'id': 'album-1',
+                        'name': 'Album',
+                        'artistId': 'artist-1',
+                      },
+                    ],
+                  },
+                }),
+              ),
+            );
+          },
+        ),
+      );
+
+      final artist = await client.getArtist('artist-1');
+
+      expect(artist.id, 'artist-1');
+      expect(artist.albums.map((album) => album.id), <String>['album-1']);
+    });
+
     test('getIndexes parses changed artist payload with timestamp', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
       final client = createClient(dio: dio);

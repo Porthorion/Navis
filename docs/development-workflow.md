@@ -136,6 +136,15 @@ The same gate reads the bounded redacted `GET /v1/sync/ledger` trace to verify
 that diagnostic actions are attributable and reach a terminal transition,
 without exposing server or library data.
 
+`tool/manual_discovery_diagnostics.sh` is the corresponding bounded
+unchanged-cursor discovery gate. It may seed a copied, isolated database and
+loopback fixture before launch, but its acceptance action is the running
+app's authenticated `POST /v1/sync/check`; it observes the result through
+authenticated status, ledger, and minimal album-existence APIs, renders the
+production detail route, and repeats after clean restart. The fixture must use
+the standard singular `artist.album` response shape, because the production
+client is responsible for normalizing that protocol shape before sync logic.
+
 The endpoint's local `/library#section` destinations are deliberately mapped to
 the production `librarySectionProvider`, matching the desktop rail and
 navigation history. The target-lane gate uses `/library#liked` to prove that

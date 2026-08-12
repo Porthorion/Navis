@@ -2,7 +2,7 @@
 
 Status: active recovery plan. Phase 1 manual discovery, the first Phase 2
 queue/scheduler checkpoints, and explicit large-deletion repair confirmation
-are implemented; runtime certification is in progress.
+are implemented; unchanged-cursor manual discovery is runtime-certified.
 Date: 2026-08-12
 Scope: library metadata sync, offline browsing, manual refresh and repair, and navigation-adjacent hydration. This is the source of truth for correcting the current sync model.
 
@@ -33,7 +33,9 @@ Key paths:
 - Planner and durable work: lib/src/features/library/data/adaptive_library_sync_coordinator.dart, library_sync_planner.dart, and lib/src/database/daos/library_sync_dao.dart
 - Server reads and candidate promotion: lib/src/features/library/data/library_sync_engine.dart
 - Navigation work: lib/src/features/library/presentation/library_screen.dart, album_detail_screen.dart, artist_detail_screen.dart
-- Runtime controls: tool/sync_diagnostics.sh and docs/sync-stability-validation.md
+- Runtime controls: `tool/sync_diagnostics.sh`,
+  `tool/manual_discovery_diagnostics.sh`, and
+  `docs/sync-stability-validation.md`
 
 External sources:
 
@@ -48,6 +50,7 @@ External sources:
 | --- | --- | --- |
 | P0 | Manual Check for updates is time-gated like automatic work. The planner fresh-domain branch returns allDomainsFresh with shouldExecute false without distinguishing checkForUpdates. syncNow returns unless the first call was a successful probe. | The button can perform no request immediately after another check. |
 | P0 | Manual discovery relies on getIndexes. syncNow queues follow-up only when probeIndexChanged; newest-album health probing is inside incremental sync and is not reached for an unchanged probe. | A new album under an existing artist can remain invisible. This is the main root cause for the reported missed album. |
+| P0 | `SubsonicApiClient.getArtist` deserialized its standard `artist.album` response directly into Navis's plural `Artist.albums` model field. The generated parser therefore treated every standard artist-detail album list as empty. | Even after bounded newest discovery identified a discrepancy, normal artist reconciliation could upsert the artist without its albums or schedule the authoritative `getAlbum` hydration. **Fixed:** normalize `artist.album` to `albums` at the API boundary, with unit and controller-backed runtime coverage. |
 | P0 | Pending verification scheduled a continuation every two minutes regardless of configured interval. Resume, reconnect, Wi-Fi and startup paths could schedule additional work. **Fixed:** a server-scoped durable deadline and one foreground one-shot timer now gate every automatic check; lifecycle events only re-arm/ask whether that deadline is due. | The app appeared to spam sync; cadence was hidden and did not honor the setting. |
 | P0 | enqueueWork changes a completed conflicting work row back to queued. Partial catalog work then reaches markCancelled, which also means queued. | Work is resurrected and can run repeatedly, amplifying the continuation loop. |
 | P1 | Server configuration, reachability notifications, engine availability, Wi-Fi, resume, periodic re-arm and a microtask all submit startup work. Partial result does not set startup-done fingerprint. Queued full repairs were also eligible for those automatic resume requests. | Event storms could schedule more planning after a preceding pass ends, app resume submitted both startup and interval work, and opening the app could restart an interrupted user Repair Library operation. **Fixed:** resume now submits only its interval check; automatic callers leave queued full repairs dormant, and only an explicit Repair Library action may resume one. |
@@ -112,12 +115,12 @@ Keep candidate tables and atomic promotion. Deletion analysis is valid only afte
 
 ### Phase 0: reproduce and observe
 
-1. Add clone fixture with a new album under existing artist and unchanged getIndexes lastModified. Drive API check and assert real Library provider shows album.
+1. Add clone fixture with a new album under existing artist and unchanged getIndexes lastModified. Drive API check and assert real Library provider shows album. **Implemented and certified:** the loopback fixture returns the standard `artist.album` payload and a fixed cursor. The authenticated app check discovers, hydrates, persists, routes to, screenshots, and clean-restarts the new album.
 2. Add Home to Library to Liked to Home to Liked trace recording request IDs, cause, plan, target scope, endpoint counts and catalog counts. Capture and inspect screenshots. **Implemented:** the isolated Linux target-lane gate drives the visible Library-section provider through `/library#liked`, asserts that every navigation leaves sync status and aggregate catalog counts unchanged, and proves that no controller ledger event was added. Its inspected Liked and Sync Settings screenshots are captured before a clean restart.
 3. Add opt-in redacted ledger endpoint retaining last 50 events; never return credentials, URLs, titles or paths. **Implemented for diagnostics-initiated controller actions:** `GET /v1/sync/ledger` records requested, started, terminal, and failed transitions with cause, target kind, plan/result, endpoint counts, and safe error type.
 4. Run isolated Linux clone against configured server: baseline counts, manual check, repair, post-run counts, clean restart, endpoint trace and logs.
 
-Exit: deterministic manual-check reproduction and a trace separating catalog, Liked and target work.
+Exit: deterministic manual-check reproduction and a trace separating catalog, Liked and target work. **Met for unchanged-cursor manual discovery and navigation/target lanes; repair-confirmation runtime trace remains.**
 
 ### Phase 1: manual check correctness
 
@@ -125,9 +128,9 @@ Exit: deterministic manual-check reproduction and a trace separating catalog, Li
 2. Apply freshness gates only to automatic work. Manual no-change result is checkedNoChanges, never skipped. **Implemented:** manual requests select `manualCatalogDiscovery` instead of the automatic fresh-domain no-op.
 3. Always run bounded newest discovery for manual check despite unchanged getIndexes. **Implemented:** the engine runs the newest window for every manual incremental pass.
 4. Drain discovered follow-up in the same user operation or return explicit deferred reason.
-5. Add unit, coordinator, widget and API tests for fresh window, unchanged cursor/new album, changed cursor/new album, offline, cellular and duplicate taps. **Implemented at the engine boundary:** the deterministic regression starts with a committed existing artist, returns the same `getIndexes` cursor, and proves one manual check discovers, hydrates, and commits that artist's new album. Controller/API/UI certification remains in Phase 4.
+5. Add unit, coordinator, widget and API tests for fresh window, unchanged cursor/new album, changed cursor/new album, offline, cellular and duplicate taps. **Implemented for the unchanged-cursor path:** unit coverage verifies standard `artist.album` normalization; the deterministic engine regression verifies discovery and hydration; and the isolated app API gate verifies the persisted album and its rendered detail view before and after clean restart. Remaining scenarios stay in the matrix below.
 
-Exit: one manual check imports an album for existing artist in fixture and live clone; UI reports change counts.
+Exit: one manual check imports an album for existing artist in fixture and live clone; UI reports change counts. **Fixture clone exit met; configured-server certification remains a separate non-destructive follow-up.**
 
 ### Phase 2: schedule and queue correctness
 
@@ -163,7 +166,7 @@ Exit: navigation causes no broad request, and no catalog/liked row disappears wi
 1. Build explicit repair deletion confirmation, durable token and discard action. **Implemented:** the persisted fingerprint/count remains the durable remote-evidence token; Settings exposes its count and requires a deliberate Apply library repair confirmation before retrying, or a separate confirmed discard that clears only the uncommitted candidate and repair work. Candidate song collection/carry-forward precedes token calculation, and unresolved candidate albums protect committed tracks.
 2. Show operation type, remote check time, change counts, defer reason, retry time and safe endpoint failure type in Settings/Library.
 3. Update AGENTS.md, docs/architecture.md, docs/development-workflow.md, release notes and migration tests with final architecture.
-4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. **Partially implemented:** the target-lane clone gate has passed online and offline Home/Library/Liked browsing plus clean restart with inspected Liked/Settings screenshots; unchanged-cursor album discovery and the repair-confirmation lifecycle remain to certify. Then run tool/check.sh.
+4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. **Partially implemented:** the target-lane clone gate has passed online and offline Home/Library/Liked browsing plus clean restart with inspected Liked/Settings screenshots. `tool/manual_discovery_diagnostics.sh` now certifies unchanged-cursor album discovery, hydration, rendered detail, logs, and clean restart. Repair-confirmation lifecycle and configured-server certification remain. Then run `tool/check.sh`.
 
 Current certification evidence: focused engine, coordinator, DAO, migration,
 controller, Home, Library, and Settings suites pass. The controller regression
@@ -205,6 +208,18 @@ navigation and target hydration, then clean-restarted with the same deadline.
 The clone isolates its app-support state and marks the current changelog seen,
 so the inspected Liked and Sync Settings captures directly show the affected
 surfaces rather than a first-run modal.
+
+The manual-discovery clone gate uses a deterministic loopback server which
+returns a fixed `getIndexes.lastModified`, one locally known artist, and a
+newer album under that same artist. It seeds the old album as hydrated, calls
+the running app's `POST /v1/sync/check`, and observes the new album only via
+the authenticated narrow `GET /v1/library/album` endpoint. Its 2026-08-12 run
+recorded `getIndexes`, `getNewestAlbumList2`, `getArtist`, and `getAlbum` in
+the terminal redacted ledger, persisted one hydrated song, and passed after a
+clean restart. Both app-owned 1440x900 album-detail screenshots were opened
+and inspected; each showed the new album and its song without clipping. The
+capture helper rejects all-black compositor frames instead of treating PNG
+existence as visual evidence.
 
 ## Regression matrix
 

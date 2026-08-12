@@ -136,7 +136,14 @@ class SubsonicApiClient {
       cancelToken: cancelToken,
       maxResponseBytes: maxResponseBytes,
     );
-    return Artist.fromJson(_asMap(root['artist']));
+    final artist = _asMap(root['artist']);
+    // Standard Subsonic payloads use `album`, while Navis's model follows the
+    // plural Dart field name. Normalizing here preserves artist-detail albums
+    // for incremental discovery and hydration.
+    return Artist.fromJson(<String, dynamic>{
+      ...artist,
+      'albums': _asMapList(artist['album']),
+    });
   }
 
   Future<Album> getAlbum(

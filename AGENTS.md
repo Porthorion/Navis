@@ -161,6 +161,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/sync_diagnostics.sh cache-alias  # isolated live cache/identity migration probe
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
 ./tool/sync_target_lane_diagnostics.sh  # isolated Home↔Library and target-hydration/catalog-status boundary suite
+./tool/manual_discovery_diagnostics.sh  # isolated unchanged-indexes new-album check
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
 ./tool/presentation_diagnostics.sh clone / home  # app-owned screenshot suite
@@ -534,6 +535,10 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   automatic freshness-gated probe. It must inspect the newest-album window even
   when `getIndexes` is unchanged, then commit, defer, or fail discovered work
   before reporting success.
+- Normalize protocol field names at the API boundary before models enter sync
+  logic. In particular, the standard `getArtist` response uses singular
+  `artist.album`; Navis's `Artist.albums` model must receive that normalized
+  list so existing-artist album discovery can schedule authoritative hydration.
 - A returned index is a gated artist snapshot, not a changed-artist feed.
   Persist continuation state and drain it in bounded passes (48 artists on
   non-cellular networks, 24 for a manual cellular refresh). Non-cellular

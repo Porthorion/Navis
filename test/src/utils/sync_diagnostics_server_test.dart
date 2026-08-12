@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -179,6 +180,66 @@ void main() {
     expect(terminal['result'], 'succeeded');
     expect(terminal.containsKey('endpointRequests'), isTrue);
   });
+
+  test(
+    'library album observation is authenticated and omits metadata',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      await fixture.database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+      ]);
+      await fixture.database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'album-1',
+          name: 'Album title must not be exposed',
+          artistId: const Value('artist-1'),
+          songsHydrated: const Value(true),
+          songCount: const Value(1),
+        ),
+      ]);
+
+      final missing = await _request(
+        fixture.port,
+        '/v1/library/album?id=album-1',
+      );
+      expect(missing.statusCode, HttpStatus.unauthorized);
+
+      final invalid = await _request(
+        fixture.port,
+        '/v1/library/album',
+        token: fixture.token,
+      );
+      expect(invalid.statusCode, HttpStatus.badRequest);
+
+      final present = await _request(
+        fixture.port,
+        '/v1/library/album?id=album-1',
+        token: fixture.token,
+      );
+      expect(present.statusCode, HttpStatus.ok);
+      expect(
+        present.body,
+        <String, Object?>{
+          'id': 'album-1',
+          'exists': true,
+          'songsHydrated': true,
+          'songCount': 1,
+        },
+      );
+      expect(jsonEncode(present.body), isNot(contains('Album title')));
+
+      final absent = await _request(
+        fixture.port,
+        '/v1/library/album?id=absent',
+        token: fixture.token,
+      );
+      expect(
+        absent.body,
+        <String, Object?>{'id': 'absent', 'exists': false},
+      );
+    },
+  );
 
   test('session status exposes only lifecycle activity fields', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);

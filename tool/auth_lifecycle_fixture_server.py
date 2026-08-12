@@ -66,7 +66,66 @@ SONG = {
     "coverArt": "fixture-cover",
     "created": "2026-01-01T00:00:00Z",
 }
+ARTIST_ALBUMS = [ALBUM]
+INDEX_LAST_MODIFIED = 1780000000000
 FAILURE_FLAG = ""
+
+
+def _configure_manual_discovery_fixture():
+    """Expose a new album without changing the artist-index cursor.
+
+    This intentionally models the Navidrome/Subsonic gap that Navis must
+    cover with its bounded newest-album discovery: the artist collection is
+    unchanged, but an already-known artist has received a new album.
+    """
+    global ALBUM, ARTIST, ARTIST_ALBUMS, INDEX_LAST_MODIFIED, SONG
+    ARTIST = {
+        "id": "fixture-existing-artist",
+        "name": "Fixture Existing Artist",
+        "albumCount": 2,
+        "coverArt": "fixture-cover",
+    }
+    existing_album = {
+        "id": "fixture-existing-album",
+        "name": "Fixture Existing Album",
+        "artist": ARTIST["name"],
+        "artistId": ARTIST["id"],
+        "songCount": 1,
+        "duration": 4,
+        "year": 2025,
+        "genre": "Diagnostics",
+        "coverArt": "fixture-cover",
+        "created": "2025-01-01T00:00:00Z",
+    }
+    ALBUM = {
+        "id": "fixture-new-album",
+        "name": "Fixture Newly Added Album",
+        "artist": ARTIST["name"],
+        "artistId": ARTIST["id"],
+        "songCount": 1,
+        "duration": 4,
+        "year": 2026,
+        "genre": "Diagnostics",
+        "coverArt": "fixture-cover",
+        "created": "2026-08-01T00:00:00Z",
+    }
+    SONG = {
+        "id": "fixture-new-song",
+        "title": "Fixture Newly Added Tone",
+        "album": ALBUM["name"],
+        "albumId": ALBUM["id"],
+        "artist": ARTIST["name"],
+        "artistId": ARTIST["id"],
+        "track": 1,
+        "duration": 4,
+        "bitRate": 352,
+        "contentType": "audio/wav",
+        "suffix": "wav",
+        "size": len(AUDIO),
+        "coverArt": "fixture-cover",
+        "created": "2026-08-01T00:00:00Z",
+    }
+    ARTIST_ALBUMS = [existing_album, ALBUM]
 
 
 def _root(**content):
@@ -152,7 +211,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(_root(artists={"index": [{"name": "F", "artist": [ARTIST]}]}))
             return
         if endpoint == "getArtist":
-            self._json(_root(artist={**ARTIST, "album": [ALBUM]}))
+            self._json(_root(artist={**ARTIST, "album": ARTIST_ALBUMS}))
             return
         if endpoint == "getAlbumList2":
             time.sleep(0.8)
@@ -183,11 +242,17 @@ class Handler(BaseHTTPRequestHandler):
         if endpoint == "getPlaylists":
             self._json(_root(playlists={"playlist": []}))
             return
+        if endpoint == "search3":
+            # The sync engine probes its supported empty-query bulk-song path
+            # before falling back to authoritative getAlbum hydration. An
+            # empty successful result is the compatible fixture response.
+            self._json(_root(searchResult3={"song": []}))
+            return
         if endpoint == "getIndexes":
             self._json(
                 _root(
                     indexes={
-                        "lastModified": 1780000000000,
+                        "lastModified": INDEX_LAST_MODIFIED,
                         "index": [{"name": "F", "artist": [ARTIST]}],
                     }
                 )
@@ -215,12 +280,25 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--handshake", required=True)
     parser.add_argument("--failure-flag", required=True)
+    parser.add_argument(
+        "--scenario",
+        choices=("auth-lifecycle", "manual-discovery"),
+        default="auth-lifecycle",
+    )
     args = parser.parse_args()
     FAILURE_FLAG = os.path.realpath(args.failure_flag)
+    if args.scenario == "manual-discovery":
+        _configure_manual_discovery_fixture()
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     os.makedirs(os.path.dirname(os.path.realpath(args.handshake)), exist_ok=True)
     with open(args.handshake, "w", encoding="utf-8") as output:
-        json.dump({"port": server.server_port}, output)
+        json.dump(
+            {
+                "port": server.server_port,
+                "indexesLastModified": INDEX_LAST_MODIFIED,
+            },
+            output,
+        )
     os.chmod(args.handshake, 0o600)
     server.serve_forever()
 

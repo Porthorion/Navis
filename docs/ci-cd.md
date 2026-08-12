@@ -58,6 +58,20 @@ It also exports and validates the bounded redacted sync ledger, ensuring target
 hydration is attributable without sensitive server or library fields and reaches
 a recorded terminal transition rather than merely being accepted.
 
+Unchanged-cursor manual album discovery has its own isolated Linux gate:
+
+```bash
+./tool/manual_discovery_diagnostics.sh
+```
+
+It copies the primary database into an isolated profile, points it at a
+loopback Subsonic fixture that adds one album to a known artist without moving
+`getIndexes.lastModified`, and invokes the running app's Check for updates API.
+The gate observes only a narrow authenticated album-existence contract, checks
+the redacted terminal ledger for `getIndexes`, newest-list, artist-detail, and
+album-detail calls, then opens the discovered album after a clean restart. It
+rejects blank compositor screenshots and never sends data to a real server.
+
 First-login and logout ownership are exercised separately with:
 
 ```bash

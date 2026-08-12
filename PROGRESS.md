@@ -71,7 +71,18 @@ Last updated: 2026-08-12
   automatic endpoint without catalog work, repeated Home-to-Library and target
   hydration, and clean-restarted with the deadline unchanged; both app-owned
   Settings captures were opened and inspected, and log review found no
-  hard-fail pattern. Remaining: broader API/runtime trace and next plan phases,
+  hard-fail pattern. The deterministic manual-discovery loopback gate then
+  found a protocol defect in the production client: standard Subsonic
+  `getArtist` returns singular `album`, which Navis had failed to normalize to
+  the model's `albums` field. That silently removed artist-detail albums and
+  prevented the authoritative new-album hydration path. The fix is unit-tested
+  and the isolated Linux app check now holds `getIndexes` unchanged while a
+  known artist receives a new album; Check for updates records `getIndexes`,
+  `getNewestAlbumList2`, `getArtist`, and `getAlbum`, persists the hydrated
+  album/song, renders its detail screen in two inspected app-owned screenshots,
+  and preserves it over a clean restart. Remaining: configured-server
+  certification, repair-confirmation lifecycle trace, broader API/runtime trace
+  and next plan phases,
   then the final quality gate.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational

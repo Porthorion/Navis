@@ -426,6 +426,28 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'GET' && path == '/v1/library/album') {
+        final id = request.uri.queryParameters['id']?.trim() ?? '';
+        if (id.isEmpty || id.length > 256) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'id is required',
+          });
+          return;
+        }
+        final album = await _container
+            .read(navisDatabaseProvider)
+            .libraryDao
+            .getAlbumById(id);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'id': id,
+          'exists': album != null,
+          if (album != null) ...<String, Object?>{
+            'songsHydrated': album.songsHydrated,
+            'songCount': album.songCount,
+          },
+        });
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/session/status') {
         await _respond(
           request,
