@@ -87,7 +87,12 @@ void main() {
           ),
           librarySyncControllerProvider.overrideWith(
             () => _FakeLibrarySyncController(
-              stateValue: LibrarySyncState.idle(lastSyncedAt: lastSynced),
+              stateValue: LibrarySyncState(
+                status: LibrarySyncStatus.idle,
+                stage: LibrarySyncStage.idle,
+                lastSyncedAt: lastSynced,
+                nextRetryAt: DateTime(2026, 2, 20, 12),
+              ),
               onForceFullSync: ({required allowMeteredBroadOverride}) {
                 forceFullTriggered = true;
                 expect(allowMeteredBroadOverride, isFalse);
@@ -118,13 +123,14 @@ void main() {
     expect(find.text('Sync Settings'), findsOneWidget);
     expect(find.text('Next automatic check'), findsOneWidget);
     expect(find.text('Scheduling…'), findsOneWidget);
+    expect(find.text('Automatic retry after failure'), findsOneWidget);
     expect(find.text('Last catalog update'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
     expect(
       find.text('Background sync only on unmetered networks'),
       findsOneWidget,
     );
-    await tester.drag(find.byType(ListView), const Offset(0, -600));
-    await tester.pumpAndSettle();
     expect(find.text('Check for updates'), findsOneWidget);
     expect(find.text('Repair Library Metadata'), findsOneWidget);
     expect(

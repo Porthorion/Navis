@@ -408,6 +408,32 @@ void main() {
   );
 
   test(
+    'target hydration preserves a persisted catalog retry cooldown',
+    () async {
+      final retryAt = DateTime.utc(2026, 8, 4, 0, 15);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          nextEligibleAt: Value(retryAt),
+        ),
+      );
+
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest(
+          trigger: LibrarySyncTrigger.interaction,
+          intent: LibrarySyncIntent.checkForUpdates,
+          target: LibrarySyncTarget.album('album-with-cooldown'),
+        ),
+      );
+
+      final persisted = await database.librarySyncDao.getOrCreateState(1);
+      expect(persisted.nextEligibleAt?.isAtSameMomentAs(retryAt), isTrue);
+      expect(result.nextRetryAt?.isAtSameMomentAs(retryAt), isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'metered automatic catalog runs a hard probe instead of syncIfStale',
     () async {
       await repository.save(

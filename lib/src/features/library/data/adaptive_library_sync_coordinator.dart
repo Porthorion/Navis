@@ -149,6 +149,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           serverId,
         ),
         failureCategory: 'transport',
+        nextRetryAt: persisted.nextEligibleAt,
       );
       onProgress?.call(state);
       return state;
@@ -483,6 +484,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final genresUpdated =
         result.status == LibrarySyncStatus.succeeded &&
         result.genresSynchronized;
+    final nextRetryAt = circuitRelevant && failed
+        ? _cooldownUntil(persisted.failureStreak + 1)
+        : circuitRelevant
+        ? null
+        : persisted.nextEligibleAt;
     await _database.librarySyncDao.writeState(
       LibrarySyncStateTableCompanion(
         serverId: Value(serverId),
@@ -505,13 +511,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                     : 0
               : persisted.failureStreak,
         ),
-        nextEligibleAt: Value(
-          circuitRelevant && failed
-              ? _cooldownUntil(persisted.failureStreak + 1)
-              : circuitRelevant
-              ? null
-              : persisted.nextEligibleAt,
-        ),
+        nextEligibleAt: Value(nextRetryAt),
         lastPlanKind: Value(plan.kind.name),
         lastPlanReason: Value(plan.reason),
         lastRunBytes: Value(usage.bytes),
@@ -542,6 +542,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           : persisted.lastGenresSyncedAt,
       failureCategory: failed ? 'sync' : null,
       clearFailureCategory: !failed,
+      nextRetryAt: nextRetryAt,
+      clearNextRetryAt: nextRetryAt == null,
       candidateGeneration:
           result.candidateGeneration ?? persisted.candidateGeneration,
       candidateStatus: result.candidateStatus ?? persisted.candidateStatus,
@@ -795,9 +797,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         serverId: Value(serverId),
         lastPlanKind: Value(plan.kind.name),
         lastPlanReason: Value(plan.reason),
-        nextEligibleAt: plan.deferred
-            ? Value(persisted.nextEligibleAt)
-            : const Value(null),
+        // Planning a target operation must not consume a catalog failure
+        // cooldown. Only the terminal catalog result may clear or advance it;
+        // otherwise startup hydration can erase the user-visible retry time
+        // before an eligible catalog retry has actually happened.
+        nextEligibleAt: Value(persisted.nextEligibleAt),
       ),
     );
   }

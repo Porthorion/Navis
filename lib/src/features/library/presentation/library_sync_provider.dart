@@ -550,6 +550,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     state = state.copyWith(
       lastCheckedAt: persisted.lastCheckedAt,
       nextAutomaticCheckAt: persisted.nextAutomaticCheckAt,
+      nextRetryAt: persisted.nextEligibleAt,
       lastCatalogUpdatedAt: persisted.lastCatalogSyncedAt,
       lastAuxiliarySyncedAt: persisted.lastAuxiliarySyncedAt,
       lastGenresSyncedAt: persisted.lastGenresSyncedAt,

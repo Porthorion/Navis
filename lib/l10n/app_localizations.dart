@@ -496,6 +496,12 @@ abstract class AppLocalizations {
   /// **'Scheduling…'**
   String get syncSettingsNextAutomaticCheckScheduling;
 
+  /// No description provided for @syncSettingsNextRetryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic retry after failure'**
+  String get syncSettingsNextRetryLabel;
+
   /// No description provided for @syncSettingsLastCatalogUpdateLabel.
   ///
   /// In en, this message translates to:

@@ -323,6 +323,13 @@ void main() {
           serverId: config.id!,
           nextAutomaticCheckAt: deadline,
         );
+        final retryAt = DateTime.now().add(const Duration(minutes: 15));
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: Value(config.id!),
+            nextEligibleAt: Value(retryAt),
+          ),
+        );
         final engine = _FakeLibrarySyncEngine(
           ({onProgress}) async => const LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
@@ -358,6 +365,14 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         await controller.syncIfStale();
         expect(engine.staleCalls, 0);
+        expect(
+          container
+              .read(librarySyncControllerProvider)
+              .nextRetryAt!
+              .difference(retryAt)
+              .abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
 
         await controller.syncNow();
         final persisted = await database.librarySyncDao.getOrCreateState(

@@ -128,10 +128,11 @@ direct database edits, checking only that a process exists, and test-only state
 changes that bypass the production path do not satisfy this requirement.
 
 The clone-only `tool/sync_target_lane_diagnostics.sh` may prepare an isolated
-database fixture with a known future automatic deadline before launch. That is
-test setup only: its acceptance assertions use the running app's authenticated
-`/v1/sync/automatic` and `/v1/sync/status` endpoints, including after a clean
-restart, so they still exercise the production controller and persistence path.
+database fixture with known future automatic and retry-cooldown deadlines before
+launch. That is test setup only: its acceptance assertions use the running
+app's authenticated `/v1/sync/automatic` and `/v1/sync/status` endpoints,
+including after a clean restart, so they still exercise the production
+controller and persistence path.
 The same gate reads the bounded redacted `GET /v1/sync/ledger` trace to verify
 that diagnostic actions are attributable and reach a terminal transition,
 without exposing server or library data.
@@ -219,9 +220,10 @@ Linux and Windows profile diagnostics share the same control-plane contract:
 - `tool/sync_target_lane_diagnostics.sh` launches one isolated Linux clone,
   drives repeated Home-to-Library navigation and then sends
   `POST /v1/sync/target` through the production controller. It asserts neither
-  action changes catalog status, captures Sync Settings, and repeats the
-  health/status/ledger/screenshot checks after a clean restart. Use it when changing
-  navigation, catalog/target scheduling, or global sync presentation.
+  action changes catalog status, verifies distinct automatic and retry
+  deadlines, captures Sync Settings, and repeats the health/status/ledger/
+  screenshot checks after a clean restart. Use it when changing navigation,
+  catalog/target scheduling, cooldowns, or global sync presentation.
 - Current observation endpoints include `GET /v1/health`,
   `GET /v1/sync/status`, `GET /v1/playback/status`,
   `GET /v1/playback/bootstrap/status`, and

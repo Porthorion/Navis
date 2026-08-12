@@ -819,7 +819,11 @@ replay/end-of-queue feedback instead.
 6. The transport interceptor owns at most one immediate idempotent retry and
    honors `Retry-After`. Durable work owns later attempts with exponential
    cooldown. Three consecutive failures open the endpoint circuit; user,
-   reconnect, and resume triggers may probe it early.
+   reconnect, and resume triggers may probe it early. The cooldown is exposed
+   as `LibrarySyncState.nextRetryAt`, populated both from persisted state at
+   launch and from the terminal coordinator result. Sync Settings renders it
+   separately from `nextAutomaticCheckAt`, so a normal interval and a
+   failure-backoff wait cannot be mistaken for one another.
 7. Complete snapshots are generation-based. Old rows remain visible and
    reactive queries receive no candidate-page churn until all pages and
    required hydration validate. Promotion is one database transaction that

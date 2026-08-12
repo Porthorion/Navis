@@ -154,6 +154,7 @@ void main() {
     expect(status.body['status'], 'idle');
     expect(status.body['stage'], 'idle');
     expect(status.body, containsPair('nextAutomaticCheckAt', isNull));
+    expect(status.body, containsPair('nextRetryAt', isNull));
     expect(status.body, containsPair('deletionCandidateCount', 0));
     expect(
       status.body['catalog'],

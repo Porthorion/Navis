@@ -201,6 +201,13 @@ class SyncSettingsScreen extends ConsumerWidget {
                           ),
                   ),
                 ),
+                if (syncState.nextRetryAt != null)
+                  ListTile(
+                    title: Text(l10n.syncSettingsNextRetryLabel),
+                    subtitle: Text(
+                      _formatTimestamp(context, l10n, syncState.nextRetryAt),
+                    ),
+                  ),
                 ListTile(
                   title: Text(l10n.syncSettingsLastCatalogUpdateLabel),
                   subtitle: Text(

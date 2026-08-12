@@ -43,10 +43,11 @@ for song_id, source_path in target.execute(
             while chunk := input_file.read(1024 * 1024):
                 output_file.write(chunk)
 target.execute("UPDATE cached_tracks SET file_path = ? WHERE song_id = ?", (destination, song_id))
-# Start well inside an automatic interval. This deterministic fixture setup
-# lets the running app API prove that startup, navigation, and restart do not
-# recreate or consume the server's schedule. It does not drive sync behavior
-# directly; every assertion below observes the production controller.
+# Start well inside an automatic interval and retry cooldown. This deterministic
+# fixture setup lets the running app API prove that startup, navigation, and
+# restart do not recreate or consume either durable deadline. It does not drive
+# sync behavior directly; every assertion below observes the production
+# controller.
 columns = {
     row[1] for row in target.execute("PRAGMA table_info(library_sync_state)")
 }
@@ -59,6 +60,11 @@ if "next_automatic_check_at" not in columns:
     )
 deadline = int(
     (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1))
+    .replace(microsecond=0)
+    .timestamp()
+)
+retry_at = int(
+    (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15))
     .replace(microsecond=0)
     .timestamp()
 )
@@ -81,6 +87,10 @@ for (server_id,) in server_ids:
             "UPDATE library_sync_state SET next_automatic_check_at = ? WHERE server_id = ?",
             (deadline, server_id),
         )
+    target.execute(
+        "UPDATE library_sync_state SET next_eligible_at = ? WHERE server_id = ?",
+        (retry_at, server_id),
+    )
 target.commit()
 integrity = target.execute("PRAGMA integrity_check").fetchone()[0]
 foreign_keys = target.execute("PRAGMA foreign_key_check").fetchall()
@@ -228,9 +238,9 @@ api GET /v1/health > "$OUTPUT_ROOT/health.json"
 wait_for_presentation "$OUTPUT_ROOT/presentation-before.json"
 wait_for_stable_catalog_status "$OUTPUT_ROOT/catalog-before.json"
 
-# The app reads the clone's future deadline via its production controller.
-# Asking the automatic endpoint before it is due must not start a catalog run
-# or clear/recalculate that durable deadline.
+# The app reads both clone deadlines through its production controller. Asking
+# the automatic endpoint before its normal interval is due must not start a
+# catalog run or clear/recalculate either deadline.
 api POST /v1/sync/automatic > "$OUTPUT_ROOT/automatic-before-deadline.json"
 wait_for_stable_catalog_status "$OUTPUT_ROOT/catalog-after-automatic.json"
 python3 - "$OUTPUT_ROOT/catalog-before.json" \
@@ -239,11 +249,17 @@ import datetime, json, sys
 before = json.load(open(sys.argv[1], encoding="utf-8"))
 actual = json.load(open(sys.argv[2], encoding="utf-8"))
 deadline = actual.get("nextAutomaticCheckAt")
+retry_at = actual.get("nextRetryAt")
 if not isinstance(deadline, str):
     raise SystemExit("production status omitted nextAutomaticCheckAt")
+if not isinstance(retry_at, str):
+    raise SystemExit("production status omitted nextRetryAt")
 parsed = datetime.datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+parsed_retry = datetime.datetime.fromisoformat(retry_at.replace("Z", "+00:00"))
 if parsed <= datetime.datetime.now(datetime.timezone.utc):
     raise SystemExit(f"automatic deadline was not future: {deadline}")
+if parsed_retry <= datetime.datetime.now(datetime.timezone.utc):
+    raise SystemExit(f"retry deadline was not future: {retry_at}")
 if actual != before:
     raise SystemExit(
         "automatic check before its deadline changed catalog status: "
@@ -416,14 +432,19 @@ before = json.load(open(sys.argv[1], encoding="utf-8"))
 restart = json.load(open(sys.argv[2], encoding="utf-8"))
 before_deadline = before.get("nextAutomaticCheckAt")
 restart_deadline = restart.get("nextAutomaticCheckAt")
-if not isinstance(before_deadline, str) or not isinstance(restart_deadline, str):
-    raise SystemExit("restart status omitted nextAutomaticCheckAt")
+before_retry = before.get("nextRetryAt")
+restart_retry = restart.get("nextRetryAt")
+if (not isinstance(before_deadline, str) or not isinstance(restart_deadline, str)
+        or not isinstance(before_retry, str) or not isinstance(restart_retry, str)):
+    raise SystemExit("restart status omitted an automatic or retry deadline")
 start = datetime.datetime.fromisoformat(before_deadline.replace("Z", "+00:00"))
 end = datetime.datetime.fromisoformat(restart_deadline.replace("Z", "+00:00"))
 if abs((end - start).total_seconds()) >= 1:
     raise SystemExit(
         f"restart changed automatic deadline: {before_deadline} -> {restart_deadline}"
     )
+if before_retry != restart_retry:
+    raise SystemExit(f"restart changed retry deadline: {before_retry} -> {restart_retry}")
 PY
 api POST /v1/presentation/navigate '{"location":"/settings/sync"}' \
   > "$OUTPUT_ROOT/restart-navigation.json"

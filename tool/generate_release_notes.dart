@@ -104,6 +104,10 @@ const List<_Version> _changelogs = [
       'Returning to Navis no longer submits duplicate automatic sync checks for the same lifecycle event',
       type: _EntryType.fix,
     ),
+    _Entry(
+      'Sync Settings now shows when automatic catalog work is waiting for a retry cooldown after a failed sync',
+      type: _EntryType.improvement,
+    ),
   ]),
   _Version('1.2.3', [
     _Entry('Loving you is as easy as 123'),

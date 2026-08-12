@@ -1699,6 +1699,7 @@ class SyncDiagnosticsServer {
       'nextAutomaticCheckAt': state.nextAutomaticCheckAt
           ?.toUtc()
           .toIso8601String(),
+      'nextRetryAt': state.nextRetryAt?.toUtc().toIso8601String(),
       'processed': state.processed,
       'total': state.total,
       'hydrationAlbumsPerSecond': state.hydrationThroughputAlbumsPerSecond,

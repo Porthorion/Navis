@@ -58,6 +58,7 @@ class LibrarySyncState {
     this.lastSyncedAt,
     this.lastCheckedAt,
     this.nextAutomaticCheckAt,
+    this.nextRetryAt,
     this.lastCatalogUpdatedAt,
     this.lastAuxiliarySyncedAt,
     this.lastGenresSyncedAt,
@@ -121,6 +122,13 @@ class LibrarySyncState {
   final DateTime? lastSyncedAt;
   final DateTime? lastCheckedAt;
   final DateTime? nextAutomaticCheckAt;
+
+  /// Durable cooldown after a failed catalog operation.
+  ///
+  /// This is separate from [nextAutomaticCheckAt]: the latter is normal
+  /// scheduling, while this value explains why automatic catalog work is
+  /// deliberately waiting after an endpoint or transport failure.
+  final DateTime? nextRetryAt;
   final DateTime? lastCatalogUpdatedAt;
   final DateTime? lastAuxiliarySyncedAt;
   final DateTime? lastGenresSyncedAt;
@@ -184,6 +192,8 @@ class LibrarySyncState {
     bool clearLastCheckedAt = false,
     DateTime? nextAutomaticCheckAt,
     bool clearNextAutomaticCheckAt = false,
+    DateTime? nextRetryAt,
+    bool clearNextRetryAt = false,
     DateTime? lastCatalogUpdatedAt,
     bool clearLastCatalogUpdatedAt = false,
     DateTime? lastAuxiliarySyncedAt,
@@ -257,6 +267,7 @@ class LibrarySyncState {
       nextAutomaticCheckAt: clearNextAutomaticCheckAt
           ? null
           : nextAutomaticCheckAt ?? this.nextAutomaticCheckAt,
+      nextRetryAt: clearNextRetryAt ? null : nextRetryAt ?? this.nextRetryAt,
       lastCatalogUpdatedAt: clearLastCatalogUpdatedAt
           ? null
           : lastCatalogUpdatedAt ?? this.lastCatalogUpdatedAt,

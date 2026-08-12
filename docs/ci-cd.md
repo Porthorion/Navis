@@ -43,9 +43,10 @@ Target-hydration controller isolation has a separate clone-only Linux gate:
 ./tool/sync_target_lane_diagnostics.sh
 ```
 
-It seeds a future per-server automatic deadline in the isolated fixture, then
-uses the production automatic-sync endpoint to prove that the app does not
-start or relabel catalog work before that deadline. It drives a repeated
+It seeds distinct future per-server automatic and retry-cooldown deadlines in
+the isolated fixture, then uses the production automatic-sync endpoint to
+prove that the app does not start or relabel catalog work before its normal
+deadline. It drives a repeated
 Home-to-Library-to-Liked transition through the live router and the same
 Library-section provider as the visible rail, asserting that catalog status,
 aggregate catalog counts, and the controller ledger are unchanged. It then

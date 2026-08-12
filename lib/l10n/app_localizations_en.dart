@@ -225,6 +225,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsNextAutomaticCheckScheduling => 'Scheduling…';
 
   @override
+  String get syncSettingsNextRetryLabel => 'Automatic retry after failure';
+
+  @override
   String get syncSettingsLastCatalogUpdateLabel => 'Last catalog update';
 
   @override

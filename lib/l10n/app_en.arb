@@ -71,6 +71,7 @@
   "syncSettingsLastCheckedLabel": "Last checked",
   "syncSettingsNextAutomaticCheckLabel": "Next automatic check",
   "syncSettingsNextAutomaticCheckScheduling": "Scheduling…",
+  "syncSettingsNextRetryLabel": "Automatic retry after failure",
   "syncSettingsLastCatalogUpdateLabel": "Last catalog update",
   "syncSettingsLastAuxiliaryUpdateLabel": "Starred and playlist headers",
   "syncSettingsLastGenresUpdateLabel": "Genres",

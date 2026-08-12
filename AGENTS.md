@@ -160,7 +160,7 @@ flutter test test/path/to/foo_test.dart
 ./tool/sync_diagnostics.sh full-rescan  # isolated live-scale Repair Library trace + preparing-state capture
 ./tool/sync_diagnostics.sh cache-alias  # isolated live cache/identity migration probe
 ./tool/sync_diagnostics.sh primary-certification  # backed-up final live check
-./tool/sync_target_lane_diagnostics.sh  # isolated Home↔Library and target-hydration/catalog-status boundary suite
+./tool/sync_target_lane_diagnostics.sh  # isolated Home↔Library, target/catalog boundary, and durable schedule/cooldown Settings suite
 ./tool/manual_discovery_diagnostics.sh  # isolated offline-reconnect unchanged-indexes new-album check
 ./tool/repair_confirmation_diagnostics.sh  # isolated explicit large-deletion repair gate
 ./tool/volume_memory_diagnostics.sh  # isolated desktop-volume restart suite
@@ -757,7 +757,9 @@ DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyn
 - `library_sync_state.next_automatic_check_at` is the per-server automatic
   schedule deadline. It is distinct from `next_eligible_at` (retry/circuit
   cooldown); automatic lifecycle events may only run catalog work when this
-  durable deadline is due.
+  durable deadline is due. The controller must reload `next_eligible_at` as
+  `LibrarySyncState.nextRetryAt`, and Sync Settings must show it separately so
+  a cooldown never appears to be unexplained background syncing.
 - `server_config.is_authenticated` separates the retained non-secret
   server/account profile from an active credential session. Profile identity
   is normalized base URL plus trimmed username; same-profile login updates the

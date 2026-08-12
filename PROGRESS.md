@@ -113,7 +113,19 @@ Last updated: 2026-08-12
   were byte-identical and visibly showed the new album and song; log review had
   no hard-fail pattern. Remaining: an optional wall-clock 60-minute foreground
   soak, any future affected-server vanished-row reproduction, and next plan phases,
-  then the final quality gate.
+  then the final quality gate. The scheduler audit also found that the durable
+  retry/circuit cooldown was stored but not restored into live sync state, so
+  Settings could not explain why a catalog operation was waiting. The
+  controller now loads `next_eligible_at` as `nextRetryAt`, the coordinator
+  emits it for terminal failed/deferred work, and Sync Settings presents it
+  separately from the normal automatic deadline. Focused controller and
+  Settings widget regressions pass. The updated isolated Linux target-lane
+  gate seeded both durable deadlines, proved the automatic endpoint did not
+  consume either one, preserved catalog status/counts through online and
+  offline Home→Library→Liked navigation plus target hydration, and retained
+  both values over clean restart. The two app-owned Sync Settings captures
+  were opened and inspected; each shows the separate retry row with no
+  clipping. Log review found no hard-fail pattern.
   The latest `./tool/check.sh` passed formatting and code generation, then
   stopped at the repository-wide analyzer baseline of 493 informational
   diagnostics; none were introduced by this recovery work.)
