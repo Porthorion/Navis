@@ -45,10 +45,10 @@ Last updated: 2026-08-12
   the focused controller suite passes 17 tests including concurrent target and
   catalog cases. `tool/sync_target_lane_diagnostics.sh` now validates the
   controller boundary on an isolated Linux clone: authenticated health/status,
-  a Home→Library→Liked→Home→Liked trace with unchanged catalog state/counts
-  and no added controller-ledger event, an accepted album target request with
-  unchanged catalog state, inspected Liked and Settings screenshots, clean
-  restart, and log review all passed. A subsequent
+  an online and offline Home→Library→Liked→Home→Liked trace with unchanged
+  catalog state/counts and no added controller-ledger event, an accepted album
+  target request with unchanged catalog state, inspected Liked and Settings
+  screenshots, clean restart, and log review all passed. A subsequent
   primary-state audit found that full repair was evaluating stale songs before
   candidate hydration: generation 18 had 5,464 candidate albums but zero
   candidate songs, yielding the false 54,327-song deletion confirmation.

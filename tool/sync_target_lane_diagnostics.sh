@@ -296,6 +296,52 @@ sleep 3
 capture_screenshot "$OUTPUT_ROOT/liked-screenshot.json" "liked-navigation" \
   > "$OUTPUT_ROOT/liked-screenshot-path.txt"
 
+# Offline browsing remains entirely local. Switching between Home and Liked
+# must preserve the committed catalog and cannot turn the offline transition
+# into a controller operation.
+api POST /v1/diagnostics/overrides \
+  '{"networkType":"offline","requestReporting":true}' \
+  > "$OUTPUT_ROOT/offline-overrides.json"
+api GET /v1/sync/status > "$OUTPUT_ROOT/offline-before-navigation.json"
+api GET /v1/sync/ledger > "$OUTPUT_ROOT/offline-ledger-before.json"
+for index in 0 1; do
+  if (( index == 0 )); then
+    location='/'
+  else
+    location='/library#liked'
+  fi
+  api POST /v1/presentation/navigate "$(python3 - "$location" <<'PY'
+import json, sys
+print(json.dumps({"location": sys.argv[1]}))
+PY
+)" > "$OUTPUT_ROOT/offline-navigation-$index.json"
+  sleep 2
+  api GET /v1/sync/status > "$OUTPUT_ROOT/offline-after-navigation-$index.json"
+done
+api GET /v1/sync/ledger > "$OUTPUT_ROOT/offline-ledger-after.json"
+
+python3 - "$OUTPUT_ROOT/offline-before-navigation.json" \
+  "$OUTPUT_ROOT/offline-after-navigation-0.json" \
+  "$OUTPUT_ROOT/offline-after-navigation-1.json" \
+  "$OUTPUT_ROOT/offline-ledger-before.json" \
+  "$OUTPUT_ROOT/offline-ledger-after.json" <<'PY'
+import json, sys
+before = json.load(open(sys.argv[1], encoding="utf-8"))
+for path in sys.argv[2:4]:
+    actual = json.load(open(path, encoding="utf-8"))
+    if actual != before:
+        raise SystemExit(f"offline local navigation changed sync status or counts: {actual}")
+before_ledger = json.load(open(sys.argv[4], encoding="utf-8"))
+after_ledger = json.load(open(sys.argv[5], encoding="utf-8"))
+if after_ledger != before_ledger:
+    raise SystemExit("offline local navigation added a controller sync ledger event")
+PY
+
+api POST /v1/diagnostics/overrides \
+  '{"networkType":"wifi","nativeMetered":false,"interactiveHydrationAllowed":true,"requestReporting":true}' \
+  > "$OUTPUT_ROOT/online-overrides.json"
+wait_for_stable_catalog_status "$OUTPUT_ROOT/catalog-before-target.json"
+
 ALBUM_ID="$(python3 - "$CLONE_DB" <<'PY'
 import sqlite3, sys
 db = sqlite3.connect(sys.argv[1])
@@ -317,7 +363,7 @@ PY
 )" > "$OUTPUT_ROOT/target-start.json"
 api GET /v1/sync/status > "$OUTPUT_ROOT/catalog-during-target.json"
 
-python3 - "$OUTPUT_ROOT/catalog-before.json" "$OUTPUT_ROOT/catalog-during-target.json" <<'PY'
+python3 - "$OUTPUT_ROOT/catalog-before-target.json" "$OUTPUT_ROOT/catalog-during-target.json" <<'PY'
 import json, sys
 before = json.load(open(sys.argv[1], encoding="utf-8"))
 during = json.load(open(sys.argv[2], encoding="utf-8"))
@@ -408,10 +454,11 @@ json.dump({
     "status": "passed",
     "target": "linux",
     "profile": "isolated-clone",
-    "scenario": "Future automatic deadline, Home-Library-Liked navigation, and target hydration preserve catalog status and counts",
+    "scenario": "Future automatic deadline, online/offline Home-Library-Liked navigation, and target hydration preserve catalog status and counts",
     "endpoints": [
         "GET /v1/health", "GET /v1/sync/status", "GET /v1/sync/ledger", "POST /v1/sync/automatic", "POST /v1/sync/target",
         "POST /v1/presentation/navigate", "POST /v1/presentation/screenshot",
+        "POST /v1/diagnostics/overrides",
         "POST /v1/shutdown"
     ],
     "screenshots": [liked, initial, restart],

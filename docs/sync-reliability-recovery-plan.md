@@ -151,8 +151,10 @@ Exit: a 60-minute no-action lifecycle stress test makes no catalog request befor
 5. Add invariant: Home to Library changes neither catalog nor liked count without successful accounted server snapshot.
 
    **Implemented as a runtime gate:** the target-lane clone diagnostics now
-   drives repeated Home-to-Library navigation and asserts that the production
-   catalog status remains byte-for-byte unchanged before it tests target work.
+   drives Home-to-Library-to-Liked navigation on both online and explicitly
+   offline policy, asserting that production catalog status/counts and the
+   controller ledger remain byte-for-byte unchanged before it tests target
+   work.
 
 Exit: navigation causes no broad request, and no catalog/liked row disappears without a ledger event.
 
@@ -161,7 +163,7 @@ Exit: navigation causes no broad request, and no catalog/liked row disappears wi
 1. Build explicit repair deletion confirmation, durable token and discard action. **Implemented:** the persisted fingerprint/count remains the durable remote-evidence token; Settings exposes its count and requires a deliberate Apply library repair confirmation before retrying, or a separate confirmed discard that clears only the uncommitted candidate and repair work. Candidate song collection/carry-forward precedes token calculation, and unresolved candidate albums protect committed tracks.
 2. Show operation type, remote check time, change counts, defer reason, retry time and safe endpoint failure type in Settings/Library.
 3. Update AGENTS.md, docs/architecture.md, docs/development-workflow.md, release notes and migration tests with final architecture.
-4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. Then run tool/check.sh.
+4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. **Partially implemented:** the target-lane clone gate has passed online and offline Home/Library/Liked browsing plus clean restart with inspected Liked/Settings screenshots; unchanged-cursor album discovery and the repair-confirmation lifecycle remain to certify. Then run tool/check.sh.
 
 Current certification evidence: focused engine, coordinator, DAO, migration,
 controller, Home, Library, and Settings suites pass. The controller regression

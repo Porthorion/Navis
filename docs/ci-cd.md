@@ -49,10 +49,11 @@ start or relabel catalog work before that deadline. It drives a repeated
 Home-to-Library-to-Liked transition through the live router and the same
 Library-section provider as the visible rail, asserting that catalog status,
 aggregate catalog counts, and the controller ledger are unchanged. It then
-sends an album target request through the production controller and makes the
-same assertion while that request is active. It captures the Liked and Sync
-Settings presentations and repeats the health/status/screenshot checks after a
-clean restart, asserting that the deadline itself did not move.
+repeats the Home-to-Liked navigation while the clone is explicitly offline,
+then sends an album target request through the production controller and makes
+the same assertion while that request is active. It captures the Liked and
+Sync Settings presentations and repeats the health/status/screenshot checks
+after a clean restart, asserting that the deadline itself did not move.
 It also exports and validates the bounded redacted sync ledger, ensuring target
 hydration is attributable without sensitive server or library fields and reaches
 a recorded terminal transition rather than merely being accepted.

@@ -140,7 +140,8 @@ The endpoint's local `/library#section` destinations are deliberately mapped to
 the production `librarySectionProvider`, matching the desktop rail and
 navigation history. The target-lane gate uses `/library#liked` to prove that
 the Liked surface remains a local read: its status, aggregate catalog counts,
-and controller ledger must remain unchanged across the navigation trace.
+and controller ledger must remain unchanged across the online and explicitly
+offline navigation traces.
 
 The required precedence is: focused diagnostics script, existing authenticated
 Navis endpoints, then a new narrow endpoint with contract tests and a focused
