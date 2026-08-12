@@ -23,6 +23,29 @@ void main() {
     });
 
     test(
+      'deleteArtistsByIds removes a large stale artist batch',
+      () async {
+        await database.libraryDao.upsertArtists(
+          List<ArtistsTableCompanion>.generate(
+            501,
+            (index) => ArtistsTableCompanion.insert(
+              id: 'stale-artist-$index',
+              name: 'Stale Artist $index',
+            ),
+            growable: false,
+          ),
+        );
+
+        await database.libraryDao.deleteArtistsByIds(
+          List<String>.generate(501, (index) => 'stale-artist-$index'),
+        );
+
+        expect(await database.libraryDao.countArtists(), 0);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'watchSongsFromLikedAlbums returns liked album tracks in stable order',
       () async {
         await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[

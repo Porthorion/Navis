@@ -3156,11 +3156,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       if (removableAlbumIds.isNotEmpty) {
         await _database.libraryDao.deleteAlbumsByIds(removableAlbumIds);
       }
-      for (final artistId in staleArtistIds.where(
-        (id) => !preserved.artistIds.contains(id),
-      )) {
-        await _database.libraryDao.removeArtistTree(artistId);
-      }
+      await _database.libraryDao.deleteArtistsByIds(
+        staleArtistIds.where((id) => !preserved.artistIds.contains(id)),
+      );
       await _database.librarySyncDao.writeState(
         LibrarySyncStateTableCompanion(
           serverId: Value(serverId),

@@ -1705,6 +1705,9 @@ class SyncDiagnosticsServer {
       'pendingWork': state.pendingWorkCount,
       'candidateStatus': state.candidateStatus,
       'candidateGeneration': state.candidateGeneration,
+      // Safe aggregate evidence for the explicit repair-confirmation contract;
+      // this intentionally reveals no server IDs, titles, or paths.
+      'deletionCandidateCount': state.deletionCandidateCount,
       'requests': state.apiRequests,
       'bytes': state.lastRunBytes,
       'writes': state.dbWriteBatches,

@@ -80,7 +80,14 @@ Last updated: 2026-08-12
   known artist receives a new album; Check for updates records `getIndexes`,
   `getNewestAlbumList2`, `getArtist`, and `getAlbum`, persists the hydrated
   album/song, renders its detail screen in two inspected app-owned screenshots,
-  and preserves it over a clean restart. Remaining: configured-server
+  and preserves it over a clean restart. Large-deletion repair confirmation is
+  now covered by an isolated Linux clone gate: its first Repair Library pass
+  left 1,714 artists / 5,463 albums / 54,327 songs unchanged behind a 61,503
+  item confirmation, preserved that state across restart, and the explicit
+  second repair atomically promoted the fixture catalog. The same trace found
+  and fixed per-song/per-artist promotion deletes that made large confirmation
+  applies pathological; bounded bulk deletion retains permanent downloads.
+  Both Sync Settings screenshots were opened and inspected. Remaining: configured-server
   certification, repair-confirmation lifecycle trace, broader API/runtime trace
   and next plan phases,
   then the final quality gate.

@@ -1630,6 +1630,24 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  /// Removes artists whose dependent server songs and albums were already
+  /// handled by a catalog-promotion transaction. Chunks stay below SQLite's
+  /// bind-variable limit and avoid one nested transaction per stale artist.
+  Future<void> deleteArtistsByIds(Iterable<String> artistIds) async {
+    final ids = artistIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    const chunkSize = 500;
+    for (var start = 0; start < ids.length; start += chunkSize) {
+      final end = (start + chunkSize).clamp(0, ids.length);
+      await (delete(
+        artistsTable,
+      )..where((table) => table.id.isIn(ids.sublist(start, end)))).go();
+    }
+  }
+
   Future<void> clearLibraryData() async {
     await transaction(() async {
       await delete(songsTable).go();
@@ -1759,8 +1777,76 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<List<String>> removeServerSongsForPromotion(
     Iterable<SongsTableData> songs,
-  ) {
-    return _handleRemovedServerSongs(songs, deferCacheFileDeletion: true);
+  ) async {
+    final ids = songs
+        .where((song) => song.serverDeletedAt == null)
+        .map((song) => song.id)
+        .toSet()
+        .toList(growable: false);
+    if (ids.isEmpty) {
+      return const <String>[];
+    }
+
+    final now = DateTime.now();
+    final deferredCacheFiles = <String>[];
+    const chunkSize = 500;
+    for (var start = 0; start < ids.length; start += chunkSize) {
+      final end = (start + chunkSize).clamp(0, ids.length);
+      final chunk = ids.sublist(start, end);
+      final caches = await (select(
+        cachedTracksTable,
+      )..where((table) => table.songId.isIn(chunk))).get();
+      final preservedIds = <String>{};
+      for (final cache in caches) {
+        final preserve =
+            cache.cacheType == CacheType.permanent &&
+            cache.downloadStatus == DownloadStatus.complete &&
+            File(cache.filePath).existsSync();
+        if (preserve) {
+          preservedIds.add(cache.songId);
+        } else {
+          deferredCacheFiles.add(cache.filePath);
+        }
+      }
+      final removableIds = chunk
+          .where((id) => !preservedIds.contains(id))
+          .toList(growable: false);
+      if (preservedIds.isNotEmpty) {
+        await (update(songsTable)..where(
+              (table) => table.id.isIn(preservedIds.toList()),
+            ))
+            .write(
+              SongsTableCompanion(
+                albumId: const Value(null),
+                artistId: const Value(null),
+                serverDeletedAt: Value(now),
+              ),
+            );
+      }
+      if (removableIds.isEmpty) {
+        continue;
+      }
+      await (delete(cachedTracksTable)..where(
+            (table) => table.songId.isIn(removableIds),
+          ))
+          .go();
+      await (delete(downloadQueueTable)..where(
+            (table) => table.songId.isIn(removableIds),
+          ))
+          .go();
+      await (delete(externalLyricsCacheTable)..where(
+            (table) => table.songId.isIn(removableIds),
+          ))
+          .go();
+      await (delete(matchFlowSongsTable)..where(
+            (table) => table.songId.isIn(removableIds),
+          ))
+          .go();
+      await (delete(
+        songsTable,
+      )..where((table) => table.id.isIn(removableIds))).go();
+    }
+    return deferredCacheFiles;
   }
 
   Future<void> cleanupRemovedCacheFiles(Iterable<String> paths) async {
