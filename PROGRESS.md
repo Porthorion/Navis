@@ -44,11 +44,20 @@ Last updated: 2026-08-12
   catalog cases. `tool/sync_target_lane_diagnostics.sh` now validates the
   controller boundary on an isolated Linux clone: authenticated health/status,
   an accepted album target request with unchanged catalog state, an inspected
-  Settings screenshot, clean restart, and log review all passed. Remaining:
-  complete the broader API/runtime trace and next plan phases, then the final
-  quality gate.
+  Settings screenshot, clean restart, and log review all passed. A subsequent
+  primary-state audit found that full repair was evaluating stale songs before
+  candidate hydration: generation 18 had 5,464 candidate albums but zero
+  candidate songs, yielding the false 54,327-song deletion confirmation.
+  Repair now hydrates/carries candidate songs before deletion analysis, and
+  unresolved candidate albums retain their current tracks until authoritative
+  detail hydration; focused engine regressions cover both paths. An isolated
+  Linux full-rescan clone then collected 5,464 albums, indexed 57 song pages,
+  completed five detail fallbacks and promoted successfully with candidate and
+  deletion state cleared; its post-restart Sync Settings screenshot was opened
+  and shows `Last sync succeeded` without a deletion confirmation. Remaining:
+  broader API/runtime trace and next plan phases, then the final quality gate.
   The latest `./tool/check.sh` passed formatting and code generation, then
-  stopped at the repository-wide analyzer baseline of 495 informational
+  stopped at the repository-wide analyzer baseline of 493 informational
   diagnostics; none were introduced by this recovery work.)
 
 - [x] Large-library full-repair capped-index tail avoidance — 2026-08-11

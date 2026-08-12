@@ -50,6 +50,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Repair Library now completes song collection before evaluating server-missing tracks, preventing a false large-deletion warning on an existing library',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Liked music now stays visible after one incomplete server response; Navis waits for a second confirmed absence before removing a like locally',
         type: ChangelogEntryType.fix,
       ),

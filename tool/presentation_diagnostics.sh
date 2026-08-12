@@ -369,6 +369,11 @@ run_capture() {
   api POST /v1/presentation/navigate "$(navigation_body)" \
     > "$OUTPUT_ROOT/$prefix-navigation.json"
   validate_navigation "$OUTPUT_ROOT/$prefix-navigation.json"
+  # Router acknowledgement precedes the first fully painted destination frame.
+  # Give transient route/changelog transitions time to settle before the
+  # presentation endpoint captures visual evidence.
+  sleep 5
+  wait_for_presentation "$OUTPUT_ROOT/$prefix-presentation-after.json"
   if [[ -n "$SEARCH_QUERY" ]]; then
     api POST /v1/presentation/search "$(search_body)" \
       > "$OUTPUT_ROOT/$prefix-search.json"

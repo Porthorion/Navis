@@ -53,6 +53,7 @@ External sources:
 | P1 | Server configuration, reachability notifications, engine availability, Wi-Fi, resume, periodic re-arm and a microtask all submit startup work. Partial result does not set startup-done fingerprint. Queued full repairs were also eligible for those automatic resume requests. | Event storms could schedule more planning after a preceding pass ends, app resume submitted both startup and interval work, and opening the app could restart an interrupted user Repair Library operation. **Fixed:** resume now submits only its interval check; automatic callers leave queued full repairs dormant, and only an explicit Repair Library action may resume one. |
 | P1 | Entering the retained Liked tab watches an autoDispose provider that requests stale starred synchronization and writes global sync state. | Home to Library can look like catalog sync although it is a Liked refresh. |
 | P1 | Starred reconciliation cleared every local star not in `getStarred2` before applying the returned set, excluding only queued/concurrent mutations. | This was a code-proven destructive path that could make Liked items disappear after one incomplete response. **Fixed:** absence candidates are persisted per server/entity; the first successful absence retains the local star and only a second independent successful absence clears it. Pending and concurrent local mutations remain protected. |
+| P0 | Full repair calculated the candidate-vs-live stale-song count immediately after metadata collection, before bulk or album-detail hydration had inserted candidate songs. The active server's generation 18 recorded 5,464 candidate albums and **zero** candidate songs, then falsely reported all 54,327 committed songs as server-missing and stopped at confirmation. | Repair could neither complete nor reliably discover the server library; an empty pre-hydration candidate was treated as deletion evidence. **Fixed:** collect/carry-forward/hydrate candidate songs before any deletion analysis. Existing tracks for an unresolved candidate album are excluded from stale-song deletion until authoritative detail hydration succeeds. |
 | P1 | Large deletion repair returns awaitingDeletionConfirmation and requires a second repair request; UI showed only opaque status. | Repair could look like a no-op/failure. **Fixed:** Settings now names the pending server-missing count and requires an explicit Apply library repair confirmation before it issues that retry. |
 | P1 | Probe, repair, continuation, Liked sync and target hydration previously shared one controller in-flight future and wrote one global `LibrarySyncState`. A target could therefore satisfy a catalog command, and target progress could replace broad-operation status. **Fixed at the controller boundary:** catalog work now coalesces by precedence (automatic < manual check < repair), while target work coalesces only by its durable target key and never writes catalog UI state. | Navigation-adjacent work no longer masquerades as a library-wide sync, and a manual Check requested during an automatic pass is guaranteed to run after it. |
 | P1 | A legacy persisted `*` bulk-song query ran before the standard empty query. In the isolated clone it collected 5,464 albums then remained at zero hydrated/candidate songs for more than 20 minutes; cancellation did not reach a terminal state within the next 20 seconds. | Repair appeared stalled despite a valid candidate. The wildcard capability is now discarded; the verified empty-query path advanced 214→2,002 albums and 3,924→24,979 songs in 15 seconds. |
@@ -105,7 +106,7 @@ Starred reconciliation must not clear values until it has a complete validated s
 
 ### Explain repair
 
-Keep candidate tables and atomic promotion. Convert implicit second-click deletion confirmation into a durable explicit confirmation with safe counts. Repair reports candidate counts, promotion result, retained/protected rows, and safe failure reason.
+Keep candidate tables and atomic promotion. Deletion analysis is valid only after the candidate's song collection and safe carry-forward stage; an unresolved candidate album protects its committed tracks from stale-song removal. Convert implicit second-click deletion confirmation into a durable explicit confirmation with safe counts. Repair reports candidate counts, promotion result, retained/protected rows, and safe failure reason.
 
 ## Phased plan
 
@@ -153,7 +154,7 @@ Exit: navigation causes no broad request, and no catalog/liked row disappears wi
 
 ### Phase 4: repair UX and certification
 
-1. Build explicit repair deletion confirmation, durable token and discard action. **Partially implemented:** the persisted fingerprint/count remains the durable remote-evidence token; Settings exposes its count and requires a deliberate Apply library repair confirmation before retrying. A distinct discard-candidate action remains outstanding.
+1. Build explicit repair deletion confirmation, durable token and discard action. **Partially implemented:** the persisted fingerprint/count remains the durable remote-evidence token; Settings exposes its count and requires a deliberate Apply library repair confirmation before retrying. Candidate song collection/carry-forward now precedes the token calculation, and unresolved candidate albums protect committed tracks. A distinct discard-candidate action remains outstanding.
 2. Show operation type, remote check time, change counts, defer reason, retry time and safe endpoint failure type in Settings/Library.
 3. Update AGENTS.md, docs/architecture.md, docs/development-workflow.md, release notes and migration tests with final architecture.
 4. Complete runtime loop: Linux isolated clone, health API, unchanged-cursor album discovery, lifecycle stress, Liked route loop, repair confirmation, offline browse, clean restart, inspected screenshots and logs. Then run tool/check.sh.
@@ -171,9 +172,18 @@ capture showed the same completed catalog status rather than a global running
 target state. Isolated Linux clone startup also kept an
 awaiting-deletion-confirmation repair dormant while it resumed only target
 work; the authenticated health API reported schema v62, clean restart returned
-to Home, and the app-owned Settings screenshot was inspected.
+to Home, and the app-owned Settings screenshot was inspected. The focused
+full-rescan rerun against a current-library clone began with 1,714 artists,
+5,463 albums, and 54,327 songs; the authenticated repair collected 5,464
+albums, indexed songs through 57 `search3` pages, used five authoritative
+album-detail fallbacks, and completed promotion with no candidate/deletion
+token. The committed clone ended at 5,464 albums and 54,329 songs. A clean
+restart to Sync Settings was captured through the app API and inspected; it
+showed `Last sync succeeded`, no pending deletion confirmation, and the
+completed catalog apply time. The capture harness now waits for route
+acknowledgement and transitions to settle before taking visual evidence.
 `./tool/check.sh` passed formatting and code generation, then stopped at the
-repository-wide analyzer baseline of 495 informational diagnostics; none were
+repository-wide analyzer baseline of 493 informational diagnostics; none were
 introduced by this recovery work.
 
 ## Regression matrix
@@ -188,6 +198,8 @@ introduced by this recovery work.
 | Home to Albums | No sync request and no catalog mutation. |
 | Home to Liked | No catalog request; validated auxiliary work only when due/requested. |
 | Repair large deletion | Atomic promotion or explicit confirmation; old catalog visible until promotion. |
+| Repair with existing catalog | Candidate songs are collected before deletion analysis; a zero-song pre-hydration candidate can never produce a deletion token. |
+| Failed detail hydration | Existing tracks for the unresolved candidate album remain visible until a later authoritative detail response. |
 | Offline and restart | Local catalog stays browsable; deferred work drains once when eligible. |
 
 ## Decisions

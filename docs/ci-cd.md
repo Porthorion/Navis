@@ -101,8 +101,9 @@ NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
   ./tool/presentation_diagnostics.sh clone / home
 ```
 
-It drives the live router through the authenticated Navis API and captures the
-Flutter surface before and after a clean restart. It validates artifact
+It drives the live router through the authenticated Navis API, waits for the
+acknowledged destination route to settle, and captures the Flutter surface
+before and after a clean restart. It validates artifact
 containment, PNG metadata, hashes, and permissions, but the agent remains
 responsible for opening both images and inspecting the affected region.
 AT-SPI and external desktop automation are not substitutes for this gate.

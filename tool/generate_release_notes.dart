@@ -77,6 +77,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
+      'Repair Library now completes song collection before evaluating server-missing tracks, preventing a false large-deletion warning on an existing library',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Liked music now stays visible after one incomplete server response; Navis waits for a second confirmed absence before removing a like locally',
       type: _EntryType.fix,
     ),

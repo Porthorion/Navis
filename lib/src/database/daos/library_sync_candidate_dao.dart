@@ -696,6 +696,14 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
         AND s.is_provisional = 0
         AND s.server_deleted_at IS NULL
         AND (s.album_id IS NOT NULL OR s.artist_id IS NOT NULL)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM library_sync_candidate_albums pending
+          WHERE pending.server_id = ?1
+            AND pending.generation = ?2
+            AND pending.id = s.album_id
+            AND pending.songs_hydrated = 0
+        )
       ORDER BY s.id ASC
       LIMIT ?4
       ''',
@@ -725,6 +733,14 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
         AND s.is_provisional = 0
         AND s.server_deleted_at IS NULL
         AND (s.album_id IS NOT NULL OR s.artist_id IS NOT NULL)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM library_sync_candidate_albums pending
+          WHERE pending.server_id = ?1
+            AND pending.generation = ?2
+            AND pending.id = s.album_id
+            AND pending.songs_hydrated = 0
+        )
       ''',
       variables: <Variable<Object>>[
         Variable<int>(serverId),

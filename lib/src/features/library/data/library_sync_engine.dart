@@ -2578,7 +2578,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         candidateCarriedForwardCount: const Value(0),
       ),
     );
-    var deletionConfirmationPending = false;
     metrics.metadataChanged = true;
     var current = _withMetrics(
       state.copyWith(
@@ -2765,42 +2764,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         .map((a) => a.id)
         .where((id) => !nextAlbumIds.contains(id))
         .toList(growable: false);
-    final staleSongCount = await _database.librarySyncCandidateDao
-        .countStaleSongs(
-          serverId: serverId,
-          generation: catalogGeneration,
-        );
-    final deletionAllowed = await _confirmSnapshotDeletion(
-      serverId: serverConfig.id,
-      persistentState: persistentState,
-      staleArtistIds: staleArtistIds,
-      staleAlbumIds: staleAlbumIds,
-      staleSongCount: staleSongCount,
-      artistCount: existingArtists.length,
-      albumCount: existingAlbums.length,
-    );
-    deletionConfirmationPending = !deletionAllowed;
-    if (deletionConfirmationPending) {
-      await _database.librarySyncDao.writeState(
-        LibrarySyncStateTableCompanion(
-          serverId: Value(serverId),
-          candidateGeneration: Value(catalogGeneration),
-          candidateStatus: const Value('awaitingDeletionConfirmation'),
-        ),
-      );
-      return _withMetrics(
-        current.copyWith(
-          stage: LibrarySyncStage.validatingCandidate,
-          candidateStatus: 'awaitingDeletionConfirmation',
-          freshness: LibrarySyncFreshness.repairRecommended,
-          remainingVerificationCount: 1,
-          clearProcessed: true,
-          clearTotal: true,
-        ),
-        metrics,
-      );
-    }
-
     current = await _hydratePendingSongs(
       state: _withMetrics(
         current.copyWith(
@@ -2850,6 +2813,46 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       metrics,
     );
     onProgress?.call(current);
+
+    // Candidate songs do not exist until the bulk index or per-album
+    // hydration above has populated them. Comparing the live song table any
+    // earlier classifies every existing song as server-missing, which blocks a
+    // legitimate repair behind a bogus large-deletion confirmation.
+    final staleSongCount = await _database.librarySyncCandidateDao
+        .countStaleSongs(
+          serverId: serverId,
+          generation: catalogGeneration,
+        );
+    final deletionAllowed = await _confirmSnapshotDeletion(
+      serverId: serverConfig.id,
+      persistentState: persistentState,
+      staleArtistIds: staleArtistIds,
+      staleAlbumIds: staleAlbumIds,
+      staleSongCount: staleSongCount,
+      artistCount: existingArtists.length,
+      albumCount: existingAlbums.length,
+    );
+    if (!deletionAllowed) {
+      await _database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          candidateGeneration: Value(catalogGeneration),
+          candidateStatus: const Value('awaitingDeletionConfirmation'),
+        ),
+      );
+      return _withMetrics(
+        current.copyWith(
+          stage: LibrarySyncStage.validatingCandidate,
+          candidateStatus: 'awaitingDeletionConfirmation',
+          freshness: LibrarySyncFreshness.repairRecommended,
+          remainingVerificationCount: 1,
+          clearProcessed: true,
+          clearTotal: true,
+        ),
+        metrics,
+      );
+    }
+
     await _database.librarySyncDao.writeState(
       LibrarySyncStateTableCompanion(
         serverId: Value(serverId),

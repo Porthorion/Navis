@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -1049,6 +1049,59 @@ void main() {
           preservedStarred!.difference(locallyStarredAt).abs(),
           lessThan(const Duration(seconds: 1)),
         );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'full repair hydrates candidate songs before assessing large deletion',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-stale', name: 'Stale'),
+        ]);
+        await database.batch((batch) {
+          for (var index = 0; index < 501; index++) {
+            batch.insert(
+              database.songsTable,
+              SongsTableCompanion.insert(
+                id: 'stale-song-$index',
+                title: 'Stale song $index',
+                artistId: const Value('artist-stale'),
+              ),
+            );
+          }
+        });
+        api.artists.add(const Artist(id: 'artist-keep', name: 'Keep'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-keep',
+            name: 'Keep',
+            artistId: 'artist-keep',
+          ),
+        ];
+        api.albumDetails['album-keep'] = const Album(
+          id: 'album-keep',
+          name: 'Keep',
+          artistId: 'artist-keep',
+          songs: <Song>[
+            Song(id: 'song-keep', title: 'Keep', albumId: 'album-keep'),
+          ],
+        );
+
+        final result = await engine.forceFullSync();
+        final candidateSongs =
+            await (database.select(
+                  database.librarySyncCandidateSongsTable,
+                )..where(
+                  (table) =>
+                      table.serverId.equals(1) & table.generation.equals(1),
+                ))
+                .get();
+
+        expect(result.candidateStatus, 'awaitingDeletionConfirmation');
+        expect(api.calls, contains('getAlbum:album-keep'));
+        expect(candidateSongs.map((song) => song.id), contains('song-keep'));
       },
       skip: !sqliteAvailable,
     );
@@ -3504,12 +3557,25 @@ void main() {
       'full sync keeps failed album pending and preserves existing songs',
       () async {
         await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Old album title',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(true),
+          ),
+        ]);
         await database
             .into(database.songsTable)
             .insert(
               SongsTableCompanion.insert(
                 id: 'existing-song',
                 title: 'Existing Song',
+                albumId: const Value('album-1'),
+                artistId: const Value('artist-1'),
               ),
             );
 
@@ -3549,10 +3615,7 @@ void main() {
         expect(api.calls.where((call) => call.startsWith('getAlbum:')), [
           'getAlbum:album-1',
         ]);
-        expect(
-          recoveredSongs.map((song) => song.id),
-          containsAll(<String>['existing-song', 'song-1']),
-        );
+        expect(recoveredSongs.map((song) => song.id), ['song-1']);
       },
       skip: !sqliteAvailable,
     );

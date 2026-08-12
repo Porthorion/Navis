@@ -812,9 +812,12 @@ replay/end-of-queue feedback instead.
    restarts and the atomic apply boundary. After promotion, unavailable albums
    continue as targeted hydration instead of rerunning the broad snapshot. Large
    deletion candidates (over 10% of an entity type or over 500 songs) require
-   the same fingerprint twice. That fingerprint and its server-missing count
-   are durable; Settings exposes the count and requires an explicit Apply
-   library repair confirmation before it makes the second repair request.
+   the same fingerprint twice. The stale-song count is calculated only after
+   candidate song collection/carry-forward; tracks belonging to an unresolved
+   candidate album are retained until authoritative detail hydration succeeds.
+   That fingerprint and its server-missing count are durable; Settings exposes
+   the count and requires an explicit Apply library repair confirmation before
+   it makes the second repair request.
    Isolated detail 404s remain candidates until a parent or complete snapshot
    confirms deletion.
    Starred reconciliation follows the same offline-safety principle: a local

@@ -440,6 +440,9 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   Large candidate promotion reads must chunk ID lookups below SQLite's bound
   variable limit. An `applying` candidate is resumable after a rolled-back
   apply failure so completed hydration is not downloaded again.
+  Deletion analysis runs only after candidate song collection and safe
+  carry-forward; tracks for a candidate album still awaiting authoritative
+  detail hydration are not stale-song deletion evidence.
 - Before promotion, schema-v57 candidate rows are classified in resumable
   keyset pages as changed or unchanged. The final transaction upserts only
   changed rows once, streams deletion anti-joins, and emits one catalog change;

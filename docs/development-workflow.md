@@ -248,9 +248,10 @@ NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
   ./tool/presentation_diagnostics.sh clone / home
 ```
 
-It checks presentation readiness, navigates through the live `GoRouter`,
-waits for transient Flutter animations to settle, captures the requested route
-before and after a clean restart, validates PNG
+It checks presentation readiness, navigates through the live `GoRouter`, then
+waits for the acknowledged destination route and transient Flutter animations
+to settle before it captures the requested route before and after a clean
+restart, validates PNG
 signature, digest, dimensions, containment, and permissions, and records the
 artifact paths under `build/presentation-diagnostics/`. The agent must open and
 inspect both PNGs; the script intentionally cannot certify visual correctness
