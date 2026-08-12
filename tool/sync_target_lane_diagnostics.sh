@@ -194,11 +194,9 @@ python3 - "$OUTPUT_ROOT/catalog-before.json" \
   "$OUTPUT_ROOT/catalog-after-library-2.json" <<'PY'
 import json, sys
 before = json.load(open(sys.argv[1], encoding="utf-8"))
-keys = ("status", "stage", "planKind", "planReason", "errorMessage")
-expected = {key: before.get(key) for key in keys}
 for path in sys.argv[2:]:
     actual = json.load(open(path, encoding="utf-8"))
-    if {key: actual.get(key) for key in keys} != expected:
+    if actual != before:
         raise SystemExit(
             f"Home-to-Library navigation changed catalog status: {actual}"
         )
@@ -229,8 +227,9 @@ python3 - "$OUTPUT_ROOT/catalog-before.json" "$OUTPUT_ROOT/catalog-during-target
 import json, sys
 before = json.load(open(sys.argv[1], encoding="utf-8"))
 during = json.load(open(sys.argv[2], encoding="utf-8"))
-keys = ("status", "stage", "planKind", "planReason", "errorMessage")
-if {key: before.get(key) for key in keys} != {key: during.get(key) for key in keys}:
+before.pop("requestActive", None)
+during.pop("requestActive", None)
+if during != before:
     raise SystemExit("target hydration changed controller catalog status")
 PY
 
