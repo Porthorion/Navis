@@ -2986,6 +2986,74 @@ void main() {
     );
 
     test(
+      'metered manual discovery hydrates only a bounded newest-album subset',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final meteredEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.cellular,
+          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
+            networkType: NetworkType.cellular,
+            isMetered: true,
+            allowsBackgroundSync: false,
+            allowsHardProbe: true,
+            allowsInteractiveHydration: true,
+          ),
+          fallbackArtistConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          writeChunkSize: 4,
+        )..allowMeteredManualDiscovery = true;
+        api.fastPathPages[0] = List<Album>.generate(
+          5,
+          (index) => Album(
+            id: 'album-metered-$index',
+            name: 'Metered Album $index',
+            artistId: 'artist-metered',
+            artist: 'Metered Artist',
+            songCount: 1,
+          ),
+          growable: false,
+        );
+        for (var index = 0; index < 5; index++) {
+          api.albumDetails['album-metered-$index'] = Album(
+            id: 'album-metered-$index',
+            name: 'Metered Album $index',
+            artistId: 'artist-metered',
+            songs: <Song>[
+              Song(id: 'song-metered-$index', title: 'Metered song $index'),
+            ],
+          );
+        }
+
+        final state = await meteredEngine.syncNow();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('getAlbumListPage:0:50'));
+        expect(
+          api.calls.where((call) => call.startsWith('getArtist:')),
+          isEmpty,
+        );
+        expect(
+          api.calls.where((call) => call.startsWith('searchSongsPage:')),
+          isEmpty,
+        );
+        expect(
+          api.calls.where((call) => call.startsWith('getAlbum:')),
+          hasLength(3),
+        );
+        expect(
+          await database.libraryDao.getSongById('song-metered-0'),
+          isNotNull,
+        );
+        expect(await database.libraryDao.getSongById('song-metered-3'), isNull);
+        expect(state.freshness, LibrarySyncFreshness.verificationPending);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'manual changed-index refresh immediately hydrates newest albums in a large library',
       () async {
         const artistCount = 2000;

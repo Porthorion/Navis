@@ -249,6 +249,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             intent: request.intent,
             target: effectiveTarget,
             allowMeteredBroadOverride: request.allowMeteredBroadOverride,
+            allowMeteredLimitedDiscovery: request.allowMeteredLimitedDiscovery,
           );
     final targetId = effectiveTarget.entityId?.trim() ?? '';
     final targetWorkKey = librarySyncTargetWorkKey(effectiveTarget);
@@ -436,9 +437,13 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         _ => null,
       };
       final previousOverride = driftExecutor?.allowMeteredBackgroundOverride;
+      final previousLimitedDiscovery =
+          driftExecutor?.allowMeteredManualDiscovery;
       if (driftExecutor != null) {
         driftExecutor.allowMeteredBackgroundOverride =
             request.allowMeteredBroadOverride;
+        driftExecutor.allowMeteredManualDiscovery =
+            request.allowMeteredLimitedDiscovery && _syncPolicy.isMetered;
       }
 
       LibrarySyncState result;
@@ -463,6 +468,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         if (driftExecutor != null) {
           driftExecutor.allowMeteredBackgroundOverride =
               previousOverride ?? false;
+          driftExecutor.allowMeteredManualDiscovery =
+              previousLimitedDiscovery ?? false;
         }
       }
 
@@ -930,6 +937,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     if (request.allowMeteredBroadOverride) {
       return true;
     }
+    if (planKind == LibrarySyncPlanKind.deltaReconcile &&
+        request.allowMeteredLimitedDiscovery &&
+        policy.isMetered) {
+      return true;
+    }
     if (planKind == LibrarySyncPlanKind.probe) {
       return policy.allowsHardProbe;
     }
@@ -1134,7 +1146,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     LibrarySyncProgressCallback? onProgress,
   }) {
     return requestSync(
-      const LibrarySyncRequest.checkForUpdates(),
+      const LibrarySyncRequest.checkForUpdates(
+        allowMeteredLimitedDiscovery: false,
+      ),
       onProgress: onProgress,
     );
   }

@@ -30,6 +30,14 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.4',
     entries: [
       ChangelogEntry(
+        'Check for updates on mobile data now safely finds recent changed albums instead of stopping at an unchanged server cursor',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library Recently Added order now stays stable after a full sync when a server omits an album creation date',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android can now recover eligible automatic library checks through the system scheduler after the app process exits, with Sync Settings showing the requested cadence and safe outcome',
         type: ChangelogEntryType.improvement,
       ),

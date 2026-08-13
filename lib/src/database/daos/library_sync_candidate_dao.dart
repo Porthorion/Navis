@@ -189,7 +189,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
       );
       await batch((batch) {
         for (final album in catalogAlbums.sublist(offset, end)) {
-          final candidate = LibrarySyncCandidateAlbumsTableCompanion.insert(
+          var candidate = LibrarySyncCandidateAlbumsTableCompanion.insert(
             serverId: serverId,
             generation: generation,
             id: album.id.value,
@@ -209,6 +209,14 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
             syncedAt: album.syncedAt,
             serverCreatedAt: album.serverCreatedAt,
           );
+          // A later album-detail response commonly lacks `created`. Keep a
+          // creation date already collected from the newest/catalog feed.
+          if (!candidate.serverCreatedAt.present ||
+              candidate.serverCreatedAt.value == null) {
+            candidate = candidate.copyWith(
+              serverCreatedAt: const Value.absent(),
+            );
+          }
           batch.insert(
             librarySyncCandidateAlbumsTable,
             candidate,

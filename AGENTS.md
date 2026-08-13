@@ -646,7 +646,11 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   Catalog enumeration, audits, repairs, starred/genres/playlist-header sync,
   and pending broad hydration remain queued for an unmetered network unless the
   user grants an ephemeral one-time mobile-data override. Metered Wi-Fi follows
-  the same policy when native metering reports the link as metered.
+  the same policy when native metering reports the link as metered. An explicit
+  foreground Check for updates is narrower than that override: it may inspect
+  one 50-album newest page and hydrate at most three changed albums, with no
+  artist sweep or bulk-song index; remaining work stays durable for Wi-Fi or
+  the explicit broad-data action.
 - Durable work carries a `work_class` of `interactive` or `background`. User-
   opened artist/album/playlist targets upgrade to interactive; engine catalog
   page checkpoints and pending-album drains stay background. Live

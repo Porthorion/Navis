@@ -400,6 +400,8 @@ const _cellularManualArtistVerificationLimit = 24;
 const _compatibilityArtistVerificationLimit = 24;
 const _newestAlbumHealthProbePageSize = 100;
 const _manualNewestAlbumHealthProbeMaxPages = 5;
+const _meteredManualNewestAlbumHealthProbePageSize = 50;
+const _meteredManualAlbumHydrationLimit = 3;
 
 String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
   return _readNavisStringCapability(
@@ -755,6 +757,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   Future<LibrarySyncState>? _inFlight;
   bool _cancelled = false;
   bool allowMeteredBackgroundOverride = false;
+  bool allowMeteredManualDiscovery = false;
   Map<String, int> lastEndpointRequestCounts = const <String, int>{};
 
   /// Cancel any in-progress sync. Durable orchestration retains the work.
@@ -780,7 +783,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
   void _ensureBackgroundWorkAllowed() {
     final policy = _currentSyncPolicy;
-    if (policy.allowsBackgroundSync || allowMeteredBackgroundOverride) {
+    if (policy.allowsBackgroundSync ||
+        allowMeteredBackgroundOverride ||
+        allowMeteredManualDiscovery) {
       return;
     }
     _api.cancelActiveRequests();
@@ -2332,19 +2337,28 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     // scans a fixed 500-album window, independent of `getIndexes`; automatic
     // checks retain the original low-data one-page probe plus a look-ahead
     // only when that first page is entirely newer or unknown.
-    final maxPages = manual ? _manualNewestAlbumHealthProbeMaxPages : 2;
+    final limitedMeteredManualDiscovery =
+        manual && allowMeteredManualDiscovery && _currentSyncPolicy.isMetered;
+    final maxPages = limitedMeteredManualDiscovery
+        ? 1
+        : manual
+        ? _manualNewestAlbumHealthProbeMaxPages
+        : 2;
+    final pageSize = limitedMeteredManualDiscovery
+        ? _meteredManualNewestAlbumHealthProbePageSize
+        : _newestAlbumHealthProbePageSize;
     final pages = <Album>[];
     for (var pageIndex = 0; pageIndex < maxPages; pageIndex++) {
       final page = await _withRetry(
         () => _api.getNewestAlbumListPage(
-          size: _newestAlbumHealthProbePageSize,
-          offset: pageIndex * _newestAlbumHealthProbePageSize,
+          size: pageSize,
+          offset: pageIndex * pageSize,
         ),
         metrics: metrics,
         endpoint: 'getNewestAlbumList2',
       );
       pages.addAll(page);
-      if (page.length < _newestAlbumHealthProbePageSize) {
+      if (page.length < pageSize) {
         break;
       }
       if (manual) {
@@ -3339,6 +3353,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
+    final limitedMeteredManualDiscovery =
+        manual && allowMeteredManualDiscovery && _currentSyncPolicy.isMetered;
     var current = _withMetrics(
       state.copyWith(
         stage: LibrarySyncStage.fetchingArtists,
@@ -3477,6 +3493,17 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       discrepantAlbums: <Album>[],
     );
     if (healthProbeDue) {
+      if (limitedMeteredManualDiscovery) {
+        current = _withMetrics(
+          current.copyWith(
+            stage: LibrarySyncStage.fetchingAlbums,
+            clearProcessed: true,
+            clearTotal: true,
+          ),
+          metrics,
+        );
+        onProgress?.call(current);
+      }
       healthProbe = await _runNewestAlbumHealthProbe(metrics, manual: manual);
       await _updateVerificationCapabilities(
         <String, Object?>{_libraryHealthCheckedAtCapabilityKey: now},
@@ -3484,6 +3511,53 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       );
       await _stageNewestAlbumsForHydration(
         healthProbe.discrepantAlbums,
+        metrics,
+      );
+    }
+
+    // Cellular "Check for updates" deliberately stops here: the newest feed
+    // identifies candidate albums without enumerating artists or indexing the
+    // library's songs. Hydrate at most a few changed albums (each response is
+    // budgeted by the existing metered transport guard); leave all other
+    // pending work for Wi-Fi or the explicit broad-data action.
+    if (limitedMeteredManualDiscovery) {
+      final discoveredAlbumIds = healthProbe.discrepantAlbums
+          .map((album) => album.id)
+          .take(_meteredManualAlbumHydrationLimit)
+          .toList(growable: false);
+      current = await _hydratePendingSongs(
+        state: _withMetrics(
+          current.copyWith(
+            metadataReady: true,
+            pendingHydrationCount: await _database.libraryDao
+                .countPendingHydrationAlbums(),
+            hydratedAlbums: 0,
+          ),
+          metrics,
+        ),
+        priorityAlbumIds: discoveredAlbumIds,
+        restrictedAlbumIds: discoveredAlbumIds,
+        serverCapabilitiesJson: serverConfig.capabilitiesJson,
+        storedBulkSongSearchQuery: null,
+        excludedAlbumIds: const <String>{},
+        metrics: metrics,
+        onProgress: onProgress,
+      );
+      final pendingHydrationCount = await _database.libraryDao
+          .countPendingHydrationAlbums();
+      if (pendingHydrationCount > 0) {
+        metrics.skippedReason = 'meteredManualDiscoveryBounded';
+      }
+      return _withMetrics(
+        current.copyWith(
+          stage: LibrarySyncStage.finalizing,
+          remainingVerificationCount: 0,
+          freshness: pendingHydrationCount > 0
+              ? LibrarySyncFreshness.verificationPending
+              : current.freshness,
+          clearProcessed: true,
+          clearTotal: true,
+        ),
         metrics,
       );
     }
@@ -4077,6 +4151,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required String? serverCapabilitiesJson,
     required String? storedBulkSongSearchQuery,
     required Iterable<String> excludedAlbumIds,
+    Iterable<String>? restrictedAlbumIds,
     int? catalogGeneration,
     int? candidateServerId,
     required _SyncRunMetrics metrics,
@@ -4093,6 +4168,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                 : await _database.libraryDao.getPendingHydrationAlbumIds())
             .toSet()
           ..removeAll(_normalizeAlbumIds(excludedAlbumIds));
+    if (restrictedAlbumIds != null) {
+      pendingAlbumIds.retainAll(_normalizeAlbumIds(restrictedAlbumIds));
+    }
     final pending = pendingAlbumIds.length;
     if (pending == 0) {
       return _withMetrics(
@@ -4409,6 +4487,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         limit: writeChunkSize,
         candidateServerId: candidateServerId,
         catalogGeneration: catalogGeneration,
+        restrictedAlbumIds: restrictedAlbumIds,
       );
       if (chunk.isEmpty) {
         break;
@@ -4465,7 +4544,25 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required int limit,
     int? candidateServerId,
     int? catalogGeneration,
+    Iterable<String>? restrictedAlbumIds,
   }) async {
+    final restricted = restrictedAlbumIds == null
+        ? null
+        : _normalizeAlbumIds(restrictedAlbumIds);
+    if (restricted != null) {
+      if (candidateServerId != null && catalogGeneration != null) {
+        return _database.librarySyncCandidateDao.getPendingAlbumIds(
+          serverId: candidateServerId,
+          generation: catalogGeneration,
+          preferredIds: restricted,
+          limit: limit,
+        );
+      }
+      return (await _database.libraryDao.getPendingHydrationAlbumsByIds(
+        restricted,
+        limit: limit,
+      )).map((album) => album.id).toList(growable: false);
+    }
     if (candidateServerId != null && catalogGeneration != null) {
       return _database.librarySyncCandidateDao.getPendingAlbumIds(
         serverId: candidateServerId,
@@ -4992,11 +5089,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   Future<_AlbumFetchResult> _fetchAlbumDetailResilient(
     String albumId, {
     required _SyncRunMetrics metrics,
+    int? maxResponseBytes,
   }) async {
     var attempts = 1;
     try {
       final album = await _withRetry(
-        () => _api.getAlbum(albumId),
+        () => _api.getAlbum(albumId, maxResponseBytes: maxResponseBytes),
         metrics: metrics,
         endpoint: 'getAlbum',
         onFinalFailure: (error, finalAttempts) {
@@ -5047,6 +5145,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     final requeueAlbumIds = <String>[];
     final hardFailedAlbumIds = <String>[];
     var offset = 0;
+    final maxResponseBytes = _meteredResponseBudgetBytes();
 
     while (offset < chunk.length) {
       final batchSize = concurrencyController.current;
@@ -5063,6 +5162,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           (albumId) => _fetchAlbumDetailResilient(
             albumId,
             metrics: metrics,
+            maxResponseBytes: maxResponseBytes,
           ),
         ),
       );

@@ -57,6 +57,14 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.4', [
     _Entry(
+      'Check for updates on mobile data now safely finds recent changed albums instead of stopping at an unchanged server cursor',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Library Recently Added order now stays stable after a full sync when a server omits an album creation date',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Android can now recover eligible automatic library checks through the system scheduler after the app process exits, with Sync Settings showing the requested cadence and safe outcome',
       type: _EntryType.improvement,
     ),

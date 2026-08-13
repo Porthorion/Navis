@@ -167,6 +167,23 @@ void main() {
   });
 
   test(
+    'manual cellular check uses bounded discovery, not a probe or repair',
+    () {
+      final plan = planner.plan(
+        context(
+          request: const LibrarySyncRequest.checkForUpdates(),
+          networkType: NetworkType.cellular,
+          due: false,
+        ),
+      );
+
+      expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
+      expect(plan.shouldExecute, isTrue);
+      expect(plan.reason, 'manualMeteredLimitedDiscovery');
+    },
+  );
+
+  test(
     'offline manual check retains bounded discovery for eligible resume',
     () {
       final plan = planner.plan(

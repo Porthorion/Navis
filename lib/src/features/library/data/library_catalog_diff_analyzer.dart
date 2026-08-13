@@ -243,7 +243,8 @@ class LibraryCatalogDiffAnalyzer {
         existing.coverArt != candidate.coverArt ||
         existing.songsHydrated != candidate.songsHydrated ||
         existing.playCount != candidate.playCount ||
-        existing.serverCreatedAt != candidate.serverCreatedAt;
+        (candidate.serverCreatedAt != null &&
+            existing.serverCreatedAt != candidate.serverCreatedAt);
   }
 
   static bool songNeedsApply(

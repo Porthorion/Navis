@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 ---
 
@@ -18,6 +18,16 @@ Last updated: 2026-08-12
 > precedent. Current agent policy requires the authenticated Navis API and
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
+
+- [x] Metered manual discovery and Recently Added ordering recovery — 2026-08-13
+  (evidence: focused planner, coordinator, engine, canonical DAO, candidate
+  classifier, and ordering suites pass; the isolated Linux clone app API
+  exercised `POST /v1/sync/check` under a cellular diagnostics override and
+  reported `deltaReconcile/manualMeteredLimitedDiscovery` with one
+  `getNewestAlbumList2`, no `getArtist` or bulk-song request, and three
+  `getAlbum` details. The subsequent unrelated full-repair section of
+  `sync_diagnostics.sh clone` stopped at an existing `leaseHeld` durable-work
+  state, so that full-suite result is not claimed as a pass.)
 
 - [x] Sync reliability recovery — 2026-08-12 (source of truth:
   `docs/sync-reliability-recovery-plan.md`; implemented manual bounded newest

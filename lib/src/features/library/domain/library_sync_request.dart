@@ -88,6 +88,7 @@ class LibrarySyncRequest {
     required this.intent,
     this.target = const LibrarySyncTarget.catalog(),
     this.allowMeteredBroadOverride = false,
+    this.allowMeteredLimitedDiscovery = false,
   });
 
   const LibrarySyncRequest.automatic({
@@ -96,10 +97,12 @@ class LibrarySyncRequest {
 
   const LibrarySyncRequest.checkForUpdates({
     bool allowMeteredBroadOverride = false,
+    bool allowMeteredLimitedDiscovery = true,
   }) : this(
          trigger: LibrarySyncTrigger.user,
          intent: LibrarySyncIntent.checkForUpdates,
          allowMeteredBroadOverride: allowMeteredBroadOverride,
+         allowMeteredLimitedDiscovery: allowMeteredLimitedDiscovery,
        );
 
   const LibrarySyncRequest.repair({
@@ -117,6 +120,11 @@ class LibrarySyncRequest {
   /// Ephemeral one-time override for broad catalog work on a metered network.
   /// Never persisted into durable work rows.
   final bool allowMeteredBroadOverride;
+
+  /// Allows the foreground "Check for updates" action to inspect one bounded
+  /// newest-album page on a metered network. This never permits artist-wide
+  /// verification, bulk-song indexing, or a catalog repair.
+  final bool allowMeteredLimitedDiscovery;
 }
 
 enum LibrarySyncPlanKind {

@@ -34,8 +34,11 @@ It checks that release discovery metadata and the canonical
 media-browser bind permission blocks Android Auto.
 
 Library sync metered-network guardrails are exercised by the clone diagnostics
-suite (`./tool/sync_diagnostics.sh clone`), which can simulate network cost
-overrides without cellular hardware.
+suite (`./tool/sync_diagnostics.sh clone`):
+automatic cellular work remains a single probe, while a foreground manual check
+is certified as `manualMeteredLimitedDiscovery` with one newest-album page, no
+artist sweep or bulk-song index, and no more than three album details.
+It can simulate network cost overrides without cellular hardware.
 
 Target-hydration controller isolation has a separate clone-only Linux gate:
 

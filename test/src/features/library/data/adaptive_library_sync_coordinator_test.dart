@@ -590,7 +590,7 @@ void main() {
   );
 
   test(
-    'manual cellular refresh requires an explicit broad-data override',
+    'manual cellular refresh runs bounded discovery before a broad-data override',
     () async {
       await database.librarySyncDao.writeState(
         const LibrarySyncStateTableCompanion(
@@ -616,19 +616,22 @@ void main() {
         now: () => DateTime.utc(2026, 8, 4),
       );
 
-      final probeResult = await meteredCoordinator.syncNow();
+      final discoveryResult = await meteredCoordinator.syncNow();
 
-      expect(probeResult.planKind, LibrarySyncPlanKind.probe);
-      expect(probeResult.planReason, 'manualMeteredProbe');
-      expect(probeEngine.probeCalls, 1);
-      expect(probeEngine.syncNowCalls, 0);
+      expect(discoveryResult.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(
+        discoveryResult.planReason,
+        'manualMeteredLimitedDiscovery',
+      );
+      expect(probeEngine.probeCalls, 0);
+      expect(probeEngine.syncNowCalls, 1);
 
-      final discoveryResult = await meteredCoordinator.syncNow(
+      final broadResult = await meteredCoordinator.syncNow(
         allowMeteredBroadOverride: true,
       );
 
-      expect(discoveryResult.planKind, LibrarySyncPlanKind.deltaReconcile);
-      expect(probeEngine.syncNowCalls, 1);
+      expect(broadResult.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(probeEngine.syncNowCalls, 2);
     },
     skip: !sqliteAvailable,
   );

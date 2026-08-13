@@ -597,6 +597,15 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           isProvisional: const Value(false),
           isExternal: const Value(false),
         );
+        // getAlbum and older Subsonic implementations may omit `created`.
+        // Absence is not deletion authority: preserving the existing server
+        // timestamp keeps Recently Added stable across detail hydration.
+        if (!canonicalAlbum.serverCreatedAt.present ||
+            canonicalAlbum.serverCreatedAt.value == null) {
+          canonicalAlbum = canonicalAlbum.copyWith(
+            serverCreatedAt: const Value.absent(),
+          );
+        }
         final id = canonicalAlbum.id.present ? canonicalAlbum.id.value : null;
         if (id != null && pendingStars.containsKey(id)) {
           canonicalAlbum = canonicalAlbum.copyWith(

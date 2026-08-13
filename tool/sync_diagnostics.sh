@@ -711,6 +711,23 @@ assert endpoints.get("getIndexes", 0) <= 1, endpoints
 assert value.get("planKind") in (None, "probe", "targetedHydration"), value
 PY
 
+  # A foreground user request is deliberately more useful than automatic
+  # cellular work, but still must not turn into a catalog/artist/song sweep.
+  api POST /v1/sync/check '{}' \
+    > "$OUTPUT_ROOT/guardrails-cellular-manual-check-start.json"
+  wait_for_sync > "$OUTPUT_ROOT/guardrails-cellular-manual-check-result.json"
+  python3 - "$OUTPUT_ROOT/guardrails-cellular-manual-check-result.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+endpoints = value.get("endpointRequests") or {}
+assert value.get("planKind") == "deltaReconcile", value
+assert value.get("planReason") == "manualMeteredLimitedDiscovery", value
+assert endpoints.get("getNewestAlbumList2", 0) == 1, endpoints
+assert endpoints.get("getArtist", 0) == 0, endpoints
+assert endpoints.get("searchSongsPage", 0) == 0, endpoints
+assert endpoints.get("getAlbum", 0) <= 3, endpoints
+PY
+
   api POST /v1/diagnostics/overrides \
     '{"networkType":"wifi","nativeMetered":true,"backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
     > "$OUTPUT_ROOT/guardrails-overrides-metered-wifi.json"

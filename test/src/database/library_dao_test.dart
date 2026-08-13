@@ -189,6 +189,45 @@ void main() {
     );
 
     test(
+      'album detail without created preserves Recently Added server ordering',
+      () async {
+        final created = DateTime.utc(2026, 8, 10);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-old',
+            name: 'Old album',
+            serverCreatedAt: Value(created),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-new',
+            name: 'New album',
+            serverCreatedAt: Value(DateTime.utc(2026, 8, 11)),
+          ),
+        ]);
+
+        // getAlbum responses from compatible servers may omit `created`.
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(id: 'album-old', name: 'Old album'),
+        ]);
+
+        final albums = await database.libraryDao
+            .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
+            .first;
+        expect(albums.map((album) => album.id), <String>[
+          'album-new',
+          'album-old',
+        ]);
+        expect(
+          (await database.libraryDao.getAlbumById(
+            'album-old',
+          ))?.serverCreatedAt?.toUtc(),
+          created,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'watchArtistAlbumBuckets keeps primary albums separate from featured appearances',
       () async {
         await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[

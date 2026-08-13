@@ -639,7 +639,9 @@ cached-file paths in the clone so cancellation, restart, and deletion tests
 cannot unlink primary cache files. Clone mode can simulate metered/cellular
 policy through diagnostics overrides and asserts hard-probe, interactive
 hydration, budget, and one-time override guardrails without requiring a real
-modem.
+modem. The clone suite also certifies the foreground cellular Check for updates
+path: exactly one newest-album page, no artist/bulk-song sweep, and at most
+three changed-album details.
 
 To validate cache migration for a provisional song after the server has
 canonicalized it, run the focused clone-only scenario:

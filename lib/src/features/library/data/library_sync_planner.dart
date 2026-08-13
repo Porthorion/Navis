@@ -134,15 +134,20 @@ class LibrarySyncPlanner {
         );
       }
       if (context.restrictsBackgroundSync &&
-          !request.allowMeteredBroadOverride) {
+          !request.allowMeteredBroadOverride &&
+          !request.allowMeteredLimitedDiscovery) {
         return const LibrarySyncPlan(
           kind: LibrarySyncPlanKind.probe,
           reason: 'manualMeteredProbe',
         );
       }
-      return const LibrarySyncPlan(
+      return LibrarySyncPlan(
         kind: LibrarySyncPlanKind.deltaReconcile,
-        reason: 'manualCatalogDiscovery',
+        reason:
+            context.restrictsBackgroundSync &&
+                !request.allowMeteredBroadOverride
+            ? 'manualMeteredLimitedDiscovery'
+            : 'manualCatalogDiscovery',
       );
     }
 

@@ -73,6 +73,35 @@ void main() {
     expect(stats.unchangedCount, 3);
   });
 
+  test(
+    'candidate without created preserves an existing server creation date',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await _seedMatchingCatalog(database, songCount: 1);
+      final created = DateTime.utc(2026, 8, 10);
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'album-1',
+          name: 'Album',
+          artistId: const Value('artist-1'),
+          artistName: const Value('Artist'),
+          songCount: const Value(1),
+          songsHydrated: const Value(true),
+          serverCreatedAt: Value(created),
+        ),
+      ]);
+
+      final stats = await LibraryCatalogDiffAnalyzer(database).analyze(
+        serverId: 1,
+        generation: 2,
+      );
+
+      expect(stats.albumChangedCount, 0);
+      expect(stats.albumUnchangedCount, 1);
+    },
+  );
+
   test('large candidates stay within the configured page bound', () async {
     final database = createTestDatabase();
     addTearDown(database.close);

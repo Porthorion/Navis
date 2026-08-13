@@ -817,9 +817,11 @@ replay/end-of-queue feedback instead.
    cursor is unchanged. If that explicit request
    is made offline, its durable work remains delta reconciliation and resumes
    when an eligible connection returns; it must never be degraded to an
-   indexes-only probe. On a metered connection, ordinary Check for updates is
-   intentionally a cheap probe until the user gives the one-time mobile-data
-   consent for broad discovery. Discrepant on-server albums use ordinary song
+   indexes-only probe. On a metered connection, ordinary Check for updates
+   inspects one bounded 50-album newest page and hydrates at most three changed
+   albums; it never runs an artist sweep or bulk-song index. Remaining work
+   waits for an unmetered connection or the user's one-time mobile-data consent
+   for broad discovery. Discrepant on-server albums use ordinary song
    hydration and identity/cache reconciliation, so a new album does not wait
    behind a large rotating artist audit.
    The long-lived engine reads this policy directly from the root provider
