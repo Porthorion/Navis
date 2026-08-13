@@ -193,14 +193,17 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: <Widget>[
-                                  FilledButton.tonalIcon(
+                                  // Play is the one primary entity action;
+                                  // Shuffle and Download remain supporting
+                                  // actions, matching album and artist detail.
+                                  FilledButton.icon(
                                     onPressed: visibleSongs.isEmpty
                                         ? null
                                         : () => _queuePlaylist(
                                             visibleSongs,
                                             shuffle: false,
                                           ),
-                                    icon: const Icon(Icons.play_arrow_outlined),
+                                    icon: const Icon(Icons.play_arrow),
                                     label: Text(l10n.playlistDetailPlayAction),
                                   ),
                                   FilledButton.tonalIcon(
@@ -282,14 +285,17 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         child: Wrap(
                           spacing: 8,
                           children: [
-                            FilledButton.tonalIcon(
+                            // Keep the phone hierarchy identical to desktop:
+                            // one filled Play action, then tonal supporting
+                            // actions.
+                            FilledButton.icon(
                               onPressed: visibleSongs.isEmpty
                                   ? null
                                   : () => _queuePlaylist(
                                       visibleSongs,
                                       shuffle: false,
                                     ),
-                              icon: const Icon(Icons.play_arrow_outlined),
+                              icon: const Icon(Icons.play_arrow),
                               label: Text(l10n.playlistDetailPlayAction),
                             ),
                             FilledButton.tonalIcon(

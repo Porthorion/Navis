@@ -51,6 +51,18 @@ Last updated: 2026-08-14
   adaptive Settings coverage passes; final quality gate evidence is recorded
   with this change.)
 
+- [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
+  now appear as a localized, dismissible Home card that opens the full
+  changelog instead of a blocking first-run dialog. Focused Home and 200%
+  text-scale golden coverage passes; the approved implementation is committed
+  in `9061afd`.)
+
+- [ ] Cross-platform entity-action placement policy — partial: 2026-08-14
+  (approved on physical Android: playlist detail now makes Play the one filled
+  primary action and keeps Shuffle and Download tonal, matching the established
+  album/artist hierarchy on phone and desktop. Deterministic before/after
+  visual coverage passes; context menus still need to converge on the policy.)
+
 - [ ] Active desktop metadata visual coverage — partial: 2026-08-13
   (deterministic player-bar goldens now cover long title/artist truncation at
   800×600, standard and ultra-wide hierarchy, and 130% text scale. Mini Player
