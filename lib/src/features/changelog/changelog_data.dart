@@ -42,6 +42,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Compact landscape navigation now has accessible destination names and hover labels',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Album card titles and artists now fade in smoothly when returning from an album page',
         type: ChangelogEntryType.fix,
       ),

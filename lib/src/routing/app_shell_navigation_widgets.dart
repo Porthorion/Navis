@@ -41,16 +41,30 @@ class _CompactIconRail extends StatelessWidget {
                 child: SizedBox(
                   width: hitTargetWidth,
                   height: double.infinity,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => onDestinationSelected(i),
-                    child: Center(
-                      child: Icon(
-                        destinations[i].icon,
-                        size: iconSize,
-                        color: i == selectedIndex
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
+                  child: Tooltip(
+                    message: destinations[i].label,
+                    waitDuration: const Duration(milliseconds: 400),
+                    child: Semantics(
+                      key: ValueKey<String>('compactRailNavTile-$i'),
+                      container: true,
+                      button: true,
+                      label: destinations[i].label,
+                      selected: i == selectedIndex,
+                      onTap: () => onDestinationSelected(i),
+                      child: ExcludeSemantics(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => onDestinationSelected(i),
+                          child: Center(
+                            child: Icon(
+                              destinations[i].icon,
+                              size: iconSize,
+                              color: i == selectedIndex
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),

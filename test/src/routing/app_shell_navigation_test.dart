@@ -1257,6 +1257,35 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(NavigationBar), findsNothing);
+    final libraryRailTile = find.byKey(
+      const ValueKey<String>('compactRailNavTile-1'),
+    );
+    expect(libraryRailTile, findsOneWidget);
+    final librarySemantics = tester.widget<Semantics>(libraryRailTile);
+    expect(librarySemantics.properties.label, 'Library');
+    expect(librarySemantics.properties.onTap, isNotNull);
+    expect(find.byTooltip('Library'), findsOneWidget);
+
+    await expectLater(
+      find.byType(Overlay).first,
+      matchesGoldenFile('goldens/compact_rail_before_tooltip.png'),
+    );
+
+    final tooltipState = tester.state<TooltipState>(
+      find.ancestor(of: libraryRailTile, matching: find.byType(Tooltip)),
+    );
+    expect(tooltipState.ensureTooltipVisible(), isTrue);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+
+    await expectLater(
+      find.byType(Overlay).first,
+      matchesGoldenFile('goldens/compact_rail_with_tooltip.png'),
+    );
+
+    // Advancing the clock also exposes the test environment's retrying
+    // artist-info provider. Flush its initial retry before test teardown.
+    await tester.pump(const Duration(milliseconds: 500));
   });
 
   testWidgets(

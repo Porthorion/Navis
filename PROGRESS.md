@@ -33,6 +33,12 @@ Last updated: 2026-08-13
   context explicit. Focused shell and deterministic before/after golden
   coverage pass; final quality gate evidence is recorded with this change.)
 
+- [x] Compact landscape rail accessibility — 2026-08-13 (each icon-only rail
+  destination now exposes its label and selected state to assistive technology
+  and shows a short hover label without changing the resting compact layout.
+  Focused semantic and before/after tooltip golden coverage pass; final quality
+  gate evidence is recorded with this change.)
+
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
   source Hero tag now travels through `NavService` to album detail from Home,
