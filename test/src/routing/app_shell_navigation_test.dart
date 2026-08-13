@@ -742,6 +742,23 @@ void main() {
     await tester.pump(const Duration(milliseconds: 201));
   });
 
+  testWidgets('desktop player keeps long metadata balanced at ultra-wide', (
+    tester,
+  ) async {
+    await pumpDesktopLongMetadata(tester, const Size(1920, 1080));
+
+    expect(find.text(_longMetadataSong.title), findsOneWidget);
+    expect(find.text(_longMetadataSong.artistName!), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey<String>('desktopPlayerBar')),
+      matchesGoldenFile(
+        'goldens/desktop_player_long_metadata_1920x1080.png',
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
   testWidgets('desktop player remains usable at 130 percent text scale', (
     tester,
   ) async {

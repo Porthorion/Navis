@@ -53,8 +53,8 @@ Last updated: 2026-08-13
 
 - [ ] Active desktop metadata visual coverage — partial: 2026-08-13
   (deterministic player-bar goldens now cover long title/artist truncation at
-  800×600, standard-width hierarchy, and 130% text scale. Mini Player,
-  ultra-wide, and remote variants remain.)
+  800×600, standard and ultra-wide hierarchy, and 130% text scale. Mini Player
+  has active/empty coverage; remote variants remain.)
 
 - [ ] Reduced-motion surface coverage — partial: 2026-08-13 (the shared
   motion policy now removes transient status-notice travel and fade alongside
