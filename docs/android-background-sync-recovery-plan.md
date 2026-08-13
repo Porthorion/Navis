@@ -1,8 +1,9 @@
 # Android Background Sync Recovery Plan
 
-**Status:** implementation complete; physical-device certification pending
+**Status:** internal implementation exists; public enablement is blocked on the
+closure work and physical-device certification below
 **Owner:** Navis library-sync architecture  
-**Last reviewed:** 2026-08-12  
+**Last reviewed:** 2026-08-13
 **Related:** [sync-reliability-recovery-plan.md](sync-reliability-recovery-plan.md)
 
 ## Decision
@@ -22,28 +23,92 @@ after the visible app exits. It is opportunistic, not an exact clock: periodic
 work has a minimum 15-minute interval and may be delayed by Doze, quotas, or
 other system constraints. [Android task scheduling](https://developer.android.com/develop/background-work/background-tasks/persistent), [periodic work requests](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work)
 
-## Why Android currently fails
+## Current implementation and why it is not certified
 
-The current implementation provides only in-process scheduling:
+The original in-process timer is still deliberately cancelled when the app
+backgrounds. That is correct: it is only the foreground convenience timer, not
+an Android executor. The current internal build now also has a WorkManager
+bridge: `AndroidBackgroundSyncScheduler`, `NavisBackgroundSyncWorker`, and the
+retained `navisBackgroundSyncEntrypoint`. It uses unique periodic `UPDATE`, a
+separate unique `KEEP` catch-up request, an opaque profile key, a headless
+Flutter engine, and the existing database execution lease.
 
-1. `LibrarySyncController._onAppBackgrounded()` cancels the automatic timer.
-2. `_armAutomaticCheckTimer()` immediately returns if the app is not
-   foregrounded.
-3. The Android module has no `androidx.work` dependency, `Worker`,
-   `JobScheduler` job, or scheduler bridge.
-4. The only declared foreground service is the existing media-playback service;
-   it is unrelated to metadata sync.
+That is necessary architecture, but it is not proof that background sync works
+on a real phone. The capability is still disabled by default through
+`NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC`; no physical-device matrix has certified
+process death, reboot, constraints, or cancellation. It must not be described
+as fixed for release users yet.
 
-Therefore “background sync” currently means *a sync that can continue while
-the Flutter process happens to remain alive*. It does **not** mean Android can
-launch Navis later, after it has been backgrounded or killed. Android 14 is
-especially explicit that arbitrary work after an activity stops is unreliable;
-framework schedulers such as WorkManager are the supported route. [Android 14
-cached-app behavior](https://developer.android.com/about/versions/14/behavior-changes-all)
+The earlier quiet failure has also changed shape rather than disappeared:
 
-The recent sync-reliability work fixed duplicate foreground triggers, durable
-deadlines, offline work persistence, and safe catalog writes. It intentionally
-does not make the in-process timer an Android background executor.
+1. `configurePeriodic()` and `enqueueCatchup()` return `scheduled`/
+   `enqueued` immediately after calling WorkManager. They do not await the
+   returned `Operation`, so a native enqueue failure can be persisted as a
+   false success.
+2. The worker maps an engine-ready timeout or any unclassified Kotlin exception
+   to `Result.retry()` without a durable terminal category. The last persisted
+   state can therefore remain `running`, while the user sees only a later
+   WorkManager retry.
+3. The headless runner snapshots connectivity and metering once, then passes a
+   constant policy callback to a potentially long sync. A Wi-Fi-to-cellular
+   transition after worker start can therefore violate the intended live
+   background policy until the pass ends.
+4. `AudioManager.isMusicActive()` reports device-wide audio, not Navis-owned
+   playback. It can defer Navis because another app is playing, and it cannot
+   prove that Navis itself is inactive after a process restart.
+5. Native coverage is only JVM-level scheduling/result-mapping tests. It does
+   not instantiate WorkManager with `WorkManagerTestInitHelper`, drive a
+   `TestDriver`, run a headless Flutter engine, or verify a device after Navis
+   is swiped away/killed.
+
+Android's own guidance is the reason these are release blockers: WorkManager
+is persistent and constraint-aware, but execution is eventual and a regular
+worker has a ten-minute execution ceiling. Its returned `Operation` is the
+acknowledgement that enqueueing completed; treating the call itself as success
+removes the only reliable observation point. [WorkManager API](https://developer.android.com/reference/androidx/work/WorkManager.html),
+[updating enqueued work](https://developer.android.com/develop/background-work/background-tasks/persistent/how-to/update-work)
+
+## Studied closure register (2026-08-13)
+
+This is the source of truth for the remaining Android work. P0 items block
+enabling the feature outside internal builds; P1 items block calling it
+diagnosable and predictable; P2 items improve supportability after launch.
+
+| Priority | Finding in current code | Required correction | Evidence required before closure |
+| --- | --- | --- | --- |
+| P0 | Native scheduling methods report success before the `Operation` completes. | Make channel scheduling asynchronous/off-main and await the WorkManager `Operation`. Persist `platformFailure` with a safe reason when it fails; do not overwrite a known-good schedule until the replacement is acknowledged. | Android integration test injects an enqueue failure and asserts the durable state is not `scheduled`; device diagnostics agrees with WorkManager. |
+| P0 | Timeout and catch-all Kotlin failure return `retry` but do not durably record what happened. | Define a native outcome hand-off that survives a Dart/bootstrap failure (redacted `Data` output or a small native persisted record read during reconciliation). On timeout, record `engineTimeout`; on cancellation/system stop, record `stoppedBySystem`; cap bootstrap retry attempts and record the cap. | Force ready timeout, Dart channel failure, and cancellation; reopening Navis shows the correct durable category, attempt count, and no stale `running` state. |
+| P0 | Headless policy is captured once before `requestSync`. | Supply a live policy reader that re-checks connectivity plus native metering at each coordinator/engine gate. If policy becomes ineligible, checkpoint/defer without continuing broad work. | Start unmetered, switch to metered during a controllable pass, and prove no additional broad endpoint calls occur after the transition. |
+| P0 | No instrumented Worker or physical-device certification exists. | Move/add `work-testing` under `androidTestImplementation`; add tests using `WorkManagerTestInitHelper`/`TestDriver` for periodic delay, constraints, `UPDATE`, `KEEP`, retry, and cancellation. Then run the full physical-device matrix below. | Test artifacts plus authenticated app API, WorkManager state, DB state, logs, and an inspected Settings screenshot from Android 12, 14, and target-SDK hardware. |
+| P1 | `isMusicActive()` is global-device audio, not Navis playback state. | Replace it with a durable Navis-owned playback-session marker written by the playback service, or classify it as `foreignAudioActive` and allow the normal planner/lease decision. Never label a foreign app as Navis playback. | Test with another audio app active and with Navis active; the recorded defer reason distinguishes both cases. |
+| P1 | Periodic and catch-up requests have different unique names. Both can boot a headless engine at once; the DB lease prevents catalog corruption but not needless engine/bootstrap work. | Add a very early durable dispatch gate before engine bootstrap, or make catch-up consult the periodic work state and skip when a current periodic dispatch is already running. Keep the database lease as the final authority. | Trigger both names concurrently and prove one engine reaches Dart, one clear `leaseHeld`/`alreadyDispatching` outcome, and no duplicated endpoints. |
+| P1 | Status reads `LiveData` with a two-second observer/latch and maps finished work to `none`. | Prefer a suspend/future WorkManager query off the main thread, retain the latest terminal native state/output and generation, and expose a bounded `statusUnavailable` rather than silently treating timeout as no work. | Simulated delayed/unavailable query leaves the last durable outcome intact and records `statusUnavailable`; Settings and diagnostics agree. |
+| P2 | The eight-minute Dart timeout is intentionally below WorkManager's ten-minute regular-worker ceiling, but no measured budget protects shutdown/checkpoint time on slow devices. | Add stage deadlines and a watchdog budget: stop new catalog work before the native deadline, checkpoint, then report a durable timed-out/deferred result. Do not make ordinary metadata sync a foreground service. | Slow-network/device test completes checkpoint and engine disposal before WorkManager stop; no forced service or battery-optimization exemption is requested. |
+| P2 | The feature flag is compile-time and only says enabled/disabled in durable state. | Preserve the conservative flag for rollout, but add a build/channel-visible capability reason and an internal kill switch that cancels native work on disable. | Toggle in an internal build, verify cancellation, then verify no late old-profile work can touch the new session. |
+
+The test-driver requirement is not cosmetic: Android documents it as the
+deterministic way to make constraints and periodic intervals eligible without
+waiting in a test. [WorkManager integration testing](https://developer.android.com/develop/background-work/background-tasks/testing/persistent/integration-testing)
+
+### Required implementation order
+
+1. **Make scheduling truthful.** Await native enqueue/cancel operations and
+   persist a bounded outcome for every native path before changing settings
+   presentation. This removes the current false `scheduled` success.
+2. **Make worker death truthful.** Add the native fallback outcome record,
+   cancellation handshake, retry cap, and stale-running recovery. A worker
+   that cannot start Dart is exactly the case that must still be observable.
+3. **Make eligibility live and ownership precise.** Re-read network cost while
+   the pass runs; replace the global-audio heuristic; add the early dispatch
+   gate. The existing SQLite lease remains the final catalog-write lock.
+4. **Prove the bridge under Android's scheduler.** Add instrumented
+   WorkManager tests before touching the release flag. Unit tests of names and
+   enum mapping are useful, but cannot prove a Worker is eligible, starts, or
+   survives process loss.
+5. **Certify then roll out gradually.** Run the device matrix, keep the
+   feature internal while collecting redacted terminal categories, then enable
+   only after the acceptance criteria pass. A user force-stop remains an
+   explicit platform limitation, not a bug to paper over.
 
 ## Product contract
 
