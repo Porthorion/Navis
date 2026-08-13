@@ -1164,40 +1164,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               ),
                             ),
                           ),
-                          // Album name — fades out as header collapses.
+                          // Keep album metadata on a consistent opaque surface
+                          // instead of depending on the underlying artwork's
+                          // luminance for legibility.
                           Positioned(
                             bottom: 0,
                             left: 0,
                             right: 0,
                             child: Opacity(
                               opacity: gradientScrollFade,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  0,
-                                  16,
-                                  16,
-                                ),
-                                child: Text(
-                                  details.name,
-                                  style: mobileTextTheme.displayMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                        shadows: <Shadow>[
-                                          Shadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.55,
-                                            ),
-                                            blurRadius: 12,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                              child: _buildMobileAlbumMetadataSurface(
+                                details: details,
+                                filteredSongs: filteredSongs,
+                                albumRating: albumRating,
+                                isStarred: isStarred,
+                                coverArtHeroTag: coverArtHeroTag,
+                                colors: mobileColors,
+                                textTheme: mobileTextTheme,
                               ),
                             ),
                           ),
@@ -1209,98 +1192,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        // Artist names (each individually clickable) + year inline
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            runSpacing: 2,
-                            children: <Widget>[
-                              ..._buildArtistChips(
-                                context: context,
-                                artists: _resolveArtists(details),
-                                textStyle: mobileTextTheme.bodyLarge?.copyWith(
-                                  color: mobileColors.primary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                dimStyle: mobileTextTheme.bodyLarge?.copyWith(
-                                  color: mobileColors.onSurfaceVariant,
-                                ),
-                              ),
-                              if (details.year != null)
-                                Text(
-                                  ' • ${details.year}',
-                                  style: mobileTextTheme.bodyMedium?.copyWith(
-                                    color: mobileColors.onSurfaceVariant,
-                                  ),
-                                ),
-                              if (details.isExternal) ...<Widget>[
-                                const SizedBox(width: 8),
-                                const RemoteSourceIndicator(
-                                  variant: RemoteSourceIndicatorVariant.chip,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        // Action buttons:
-                        //   Left  — play (icon), shuffle (icon), Rate (text)
-                        //   Right — like (icon), 3-dot context menu
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: <Widget>[
-                              IconButton(
-                                icon: const Icon(Icons.play_arrow),
-                                onPressed: filteredSongs.isEmpty
-                                    ? null
-                                    : () => _queueAlbum(
-                                        filteredSongs,
-                                        shuffle: false,
-                                      ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.shuffle),
-                                onPressed: filteredSongs.isEmpty
-                                    ? null
-                                    : () => _queueAlbum(
-                                        filteredSongs,
-                                        shuffle: true,
-                                      ),
-                              ),
-                              _RatingButton(
-                                rating: albumRating,
-                                loading: _isUpdatingRating,
-                                onChanged: (next) =>
-                                    unawaited(_updateAlbumRating(next)),
-                              ),
-                              const Spacer(),
-                              IconButton(
-                                icon: Icon(
-                                  isStarred
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                ),
-                                color: isStarred ? mobileColors.error : null,
-                                onPressed: _isStarring
-                                    ? null
-                                    : () => _toggleStar(isStarred: isStarred),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.more_vert),
-                                onPressed: () => unawaited(
-                                  _showMobileAlbumContextMenu(
-                                    details,
-                                    filteredSongs,
-                                    albumRating,
-                                    coverArtHeroTag,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                         // Filter label
                         Padding(
                           padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
@@ -2071,6 +1962,116 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 )
               : Icon(icon, color: iconColor),
           onPressed: onPressed,
+        ),
+      ),
+    );
+  }
+
+  /// The stable, high-contrast metadata and action surface used while the
+  /// mobile album artwork header is expanded.
+  Widget _buildMobileAlbumMetadataSurface({
+    required AlbumsTableData details,
+    required List<SongsTableData> filteredSongs,
+    required int? albumRating,
+    required bool isStarred,
+    required String coverArtHeroTag,
+    required ColorScheme colors,
+    required TextTheme textTheme,
+  }) {
+    return Material(
+      key: const ValueKey<String>('albumDetailMobileMetadataSurface'),
+      color: colors.surfaceContainerHigh,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              details.name,
+              style: textTheme.titleLarge?.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 2,
+              children: <Widget>[
+                ..._buildArtistChips(
+                  context: context,
+                  artists: _resolveArtists(details),
+                  textStyle: textTheme.bodyLarge?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  dimStyle: textTheme.bodyLarge?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                if (details.year != null)
+                  Text(
+                    ' • ${details.year}',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                if (details.isExternal) ...<Widget>[
+                  const SizedBox(width: 8),
+                  const RemoteSourceIndicator(
+                    variant: RemoteSourceIndicatorVariant.chip,
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                IconButton(
+                  icon: const Icon(Icons.play_arrow),
+                  onPressed: filteredSongs.isEmpty
+                      ? null
+                      : () => _queueAlbum(filteredSongs, shuffle: false),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.shuffle),
+                  onPressed: filteredSongs.isEmpty
+                      ? null
+                      : () => _queueAlbum(filteredSongs, shuffle: true),
+                ),
+                _RatingButton(
+                  rating: albumRating,
+                  loading: _isUpdatingRating,
+                  onChanged: (next) => unawaited(_updateAlbumRating(next)),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(
+                    isStarred ? Icons.favorite : Icons.favorite_border,
+                  ),
+                  color: isStarred ? colors.error : null,
+                  onPressed: _isStarring
+                      ? null
+                      : () => _toggleStar(isStarred: isStarred),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert),
+                  onPressed: () => unawaited(
+                    _showMobileAlbumContextMenu(
+                      details,
+                      filteredSongs,
+                      albumRating,
+                      coverArtHeroTag,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

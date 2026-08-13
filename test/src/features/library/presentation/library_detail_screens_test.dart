@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
@@ -205,6 +207,11 @@ Widget _buildApp({
       navisDatabaseProvider.overrideWithValue(database),
       serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
       subsonicApiProvider.overrideWith((_) => null),
+      connectivityProvider.overrideWith(
+        (_) =>
+            Stream.value(const <ConnectivityResult>[ConnectivityResult.wifi]),
+      ),
+      networkTypeProvider.overrideWithValue(NetworkType.wifi),
       ...overrides.cast(),
     ],
     child: MaterialApp(
@@ -731,6 +738,61 @@ void main() {
       expect(
         find.byKey(const ValueKey<String>('albumDetailCompactWideSplitPane')),
         findsNothing,
+      );
+      await _disposeApp(tester);
+    });
+
+    testWidgets('mobile album header readability golden', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _mobileContext,
+        album: _albumWithSongs(
+          const <SongsTableData>[
+            SongsTableData(
+              id: 'header-track',
+              title: 'Header Track',
+              track: 1,
+              isProvisional: false,
+              isExternal: false,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        find.byKey(
+          const ValueKey<String>('albumDetailMobileExpandedArtAppBar'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(
+          const ValueKey<String>('albumDetailMobileMetadataSurface'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getTopLeft(
+              find.byKey(
+                const ValueKey<String>('albumDetailMobileMetadataSurface'),
+              ),
+            )
+            .dy,
+        greaterThan(180),
+      );
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(CustomScrollView),
+        matchesGoldenFile('goldens/album_detail_mobile_header_after.png'),
       );
       await _disposeApp(tester);
     });

@@ -56,6 +56,11 @@ Last updated: 2026-08-13
   800×600, standard and ultra-wide hierarchy, and 130% text scale. Mini Player
   has active/empty coverage; remote variants remain.)
 
+- [ ] Mobile album-header readability device trial — 2026-08-13 (title,
+  artist/year, and album actions now share an opaque lower metadata surface in
+  the mobile artwork header; the change is isolated to one reversible commit
+  and requires Android/iOS review with pale and busy artwork.)
+
 - [ ] Reduced-motion surface coverage — partial: 2026-08-13 (the shared
   motion policy now removes transient status-notice travel and fade alongside
   the existing route and Hero behavior, and switches the expandable player
