@@ -51,6 +51,11 @@ Last updated: 2026-08-13
   adaptive Settings coverage passes; final quality gate evidence is recorded
   with this change.)
 
+- [ ] Active desktop metadata visual coverage — partial: 2026-08-13
+  (deterministic player-bar goldens now cover long title/artist truncation at
+  800×600 and standard-width hierarchy. Mini Player, ultra-wide, remote, and
+  text-scale variants remain.)
+
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
   source Hero tag now travels through `NavService` to album detail from Home,

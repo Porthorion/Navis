@@ -211,6 +211,19 @@ const PlaybackSnapshot _activePlayback = PlaybackSnapshot(
   repeatMode: AudioServiceRepeatMode.none,
 );
 
+const SongsTableData _longMetadataSong = SongsTableData(
+  id: 'song-1',
+  title:
+      'A Long Track Title That Must Stay Legible Without Taking Over the Desktop Player',
+  artistName: 'An Artist With A Deliberately Long Name For Metadata Coverage',
+  albumName:
+      'A Representative Album With Enough Metadata To Exercise The Layout',
+  artistId: 'artist-1',
+  albumId: 'album-1',
+  isProvisional: false,
+  isExternal: false,
+);
+
 void main() {
   IconButton desktopActionButton(WidgetTester tester, String key) {
     return tester.widget<IconButton>(
@@ -231,6 +244,32 @@ void main() {
       await tester.pump();
     }
     fail('Failed to focus desktop queue toggle via Tab traversal.');
+  }
+
+  Future<void> pumpDesktopLongMetadata(
+    WidgetTester tester,
+    Size size,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = size;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        songByIdProvider.overrideWith(
+          (ref, songId) => Stream.value(
+            songId == _longMetadataSong.id ? _longMetadataSong : null,
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
   }
 
   testWidgets('phone layout uses bottom navigation', (tester) async {
@@ -660,6 +699,45 @@ void main() {
     await expectLater(
       find.byKey(const ValueKey('desktopPlayerBar')),
       matchesGoldenFile('goldens/desktop_view_active_800x600.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
+  testWidgets(
+    'desktop player truncates representative long metadata at 800px',
+    (
+      tester,
+    ) async {
+      await pumpDesktopLongMetadata(tester, const Size(800, 600));
+
+      for (final text in <String>[
+        _longMetadataSong.title,
+        _longMetadataSong.artistName!,
+      ]) {
+        final metadata = tester.widget<Text>(find.text(text));
+        expect(metadata.maxLines, 1);
+        expect(metadata.overflow, TextOverflow.ellipsis);
+      }
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byKey(const ValueKey<String>('desktopPlayerBar')),
+        matchesGoldenFile('goldens/desktop_player_long_metadata_800x600.png'),
+      );
+      await tester.pump(const Duration(milliseconds: 201));
+    },
+  );
+
+  testWidgets('desktop player keeps long metadata balanced at standard width', (
+    tester,
+  ) async {
+    await pumpDesktopLongMetadata(tester, const Size(1280, 800));
+
+    expect(find.text(_longMetadataSong.title), findsOneWidget);
+    expect(find.text(_longMetadataSong.artistName!), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey<String>('desktopPlayerBar')),
+      matchesGoldenFile('goldens/desktop_player_long_metadata_1280x800.png'),
     );
     await tester.pump(const Duration(milliseconds: 201));
   });
