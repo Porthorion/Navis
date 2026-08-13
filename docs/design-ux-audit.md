@@ -42,6 +42,9 @@ headers could land on a layout-sized decode and a cached-image fade. All Hero
 participants now share the requested decode size and use no image fade, so the
 overlay hands off to the same opaque image variant.
 The shared Hero, mobile-detail, and route-transition widget coverage pass. The
+first motion-system slice now honors the platform reduced-motion preference for
+album/detail routes and the artwork-return metadata handoff; remaining sheets,
+player surfaces, and carousels are still pending. The
 current Linux clone diagnostic can verify a settled detail frame but cannot
 yet drive a mounted source card through the Hero flight; it therefore is not
 used as proof of the animation itself. Live Linux and physical Android/iOS

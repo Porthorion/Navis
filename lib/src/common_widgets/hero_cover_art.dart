@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 class HeroCoverArt extends StatelessWidget {
   const HeroCoverArt({
@@ -238,8 +239,6 @@ class HeroRouteChrome extends StatefulWidget {
 class _HeroRouteChromeState extends State<HeroRouteChrome>
     with SingleTickerProviderStateMixin
     implements _HeroChromeHandle {
-  static const Duration _returnFadeDuration = Duration(milliseconds: 120);
-
   late final AnimationController _returnFadeController;
   String? _registeredTag;
 
@@ -248,7 +247,7 @@ class _HeroRouteChromeState extends State<HeroRouteChrome>
     super.initState();
     _returnFadeController = AnimationController(
       vsync: this,
-      duration: _returnFadeDuration,
+      duration: Duration.zero,
       value: 1,
     );
   }
@@ -256,6 +255,7 @@ class _HeroRouteChromeState extends State<HeroRouteChrome>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _returnFadeController.duration = MotionPolicy.of(context).feedback;
     _syncRegistration();
   }
 

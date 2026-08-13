@@ -422,21 +422,60 @@ void main() {
     tester,
   ) async {
     final child = SizedBox(key: UniqueKey());
-    final page = buildSlideFadePage<void>(
-      key: const ValueKey<String>('album-detail'),
-      heroDriven: true,
-      child: child,
-    );
 
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
         child: Builder(
-          builder: (context) => page.transitionsBuilder(
-            context,
-            const AlwaysStoppedAnimation<double>(0.5),
-            const AlwaysStoppedAnimation<double>(0),
-            child,
+          builder: (context) {
+            final page = buildSlideFadePage<void>(
+              context: context,
+              key: const ValueKey<String>('album-detail'),
+              heroDriven: true,
+              child: child,
+            );
+            return page.transitionsBuilder(
+              context,
+              const AlwaysStoppedAnimation<double>(0.5),
+              const AlwaysStoppedAnimation<double>(0),
+              child,
+            );
+          },
+        ),
+      ),
+    );
+
+    expect(find.byKey(child.key!), findsOneWidget);
+    expect(find.byType(FadeTransition), findsNothing);
+    expect(find.byType(SlideTransition), findsNothing);
+  });
+
+  testWidgets('reduced motion removes the detail-route fade and slide', (
+    tester,
+  ) async {
+    final child = SizedBox(key: UniqueKey());
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: Builder(
+            builder: (context) {
+              final page = buildSlideFadePage<void>(
+                context: context,
+                key: const ValueKey<String>('detail'),
+                child: child,
+              );
+              expect(page.transitionDuration, Duration.zero);
+              expect(page.reverseTransitionDuration, Duration.zero);
+              return page.transitionsBuilder(
+                context,
+                const AlwaysStoppedAnimation<double>(0.5),
+                const AlwaysStoppedAnimation<double>(0),
+                child,
+              );
+            },
           ),
         ),
       ),

@@ -19,6 +19,14 @@ Last updated: 2026-08-13
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Reduced-motion navigation foundation — 2026-08-13 (new semantic
+  `MotionPolicy` honors the platform accessibility preference: album/detail
+  routes and returning album-card metadata now appear immediately when motion
+  is disabled, while standard motion remains 280 ms forward, 220 ms reverse,
+  and 120 ms feedback. Focused policy, router, Hero, and deterministic
+  before/after motion-frame golden coverage pass; final quality gate evidence
+  is recorded with this change.)
+
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
   source Hero tag now travels through `NavService` to album detail from Home,

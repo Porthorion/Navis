@@ -26,6 +26,7 @@ import 'package:navis/src/features/settings/presentation/server_settings_screen.
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
 import 'package:navis/src/routing/app_shell.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 /// Returns a [CustomTransitionPage] with a subtle slide-up + fade-in entry
 /// (and slide-down + fade-out on pop). Used for all list-to-detail and
@@ -35,17 +36,19 @@ import 'package:navis/src/routing/app_shell.dart';
 /// whole destination also fades the Hero's landing artwork, which produces a
 /// visible brightness jump as Flutter hands the flight back to that widget.
 CustomTransitionPage<T> buildSlideFadePage<T>({
+  required BuildContext context,
   required LocalKey key,
   required Widget child,
   bool heroDriven = false,
 }) {
+  final motion = MotionPolicy.of(context);
   return CustomTransitionPage<T>(
     key: key,
     child: child,
-    transitionDuration: const Duration(milliseconds: 280),
-    reverseTransitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: motion.navigationForward,
+    reverseTransitionDuration: motion.navigationReverse,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      if (heroDriven) {
+      if (heroDriven || motion.reduceMotion) {
         return child;
       }
       final fade = CurvedAnimation(
@@ -139,6 +142,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'artists/:id',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: ArtistDetailScreen(
                         artistId: state.pathParameters['id']!,
@@ -148,6 +152,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       GoRoute(
                         path: 'top-tracks',
                         pageBuilder: (context, state) => buildSlideFadePage(
+                          context: context,
                           key: state.pageKey,
                           child: ArtistTopTracksPlaylistDetailScreen(
                             artistId: state.pathParameters['id']!,
@@ -163,6 +168,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           ? state.extra! as String
                           : null;
                       return buildSlideFadePage(
+                        context: context,
                         key: state.pageKey,
                         heroDriven: openingHeroTag != null,
                         child: AlbumDetailScreen(
@@ -177,6 +183,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'playlists/:id',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: PlaylistDetailScreen(
                         playlistId: state.pathParameters['id']!,
@@ -186,6 +193,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'listenbrainz/:sourcePatch',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: ListenBrainzWeeklyDetailScreen(
                         sourcePatch: state.pathParameters['sourcePatch']!,
@@ -195,6 +203,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'liked-albums',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const LikedAlbumsAllScreen(),
                     ),
@@ -220,6 +229,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'server',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const ServerSettingsScreen(),
                     ),
@@ -227,6 +237,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'cache',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const CacheSettingsScreen(),
                     ),
@@ -234,6 +245,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'downloads',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const DownloadsScreen(),
                     ),
@@ -249,6 +261,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'playback',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const PlaybackSettingsScreen(),
                     ),
@@ -256,6 +269,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       GoRoute(
                         path: 'match-flow',
                         pageBuilder: (context, state) => buildSlideFadePage(
+                          context: context,
                           key: state.pageKey,
                           child: const MatchFlowScreen(),
                         ),
@@ -263,6 +277,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           GoRoute(
                             path: ':flowId/search',
                             pageBuilder: (context, state) => buildSlideFadePage(
+                              context: context,
                               key: state.pageKey,
                               child: MatchFlowSongSearchScreen(
                                 flowId: state.pathParameters['flowId']!,
@@ -276,6 +291,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'sync',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const SyncSettingsScreen(),
                     ),
@@ -283,6 +299,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'appearance',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const AppearanceSettingsScreen(),
                     ),
@@ -290,6 +307,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'about',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const AboutScreen(),
                     ),
@@ -297,6 +315,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       GoRoute(
                         path: 'changelog',
                         pageBuilder: (context, state) => buildSlideFadePage(
+                          context: context,
                           key: state.pageKey,
                           child: const ChangelogScreen(),
                         ),
@@ -304,6 +323,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       GoRoute(
                         path: 'privacy',
                         pageBuilder: (context, state) => buildSlideFadePage(
+                          context: context,
                           key: state.pageKey,
                           child: const PrivacyScreen(),
                         ),
@@ -313,6 +333,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'desktop-window',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const DesktopWindowSettingsScreen(),
                     ),
@@ -320,6 +341,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'shortcuts',
                     pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
                       key: state.pageKey,
                       child: const DesktopShortcutsSettingsScreen(),
                     ),
