@@ -51,7 +51,7 @@ void main() {
   });
 
   testWidgets(
-    'keeps source card chrome hidden until the final hero return phase',
+    'fades source card chrome only after the hero return completes',
     (
       tester,
     ) async {
@@ -68,25 +68,49 @@ void main() {
       await tester.pumpAndSettle();
       tester.state<NavigatorState>(find.byType(Navigator)).pop();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 250));
 
-      final initialReturnOpacity = tester.widget<Opacity>(
+      final duringHeroOpacity = tester.widget<Opacity>(
         find.ancestor(
           of: find.text('Source album metadata', skipOffstage: false),
           matching: find.byType(Opacity),
         ),
       );
-      expect(initialReturnOpacity.opacity, 0);
+      expect(duringHeroOpacity.opacity, 0);
 
-      await tester.pump(const Duration(milliseconds: 150));
-      final finalReturnOpacity = tester.widget<Opacity>(
+      final sourceRoute = ModalRoute.of(
+        tester.element(find.text('Source album metadata', skipOffstage: false)),
+      )!;
+      for (
+        var frame = 0;
+        frame < 40 &&
+            sourceRoute.secondaryAnimation!.status != AnimationStatus.dismissed;
+        frame++
+      ) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        sourceRoute.secondaryAnimation!.status,
+        AnimationStatus.dismissed,
+      );
+
+      final settledHeroOpacity = tester.widget<Opacity>(
         find.ancestor(
           of: find.text('Source album metadata', skipOffstage: false),
           matching: find.byType(Opacity),
         ),
       );
-      expect(finalReturnOpacity.opacity, greaterThan(0));
-      expect(finalReturnOpacity.opacity, lessThan(1));
+      expect(settledHeroOpacity.opacity, 0);
+
+      await tester.pump(const Duration(milliseconds: 60));
+      final settledReturnOpacity = tester.widget<Opacity>(
+        find.ancestor(
+          of: find.text('Source album metadata', skipOffstage: false),
+          matching: find.byType(Opacity),
+        ),
+      );
+      expect(settledReturnOpacity.opacity, greaterThan(0));
+      expect(settledReturnOpacity.opacity, lessThan(1));
     },
   );
 }

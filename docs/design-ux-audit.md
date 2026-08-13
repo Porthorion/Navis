@@ -28,9 +28,9 @@ single shared flight, removes the mobile-specific blank-capable shuttle, and
 suppresses the competing album-route slide when a Hero is present. Explicit
 source coverage now includes Home, Library views, Search, Artist, and Genre.
 Source-card title, artist, badge, and gradient chrome—including the large Home
-Random/desktop showcase variants—now remain hidden until the last portion of
-the return animation, then fade in instead of popping in when Hero ownership
-returns to the card.
+Random/desktop showcase variants—now remain hidden until the Hero return has
+settled, then fade in as a separate short transition instead of popping in
+while the artwork is still moving.
 The Linux isolated-clone route and clean-restart captures are inspected; the
 shared Hero and mobile-detail widget coverage pass. Physical Android/iOS
 motion capture remains part of the upcoming screenshot review before a release

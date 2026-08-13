@@ -159,7 +159,7 @@ String buildCoverArtHeroTag({
 /// The artwork itself is owned by the Navigator's Hero overlay. Without this
 /// companion fade, the source card's separately composed title/artist gradient
 /// can reappear in one frame when the Hero returns on pop.
-class HeroRouteChrome extends StatelessWidget {
+class HeroRouteChrome extends StatefulWidget {
   const HeroRouteChrome({
     required this.enabled,
     required this.child,
@@ -169,30 +169,85 @@ class HeroRouteChrome extends StatelessWidget {
   final bool enabled;
   final Widget child;
 
-  static const double _fadePhase = 0.45;
+  @override
+  State<HeroRouteChrome> createState() => _HeroRouteChromeState();
+}
+
+class _HeroRouteChromeState extends State<HeroRouteChrome>
+    with SingleTickerProviderStateMixin {
+  static const Duration _returnFadeDuration = Duration(milliseconds: 120);
+
+  late final AnimationController _returnFadeController = AnimationController(
+    vsync: this,
+    duration: _returnFadeDuration,
+    value: 1,
+  );
+  Animation<double>? _secondaryAnimation;
+  bool _wasCovered = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final secondaryAnimation = ModalRoute.of(context)?.secondaryAnimation;
+    if (_secondaryAnimation == secondaryAnimation) {
+      return;
+    }
+    _secondaryAnimation?.removeListener(_handleSecondaryTick);
+    _secondaryAnimation = secondaryAnimation;
+    _secondaryAnimation?.addListener(_handleSecondaryTick);
+    _handleSecondaryTick();
+  }
+
+  @override
+  void didUpdateWidget(covariant HeroRouteChrome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && oldWidget.enabled) {
+      _returnFadeController.value = 1;
+    }
+  }
+
+  void _handleSecondaryTick() {
+    final secondaryAnimation = _secondaryAnimation;
+    if (secondaryAnimation == null) {
+      return;
+    }
+    if (secondaryAnimation.value > 0) {
+      _wasCovered = true;
+      if (_returnFadeController.value != 0) {
+        _returnFadeController.value = 0;
+      }
+      return;
+    }
+    if (_wasCovered) {
+      _wasCovered = false;
+      _returnFadeController.forward(from: 0);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (!enabled) {
-      return child;
-    }
-    final secondaryAnimation = ModalRoute.of(context)?.secondaryAnimation;
-    if (secondaryAnimation == null) {
-      return child;
+    if (!widget.enabled || _secondaryAnimation == null) {
+      return widget.child;
     }
     return AnimatedBuilder(
-      animation: secondaryAnimation,
-      child: child,
+      animation: _returnFadeController,
+      child: widget.child,
       builder: (context, child) {
-        // The source route's [secondaryAnimation] moves from 0 to 1 while a
-        // detail page opens, then from 1 to 0 while it closes. Fade the chrome
-        // out in the first part of opening and keep it hidden until the Hero
-        // is almost back on pop. The previous unbounded curve made the chrome
-        // mostly opaque halfway through the return, which still read as a pop.
-        final phase = (secondaryAnimation.value / _fadePhase).clamp(0.0, 1.0);
-        final opacity = 1 - Curves.easeOutCubic.transform(phase);
+        // The Hero is complete only once the source route's secondary
+        // animation is dismissed. Keep the overlay hidden until then, then
+        // reveal it with a separate fade so it never competes with the art.
+        final opacity = Curves.easeOutCubic.transform(
+          _returnFadeController.value,
+        );
         return Opacity(opacity: opacity, child: child);
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _secondaryAnimation?.removeListener(_handleSecondaryTick);
+    _returnFadeController.dispose();
+    super.dispose();
   }
 }
