@@ -35,6 +35,7 @@ import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/artist_utils.dart';

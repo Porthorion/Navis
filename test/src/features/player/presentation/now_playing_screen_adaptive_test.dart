@@ -74,8 +74,9 @@ Finder _findNowPlayingHandle() {
 
 Future<void> _pumpNowPlaying(
   WidgetTester tester,
-  ProviderContainer container,
-) async {
+  ProviderContainer container, {
+  bool reduceMotion = false,
+}) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -83,7 +84,15 @@ Future<void> _pumpNowPlaying(
         theme: ThemeData(platform: TargetPlatform.linux),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const Scaffold(body: NowPlayingScreen(onCollapse: _noopCollapse)),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(disableAnimations: reduceMotion),
+          child: child!,
+        ),
+        home: const Scaffold(
+          body: NowPlayingScreen(onCollapse: _noopCollapse),
+        ),
       ),
     ),
   );
@@ -134,6 +143,38 @@ void main() {
     expect(find.text('Lyrics'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'now playing info changes without decorative motion when reduced',
+    (
+      tester,
+    ) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final container = _createContainer();
+      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      await _pumpNowPlaying(tester, container, reduceMotion: true);
+
+      expect(
+        tester
+            .widget<AnimatedSwitcher>(
+              find.byKey(const ValueKey<String>('nowPlayingInfoSwitcher')),
+            )
+            .duration,
+        Duration.zero,
+      );
+      expect(
+        tester
+            .widget<AnimatedSize>(
+              find.byKey(const ValueKey<String>('nowPlayingInfoSize')),
+            )
+            .duration,
+        Duration.zero,
+      );
+    },
+  );
 
   testWidgets(
     'fullscreen action row hides retired Listen Together control',

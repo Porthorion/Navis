@@ -286,6 +286,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
     final isRatingPage = page.isRatingPage;
     final showInlineEditor =
         isRatingPage && _showInlineRatingEditor && currentSongId != null;
+    final reduceMotion = MotionPolicy.of(context).reduceMotion;
 
     return Material(
       color: Colors.transparent,
@@ -300,7 +301,10 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
           child: Column(
             children: <Widget>[
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
+                key: const ValueKey<String>('nowPlayingInfoSwitcher'),
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeIn,
                 child: Row(
@@ -316,7 +320,10 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                     ),
                     const SizedBox(width: 6),
                     AnimatedSize(
-                      duration: const Duration(milliseconds: 180),
+                      key: const ValueKey<String>('nowPlayingInfoSize'),
+                      duration: reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 180),
                       curve: Curves.easeOut,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(

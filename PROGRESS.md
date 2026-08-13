@@ -59,8 +59,9 @@ Last updated: 2026-08-13
 - [ ] Reduced-motion surface coverage — partial: 2026-08-13 (the shared
   motion policy now removes transient status-notice travel and fade alongside
   the existing route and Hero behavior, and switches the expandable player
-  sheet and queue without travel; Like feedback also becomes instant. Carousel
-  surfaces and several Now Playing switchers remain to be migrated.)
+  sheet, queue, fullscreen artwork viewer, and Now Playing metadata pager
+  without decorative motion; Like feedback also becomes instant. Carousel
+  surfaces and other Now Playing switchers remain to be migrated.)
 
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
