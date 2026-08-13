@@ -158,4 +158,32 @@ void main() {
 
     expect(progress.value, closeTo(0, 0.01));
   });
+
+  testWidgets('switches player surfaces immediately for reduced motion', (
+    tester,
+  ) async {
+    final expandCalls = ValueNotifier<int>(0);
+    final collapseCalls = ValueNotifier<int>(0);
+    final progress = ValueNotifier<double>(0);
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: _SheetHarness(
+          expandCalls: expandCalls,
+          collapseCalls: collapseCalls,
+          progress: progress,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('expand'));
+    await tester.pump();
+    expect(progress.value, 1);
+
+    await tester.tap(find.text('collapse'));
+    await tester.pump();
+    expect(progress.value, 0);
+  });
 }

@@ -85,6 +85,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
+      'The expandable player now respects your system reduced-motion preference',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Album card titles and artists now fade in smoothly when returning from an album page',
       type: _EntryType.fix,
     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 /// A Symfonium-style bottom-sheet player transition.
 ///
@@ -70,6 +71,15 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final duration = MotionPolicy.of(context).surface;
+    _controller
+      ..duration = duration
+      ..reverseDuration = duration;
+  }
+
   void _onAnimationStatusChanged(AnimationStatus status) {
     if (!mounted) return;
     if (status == AnimationStatus.completed && !widget.isExpanded) {
@@ -83,11 +93,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   void didUpdateWidget(ExpandablePlayerSheet oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isExpanded != oldWidget.isExpanded) {
-      if (widget.isExpanded) {
-        _controller.fling(velocity: 2.5);
-      } else {
-        _controller.fling(velocity: -2.5);
-      }
+      _settleTo(widget.isExpanded ? 1 : 0, velocity: 2.5);
     }
   }
 
@@ -168,13 +174,13 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
           }
         } else {
           final v = (absVelocity / screenHeight).clamp(1.0, 6.0);
-          _controller.fling(velocity: v);
+          _settleTo(1, velocity: v);
           if (!widget.isExpanded) widget.onExpand();
         }
       } else {
         // Swipe down — collapse
         final v = (absVelocity / screenHeight).clamp(1.0, 6.0);
-        _controller.fling(velocity: -v);
+        _settleTo(0, velocity: v);
         if (widget.isExpanded) widget.onCollapse();
       }
     } else {
@@ -196,12 +202,20 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   /// Snap the sheet to the nearest edge (expanded or collapsed).
   void _snapToEdge() {
     if (_controller.value > 0.4) {
-      _controller.fling(velocity: 2.5);
+      _settleTo(1, velocity: 2.5);
       if (!widget.isExpanded) widget.onExpand();
     } else {
-      _controller.fling(velocity: -2.5);
+      _settleTo(0, velocity: 2.5);
       if (widget.isExpanded) widget.onCollapse();
     }
+  }
+
+  void _settleTo(double target, {required double velocity}) {
+    if (MotionPolicy.of(context).reduceMotion) {
+      _controller.value = target;
+      return;
+    }
+    _controller.fling(velocity: target == 1 ? velocity : -velocity);
   }
 
   // -- Build ----------------------------------------------------------------
