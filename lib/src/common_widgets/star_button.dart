@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 class StarButton extends StatefulWidget {
   const StarButton({
@@ -66,7 +67,8 @@ class _StarButtonState extends State<StarButton>
   @override
   void didUpdateWidget(StarButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isStarred != oldWidget.isStarred) {
+    if (widget.isStarred != oldWidget.isStarred &&
+        !MotionPolicy.of(context).reduceMotion) {
       _controller.forward(from: 0);
     }
   }
@@ -78,12 +80,16 @@ class _StarButtonState extends State<StarButton>
 
   @override
   Widget build(BuildContext context) {
-    final icon = ScaleTransition(
-      scale: _scale,
-      child: Icon(
-        widget.isStarred ? Icons.favorite : Icons.favorite_border,
-      ),
+    final glyph = Icon(
+      widget.isStarred ? Icons.favorite : Icons.favorite_border,
     );
+    final icon = MotionPolicy.of(context).reduceMotion
+        ? glyph
+        : ScaleTransition(
+            key: const ValueKey<String>('starButtonFeedbackScale'),
+            scale: _scale,
+            child: glyph,
+          );
 
     if (widget.compact) {
       return IconButton(
