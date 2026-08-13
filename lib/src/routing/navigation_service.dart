@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 /// The navigation intent behind a [NavService] operation.
 ///
@@ -14,6 +15,22 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 /// a navigation should preserve the current route stack, replace it, switch
 /// shell tabs, or show a transient overlay.
 enum AppNavigationIntent { drillIn, replace, switchTab, modal }
+
+/// Route configuration for an album opened from an interactive surface.
+///
+/// Phone album pages use a fast, composed-page fade. Wider layouts preserve
+/// the shared-artwork Hero because their header geometry is intentionally
+/// different and benefits from the spatial continuity.
+@immutable
+class AlbumDetailRouteRequest {
+  const AlbumDetailRouteRequest({
+    this.openingHeroTag,
+    this.fadeOnly = false,
+  });
+
+  final String? openingHeroTag;
+  final bool fadeOnly;
+}
 
 /// Tracks the last back-press timestamp for double-back-to-exit.
 DateTime? _lastBackPress;
@@ -37,12 +54,22 @@ abstract final class NavService {
   }) {
     _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
     final normalizedHeroTag = heroTag?.trim();
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final fadeOnly =
+        !adaptiveContext.useDesktopShell &&
+        !adaptiveContext.useCompactWideLandscape;
     unawaited(
       context.push<void>(
         '/library/albums/$albumId',
-        extra: normalizedHeroTag == null || normalizedHeroTag.isEmpty
-            ? null
-            : normalizedHeroTag,
+        extra: AlbumDetailRouteRequest(
+          // A phone page fades in as one already-composed surface, so it must
+          // not pair with the tapped card's Hero during the route change.
+          openingHeroTag:
+              fadeOnly || normalizedHeroTag == null || normalizedHeroTag.isEmpty
+              ? null
+              : normalizedHeroTag,
+          fadeOnly: fadeOnly,
+        ),
       ),
     );
   }

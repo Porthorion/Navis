@@ -57,11 +57,23 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Fullscreen artwork now keeps its preview visible until the full-resolution, zoom-ready image is ready',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Album artwork no longer flashes when the opening or return animation settles',
       type: _EntryType.fix,
     ),
     _Entry(
+      'On phones, album details now fade in as a complete page without artwork motion',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Navigation and album artwork return transitions now respect your system reduced-motion preference',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Home carousels now stop auto-advancing and switch instantly when reduced motion is enabled',
       type: _EntryType.improvement,
     ),
     _Entry(
@@ -124,7 +136,10 @@ const List<_Version> _changelogs = [
       'Recently Added now preserves known server album dates through full-library syncs, keeping its order stable without a cache reset',
       type: _EntryType.fix,
     ),
-    _Entry('It better work this time!'),
+    _Entry(
+      'Library sync reliability has been improved.',
+      type: _EntryType.improvement,
+    ),
     _Entry(
       'Library sync now has stronger regression coverage for bounded mobile discovery and catalog-promotion date preservation',
       type: _EntryType.improvement,

@@ -201,6 +201,7 @@ Widget _buildApp({
   required NavisDatabase database,
   required List<dynamic> overrides,
   AdaptiveContext? adaptiveContext,
+  TextScaler? textScaler,
 }) {
   return ProviderScope(
     overrides: [
@@ -218,6 +219,12 @@ Widget _buildApp({
       theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      builder: textScaler == null
+          ? null
+          : (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+              child: child!,
+            ),
       home: adaptiveContext == null
           ? child
           : AdaptiveContextScope(
@@ -370,6 +377,7 @@ Future<void> _pumpAlbumDetail(
   required AlbumWithSongs album,
   String? openingHeroTag,
   List<dynamic> overrides = const <dynamic>[],
+  TextScaler? textScaler,
 }) async {
   await tester.pumpWidget(
     _buildApp(
@@ -379,6 +387,7 @@ Future<void> _pumpAlbumDetail(
       ),
       database: database,
       adaptiveContext: adaptiveContext,
+      textScaler: textScaler,
       overrides: [
         albumProvider('album-1').overrideWithValue(AsyncData(album)),
         ...overrides.cast(),
@@ -576,7 +585,7 @@ void main() {
       await _disposeApp(tester);
     });
 
-    testWidgets('album detail retains the supplied source hero tag', (
+    testWidgets('mobile album detail does not create a destination art Hero', (
       tester,
     ) async {
       await _pumpAlbumDetail(
@@ -592,7 +601,7 @@ void main() {
           (widget) =>
               widget is Hero && widget.tag == 'cover_art_search_album_album-1',
         ),
-        findsAtLeastNWidgets(1),
+        findsNothing,
       );
       await _disposeApp(tester);
     });
@@ -785,6 +794,55 @@ void main() {
         await expectLater(
           find.byType(CustomScrollView),
           matchesGoldenFile('goldens/album_detail_mobile_title_after.png'),
+        );
+        await _disposeApp(tester);
+      },
+    );
+
+    testWidgets(
+      'mobile album title preserves its display role at 200 percent text scale',
+      (tester) async {
+        const title = 'A Long Album Name For Phones';
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _mobileContext,
+          textScaler: const TextScaler.linear(2),
+          album: _albumWithSongs(
+            const <SongsTableData>[
+              SongsTableData(
+                id: 'large-title-track',
+                title: 'Large Title Track',
+                track: 1,
+                isProvisional: false,
+                isExternal: false,
+              ),
+            ],
+            name: title,
+          ),
+        );
+
+        final headerTitle = tester.widget<Text>(
+          find.byKey(const ValueKey<String>('albumDetailMobileHeaderTitle')),
+        );
+        expect(headerTitle.style!.fontSize, greaterThanOrEqualTo(32));
+        expect(headerTitle.overflow, TextOverflow.ellipsis);
+        expect(find.text('Rate'), findsNothing);
+        expect(find.byTooltip('Rating'), findsOneWidget);
+        expect(find.bySemanticsLabel('Rating'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await expectLater(
+          find.byType(CustomScrollView),
+          matchesGoldenFile(
+            'goldens/album_detail_mobile_title_text_scale_200_after.png',
+          ),
         );
         await _disposeApp(tester);
       },

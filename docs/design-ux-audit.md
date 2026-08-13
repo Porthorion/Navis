@@ -1,8 +1,8 @@
 # Navis Design, UX, and Motion Audit
 
-**Status:** First priority implemented; live-motion verification in progress;
-remaining items proposed
-**Updated:** 2026-08-13
+**Status:** First priority implemented and approved on Android; remaining items
+proposed
+**Updated:** 2026-08-14
 **Scope:** Desktop (Linux, Windows, macOS) and mobile (Android, iOS) Flutter
 clients. This is an implementation and visual-system audit, not a redesign.
 
@@ -15,18 +15,21 @@ the existing product behave as one coherent system: predictable navigation,
 stable artwork, consistent hierarchy, and motion that conveys intent rather
 than competing for attention.
 
-The first release-sized improvement should fix the album-open transition. It
-is currently only reliable from the primary Albums grid. Other entry points
-build different Hero tags, so their motion falls back to the page transition.
-Where a Hero does match, the Hero flight, route fade/slide, image loading, and
-destination-specific artwork composition can all change at once. That explains
-the reported inconsistency and makes a one-frame blank or shape jump plausible.
+The first release-sized improvement was the album-open transition. Its prior
+inconsistency came from a matching artwork Hero flight, route fade/slide,
+image loading, and destination-specific artwork composition changing at once.
+That made a one-frame blank, shape jump, or duplicate transition plausible.
 
-**Implementation status (2026-08-13):** the first focused fix is complete.
+**Implementation status (2026-08-14):** the first focused fix is complete and
+approved on a physical Android device. Desktop and compact-wide album detail
+retain their repaired shared-artwork Hero. Phone album detail instead renders
+the normal artwork, gradient, title, and tracks as one stationary surface and
+fades it in or out over 180 ms; it deliberately has no destination artwork
+Hero, so neither open nor close can start a second moving-art flight.
 It transfers the tapped source tag through album navigation, reuses that tag at
-the destination, preserves the source 600 px cache key and source radius in a
-single shared flight, removes the mobile-specific blank-capable shuttle, and
-suppresses the competing album-route fade and slide when a Hero is present.
+the desktop/compact destination, preserves the source 600 px cache key and
+source radius in a single shared flight, and suppresses the competing
+album-route fade and slide when a Hero is present.
 The Hero is now the only animation allowed to affect the landing artwork;
 otherwise the route-wide opacity handoff causes the reported brightness flicker.
 Explicit
@@ -103,8 +106,8 @@ implementation and QA cost.
 | H3 | P0 | **Implemented 2026-08-13.** Album routes suppress their competing fade-and-slide when an opening Hero tag is present; the shared Hero now owns the artwork flight while the no-Hero path keeps a calm route fallback. | `app_router.dart`; `album_detail_screen.dart`; route-motion tests | Preserve the single-owner motion rule for future detail routes. | Very high / medium |
 | H4 | P0 | **Implemented 2026-08-13.** The Hero shuttle holds the source decoded image contract, including its requested 600 px cache key, without a cached-image fade; destination headers use the same opaque handoff. | `hero_cover_art.dart`; `cover_art_image.dart`; Hero widget tests | Retain the locked source image contract and verify cold/warm cache frames on device before release certification. | Very high / medium |
 | H5 | P1 | **Implemented 2026-08-13.** The shared Hero flight interpolates the visible source radius into the destination radius, avoiding the prior square-corner handoff. | `hero_cover_art.dart`; Hero widget tests | Keep source shape explicit whenever new artwork treatments are added. | High / low |
-| H6 | P1 | The fullscreen artwork viewer stacks two independently loading `CoverArtImage` widgets at different sizes. It can double-fetch/decode and makes its image readiness nondeterministic. | `cover_art_viewer.dart` | Use one low-resolution image until the high-resolution image has decoded, then cross-fade exactly once; keep the viewer transition separate from album-detail navigation. | Medium / low |
-| M1 | P1 | **Partial implementation 2026-08-13.** `MotionPolicy` now controls navigation, Hero metadata feedback, transient notice surfaces, expandable player sheet, queue overlay, Like feedback, fullscreen artwork viewers, and the Now Playing metadata pager in response to the platform reduced-motion preference. Carousels and other Now Playing switchers still use local motion values. | `motion_policy.dart`; `app_router.dart`; `hero_cover_art.dart`; `app_notice.dart`; `expandable_player_sheet.dart`; `app_shell_queue_overlay.dart`; `star_button.dart`; `cover_art_viewer.dart`; `now_playing_metadata_panel.dart` | Continue replacing local timings with semantic tokens, prioritising carousel and remaining Now Playing motion. | High / medium |
+| H6 | P1 | **Implemented 2026-08-13.** The fullscreen artwork viewer now keeps its existing preview visibly stable while the full-resolution, zoom-ready image loads, cross-fades once only after that image has decoded, and removes the preview after the handoff. | `cover_art_viewer.dart`; `cover_art_image.dart`; artwork-viewer widget test | Preserve the one-owner preview → full-resolution handoff and requested-size decode; do not stack independently visible artwork loaders. | Medium / low |
+| M1 | P1 | **Partial implementation 2026-08-13.** `MotionPolicy` now controls navigation, Hero metadata feedback, transient notice surfaces, expandable player sheet, queue overlay, Like feedback, fullscreen artwork viewers, the Now Playing metadata pager, and Home carousels in response to the platform reduced-motion preference. Home carousels stop auto-advancing and use direct state changes; remaining Now Playing switchers still use local motion values. | `motion_policy.dart`; `app_router.dart`; `hero_cover_art.dart`; `app_notice.dart`; `expandable_player_sheet.dart`; `app_shell_queue_overlay.dart`; `star_button.dart`; `cover_art_viewer.dart`; `now_playing_metadata_panel.dart`; `home_screen.dart` | Continue replacing local timings with semantic tokens, prioritising remaining Now Playing motion. | High / medium |
 | M2 | P1 | Mobile bottom-navigation labels are always hidden. The interface relies on four icons even for infrequent destinations such as Library and Settings. | `app_shell.dart` | Show the selected destination label, or use an onboarding/discoverability mode that does. Keep labels visible at large text sizes and test phone landscape with the player present. | High / low |
 | M3 | P1 | **Implemented 2026-08-13.** Compact landscape rail destinations now retain their large icon hit targets while exposing named, selected semantic buttons and a 400 ms hover label. | `app_shell_navigation_widgets.dart`; compact-rail navigation goldens | Preserve this contract as rails evolve; keep labels localized and do not reintroduce icon-only controls without semantic names. | High / low |
 | M4 | P1 | **Baseline implemented 2026-08-13.** Status notices now announce their concise message as a dismissible live-region button instead of relying solely on a visual, time-limited pill. | `app_notice.dart`; app-notice semantic widget test | Next iteration: reserve errors until dismissed or actionable, and prevent routine successes from replacing critical notices. | High / low |
@@ -113,35 +116,27 @@ implementation and QA cost.
 | D3 | P1 | **Implemented for Settings 2026-08-13.** Group headings and desktop-specific shortcut/workspace copy now use `AppLocalizations`, eliminating the main Settings-screen English bypass. | `settings_screen.dart`; `app_en.arb` | Continue the same inventory through desktop menus, tooltips, and empty states before adding further locales. | High / low |
 | D4 | P2 | **Partial coverage added 2026-08-13.** Deterministic active-player goldens cover representative long title/artist truncation at 800×600, standard-width and ultra-wide desktop metadata, and 130% text scale at the compact desktop size. Active and empty Mini Player states are also covered at 560×360 and 720×405; remote-indicator variants remain unverified. | `test/src/routing/goldens`; `app_shell_navigation_test.dart` | Extend the same fixture to remote-indicator variants. | Medium / medium |
 | D5 | P1 | The post-update changelog is a blocking dialog over Home, and its labels/version copy are partly hard-coded. Current entries also contain informal placeholder-style copy, which is shown in a first-run product surface. | `changelog_dialog.dart`; `changelog_entry_tile.dart`; `changelog_data.dart`; Linux app-owned Home capture | Reserve a blocking update dialog for critical action-required releases. For normal releases, use a dismissible, accessible in-app notice/card that opens the full changelog. Localize all labels and set editorial quality rules for release copy. | High / low |
-| U1 | P1 | **Partial implementation 2026-08-13.** The artwork-led mobile album header is retained by product choice, but album titles now reduce from the display size only when that lets the full title fit in two lines; titles that still will not fit keep the established ellipsis. Contrast over pale/busy artwork and unstable artist/action placement remain open. | `album_detail_screen.dart`; mobile long-title golden and widget test | Preserve the title-fit contract. Revisit artwork-aware contrast only if the desired immersive header treatment changes. | High / medium |
+| U1 | P1 | **Implemented and approved on Android 2026-08-14.** The artwork-led mobile album header is retained by product choice. Album titles reduce from the display size only when that lets the full title fit in two lines; titles that still will not fit keep the established ellipsis. Phone album pages assemble normal art, gradient, title, and tracks, then fade that stationary surface in and out over 180 ms without a source/destination artwork Hero. Desktop and compact-wide layouts retain the repaired shared-artwork Hero. Contrast over pale/busy artwork and unstable artist/action placement remain open. | `navigation_service.dart`; `app_router.dart`; `album_detail_screen.dart`; route-motion and mobile-detail widget tests; physical Android review | Preserve the title-fit and fade-only phone-page contract. Revisit artwork-aware contrast only if the desired immersive header treatment changes. | High / medium |
 | U2 | P1 | Loading and empty/error states share good basic components, but they are generic and do not consistently express what content is unavailable, whether cached content remains usable, or the next best action. | `empty_state.dart`; `error_state.dart`; feature usage | Define state patterns for offline, empty library, filtered-to-empty, recoverable failure, and permission/authentication failure. Each should have one clear primary action and preserve usable cached content behind a non-blocking message. | High / medium |
-| U3 | P2 | Responsive tests cover important breakpoints, but text-scaling coverage is sparse and animation state is not visually tested. Dense rows, fixed desktop controls, and mobile detail headers therefore lack a regression contract for large text. | adaptive/widget tests; existing goldens | Add 100%, 130%, and 200% text-scale checks per shared primitive; prefer wrapping/scrolling before clipping. Add visual assertions at phone compact, tablet medium, tablet expanded, compact desktop, standard desktop, and ultra-wide. | Medium / medium |
-| U4 | P2 | High-frequency actions are visually spread across headers, overflow menus, bottom sheets, and player surfaces. The product needs a written action-placement policy so Play, Shuffle, Download, Like, Queue, and More appear in a predictable order at every entity level. | album, artist, playlist, Home, player, and context-menu implementations | Create an entity-action matrix, then harmonise icon order, labels, destructive-action placement, and long-press/secondary-click behavior. | Medium / medium |
+| U3 | P2 | **Partial implementation / review pending 2026-08-13.** Responsive tests cover important breakpoints, but text-scaling coverage is still sparse and animation state is not visually tested. A new 200% phone test exposed a 35 px overflow in the fixed-width album `Rate` pill while the artwork-led title itself remained correct. The proposed icon-only rating fallback retains named semantics and a tooltip; the in-context update-notes card also passes at 200%. | `library_detail_screens_test.dart`; `home_screen_test.dart`; before/after component captures | Keep the rating fallback only after visual review. Then add 100%, 130%, and 200% text-scale checks per shared primitive; prefer wrapping/scrolling before clipping. Add visual assertions at phone compact, tablet medium, tablet expanded, compact desktop, standard desktop, and ultra-wide. | Medium / medium |
+| U4 | P2 | **Policy documented 2026-08-13.** High-frequency actions are visually spread across headers, overflow menus, bottom sheets, and player surfaces. The shared entity-action matrix below now defines the target placement and order; existing album, artist, and playlist headers still need to converge on it. | album, artist, playlist, Home, player, and context-menu implementations | Apply the matrix through focused entity-header changes, retaining one primary action and placing destructive actions last. | Medium / medium |
 
-## Album-open transition: target design
+## Album-open transition: implemented design
 
-The target is a short, continuous artwork expansion that works from every
-album card and has an equally calm fallback when no source card is available.
-It should not animate the entire destination as though it were a modal.
+Desktop and compact-wide layouts use a short, continuous artwork expansion
+from every album card; phone uses a calm, complete-page fade. Neither design
+animates the entire destination like a modal.
 
-1. On tap, capture an `AlbumHeroSpec` from the exact card: album ID, unique
-   source tag, source rectangle/shape, image provider key, and whether the
-   source is still mounted. Transfer it through `NavService.openAlbumDetail`.
-2. Prewarm the same 600 px image used by the source before route push. If it
-   cannot be read from memory/cache promptly, use the source rendering as the
-   flight payload rather than a new placeholder-capable image widget.
-3. Use one `AlbumArtFlight` for desktop and mobile. It owns clipping, image
-   readiness, and the 220 ms forward / 180 ms reverse motion. It begins at the
-   visible card radius and reaches the destination shape without a hard swap.
-4. On mobile, the full-bleed art may grow into the flexible header, but title,
-   metadata, and actions fade in after 20–30% of the flight. On desktop, art
-   grows into the 260 px header art while title and controls fade/translate a
-   few pixels independently. Neither version should run a second competing
-   page slide over the art.
-5. When no matching source exists (deep link, Home card disappeared, duplicate
-   card, restore), use a 180 ms content fade with a prewarmed static image.
-   This must be an intentional fallback, not an accidental missing Hero.
-6. Keep the full-screen artwork viewer as a separate 170 ms fade/scale
+1. On desktop and compact-wide, transfer the exact source Hero tag through
+   `NavService.openAlbumDetail`; preserve the source image cache key and
+   radius in the single shared flight.
+2. On phone, pass an explicit fade-only route request and omit the destination
+   artwork Hero. The full detail composition appears and disappears in 180 ms
+   without spatial artwork travel.
+3. When a desktop/compact source is unavailable (deep link, disappeared card,
+   duplicate card, or restore), use the same 180 ms content fade with static
+   artwork; it is an intentional fallback, not an accidental missing Hero.
+4. Keep the full-screen artwork viewer as a separate 170 ms fade/scale
    interaction; it should start only after the detail page is stable.
 
 ### Acceptance criteria
@@ -236,6 +231,37 @@ minimum-size desktop window.
   ambiguity.
 - Loading should preserve geometry and the last meaningful state whenever
   possible. A blank frame is never a loading strategy.
+
+## Entity-action placement matrix
+
+This is the cross-platform placement contract for high-frequency music
+actions. It removes guesswork without forcing every surface to show every
+action. A surface should expose its primary task first, then disclose the rest
+in the same order on phone and desktop.
+
+| Entity / surface | Direct actions | Secondary actions (`More` / context menu) | Ordering and interaction rules |
+| --- | --- | --- | --- |
+| **Album** | **Play** (filled), Shuffle, Like, Download status | Open, Add to queue, download quality/remove download | Keep direct order `Play → Shuffle → Like → Download → More`. A card tap opens; long-press/right-click opens the same context menu. Download removal is the last, destructive action. |
+| **Artist** | **Play** (filled), Shuffle | Open artist details when applicable; artist-specific discovery actions | Artists do not expose a fake download or Like affordance. Keep the direct pair in the same order as albums, and let cards open on tap. |
+| **Playlist** | **Play** (filled), Shuffle, Download status | Rename/edit, Add to queue, remove download, delete playlist | Keep the first three direct actions in album order. Owner-only editing and deletion never compete with Play; destructive playlist deletion is last and requires confirmation. |
+| **Song row** | Tap row to Play; visible download/state indicator only where space allows | Play now, Add to queue, Play next, Like, Rating, Go to artist, Go to album, Add to playlist, Download/remove download | The context menu is the canonical long-form order above. It must be identical for long-press and secondary-click; unavailable remote actions remain visibly disabled with an explanation. |
+| **Home / recommendation card** | Tap to open; a compact primary play control only when the card is explicitly a play recommendation | Queue, Like, Download, source-specific actions | Do not place destructive actions on artwork. The identical album context menu is the secondary path for local albums. |
+| **Now Playing / Mini Player** | Transport controls, Like, Queue, Lyrics | Download, album/artist navigation, playback settings | Playback transport remains separate from entity actions. Never hide Pause/Next behind `More`; secondary entity actions follow the same song order. |
+
+### Shared rules
+
+1. **One primary action.** `Play` is the only filled entity action. `Shuffle`
+   is tonal/secondary; supporting actions are icon or overflow actions.
+2. **Stable icon sequence.** When direct actions fit, use the matrix order. Do
+   not swap Like and Download per breakpoint or entity page.
+3. **One menu vocabulary.** Touch long-press and desktop secondary-click open
+   equivalent actions, labels, enabled states, and destructive placement.
+4. **Destructive actions last.** Remove download and delete actions use error
+   color, appear after a divider where a surface has enough actions, and use a
+   confirmation when the operation cannot be recovered.
+5. **State is not an action.** Downloaded, liked, cached, remote, and playing
+   states are always visible before making an action unavailable; tooltips and
+   semantics state what will happen on activation.
 
 ## Validation checklist for each UI change
 

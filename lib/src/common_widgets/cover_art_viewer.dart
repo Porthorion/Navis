@@ -220,31 +220,11 @@ class CoverArtViewerScreen extends StatelessWidget {
                     child: Hero(
                       tag: heroTag,
                       transitionOnUserGestures: true,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: <Widget>[
-                          CoverArtImage(
-                            coverArtId: coverArtId,
-                            size: previewSize,
-                            width: side,
-                            height: side,
-                            fit: BoxFit.contain,
-                            fadeInDuration: Duration.zero,
-                            loadPriority: CoverArtLoadPriority.critical,
-                            isExternalSource: isExternalSource,
-                          ),
-                          CoverArtImage(
-                            coverArtId: coverArtId,
-                            size: 1600,
-                            width: side,
-                            height: side,
-                            fit: BoxFit.contain,
-                            showLoadingPlaceholder: false,
-                            showErrorPlaceholder: false,
-                            loadPriority: CoverArtLoadPriority.critical,
-                            isExternalSource: isExternalSource,
-                          ),
-                        ],
+                      child: _ProgressiveCoverArtViewerImage(
+                        coverArtId: coverArtId,
+                        previewSize: previewSize,
+                        side: side,
+                        isExternalSource: isExternalSource,
                       ),
                     ),
                   ),
@@ -255,6 +235,98 @@ class CoverArtViewerScreen extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+/// Keeps the visible preview stable until the full-resolution art is decoded.
+///
+/// The old viewer painted two unrelated network images on top of each other.
+/// Their independent ready states could reveal an empty high-resolution layer
+/// or make the handoff look like a flicker. This surface explicitly owns one
+/// preview → full-resolution cross-fade, then removes the preview layer.
+class _ProgressiveCoverArtViewerImage extends StatefulWidget {
+  const _ProgressiveCoverArtViewerImage({
+    required this.coverArtId,
+    required this.previewSize,
+    required this.side,
+    required this.isExternalSource,
+  });
+
+  final String coverArtId;
+  final int previewSize;
+  final double side;
+  final bool isExternalSource;
+
+  @override
+  State<_ProgressiveCoverArtViewerImage> createState() =>
+      _ProgressiveCoverArtViewerImageState();
+}
+
+class _ProgressiveCoverArtViewerImageState
+    extends State<_ProgressiveCoverArtViewerImage> {
+  var _fullResolutionReady = false;
+  var _previewRemoved = false;
+
+  void _handleFullResolutionReady() {
+    if (!mounted || _fullResolutionReady) {
+      return;
+    }
+    setState(() {
+      _fullResolutionReady = true;
+    });
+  }
+
+  void _removePreviewAfterCrossFade() {
+    if (!_fullResolutionReady || _previewRemoved || !mounted) {
+      return;
+    }
+    setState(() {
+      _previewRemoved = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final motion = MotionPolicy.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        if (!_previewRemoved)
+          CoverArtImage(
+            coverArtId: widget.coverArtId,
+            size: widget.previewSize,
+            width: widget.side,
+            height: widget.side,
+            fit: BoxFit.contain,
+            fadeInDuration: Duration.zero,
+            loadPriority: CoverArtLoadPriority.critical,
+            isExternalSource: widget.isExternalSource,
+          ),
+        AnimatedOpacity(
+          key: const ValueKey<String>('coverArtViewerFullResolutionLayer'),
+          opacity: _fullResolutionReady ? 1 : 0,
+          duration: motion.feedback,
+          curve: Curves.easeOutCubic,
+          onEnd: _removePreviewAfterCrossFade,
+          child: IgnorePointer(
+            child: CoverArtImage(
+              coverArtId: widget.coverArtId,
+              size: 1600,
+              width: widget.side,
+              height: widget.side,
+              fit: BoxFit.contain,
+              fadeInDuration: Duration.zero,
+              showLoadingPlaceholder: false,
+              showErrorPlaceholder: false,
+              loadPriority: CoverArtLoadPriority.critical,
+              useRequestedMemCacheSize: true,
+              isExternalSource: widget.isExternalSource,
+              onImageReady: _handleFullResolutionReady,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

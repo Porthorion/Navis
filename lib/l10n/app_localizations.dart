@@ -4121,6 +4121,42 @@ abstract class AppLocalizations {
   /// **'Got it'**
   String get changelogDialogGotIt;
 
+  /// No description provided for @changelogDiscoveryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What’s new'**
+  String get changelogDiscoveryTitle;
+
+  /// No description provided for @changelogDiscoveryVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version}'**
+  String changelogDiscoveryVersion(String version);
+
+  /// No description provided for @changelogDiscoveryFixesSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'This update includes reliability and polish improvements.'**
+  String get changelogDiscoveryFixesSummary;
+
+  /// No description provided for @changelogDiscoveryAction.
+  ///
+  /// In en, this message translates to:
+  /// **'View updates'**
+  String get changelogDiscoveryAction;
+
+  /// No description provided for @changelogDiscoveryDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss update notes'**
+  String get changelogDiscoveryDismiss;
+
+  /// No description provided for @changelogDiscoverySemanticLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'What’s new in version {version}'**
+  String changelogDiscoverySemanticLabel(String version);
+
   /// No description provided for @changelogEmpty.
   ///
   /// In en, this message translates to:

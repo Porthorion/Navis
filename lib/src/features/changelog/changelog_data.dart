@@ -30,11 +30,23 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Fullscreen artwork now keeps its preview visible until the full-resolution, zoom-ready image is ready',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Album artwork no longer flashes when the opening or return animation settles',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'On phones, album details now fade in as a complete page without artwork motion',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Navigation and album artwork return transitions now respect your system reduced-motion preference',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Home carousels now stop auto-advancing and switch instantly when reduced motion is enabled',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -97,7 +109,10 @@ const List<ChangelogVersion> changelogs = [
         'Recently Added now preserves known server album dates through full-library syncs, keeping its order stable without a cache reset',
         type: ChangelogEntryType.fix,
       ),
-      ChangelogEntry('It better work this time!'),
+      ChangelogEntry(
+        'Library sync reliability has been improved.',
+        type: ChangelogEntryType.improvement,
+      ),
       ChangelogEntry(
         'Library sync now has stronger regression coverage for bounded mobile discovery and catalog-promotion date preservation',
         type: ChangelogEntryType.improvement,

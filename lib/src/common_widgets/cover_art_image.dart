@@ -42,6 +42,7 @@ class CoverArtImage extends ConsumerStatefulWidget {
     this.preloadScreens = 1.0,
     this.isExternalSource = false,
     this.remoteSourceIndicatorPolicy = RemoteSourceIndicatorPolicy.automatic,
+    this.onImageReady,
   });
 
   final String? coverArtId;
@@ -88,6 +89,14 @@ class CoverArtImage extends ConsumerStatefulWidget {
   /// contexts suppress it and render [RemoteSourceIndicator] beside text.
   final RemoteSourceIndicatorPolicy remoteSourceIndicatorPolicy;
 
+  /// Called once after the resolved image has decoded and can be painted.
+  ///
+  /// This is intended for progressive image surfaces that need to keep a
+  /// stable preview visible until a higher-resolution replacement is ready.
+  /// The callback is deferred until after the current frame so it is safe for
+  /// a parent to update its state.
+  final VoidCallback? onImageReady;
+
   @override
   ConsumerState<CoverArtImage> createState() => _CoverArtImageState();
 }
@@ -103,6 +112,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   CoverArtLoadPriority? _interestPriority;
   ScrollPosition? _scrollPosition;
   String? _renderedNetworkCacheKey;
+  String? _reportedImageReadyCacheKey;
   var _isVisible = false;
   var _isInLoadWindow = false;
   var _loadWindowCheckScheduled = false;
@@ -409,6 +419,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       ),
       imageBuilder: (context, imageProvider) {
         _renderedNetworkCacheKey = cacheKey;
+        _reportImageReady(cacheKey);
         return Image(
           image: imageProvider,
           fit: widget.fit,
@@ -425,6 +436,19 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
           : _emptyPlaceholder(),
     );
     return _clip(image);
+  }
+
+  void _reportImageReady(String cacheKey) {
+    if (_reportedImageReadyCacheKey == cacheKey ||
+        widget.onImageReady == null) {
+      return;
+    }
+    _reportedImageReadyCacheKey = cacheKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _reportedImageReadyCacheKey == cacheKey) {
+        widget.onImageReady?.call();
+      }
+    });
   }
 
   Widget _buildFileImageChild(BuildContext context, File file) {

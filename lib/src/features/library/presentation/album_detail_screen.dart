@@ -68,8 +68,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   double _headerProgress = 0.0; // 0 = art fully visible, 1 = fully collapsed
   double _screenWidth = 0.0;
 
-  // One-shot enter animation removed — gradient and album name show immediately.
-
   @override
   void initState() {
     super.initState();
@@ -1136,9 +1134,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       background: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
-                          HeroCoverArt(
+                          // Phone album pages deliberately render the artwork
+                          // as ordinary, already-composed content. Keeping a
+                          // matching Hero here would still launch an artwork
+                          // flight independently of the fade-only route.
+                          CoverArtImage(
                             coverArtId: details.coverArt,
-                            heroTag: coverArtHeroTag,
                             size: kCoverArtStandardSize,
                             width: double.infinity,
                             height: double.infinity,
@@ -1164,7 +1165,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               ),
                             ),
                           ),
-                          // Album name — fades out as header collapses.
+                          // The title scrolls out with the lower gradient.
                           Positioned(
                             bottom: 0,
                             left: 0,
@@ -2478,6 +2479,7 @@ class _RatingButtonState extends State<_RatingButton>
 
   // Approximate pill widths (px). Collapsed fits star icon + "Rate"/"3/5".
   static const double _kCollapsedWidth = 92.0;
+  static const double _kIconOnlyWidth = 48.0;
   // 5 stars × 30px + close (28px) + horizontal padding (2×12) = 202px.
   static const double _kExpandedWidth = 202.0;
 
@@ -2520,14 +2522,24 @@ class _RatingButtonState extends State<_RatingButton>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final hasRating = (widget.rating ?? 0) > 0;
     final effective = widget.rating ?? 0;
+    // The collapsed label is helpful at ordinary text sizes, but forcing it
+    // into the fixed touch target makes the action overflow at large text
+    // scales. The star retains the action, while its tooltip and semantics
+    // preserve its name for discovery.
+    final showCollapsedLabel =
+        MediaQuery.textScalerOf(context).scale(13) <= 16.9;
+    final collapsedWidth = showCollapsedLabel
+        ? _kCollapsedWidth
+        : _kIconOnlyWidth;
 
     return AnimatedBuilder(
       animation: _anim,
       builder: (context, _) {
         final t = _anim.value;
-        final w = _kCollapsedWidth + (_kExpandedWidth - _kCollapsedWidth) * t;
+        final w = collapsedWidth + (_kExpandedWidth - collapsedWidth) * t;
 
         // Collapsed label fades out in the first 40% of the expansion.
         final labelOpacity = (1.0 - t / 0.4).clamp(0.0, 1.0);
@@ -2641,36 +2653,47 @@ class _RatingButtonState extends State<_RatingButton>
                     if (t < 1.0)
                       Opacity(
                         opacity: labelOpacity,
-                        child: InkWell(
-                          onTap: widget.loading ? null : _expand,
-                          borderRadius: BorderRadius.circular(17),
-                          child: SizedBox(
-                            width: _kCollapsedWidth,
-                            height: 36,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  hasRating
-                                      ? Icons.star_rounded
-                                      : Icons.star_border_rounded,
-                                  size: 16,
-                                  color: hasRating
-                                      ? cs.secondary
-                                      : cs.onSurfaceVariant,
+                        child: Semantics(
+                          button: true,
+                          label: l10n.ratingTitle,
+                          child: Tooltip(
+                            message: l10n.ratingTitle,
+                            child: InkWell(
+                              onTap: widget.loading ? null : _expand,
+                              borderRadius: BorderRadius.circular(17),
+                              child: SizedBox(
+                                width: collapsedWidth,
+                                height: 36,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      hasRating
+                                          ? Icons.star_rounded
+                                          : Icons.star_border_rounded,
+                                      size: 16,
+                                      color: hasRating
+                                          ? cs.secondary
+                                          : cs.onSurfaceVariant,
+                                    ),
+                                    if (showCollapsedLabel) ...<Widget>[
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        hasRating
+                                            ? '${widget.rating}/5'
+                                            : 'Rate',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: hasRating
+                                              ? cs.secondary
+                                              : cs.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  hasRating ? '${widget.rating}/5' : 'Rate',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: hasRating
-                                        ? cs.secondary
-                                        : cs.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ),

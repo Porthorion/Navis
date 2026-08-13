@@ -1096,6 +1096,22 @@
   "changelogDialogOtherBugFixes": "Other bug fixes",
   "changelogDialogViewAll": "View full changelog",
   "changelogDialogGotIt": "Got it",
+  "changelogDiscoveryTitle": "What’s new",
+  "changelogDiscoveryVersion": "Version {version}",
+  "@changelogDiscoveryVersion": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "changelogDiscoveryFixesSummary": "This update includes reliability and polish improvements.",
+  "changelogDiscoveryAction": "View updates",
+  "changelogDiscoveryDismiss": "Dismiss update notes",
+  "changelogDiscoverySemanticLabel": "What’s new in version {version}",
+  "@changelogDiscoverySemanticLabel": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
   "changelogEmpty": "No changelog entries yet.",
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",

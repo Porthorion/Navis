@@ -26,6 +26,7 @@ import 'package:navis/src/features/settings/presentation/server_settings_screen.
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
 import 'package:navis/src/routing/app_shell.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 /// Returns a [CustomTransitionPage] with a subtle slide-up + fade-in entry
@@ -40,16 +41,29 @@ CustomTransitionPage<T> buildSlideFadePage<T>({
   required LocalKey key,
   required Widget child,
   bool heroDriven = false,
+  bool fadeOnly = false,
 }) {
   final motion = MotionPolicy.of(context);
   return CustomTransitionPage<T>(
     key: key,
     child: child,
-    transitionDuration: motion.navigationForward,
-    reverseTransitionDuration: motion.navigationReverse,
+    transitionDuration: fadeOnly ? motion.surface : motion.navigationForward,
+    reverseTransitionDuration: fadeOnly
+        ? motion.surface
+        : motion.navigationReverse,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       if (heroDriven || motion.reduceMotion) {
         return child;
+      }
+      if (fadeOnly) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+          child: child,
+        );
       }
       final fade = CurvedAnimation(
         parent: animation,
@@ -164,13 +178,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'albums/:id',
                     pageBuilder: (context, state) {
-                      final openingHeroTag = state.extra is String
-                          ? state.extra! as String
+                      final request = state.extra is AlbumDetailRouteRequest
+                          ? state.extra! as AlbumDetailRouteRequest
                           : null;
+                      // Accept the former string payload for restored routes
+                      // created before [AlbumDetailRouteRequest].
+                      final openingHeroTag =
+                          request?.openingHeroTag ??
+                          (state.extra is String
+                              ? state.extra! as String
+                              : null);
                       return buildSlideFadePage(
                         context: context,
                         key: state.pageKey,
                         heroDriven: openingHeroTag != null,
+                        fadeOnly: request?.fadeOnly ?? false,
                         child: AlbumDetailScreen(
                           albumId: state.pathParameters['id']!,
                           likedOnly:

@@ -2344,6 +2344,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changelogDialogGotIt => 'Got it';
 
   @override
+  String get changelogDiscoveryTitle => 'What’s new';
+
+  @override
+  String changelogDiscoveryVersion(String version) {
+    return 'Version $version';
+  }
+
+  @override
+  String get changelogDiscoveryFixesSummary =>
+      'This update includes reliability and polish improvements.';
+
+  @override
+  String get changelogDiscoveryAction => 'View updates';
+
+  @override
+  String get changelogDiscoveryDismiss => 'Dismiss update notes';
+
+  @override
+  String changelogDiscoverySemanticLabel(String version) {
+    return 'What’s new in version $version';
+  }
+
+  @override
   String get changelogEmpty => 'No changelog entries yet.';
 
   @override

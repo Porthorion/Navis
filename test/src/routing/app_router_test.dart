@@ -450,6 +450,43 @@ void main() {
     expect(find.byType(SlideTransition), findsNothing);
   });
 
+  testWidgets('fade-only album detail does not travel during the route fade', (
+    tester,
+  ) async {
+    final child = SizedBox(key: UniqueKey());
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Builder(
+          builder: (context) {
+            final page = buildSlideFadePage<void>(
+              context: context,
+              key: const ValueKey<String>('mobile-album-detail'),
+              fadeOnly: true,
+              child: child,
+            );
+            expect(page.transitionDuration, const Duration(milliseconds: 180));
+            expect(
+              page.reverseTransitionDuration,
+              const Duration(milliseconds: 180),
+            );
+            return page.transitionsBuilder(
+              context,
+              const AlwaysStoppedAnimation<double>(0.5),
+              const AlwaysStoppedAnimation<double>(0),
+              child,
+            );
+          },
+        ),
+      ),
+    );
+
+    expect(find.byKey(child.key!), findsOneWidget);
+    expect(find.byType(FadeTransition), findsOneWidget);
+    expect(find.byType(SlideTransition), findsNothing);
+  });
+
   testWidgets('reduced motion removes the detail-route fade and slide', (
     tester,
   ) async {

@@ -28,7 +28,6 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
-import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
@@ -47,6 +46,7 @@ import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -1053,18 +1053,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }
     });
 
-    // Show the "What's New" dialog once per version, after the first frame.
-    ref.listen<AsyncValue<ChangelogVersion?>>(
-      changelogToShowProvider,
-      (_, next) {
-        final version = next.asData?.value;
-        if (version == null || !mounted) return;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) showChangelogDialog(context, version);
-        });
-      },
-    );
-
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
     final adaptiveContext = resolveAdaptiveContextFor(context);
@@ -1171,6 +1159,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
           const SizedBox(height: 10),
         ],
+        const _ChangelogDiscoveryCard(),
         const _UpdateBanner(),
         for (final sectionId in order)
           if (!hidden.contains(sectionId))
@@ -2266,7 +2255,7 @@ class _DesktopScrollableCarouselState
     });
   }
 
-  void _animateBy(double delta) {
+  void _animateBy(double delta, MotionPolicy motion) {
     if (!_scrollController.hasClients) {
       return;
     }
@@ -2275,15 +2264,20 @@ class _DesktopScrollableCarouselState
       position.minScrollExtent,
       position.maxScrollExtent,
     );
-    _scrollController.animateTo(
-      target,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
+    if (motion.reduceMotion) {
+      _scrollController.jumpTo(target);
+    } else {
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final motion = MotionPolicy.of(context);
     final canHaveArrows = widget.itemCount > 1;
     return SizedBox(
       height: widget.height,
@@ -2309,7 +2303,7 @@ class _DesktopScrollableCarouselState
                   alignment: Alignment.centerLeft,
                   child: _CarouselEdgeArrow(
                     icon: Icons.chevron_left_rounded,
-                    onPressed: () => _animateBy(-viewportJump),
+                    onPressed: () => _animateBy(-viewportJump, motion),
                   ),
                 ),
               if (_canScrollForward)
@@ -2317,7 +2311,7 @@ class _DesktopScrollableCarouselState
                   alignment: Alignment.centerRight,
                   child: _CarouselEdgeArrow(
                     icon: Icons.chevron_right_rounded,
-                    onPressed: () => _animateBy(viewportJump),
+                    onPressed: () => _animateBy(viewportJump, motion),
                   ),
                 ),
             ],
@@ -2469,11 +2463,15 @@ class _DesktopRandomAlbumsPagerState
     if (clampedTarget == _currentPage) {
       return;
     }
-    _pageController.animateToPage(
-      clampedTarget,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-    );
+    if (MotionPolicy.of(context).reduceMotion) {
+      _pageController.jumpToPage(clampedTarget);
+    } else {
+      _pageController.animateToPage(
+        clampedTarget,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   double _heroHeightFor(double availableWidth) {
@@ -3488,6 +3486,7 @@ class _RandomAlbumsHeroCarouselState
   Timer? _autoAdvanceTimer;
   Timer? _resumeTimer;
   bool _autoAdvancePaused = false;
+  bool _reduceMotion = false;
   int _currentVirtualPage = 0;
   int _currentLogicalPage = 0;
 
@@ -3508,6 +3507,23 @@ class _RandomAlbumsHeroCarouselState
       initialPage: initialPage,
     );
     _startAutoAdvance();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MotionPolicy.of(context).reduceMotion;
+    if (_reduceMotion == reduceMotion) {
+      return;
+    }
+    _reduceMotion = reduceMotion;
+    if (_reduceMotion) {
+      _stopAutoAdvance();
+      _resumeTimer?.cancel();
+      _resumeTimer = null;
+    } else {
+      _startAutoAdvance();
+    }
   }
 
   @override
@@ -3596,7 +3612,7 @@ class _RandomAlbumsHeroCarouselState
 
   void _startAutoAdvance() {
     _stopAutoAdvance();
-    if (_displayedAlbums.length <= 1) {
+    if (_reduceMotion || _displayedAlbums.length <= 1) {
       return;
     }
     _autoAdvanceTimer = Timer.periodic(const Duration(milliseconds: 4200), (_) {
@@ -3613,7 +3629,7 @@ class _RandomAlbumsHeroCarouselState
   }
 
   void _pauseAutoAdvanceTemporarily() {
-    if (!mounted) {
+    if (!mounted || _reduceMotion) {
       return;
     }
     _autoAdvancePaused = true;
@@ -3630,11 +3646,16 @@ class _RandomAlbumsHeroCarouselState
       return;
     }
     _pauseAutoAdvanceTemporarily();
-    _pageController.animateToPage(
-      _currentVirtualPage + delta,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-    );
+    final target = _currentVirtualPage + delta;
+    if (_reduceMotion) {
+      _pageController.jumpToPage(target);
+    } else {
+      _pageController.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   int _initialVirtualPage(int albumCount) {
@@ -3682,6 +3703,7 @@ class _RandomAlbumsHeroCarouselState
       return const SizedBox.shrink();
     }
 
+    final motion = MotionPolicy.of(context);
     final currentPageLabel =
         'home-random-hero-carousel-page-${_currentLogicalPage.clamp(0, _displayedAlbums.length - 1)}';
 
@@ -3720,7 +3742,7 @@ class _RandomAlbumsHeroCarouselState
                     horizontal: widget.desktopMode ? 8 : 6,
                   ),
                   child: AnimatedScale(
-                    duration: const Duration(milliseconds: 220),
+                    duration: motion.feedback,
                     curve: Curves.easeOutCubic,
                     scale: _currentVirtualPage == index ? 1 : 0.93,
                     child: _RandomAlbumsHeroCard(
@@ -3800,7 +3822,7 @@ class _RandomAlbumsHeroCarouselState
             children: List<Widget>.generate(
               _displayedAlbums.length,
               (index) => AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
+                duration: motion.feedback,
                 curve: Curves.easeOutCubic,
                 width: _currentLogicalPage == index ? 16 : 6,
                 height: 6,

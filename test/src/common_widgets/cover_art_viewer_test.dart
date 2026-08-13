@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
+import 'package:navis/src/providers/app_providers.dart';
 
 class _RouteObserver extends NavigatorObserver {
   Route<dynamic>? pushedRoute;
@@ -66,4 +69,71 @@ void main() {
     expect(route.reverseTransitionDuration, Duration.zero);
     expect(find.byType(FadeTransition), findsNothing);
   });
+
+  testWidgets(
+    'full-resolution viewer art replaces its preview only when ready',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subsonicApiProvider.overrideWithValue(null),
+          ],
+          child: MaterialApp(
+            home: CoverArtViewerScreen(
+              coverArtId: 'cover-1',
+              heroTag: 'cover-hero',
+              previewSize: 320,
+            ),
+          ),
+        ),
+      );
+
+      final fullResolution = tester.widget<CoverArtImage>(
+        find.byWidgetPredicate(
+          (widget) => widget is CoverArtImage && widget.size == 1600,
+        ),
+      );
+      expect(fullResolution.onImageReady, isNotNull);
+      expect(fullResolution.useRequestedMemCacheSize, isTrue);
+      expect(
+        tester
+            .widget<AnimatedOpacity>(
+              find.byKey(
+                const ValueKey<String>('coverArtViewerFullResolutionLayer'),
+              ),
+            )
+            .opacity,
+        0,
+      );
+
+      fullResolution.onImageReady!();
+      await tester.pump();
+      expect(
+        tester
+            .widget<AnimatedOpacity>(
+              find.byKey(
+                const ValueKey<String>('coverArtViewerFullResolutionLayer'),
+              ),
+            )
+            .opacity,
+        1,
+      );
+
+      await tester.pumpAndSettle();
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is CoverArtImage && widget.size == 320,
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is CoverArtImage && widget.size == 1600,
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 }

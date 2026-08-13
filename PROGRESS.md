@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 ---
 
@@ -61,12 +61,32 @@ Last updated: 2026-08-13
   two-line presentation is possible, otherwise it retains the existing
   ellipsis. Deterministic phone golden and album-detail suite pass.)
 
+- [x] Mobile album completed-page fade — 2026-08-14 (approved on physical
+  Android: phone album detail assembles its normal artwork, gradient, title,
+  and track page before fading that stationary surface in and out over 180 ms.
+  The phone header is deliberately ordinary `CoverArtImage` content rather
+  than a destination Hero, preventing artwork travel on both open and close;
+  desktop/compact-wide Heroes and reduced-motion immediate presentation remain
+  intact. Focused route-motion and mobile-detail widget tests pass.)
+
+- [x] Fullscreen artwork progressive-loading handoff — 2026-08-13 (the
+  fullscreen viewer retains its preview until the 1600 px, zoom-ready artwork
+  has decoded, then makes one short cross-fade and removes the preview layer.
+  Focused artwork-viewer and cover-art suites pass.)
+
+- [ ] Cross-platform entity-action placement policy — partial: 2026-08-13
+  (the design audit now defines the direct/secondary action order, context-menu
+  parity, and destructive-action rules for albums, artists, playlists, songs,
+  Home cards, and player surfaces. Existing entity headers remain to be
+  harmonised through reviewed visual changes.)
+
 - [ ] Reduced-motion surface coverage — partial: 2026-08-13 (the shared
   motion policy now removes transient status-notice travel and fade alongside
   the existing route and Hero behavior, and switches the expandable player
   sheet, queue, fullscreen artwork viewer, and Now Playing metadata pager
-  without decorative motion; Like feedback also becomes instant. Carousel
-  surfaces and other Now Playing switchers remain to be migrated.)
+  without decorative motion; Like feedback also becomes instant. Home
+  carousels now stop auto-advancing and use direct state changes; other Now
+  Playing switchers remain to be migrated.)
 
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact

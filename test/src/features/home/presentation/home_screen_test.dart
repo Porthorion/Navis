@@ -10,6 +10,8 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/changelog/changelog_data.dart';
+import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
@@ -531,6 +533,7 @@ Future<void> _pumpHomeWithAppSettings(
   List<SongsTableData> homeLikedSongs = const <SongsTableData>[],
   List<SongsTableData> likedSongs = const <SongsTableData>[],
   List<Override> overrides = const <Override>[],
+  TextScaler? textScaler,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -597,7 +600,10 @@ Future<void> _pumpHomeWithAppSettings(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+          data: MediaQuery.of(ctx).copyWith(
+            disableAnimations: true,
+            textScaler: textScaler,
+          ),
           child: child!,
         ),
         home: const HomeScreen(),
@@ -641,6 +647,89 @@ void main() {
     expect(find.text('Listen Together'), findsNothing);
     expect(find.textContaining('Voyage'), findsNothing);
     expect(find.text('Custom Voyage'), findsNothing);
+  });
+
+  testWidgets('ordinary release notes stay in context on Home', (tester) async {
+    const version = ChangelogVersion(
+      version: '9.9.9',
+      entries: <ChangelogEntry>[
+        ChangelogEntry(
+          'Album navigation is now smoother and more reliable.',
+          type: ChangelogEntryType.improvement,
+        ),
+      ],
+    );
+    final view = tester.view;
+    view.devicePixelRatio = 1;
+    view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      overrides: <Override>[
+        changelogToShowProvider.overrideWith((ref) async => version),
+      ],
+    );
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(
+      find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+      findsOneWidget,
+    );
+    await expectLater(
+      find.byType(HomeScreen),
+      matchesGoldenFile('goldens/home_changelog_discovery_card.png'),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('changelogDiscoveryDismiss')),
+    );
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('release-note discovery stays usable at 200 percent text scale', (
+    tester,
+  ) async {
+    const version = ChangelogVersion(
+      version: '9.9.9',
+      entries: <ChangelogEntry>[
+        ChangelogEntry(
+          'Album navigation is now smoother and more reliable.',
+          type: ChangelogEntryType.improvement,
+        ),
+      ],
+    );
+    final view = tester.view;
+    view.devicePixelRatio = 1;
+    view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      textScaler: const TextScaler.linear(2),
+      overrides: <Override>[
+        changelogToShowProvider.overrideWith((ref) async => version),
+      ],
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Dismiss update notes'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('home cards avoid RenderFlex overflow on constrained layouts', (
@@ -1078,6 +1167,57 @@ void main() {
       );
       expect(find.text('Recently liked albums'), findsOneWidget);
       expect(find.text('Recently played tracks'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'random hero carousel does not auto-advance with reduced motion',
+    (
+      tester,
+    ) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: const <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseAlbum(
+            id: 'reduced-hero-1',
+            name: 'Hero One',
+            artist: 'Artist One',
+            coverArtId: 'cover-reduced-hero-1',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+          HomeRandomShowcaseAlbum(
+            id: 'reduced-hero-2',
+            name: 'Hero Two',
+            artist: 'Artist Two',
+            coverArtId: 'cover-reduced-hero-2',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+        ],
+      );
+
+      Finder pageKeyFinder() => find.byWidgetPredicate((widget) {
+        final key = widget.key;
+        return key is ValueKey<String> &&
+            key.value.startsWith('home-random-hero-carousel-page-');
+      });
+      String currentPageKey() {
+        final key = tester.widget(pageKeyFinder()).key! as ValueKey<String>;
+        return key.value;
+      }
+
+      final initialPage = currentPageKey();
+      await tester.pump(const Duration(milliseconds: 5000));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(currentPageKey(), initialPage);
     },
   );
 
@@ -1525,7 +1665,7 @@ void main() {
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (ctx, child) => MediaQuery(
-              data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+              data: MediaQuery.of(ctx).copyWith(disableAnimations: false),
               child: child!,
             ),
             home: const HomeScreen(),

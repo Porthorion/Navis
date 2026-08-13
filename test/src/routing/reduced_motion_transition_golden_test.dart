@@ -6,6 +6,7 @@ void main() {
   Future<void> pumpTransition(
     WidgetTester tester, {
     required bool disableAnimations,
+    bool fadeOnly = false,
   }) async {
     final destination = const _DetailRoutePreview();
     await tester.pumpWidget(
@@ -19,6 +20,7 @@ void main() {
                 context: context,
                 key: const ValueKey<String>('detail-preview'),
                 child: destination,
+                fadeOnly: fadeOnly,
               );
               return ColoredBox(
                 color: const Color(0xFF101010),
@@ -57,6 +59,23 @@ void main() {
     await expectLater(
       find.byType(_DetailRoutePreview),
       matchesGoldenFile('goldens/detail_route_reduced_motion.png'),
+    );
+  });
+
+  testWidgets('fade-only motion keeps the completed detail page stationary', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(720, 400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await pumpTransition(
+      tester,
+      disableAnimations: false,
+      fadeOnly: true,
+    );
+
+    await expectLater(
+      find.byType(_DetailRoutePreview),
+      matchesGoldenFile('goldens/detail_route_fade_only.png'),
     );
   });
 }
