@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -467,6 +468,36 @@ class SyncDiagnosticsServer {
             'songsHydrated': album.songsHydrated,
             'songCount': album.songCount,
           },
+        });
+        return;
+      }
+      if (request.method == 'GET' && path == '/v1/library/recent-albums') {
+        final requestedLimit = int.tryParse(
+          request.uri.queryParameters['limit'] ?? '',
+        );
+        final limit = (requestedLimit ?? 20).clamp(1, 100);
+        final albums = await _container
+            .read(navisDatabaseProvider)
+            .libraryDao
+            .watchAlbumsPage(
+              sort: AlbumSortOrder.recentlyAdded,
+              limit: limit,
+            )
+            .first;
+        // IDs and ordering evidence only: diagnostics must not expose the
+        // user's private album metadata through its authenticated API.
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'sort': AlbumSortOrder.recentlyAdded.name,
+          'albums': <Map<String, Object?>>[
+            for (final album in albums)
+              <String, Object?>{
+                'id': album.id,
+                'serverCreatedAt': album.serverCreatedAt
+                    ?.toUtc()
+                    .toIso8601String(),
+                'usesSyncedAtFallback': album.serverCreatedAt == null,
+              },
+          ],
         });
         return;
       }

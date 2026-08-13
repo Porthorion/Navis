@@ -727,6 +727,21 @@ assert endpoints.get("getArtist", 0) == 0, endpoints
 assert endpoints.get("searchSongsPage", 0) == 0, endpoints
 assert endpoints.get("getAlbum", 0) <= 3, endpoints
 PY
+  api GET '/v1/library/recent-albums?limit=100' \
+    > "$OUTPUT_ROOT/recent-albums-after-cellular-check.json"
+  python3 - "$OUTPUT_ROOT/recent-albums-after-cellular-check.json" <<'PY'
+import datetime, json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value.get("sort") == "recentlyAdded", value
+previous = None
+for album in value.get("albums", []):
+    created = album.get("serverCreatedAt")
+    assert created is not None, album
+    parsed = datetime.datetime.fromisoformat(created.replace("Z", "+00:00"))
+    if previous is not None:
+        assert previous >= parsed, value
+    previous = parsed
+PY
 
   api POST /v1/diagnostics/overrides \
     '{"networkType":"wifi","nativeMetered":true,"backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \

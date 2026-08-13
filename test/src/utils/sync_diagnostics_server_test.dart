@@ -290,6 +290,42 @@ void main() {
     },
   );
 
+  test(
+    'recent-albums observation returns only ordered identity evidence',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      await fixture.database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'album-earlier',
+          name: 'Private title',
+          serverCreatedAt: Value(DateTime.utc(2026, 8, 10)),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'album-later',
+          name: 'Another private title',
+          serverCreatedAt: Value(DateTime.utc(2026, 8, 11)),
+        ),
+      ]);
+
+      final response = await _request(
+        fixture.port,
+        '/v1/library/recent-albums?limit=2',
+        token: fixture.token,
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.body['sort'], 'recentlyAdded');
+      expect(
+        (response.body['albums'] as List<Object?>)
+            .cast<Map<String, Object?>>()
+            .map((album) => album['id']),
+        <String>['album-later', 'album-earlier'],
+      );
+      expect(jsonEncode(response.body), isNot(contains('Private title')));
+    },
+  );
+
   test('session status exposes only lifecycle activity fields', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);

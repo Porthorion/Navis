@@ -641,7 +641,9 @@ policy through diagnostics overrides and asserts hard-probe, interactive
 hydration, budget, and one-time override guardrails without requiring a real
 modem. The clone suite also certifies the foreground cellular Check for updates
 path: exactly one newest-album page, no artist/bulk-song sweep, and at most
-three changed-album details.
+three changed-album details. Its authenticated `recent-albums` observation
+also proves the Library's production Recently Added query remains ordered by
+server creation date after the check.
 
 To validate cache migration for a provisional song after the server has
 canonicalized it, run the focused clone-only scenario:

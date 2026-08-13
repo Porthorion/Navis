@@ -25,7 +25,9 @@ Last updated: 2026-08-13
   exercised `POST /v1/sync/check` under a cellular diagnostics override and
   reported `deltaReconcile/manualMeteredLimitedDiscovery` with one
   `getNewestAlbumList2`, no `getArtist` or bulk-song request, and three
-  `getAlbum` details. The subsequent unrelated full-repair section of
+  `getAlbum` details. Its authenticated Recently Added observation returned
+  100 server-created entries in descending order with zero local-sync-time
+  fallbacks. The subsequent unrelated full-repair section of
   `sync_diagnostics.sh clone` stopped at an existing `leaseHeld` durable-work
   state, so that full-suite result is not claimed as a pass.)
 
