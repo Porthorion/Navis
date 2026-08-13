@@ -1029,6 +1029,7 @@
   "libraryDownloadedOnlyFilter": "Downloaded",
   "libraryDownloadedOnlyEmpty": "No downloaded content",
   "libraryDownloadedOnlyEmptySubtitle": "Download albums or tracks to see them here.",
+  "libraryClearFiltersAction": "Show all",
   "libraryUnknownYear": "Unknown year",
 
   "cacheSettingsWifiOnlyDownloads": "Download on Wi-Fi only",

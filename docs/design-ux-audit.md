@@ -117,7 +117,7 @@ implementation and QA cost.
 | D4 | P2 | **Partial coverage added 2026-08-13.** Deterministic active-player goldens cover representative long title/artist truncation at 800×600, standard-width and ultra-wide desktop metadata, and 130% text scale at the compact desktop size. Active and empty Mini Player states are also covered at 560×360 and 720×405; remote-indicator variants remain unverified. | `test/src/routing/goldens`; `app_shell_navigation_test.dart` | Extend the same fixture to remote-indicator variants. | Medium / medium |
 | D5 | P1 | **Implemented 2026-08-14.** Normal post-update notes no longer block Home: a dismissible discovery card previews the release and opens the full changelog. Its labels are localized and the compact card remains usable at 200% text scale. | `home_screen.dart`; `home_support_widgets.dart`; `app_en.arb`; Home discovery-card widget/golden coverage | Reserve a blocking surface only for critical, action-required releases. Continue applying editorial quality rules to release copy. | High / low |
 | U1 | P1 | **Implemented and approved on Android 2026-08-14.** The artwork-led mobile album header is retained by product choice. Album titles reduce from the display size only when that lets the full title fit in two lines; titles that still will not fit keep the established ellipsis. Phone album pages assemble normal art, gradient, title, and tracks, then fade that stationary surface in and out over 180 ms without a source/destination artwork Hero. Desktop and compact-wide layouts retain the repaired shared-artwork Hero. Contrast over pale/busy artwork and unstable artist/action placement remain open. | `navigation_service.dart`; `app_router.dart`; `album_detail_screen.dart`; route-motion and mobile-detail widget tests; physical Android review | Preserve the title-fit and fade-only phone-page contract. Revisit artwork-aware contrast only if the desired immersive header treatment changes. | High / medium |
-| U2 | P1 | `EmptyState` and `ErrorState` provide a consistent visual shell, but they flatten materially different states: offline-with-cache, offline-without-library, filtered-to-empty, server failure, and unavailable detail. A number of error call sites also expose raw exception text. Users cannot consistently tell whether their music remains usable, what caused the state, or the best recovery action. | shared empty/error widgets; Home, Library, Search, Downloads, playlist, and detail usage inventory | Introduce a small semantic state contract for offline, filtered-empty, recoverable failure, and unavailable content. Each state should use user-safe copy, one clear primary action, and preserve usable cached content behind a non-blocking message. Prioritise Library and Search, then detail screens. | High / medium |
+| U2 | P1 | **Partial implementation and approved 2026-08-14.** `EmptyState` and `ErrorState` provide a consistent visual shell, but they flatten materially different states: offline-with-cache, offline-without-library, filtered-to-empty, server failure, and unavailable detail. Library filtered-empty states now give Downloaded, Liked, and type-to-filter users one `Show all` action that clears only their active filters without leaving the section. An inventory still finds raw exception text in 17 customer-facing load states across Home, Search, Downloads, Library, playlists, and entity detail. | `library_screen.dart`; filtered-empty recovery widget/golden tests; 2026-08-14 error-state inventory | Extend the same semantic contract to offline, recoverable failure, and unavailable content. Each state should use user-safe copy, one clear primary action, and preserve usable cached content behind a non-blocking message. Prioritise Library and Search, then detail screens. | High / medium |
 | U3 | P2 | **Partial implementation / review pending 2026-08-13.** Responsive tests cover important breakpoints, but text-scaling coverage is still sparse and animation state is not visually tested. A new 200% phone test exposed a 35 px overflow in the fixed-width album `Rate` pill while the artwork-led title itself remained correct. The proposed icon-only rating fallback retains named semantics and a tooltip; the in-context update-notes card also passes at 200%. | `library_detail_screens_test.dart`; `home_screen_test.dart`; before/after component captures | Keep the rating fallback only after visual review. Then add 100%, 130%, and 200% text-scale checks per shared primitive; prefer wrapping/scrolling before clipping. Add visual assertions at phone compact, tablet medium, tablet expanded, compact desktop, standard desktop, and ultra-wide. | Medium / medium |
 | U4 | P2 | **Partial implementation and Android-approved 2026-08-14.** High-frequency actions are visually spread across headers, overflow menus, bottom sheets, and player surfaces. The shared entity-action matrix defines the target placement and order; playlist detail now follows it by making Play the single filled action while Shuffle and Download remain tonal support actions on phone and desktop. Album and artist already follow that primary-action hierarchy; context-menu convergence remains. | album, artist, playlist, Home, player, and context-menu implementations; playlist action visual tests; physical Android review | Apply the remaining context-menu and header action order through focused entity changes, retaining one primary action and placing destructive actions last. | Medium / medium |
 
@@ -276,3 +276,29 @@ in the same order on phone and desktop.
    contracts.
 5. Verify keyboard traversal, focus restoration, pointer affordances,
    screen-reader labels/live feedback, and reduced-motion behavior.
+
+## Prioritized implementation queue
+
+The following order keeps each change small enough to visually review while
+improving the highest-frequency journeys first.
+
+1. **Library filtered-empty recovery** — approved and implemented: add one
+   `Show all` action wherever Downloaded, Liked, or type-to-filter leaves a
+   Library section empty. It clears only the active filters and preserves the
+   user's section and scroll context.
+2. **Safe recoverable error copy** — replace raw exception strings in the 17
+   enumerated load states with a small semantic error contract: plain-language
+   title, concise cause where it is actionable, and one Retry action. Preserve
+   diagnostic detail only in logs.
+3. **Desktop surface ladder** — move the Home, Search, Library, Downloads, and
+   playlist workspace panels onto `DesktopPanel`/`DesktopCard` with explicit
+   panel, card, and selected-row roles. Validate wide and compact desktop
+   layouts before expanding the change.
+4. **Entity-menu convergence** — apply the published action order to song,
+   album, and playlist context menus; maintain matching long-press and
+   secondary-click behavior and place destructive actions last.
+5. **Remaining reduced-motion migration** — replace local timing values in
+   the remaining Now Playing switchers with `MotionPolicy`, then validate
+   normal and reduced-motion behavior on phone and desktop.
+
+Items 2–5 require their own before/after review before they are committed.

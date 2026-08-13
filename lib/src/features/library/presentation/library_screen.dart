@@ -242,6 +242,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     ref.read(downloadedOnlyFilterProvider.notifier).enabled = value;
   }
 
+  /// Gives an empty, filtered Library result a direct path back to content.
+  /// A filter should never strand people on an otherwise indistinguishable
+  /// empty state.
+  Widget? _buildClearFiltersAction({bool includesLikedOnly = false}) {
+    final hasActiveFilters =
+        _downloadedOnly ||
+        _typeFilterQuery.isNotEmpty ||
+        (includesLikedOnly && _artistsLikedOnly);
+    if (!hasActiveFilters) {
+      return null;
+    }
+    final l10n = AppLocalizations.of(context)!;
+    return FilledButton.tonalIcon(
+      key: const ValueKey<String>('libraryClearFiltersAction'),
+      onPressed: () {
+        _typeFilterFadeTimer?.cancel();
+        setState(() {
+          _typeFilterQuery = '';
+          _typeFilterOverlayVisible = false;
+          if (includesLikedOnly) {
+            _artistsLikedOnly = false;
+          }
+        });
+        _updateDownloadedOnly(false);
+      },
+      icon: const Icon(Icons.filter_alt_off_outlined),
+      label: Text(l10n.libraryClearFiltersAction),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Type-to-filter — keyboard handler & state helpers
   // ---------------------------------------------------------------------------
@@ -975,6 +1005,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                             : _downloadedOnly
                             ? Icons.download_done_outlined
                             : Icons.person_outline,
+                        action: _buildClearFiltersAction(
+                          includesLikedOnly: true,
+                        ),
                       ),
                     ],
                   );
@@ -1276,6 +1309,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               : _downloadedOnly
                               ? Icons.download_done_outlined
                               : Icons.album_outlined,
+                          action: _buildClearFiltersAction(),
                         ),
                       )
                     else
@@ -1467,6 +1501,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         icon: _typeFilterQuery.isNotEmpty
                             ? Icons.search_off_rounded
                             : Icons.calendar_today_outlined,
+                        action: _buildClearFiltersAction(),
                       ),
                     ],
                   )
@@ -1751,6 +1786,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         : _downloadedOnly
                         ? Icons.download_done_outlined
                         : Icons.favorite_border_outlined,
+                    action: _buildClearFiltersAction(),
                   ),
                 )
               else ...<Widget>[

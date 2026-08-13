@@ -2176,6 +2176,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Download albums or tracks to see them here.';
 
   @override
+  String get libraryClearFiltersAction => 'Show all';
+
+  @override
   String get libraryUnknownYear => 'Unknown year';
 
   @override

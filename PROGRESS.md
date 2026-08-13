@@ -63,6 +63,12 @@ Last updated: 2026-08-14
   album/artist hierarchy on phone and desktop. Deterministic before/after
   visual coverage passes; context menus still need to converge on the policy.)
 
+- [ ] State-clarity contract — partial: 2026-08-14 (approved: filtered-empty
+  Artists, Albums, Albums by Year, and Liked views now provide one localized
+  `Show all` recovery action that clears active filters without leaving the
+  current section. Focused Library and before/after golden coverage pass; safe
+  offline and recoverable-error copy remains.)
+
 - [ ] Active desktop metadata visual coverage — partial: 2026-08-13
   (deterministic player-bar goldens now cover long title/artist truncation at
   800×600, standard and ultra-wide hierarchy, and 130% text scale. Mini Player

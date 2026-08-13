@@ -410,6 +410,47 @@ void main() {
     });
 
     _testWidgetsWithCleanup(
+      'filtered-empty Library offers Show all and clears the active filter',
+      (tester) async {
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            downloadedOnlyFilterProvider.overrideWith(
+              _DownloadedOnlyEnabledController.new,
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(find.text('No downloaded content'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+          findsOneWidget,
+        );
+
+        await tester.tap(
+          find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('No albums found'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
+          findsNothing,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
       'shows error state and retry action triggers syncNow',
       (
         tester,

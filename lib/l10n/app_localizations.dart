@@ -3815,6 +3815,12 @@ abstract class AppLocalizations {
   /// **'Download albums or tracks to see them here.'**
   String get libraryDownloadedOnlyEmptySubtitle;
 
+  /// No description provided for @libraryClearFiltersAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all'**
+  String get libraryClearFiltersAction;
+
   /// No description provided for @libraryUnknownYear.
   ///
   /// In en, this message translates to:
