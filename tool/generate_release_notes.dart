@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Album artwork now opens with a steadier transition from Home, Library, Search, Artist, and Genre views',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Check for updates on mobile data now performs a bounded recent-album discovery, so new and changed albums can be found without downloading the full song index',
       type: _EntryType.fix,
     ),

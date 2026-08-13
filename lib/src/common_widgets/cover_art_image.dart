@@ -35,6 +35,7 @@ class CoverArtImage extends ConsumerStatefulWidget {
     this.fadeInDuration = const Duration(milliseconds: 150),
     this.showLoadingPlaceholder = true,
     this.showErrorPlaceholder = true,
+    this.gaplessPlayback = false,
     this.lockedSize,
     this.loadPriority = CoverArtLoadPriority.visible,
     this.preloadScreens = 1.0,
@@ -57,6 +58,7 @@ class CoverArtImage extends ConsumerStatefulWidget {
   final Duration fadeInDuration;
   final bool showLoadingPlaceholder;
   final bool showErrorPlaceholder;
+  final bool gaplessPlayback;
 
   /// When non-null, overrides all constraint-based size resolution.
   /// Used during hero flight animations to prevent mid-flight URL changes.
@@ -398,6 +400,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
           fit: widget.fit,
           width: widget.width,
           height: widget.height,
+          gaplessPlayback: widget.gaplessPlayback,
         );
       },
       placeholder: (_, _) => widget.showLoadingPlaceholder
@@ -416,6 +419,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       fit: widget.fit,
       width: widget.width,
       height: widget.height,
+      gaplessPlayback: widget.gaplessPlayback,
       errorBuilder: (_, _, _) => widget.showErrorPlaceholder
           ? _fallback(context)
           : _emptyPlaceholder(),

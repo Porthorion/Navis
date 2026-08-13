@@ -33,6 +33,7 @@ import 'package:navis/src/routing/app_shell.dart';
 CustomTransitionPage<T> _slideFadePage<T>({
   required LocalKey key,
   required Widget child,
+  bool heroDriven = false,
 }) {
   return CustomTransitionPage<T>(
     key: key,
@@ -42,17 +43,25 @@ CustomTransitionPage<T> _slideFadePage<T>({
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       final fade = CurvedAnimation(
         parent: animation,
-        curve: const Interval(0, 0.65, curve: Curves.easeOut),
-        reverseCurve: const Interval(0.35, 1, curve: Curves.easeIn),
+        curve: heroDriven
+            ? const Interval(0.22, 1, curve: Curves.easeOutCubic)
+            : const Interval(0, 0.65, curve: Curves.easeOut),
+        reverseCurve: heroDriven
+            ? const Interval(0, 0.72, curve: Curves.easeInCubic)
+            : const Interval(0.35, 1, curve: Curves.easeIn),
       );
-      final slide =
-          Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
-            CurvedAnimation(
-              parent: animation,
-              curve: Curves.fastEaseInToSlowEaseOut,
-              reverseCurve: Curves.fastEaseInToSlowEaseOut.flipped,
-            ),
-          );
+      final slide = heroDriven
+          ? const AlwaysStoppedAnimation<Offset>(Offset.zero)
+          : Tween<Offset>(
+              begin: const Offset(0, 0.05),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.fastEaseInToSlowEaseOut,
+                reverseCurve: Curves.fastEaseInToSlowEaseOut.flipped,
+              ),
+            );
       return FadeTransition(
         opacity: fade,
         child: SlideTransition(position: slide, child: child),
@@ -147,14 +156,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'albums/:id',
-                    pageBuilder: (context, state) => _slideFadePage(
-                      key: state.pageKey,
-                      child: AlbumDetailScreen(
-                        albumId: state.pathParameters['id']!,
-                        likedOnly:
-                            state.uri.queryParameters['likedOnly'] == '1',
-                      ),
-                    ),
+                    pageBuilder: (context, state) {
+                      final openingHeroTag = state.extra is String
+                          ? state.extra! as String
+                          : null;
+                      return _slideFadePage(
+                        key: state.pageKey,
+                        heroDriven: openingHeroTag != null,
+                        child: AlbumDetailScreen(
+                          albumId: state.pathParameters['id']!,
+                          likedOnly:
+                              state.uri.queryParameters['likedOnly'] == '1',
+                          openingHeroTag: openingHeroTag,
+                        ),
+                      );
+                    },
                   ),
                   GoRoute(
                     path: 'playlists/:id',

@@ -693,6 +693,11 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   briefly re-evaluate session readiness, but must never recreate the router or
   reset the current location.
 - `NavService` (`navigation_service.dart`) for app-level navigation.
+- Album detail navigation may carry the tapped source's Hero tag in
+  `GoRouterState.extra`. Album-card sources must pass that exact tag through
+  `NavService.openAlbumDetail(..., heroTag: ...)`; the detail screen must use
+  it instead of regenerating a generic tag. Deep links and non-art entry
+  points intentionally omit it and use the calm route-only fallback.
 - Desktop mouse back/forward via `navigation_history_provider.dart`.
 
 ### Adaptive layout (`lib/src/routing/desktop_layout.dart`)
@@ -837,6 +842,12 @@ cover_art_{context}_{entityId-or-coverArtId}
 ```
 
 Contexts include: `album_grid`, `album_detail`, `now_playing`, `mini_player`.
+
+Album tags must include the immutable album/entity ID whenever one exists;
+cover-art IDs alone can collide. During an album-detail Hero flight,
+`HeroCoverArt` keeps the source image size/cache key, shape, and decoded image
+path stable. Do not add a destination-specific shuttle or a competing route
+slide for Hero-driven album navigation.
 
 ### Desktop audio
 

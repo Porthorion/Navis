@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Album artwork now opens with a steadier transition from Home, Library, Search, Artist, and Genre views',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Check for updates on mobile data now performs a bounded recent-album discovery, so new and changed albums can be found without downloading the full song index',
         type: ChangelogEntryType.fix,
       ),

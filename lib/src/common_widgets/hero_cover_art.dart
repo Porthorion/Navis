@@ -32,9 +32,6 @@ class HeroCoverArt extends StatelessWidget {
   final bool circular;
 
   /// Whether to show a placeholder icon/color while the image loads.
-  /// Set to `false` for full-bleed hero destinations so that an empty
-  /// transparent background is shown instead of a jarring icon flash
-  /// immediately after the hero flight completes.
   final bool showLoadingPlaceholder;
 
   /// Duration for the fade-in once the image is loaded. Defaults to the
@@ -58,19 +55,23 @@ class HeroCoverArt extends StatelessWidget {
             fromHeroContext,
             toHeroContext,
           ) {
-            // Use the source element's image — it's already loaded and cached,
-            // so the flight is smooth with no placeholder flashes.
-            // On push:  source = fromHeroContext (the list item)
-            // On pop:   source = toHeroContext   (the screen we're returning to)
+            // A destination Hero's shuttle takes precedence in Flutter. Read
+            // the actual source Hero instead of this destination's dimensions,
+            // otherwise a 600 px card can turn into a cold 300 px request
+            // during its flight to the desktop detail header.
             final sourceContext = flightDirection == HeroFlightDirection.push
                 ? fromHeroContext
                 : toHeroContext;
+            final sourceHero = sourceContext.widget;
+            final sourceImage = sourceHero is Hero ? sourceHero.child : null;
+            final sourceCoverArt = sourceImage is CoverArtImage
+                ? sourceImage
+                : null;
 
-            // When an explicit size is provided, use it as the locked URL
-            // during flight — it's guaranteed to be in cache already (the
-            // source widget used the same size parameter). Only fall back to
-            // rendered pixel size when no explicit size is known.
-            var lockedSize = size;
+            // Preserve the exact source cache key for the entire flight. Only
+            // fall back to the rendered size for a Hero whose source did not
+            // have an explicit image size.
+            var lockedSize = sourceCoverArt?.lockedSize ?? sourceCoverArt?.size;
             if (lockedSize == null) {
               final renderBox = sourceContext.findRenderObject();
               final pixelRatio =
@@ -82,23 +83,35 @@ class HeroCoverArt extends StatelessWidget {
               }
             }
 
-            // Reconstruct CoverArtImage with the frozen size.
-            // fadeInDuration: zero because the image is already in cache — no fade
-            // needed and a fade would look odd during an animation.
-            return CoverArtImage(
-              coverArtId: coverArtId,
-              size: size,
-              width: width,
-              height: height,
-              fit: fit,
-              placeholderIcon: placeholderIcon,
-              borderRadius: borderRadius,
-              circular: circular,
-              fadeInDuration: Duration.zero,
-              lockedSize: lockedSize,
-              loadPriority: CoverArtLoadPriority.critical,
-              isExternalSource: isExternalSource,
-              remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
+            final sourceRadius =
+                sourceCoverArt?.borderRadius ?? BorderRadius.zero;
+            final destinationRadius = borderRadius ?? BorderRadius.zero;
+            return AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) {
+                return ClipRRect(
+                  borderRadius: BorderRadiusGeometry.lerp(
+                    sourceRadius,
+                    destinationRadius,
+                    animation.value,
+                  )!,
+                  child: child,
+                );
+              },
+              child: CoverArtImage(
+                coverArtId: sourceCoverArt?.coverArtId ?? coverArtId,
+                size: lockedSize,
+                fit: sourceCoverArt?.fit ?? fit,
+                placeholderIcon:
+                    sourceCoverArt?.placeholderIcon ?? placeholderIcon,
+                fadeInDuration: Duration.zero,
+                lockedSize: lockedSize,
+                loadPriority: CoverArtLoadPriority.critical,
+                isExternalSource:
+                    sourceCoverArt?.isExternalSource ?? isExternalSource,
+                remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
+                gaplessPlayback: true,
+              ),
             );
           },
       child: CoverArtImage(
@@ -115,6 +128,7 @@ class HeroCoverArt extends StatelessWidget {
         loadPriority: loadPriority,
         isExternalSource: isExternalSource,
         remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
+        gaplessPlayback: true,
       ),
     );
     return RemoteSourceArtworkOverlay(

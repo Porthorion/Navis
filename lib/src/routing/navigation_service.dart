@@ -32,10 +32,19 @@ abstract final class NavService {
   static void openAlbumDetail(
     BuildContext context,
     WidgetRef ref,
-    String albumId,
-  ) {
+    String albumId, {
+    String? heroTag,
+  }) {
     _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
-    unawaited(context.push<void>('/library/albums/$albumId'));
+    final normalizedHeroTag = heroTag?.trim();
+    unawaited(
+      context.push<void>(
+        '/library/albums/$albumId',
+        extra: normalizedHeroTag == null || normalizedHeroTag.isEmpty
+            ? null
+            : normalizedHeroTag,
+      ),
+    );
   }
 
   /// Open an artist detail from the current context, preserving back.

@@ -19,6 +19,16 @@ Last updated: 2026-08-13
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Stable album artwork navigation transition — 2026-08-13 (the exact
+  source Hero tag now travels through `NavService` to album detail from Home,
+  Library, Search, Artist, and Genre; the shared Hero shuttle retains the
+  source cache size and radius, removes the mobile blank-capable shuttle, and
+  avoids competing route travel. Focused Hero, artwork, detail-screen, and
+  router tests passed. An isolated Linux clone app-API run navigated to
+  Library, captured and inspected the 1503×949 album-grid presentation, found
+  no hard-fail log pattern, and passed a clean restart. `./tool/check.sh`
+  passed with 1,120 tests and 1 skip.)
+
 - [x] Metered manual discovery and Recently Added ordering recovery — 2026-08-13
   (evidence: focused planner, coordinator, engine, canonical DAO, candidate
   classifier, and ordering suites pass; the isolated Linux clone app API

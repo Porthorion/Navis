@@ -414,13 +414,24 @@ HeroCoverArt(
 )
 ```
 
-Hero tags follow the pattern: `cover_art_{context}_{coverArtId}`
+Hero tags follow the pattern: `cover_art_{context}_{entityId-or-coverArtId}`.
+Use an immutable entity ID for album art whenever one is available so shared
+or missing cover art cannot create duplicate tags.
 
 Contexts:
 - `album_grid` - Album grid in library
 - `album_detail` - Album detail screen
 - `now_playing` - Now playing screen
 - `mini_player` - Mini player
+
+For album-detail navigation, the entry surface passes its already-rendered tag
+to `NavService.openAlbumDetail(..., heroTag: tag)`. The router forwards that
+tag to `AlbumDetailScreen`, which uses it verbatim so Home, Library, Search,
+Artist, and Genre entry surfaces pair with the destination Hero. Deep links,
+context menus, and other entries without visible source art omit the tag and
+use the route-only fallback. `HeroCoverArt` preserves the source image's cache
+size and clipping shape for both push and pop; destination-specific shuttles
+and additional album-route travel must not replace that shared flight.
 
 ### Expandable Player Sheet
 

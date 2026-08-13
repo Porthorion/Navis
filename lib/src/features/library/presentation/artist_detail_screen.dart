@@ -13,6 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -745,13 +746,23 @@ class _ArtistAlbumSection extends ConsumerWidget {
                 ),
                 itemBuilder: (context, index) {
                   final album = albums[index];
+                  final heroTag = buildCoverArtHeroTag(
+                    coverArtId: album.coverArt,
+                    context: 'artist_album',
+                    entityId: album.id,
+                  );
                   return RepaintBoundary(
                     child: AlbumCard(
                       album: album,
                       size: AlbumCardSize.library,
+                      heroTag: heroTag,
                       badge: AlbumDownloadBadge(albumId: album.id),
-                      onTap: () =>
-                          NavService.openAlbumDetail(context, ref, album.id),
+                      onTap: () => NavService.openAlbumDetail(
+                        context,
+                        ref,
+                        album.id,
+                        heroTag: heroTag,
+                      ),
                     ),
                   );
                 },

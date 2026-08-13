@@ -39,11 +39,13 @@ class AlbumDetailScreen extends ConsumerStatefulWidget {
   const AlbumDetailScreen({
     required this.albumId,
     this.likedOnly = false,
+    this.openingHeroTag,
     super.key,
   });
 
   final String albumId;
   final bool likedOnly;
+  final String? openingHeroTag;
 
   @override
   ConsumerState<AlbumDetailScreen> createState() => _AlbumDetailScreenState();
@@ -179,11 +181,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       .asData
                       ?.value ??
                   details.userRating;
-              final coverArtHeroTag = buildCoverArtHeroTag(
-                coverArtId: details.coverArt,
-                context: 'album',
-                entityId: widget.albumId,
-              );
+              final coverArtHeroTag =
+                  widget.openingHeroTag?.trim().isNotEmpty == true
+                  ? widget.openingHeroTag!.trim()
+                  : buildCoverArtHeroTag(
+                      coverArtId: details.coverArt,
+                      context: 'album',
+                      entityId: widget.albumId,
+                    );
               // ── Build render items with disc headers for multi-disc ──
               final renderItems = _buildRenderItems(filteredSongs);
               final tracksSliver = renderItems.isEmpty
@@ -386,7 +391,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   child: HeroCoverArt(
                                     coverArtId: details.coverArt,
                                     heroTag: coverArtHeroTag,
-                                    size: 300,
+                                    // Keep the same cache key as album cards
+                                    // after the Hero lands. The logical layout
+                                    // is still [artSize]; requesting a smaller
+                                    // image here can otherwise swap in a cold
+                                    // 300 px placeholder at the end of flight.
+                                    size: kCoverArtStandardSize,
                                     width: artSize,
                                     height: artSize,
                                     isExternalSource: details.isExternal,
@@ -962,7 +972,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         child: HeroCoverArt(
                                           coverArtId: details.coverArt,
                                           heroTag: coverArtHeroTag,
-                                          size: 168,
+                                          size: kCoverArtStandardSize,
                                           width: artSize,
                                           height: artSize,
                                           isExternalSource: details.isExternal,
@@ -1126,130 +1136,18 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       background: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
-                          // Hero with a custom shuttle that includes the
-                          // gradient + album name so they're visible inside
-                          // the Navigator overlay during the hero flight.
-                          // The child (CoverArtImage) is what renders when
-                          // the page is at rest (no animation in progress).
-                          Hero(
-                            tag: coverArtHeroTag,
-                            transitionOnUserGestures: true,
-                            flightShuttleBuilder:
-                                (
-                                  flightContext,
-                                  animation,
-                                  flightDirection,
-                                  fromHeroContext,
-                                  toHeroContext,
-                                ) {
-                                  final bgColor = Theme.of(
-                                    context,
-                                  ).scaffoldBackgroundColor;
-                                  // Push: gradient+name fade IN  (0→1)
-                                  // Pop:  gradient+name fade OUT (1→0)
-                                  final overlayOpacity =
-                                      flightDirection ==
-                                          HeroFlightDirection.push
-                                      ? animation
-                                      : Tween<double>(
-                                          begin: 1.0,
-                                          end: 0.0,
-                                        ).animate(animation);
-                                  return AnimatedBuilder(
-                                    animation: overlayOpacity,
-                                    builder: (ctx, _) => Stack(
-                                      fit: StackFit.expand,
-                                      children: <Widget>[
-                                        CoverArtImage(
-                                          coverArtId: details.coverArt,
-                                          size: kCoverArtStandardSize,
-                                          lockedSize: kCoverArtStandardSize,
-                                          width: double.infinity,
-                                          isExternalSource: details.isExternal,
-                                          remoteSourceIndicatorPolicy:
-                                              RemoteSourceIndicatorPolicy
-                                                  .hidden,
-                                          height: double.infinity,
-                                          fit: BoxFit.cover,
-                                          fadeInDuration: Duration.zero,
-                                          showLoadingPlaceholder: false,
-                                        ),
-                                        Positioned.fill(
-                                          child: Opacity(
-                                            opacity: overlayOpacity.value,
-                                            child: DecoratedBox(
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.topCenter,
-                                                  end: Alignment.bottomCenter,
-                                                  colors: <Color>[
-                                                    Colors.transparent,
-                                                    Colors.transparent,
-                                                    bgColor,
-                                                  ],
-                                                  stops: const <double>[
-                                                    0.0,
-                                                    0.60,
-                                                    0.85,
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          bottom: 16,
-                                          left: 16,
-                                          right: 16,
-                                          child: Opacity(
-                                            opacity: overlayOpacity.value,
-                                            child: Text(
-                                              details.name,
-                                              style: mobileTextTheme
-                                                  .displayMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                    shadows: <Shadow>[
-                                                      Shadow(
-                                                        color: Colors.black
-                                                            .withValues(
-                                                              alpha: 0.55,
-                                                            ),
-                                                        blurRadius: 12,
-                                                        offset: const Offset(
-                                                          0,
-                                                          2,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                              textAlign: TextAlign.center,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                            child: CoverArtImage(
-                              coverArtId: details.coverArt,
-                              size: kCoverArtStandardSize,
-                              width: double.infinity,
-                              height: double.infinity,
-                              isExternalSource: details.isExternal,
-                              remoteSourceIndicatorPolicy:
-                                  RemoteSourceIndicatorPolicy.hidden,
-                              fit: BoxFit.cover,
-                              fadeInDuration: Duration.zero,
-                              showLoadingPlaceholder: false,
-                            ),
+                          HeroCoverArt(
+                            coverArtId: details.coverArt,
+                            heroTag: coverArtHeroTag,
+                            size: kCoverArtStandardSize,
+                            width: double.infinity,
+                            height: double.infinity,
+                            isExternalSource: details.isExternal,
+                            remoteSourceIndicatorPolicy:
+                                RemoteSourceIndicatorPolicy.hidden,
+                            fit: BoxFit.cover,
+                            fadeInDuration: Duration.zero,
                           ),
-                          // Gradient and name below are for when the hero is
-                          // at rest (no flight active). They seamlessly match
-                          // the shuttle so there is no visible transition.
                           Positioned.fill(
                             child: DecoratedBox(
                               decoration: BoxDecoration(

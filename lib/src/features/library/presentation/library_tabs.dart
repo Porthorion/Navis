@@ -565,15 +565,17 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                         ),
                         delegate: SliverChildBuilderDelegate((context, index) {
                           final album = filteredAlbums[index];
+                          final heroTag = buildCoverArtHeroTag(
+                            coverArtId: album.coverArt,
+                            context: 'liked_all_album',
+                            entityId: album.id,
+                          );
                           return RepaintBoundary(
                             child: AlbumCard(
                               key: ValueKey('liked-all-album-${album.id}'),
                               album: album,
                               size: AlbumCardSize.library,
-                              heroTag: buildCoverArtHeroTag(
-                                coverArtId: album.coverArt,
-                                context: 'liked_all_album',
-                              ),
+                              heroTag: heroTag,
                               badge: AlbumDownloadBadge(albumId: album.id),
                               onTap: () {
                                 ref
@@ -585,6 +587,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                                   context,
                                   ref,
                                   album.id,
+                                  heroTag: heroTag,
                                 );
                               },
                               onLongPress: () =>

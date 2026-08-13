@@ -81,6 +81,7 @@ class AlbumCard extends ConsumerWidget {
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                    borderRadius: cardBorderRadius,
                     isExternalSource: album.isExternal,
                   )
                 else

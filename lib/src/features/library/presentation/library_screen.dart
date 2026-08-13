@@ -1297,16 +1297,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                             index,
                           ) {
                             final album = typeFiltered[index];
+                            final heroTag = buildCoverArtHeroTag(
+                              coverArtId: album.coverArt,
+                              context: 'album',
+                              entityId: album.id,
+                            );
                             return RepaintBoundary(
                               child: AlbumCard(
                                 key: ValueKey(album.id),
                                 album: album,
                                 size: AlbumCardSize.library,
-                                heroTag: buildCoverArtHeroTag(
-                                  coverArtId: album.coverArt,
-                                  context: 'album',
-                                  entityId: album.id,
-                                ),
+                                heroTag: heroTag,
                                 badge: AlbumDownloadBadge(albumId: album.id),
                                 onTap: () {
                                   ref
@@ -1318,6 +1319,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                     context,
                                     ref,
                                     album.id,
+                                    heroTag: heroTag,
                                   );
                                 },
                                 onLongPress: () => showAlbumContextMenu(
@@ -1561,21 +1563,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   Widget _buildYearAlbumCard(BuildContext context, AlbumsTableData album) {
+    final heroTag = buildCoverArtHeroTag(
+      coverArtId: album.coverArt,
+      context: 'year_album',
+      entityId: album.id,
+    );
     return RepaintBoundary(
       child: AlbumCard(
         key: ValueKey('year-album-${album.id}'),
         album: album,
         size: AlbumCardSize.library,
-        heroTag: buildCoverArtHeroTag(
-          coverArtId: album.coverArt,
-          context: 'year_album',
-        ),
+        heroTag: heroTag,
         badge: AlbumDownloadBadge(albumId: album.id),
         onTap: () {
           ref
               .read(librarySyncControllerProvider.notifier)
               .registerAlbumInteraction(album.id);
-          NavService.openAlbumDetail(context, ref, album.id);
+          NavService.openAlbumDetail(context, ref, album.id, heroTag: heroTag);
         },
         onLongPress: () => showAlbumContextMenu(context, ref, album.id),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
@@ -1865,15 +1869,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                       delegate: SliverChildBuilderDelegate((context, index) {
                         final album = filteredAlbums[index];
+                        final heroTag = buildCoverArtHeroTag(
+                          coverArtId: album.coverArt,
+                          context: 'liked_album',
+                          entityId: album.id,
+                        );
                         return RepaintBoundary(
                           child: AlbumCard(
                             key: ValueKey('liked-album-${album.id}'),
                             album: album,
                             size: AlbumCardSize.library,
-                            heroTag: buildCoverArtHeroTag(
-                              coverArtId: album.coverArt,
-                              context: 'liked_album',
-                            ),
+                            heroTag: heroTag,
                             badge: AlbumDownloadBadge(albumId: album.id),
                             onTap: () {
                               ref
@@ -1883,6 +1889,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                 context,
                                 ref,
                                 album.id,
+                                heroTag: heroTag,
                               );
                             },
                             onLongPress: () =>

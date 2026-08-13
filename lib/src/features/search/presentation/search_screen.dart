@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -811,8 +812,14 @@ class _AlbumResultsSection extends ConsumerWidget {
             id: album.id,
             apiIsExternal: album.isExternal,
           );
-          final leading = CoverArtImage(
+          final heroTag = buildCoverArtHeroTag(
             coverArtId: album.coverArt,
+            context: 'search_album',
+            entityId: album.id,
+          );
+          final leading = HeroCoverArt(
+            coverArtId: album.coverArt,
+            heroTag: heroTag,
             size: 80,
             width: 48,
             height: 48,
@@ -829,7 +836,12 @@ class _AlbumResultsSection extends ConsumerWidget {
                 isRemote: isRemote,
               ),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => NavService.openAlbumDetail(context, ref, album.id),
+              onTap: () => NavService.openAlbumDetail(
+                context,
+                ref,
+                album.id,
+                heroTag: heroTag,
+              ),
             );
           }
           return ListTile(
@@ -839,7 +851,12 @@ class _AlbumResultsSection extends ConsumerWidget {
               text: album.artist ?? '',
               isRemote: isRemote,
             ),
-            onTap: () => NavService.openAlbumDetail(context, ref, album.id),
+            onTap: () => NavService.openAlbumDetail(
+              context,
+              ref,
+              album.id,
+              heroTag: heroTag,
+            ),
           );
         }),
       ],

@@ -1295,8 +1295,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (album) =>
-                  NavService.openAlbumDetail(context, ref, album.id),
+              onTap: (album, heroTag) => NavService.openAlbumDetail(
+                context,
+                ref,
+                album.id,
+                heroTag: heroTag,
+              ),
             ),
             emptyTitle: l10n.homeRecentlyLikedAlbumsEmptyTitle,
             emptySubtitle: l10n.homeRecentlyLikedAlbumsEmptySubtitle,
@@ -1367,8 +1371,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
                 adaptiveLayoutClass: adaptiveLayoutClass,
                 compactWideLandscapeMode: compactWideLandscapeMode,
-                onTap: (album) =>
-                    NavService.openAlbumDetail(context, ref, album.id),
+                onTap: (album, heroTag) => NavService.openAlbumDetail(
+                  context,
+                  ref,
+                  album.id,
+                  heroTag: heroTag,
+                ),
               ),
               emptyTitle: l10n.libraryDownloadedOnlyEmpty,
               emptySubtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
@@ -1403,8 +1411,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (album) =>
-                  NavService.openAlbumDetail(context, ref, album.id),
+              onTap: (album, heroTag) => NavService.openAlbumDetail(
+                context,
+                ref,
+                album.id,
+                heroTag: heroTag,
+              ),
             ),
             emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
             emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
@@ -1445,8 +1457,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (album) =>
-                  NavService.openAlbumDetail(context, ref, album.id),
+              onTap: (album, heroTag) => NavService.openAlbumDetail(
+                context,
+                ref,
+                album.id,
+                heroTag: heroTag,
+              ),
             ),
             emptyTitle: l10n.homeRecentlyPlayedAlbumsEmptyTitle,
             emptySubtitle: l10n.homeRecentlyPlayedAlbumsEmptySubtitle,
@@ -1640,8 +1656,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (album) =>
-                  NavService.openAlbumDetail(context, ref, album.id),
+              onTap: (album, heroTag) => NavService.openAlbumDetail(
+                context,
+                ref,
+                album.id,
+                heroTag: heroTag,
+              ),
             ),
             emptyTitle: l10n.homeFrequentEmptyTitle,
             emptySubtitle: l10n.homeFrequentEmptySubtitle,
@@ -1978,7 +1998,7 @@ class _ServerAlbumCarousel extends ConsumerWidget {
   });
 
   final List<Album> albums;
-  final void Function(Album album) onTap;
+  final void Function(Album album, String heroTag) onTap;
   final String heroContext;
   final bool desktopMode;
   final bool tabletMode;
@@ -2010,6 +2030,10 @@ class _ServerAlbumCarousel extends ConsumerWidget {
         itemCount: albums.length,
         itemBuilder: (context, index) {
           final album = albums[index];
+          final heroTag = buildCoverArtHeroTag(
+            coverArtId: album.coverArt,
+            context: '${heroContext}_${album.id}',
+          );
           return _ServerAlbumCard(
             name: album.name,
             artist: album.artist,
@@ -2020,11 +2044,8 @@ class _ServerAlbumCarousel extends ConsumerWidget {
               id: album.id,
               apiIsExternal: album.isExternal,
             ),
-            heroTag: buildCoverArtHeroTag(
-              coverArtId: album.coverArt,
-              context: '${heroContext}_${album.id}',
-            ),
-            onTap: () => onTap(album),
+            heroTag: heroTag,
+            onTap: () => onTap(album, heroTag),
             onLongPress: () => showAlbumContextMenu(context, ref, album.id),
             onSecondaryTapDown: (details) => showAlbumContextMenu(
               context,
@@ -2045,6 +2066,10 @@ class _ServerAlbumCarousel extends ConsumerWidget {
         separatorBuilder: (_, _) => SizedBox(width: separatorWidth),
         itemBuilder: (context, index) {
           final album = albums[index];
+          final heroTag = buildCoverArtHeroTag(
+            coverArtId: album.coverArt,
+            context: '${heroContext}_${album.id}',
+          );
           return _ServerAlbumCard(
             name: album.name,
             artist: album.artist,
@@ -2055,11 +2080,8 @@ class _ServerAlbumCarousel extends ConsumerWidget {
               id: album.id,
               apiIsExternal: album.isExternal,
             ),
-            heroTag: buildCoverArtHeroTag(
-              coverArtId: album.coverArt,
-              context: '${heroContext}_${album.id}',
-            ),
-            onTap: () => onTap(album),
+            heroTag: heroTag,
+            onTap: () => onTap(album, heroTag),
             onLongPress: () => showAlbumContextMenu(context, ref, album.id),
             onSecondaryTapDown: (details) => showAlbumContextMenu(
               context,
@@ -2088,7 +2110,7 @@ class _LocalAlbumCarousel extends ConsumerWidget {
   });
 
   final List<AlbumsTableData> albums;
-  final void Function(AlbumsTableData album) onTap;
+  final void Function(AlbumsTableData album, String heroTag) onTap;
   final String heroContext;
   final bool desktopMode;
   final bool tabletMode;
@@ -2118,14 +2140,15 @@ class _LocalAlbumCarousel extends ConsumerWidget {
         itemCount: albums.length,
         itemBuilder: (context, index) {
           final album = albums[index];
+          final heroTag = buildCoverArtHeroTag(
+            coverArtId: album.coverArt,
+            context: '${heroContext}_${album.id}',
+          );
           return AlbumCard(
             album: album,
             size: AlbumCardSize.compact,
-            heroTag: buildCoverArtHeroTag(
-              coverArtId: album.coverArt,
-              context: '${heroContext}_${album.id}',
-            ),
-            onTap: () => onTap(album),
+            heroTag: heroTag,
+            onTap: () => onTap(album, heroTag),
             onLongPress: () => showAlbumContextMenu(context, ref, album.id),
             onSecondaryTapDown: (details) => showAlbumContextMenu(
               context,
@@ -2146,14 +2169,15 @@ class _LocalAlbumCarousel extends ConsumerWidget {
         separatorBuilder: (_, _) => SizedBox(width: separatorWidth),
         itemBuilder: (context, index) {
           final album = albums[index];
+          final heroTag = buildCoverArtHeroTag(
+            coverArtId: album.coverArt,
+            context: '${heroContext}_${album.id}',
+          );
           return AlbumCard(
             album: album,
             size: AlbumCardSize.compact,
-            heroTag: buildCoverArtHeroTag(
-              coverArtId: album.coverArt,
-              context: '${heroContext}_${album.id}',
-            ),
-            onTap: () => onTap(album),
+            heroTag: heroTag,
+            onTap: () => onTap(album, heroTag),
             onLongPress: () => showAlbumContextMenu(context, ref, album.id),
             onSecondaryTapDown: (details) => showAlbumContextMenu(
               context,
@@ -2622,13 +2646,23 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final coverShape = ref.watch(coverArtShapeProvider);
     final coverRadius = coverArtShapeToRadius(coverShape);
+    final heroTag = buildCoverArtHeroTag(
+      coverArtId: album.coverArtId,
+      context: '${heroContext}_${album.id}_desktop_page',
+      entityId: album.id,
+    );
 
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => NavService.openAlbumDetail(context, ref, album.id),
+        onTap: () => NavService.openAlbumDetail(
+          context,
+          ref,
+          album.id,
+          heroTag: heroTag,
+        ),
         onLongPress: () => showAlbumContextMenu(context, ref, album.id),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
           context,
@@ -2648,14 +2682,11 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                 children: <Widget>[
                   HeroCoverArt(
                     coverArtId: album.coverArtId,
-                    heroTag: buildCoverArtHeroTag(
-                      coverArtId: album.coverArtId,
-                      context: '${heroContext}_${album.id}_desktop_page',
-                      entityId: album.id,
-                    ),
+                    heroTag: heroTag,
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                    borderRadius: coverRadius,
                     isExternalSource: album.isExternal,
                   ),
                   const Positioned.fill(
@@ -3796,6 +3827,11 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
       return _RandomListenBrainzHeroCard(item: item);
     }
     final album = item as HomeRandomShowcaseAlbum;
+    final heroTag = buildCoverArtHeroTag(
+      coverArtId: album.coverArtId,
+      context: '${heroContext}_hero',
+      entityId: album.id,
+    );
     final metadataParts = <String>[
       if (album.year != null && album.year! > 0) album.year.toString(),
       if (album.songCount != null && album.songCount! > 0)
@@ -3808,7 +3844,12 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: InkWell(
-        onTap: () => NavService.openAlbumDetail(context, ref, album.id),
+        onTap: () => NavService.openAlbumDetail(
+          context,
+          ref,
+          album.id,
+          heroTag: heroTag,
+        ),
         onLongPress: () => showAlbumContextMenu(context, ref, album.id),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
           context,
@@ -3821,14 +3862,11 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
           children: <Widget>[
             HeroCoverArt(
               coverArtId: album.coverArtId,
-              heroTag: buildCoverArtHeroTag(
-                coverArtId: album.coverArtId,
-                context: '${heroContext}_hero',
-                entityId: album.id,
-              ),
+              heroTag: heroTag,
               size: kCoverArtStandardSize,
               fit: BoxFit.cover,
               placeholderIcon: Icons.album_outlined,
+              borderRadius: BorderRadius.circular(20),
               isExternalSource: album.isExternal,
             ),
             DecoratedBox(
@@ -4063,6 +4101,7 @@ class _ServerAlbumCard extends StatelessWidget {
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                    borderRadius: borderRadius,
                     isExternalSource: isExternalSource,
                   )
                 else

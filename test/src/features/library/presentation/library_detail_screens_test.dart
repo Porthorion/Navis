@@ -15,6 +15,8 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import '../../../../helpers/test_database.dart';
@@ -356,11 +358,15 @@ Future<void> _pumpAlbumDetail(
   required NavisDatabase database,
   required AdaptiveContext adaptiveContext,
   required AlbumWithSongs album,
+  String? openingHeroTag,
   List<dynamic> overrides = const <dynamic>[],
 }) async {
   await tester.pumpWidget(
     _buildApp(
-      child: const AlbumDetailScreen(albumId: 'album-1'),
+      child: AlbumDetailScreen(
+        albumId: 'album-1',
+        openingHeroTag: openingHeroTag,
+      ),
       database: database,
       adaptiveContext: adaptiveContext,
       overrides: [
@@ -557,6 +563,46 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Song 1'), findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('album detail retains the supplied source hero tag', (
+      tester,
+    ) async {
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _mobileContext,
+        album: _albumWithSongs(const <SongsTableData>[]),
+        openingHeroTag: 'cover_art_search_album_album-1',
+      );
+
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Hero && widget.tag == 'cover_art_search_album_album-1',
+        ),
+        findsAtLeastNWidgets(1),
+      );
+      await _disposeApp(tester);
+    });
+
+    testWidgets('desktop album detail keeps the card artwork cache key', (
+      tester,
+    ) async {
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _desktopContext,
+        album: _albumWithSongs(const <SongsTableData>[]),
+      );
+
+      expect(
+        tester
+            .widgetList<HeroCoverArt>(find.byType(HeroCoverArt))
+            .every((art) => art.size == kCoverArtStandardSize),
+        isTrue,
+      );
       await _disposeApp(tester);
     });
 

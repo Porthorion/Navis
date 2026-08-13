@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -72,11 +73,21 @@ class GenreDetailScreen extends ConsumerWidget {
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final album = items[index];
+                      final heroTag = buildCoverArtHeroTag(
+                        coverArtId: album.coverArt,
+                        context: 'genre_album',
+                        entityId: album.id,
+                      );
                       return AlbumCard(
                         album: album,
+                        heroTag: heroTag,
                         badge: AlbumDownloadBadge(albumId: album.id),
-                        onTap: () =>
-                            NavService.openAlbumDetail(context, ref, album.id),
+                        onTap: () => NavService.openAlbumDetail(
+                          context,
+                          ref,
+                          album.id,
+                          heroTag: heroTag,
+                        ),
                         onLongPress: () =>
                             showAlbumContextMenu(context, ref, album.id),
                         onSecondaryTapDown: (details) => showAlbumContextMenu(
