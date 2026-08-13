@@ -102,6 +102,7 @@ void main() {
       );
       expect(settledHeroOpacity.opacity, 0);
 
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 60));
       final settledReturnOpacity = tester.widget<Opacity>(
         find.ancestor(
@@ -148,7 +149,7 @@ class _HeroSourcePage extends StatelessWidget {
             const Align(
               alignment: Alignment.bottomCenter,
               child: HeroRouteChrome(
-                enabled: true,
+                heroTag: 'album-hero',
                 child: Text('Source album metadata'),
               ),
             ),

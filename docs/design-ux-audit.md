@@ -29,7 +29,8 @@ suppresses the competing album-route slide when a Hero is present. Explicit
 source coverage now includes Home, Library views, Search, Artist, and Genre.
 Source-card title, artist, badge, and gradient chrome—including the large Home
 Random/desktop showcase variants—now remain hidden until the Hero return has
-settled, then fade in as a separate short transition instead of popping in
+settled, then fade in as a separate short transition. The handoff is driven by
+the Hero flight completion itself rather than route timing, so it cannot run
 while the artwork is still moving.
 The Linux isolated-clone route and clean-restart captures are inspected; the
 shared Hero and mobile-detail widget coverage pass. Physical Android/iOS

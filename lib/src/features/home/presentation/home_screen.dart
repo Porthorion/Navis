@@ -2690,7 +2690,7 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                     isExternalSource: album.isExternal,
                   ),
                   HeroRouteChrome(
-                    enabled: true,
+                    heroTag: heroTag,
                     child: Stack(
                       fit: StackFit.expand,
                       children: <Widget>[
@@ -3880,7 +3880,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
               isExternalSource: album.isExternal,
             ),
             HeroRouteChrome(
-              enabled: true,
+              heroTag: heroTag,
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
@@ -4141,7 +4141,7 @@ class _ServerAlbumCard extends StatelessWidget {
                   right: 0,
                   bottom: 0,
                   child: HeroRouteChrome(
-                    enabled: heroTag != null,
+                    heroTag: heroTag,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(

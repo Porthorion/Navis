@@ -93,7 +93,7 @@ class AlbumCard extends ConsumerWidget {
                     isExternalSource: album.isExternal,
                   ),
                 HeroRouteChrome(
-                  enabled: heroTag != null,
+                  heroTag: heroTag,
                   child: Stack(
                     fit: StackFit.expand,
                     children: <Widget>[

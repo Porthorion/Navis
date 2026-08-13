@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -55,6 +57,22 @@ class HeroCoverArt extends StatelessWidget {
             fromHeroContext,
             toHeroContext,
           ) {
+            if (flightDirection == HeroFlightDirection.push) {
+              _HeroChromeRegistry.hide(heroTag);
+            }
+            if (flightDirection == HeroFlightDirection.pop) {
+              void revealChromeAfterFlight(AnimationStatus status) {
+                if (status != AnimationStatus.completed &&
+                    status != AnimationStatus.dismissed) {
+                  return;
+                }
+                animation.removeStatusListener(revealChromeAfterFlight);
+                _HeroChromeRegistry.reveal(heroTag);
+              }
+
+              animation.addStatusListener(revealChromeAfterFlight);
+            }
+
             // A destination Hero's shuttle takes precedence in Flutter. Read
             // the actual source Hero instead of this destination's dimensions,
             // otherwise a 600 px card can turn into a cold 300 px request
@@ -154,19 +172,58 @@ String buildCoverArtHeroTag({
   return 'cover_art_${context}_$id';
 }
 
-/// Fades card metadata while a Hero-enabled detail route is on top.
-///
-/// The artwork itself is owned by the Navigator's Hero overlay. Without this
-/// companion fade, the source card's separately composed title/artist gradient
-/// can reappear in one frame when the Hero returns on pop.
+abstract interface class _HeroChromeHandle {
+  void hideForHeroFlight();
+
+  void revealAfterHeroFlight();
+}
+
+/// Connects the Hero flight to source-card chrome without relying on navigator
+/// nesting or the route transition implementation.
+abstract final class _HeroChromeRegistry {
+  static final Map<String, _HeroChromeHandle> _handles =
+      <String, _HeroChromeHandle>{};
+
+  static void register(String tag, _HeroChromeHandle handle) {
+    _handles[tag] = handle;
+  }
+
+  static void unregister(String tag, _HeroChromeHandle handle) {
+    if (identical(_handles[tag], handle)) {
+      _handles.remove(tag);
+    }
+  }
+
+  static void hide(String tag) {
+    _afterFrame(tag, (handle) => handle.hideForHeroFlight());
+  }
+
+  static void reveal(String tag) {
+    _afterFrame(tag, (handle) => handle.revealAfterHeroFlight());
+  }
+
+  static void _afterFrame(
+    String tag,
+    void Function(_HeroChromeHandle handle) action,
+  ) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final handle = _handles[tag];
+      if (handle != null) {
+        action(handle);
+      }
+    });
+  }
+}
+
+/// Fades source-card metadata after its matching Hero has landed on return.
 class HeroRouteChrome extends StatefulWidget {
   const HeroRouteChrome({
-    required this.enabled,
+    this.heroTag,
     required this.child,
     super.key,
   });
 
-  final bool enabled;
+  final String? heroTag;
   final Widget child;
 
   @override
@@ -174,68 +231,71 @@ class HeroRouteChrome extends StatefulWidget {
 }
 
 class _HeroRouteChromeState extends State<HeroRouteChrome>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin
+    implements _HeroChromeHandle {
   static const Duration _returnFadeDuration = Duration(milliseconds: 120);
 
-  late final AnimationController _returnFadeController = AnimationController(
-    vsync: this,
-    duration: _returnFadeDuration,
-    value: 1,
-  );
-  Animation<double>? _secondaryAnimation;
-  bool _wasCovered = false;
+  late final AnimationController _returnFadeController;
+  String? _registeredTag;
+
+  @override
+  void initState() {
+    super.initState();
+    _returnFadeController = AnimationController(
+      vsync: this,
+      duration: _returnFadeDuration,
+      value: 1,
+    );
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final secondaryAnimation = ModalRoute.of(context)?.secondaryAnimation;
-    if (_secondaryAnimation == secondaryAnimation) {
-      return;
-    }
-    _secondaryAnimation?.removeListener(_handleSecondaryTick);
-    _secondaryAnimation = secondaryAnimation;
-    _secondaryAnimation?.addListener(_handleSecondaryTick);
-    _handleSecondaryTick();
+    _syncRegistration();
   }
 
   @override
   void didUpdateWidget(covariant HeroRouteChrome oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!widget.enabled && oldWidget.enabled) {
-      _returnFadeController.value = 1;
-    }
+    _syncRegistration();
   }
 
-  void _handleSecondaryTick() {
-    final secondaryAnimation = _secondaryAnimation;
-    if (secondaryAnimation == null) {
+  void _syncRegistration() {
+    final tag = widget.heroTag?.trim();
+    final normalizedTag = tag == null || tag.isEmpty ? null : tag;
+    if (_registeredTag == normalizedTag) {
       return;
     }
-    if (secondaryAnimation.value > 0) {
-      _wasCovered = true;
-      if (_returnFadeController.value != 0) {
-        _returnFadeController.value = 0;
-      }
-      return;
+    if (_registeredTag != null) {
+      _HeroChromeRegistry.unregister(_registeredTag!, this);
     }
-    if (_wasCovered) {
-      _wasCovered = false;
-      _returnFadeController.forward(from: 0);
+    _registeredTag = normalizedTag;
+    if (_registeredTag != null) {
+      _HeroChromeRegistry.register(_registeredTag!, this);
     }
+    _returnFadeController.value = 1;
+  }
+
+  @override
+  void hideForHeroFlight() {
+    _returnFadeController.stop();
+    _returnFadeController.value = 0;
+  }
+
+  @override
+  void revealAfterHeroFlight() {
+    unawaited(_returnFadeController.forward(from: 0));
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.enabled || _secondaryAnimation == null) {
+    if (_registeredTag == null) {
       return widget.child;
     }
     return AnimatedBuilder(
       animation: _returnFadeController,
       child: widget.child,
       builder: (context, child) {
-        // The Hero is complete only once the source route's secondary
-        // animation is dismissed. Keep the overlay hidden until then, then
-        // reveal it with a separate fade so it never competes with the art.
         final opacity = Curves.easeOutCubic.transform(
           _returnFadeController.value,
         );
@@ -246,7 +306,9 @@ class _HeroRouteChromeState extends State<HeroRouteChrome>
 
   @override
   void dispose() {
-    _secondaryAnimation?.removeListener(_handleSecondaryTick);
+    if (_registeredTag != null) {
+      _HeroChromeRegistry.unregister(_registeredTag!, this);
+    }
     _returnFadeController.dispose();
     super.dispose();
   }

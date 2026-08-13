@@ -25,8 +25,8 @@ Last updated: 2026-08-13
   source cache size and radius, removes the mobile blank-capable shuttle, and
   avoids competing route travel. Source card artwork chrome, including the
   Home Random/showcase variants, stays hidden until the Hero return has
-  settled and then fades in separately instead of appearing in one frame.
-  Focused Hero,
+  settled and then fades in separately instead of appearing in one frame; the
+  Hero flight completion itself drives that handoff. Focused Hero,
   artwork, detail-screen, and router tests passed. An isolated Linux clone
   app-API run navigated to and captured the 1503×949 album-detail view before
   and after a clean restart; both images were inspected and the log had no
