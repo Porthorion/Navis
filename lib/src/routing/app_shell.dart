@@ -1926,8 +1926,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                             reveal: reveal,
                             child: NavigationBar(
                               selectedIndex: selectedIndex,
-                              labelBehavior:
-                                  NavigationDestinationLabelBehavior.alwaysHide,
+                              labelBehavior: NavigationDestinationLabelBehavior
+                                  .onlyShowSelected,
                               onDestinationSelected: onDestinationSelected,
                               destinations: <NavigationDestination>[
                                 NavigationDestination(

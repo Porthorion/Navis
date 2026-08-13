@@ -252,6 +252,10 @@ void main() {
 
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).labelBehavior,
+      NavigationDestinationLabelBehavior.onlyShowSelected,
+    );
   });
 
   testWidgets('medium tablet layout keeps bottom navigation', (tester) async {

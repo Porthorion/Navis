@@ -45,6 +45,9 @@ The shared Hero, mobile-detail, and route-transition widget coverage pass. The
 first motion-system slice now honors the platform reduced-motion preference for
 album/detail routes and the artwork-return metadata handoff; remaining sheets,
 player surfaces, and carousels are still pending. The
+mobile bottom bar now keeps its clean four-icon layout but names the selected
+destination, improving Library and Settings discoverability without altering
+desktop or rail navigation. The
 current Linux clone diagnostic can verify a settled detail frame but cannot
 yet drive a mounted source card through the Hero flight; it therefore is not
 used as proof of the animation itself. Live Linux and physical Android/iOS

@@ -27,6 +27,12 @@ Last updated: 2026-08-13
   before/after motion-frame golden coverage pass; final quality gate evidence
   is recorded with this change.)
 
+- [x] Selected-label mobile navigation — 2026-08-13 (the active bottom-bar
+  destination now shows its localized label while inactive destinations remain
+  icon-only; this preserves the compact mobile layout while making the current
+  context explicit. Focused shell and deterministic before/after golden
+  coverage pass; final quality gate evidence is recorded with this change.)
+
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
   source Hero tag now travels through `NavService` to album detail from Home,
