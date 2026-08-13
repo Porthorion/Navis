@@ -478,6 +478,73 @@ void main() {
     );
 
     test(
+      'full promotion preserves created when changed album details omit it',
+      () async {
+        await saveSession();
+        final created = DateTime.utc(2026, 8, 10);
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album',
+            artistId: const Value('artist-1'),
+            songCount: const Value(1),
+            coverArt: const Value('old-cover'),
+            songsHydrated: const Value(true),
+            serverCreatedAt: Value(created),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song',
+            albumId: const Value('album-1'),
+            artistId: const Value('artist-1'),
+          ),
+        ]);
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+        // Both the album-list and detail payload intentionally omit `created`.
+        // The cover-art change forces the candidate through promotion.
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album',
+            artistId: 'artist-1',
+            artist: 'Artist',
+            songCount: 1,
+            coverArt: 'new-cover',
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album',
+          artistId: 'artist-1',
+          artist: 'Artist',
+          songCount: 1,
+          coverArt: 'new-cover',
+          songs: <Song>[
+            Song(
+              id: 'song-1',
+              title: 'Song',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+            ),
+          ],
+        );
+
+        final state = await engine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        final album = await database.libraryDao.getAlbumById('album-1');
+        expect(album?.coverArt, 'new-cover');
+        expect(album?.serverCreatedAt?.toUtc(), created);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'full sync derives artists from album pages when artist endpoints fail',
       () async {
         await saveSession();
