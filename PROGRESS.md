@@ -39,6 +39,12 @@ Last updated: 2026-08-13
   Focused semantic and before/after tooltip golden coverage pass; final quality
   gate evidence is recorded with this change.)
 
+- [x] Status-notice live announcements — 2026-08-13 (top notices now expose a
+  concise live-region message and a semantic dismiss action, so feedback is
+  announced even when visual focus is elsewhere. Focused notice lifecycle and
+  semantics coverage pass; final quality gate evidence is recorded with this
+  change.)
+
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
   source Hero tag now travels through `NavService` to album detail from Home,

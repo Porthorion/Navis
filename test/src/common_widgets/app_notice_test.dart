@@ -127,6 +127,42 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('notice is announced as a dismissible live region', (
+    tester,
+  ) async {
+    final controller = AppNoticeController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppNoticeScope(
+            notifier: controller,
+            child: Stack(
+              children: <Widget>[
+                const SizedBox.expand(),
+                AppNoticeHost(controller: controller),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    controller.show(message: 'Download complete');
+    await tester.pump();
+
+    final announcement = find.byWidgetPredicate(
+      (widget) => widget is Semantics && widget.properties.liveRegion == true,
+    );
+    expect(announcement, findsOneWidget);
+    final semantics = tester.widget<Semantics>(announcement);
+    expect(semantics.properties.label, 'Download complete');
+    expect(semantics.properties.onTap, isNotNull);
+
+    controller.dismiss();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('notice text is clamped to two lines', (tester) async {
     final controller = AppNoticeController();
     addTearDown(controller.dispose);

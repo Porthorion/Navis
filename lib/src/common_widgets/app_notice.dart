@@ -220,35 +220,47 @@ class _NoticePill extends StatelessWidget {
       ),
     };
 
-    return Dismissible(
-      key: ValueKey<int>(notice.id),
-      direction: DismissDirection.up,
-      onDismissed: (_) => onDismissed(),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Material(
-          elevation: 8,
-          borderRadius: BorderRadius.circular(999),
-          color: bgColor,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: onDismissed,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(icon, size: 18, color: fgColor),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      notice.message,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: fgColor),
-                    ),
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      button: true,
+      label: notice.message,
+      onTap: onDismissed,
+      child: ExcludeSemantics(
+        child: Dismissible(
+          key: ValueKey<int>(notice.id),
+          direction: DismissDirection.up,
+          onDismissed: (_) => onDismissed(),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(999),
+              color: bgColor,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: onDismissed,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(icon, size: 18, color: fgColor),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          notice.message,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: fgColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
