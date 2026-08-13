@@ -64,6 +64,12 @@ void main() {
       expect(find.text('Listen Together Configuration'), findsNothing);
       if (step.size.width >= 1200) {
         expect(find.text('Desktop Window'), findsOneWidget);
+        expect(
+          find.text('Desktop workspace controls and app preferences'),
+          findsOneWidget,
+        );
+        expect(find.text('Keyboard Shortcuts'), findsOneWidget);
+        expect(find.text('Connection'), findsOneWidget);
       }
       expect(tester.takeException(), isNull);
     }

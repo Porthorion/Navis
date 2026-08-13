@@ -418,6 +418,60 @@ abstract class AppLocalizations {
   /// **'Themes, colors and display preferences.'**
   String get settingsAppearanceSubtitle;
 
+  /// No description provided for @settingsGroupConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get settingsGroupConnection;
+
+  /// No description provided for @settingsGroupStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get settingsGroupStorage;
+
+  /// No description provided for @settingsGroupPlayback.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get settingsGroupPlayback;
+
+  /// No description provided for @settingsGroupAutomation.
+  ///
+  /// In en, this message translates to:
+  /// **'Automation'**
+  String get settingsGroupAutomation;
+
+  /// No description provided for @settingsGroupAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get settingsGroupAbout;
+
+  /// No description provided for @settingsGroupDesktop.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop'**
+  String get settingsGroupDesktop;
+
+  /// No description provided for @settingsDesktopShortcutsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard Shortcuts'**
+  String get settingsDesktopShortcutsTitle;
+
+  /// No description provided for @settingsDesktopShortcutsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize desktop key bindings'**
+  String get settingsDesktopShortcutsSubtitle;
+
+  /// No description provided for @settingsDesktopWorkspaceSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop workspace controls and app preferences'**
+  String get settingsDesktopWorkspaceSubtitle;
+
   /// No description provided for @syncSettingsTitle.
   ///
   /// In en, this message translates to:

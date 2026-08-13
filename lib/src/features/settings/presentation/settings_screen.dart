@@ -18,12 +18,12 @@ class SettingsScreen extends ConsumerWidget {
     final tabletMode =
         !adaptiveContext.useDesktopShell &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
-    const groupConnection = 'Connection';
-    const groupStorage = 'Storage';
-    const groupPlayback = 'Playback';
-    const groupAutomation = 'Automation';
-    const groupAbout = 'About';
-    const groupDesktop = 'Desktop';
+    final groupConnection = l10n.settingsGroupConnection;
+    final groupStorage = l10n.settingsGroupStorage;
+    final groupPlayback = l10n.settingsGroupPlayback;
+    final groupAutomation = l10n.settingsGroupAutomation;
+    final groupAbout = l10n.settingsGroupAbout;
+    final groupDesktop = l10n.settingsGroupDesktop;
     final List<_SettingsEntry> coreEntries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
@@ -78,10 +78,10 @@ class SettingsScreen extends ConsumerWidget {
           group: groupDesktop,
         ),
       if (adaptiveContext.desktopRuntime)
-        const _SettingsEntry(
+        _SettingsEntry(
           icon: Icons.keyboard_command_key_rounded,
-          title: 'Keyboard Shortcuts',
-          subtitle: 'Customize desktop key bindings',
+          title: l10n.settingsDesktopShortcutsTitle,
+          subtitle: l10n.settingsDesktopShortcutsSubtitle,
           route: '/settings/shortcuts',
           group: groupDesktop,
         ),
@@ -217,7 +217,7 @@ class SettingsScreen extends ConsumerWidget {
             children: <Widget>[
               DesktopSectionHeader(
                 title: l10n.settingsTitle,
-                subtitle: 'Desktop workspace controls and app preferences',
+                subtitle: l10n.settingsDesktopWorkspaceSubtitle,
               ),
               const SizedBox(height: 6),
               for (final group in groups.entries) ...<Widget>[

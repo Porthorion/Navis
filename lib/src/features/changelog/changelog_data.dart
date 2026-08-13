@@ -50,6 +50,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Settings labels are now ready for localization across desktop and mobile',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Album card titles and artists now fade in smoothly when returning from an album page',
         type: ChangelogEntryType.fix,
       ),

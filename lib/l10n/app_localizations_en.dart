@@ -186,6 +186,35 @@ class AppLocalizationsEn extends AppLocalizations {
       'Themes, colors and display preferences.';
 
   @override
+  String get settingsGroupConnection => 'Connection';
+
+  @override
+  String get settingsGroupStorage => 'Storage';
+
+  @override
+  String get settingsGroupPlayback => 'Playback';
+
+  @override
+  String get settingsGroupAutomation => 'Automation';
+
+  @override
+  String get settingsGroupAbout => 'About';
+
+  @override
+  String get settingsGroupDesktop => 'Desktop';
+
+  @override
+  String get settingsDesktopShortcutsTitle => 'Keyboard Shortcuts';
+
+  @override
+  String get settingsDesktopShortcutsSubtitle =>
+      'Customize desktop key bindings';
+
+  @override
+  String get settingsDesktopWorkspaceSubtitle =>
+      'Desktop workspace controls and app preferences';
+
+  @override
   String get syncSettingsTitle => 'Sync Settings';
 
   @override

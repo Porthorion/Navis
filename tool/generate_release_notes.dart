@@ -77,6 +77,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
+      'Settings labels are now ready for localization across desktop and mobile',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Album card titles and artists now fade in smoothly when returning from an album page',
       type: _EntryType.fix,
     ),

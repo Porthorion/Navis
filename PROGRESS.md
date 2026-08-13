@@ -45,6 +45,12 @@ Last updated: 2026-08-13
   semantics coverage pass; final quality gate evidence is recorded with this
   change.)
 
+- [x] Settings localization consistency — 2026-08-13 (Settings group headings
+  and desktop-specific shortcut/workspace copy now use generated localization
+  strings rather than bypassing the app's localization contract. Focused
+  adaptive Settings coverage passes; final quality gate evidence is recorded
+  with this change.)
+
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
   source Hero tag now travels through `NavService` to album detail from Home,
