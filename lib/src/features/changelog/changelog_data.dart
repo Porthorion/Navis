@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Album card titles and artists now fade in smoothly when returning from an album page',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Album artwork now opens with a steadier transition from Home, Library, Search, Artist, and Genre views',
         type: ChangelogEntryType.fix,
       ),

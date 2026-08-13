@@ -49,6 +49,34 @@ void main() {
     expect(flightImage.fadeInDuration, Duration.zero);
     expect(flightImage.gaplessPlayback, isTrue);
   });
+
+  testWidgets('fades source card chrome back in after a hero return', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          subsonicApiProvider.overrideWith((_) => null),
+        ],
+        child: const MaterialApp(home: _HeroSourcePage()),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('open-album')));
+    await tester.pumpAndSettle();
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final chromeOpacity = tester.widget<Opacity>(
+      find.ancestor(
+        of: find.text('Source album metadata', skipOffstage: false),
+        matching: find.byType(Opacity),
+      ),
+    );
+    expect(chromeOpacity.opacity, greaterThan(0));
+    expect(chromeOpacity.opacity, lessThan(1));
+  });
 }
 
 class _HeroSourcePage extends StatelessWidget {
@@ -58,26 +86,37 @@ class _HeroSourcePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: GestureDetector(
-          key: const Key('open-album'),
-          onTap: () {
-            unawaited(
-              Navigator.of(context).push<void>(
-                PageRouteBuilder<void>(
-                  transitionDuration: const Duration(milliseconds: 300),
-                  pageBuilder: (_, _, _) => const _HeroDestinationPage(),
-                ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            GestureDetector(
+              key: const Key('open-album'),
+              onTap: () {
+                unawaited(
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const _HeroDestinationPage(),
+                    ),
+                  ),
+                );
+              },
+              child: HeroCoverArt(
+                coverArtId: null,
+                heroTag: 'album-hero',
+                size: kCoverArtStandardSize,
+                width: 96,
+                height: 96,
+                borderRadius: BorderRadius.circular(16),
               ),
-            );
-          },
-          child: HeroCoverArt(
-            coverArtId: null,
-            heroTag: 'album-hero',
-            size: kCoverArtStandardSize,
-            width: 96,
-            height: 96,
-            borderRadius: BorderRadius.circular(16),
-          ),
+            ),
+            const Align(
+              alignment: Alignment.bottomCenter,
+              child: HeroRouteChrome(
+                enabled: true,
+                child: Text('Source album metadata'),
+              ),
+            ),
+          ],
         ),
       ),
     );

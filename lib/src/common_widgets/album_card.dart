@@ -92,57 +92,65 @@ class AlbumCard extends ConsumerWidget {
                     placeholderIcon: Icons.album_outlined,
                     isExternalSource: album.isExternal,
                   ),
-                if (badge != null)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: badge!,
-                  ),
-                // Gradient overlay at the bottom
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: DecoratedBox(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: <Color>[
-                          Color(0x00000000),
-                          Color(0xCC000000),
-                        ],
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(
-                            album.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                HeroRouteChrome(
+                  enabled: heroTag != null,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      if (badge != null)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: badge!,
+                        ),
+                      // Gradient overlay at the bottom
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: DecoratedBox(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                Color(0x00000000),
+                                Color(0xCC000000),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            album.artistName ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xCCFFFFFF),
-                              fontSize: 11,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Text(
+                                  album.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  album.artistName ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xCCFFFFFF),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ],

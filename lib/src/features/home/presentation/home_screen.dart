@@ -4116,46 +4116,49 @@ class _ServerAlbumCard extends StatelessWidget {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: <Color>[
-                          Colors.black.withValues(alpha: 0),
-                          Colors.black.withValues(alpha: 0.75),
-                        ],
+                  child: HeroRouteChrome(
+                    enabled: heroTag != null,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            Colors.black.withValues(alpha: 0),
+                            Colors.black.withValues(alpha: 0.75),
+                          ],
+                        ),
                       ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.95),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (artist != null) ...[
-                            const SizedBox(height: 2),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
                             Text(
-                              artist!,
+                              name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.75),
-                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.95),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
+                            if (artist != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                artist!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.75),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),

@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Album card titles and artists now fade in smoothly when returning from an album page',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Album artwork now opens with a steadier transition from Home, Library, Search, Artist, and Genre views',
       type: _EntryType.fix,
     ),

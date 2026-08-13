@@ -153,3 +153,42 @@ String buildCoverArtHeroTag({
   final id = coverArtId?.trim() ?? 'unknown';
   return 'cover_art_${context}_$id';
 }
+
+/// Fades card metadata while a Hero-enabled detail route is on top.
+///
+/// The artwork itself is owned by the Navigator's Hero overlay. Without this
+/// companion fade, the source card's separately composed title/artist gradient
+/// can reappear in one frame when the Hero returns on pop.
+class HeroRouteChrome extends StatelessWidget {
+  const HeroRouteChrome({
+    required this.enabled,
+    required this.child,
+    super.key,
+  });
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) {
+      return child;
+    }
+    final secondaryAnimation = ModalRoute.of(context)?.secondaryAnimation;
+    if (secondaryAnimation == null) {
+      return child;
+    }
+    return AnimatedBuilder(
+      animation: secondaryAnimation,
+      child: child,
+      builder: (context, child) {
+        final opacity =
+            1 -
+            Curves.easeOutCubic.transform(
+              secondaryAnimation.value,
+            );
+        return Opacity(opacity: opacity, child: child);
+      },
+    );
+  }
+}
