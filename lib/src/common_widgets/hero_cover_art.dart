@@ -169,6 +169,8 @@ class HeroRouteChrome extends StatelessWidget {
   final bool enabled;
   final Widget child;
 
+  static const double _fadePhase = 0.45;
+
   @override
   Widget build(BuildContext context) {
     if (!enabled) {
@@ -182,11 +184,13 @@ class HeroRouteChrome extends StatelessWidget {
       animation: secondaryAnimation,
       child: child,
       builder: (context, child) {
-        final opacity =
-            1 -
-            Curves.easeOutCubic.transform(
-              secondaryAnimation.value,
-            );
+        // The source route's [secondaryAnimation] moves from 0 to 1 while a
+        // detail page opens, then from 1 to 0 while it closes. Fade the chrome
+        // out in the first part of opening and keep it hidden until the Hero
+        // is almost back on pop. The previous unbounded curve made the chrome
+        // mostly opaque halfway through the return, which still read as a pop.
+        final phase = (secondaryAnimation.value / _fadePhase).clamp(0.0, 1.0);
+        final opacity = 1 - Curves.easeOutCubic.transform(phase);
         return Opacity(opacity: opacity, child: child);
       },
     );

@@ -50,33 +50,45 @@ void main() {
     expect(flightImage.gaplessPlayback, isTrue);
   });
 
-  testWidgets('fades source card chrome back in after a hero return', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          subsonicApiProvider.overrideWith((_) => null),
-        ],
-        child: const MaterialApp(home: _HeroSourcePage()),
-      ),
-    );
+  testWidgets(
+    'keeps source card chrome hidden until the final hero return phase',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subsonicApiProvider.overrideWith((_) => null),
+          ],
+          child: const MaterialApp(home: _HeroSourcePage()),
+        ),
+      );
 
-    await tester.tap(find.byKey(const Key('open-album')));
-    await tester.pumpAndSettle();
-    tester.state<NavigatorState>(find.byType(Navigator)).pop();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byKey(const Key('open-album')));
+      await tester.pumpAndSettle();
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    final chromeOpacity = tester.widget<Opacity>(
-      find.ancestor(
-        of: find.text('Source album metadata', skipOffstage: false),
-        matching: find.byType(Opacity),
-      ),
-    );
-    expect(chromeOpacity.opacity, greaterThan(0));
-    expect(chromeOpacity.opacity, lessThan(1));
-  });
+      final initialReturnOpacity = tester.widget<Opacity>(
+        find.ancestor(
+          of: find.text('Source album metadata', skipOffstage: false),
+          matching: find.byType(Opacity),
+        ),
+      );
+      expect(initialReturnOpacity.opacity, 0);
+
+      await tester.pump(const Duration(milliseconds: 150));
+      final finalReturnOpacity = tester.widget<Opacity>(
+        find.ancestor(
+          of: find.text('Source album metadata', skipOffstage: false),
+          matching: find.byType(Opacity),
+        ),
+      );
+      expect(finalReturnOpacity.opacity, greaterThan(0));
+      expect(finalReturnOpacity.opacity, lessThan(1));
+    },
+  );
 }
 
 class _HeroSourcePage extends StatelessWidget {

@@ -27,8 +27,9 @@ the destination, preserves the source 600 px cache key and source radius in a
 single shared flight, removes the mobile-specific blank-capable shuttle, and
 suppresses the competing album-route slide when a Hero is present. Explicit
 source coverage now includes Home, Library views, Search, Artist, and Genre.
-Source-card title, artist, badge, and gradient chrome now fade back in over the
-last portion of the return animation instead of popping in when Hero ownership
+Source-card title, artist, badge, and gradient chrome—including the large Home
+Random/desktop showcase variants—now remain hidden until the last portion of
+the return animation, then fade in instead of popping in when Hero ownership
 returns to the card.
 The Linux isolated-clone route and clean-restart captures are inspected; the
 shared Hero and mobile-detail widget coverage pass. Physical Android/iOS
