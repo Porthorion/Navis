@@ -27,6 +27,28 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.5',
+    entries: [
+      ChangelogEntry(
+        'Check for updates on mobile data now performs a bounded recent-album discovery, so new and changed albums can be found without downloading the full song index',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Recently Added now preserves known server album dates through full-library syncs, keeping its order stable without a cache reset',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry('It better work this time!'),
+      ChangelogEntry(
+        'Library sync now has stronger regression coverage for bounded mobile discovery and catalog-promotion date preservation',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Android background-sync reliability work now has a documented closure plan for truthful scheduling, worker failures, live network policy, and device certification',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.4',
     entries: [
       ChangelogEntry(

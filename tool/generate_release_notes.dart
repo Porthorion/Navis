@@ -55,6 +55,25 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.5', [
+    _Entry(
+      'Check for updates on mobile data now performs a bounded recent-album discovery, so new and changed albums can be found without downloading the full song index',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Recently Added now preserves known server album dates through full-library syncs, keeping its order stable without a cache reset',
+      type: _EntryType.fix,
+    ),
+    _Entry('It better work this time!'),
+    _Entry(
+      'Library sync now has stronger regression coverage for bounded mobile discovery and catalog-promotion date preservation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Android background-sync reliability work now has a documented closure plan for truthful scheduling, worker failures, live network policy, and device certification',
+      type: _EntryType.improvement,
+    ),
+  ]),
   _Version('1.2.4', [
     _Entry(
       'Check for updates on mobile data now safely finds recent changed albums instead of stopping at an unchanged server cursor',
