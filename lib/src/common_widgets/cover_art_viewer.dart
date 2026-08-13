@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 /// Opens a fullscreen viewer for a plain remote image URL.
 /// Used for radio now-playing art that is not a Subsonic cover art ID.
@@ -14,12 +15,20 @@ Future<void> showRemoteArtViewer(
   if (url.isEmpty) {
     return Future<void>.value();
   }
+  final reduceMotion = MotionPolicy.of(context).reduceMotion;
 
   return Navigator.of(context).push<void>(
     PageRouteBuilder<void>(
-      transitionDuration: const Duration(milliseconds: 170),
-      reverseTransitionDuration: const Duration(milliseconds: 130),
+      transitionDuration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 170),
+      reverseTransitionDuration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 130),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        if (MotionPolicy.of(context).reduceMotion) {
+          return child;
+        }
         return FadeTransition(opacity: animation, child: child);
       },
       pageBuilder: (context, animation, secondaryAnimation) {
@@ -114,12 +123,20 @@ Future<void> showCoverArtViewer(
   if (id.isEmpty) {
     return Future<void>.value();
   }
+  final reduceMotion = MotionPolicy.of(context).reduceMotion;
 
   return Navigator.of(context).push<void>(
     PageRouteBuilder<void>(
-      transitionDuration: const Duration(milliseconds: 170),
-      reverseTransitionDuration: const Duration(milliseconds: 130),
+      transitionDuration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 170),
+      reverseTransitionDuration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 130),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        if (MotionPolicy.of(context).reduceMotion) {
+          return child;
+        }
         return FadeTransition(opacity: animation, child: child);
       },
       pageBuilder: (context, animation, secondaryAnimation) {

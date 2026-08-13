@@ -60,7 +60,7 @@ Last updated: 2026-08-13
   motion policy now removes transient status-notice travel and fade alongside
   the existing route and Hero behavior, and switches the expandable player
   sheet and queue without travel; Like feedback also becomes instant. Carousel
-  surfaces remain to be migrated.)
+  surfaces and several Now Playing switchers remain to be migrated.)
 
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
