@@ -418,6 +418,35 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   });
 
+  testWidgets('hero-driven album detail does not fade the landing artwork', (
+    tester,
+  ) async {
+    final child = SizedBox(key: UniqueKey());
+    final page = buildSlideFadePage<void>(
+      key: const ValueKey<String>('album-detail'),
+      heroDriven: true,
+      child: child,
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Builder(
+          builder: (context) => page.transitionsBuilder(
+            context,
+            const AlwaysStoppedAnimation<double>(0.5),
+            const AlwaysStoppedAnimation<double>(0),
+            child,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(child.key!), findsOneWidget);
+    expect(find.byType(FadeTransition), findsNothing);
+    expect(find.byType(SlideTransition), findsNothing);
+  });
+
   testWidgets('keeps the current route across a sync timestamp update', (
     tester,
   ) async {

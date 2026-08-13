@@ -19,20 +19,24 @@ Last updated: 2026-08-13
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
-- [x] Stable album artwork navigation transition — 2026-08-13 (the exact
+- [ ] Album artwork navigation transition live verification — 2026-08-13 (the
+  exact
   source Hero tag now travels through `NavService` to album detail from Home,
   Library, Search, Artist, and Genre; the shared Hero shuttle retains the
   source cache size and radius, removes the mobile blank-capable shuttle, and
-  avoids competing route travel. Source card artwork chrome, including the
+  avoids competing route fade or travel, so the Hero alone owns the landing
+  artwork opacity. Source card artwork chrome, including the
   Home Random/showcase variants, stays hidden until the Hero return has
   settled and then fades in separately instead of appearing in one frame; the
   Hero flight completion itself drives that handoff. Hero source, shuttle, and
   destination now share one opaque requested-size decode instead of landing on
-  a layout-sized cached-image fade. Focused Hero,
-  artwork, detail-screen, and router tests passed. An isolated Linux clone
-  app-API run navigated to and captured the 1503×949 album-detail view before
-  and after a clean restart; both images were inspected and the log had no
-  hard-fail pattern. `./tool/check.sh` passed.)
+  a layout-sized cached-image fade. The current source, Hero, detail-screen,
+  and router tests pass, including a regression that prohibits a route-level
+  fade or slide around hero-driven album detail. The Linux clone diagnostic
+  starts and captures correctly, but its direct route request did not paint
+  the expected detail frame after restart; it is not motion evidence. The
+  remaining validation is an app-owned source-card push/pop capture on Linux,
+  followed by mobile confirmation. `./tool/check.sh` passed.)
 
 - [x] Metered manual discovery and Recently Added ordering recovery — 2026-08-13
   (evidence: focused planner, coordinator, engine, canonical DAO, candidate

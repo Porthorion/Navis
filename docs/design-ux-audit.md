@@ -1,6 +1,7 @@
 # Navis Design, UX, and Motion Audit
 
-**Status:** First priority implemented; remaining items proposed
+**Status:** First priority implemented; live-motion verification in progress;
+remaining items proposed
 **Updated:** 2026-08-13
 **Scope:** Desktop (Linux, Windows, macOS) and mobile (Android, iOS) Flutter
 clients. This is an implementation and visual-system audit, not a redesign.
@@ -25,7 +26,10 @@ the reported inconsistency and makes a one-frame blank or shape jump plausible.
 It transfers the tapped source tag through album navigation, reuses that tag at
 the destination, preserves the source 600 px cache key and source radius in a
 single shared flight, removes the mobile-specific blank-capable shuttle, and
-suppresses the competing album-route slide when a Hero is present. Explicit
+suppresses the competing album-route fade and slide when a Hero is present.
+The Hero is now the only animation allowed to affect the landing artwork;
+otherwise the route-wide opacity handoff causes the reported brightness flicker.
+Explicit
 source coverage now includes Home, Library views, Search, Artist, and Genre.
 Source-card title, artist, badge, and gradient chrome—including the large Home
 Random/desktop showcase variants—now remain hidden until the Hero return has
@@ -37,10 +41,11 @@ flight used the requested 600 px decoded artwork while desktop/compact detail
 headers could land on a layout-sized decode and a cached-image fade. All Hero
 participants now share the requested decode size and use no image fade, so the
 overlay hands off to the same opaque image variant.
-The Linux isolated-clone route and clean-restart captures are inspected; the
-shared Hero and mobile-detail widget coverage pass. Physical Android/iOS
-motion capture remains part of the upcoming screenshot review before a release
-is certified.
+The shared Hero, mobile-detail, and route-transition widget coverage pass. The
+current Linux clone diagnostic can verify a settled detail frame but cannot
+yet drive a mounted source card through the Hero flight; it therefore is not
+used as proof of the animation itself. Live Linux and physical Android/iOS
+motion capture remain required before a release is certified.
 
 Priority order:
 

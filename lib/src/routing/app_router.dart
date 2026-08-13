@@ -30,7 +30,11 @@ import 'package:navis/src/routing/app_shell.dart';
 /// Returns a [CustomTransitionPage] with a subtle slide-up + fade-in entry
 /// (and slide-down + fade-out on pop). Used for all list-to-detail and
 /// settings sub-route pushes so navigation feels snappy and polished.
-CustomTransitionPage<T> _slideFadePage<T>({
+///
+/// A Hero-driven route deliberately has no route-level transition: fading the
+/// whole destination also fades the Hero's landing artwork, which produces a
+/// visible brightness jump as Flutter hands the flight back to that widget.
+CustomTransitionPage<T> buildSlideFadePage<T>({
   required LocalKey key,
   required Widget child,
   bool heroDriven = false,
@@ -41,27 +45,25 @@ CustomTransitionPage<T> _slideFadePage<T>({
     transitionDuration: const Duration(milliseconds: 280),
     reverseTransitionDuration: const Duration(milliseconds: 220),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      if (heroDriven) {
+        return child;
+      }
       final fade = CurvedAnimation(
         parent: animation,
-        curve: heroDriven
-            ? const Interval(0.22, 1, curve: Curves.easeOutCubic)
-            : const Interval(0, 0.65, curve: Curves.easeOut),
-        reverseCurve: heroDriven
-            ? const Interval(0, 0.72, curve: Curves.easeInCubic)
-            : const Interval(0.35, 1, curve: Curves.easeIn),
+        curve: const Interval(0, 0.65, curve: Curves.easeOut),
+        reverseCurve: const Interval(0.35, 1, curve: Curves.easeIn),
       );
-      final slide = heroDriven
-          ? const AlwaysStoppedAnimation<Offset>(Offset.zero)
-          : Tween<Offset>(
-              begin: const Offset(0, 0.05),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(
-                parent: animation,
-                curve: Curves.fastEaseInToSlowEaseOut,
-                reverseCurve: Curves.fastEaseInToSlowEaseOut.flipped,
-              ),
-            );
+      final slide =
+          Tween<Offset>(
+            begin: const Offset(0, 0.05),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.fastEaseInToSlowEaseOut,
+              reverseCurve: Curves.fastEaseInToSlowEaseOut.flipped,
+            ),
+          );
       return FadeTransition(
         opacity: fade,
         child: SlideTransition(position: slide, child: child),
@@ -136,7 +138,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'artists/:id',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: ArtistDetailScreen(
                         artistId: state.pathParameters['id']!,
@@ -145,7 +147,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     routes: <RouteBase>[
                       GoRoute(
                         path: 'top-tracks',
-                        pageBuilder: (context, state) => _slideFadePage(
+                        pageBuilder: (context, state) => buildSlideFadePage(
                           key: state.pageKey,
                           child: ArtistTopTracksPlaylistDetailScreen(
                             artistId: state.pathParameters['id']!,
@@ -160,7 +162,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       final openingHeroTag = state.extra is String
                           ? state.extra! as String
                           : null;
-                      return _slideFadePage(
+                      return buildSlideFadePage(
                         key: state.pageKey,
                         heroDriven: openingHeroTag != null,
                         child: AlbumDetailScreen(
@@ -174,7 +176,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'playlists/:id',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: PlaylistDetailScreen(
                         playlistId: state.pathParameters['id']!,
@@ -183,7 +185,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'listenbrainz/:sourcePatch',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: ListenBrainzWeeklyDetailScreen(
                         sourcePatch: state.pathParameters['sourcePatch']!,
@@ -192,7 +194,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'liked-albums',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const LikedAlbumsAllScreen(),
                     ),
@@ -217,21 +219,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'server',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const ServerSettingsScreen(),
                     ),
                   ),
                   GoRoute(
                     path: 'cache',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const CacheSettingsScreen(),
                     ),
                   ),
                   GoRoute(
                     path: 'downloads',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const DownloadsScreen(),
                     ),
@@ -246,21 +248,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'playback',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const PlaybackSettingsScreen(),
                     ),
                     routes: <RouteBase>[
                       GoRoute(
                         path: 'match-flow',
-                        pageBuilder: (context, state) => _slideFadePage(
+                        pageBuilder: (context, state) => buildSlideFadePage(
                           key: state.pageKey,
                           child: const MatchFlowScreen(),
                         ),
                         routes: <RouteBase>[
                           GoRoute(
                             path: ':flowId/search',
-                            pageBuilder: (context, state) => _slideFadePage(
+                            pageBuilder: (context, state) => buildSlideFadePage(
                               key: state.pageKey,
                               child: MatchFlowSongSearchScreen(
                                 flowId: state.pathParameters['flowId']!,
@@ -273,35 +275,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'sync',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const SyncSettingsScreen(),
                     ),
                   ),
                   GoRoute(
                     path: 'appearance',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const AppearanceSettingsScreen(),
                     ),
                   ),
                   GoRoute(
                     path: 'about',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const AboutScreen(),
                     ),
                     routes: [
                       GoRoute(
                         path: 'changelog',
-                        pageBuilder: (context, state) => _slideFadePage(
+                        pageBuilder: (context, state) => buildSlideFadePage(
                           key: state.pageKey,
                           child: const ChangelogScreen(),
                         ),
                       ),
                       GoRoute(
                         path: 'privacy',
-                        pageBuilder: (context, state) => _slideFadePage(
+                        pageBuilder: (context, state) => buildSlideFadePage(
                           key: state.pageKey,
                           child: const PrivacyScreen(),
                         ),
@@ -310,14 +312,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'desktop-window',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const DesktopWindowSettingsScreen(),
                     ),
                   ),
                   GoRoute(
                     path: 'shortcuts',
-                    pageBuilder: (context, state) => _slideFadePage(
+                    pageBuilder: (context, state) => buildSlideFadePage(
                       key: state.pageKey,
                       child: const DesktopShortcutsSettingsScreen(),
                     ),
