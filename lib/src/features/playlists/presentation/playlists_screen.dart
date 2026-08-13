@@ -116,7 +116,6 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           loading: () => const ShimmerListPage(count: 8),
           error: (error, _) => ErrorState(
             title: l10n.playlistsLoadError,
-            message: error.toString(),
             onRetry: () => ref.invalidate(playlistSyncProvider),
           ),
         ),

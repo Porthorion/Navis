@@ -103,7 +103,6 @@ class GenreDetailScreen extends ConsumerWidget {
                 loading: () => const ShimmerListPage(count: 6, leadingSize: 56),
                 error: (error, _) => ErrorState(
                   title: l10n.libraryGenreLoadErrorTitle,
-                  message: error.toString(),
                   onRetry: () =>
                       ref.invalidate(albumsByGenreProvider(genreName)),
                 ),
@@ -181,7 +180,6 @@ class GenreDetailScreen extends ConsumerWidget {
                 loading: () => const ShimmerListPage(count: 8),
                 error: (error, _) => ErrorState(
                   title: l10n.libraryGenreLoadErrorTitle,
-                  message: error.toString(),
                   onRetry: () =>
                       ref.invalidate(songsByGenreProvider(genreName)),
                 ),

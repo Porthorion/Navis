@@ -284,7 +284,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 loading: () => const ShimmerListPage(count: 4, leadingSize: 56),
                 error: (error, _) => ErrorState(
                   title: l10n.artistDetailAlbumsErrorTitle,
-                  message: error.toString(),
                   onRetry: () => ref.invalidate(
                     artistAlbumSectionsProvider(widget.artistId),
                   ),
@@ -330,7 +329,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
       error: (error, _) => ErrorState(
         title: l10n.artistDetailLoadErrorTitle,
-        message: error.toString(),
         onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
       ),
     );

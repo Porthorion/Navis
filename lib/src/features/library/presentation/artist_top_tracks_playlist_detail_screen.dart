@@ -72,7 +72,6 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
           loading: () => const ShimmerListPage(count: 8),
           error: (error, _) => ErrorState(
             title: l10n.artistTopTracksPlaylistErrorTitle,
-            message: error.toString(),
             onRetry: () => ref.invalidate(
               artistTopTracksPlaylistProvider(artist.name),
             ),
@@ -82,7 +81,6 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
       loading: () => const ShimmerListPage(count: 8),
       error: (error, _) => ErrorState(
         title: l10n.artistDetailLoadErrorTitle,
-        message: error.toString(),
         onRetry: () => ref.invalidate(artistByIdProvider(artistId)),
       ),
     );

@@ -226,7 +226,6 @@ class _QueueTab extends ConsumerWidget {
       loading: () => const ShimmerListPage(count: 8),
       error: (error, _) => ErrorState(
         title: l10n.downloadsErrorLoadingQueue,
-        message: error.toString(),
         onRetry: () => ref.invalidate(downloadQueueProvider),
       ),
     );

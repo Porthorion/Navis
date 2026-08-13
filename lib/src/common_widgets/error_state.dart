@@ -17,6 +17,12 @@ class ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    // Back-end exceptions can disclose implementation details and rarely tell
+    // someone what to do. Error-state callers retain a purpose-specific title
+    // and Retry; a short recovery hint supplies the missing next step.
+    final displayedMessage =
+        message ?? (onRetry == null ? null : l10n.commonErrorRecoveryHint);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -30,10 +36,10 @@ class ErrorState extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
-            if (message != null) ...<Widget>[
+            if (displayedMessage != null) ...<Widget>[
               const SizedBox(height: 8),
               Text(
-                message!,
+                displayedMessage,
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
@@ -43,7 +49,7 @@ class ErrorState extends StatelessWidget {
               FilledButton.tonal(
                 onPressed: onRetry,
                 child: Text(
-                  retryLabel ?? AppLocalizations.of(context)!.commonRetry,
+                  retryLabel ?? l10n.commonRetry,
                 ),
               ),
             ],

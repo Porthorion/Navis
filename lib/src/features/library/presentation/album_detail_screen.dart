@@ -1467,7 +1467,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
             loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
             error: (error, _) => ErrorState(
               title: l10n.albumDetailLoadErrorTitle,
-              message: error.toString(),
               onRetry: () => ref.invalidate(albumProvider(widget.albumId)),
             ),
           ),

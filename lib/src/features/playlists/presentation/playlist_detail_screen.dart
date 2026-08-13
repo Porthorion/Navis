@@ -88,7 +88,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
           error: (error, _) => ErrorState(
             title: l10n.playlistDetailLoadError,
-            message: error.toString(),
             onRetry: () => ref.invalidate(
               playlistDetailSyncProvider(widget.playlistId),
             ),
@@ -98,7 +97,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       loading: () => const ShimmerListPage(count: 8),
       error: (error, _) => ErrorState(
         title: l10n.playlistDetailLoadError,
-        message: error.toString(),
         onRetry: () => ref.invalidate(
           playlistDetailSyncProvider(widget.playlistId),
         ),

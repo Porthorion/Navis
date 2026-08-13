@@ -161,7 +161,6 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
               children: [
                 ErrorState(
                   title: l10n.playlistsLoadError,
-                  message: error.toString(),
                   onRetry: () => ref.invalidate(playlistSyncProvider),
                 ),
               ],
@@ -505,7 +504,6 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
             children: [
               ErrorState(
                 title: l10n.libraryAlbumsErrorTitle,
-                message: error.toString(),
                 onRetry: refresh,
                 retryLabel: l10n.commonRetry,
               ),

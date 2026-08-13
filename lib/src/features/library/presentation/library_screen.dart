@@ -1136,7 +1136,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 children: <Widget>[
                   ErrorState(
                     title: l10n.libraryArtistsErrorTitle,
-                    message: error.toString(),
                     onRetry: _refreshLibrary,
                     retryLabel: l10n.commonRetry,
                   ),
@@ -1195,7 +1194,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             children: <Widget>[
               ErrorState(
                 title: l10n.libraryAlbumsErrorTitle,
-                message: error.toString(),
                 onRetry: _refreshLibrary,
                 retryLabel: l10n.commonRetry,
               ),
@@ -1731,7 +1729,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           children: <Widget>[
             ErrorState(
               title: l10n.libraryAlbumsErrorTitle,
-              message: error.toString(),
               onRetry: _refreshLibrary,
               retryLabel: l10n.commonRetry,
             ),

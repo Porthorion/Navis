@@ -427,7 +427,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       loading: () => const ShimmerListPage(count: 8),
       error: (error, _) => ErrorState(
         title: l10n.searchNoResults,
-        message: error.toString(),
         onRetry: () => ref.invalidate(debouncedSearchProvider),
       ),
     );

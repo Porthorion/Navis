@@ -109,7 +109,6 @@ class _ListenBrainzWeeklyDetailScreenState
     } else if (playlistsAsync.hasError) {
       body = ErrorState(
         title: 'Could not load weekly playlist',
-        message: playlistsAsync.error.toString(),
         onRetry: () {
           ref
               .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
@@ -1898,7 +1897,6 @@ class _HomeSection<T> extends StatelessWidget {
         ),
         child: ErrorState(
           title: l10n.homeLoadErrorTitle,
-          message: error.toString(),
           onRetry: onRetry,
         ),
       ),

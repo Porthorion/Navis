@@ -1009,6 +1009,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonRetry => 'Retry';
 
   @override
+  String get commonErrorRecoveryHint => 'Check your connection and try again.';
+
+  @override
   String get detailUnavailableBackToLibrary => 'Back to Library';
 
   @override
