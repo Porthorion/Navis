@@ -1848,6 +1848,42 @@ void main() {
     expect(container.read(playerSheetExpandedProvider), isFalse);
   });
 
+  testWidgets('reduced motion opens and dismisses the queue without travel', (
+    tester,
+  ) async {
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: UncontrolledProviderScope(
+          container: container,
+          child: testNavisApp,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    container.read(playerOverlayStackProvider.notifier).showQueue();
+    await tester.pump();
+
+    final queueTranslation = find.byKey(
+      const ValueKey<String>('queueOverlayTranslation'),
+    );
+    expect(queueTranslation, findsOneWidget);
+    expect(
+      tester.widget<FractionalTranslation>(queueTranslation).translation,
+      Offset.zero,
+    );
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(find.byType(QueueSheet), findsNothing);
+    expect(container.read(queueOverlayVisibleProvider), isFalse);
+  });
+
   testWidgets(
     'final queue item teardown keeps exit visual and releases back immediately',
     (tester) async {

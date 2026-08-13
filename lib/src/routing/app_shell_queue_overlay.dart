@@ -40,6 +40,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
   bool _dismissing = false;
   bool _queueReorderActive = false;
   bool _queueItemSwiping = false;
+  bool _opened = false;
   double _scrollPullDistance = 0;
   Timer? _scrollPullSettleTimer;
 
@@ -56,7 +57,25 @@ class _QueueOverlayState extends State<_QueueOverlay>
       duration: _openDuration,
       reverseDuration: _closeDuration,
     );
-    _controller.animateTo(1, curve: Curves.easeOutCubic);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final duration = MotionPolicy.of(context).surface;
+    _controller
+      ..duration = duration
+      ..reverseDuration = duration;
+    if (!_opened) {
+      _opened = true;
+      if (duration == Duration.zero) {
+        _controller.value = 1;
+      } else {
+        _controller.animateTo(1, curve: Curves.easeOutCubic);
+      }
+    } else if (duration == Duration.zero && !_dismissing) {
+      _controller.value = 1;
+    }
   }
 
   @override
@@ -71,6 +90,11 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (_dismissing) return;
     _scrollPullSettleTimer?.cancel();
     _dismissing = true;
+    if (MotionPolicy.of(context).reduceMotion) {
+      _controller.value = 0;
+      widget.onDismiss();
+      return;
+    }
     _controller
         .animateBack(0, duration: _closeDuration, curve: Curves.easeInCubic)
         .whenComplete(widget.onDismiss);
@@ -135,7 +159,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
     _scrollPullSettleTimer?.cancel();
     _scrollPullDistance = 0;
     if (animateBack && !_dismissing && _controller.value < 0.999) {
-      _controller.fling(velocity: 2.5);
+      _settleOpen();
     }
   }
 
@@ -247,7 +271,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (velocity > _flingVelocityThreshold || _controller.value < 0.7) {
       _dismiss();
     } else {
-      _controller.fling(velocity: 2.5);
+      _settleOpen();
     }
   }
 
@@ -263,8 +287,16 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (wasDragging && _controller.value < 0.85) {
       _dismiss();
     } else if (_controller.value < 0.99) {
-      _controller.fling(velocity: 2.5);
+      _settleOpen();
     }
+  }
+
+  void _settleOpen() {
+    if (MotionPolicy.of(context).reduceMotion) {
+      _controller.value = 1;
+      return;
+    }
+    _controller.fling(velocity: 2.5);
   }
 
   // -------------------------------------------------------------------------
@@ -348,6 +380,9 @@ class _QueueOverlayState extends State<_QueueOverlay>
                         heightFactor: heightFactor,
                         widthFactor: 1,
                         child: FractionalTranslation(
+                          key: const ValueKey<String>(
+                            'queueOverlayTranslation',
+                          ),
                           translation: Offset(0, 1 - progress),
                           child: IgnorePointer(
                             ignoring: _dismissing,
@@ -373,6 +408,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
                     heightFactor: heightFactor,
                     widthFactor: 1,
                     child: FractionalTranslation(
+                      key: const ValueKey<String>('queueOverlayTranslation'),
                       translation: Offset(0, 1 - progress),
                       child: IgnorePointer(
                         ignoring: _dismissing,

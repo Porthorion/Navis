@@ -57,6 +57,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/desktop_tokens.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';

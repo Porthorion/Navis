@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 /// A Symfonium-style bottom-sheet player transition.
@@ -212,7 +213,16 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
 
   void _settleTo(double target, {required double velocity}) {
     if (MotionPolicy.of(context).reduceMotion) {
-      _controller.value = target;
+      if (SchedulerBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _controller.value = target;
+          }
+        });
+      } else {
+        _controller.value = target;
+      }
       return;
     }
     _controller.fling(velocity: target == 1 ? velocity : -velocity);
