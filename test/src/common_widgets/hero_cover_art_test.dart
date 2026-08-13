@@ -48,6 +48,34 @@ void main() {
     expect(flightImage.lockedSize, kCoverArtStandardSize);
     expect(flightImage.fadeInDuration, Duration.zero);
     expect(flightImage.gaplessPlayback, isTrue);
+    expect(flightImage.useRequestedMemCacheSize, isTrue);
+  });
+
+  testWidgets('uses a stable decoded image contract on both hero endpoints', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          subsonicApiProvider.overrideWith((_) => null),
+        ],
+        child: const MaterialApp(home: _HeroSourcePage()),
+      ),
+    );
+
+    final sourceImage = tester.widget<CoverArtImage>(
+      find.byType(CoverArtImage),
+    );
+    expect(sourceImage.fadeInDuration, Duration.zero);
+    expect(sourceImage.useRequestedMemCacheSize, isTrue);
+
+    await tester.tap(find.byKey(const Key('open-album')));
+    await tester.pumpAndSettle();
+    final destinationImage = tester
+        .widgetList<CoverArtImage>(find.byType(CoverArtImage))
+        .last;
+    expect(destinationImage.fadeInDuration, Duration.zero);
+    expect(destinationImage.useRequestedMemCacheSize, isTrue);
   });
 
   testWidgets(

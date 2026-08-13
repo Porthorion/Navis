@@ -37,6 +37,7 @@ class CoverArtImage extends ConsumerStatefulWidget {
     this.showErrorPlaceholder = true,
     this.gaplessPlayback = false,
     this.lockedSize,
+    this.useRequestedMemCacheSize = false,
     this.loadPriority = CoverArtLoadPriority.visible,
     this.preloadScreens = 1.0,
     this.isExternalSource = false,
@@ -63,6 +64,11 @@ class CoverArtImage extends ConsumerStatefulWidget {
   /// When non-null, overrides all constraint-based size resolution.
   /// Used during hero flight animations to prevent mid-flight URL changes.
   final int? lockedSize;
+
+  /// Uses the requested image size for the decoded-memory cache key instead
+  /// of the layout size. Hero source, shuttle, and destination artwork use
+  /// this so a flight cannot land on a separately decoded image variant.
+  final bool useRequestedMemCacheSize;
 
   /// Controls whether this image may start network work immediately or should
   /// wait for viewport visibility.
@@ -391,8 +397,16 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       cacheManager: cacheManager,
       fadeInDuration: widget.fadeInDuration,
       fadeOutDuration: Duration.zero,
-      memCacheWidth: _memCacheSize(widget.width, resolvedSize),
-      memCacheHeight: _memCacheSize(widget.height, resolvedSize),
+      memCacheWidth: _memCacheSize(
+        widget.width,
+        resolvedSize,
+        preferRequestedSize: widget.useRequestedMemCacheSize,
+      ),
+      memCacheHeight: _memCacheSize(
+        widget.height,
+        resolvedSize,
+        preferRequestedSize: widget.useRequestedMemCacheSize,
+      ),
       imageBuilder: (context, imageProvider) {
         _renderedNetworkCacheKey = cacheKey;
         return Image(
@@ -500,7 +514,14 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
 
   /// Compute a memory-cache dimension to keep decoded images small in RAM.
   /// Returns null when no useful constraint is available.
-  static int? _memCacheSize(double? layoutDimension, int? requestedSize) {
+  static int? _memCacheSize(
+    double? layoutDimension,
+    int? requestedSize, {
+    bool preferRequestedSize = false,
+  }) {
+    if (preferRequestedSize && requestedSize != null && requestedSize > 0) {
+      return requestedSize;
+    }
     if (layoutDimension != null &&
         layoutDimension > 0 &&
         layoutDimension.isFinite) {

@@ -32,6 +32,11 @@ Random/desktop showcase variants—now remain hidden until the Hero return has
 settled, then fade in as a separate short transition. The handoff is driven by
 the Hero flight completion itself rather than route timing, so it cannot run
 while the artwork is still moving.
+The remaining settle flicker was caused by a separate image contract: the
+flight used the requested 600 px decoded artwork while desktop/compact detail
+headers could land on a layout-sized decode and a cached-image fade. All Hero
+participants now share the requested decode size and use no image fade, so the
+overlay hands off to the same opaque image variant.
 The Linux isolated-clone route and clean-restart captures are inspected; the
 shared Hero and mobile-detail widget coverage pass. Physical Android/iOS
 motion capture remains part of the upcoming screenshot review before a release

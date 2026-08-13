@@ -124,6 +124,7 @@ class HeroCoverArt extends StatelessWidget {
                     sourceCoverArt?.placeholderIcon ?? placeholderIcon,
                 fadeInDuration: Duration.zero,
                 lockedSize: lockedSize,
+                useRequestedMemCacheSize: true,
                 loadPriority: CoverArtLoadPriority.critical,
                 isExternalSource:
                     sourceCoverArt?.isExternalSource ?? isExternalSource,
@@ -142,8 +143,12 @@ class HeroCoverArt extends StatelessWidget {
         borderRadius: borderRadius,
         circular: circular,
         showLoadingPlaceholder: showLoadingPlaceholder,
-        fadeInDuration: fadeInDuration ?? const Duration(milliseconds: 150),
+        // A Hero must hand off to the destination's already-painted image.
+        // A cached-network fade at either end briefly makes that image
+        // translucent after the overlay disappears, which looks like flicker.
+        fadeInDuration: fadeInDuration ?? Duration.zero,
         loadPriority: loadPriority,
+        useRequestedMemCacheSize: true,
         isExternalSource: isExternalSource,
         remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
         gaplessPlayback: true,

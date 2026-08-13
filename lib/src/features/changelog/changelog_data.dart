@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Album artwork no longer flashes when the opening or return animation settles',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Album card titles and artists now fade in smoothly when returning from an album page',
         type: ChangelogEntryType.fix,
       ),

@@ -26,11 +26,13 @@ Last updated: 2026-08-13
   avoids competing route travel. Source card artwork chrome, including the
   Home Random/showcase variants, stays hidden until the Hero return has
   settled and then fades in separately instead of appearing in one frame; the
-  Hero flight completion itself drives that handoff. Focused Hero,
+  Hero flight completion itself drives that handoff. Hero source, shuttle, and
+  destination now share one opaque requested-size decode instead of landing on
+  a layout-sized cached-image fade. Focused Hero,
   artwork, detail-screen, and router tests passed. An isolated Linux clone
   app-API run navigated to and captured the 1503×949 album-detail view before
   and after a clean restart; both images were inspected and the log had no
-  hard-fail pattern. `./tool/check.sh` passed with 1,121 tests and 1 skip.)
+  hard-fail pattern. `./tool/check.sh` passed.)
 
 - [x] Metered manual discovery and Recently Added ordering recovery — 2026-08-13
   (evidence: focused planner, coordinator, engine, canonical DAO, candidate

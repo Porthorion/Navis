@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Album artwork no longer flashes when the opening or return animation settles',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Album card titles and artists now fade in smoothly when returning from an album page',
       type: _EntryType.fix,
     ),

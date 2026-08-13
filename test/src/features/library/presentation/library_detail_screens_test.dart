@@ -603,6 +603,17 @@ void main() {
             .every((art) => art.size == kCoverArtStandardSize),
         isTrue,
       );
+      expect(
+        tester
+            .widgetList<CoverArtImage>(find.byType(CoverArtImage))
+            .where((art) => art.size == kCoverArtStandardSize)
+            .every(
+              (art) =>
+                  art.fadeInDuration == Duration.zero &&
+                  art.useRequestedMemCacheSize,
+            ),
+        isTrue,
+      );
       await _disposeApp(tester);
     });
 
