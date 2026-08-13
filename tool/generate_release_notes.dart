@@ -105,7 +105,7 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
-      'Mobile album headers now keep album details and actions readable over any artwork',
+      'Long mobile album titles now size down when they can fit cleanly',
       type: _EntryType.improvement,
     ),
     _Entry(

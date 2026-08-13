@@ -267,13 +267,16 @@ const _desktopContext = AdaptiveContext(
   useRailNavigation: false,
 );
 
-AlbumWithSongs _albumWithSongs(List<SongsTableData> songs) {
+AlbumWithSongs _albumWithSongs(
+  List<SongsTableData> songs, {
+  String name = 'Album 1',
+}) {
   return AlbumWithSongs(
-    album: const AlbumsTableData(
+    album: AlbumsTableData(
       isProvisional: false,
       isExternal: false,
       id: 'album-1',
-      name: 'Album 1',
+      name: name,
       artistName: 'Artist 1',
       artistId: 'artist-1',
       year: 2025,
@@ -742,60 +745,50 @@ void main() {
       await _disposeApp(tester);
     });
 
-    testWidgets('mobile album header readability golden', (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
-      await _pumpAlbumDetail(
+    testWidgets(
+      'mobile album title shrinks only when it can avoid truncation',
+      (
         tester,
-        database: database,
-        adaptiveContext: _mobileContext,
-        album: _albumWithSongs(
-          const <SongsTableData>[
-            SongsTableData(
-              id: 'header-track',
-              title: 'Header Track',
-              track: 1,
-              isProvisional: false,
-              isExternal: false,
-            ),
-          ],
-        ),
-      );
+      ) async {
+        const title = 'A Long Album Name For Phones';
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
 
-      expect(
-        find.byKey(
-          const ValueKey<String>('albumDetailMobileExpandedArtAppBar'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(
-          const ValueKey<String>('albumDetailMobileMetadataSurface'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        tester
-            .getTopLeft(
-              find.byKey(
-                const ValueKey<String>('albumDetailMobileMetadataSurface'),
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _mobileContext,
+          album: _albumWithSongs(
+            const <SongsTableData>[
+              SongsTableData(
+                id: 'long-title-track',
+                title: 'Long Title Track',
+                track: 1,
+                isProvisional: false,
+                isExternal: false,
               ),
-            )
-            .dy,
-        greaterThan(180),
-      );
-      expect(tester.takeException(), isNull);
-      await expectLater(
-        find.byType(CustomScrollView),
-        matchesGoldenFile('goldens/album_detail_mobile_header_after.png'),
-      );
-      await _disposeApp(tester);
-    });
+            ],
+            name: title,
+          ),
+        );
+
+        final headerTitle = tester.widget<Text>(
+          find.byKey(const ValueKey<String>('albumDetailMobileHeaderTitle')),
+        );
+        expect(headerTitle.style!.fontSize, lessThan(32));
+        expect(headerTitle.overflow, TextOverflow.ellipsis);
+        expect(tester.takeException(), isNull);
+        await expectLater(
+          find.byType(CustomScrollView),
+          matchesGoldenFile('goldens/album_detail_mobile_title_after.png'),
+        );
+        await _disposeApp(tester);
+      },
+    );
 
     testWidgets('desktop-wide album detail keeps desktop header', (
       tester,
