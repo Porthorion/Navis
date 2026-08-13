@@ -25,4 +25,7 @@ class MotionPolicy {
 
   Duration get feedback =>
       reduceMotion ? Duration.zero : const Duration(milliseconds: 120);
+
+  Duration get surface =>
+      reduceMotion ? Duration.zero : const Duration(milliseconds: 180);
 }

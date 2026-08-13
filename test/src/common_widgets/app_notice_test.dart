@@ -163,6 +163,43 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('notice switches immediately when reduced motion is requested', (
+    tester,
+  ) async {
+    final controller = AppNoticeController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: MaterialApp(
+          home: Scaffold(
+            body: AppNoticeScope(
+              notifier: controller,
+              child: Stack(
+                children: <Widget>[
+                  const SizedBox.expand(),
+                  AppNoticeHost(controller: controller),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    controller.show(message: 'Saved');
+    await tester.pump();
+
+    expect(
+      tester.widget<AnimatedSwitcher>(find.byType(AnimatedSwitcher)).duration,
+      Duration.zero,
+    );
+    expect(find.text('Saved'), findsOneWidget);
+
+    controller.dismiss();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('notice text is clamped to two lines', (tester) async {
     final controller = AppNoticeController();
     addTearDown(controller.dispose);

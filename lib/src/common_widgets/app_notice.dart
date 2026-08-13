@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 enum AppNoticeLevel { info, success, error }
 
@@ -160,8 +161,9 @@ class AppNoticeHost extends StatelessWidget {
         child: AnimatedBuilder(
           animation: controller,
           builder: (context, _) {
+            final motion = MotionPolicy.of(context);
             return AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
+              duration: motion.surface,
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (child, animation) {

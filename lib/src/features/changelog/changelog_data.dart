@@ -54,6 +54,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Status messages now respect your system reduced-motion preference',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Album card titles and artists now fade in smoothly when returning from an album page',
         type: ChangelogEntryType.fix,
       ),
