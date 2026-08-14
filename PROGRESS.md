@@ -121,6 +121,11 @@ Last updated: 2026-08-14
   carousels now stop auto-advancing and use direct state changes. Remaining
   lower-frequency decorative surfaces still need their own audit.)
 
+- [ ] Safe recoverable error copy — partial: 2026-08-14 (album-refresh
+  notices and generic radio-load errors now use concise, actionable recovery
+  copy rather than raw backend exceptions. The remaining raw-exception
+  inventory is limited to Match Flow and Playback Settings.)
+
 - [x] Now Playing reduced-motion transition coverage — 2026-08-14
   (phone and compact-wide art/lyrics and track-metadata switchers now present
   their next state immediately when the platform requests reduced motion.

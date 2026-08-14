@@ -1499,13 +1499,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         throw StateError(result.errorMessage ?? 'Album refresh failed.');
       }
       ref.invalidate(albumInfoProvider(widget.albumId));
-    } on Object catch (error) {
+    } on Object {
       if (!mounted) {
         return;
       }
       showAppNotice(
         context,
-        message: error.toString(),
+        message: AppLocalizations.of(context)!.albumDetailRefreshError,
         level: AppNoticeLevel.error,
       );
     } finally {

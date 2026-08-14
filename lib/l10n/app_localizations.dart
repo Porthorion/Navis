@@ -2543,6 +2543,12 @@ abstract class AppLocalizations {
   /// **'Could not load album details'**
   String get albumDetailLoadErrorTitle;
 
+  /// No description provided for @albumDetailRefreshError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not refresh this album. Check your connection and try again.'**
+  String get albumDetailRefreshError;
+
   /// No description provided for @albumDetailPlayAction.
   ///
   /// In en, this message translates to:

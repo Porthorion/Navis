@@ -684,6 +684,7 @@
   "albumDetailFilterLabel": "Filters",
   "@albumDetailFilterLabel": {"description": "Label above the filter chips in the album detail screen"},
   "albumDetailLoadErrorTitle": "Could not load album details",
+  "albumDetailRefreshError": "Could not refresh this album. Check your connection and try again.",
   "albumDetailPlayAction": "Play",
   "albumDetailShuffleAction": "Shuffle",
   "albumDetailStarAction": "Like",

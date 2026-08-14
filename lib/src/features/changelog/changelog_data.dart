@@ -118,6 +118,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Album refresh and radio loading errors now give clear recovery guidance',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Long mobile album titles now size down when they can fit cleanly',
         type: ChangelogEntryType.improvement,
       ),

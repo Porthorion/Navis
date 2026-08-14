@@ -178,6 +178,6 @@ class RadioTabContent extends ConsumerWidget {
         (error.code == 404 || error.code == 501)) {
       return l10n.radioUnsupportedMessage;
     }
-    return error.toString();
+    return l10n.commonErrorRecoveryHint;
   }
 }
