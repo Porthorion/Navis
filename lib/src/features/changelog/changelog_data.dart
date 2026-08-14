@@ -50,6 +50,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Desktop About now has a direct return to Settings while keeping its app and data overview focused',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Weekly playlists now keep their track layout visible while loading and offer clearer recovery when unavailable',
         type: ChangelogEntryType.improvement,
       ),

@@ -12,6 +12,8 @@ import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
@@ -41,6 +43,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     final version = packageInfo?.version ?? '';
     final showUpdateControls =
         !kIsWeb && defaultTargetPlatform != TargetPlatform.iOS;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     // Show a snackbar when a user-triggered check resolves as up to date,
     // or auto-show the update dialog when an update is found.
@@ -67,131 +70,152 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.aboutTitle)),
-      body: ListView(
-        children: <Widget>[
-          const SizedBox(height: 24),
-          const Center(child: NavisIcon(size: 112, tintWithAccent: true)),
-          const SizedBox(height: 12),
-          Text(
-            'Navis',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${l10n.aboutVersion} $version',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildDataUsageSection(context),
-          const SizedBox(height: 12),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.description_outlined),
-            title: Text(l10n.aboutLicenses),
-            subtitle: Text(l10n.aboutLicensesSub),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              showLicensePage(
-                context: context,
-                applicationName: 'Navis',
-                applicationVersion: version,
-                applicationIcon: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: NavisIcon(size: 48, tintWithAccent: true),
-                ),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.history_outlined),
-            title: Text(l10n.aboutChangelog),
-            subtitle: Text(l10n.aboutChangelogSub),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/settings/about/changelog'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined),
-            title: Text(l10n.privacyTitle),
-            subtitle: Text(l10n.privacySub),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/settings/about/privacy'),
-          ),
-          if (showUpdateControls) ...<Widget>[
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                l10n.updatesSettingsSectionLabel,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.primary,
+      appBar: AppBar(
+        automaticallyImplyLeading: !desktopMode,
+        leading: desktopMode
+            ? IconButton(
+                tooltip: l10n.syncSettingsBackToSettings,
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => NavService.returnToSettings(context, ref),
+              )
+            : null,
+        title: Text(l10n.aboutTitle),
+      ),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1040),
+          child: ListView(
+            padding: EdgeInsets.symmetric(horizontal: desktopMode ? 24 : 0),
+            children: <Widget>[
+              const SizedBox(height: 24),
+              const Center(child: NavisIcon(size: 112, tintWithAccent: true)),
+              const SizedBox(height: 12),
+              Text(
+                'Navis',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.system_update_outlined),
-              title: Text(l10n.updateAutoCheckTitle),
-              subtitle: Text(l10n.updateAutoCheckSubtitle),
-              value: settings?.updateCheckEnabled ?? true,
-              onChanged: (value) {
-                if (settings == null) return;
-                final repo = ref.read(settingsRepositoryProvider);
-                repo.saveSettings(settings.copyWith(updateCheckEnabled: value));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.system_update_outlined),
-              title: Text(l10n.updateCheckTitle),
-              subtitle: Text(
-                updateAsync.when(
-                  data: (info) => info != null
-                      ? l10n.updateAvailableBody(info.tagName)
-                      : l10n.updateUpToDate,
-                  loading: () => l10n.updateCheckSub(version),
-                  error: (_, _) => l10n.updateCheckSub(version),
+              const SizedBox(height: 4),
+              Text(
+                '${l10n.aboutVersion} $version',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              trailing: updateAsync.isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : updateAsync.asData?.value != null
-                  ? FilledButton.icon(
-                      onPressed: () {
-                        final info = updateAsync.asData!.value!;
-                        unawaited(_handleUpdateAction(context, ref, info));
-                      },
-                      icon: Icon(
-                        updateAsync.asData!.value!.delivery ==
-                                UpdateDelivery.storeRedirect
-                            ? Icons.shop_2_outlined
-                            : Icons.install_mobile,
-                        size: 18,
-                      ),
-                      label: Text(
-                        updateAsync.asData!.value!.delivery ==
-                                UpdateDelivery.storeRedirect
-                            ? l10n.updateOpenPlayStore
-                            : l10n.updateInstall,
-                      ),
-                    )
-                  : const Icon(Icons.refresh),
-              onTap: () {
-                setState(() => _userTriggeredCheck = true);
-                ref.read(updateForceCheckProvider.notifier).requestForceCheck();
-                ref.invalidate(updateProvider);
-              },
-            ),
-          ],
-        ],
+              const SizedBox(height: 24),
+              _buildDataUsageSection(context),
+              const SizedBox(height: 12),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.description_outlined),
+                title: Text(l10n.aboutLicenses),
+                subtitle: Text(l10n.aboutLicensesSub),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  showLicensePage(
+                    context: context,
+                    applicationName: 'Navis',
+                    applicationVersion: version,
+                    applicationIcon: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: NavisIcon(size: 48, tintWithAccent: true),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history_outlined),
+                title: Text(l10n.aboutChangelog),
+                subtitle: Text(l10n.aboutChangelogSub),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/settings/about/changelog'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: Text(l10n.privacyTitle),
+                subtitle: Text(l10n.privacySub),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/settings/about/privacy'),
+              ),
+              if (showUpdateControls) ...<Widget>[
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    l10n.updatesSettingsSectionLabel,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.system_update_outlined),
+                  title: Text(l10n.updateAutoCheckTitle),
+                  subtitle: Text(l10n.updateAutoCheckSubtitle),
+                  value: settings?.updateCheckEnabled ?? true,
+                  onChanged: (value) {
+                    if (settings == null) return;
+                    final repo = ref.read(settingsRepositoryProvider);
+                    repo.saveSettings(
+                      settings.copyWith(updateCheckEnabled: value),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.system_update_outlined),
+                  title: Text(l10n.updateCheckTitle),
+                  subtitle: Text(
+                    updateAsync.when(
+                      data: (info) => info != null
+                          ? l10n.updateAvailableBody(info.tagName)
+                          : l10n.updateUpToDate,
+                      loading: () => l10n.updateCheckSub(version),
+                      error: (_, _) => l10n.updateCheckSub(version),
+                    ),
+                  ),
+                  trailing: updateAsync.isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : updateAsync.asData?.value != null
+                      ? FilledButton.icon(
+                          onPressed: () {
+                            final info = updateAsync.asData!.value!;
+                            unawaited(_handleUpdateAction(context, ref, info));
+                          },
+                          icon: Icon(
+                            updateAsync.asData!.value!.delivery ==
+                                    UpdateDelivery.storeRedirect
+                                ? Icons.shop_2_outlined
+                                : Icons.install_mobile,
+                            size: 18,
+                          ),
+                          label: Text(
+                            updateAsync.asData!.value!.delivery ==
+                                    UpdateDelivery.storeRedirect
+                                ? l10n.updateOpenPlayStore
+                                : l10n.updateInstall,
+                          ),
+                        )
+                      : const Icon(Icons.refresh),
+                  onTap: () {
+                    setState(() => _userTriggeredCheck = true);
+                    ref
+                        .read(updateForceCheckProvider.notifier)
+                        .requestForceCheck();
+                    ref.invalidate(updateProvider);
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -11,7 +11,10 @@ import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/about_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
+import '../../../../helpers/adaptive_test_harness.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
@@ -81,6 +84,7 @@ void main() {
     Future<void> pumpAbout(
       WidgetTester tester, {
       required UpdateInfo? updateInfo,
+      bool desktopMode = false,
     }) async {
       await tester.binding.setSurfaceSize(const Size(900, 1200));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -121,7 +125,16 @@ void main() {
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const AboutScreen(),
+            home: desktopMode
+                ? AdaptiveContextScope(
+                    adaptiveContext: resolveAdaptiveContext(
+                      desktopRuntime: true,
+                      viewportSize: const Size(1280, 800),
+                      safePadding: EdgeInsets.zero,
+                    ),
+                    child: const AboutScreen(),
+                  )
+                : const AboutScreen(),
           ),
         ),
       );
@@ -139,6 +152,14 @@ void main() {
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
+    });
+
+    testWidgets('desktop About keeps a Settings return path', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+      await pumpAbout(tester, updateInfo: null, desktopMode: true);
+
+      expect(find.byTooltip('Back to Settings'), findsOneWidget);
+      expect(find.text('Navis'), findsOneWidget);
     });
 
     testWidgets('shows Play Store action for store redirect updates', (
