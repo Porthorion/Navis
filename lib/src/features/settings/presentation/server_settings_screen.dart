@@ -14,6 +14,8 @@ import 'package:navis/src/features/auth/presentation/server_connection_provider.
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ServerSettingsScreen extends ConsumerStatefulWidget {
@@ -95,167 +97,222 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     final isBundled = ref.watch(lastFmBundledKeyProvider);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    final sectionGap = desktopMode
+        ? const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(),
+          )
+        : const SizedBox(height: 12);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.serverSettingsTitle)),
-      body: configAsync.when(
-        data: (config) {
-          if (config == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  l10n.serverSettingsNotAuthenticated,
-                  textAlign: TextAlign.center,
+      appBar: AppBar(
+        automaticallyImplyLeading: !desktopMode,
+        leading: desktopMode
+            ? IconButton(
+                tooltip: l10n.syncSettingsBackToSettings,
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => NavService.returnToSettings(context, ref),
+              )
+            : null,
+        title: Text(l10n.serverSettingsTitle),
+      ),
+      body: Theme(
+        data: desktopMode
+            ? theme.copyWith(
+                cardTheme: const CardThemeData(
+                  color: Colors.transparent,
+                  elevation: 0,
+                  margin: EdgeInsets.zero,
+                  shadowColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(),
+                ),
+              )
+            : theme,
+        child: configAsync.when(
+          data: (config) {
+            if (config == null) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    l10n.serverSettingsNotAuthenticated,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            }
+
+            settingsAsync.whenData((settings) {
+              _initLastFmKey(settings);
+              unawaited(_hydrateExternalCredentials(settings));
+            });
+            final currentSettings =
+                settingsAsync.asData?.value ??
+                const AppSettingsModel.defaults();
+            final testConnectionAction = FilledButton.tonal(
+              onPressed: _isBusy ? null : () => _testConnection(config),
+              child: _isTestingConnection
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(l10n.serverSettingsTestConnection),
+            );
+            final signOutAction = FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.error,
+                foregroundColor: cs.onError,
+              ),
+              onPressed: _isBusy
+                  ? null
+                  : () => _showSignOutConfirmation(context),
+              child: _isSigningOut
+                  ? SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: cs.onError,
+                      ),
+                    )
+                  : Text(l10n.serverSettingsSignOut),
+            );
+
+            return SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1040),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      desktopMode ? 24 : 16,
+                      desktopMode ? 24 : 16,
+                      desktopMode ? 24 : 16,
+                      16,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        // ── Server section ──────────────────────────────────────
+                        _SectionHeader(title: l10n.configurationServerSection),
+                        const SizedBox(height: 8),
+
+                        // Connection info card
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  l10n.serverSettingsCurrentConnection,
+                                  style: theme.textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 12),
+                                _ServerInfoRow(
+                                  label: l10n.serverSettingsUrlLabel,
+                                  value: config.url,
+                                ),
+                                _ServerInfoRow(
+                                  label: l10n.serverSettingsUsernameLabel,
+                                  value: config.username,
+                                ),
+                                if (config.name != null)
+                                  _ServerInfoRow(
+                                    label: l10n.serverSettingsNameLabel,
+                                    value: config.name!,
+                                  ),
+                                _ServerInfoRow(
+                                  label: l10n.serverSettingsApiVersionLabel,
+                                  value: config.apiVersion,
+                                ),
+                                _ServerInfoRow(
+                                  label: l10n.serverSettingsAuthModeLabel,
+                                  value: config.useLegacyAuth
+                                      ? l10n.serverSettingsAuthModeLegacy
+                                      : l10n.serverSettingsAuthModeToken,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        sectionGap,
+
+                        if (desktopMode) ...<Widget>[
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: <Widget>[
+                              testConnectionAction,
+                              signOutAction,
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                        ] else ...<Widget>[
+                          testConnectionAction,
+                          sectionGap,
+                          signOutAction,
+                          const SizedBox(height: 32),
+                        ],
+
+                        // ── External Services section ──────────────────────────
+                        _SectionHeader(
+                          title: l10n.configurationExternalServicesSection,
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Last.fm card
+                        _LastFmCard(
+                          settings: currentSettings,
+                          isBundled: isBundled,
+                          isSaving: _isSavingApiKey,
+                          obscureApiKey: _obscureApiKey,
+                          controller: _lastFmApiKeyController,
+                          apiKeyError: _lastFmApiKeyError,
+                          apiKeySuccess: _lastFmApiKeySuccess,
+                          onToggleObscure: () =>
+                              setState(() => _obscureApiKey = !_obscureApiKey),
+                          onSave: _saveLastFmKey,
+                          onClear: _clearLastFmKey,
+                          onGetApiKey: _openLastFmApiPage,
+                        ),
+                        sectionGap,
+                        _ListenBrainzCard(
+                          settings: currentSettings,
+                          isBusy: _isListenBrainzBusy,
+                          obscureToken: _obscureListenBrainzToken,
+                          controller: _listenBrainzTokenController,
+                          errorText: _listenBrainzError,
+                          successText: _listenBrainzSuccess,
+                          onToggleObscure: () => setState(
+                            () => _obscureListenBrainzToken =
+                                !_obscureListenBrainzToken,
+                          ),
+                          onValidate: () =>
+                              _validateListenBrainz(currentSettings),
+                          onClear: () => _clearListenBrainz(currentSettings),
+                          onOpenTokenSettings: _openListenBrainzTokenPage,
+                          onEnabledChanged: (value) =>
+                              _setListenBrainzEnabled(currentSettings, value),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             );
-          }
-
-          settingsAsync.whenData((settings) {
-            _initLastFmKey(settings);
-            unawaited(_hydrateExternalCredentials(settings));
-          });
-          final currentSettings =
-              settingsAsync.asData?.value ?? const AppSettingsModel.defaults();
-
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  // ── Server section ──────────────────────────────────────
-                  _SectionHeader(title: l10n.configurationServerSection),
-                  const SizedBox(height: 8),
-
-                  // Connection info card
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            l10n.serverSettingsCurrentConnection,
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          _ServerInfoRow(
-                            label: l10n.serverSettingsUrlLabel,
-                            value: config.url,
-                          ),
-                          _ServerInfoRow(
-                            label: l10n.serverSettingsUsernameLabel,
-                            value: config.username,
-                          ),
-                          if (config.name != null)
-                            _ServerInfoRow(
-                              label: l10n.serverSettingsNameLabel,
-                              value: config.name!,
-                            ),
-                          _ServerInfoRow(
-                            label: l10n.serverSettingsApiVersionLabel,
-                            value: config.apiVersion,
-                          ),
-                          _ServerInfoRow(
-                            label: l10n.serverSettingsAuthModeLabel,
-                            value: config.useLegacyAuth
-                                ? l10n.serverSettingsAuthModeLegacy
-                                : l10n.serverSettingsAuthModeToken,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Test Connection
-                  FilledButton.tonal(
-                    onPressed: _isBusy ? null : () => _testConnection(config),
-                    child: _isTestingConnection
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(l10n.serverSettingsTestConnection),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Sign Out (red)
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: cs.error,
-                      foregroundColor: cs.onError,
-                    ),
-                    onPressed: _isBusy
-                        ? null
-                        : () => _showSignOutConfirmation(context),
-                    child: _isSigningOut
-                        ? SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: cs.onError,
-                            ),
-                          )
-                        : Text(l10n.serverSettingsSignOut),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // ── External Services section ──────────────────────────
-                  _SectionHeader(
-                    title: l10n.configurationExternalServicesSection,
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Last.fm card
-                  _LastFmCard(
-                    settings: currentSettings,
-                    isBundled: isBundled,
-                    isSaving: _isSavingApiKey,
-                    obscureApiKey: _obscureApiKey,
-                    controller: _lastFmApiKeyController,
-                    apiKeyError: _lastFmApiKeyError,
-                    apiKeySuccess: _lastFmApiKeySuccess,
-                    onToggleObscure: () =>
-                        setState(() => _obscureApiKey = !_obscureApiKey),
-                    onSave: _saveLastFmKey,
-                    onClear: _clearLastFmKey,
-                    onGetApiKey: _openLastFmApiPage,
-                  ),
-                  const SizedBox(height: 12),
-                  _ListenBrainzCard(
-                    settings: currentSettings,
-                    isBusy: _isListenBrainzBusy,
-                    obscureToken: _obscureListenBrainzToken,
-                    controller: _listenBrainzTokenController,
-                    errorText: _listenBrainzError,
-                    successText: _listenBrainzSuccess,
-                    onToggleObscure: () => setState(
-                      () => _obscureListenBrainzToken =
-                          !_obscureListenBrainzToken,
-                    ),
-                    onValidate: () => _validateListenBrainz(currentSettings),
-                    onClear: () => _clearListenBrainz(currentSettings),
-                    onOpenTokenSettings: _openListenBrainzTokenPage,
-                    onEnabledChanged: (value) =>
-                        _setListenBrainzEnabled(currentSettings, value),
-                  ),
-                ],
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                l10n.serverSettingsLoadError,
+                textAlign: TextAlign.center,
               ),
-            ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              l10n.serverSettingsLoadError,
-              textAlign: TextAlign.center,
             ),
           ),
         ),

@@ -71,15 +71,17 @@ Last updated: 2026-08-15
   album rows on the shared canvas while retaining local album cards; Downloads
   keeps its Back action, nested-page title, tabs, and contextual search in one
   command strip; Settings uses a continuous preference list with group labels;
-  nested Sync Settings replaces desktop cards with grouped divider-separated
-  rows and an explicit Back-to-Settings action.
+  nested Sync Settings and Configuration replace desktop cards with grouped
+  divider-separated rows and an explicit Back-to-Settings action; Configuration
+  keeps connection actions compact while retaining a visually distinct sign-out
+  action.
   A labeled desktop rail suppresses duplicate page headers; an icon-only rail restores
   compact orientation copy. Sidebar autohide now retains a 64 px icon rail
   instead of removing navigation. Tablet and phone layouts remain unchanged.
   Focused adaptive, shell, and deterministic before/after visual coverage
   passes across every primary desktop workspace; the final `./tool/check.sh`
-  passes with 1,120 tests and 1 skip, and isolated Linux Sync Settings
-  diagnostics pass before and after a clean restart.)
+  passes with 1,120 tests and 1 skip, and isolated Linux Sync Settings and
+  Configuration diagnostics pass before and after a clean restart.)
 
 - [x] Desktop weekly-detail hierarchy — 2026-08-15 (weekly ListenBrainz
   detail keeps the persistent Back control but removes the duplicate desktop

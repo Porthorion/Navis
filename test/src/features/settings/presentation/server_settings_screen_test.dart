@@ -17,9 +17,11 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
+import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
@@ -254,6 +256,26 @@ void main() {
     expect(find.text('alice'), findsOneWidget);
   });
 
+  testWidgets('uses a continuous workspace and Settings return on desktop', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1280, 800));
+
+    await tester.pumpWidget(
+      _buildTestApp(
+        configNotifier: _TestServerConfigNotifier(initialConfig),
+        connectionService: _FakeServerConnectionService(),
+        signOutService: _FakeSignOutService(),
+        desktopMode: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Back to Settings'), findsOneWidget);
+    final cardContext = tester.element(find.byType(Card).first);
+    expect(Theme.of(cardContext).cardTheme.color, Colors.transparent);
+  });
+
   testWidgets('renders external service configuration fields', (tester) async {
     await tester.pumpWidget(
       _buildTestApp(
@@ -460,6 +482,7 @@ Widget _buildTestApp({
   AppSettingsModel initialSettings = const AppSettingsModel.defaults(),
   LastFmApiClient Function(String)? lastFmClientFactory,
   ListenBrainzApiClient? listenBrainzClient,
+  bool desktopMode = false,
 }) {
   final overrides = [
     serverConfigProvider.overrideWith(() => configNotifier),
@@ -487,7 +510,16 @@ Widget _buildTestApp({
       theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const ServerSettingsScreen(),
+      home: desktopMode
+          ? AdaptiveContextScope(
+              adaptiveContext: resolveAdaptiveContext(
+                desktopRuntime: true,
+                viewportSize: const Size(1280, 800),
+                safePadding: EdgeInsets.zero,
+              ),
+              child: const ServerSettingsScreen(),
+            )
+          : const ServerSettingsScreen(),
     ),
   );
 }
