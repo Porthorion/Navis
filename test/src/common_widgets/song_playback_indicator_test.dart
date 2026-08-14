@@ -1,4 +1,5 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -171,6 +172,40 @@ void main() {
     expect(find.text('7'), findsOneWidget);
     final tile = tester.widget<ListTile>(find.byType(ListTile));
     expect(tile.selected, isFalse);
+  });
+
+  testWidgets('track tile forwards a secondary desktop pointer gesture', (
+    tester,
+  ) async {
+    var secondaryTapReceived = false;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playerStateProvider.overrideWithValue(
+            _snapshot(currentSongId: 'different-song'),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: TrackListTile(
+              song: _song,
+              onSecondaryTapDown: (_) => secondaryTapReceived = true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(TrackListTile)),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryButton,
+    );
+    await gesture.up();
+
+    expect(secondaryTapReceived, isTrue);
   });
 
   testWidgets('album and playlist number columns align with current marker', (

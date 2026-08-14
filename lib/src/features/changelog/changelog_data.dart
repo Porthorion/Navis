@@ -130,6 +130,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Playlist track actions now use the same compact desktop menu for right-click and More, while phone keeps its touch sheet',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Long mobile album titles now size down when they can fit cleanly',
         type: ChangelogEntryType.improvement,
       ),

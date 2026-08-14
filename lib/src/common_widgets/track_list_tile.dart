@@ -13,6 +13,7 @@ class TrackListTile extends ConsumerWidget {
     super.key,
     this.onTap,
     this.onLongPress,
+    this.onSecondaryTapDown,
     this.trailing,
     this.badge,
     this.showAlbumArt = false,
@@ -23,6 +24,7 @@ class TrackListTile extends ConsumerWidget {
   final SongsTableData song;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final GestureTapDownCallback? onSecondaryTapDown;
   final Widget? trailing;
   final Widget? badge;
 
@@ -188,6 +190,13 @@ class TrackListTile extends ConsumerWidget {
               onLongPress!();
             },
     );
-    return SongPlaybackSemantics(state: playbackState, child: tile);
+    final interactiveTile = onSecondaryTapDown == null
+        ? tile
+        : GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onSecondaryTapDown: onSecondaryTapDown,
+            child: tile,
+          );
+    return SongPlaybackSemantics(state: playbackState, child: interactiveTile);
   }
 }

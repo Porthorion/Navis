@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -29,6 +30,18 @@ class PlaylistDetailScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<PlaylistDetailScreen> createState() =>
       _PlaylistDetailScreenState();
+}
+
+enum _PlaylistSongContextAction {
+  playNow,
+  addToQueue,
+  playNext,
+  openArtist,
+  openAlbum,
+  addToPlaylist,
+  download,
+  deleteDownload,
+  removeFromPlaylist,
 }
 
 class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
@@ -351,6 +364,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     onTap: () => _playNow(visibleSongs, index),
                     onLongPress: () =>
                         _showSongActions(song, entry.playlistIndex),
+                    onSecondaryTapDown: (details) => _showSongActions(
+                      song,
+                      entry.playlistIndex,
+                      anchor: details.globalPosition,
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
@@ -358,13 +376,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           songId: song.id,
                           onDownload: () => unawaited(_downloadSong(song)),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.more_vert),
-                          onPressed: () => _showSongActions(
-                            song,
-                            entry.playlistIndex,
-                          ),
-                        ),
+                        _songActionsButton(song, entry.playlistIndex),
                       ],
                     ),
                   ),
@@ -385,6 +397,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     song: song,
                     onTap: () => _playNow(songs, index),
                     onLongPress: () => _showSongActions(song, index),
+                    onSecondaryTapDown: (details) => _showSongActions(
+                      song,
+                      index,
+                      anchor: details.globalPosition,
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
@@ -392,10 +409,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           songId: song.id,
                           onDownload: () => unawaited(_downloadSong(song)),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.more_vert),
-                          onPressed: () => _showSongActions(song, index),
-                        ),
+                        _songActionsButton(song, index),
                         ReorderableDragStartListener(
                           index: index,
                           child: const Icon(Icons.drag_handle),
@@ -510,7 +524,40 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     }
   }
 
-  void _showSongActions(SongsTableData song, int songIndex) {
+  Widget _songActionsButton(SongsTableData song, int songIndex) {
+    final l10n = AppLocalizations.of(context)!;
+    final buttonKey = GlobalKey();
+    return IconButton(
+      key: buttonKey,
+      icon: const Icon(Icons.more_vert),
+      tooltip: l10n.nowPlayingMore,
+      onPressed: () => _showSongActions(
+        song,
+        songIndex,
+        anchor: _menuAnchorFor(buttonKey.currentContext),
+      ),
+    );
+  }
+
+  Offset? _menuAnchorFor(BuildContext? anchorContext) {
+    if (!isDesktopRuntime) return null;
+    if (anchorContext == null) return null;
+    final renderObject = anchorContext.findRenderObject();
+    if (renderObject is! RenderBox) return null;
+    return renderObject.localToGlobal(renderObject.size.center(Offset.zero));
+  }
+
+  void _showSongActions(
+    SongsTableData song,
+    int songIndex, {
+    Offset? anchor,
+  }) {
+    if (anchor != null && isDesktopRuntime) {
+      unawaited(
+        _showDesktopSongActions(song, songIndex, anchor: anchor),
+      );
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet<void>(
       context: context,
@@ -591,20 +638,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 );
               },
             ),
-            ListTile(
-              leading: Icon(
-                Icons.remove_circle_outline,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              title: Text(
-                l10n.playlistDetailRemoveTrack,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                unawaited(_removeTrack(songIndex));
-              },
-            ),
+            const Divider(height: 1),
             if (song.artistId != null && song.artistId!.isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.person_outline),
@@ -623,6 +657,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   NavService.openAlbumDetail(context, ref, song.albumId!);
                 },
               ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add),
+              title: Text(l10n.librarySongMenuAddToPlaylist),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                showAddToPlaylistSheet(context, ref, [song.id]);
+              },
+            ),
             Consumer(
               builder: (_, menuRef, _) {
                 final downloadState = menuRef.watch(
@@ -658,18 +700,163 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 );
               },
             ),
+            const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.playlist_add),
-              title: Text(l10n.librarySongMenuAddToPlaylist),
+              leading: Icon(
+                Icons.remove_circle_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                l10n.playlistDetailRemoveTrack,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                showAddToPlaylistSheet(context, ref, [song.id]);
+                unawaited(_removeTrack(songIndex));
               },
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _showDesktopSongActions(
+    SongsTableData song,
+    int songIndex, {
+    required Offset anchor,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    final downloadState = ref.read(songDownloadStateProvider(song.id));
+    final isDownloaded = downloadState.status == SongDownloadStatus.downloaded;
+    final colors = Theme.of(context).colorScheme;
+    final action = await showDesktopContextMenu<_PlaylistSongContextAction>(
+      context: context,
+      anchor: anchor,
+      items: <PopupMenuEntry<_PlaylistSongContextAction>>[
+        PopupMenuItem<_PlaylistSongContextAction>(
+          value: _PlaylistSongContextAction.playNow,
+          child: Text(l10n.librarySongMenuPlayNow),
+        ),
+        PopupMenuItem<_PlaylistSongContextAction>(
+          value: _PlaylistSongContextAction.addToQueue,
+          child: Text(l10n.librarySongMenuAddToQueue),
+        ),
+        PopupMenuItem<_PlaylistSongContextAction>(
+          value: _PlaylistSongContextAction.playNext,
+          child: Text(l10n.librarySongMenuPlayNext),
+        ),
+        const PopupMenuDivider(),
+        if (song.artistId != null && song.artistId!.isNotEmpty)
+          PopupMenuItem<_PlaylistSongContextAction>(
+            value: _PlaylistSongContextAction.openArtist,
+            child: Text(l10n.librarySongMenuOpenArtist),
+          ),
+        if (song.albumId != null && song.albumId!.isNotEmpty)
+          PopupMenuItem<_PlaylistSongContextAction>(
+            value: _PlaylistSongContextAction.openAlbum,
+            child: Text(l10n.nowPlayingGoToAlbum),
+          ),
+        PopupMenuItem<_PlaylistSongContextAction>(
+          value: _PlaylistSongContextAction.addToPlaylist,
+          child: Text(l10n.librarySongMenuAddToPlaylist),
+        ),
+        PopupMenuItem<_PlaylistSongContextAction>(
+          value: isDownloaded
+              ? _PlaylistSongContextAction.deleteDownload
+              : _PlaylistSongContextAction.download,
+          textStyle: isDownloaded ? TextStyle(color: colors.error) : null,
+          child: Text(
+            isDownloaded ? l10n.deleteDownloadAction : l10n.downloadAction,
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<_PlaylistSongContextAction>(
+          value: _PlaylistSongContextAction.removeFromPlaylist,
+          textStyle: TextStyle(color: colors.error),
+          child: Text(l10n.playlistDetailRemoveTrack),
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case _PlaylistSongContextAction.playNow:
+        _playSongFromMenu(song, songIndex);
+        return;
+      case _PlaylistSongContextAction.addToQueue:
+        ref
+            .read(queueProvider.notifier)
+            .fireAndForget(
+              () => ref.read(queueProvider.notifier).add(song.id),
+              label: 'addToQueue',
+            );
+        showAppNotice(
+          context,
+          message: l10n.librarySongAddedToQueue(song.title),
+          level: AppNoticeLevel.success,
+        );
+        return;
+      case _PlaylistSongContextAction.playNext:
+        ref
+            .read(queueProvider.notifier)
+            .fireAndForget(
+              () => ref.read(queueProvider.notifier).playNext(song.id),
+              label: 'playNext',
+            );
+        showAppNotice(
+          context,
+          message: l10n.librarySongPlayNextQueued(song.title),
+          level: AppNoticeLevel.success,
+        );
+        return;
+      case _PlaylistSongContextAction.openArtist:
+        if (song.artistId != null && song.artistId!.isNotEmpty) {
+          NavService.openArtistDetail(context, ref, song.artistId!);
+        }
+        return;
+      case _PlaylistSongContextAction.openAlbum:
+        if (song.albumId != null && song.albumId!.isNotEmpty) {
+          NavService.openAlbumDetail(context, ref, song.albumId!);
+        }
+        return;
+      case _PlaylistSongContextAction.addToPlaylist:
+        unawaited(showAddToPlaylistSheet(context, ref, [song.id]));
+        return;
+      case _PlaylistSongContextAction.download:
+        unawaited(_downloadSong(song));
+        return;
+      case _PlaylistSongContextAction.deleteDownload:
+        unawaited(_deleteDownload(song));
+        return;
+      case _PlaylistSongContextAction.removeFromPlaylist:
+        unawaited(_removeTrack(songIndex));
+        return;
+    }
+  }
+
+  void _playSongFromMenu(SongsTableData song, int songIndex) {
+    final downloadedOnly = ref.read(downloadedOnlyFilterProvider);
+    final downloadedSongIds = downloadedOnly
+        ? ref.read(downloadedSongIdsProvider).asData?.value ?? const <String>{}
+        : const <String>{};
+    final songs =
+        ref.read(playlistSongsProvider(widget.playlistId)).asData?.value ??
+        const <SongsTableData>[];
+    final playableEntries = songs.indexed
+        .where(
+          (entry) => !downloadedOnly || downloadedSongIds.contains(entry.$2.id),
+        )
+        .toList(growable: false);
+    final playableSongs = playableEntries
+        .map((entry) => entry.$2)
+        .toList(growable: false);
+    final visibleIndex = playableEntries.indexWhere(
+      (entry) => entry.$1 == songIndex,
+    );
+    if (visibleIndex >= 0) {
+      _playNow(playableSongs, visibleIndex);
+    }
   }
 
   Future<void> _downloadPlaylist(

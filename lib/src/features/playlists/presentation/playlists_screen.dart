@@ -203,6 +203,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                 _showRenameDialog(context, playlist);
               },
             ),
+            const Divider(height: 1),
             ListTile(
               leading: Icon(
                 Icons.delete_outline,

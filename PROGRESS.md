@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ---
 
@@ -70,11 +70,17 @@ Last updated: 2026-08-14
   Focused adaptive, shell, and deterministic before/after visual coverage
   passes across every primary desktop workspace.)
 
-- [ ] Cross-platform entity-action placement policy — partial: 2026-08-14
-  (approved on physical Android: playlist detail now makes Play the one filled
-  primary action and keeps Shuffle and Download tonal, matching the established
-  album/artist hierarchy on phone and desktop. Deterministic before/after
-  visual coverage passes; context menus still need to converge on the policy.)
+- [ ] Cross-platform entity-action placement policy — partial: 2026-08-15
+  (approved: playlist detail makes Play the one filled primary action and keeps
+  Shuffle and Download tonal, matching album/artist hierarchy on phone and
+  desktop. Song, album, and playlist-track menus now group direct, utility,
+  and destructive actions; playlist track removal is last and Rename/Delete
+  are separated. Desktop playlist tracks use the same anchored context menu
+  for secondary click and the More button, while phone retains its touch sheet.
+  Focused before/after goldens and secondary-pointer widget coverage pass;
+  `./tool/check.sh` and isolated Linux playlist-detail app-API/screenshot
+  diagnostics pass with a clean restart. Remaining scope is future
+  playlist-level desktop owner actions.)
 
 - [ ] State-clarity contract — partial: 2026-08-14 (approved: filtered-empty
   Artists, Albums, Albums by Year, and Liked views now provide one localized
@@ -105,14 +111,6 @@ Last updated: 2026-08-14
   has decoded, then makes one short cross-fade and removes the preview layer.
   Focused artwork-viewer and cover-art suites pass.)
 
-- [ ] Cross-platform entity-action placement policy — partial: 2026-08-13
-  (the design audit now defines the direct/secondary action order, context-menu
-  parity, and destructive-action rules for albums, artists, playlists, songs,
-  Home cards, and player surfaces. Song overflow menus now separate transport
-  actions from library/navigation actions, and place Remove download after a
-  divider in the error color on phone and desktop. Album context and detail
-  menus now apply the same destructive-action treatment. Playlist headers and
-  menus remain to be harmonised through reviewed visual changes.)
 
 - [ ] Reduced-motion surface coverage — partial: 2026-08-13 (the shared
   motion policy now removes transient status-notice travel and fade alongside
