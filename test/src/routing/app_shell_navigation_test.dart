@@ -300,6 +300,41 @@ void main() {
     );
   });
 
+  testWidgets('offline status uses a neutral retrying surface on desktop', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(
+        reachability: ServerReachabilityStatus.offline,
+        desktopRuntime: true,
+      ),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final offlineMessage = find.text('Server unreachable. Retrying every 30s.');
+    expect(offlineMessage, findsOneWidget);
+    final banner = find
+        .ancestor(
+          of: offlineMessage,
+          matching: find.byType(Material),
+        )
+        .first;
+    expect(
+      tester.widget<Material>(banner).color,
+      Theme.of(tester.element(banner)).colorScheme.surfaceContainerHigh,
+    );
+  });
+
   testWidgets('medium tablet layout keeps bottom navigation', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(700, 1000);

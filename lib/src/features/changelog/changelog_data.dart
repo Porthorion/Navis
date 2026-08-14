@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Offline mode now uses a calmer status treatment while Navis retries in the background',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Library now opens Appearance settings directly when all library pages are disabled',
         type: ChangelogEntryType.improvement,
       ),

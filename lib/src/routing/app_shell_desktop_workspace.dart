@@ -248,7 +248,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                             children: <Widget>[
                               if (widget.showOfflineBanner)
                                 Material(
-                                  color: colors.errorContainer,
+                                  color: colors.surfaceContainerHigh,
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 16,
@@ -258,14 +258,14 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                                       children: <Widget>[
                                         Icon(
                                           Icons.cloud_off_outlined,
-                                          color: colors.onErrorContainer,
+                                          color: colors.onSurfaceVariant,
                                         ),
                                         const SizedBox(width: 10),
                                         Expanded(
                                           child: Text(
                                             widget.offlineBannerText,
                                             style: TextStyle(
-                                              color: colors.onErrorContainer,
+                                              color: colors.onSurfaceVariant,
                                             ),
                                           ),
                                         ),

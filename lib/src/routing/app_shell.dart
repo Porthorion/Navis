@@ -1494,7 +1494,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                       Material(
                                         color: Theme.of(
                                           context,
-                                        ).colorScheme.errorContainer,
+                                        ).colorScheme.surfaceContainerHigh,
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 16,
@@ -1506,7 +1506,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                 Icons.cloud_off_outlined,
                                                 color: Theme.of(
                                                   context,
-                                                ).colorScheme.onErrorContainer,
+                                                ).colorScheme.onSurfaceVariant,
                                               ),
                                               const SizedBox(width: 10),
                                               Expanded(
@@ -1515,7 +1515,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                   style: TextStyle(
                                                     color: Theme.of(context)
                                                         .colorScheme
-                                                        .onErrorContainer,
+                                                        .onSurfaceVariant,
                                                   ),
                                                 ),
                                               ),
@@ -1740,7 +1740,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                             Material(
                               color: Theme.of(
                                 context,
-                              ).colorScheme.errorContainer,
+                              ).colorScheme.surfaceContainerHigh,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
@@ -1752,7 +1752,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                       Icons.cloud_off_outlined,
                                       color: Theme.of(
                                         context,
-                                      ).colorScheme.onErrorContainer,
+                                      ).colorScheme.onSurfaceVariant,
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
@@ -1761,7 +1761,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         style: TextStyle(
                                           color: Theme.of(
                                             context,
-                                          ).colorScheme.onErrorContainer,
+                                          ).colorScheme.onSurfaceVariant,
                                         ),
                                       ),
                                     ),
