@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Weekly playlists now keep their track layout visible while loading and offer clearer recovery when unavailable',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop weekly playlists keep their Back button without repeating the page title',
         type: ChangelogEntryType.improvement,
       ),

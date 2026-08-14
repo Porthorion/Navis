@@ -9,6 +9,7 @@ import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
+import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
@@ -526,6 +527,34 @@ Future<void> _pumpRandomSectionHome(
   }
 }
 
+Future<void> _pumpWeeklyDetail(
+  WidgetTester tester, {
+  required Stream<List<ListenBrainzDiscoverPlaylist>> playlists,
+  String sourcePatch = 'weekly-jams',
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      key: ValueKey<Stream<List<ListenBrainzDiscoverPlaylist>>>(playlists),
+      overrides: <Override>[
+        listenBrainzDiscoverStreamProvider.overrideWith((ref) => playlists),
+      ],
+      child: MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (ctx, child) => MediaQuery(
+          data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: ListenBrainzWeeklyDetailScreen(
+          key: ValueKey<Stream<List<ListenBrainzDiscoverPlaylist>>>(playlists),
+          sourcePatch: sourcePatch,
+        ),
+      ),
+    ),
+  );
+}
+
 Future<void> _pumpHomeWithAppSettings(
   WidgetTester tester, {
   required NavisDatabase database,
@@ -622,6 +651,49 @@ void main() {
 
   tearDownAll(() async {
     await database.close();
+  });
+
+  testWidgets('weekly detail uses a track skeleton while loading', (
+    tester,
+  ) async {
+    final controller = StreamController<List<ListenBrainzDiscoverPlaylist>>();
+    addTearDown(controller.close);
+
+    await _pumpWeeklyDetail(tester, playlists: controller.stream);
+    await tester.pump();
+
+    expect(find.text('Weekly Jams'), findsOneWidget);
+    expect(find.byType(ShimmerListTile), findsNWidgets(8));
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('weekly detail gives empty and failed states a safe recovery', (
+    tester,
+  ) async {
+    await _pumpWeeklyDetail(
+      tester,
+      playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+        const <ListenBrainzDiscoverPlaylist>[],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No weekly playlist available'), findsOneWidget);
+    expect(find.text('Refresh to check for a new playlist.'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
+
+    await _pumpWeeklyDetail(
+      tester,
+      playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.error(
+        StateError('private implementation detail'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not load weekly playlist'), findsOneWidget);
+    expect(find.text('Check your connection and try again.'), findsOneWidget);
+    expect(find.textContaining('private implementation detail'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
   });
 
   testWidgets('home does not show retired Listen Together entry point', (

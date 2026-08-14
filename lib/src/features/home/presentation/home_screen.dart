@@ -82,6 +82,7 @@ class _ListenBrainzWeeklyDetailScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final playlistsAsync = ref.watch(listenBrainzDiscoverStreamProvider);
     final playlists = playlistsAsync.asData?.value;
     final latest = playlists
@@ -94,9 +95,9 @@ class _ListenBrainzWeeklyDetailScreenState
     }
     final playlist = latest ?? _cachedPlaylist;
     final title = switch (widget.sourcePatch) {
-      'weekly-jams' => 'Weekly Jams',
-      'weekly-exploration' => 'Weekly Exploration',
-      _ => 'ListenBrainz Weekly',
+      'weekly-jams' => l10n.weeklyPlaylistJamsTitle,
+      'weekly-exploration' => l10n.weeklyPlaylistExplorationTitle,
+      _ => l10n.weeklyPlaylistTitle,
     };
     final adaptiveContext = resolveAdaptiveContextFor(context);
 
@@ -108,7 +109,7 @@ class _ListenBrainzWeeklyDetailScreenState
       );
     } else if (playlistsAsync.hasError) {
       body = ErrorState(
-        title: 'Could not load weekly playlist',
+        title: l10n.weeklyPlaylistLoadError,
         onRetry: () {
           ref
               .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
@@ -116,13 +117,21 @@ class _ListenBrainzWeeklyDetailScreenState
         },
       );
     } else if (playlistsAsync.hasValue) {
-      body = const EmptyState(
+      body = EmptyState(
         icon: Icons.auto_awesome_outlined,
-        title: 'No weekly playlist available',
-        subtitle: 'Refresh You Might Like to fetch it again.',
+        title: l10n.weeklyPlaylistUnavailableTitle,
+        subtitle: l10n.weeklyPlaylistUnavailableSubtitle,
+        action: FilledButton.tonal(
+          onPressed: () {
+            ref
+                .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+                .refreshFull();
+          },
+          child: Text(l10n.commonRetry),
+        ),
       );
     } else {
-      body = const Center(child: CircularProgressIndicator());
+      body = const ShimmerListPage(count: 8, leadingSize: 56);
     }
 
     return Scaffold(
@@ -548,7 +557,7 @@ class _ListenBrainzWeeklyDetailContentState
             onPressed: serverSongs.isEmpty ? null : _downloadVirtualAlbum,
           ),
           IconButton(
-            tooltip: 'Match',
+            tooltip: l10n.weeklyPlaylistMatchAction,
             icon: _playlistIsMatching
                 ? const SizedBox.square(
                     dimension: 18,
@@ -593,7 +602,7 @@ class _ListenBrainzWeeklyDetailContentState
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.sync_rounded),
-          label: const Text('Match'),
+          label: Text(l10n.weeklyPlaylistMatchAction),
         ),
       ],
     );
@@ -684,15 +693,16 @@ class _ListenBrainzWeeklyDetailContentState
       if (!mounted) return;
       showAppNotice(
         context,
-        message:
-            'Matched ${matched.matchedCount} of ${matched.totalCount} tracks',
+        message: AppLocalizations.of(
+          context,
+        )!.weeklyPlaylistMatchSuccess(matched.matchedCount, matched.totalCount),
         level: AppNoticeLevel.success,
       );
-    } on Object catch (error) {
+    } on Object {
       if (!mounted) return;
       showAppNotice(
         context,
-        message: 'Could not match playlist: $error',
+        message: AppLocalizations.of(context)!.weeklyPlaylistMatchError,
         level: AppNoticeLevel.error,
       );
     }
@@ -789,15 +799,13 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final date = _listenBrainzGenerationDate(playlist);
     final metadata = <String>[
-      'ListenBrainz',
+      l10n.weeklyPlaylistServiceName,
       _formatListenBrainzDate(date),
-      '${playlist.totalCount} tracks',
-      if (playlist.matchingComplete)
-        '${playlist.matchedCount} available'
-      else
-        '${playlist.matchedCount} available, matching',
+      l10n.weeklyPlaylistTrackCount(playlist.totalCount),
+      _listenBrainzAvailabilityText(playlist, l10n),
     ].join(' • ');
     return Column(
       crossAxisAlignment: textAlign == TextAlign.center
@@ -2838,6 +2846,7 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
@@ -2889,8 +2898,8 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(
                     item.isLoading
-                        ? 'Fetching ListenBrainz playlist...'
-                        : _listenBrainzAvailabilityText(item.playlist!),
+                        ? l10n.weeklyPlaylistFetching
+                        : _listenBrainzAvailabilityText(item.playlist!, l10n),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -2940,6 +2949,7 @@ class _DesktopListenBrainzSongListState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final item = widget.item;
     final recommendations = item.playlist?.recommendations ?? const [];
     if (recommendations.isNotEmpty) {
@@ -2948,7 +2958,7 @@ class _DesktopListenBrainzSongListState
     if ((item.isLoading || item.playlist == null) && !_hadRecommendations) {
       return Center(
         child: Text(
-          'Fetching playlist...',
+          l10n.weeklyPlaylistLoading,
           style: theme.textTheme.bodySmall,
         ),
       );
@@ -2956,7 +2966,7 @@ class _DesktopListenBrainzSongListState
     if (recommendations.isEmpty) {
       return Center(
         child: Text(
-          'No tracks yet',
+          l10n.weeklyPlaylistNoTracksYet,
           style: theme.textTheme.bodySmall,
         ),
       );
@@ -3991,6 +4001,7 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
@@ -4044,8 +4055,11 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       item.isLoading
-                          ? 'Fetching ListenBrainz playlist...'
-                          : _listenBrainzAvailabilityText(item.playlist!),
+                          ? l10n.weeklyPlaylistFetching
+                          : _listenBrainzAvailabilityText(
+                              item.playlist!,
+                              l10n,
+                            ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -4055,10 +4069,10 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
                     const SizedBox(height: 6),
                     Text(
                       item.isLoading
-                          ? 'Loading'
+                          ? l10n.weeklyPlaylistLoading
                           : item.playlist!.matchingComplete
-                          ? 'Ready'
-                          : 'Matching',
+                          ? l10n.weeklyPlaylistReady
+                          : l10n.weeklyPlaylistMatching,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -4085,11 +4099,17 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
   }
 }
 
-String _listenBrainzAvailabilityText(ListenBrainzDiscoverPlaylist playlist) {
+String _listenBrainzAvailabilityText(
+  ListenBrainzDiscoverPlaylist playlist,
+  AppLocalizations l10n,
+) {
   if (!playlist.matchingComplete) {
-    return '${playlist.matchedCount} available • matching';
+    return l10n.weeklyPlaylistAvailableMatching(playlist.matchedCount);
   }
-  return '${playlist.matchedCount} of ${playlist.totalCount} available';
+  return l10n.weeklyPlaylistAvailableCount(
+    playlist.matchedCount,
+    playlist.totalCount,
+  );
 }
 
 /// A small square card for server [Album] objects (same visual as [AlbumCard]

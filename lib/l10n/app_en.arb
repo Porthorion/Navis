@@ -318,6 +318,46 @@
   "playbackSettingsLikedQueueSubtitle": "Tapping a track on the Liked page queues all your liked songs and starts at that track.",
   "homeTitle": "Home",
   "homeLoadErrorTitle": "Could not load section",
+  "weeklyPlaylistTitle": "ListenBrainz Weekly",
+  "weeklyPlaylistJamsTitle": "Weekly Jams",
+  "weeklyPlaylistExplorationTitle": "Weekly Exploration",
+  "weeklyPlaylistServiceName": "ListenBrainz",
+  "weeklyPlaylistLoadError": "Could not load weekly playlist",
+  "weeklyPlaylistUnavailableTitle": "No weekly playlist available",
+  "weeklyPlaylistUnavailableSubtitle": "Refresh to check for a new playlist.",
+  "weeklyPlaylistMatchAction": "Match",
+  "weeklyPlaylistMatchSuccess": "Matched {matched} of {total} tracks",
+  "@weeklyPlaylistMatchSuccess": {
+    "placeholders": {
+      "matched": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "weeklyPlaylistMatchError": "Could not match this playlist. Try again.",
+  "weeklyPlaylistTrackCount": "{count, plural, =0{No tracks} =1{1 track} other{{count} tracks}}",
+  "@weeklyPlaylistTrackCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "weeklyPlaylistAvailableMatching": "{count, plural, =0{No tracks available, matching} =1{1 track available, matching} other{{count} tracks available, matching}}",
+  "@weeklyPlaylistAvailableMatching": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "weeklyPlaylistAvailableCount": "{matched} of {total} available",
+  "@weeklyPlaylistAvailableCount": {
+    "placeholders": {
+      "matched": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "weeklyPlaylistFetching": "Fetching ListenBrainz playlist...",
+  "weeklyPlaylistLoading": "Loading playlist...",
+  "weeklyPlaylistNoTracksYet": "No tracks yet",
+  "weeklyPlaylistReady": "Ready",
+  "weeklyPlaylistMatching": "Matching",
   "homeContinueListeningTitle": "Continue listening",
   "homeContinueListeningResume": "Resume",
   "homeContinueListeningOpenNowPlaying": "Open player",

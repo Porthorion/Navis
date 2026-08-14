@@ -721,6 +721,84 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeLoadErrorTitle => 'Could not load section';
 
   @override
+  String get weeklyPlaylistTitle => 'ListenBrainz Weekly';
+
+  @override
+  String get weeklyPlaylistJamsTitle => 'Weekly Jams';
+
+  @override
+  String get weeklyPlaylistExplorationTitle => 'Weekly Exploration';
+
+  @override
+  String get weeklyPlaylistServiceName => 'ListenBrainz';
+
+  @override
+  String get weeklyPlaylistLoadError => 'Could not load weekly playlist';
+
+  @override
+  String get weeklyPlaylistUnavailableTitle => 'No weekly playlist available';
+
+  @override
+  String get weeklyPlaylistUnavailableSubtitle =>
+      'Refresh to check for a new playlist.';
+
+  @override
+  String get weeklyPlaylistMatchAction => 'Match';
+
+  @override
+  String weeklyPlaylistMatchSuccess(int matched, int total) {
+    return 'Matched $matched of $total tracks';
+  }
+
+  @override
+  String get weeklyPlaylistMatchError =>
+      'Could not match this playlist. Try again.';
+
+  @override
+  String weeklyPlaylistTrackCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracks',
+      one: '1 track',
+      zero: 'No tracks',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String weeklyPlaylistAvailableMatching(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracks available, matching',
+      one: '1 track available, matching',
+      zero: 'No tracks available, matching',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String weeklyPlaylistAvailableCount(int matched, int total) {
+    return '$matched of $total available';
+  }
+
+  @override
+  String get weeklyPlaylistFetching => 'Fetching ListenBrainz playlist...';
+
+  @override
+  String get weeklyPlaylistLoading => 'Loading playlist...';
+
+  @override
+  String get weeklyPlaylistNoTracksYet => 'No tracks yet';
+
+  @override
+  String get weeklyPlaylistReady => 'Ready';
+
+  @override
+  String get weeklyPlaylistMatching => 'Matching';
+
+  @override
   String get homeContinueListeningTitle => 'Continue listening';
 
   @override

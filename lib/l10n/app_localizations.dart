@@ -1302,6 +1302,114 @@ abstract class AppLocalizations {
   /// **'Could not load section'**
   String get homeLoadErrorTitle;
 
+  /// No description provided for @weeklyPlaylistTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz Weekly'**
+  String get weeklyPlaylistTitle;
+
+  /// No description provided for @weeklyPlaylistJamsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly Jams'**
+  String get weeklyPlaylistJamsTitle;
+
+  /// No description provided for @weeklyPlaylistExplorationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly Exploration'**
+  String get weeklyPlaylistExplorationTitle;
+
+  /// No description provided for @weeklyPlaylistServiceName.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz'**
+  String get weeklyPlaylistServiceName;
+
+  /// No description provided for @weeklyPlaylistLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load weekly playlist'**
+  String get weeklyPlaylistLoadError;
+
+  /// No description provided for @weeklyPlaylistUnavailableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No weekly playlist available'**
+  String get weeklyPlaylistUnavailableTitle;
+
+  /// No description provided for @weeklyPlaylistUnavailableSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh to check for a new playlist.'**
+  String get weeklyPlaylistUnavailableSubtitle;
+
+  /// No description provided for @weeklyPlaylistMatchAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Match'**
+  String get weeklyPlaylistMatchAction;
+
+  /// No description provided for @weeklyPlaylistMatchSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Matched {matched} of {total} tracks'**
+  String weeklyPlaylistMatchSuccess(int matched, int total);
+
+  /// No description provided for @weeklyPlaylistMatchError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not match this playlist. Try again.'**
+  String get weeklyPlaylistMatchError;
+
+  /// No description provided for @weeklyPlaylistTrackCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No tracks} =1{1 track} other{{count} tracks}}'**
+  String weeklyPlaylistTrackCount(int count);
+
+  /// No description provided for @weeklyPlaylistAvailableMatching.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No tracks available, matching} =1{1 track available, matching} other{{count} tracks available, matching}}'**
+  String weeklyPlaylistAvailableMatching(int count);
+
+  /// No description provided for @weeklyPlaylistAvailableCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{matched} of {total} available'**
+  String weeklyPlaylistAvailableCount(int matched, int total);
+
+  /// No description provided for @weeklyPlaylistFetching.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching ListenBrainz playlist...'**
+  String get weeklyPlaylistFetching;
+
+  /// No description provided for @weeklyPlaylistLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading playlist...'**
+  String get weeklyPlaylistLoading;
+
+  /// No description provided for @weeklyPlaylistNoTracksYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No tracks yet'**
+  String get weeklyPlaylistNoTracksYet;
+
+  /// No description provided for @weeklyPlaylistReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get weeklyPlaylistReady;
+
+  /// No description provided for @weeklyPlaylistMatching.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching'**
+  String get weeklyPlaylistMatching;
+
   /// No description provided for @homeContinueListeningTitle.
   ///
   /// In en, this message translates to:

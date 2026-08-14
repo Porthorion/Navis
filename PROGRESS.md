@@ -100,8 +100,12 @@ Last updated: 2026-08-15
 - [ ] State-clarity contract — partial: 2026-08-14 (approved: filtered-empty
   Artists, Albums, Albums by Year, and Liked views now provide one localized
   `Show all` recovery action that clears active filters without leaving the
-  current section. Focused Library and before/after golden coverage pass; safe
-  offline and recoverable-error copy remains.)
+  current section. Weekly playlist detail now preserves track-shaped geometry
+  while loading, offers an explicit Retry action when unavailable, and never
+  exposes a caught rematch exception. Focused Library, Home, and before/after
+  golden coverage pass; final `./tool/check.sh` passes with 1,120 tests and 1
+  skip; isolated Linux weekly-detail diagnostics pass before and after a clean
+  restart. Safe offline and recoverable-error copy remains.)
 
 - [ ] Active desktop metadata visual coverage — partial: 2026-08-13
   (deterministic player-bar goldens now cover long title/artist truncation at
