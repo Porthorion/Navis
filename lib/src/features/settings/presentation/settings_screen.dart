@@ -209,44 +209,46 @@ class SettingsScreen extends ConsumerWidget {
       );
     }
 
+    final desktopIconsOnly = DesktopNavigationPresentationScope.iconsOnlyOf(
+      context,
+    );
     return Scaffold(
       body: SafeArea(
-        child: DesktopFrame(
-          layoutClass: adaptiveContext.desktopLayoutClass,
-          child: ListView(
-            children: <Widget>[
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            desktopIconsOnly ? 20 : 16,
+            24,
+            24,
+          ),
+          children: <Widget>[
+            if (desktopIconsOnly) ...<Widget>[
               DesktopSectionHeader(
                 title: l10n.settingsTitle,
                 subtitle: l10n.settingsDesktopWorkspaceSubtitle,
               ),
-              const SizedBox(height: 6),
-              for (final group in groups.entries) ...<Widget>[
-                DesktopPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        group.key,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      for (final entry in group.value)
-                        DesktopListRow(
-                          leading: Icon(entry.icon),
-                          title: entry.title,
-                          subtitle: entry.subtitle,
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => context.push(entry.route),
-                        ),
-                    ],
+              const SizedBox(height: 4),
+            ],
+            for (final group in groups.entries) ...<Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 16, 4, 6),
+                child: Text(
+                  group.key,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 12),
-              ],
+              ),
+              for (final entry in group.value)
+                DesktopListRow(
+                  leading: Icon(entry.icon),
+                  title: entry.title,
+                  subtitle: entry.subtitle,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(entry.route),
+                ),
             ],
-          ),
+          ],
         ),
       ),
     );

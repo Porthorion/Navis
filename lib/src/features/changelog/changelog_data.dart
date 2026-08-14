@@ -78,6 +78,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Desktop Settings now uses a focused preference list with clearer group hierarchy',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Settings labels are now ready for localization across desktop and mobile',
         type: ChangelogEntryType.improvement,
       ),

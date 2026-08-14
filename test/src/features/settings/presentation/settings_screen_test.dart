@@ -43,11 +43,11 @@ void main() {
     expect(find.text('Connection'), findsNothing);
     expect(tester.takeException(), isNull);
 
-    final transitions = <({Size size, bool desktopFrame})>[
-      (size: const Size(700, 1000), desktopFrame: false),
-      (size: const Size(840, 1000), desktopFrame: false),
-      (size: const Size(1200, 1000), desktopFrame: true),
-      (size: const Size(900, 420), desktopFrame: false),
+    final transitions = <({Size size, bool desktopWorkspace})>[
+      (size: const Size(700, 1000), desktopWorkspace: false),
+      (size: const Size(840, 1000), desktopWorkspace: false),
+      (size: const Size(1200, 1000), desktopWorkspace: true),
+      (size: const Size(900, 420), desktopWorkspace: false),
     ];
 
     for (final step in transitions) {
@@ -55,18 +55,18 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byType(DesktopFrame),
-        step.desktopFrame ? findsOneWidget : findsNothing,
+        findsNothing,
       );
       expect(
         find.byType(AppBar),
-        step.desktopFrame ? findsNothing : findsOneWidget,
+        step.desktopWorkspace ? findsNothing : findsOneWidget,
       );
       expect(find.text('Listen Together Configuration'), findsNothing);
       if (step.size.width >= 1200) {
         expect(find.text('Desktop Window'), findsOneWidget);
         expect(
           find.text('Desktop workspace controls and app preferences'),
-          findsOneWidget,
+          findsNothing,
         );
         expect(find.text('Keyboard Shortcuts'), findsOneWidget);
         expect(find.text('Connection'), findsOneWidget);
