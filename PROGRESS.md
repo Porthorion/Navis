@@ -77,6 +77,14 @@ Last updated: 2026-08-15
   Focused adaptive, shell, and deterministic before/after visual coverage
   passes across every primary desktop workspace.)
 
+- [x] Desktop weekly-detail hierarchy — 2026-08-15 (weekly ListenBrainz
+  detail keeps the persistent Back control but removes the duplicate desktop
+  app-bar title once its content hero is ready; loading and unavailable states
+  retain their contextual title. Phone and tablet behavior remain unchanged.
+  Focused Home coverage and isolated Linux presentation diagnostics with an
+  inspected app-owned screenshot pass before and after a clean restart; the
+  final `./tool/check.sh` passes with 1,120 tests and 1 skip.)
+
 - [ ] Cross-platform entity-action placement policy — partial: 2026-08-15
   (approved: playlist detail makes Play the one filled primary action and keeps
   Shuffle and Download tonal, matching album/artist hierarchy on phone and

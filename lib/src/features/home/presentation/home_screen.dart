@@ -127,7 +127,11 @@ class _ListenBrainzWeeklyDetailScreenState
 
     return Scaffold(
       appBar: (adaptiveContext.useDesktopShell || playlist == null)
-          ? AppBar(title: Text(title))
+          ? AppBar(
+              title: adaptiveContext.useDesktopShell && playlist != null
+                  ? null
+                  : Text(title),
+            )
           : null,
       body: body,
     );

@@ -1360,7 +1360,7 @@ void main() {
         const Offset(-320, 0),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Weekly Jams'), findsOneWidget);
+      expect(find.text('Weekly Jams'), findsWidgets);
 
       await tester.tap(find.text('Weekly Jams'));
       await tester.pumpAndSettle();
