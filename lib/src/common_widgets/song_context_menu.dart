@@ -137,6 +137,7 @@ Future<void> showSongContextMenu(
                         }());
                       },
                     ),
+                    const Divider(height: 1),
                     ListTile(
                       iconColor: isServerActionUnavailable
                           ? disabledColor
@@ -260,7 +261,8 @@ Future<void> showSongContextMenu(
                         );
                       },
                     ),
-                    if (isDownloaded)
+                    if (isDownloaded) ...<Widget>[
+                      const Divider(height: 1),
                       ListTile(
                         leading: Icon(
                           Icons.delete_outline,
@@ -278,8 +280,8 @@ Future<void> showSongContextMenu(
                             confirmAndDeleteDownload(context, ref, song.id),
                           );
                         },
-                      )
-                    else if (canDownload)
+                      ),
+                    ] else if (canDownload)
                       ListTile(
                         iconColor: isServerActionUnavailable
                             ? disabledColor
@@ -361,6 +363,7 @@ Future<void> _showDesktopSongContextMenu(
         value: _SongContextAction.playNext,
         child: Text(l10n.librarySongMenuPlayNext),
       ),
+      const PopupMenuDivider(),
       PopupMenuItem<_SongContextAction>(
         value: _SongContextAction.toggleLike,
         enabled: !isServerActionUnavailable,
@@ -380,11 +383,15 @@ Future<void> _showDesktopSongContextMenu(
         value: _SongContextAction.addPlaylist,
         child: Text(l10n.librarySongMenuAddToPlaylist),
       ),
+      if (isDownloaded) const PopupMenuDivider(),
       PopupMenuItem<_SongContextAction>(
         value: isDownloaded
             ? _SongContextAction.deleteDownload
             : _SongContextAction.download,
         enabled: isDownloaded || (canDownload && !isServerActionUnavailable),
+        textStyle: isDownloaded
+            ? TextStyle(color: Theme.of(context).colorScheme.error)
+            : null,
         child: Text(
           isDownloaded ? l10n.deleteDownloadAction : l10n.downloadAction,
         ),
