@@ -140,6 +140,66 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Downloads search empty state can restore the full queue', (
+    tester,
+  ) async {
+    const song = SongsTableData(
+      id: 'queued-song',
+      title: 'Queued Song',
+      artistName: 'Artist',
+      isProvisional: false,
+      isExternal: false,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            downloadQueueProvider.overrideWithValue(
+              AsyncData(<DownloadQueueTableData>[
+                DownloadQueueTableData(
+                  id: 1,
+                  songId: song.id,
+                  status: DownloadStatus.queued,
+                  progress: 0,
+                  addedAt: DateTime(2026),
+                  priority: 0,
+                  retryCount: 0,
+                ),
+              ]),
+            ),
+            permanentCachedTracksProvider.overrideWithValue(
+              const AsyncData(<CachedTracksTableData>[]),
+            ),
+            songByIdProvider.overrideWith(
+              (ref, songId) => Stream.value(song),
+            ),
+            playerStateProvider.overrideWithValue(_pausedSnapshot(song.id)),
+          ],
+        ),
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DownloadsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'missing');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('No results for "missing"'), findsOneWidget);
+    expect(find.text('Show all'), findsOneWidget);
+
+    await tester.tap(find.text('Show all'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(song.title), findsOneWidget);
+    expect(find.textContaining('No results for "missing"'), findsNothing);
+  });
 }
 
 PlaybackSnapshot _pausedSnapshot(String songId) {

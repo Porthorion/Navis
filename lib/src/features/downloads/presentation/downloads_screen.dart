@@ -49,6 +49,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
     super.dispose();
   }
 
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _query = '');
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -79,10 +84,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
                   ? l10n.downloadsQueueSearchHint
                   : l10n.downloadsSearchHint,
               onSearchChanged: (value) => setState(() => _query = value),
-              onClearSearch: () {
-                _searchController.clear();
-                setState(() => _query = '');
-              },
+              onClearSearch: _clearSearch,
             )
           else if (showSearch)
             _DownloadsSearchBar(
@@ -91,17 +93,14 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
                   ? l10n.downloadsQueueSearchHint
                   : l10n.downloadsSearchHint,
               onChanged: (value) => setState(() => _query = value),
-              onClear: () {
-                _searchController.clear();
-                setState(() => _query = '');
-              },
+              onClear: _clearSearch,
             ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: <Widget>[
-                _QueueTab(query: _query),
-                _DownloadedTab(query: _query),
+                _QueueTab(query: _query, onClearQuery: _clearSearch),
+                _DownloadedTab(query: _query, onClearQuery: _clearSearch),
                 const _DownloadSettingsTab(),
               ],
             ),
@@ -206,9 +205,10 @@ class _DownloadsDesktopCommandStrip extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _QueueTab extends ConsumerWidget {
-  const _QueueTab({required this.query});
+  const _QueueTab({required this.query, required this.onClearQuery});
 
   final String query;
+  final VoidCallback onClearQuery;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -312,6 +312,11 @@ class _QueueTab extends ConsumerWidget {
                 child: EmptyState(
                   title: l10n.downloadsSearchNoResults(query),
                   icon: Icons.search_off,
+                  action: FilledButton.tonalIcon(
+                    onPressed: onClearQuery,
+                    icon: const Icon(Icons.clear_all_outlined),
+                    label: Text(l10n.searchShowAll),
+                  ),
                 ),
               )
             else
@@ -449,9 +454,10 @@ class _QueueItemTile extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _DownloadedTab extends ConsumerWidget {
-  const _DownloadedTab({required this.query});
+  const _DownloadedTab({required this.query, required this.onClearQuery});
 
   final String query;
+  final VoidCallback onClearQuery;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -496,6 +502,11 @@ class _DownloadedTab extends ConsumerWidget {
                 child: EmptyState(
                   title: l10n.downloadsSearchNoResults(query),
                   icon: Icons.search_off,
+                  action: FilledButton.tonalIcon(
+                    onPressed: onClearQuery,
+                    icon: const Icon(Icons.clear_all_outlined),
+                    label: Text(l10n.searchShowAll),
+                  ),
                 ),
               )
             else
