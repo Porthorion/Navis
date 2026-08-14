@@ -2171,6 +2171,24 @@ abstract class AppLocalizations {
   /// **'No liked matches'**
   String get libraryLikedOnlyEmptyTitle;
 
+  /// No description provided for @libraryNoPagesEnabledTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No library pages enabled'**
+  String get libraryNoPagesEnabledTitle;
+
+  /// No description provided for @libraryNoPagesEnabledSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable a page in Appearance settings to browse your library.'**
+  String get libraryNoPagesEnabledSubtitle;
+
+  /// No description provided for @libraryNoPagesEnabledAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Appearance settings'**
+  String get libraryNoPagesEnabledAction;
+
   /// No description provided for @libraryLikedOnlyEmptySubtitle.
   ///
   /// In en, this message translates to:

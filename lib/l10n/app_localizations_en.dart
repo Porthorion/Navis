@@ -1220,6 +1220,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryLikedOnlyEmptyTitle => 'No liked matches';
 
   @override
+  String get libraryNoPagesEnabledTitle => 'No library pages enabled';
+
+  @override
+  String get libraryNoPagesEnabledSubtitle =>
+      'Enable a page in Appearance settings to browse your library.';
+
+  @override
+  String get libraryNoPagesEnabledAction => 'Open Appearance settings';
+
+  @override
   String get libraryLikedOnlyEmptySubtitle =>
       'Try turning off the liked filter or like more content.';
 

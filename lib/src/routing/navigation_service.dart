@@ -167,6 +167,13 @@ abstract final class NavService {
     context.go('/settings');
   }
 
+  /// Open Appearance settings from a recovery state.
+  static void openAppearanceSettings(BuildContext context, WidgetRef ref) {
+    clearExitPrompt();
+    _prepareForNavigation(context, ref, AppNavigationIntent.replace);
+    context.go('/settings/appearance');
+  }
+
   /// Navigate to the search screen and pre-fill the query.
   ///
   /// Useful for radio "search for this artist / song" flows.

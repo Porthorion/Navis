@@ -212,6 +212,8 @@ Widget _buildLibraryScreen({
 Widget _buildLibraryScreenRouter({
   required List<Object?> overrides,
   bool showPlaylistsPage = false,
+  bool showRadioPage = false,
+  bool showArtistsPage = true,
 }) {
   final router = GoRouter(
     routes: <RouteBase>[
@@ -233,6 +235,10 @@ Widget _buildLibraryScreenRouter({
           ),
         ],
       ),
+      GoRoute(
+        path: '/settings/appearance',
+        builder: (context, state) => const Text('Appearance settings'),
+      ),
     ],
   );
 
@@ -240,8 +246,8 @@ Widget _buildLibraryScreenRouter({
     overrides: withTestDatabase(
       _testDatabase,
       overrides: [
-        showRadioPageProvider.overrideWithValue(false),
-        showArtistsPageProvider.overrideWithValue(true),
+        showRadioPageProvider.overrideWithValue(showRadioPage),
+        showArtistsPageProvider.overrideWithValue(showArtistsPage),
         showPlaylistsPageProvider.overrideWithValue(showPlaylistsPage),
         artistViewModeProvider.overrideWithValue('list'),
         serverConfigStateProvider.overrideWithValue(
@@ -329,6 +335,33 @@ void main() {
       expect(computeGridCrossAxisCount(8, 980), 5);
     });
   });
+
+  _testWidgetsWithCleanup(
+    'disabled library pages offer a direct Appearance settings recovery',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildLibraryScreenRouter(
+          overrides: <Object?>[
+            showAlbumsPageProvider.overrideWithValue(false),
+            showLikedPageProvider.overrideWithValue(false),
+          ],
+          showArtistsPage: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('No library pages enabled'), findsOneWidget);
+      final recovery = find.widgetWithText(
+        FilledButton,
+        'Open Appearance settings',
+      );
+      expect(recovery, findsOneWidget);
+
+      await tester.tap(recovery);
+      await tester.pumpAndSettle();
+      expect(find.text('Appearance settings'), findsOneWidget);
+    },
+  );
 
   group('LibraryScreen', () {
     _testWidgetsWithCleanup(

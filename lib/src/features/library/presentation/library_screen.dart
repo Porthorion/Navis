@@ -887,10 +887,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
     final tabletMode =
         !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
-    final content = const EmptyState(
-      title: 'No library pages enabled',
-      subtitle: 'Enable a page in Appearance settings to browse your library.',
+    final content = EmptyState(
+      title: l10n.libraryNoPagesEnabledTitle,
+      subtitle: l10n.libraryNoPagesEnabledSubtitle,
       icon: Icons.visibility_off_outlined,
+      action: FilledButton.tonalIcon(
+        onPressed: () => NavService.openAppearanceSettings(context, ref),
+        icon: const Icon(Icons.tune_outlined),
+        label: Text(l10n.libraryNoPagesEnabledAction),
+      ),
     );
 
     if (desktopMode) {
