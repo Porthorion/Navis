@@ -52,22 +52,39 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final showSearch = _tabController.index != 2;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.downloadsTitle),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: <Widget>[
-            Tab(text: l10n.downloadsTabQueue),
-            Tab(text: l10n.downloadsTabDownloaded),
-            Tab(text: l10n.downloadsTabSettings),
-          ],
-        ),
-      ),
+      appBar: desktopMode
+          ? null
+          : AppBar(
+              title: Text(l10n.downloadsTitle),
+              bottom: TabBar(
+                controller: _tabController,
+                tabs: <Widget>[
+                  Tab(text: l10n.downloadsTabQueue),
+                  Tab(text: l10n.downloadsTabDownloaded),
+                  Tab(text: l10n.downloadsTabSettings),
+                ],
+              ),
+            ),
       body: Column(
         children: <Widget>[
-          if (showSearch)
+          if (desktopMode)
+            _DownloadsDesktopCommandStrip(
+              controller: _tabController,
+              searchController: _searchController,
+              showSearch: showSearch,
+              searchHint: _tabController.index == 0
+                  ? l10n.downloadsQueueSearchHint
+                  : l10n.downloadsSearchHint,
+              onSearchChanged: (value) => setState(() => _query = value),
+              onClearSearch: () {
+                _searchController.clear();
+                setState(() => _query = '');
+              },
+            )
+          else if (showSearch)
             _DownloadsSearchBar(
               controller: _searchController,
               hint: _tabController.index == 0
@@ -90,6 +107,95 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DownloadsDesktopCommandStrip extends StatelessWidget {
+  const _DownloadsDesktopCommandStrip({
+    required this.controller,
+    required this.searchController,
+    required this.showSearch,
+    required this.searchHint,
+    required this.onSearchChanged,
+    required this.onClearSearch,
+  });
+
+  final TabController controller;
+  final TextEditingController searchController;
+  final bool showSearch;
+  final String searchHint;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onClearSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      key: const ValueKey<String>('downloadsDesktopCommandStrip'),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        border: Border(
+          bottom: BorderSide(
+            color: colors.outlineVariant.withValues(alpha: 0.35),
+          ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 14, 24, 12),
+        child: Row(
+          children: <Widget>[
+            IconButton(
+              key: const ValueKey<String>('desktopDownloadsBackButton'),
+              icon: const Icon(Icons.arrow_back),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              onPressed: () => unawaited(Navigator.of(context).maybePop()),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              l10n.downloadsTitle,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TabBar(
+                  controller: controller,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+                  tabs: <Widget>[
+                    Tab(text: l10n.downloadsTabQueue),
+                    Tab(text: l10n.downloadsTabDownloaded),
+                    Tab(text: l10n.downloadsTabSettings),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.centerRight,
+              child: showSearch
+                  ? SizedBox(
+                      width: 304,
+                      child: _DownloadsSearchBar(
+                        controller: searchController,
+                        hint: searchHint,
+                        onChanged: onSearchChanged,
+                        onClear: onClearSearch,
+                        dense: true,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1056,17 +1162,21 @@ class _DownloadsSearchBar extends StatelessWidget {
     required this.hint,
     required this.onChanged,
     required this.onClear,
+    this.dense = false,
   });
 
   final TextEditingController controller;
   final String hint;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      padding: dense
+          ? EdgeInsets.zero
+          : const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: TextField(
         controller: controller,
         onChanged: onChanged,
@@ -1096,9 +1206,9 @@ class _DownloadsSearchBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(
+          contentPadding: EdgeInsets.symmetric(
             horizontal: 14,
-            vertical: 14,
+            vertical: dense ? 10 : 14,
           ),
         ),
       ),

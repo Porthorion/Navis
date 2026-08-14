@@ -74,6 +74,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Desktop Downloads now keeps its Back action, tabs, and search together in one compact workspace strip',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Settings labels are now ready for localization across desktop and mobile',
         type: ChangelogEntryType.improvement,
       ),

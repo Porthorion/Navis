@@ -8,6 +8,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
@@ -84,6 +85,60 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('desktop Downloads combines navigation and search in one strip', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            downloadQueueProvider.overrideWithValue(
+              const AsyncData(<DownloadQueueTableData>[]),
+            ),
+            permanentCachedTracksProvider.overrideWithValue(
+              const AsyncData(<CachedTracksTableData>[]),
+            ),
+          ],
+        ),
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AdaptiveContextScope(
+            adaptiveContext: resolveAdaptiveContext(
+              desktopRuntime: true,
+              viewportSize: const Size(800, 600),
+              safePadding: EdgeInsets.zero,
+            ),
+            child: const DownloadsScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey<String>('downloadsDesktopCommandStrip')),
+      findsOneWidget,
+    );
+    expect(find.byType(AppBar), findsNothing);
+    expect(find.byType(TabBar), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('desktopDownloadsBackButton')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 }
 

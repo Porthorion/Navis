@@ -58,16 +58,18 @@ Last updated: 2026-08-14
   in `9061afd`.)
 
 - [ ] Desktop integrated-workspace system — partial: 2026-08-14 (approved
-  Search, Library, and Home slices: Search uses a fixed command strip and one
+  Search, Library, Home, and Downloads slices: Search uses a fixed command strip and one
   continuous, dense results workspace; Library uses the persistent sidebar for
   section navigation and a continuous browser; Home keeps its headings and
-  album rows on the shared canvas while retaining local album cards. A labeled
+  album rows on the shared canvas while retaining local album cards; Downloads
+  keeps its Back action, nested-page title, tabs, and contextual search in one
+  command strip. A labeled
   desktop rail suppresses duplicate page headers; an icon-only rail restores
   compact orientation copy. Sidebar autohide now retains a 64 px icon rail
   instead of removing navigation. Tablet and phone layouts remain unchanged.
   Focused adaptive, shell, and deterministic before/after visual coverage
-  passes; apply the same desktop framing to Downloads and Settings through
-  separate reviewed changes.)
+  passes; apply the same desktop framing to Settings through a separate
+  reviewed change.)
 
 - [ ] Cross-platform entity-action placement policy — partial: 2026-08-14
   (approved on physical Android: playlist detail now makes Play the one filled
