@@ -86,6 +86,7 @@
   "syncSettingsLastGenresUpdateLabel": "Genres",
   "syncSettingsLastLibraryChangeLabel": "Last library change",
   "syncSettingsAndroidBackgroundTitle": "Android background sync",
+  "syncSettingsBackToSettings": "Back to Settings",
   "syncSettingsAndroidBackgroundDisabled": "Disabled for this app build.",
   "syncSettingsAndroidBackgroundManual": "Manual-only sync has no Android background schedule.",
   "syncSettingsAndroidBackgroundCadence": "Requested cadence: every {minutes} minutes. Android may delay runs to meet system conditions.",

@@ -160,6 +160,13 @@ abstract final class NavService {
     context.go('/library');
   }
 
+  /// Return from a nested settings page to the Settings root.
+  static void returnToSettings(BuildContext context, WidgetRef ref) {
+    clearExitPrompt();
+    _prepareForNavigation(context, ref, AppNavigationIntent.replace);
+    context.go('/settings');
+  }
+
   /// Navigate to the search screen and pre-fill the query.
   ///
   /// Useful for radio "search for this artist / song" flows.

@@ -70,12 +70,16 @@ Last updated: 2026-08-15
   section navigation and a continuous browser; Home keeps its headings and
   album rows on the shared canvas while retaining local album cards; Downloads
   keeps its Back action, nested-page title, tabs, and contextual search in one
-  command strip; Settings uses a continuous preference list with group labels.
+  command strip; Settings uses a continuous preference list with group labels;
+  nested Sync Settings replaces desktop cards with grouped divider-separated
+  rows and an explicit Back-to-Settings action.
   A labeled desktop rail suppresses duplicate page headers; an icon-only rail restores
   compact orientation copy. Sidebar autohide now retains a 64 px icon rail
   instead of removing navigation. Tablet and phone layouts remain unchanged.
   Focused adaptive, shell, and deterministic before/after visual coverage
-  passes across every primary desktop workspace.)
+  passes across every primary desktop workspace; the final `./tool/check.sh`
+  passes with 1,120 tests and 1 skip, and isolated Linux Sync Settings
+  diagnostics pass before and after a clean restart.)
 
 - [x] Desktop weekly-detail hierarchy — 2026-08-15 (weekly ListenBrainz
   detail keeps the persistent Back control but removes the duplicate desktop

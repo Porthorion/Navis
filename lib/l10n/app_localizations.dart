@@ -586,6 +586,12 @@ abstract class AppLocalizations {
   /// **'Android background sync'**
   String get syncSettingsAndroidBackgroundTitle;
 
+  /// No description provided for @syncSettingsBackToSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Settings'**
+  String get syncSettingsBackToSettings;
+
   /// No description provided for @syncSettingsAndroidBackgroundDisabled.
   ///
   /// In en, this message translates to:

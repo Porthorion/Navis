@@ -9,6 +9,8 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class SyncSettingsScreen extends ConsumerWidget {
   const SyncSettingsScreen({super.key});
@@ -19,6 +21,7 @@ class SyncSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final syncState = ref.watch(librarySyncControllerProvider);
     final syncPolicy = ref.watch(syncNetworkPolicyProvider);
     final backgroundUnmeteredOnly = ref.watch(
@@ -51,439 +54,507 @@ class SyncSettingsScreen extends ConsumerWidget {
     final androidBackgroundAvailable = ref.watch(
       androidBackgroundSyncAvailableProvider,
     );
+    final sectionGap = desktopMode
+        ? const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(),
+          )
+        : const SizedBox(height: 12);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.syncSettingsTitle)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          // ---- Sync status card ----
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    l10n.syncSettingsStatusLabel,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _statusLabel(l10n, syncState),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  if (showUpdatesMessaging) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      syncPolicy.isMetered
-                          ? l10n.syncSettingsUpdatesAvailableMetered
-                          : l10n.syncSettingsUpdatesAvailable,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (hasFailure &&
-                      syncState.errorMessage != null &&
-                      syncState.errorMessage!.trim().isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      syncState.errorMessage!,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.remainingVerificationCount > 0) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsRemainingVerification(
-                        syncState.remainingVerificationCount,
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.planKind != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsStrategy(
-                        _humanize(syncState.planKind!.name),
-                        _humanize(
-                          syncState.planReason ?? 'selected by planner',
-                        ),
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.pendingWorkCount > 0) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsPendingWork(syncState.pendingWorkCount),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.candidateGeneration != null &&
-                      syncState.candidateStatus != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsCandidate(
-                        syncState.candidateGeneration!,
-                        _humanize(syncState.candidateStatus!),
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (awaitingDeletionConfirmation) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsRepairDeletionConfirmationPending(
-                        syncState.deletionCandidateCount,
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.carriedForwardEntityCount > 0) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsCarriedForward(
-                        syncState.carriedForwardEntityCount,
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.lastApplyDurationMs != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsApplyDuration(
-                        syncState.lastApplyDurationMs!,
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.failureCategory != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsDegradation(
-                        _humanize(syncState.failureCategory!),
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.apiRequests > 0 ||
-                      syncState.lastRunBytes > 0) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsUsage(
-                        syncState.apiRequests,
-                        _formatBytes(syncState.lastRunBytes),
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (syncState.canonicalizedSongCount > 0 ||
-                      syncState.ambiguousMatchCount > 0) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsIdentitySummary(
-                        syncState.canonicalizedSongCount,
-                        syncState.ambiguousMatchCount,
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (destructiveOperation != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsLastLibraryChangeLabel,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      destructiveOperation.summary,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    Text(
-                      _formatTimestamp(
-                        context,
-                        l10n,
-                        destructiveOperation.occurredAt,
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ],
+      appBar: AppBar(
+        automaticallyImplyLeading: !desktopMode,
+        leading: desktopMode
+            ? IconButton(
+                tooltip: l10n.syncSettingsBackToSettings,
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => NavService.returnToSettings(context, ref),
+              )
+            : null,
+        title: Text(l10n.syncSettingsTitle),
+      ),
+      body: Theme(
+        data: desktopMode
+            ? Theme.of(context).copyWith(
+                cardTheme: const CardThemeData(
+                  color: Colors.transparent,
+                  elevation: 0,
+                  margin: EdgeInsets.zero,
+                  shadowColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(),
+                ),
+              )
+            : Theme.of(context),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1040),
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                desktopMode ? 24 : 16,
+                desktopMode ? 24 : 16,
+                desktopMode ? 24 : 16,
+                16,
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // ---- Domain freshness card ----
-          Card(
-            child: Column(
               children: <Widget>[
-                ListTile(
-                  title: Text(l10n.syncSettingsLastCheckedLabel),
-                  subtitle: Text(_formatTimestamp(context, l10n, lastChecked)),
-                ),
-                ListTile(
-                  title: Text(l10n.syncSettingsNextAutomaticCheckLabel),
-                  subtitle: Text(
-                    currentInterval <= 0
-                        ? l10n.syncSettingsIntervalManual
-                        : syncState.nextAutomaticCheckAt == null
-                        ? l10n.syncSettingsNextAutomaticCheckScheduling
-                        : _formatTimestamp(
-                            context,
-                            l10n,
-                            syncState.nextAutomaticCheckAt,
-                          ),
-                  ),
-                ),
-                if (syncState.nextRetryAt != null)
-                  ListTile(
-                    title: Text(l10n.syncSettingsNextRetryLabel),
-                    subtitle: Text(
-                      _formatTimestamp(context, l10n, syncState.nextRetryAt),
-                    ),
-                  ),
-                ListTile(
-                  title: Text(l10n.syncSettingsLastCatalogUpdateLabel),
-                  subtitle: Text(
-                    '${_formatTimestamp(context, l10n, lastCatalogUpdate)}'
-                    ' • ${_freshnessLabel(l10n, syncState.freshness)}',
-                  ),
-                ),
-                ListTile(
-                  title: Text(l10n.syncSettingsLastAuxiliaryUpdateLabel),
-                  subtitle: Text(
-                    _formatTimestamp(
-                      context,
-                      l10n,
-                      syncState.lastAuxiliarySyncedAt,
-                    ),
-                  ),
-                ),
-                ListTile(
-                  title: Text(l10n.syncSettingsLastGenresUpdateLabel),
-                  subtitle: Text(
-                    _formatTimestamp(
-                      context,
-                      l10n,
-                      syncState.lastGenresSyncedAt,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          if (androidBackgroundAvailable && serverConfig != null) ...<Widget>[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      l10n.syncSettingsAndroidBackgroundTitle,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    if (androidBackgroundState?.androidBackgroundSyncEnabled !=
-                        true)
-                      Text(
-                        l10n.syncSettingsAndroidBackgroundDisabled,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      )
-                    else if (currentInterval <= 0)
-                      Text(
-                        l10n.syncSettingsAndroidBackgroundManual,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      )
-                    else
-                      Text(
-                        l10n.syncSettingsAndroidBackgroundCadence(
-                          androidBackgroundState
-                                  ?.androidRequestedIntervalMinutes ??
-                              currentInterval,
+                // ---- Sync status card ----
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          l10n.syncSettingsStatusLabel,
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    if (androidBackgroundState?.androidWorkState == 'blocked' &&
-                        backgroundUnmeteredOnly) ...<Widget>[
-                      const SizedBox(height: 8),
-                      Text(
-                        l10n.syncSettingsAndroidBackgroundWaitingUnmetered,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.syncSettingsAndroidBackgroundLastAttempt,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    Text(
-                      androidBackgroundState?.androidWorkerCompletedAt == null
-                          ? l10n.syncSettingsAndroidBackgroundNoAttempt
-                          : _formatTimestamp(
+                        const SizedBox(height: 8),
+                        Text(
+                          _statusLabel(l10n, syncState),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        if (showUpdatesMessaging) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            syncPolicy.isMetered
+                                ? l10n.syncSettingsUpdatesAvailableMetered
+                                : l10n.syncSettingsUpdatesAvailable,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (hasFailure &&
+                            syncState.errorMessage != null &&
+                            syncState.errorMessage!
+                                .trim()
+                                .isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            syncState.errorMessage!,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.remainingVerificationCount >
+                            0) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsRemainingVerification(
+                              syncState.remainingVerificationCount,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.planKind != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsStrategy(
+                              _humanize(syncState.planKind!.name),
+                              _humanize(
+                                syncState.planReason ?? 'selected by planner',
+                              ),
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.pendingWorkCount > 0) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsPendingWork(
+                              syncState.pendingWorkCount,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.candidateGeneration != null &&
+                            syncState.candidateStatus != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsCandidate(
+                              syncState.candidateGeneration!,
+                              _humanize(syncState.candidateStatus!),
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (awaitingDeletionConfirmation) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsRepairDeletionConfirmationPending(
+                              syncState.deletionCandidateCount,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.carriedForwardEntityCount >
+                            0) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsCarriedForward(
+                              syncState.carriedForwardEntityCount,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.lastApplyDurationMs != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsApplyDuration(
+                              syncState.lastApplyDurationMs!,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.failureCategory != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsDegradation(
+                              _humanize(syncState.failureCategory!),
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.apiRequests > 0 ||
+                            syncState.lastRunBytes > 0) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsUsage(
+                              syncState.apiRequests,
+                              _formatBytes(syncState.lastRunBytes),
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (syncState.canonicalizedSongCount > 0 ||
+                            syncState.ambiguousMatchCount > 0) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsIdentitySummary(
+                              syncState.canonicalizedSongCount,
+                              syncState.ambiguousMatchCount,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (destructiveOperation != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsLastLibraryChangeLabel,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            destructiveOperation.summary,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          Text(
+                            _formatTimestamp(
                               context,
                               l10n,
-                              androidBackgroundState!.androidWorkerCompletedAt,
+                              destructiveOperation.occurredAt,
                             ),
-                      style: Theme.of(context).textTheme.bodySmall,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ],
                     ),
-                    if (androidBackgroundState?.androidWorkerResult !=
-                        null) ...<Widget>[
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.syncSettingsAndroidBackgroundOutcome(
-                          _humanize(
-                            androidBackgroundState!.androidWorkerResult!,
+                  ),
+                ),
+                sectionGap,
+
+                // ---- Domain freshness card ----
+                Card(
+                  child: Column(
+                    children: <Widget>[
+                      ListTile(
+                        title: Text(l10n.syncSettingsLastCheckedLabel),
+                        subtitle: Text(
+                          _formatTimestamp(context, l10n, lastChecked),
+                        ),
+                      ),
+                      ListTile(
+                        title: Text(l10n.syncSettingsNextAutomaticCheckLabel),
+                        subtitle: Text(
+                          currentInterval <= 0
+                              ? l10n.syncSettingsIntervalManual
+                              : syncState.nextAutomaticCheckAt == null
+                              ? l10n.syncSettingsNextAutomaticCheckScheduling
+                              : _formatTimestamp(
+                                  context,
+                                  l10n,
+                                  syncState.nextAutomaticCheckAt,
+                                ),
+                        ),
+                      ),
+                      if (syncState.nextRetryAt != null)
+                        ListTile(
+                          title: Text(l10n.syncSettingsNextRetryLabel),
+                          subtitle: Text(
+                            _formatTimestamp(
+                              context,
+                              l10n,
+                              syncState.nextRetryAt,
+                            ),
                           ),
                         ),
-                        style: Theme.of(context).textTheme.bodySmall,
+                      ListTile(
+                        title: Text(l10n.syncSettingsLastCatalogUpdateLabel),
+                        subtitle: Text(
+                          '${_formatTimestamp(context, l10n, lastCatalogUpdate)}'
+                          ' • ${_freshnessLabel(l10n, syncState.freshness)}',
+                        ),
+                      ),
+                      ListTile(
+                        title: Text(l10n.syncSettingsLastAuxiliaryUpdateLabel),
+                        subtitle: Text(
+                          _formatTimestamp(
+                            context,
+                            l10n,
+                            syncState.lastAuxiliarySyncedAt,
+                          ),
+                        ),
+                      ),
+                      ListTile(
+                        title: Text(l10n.syncSettingsLastGenresUpdateLabel),
+                        subtitle: Text(
+                          _formatTimestamp(
+                            context,
+                            l10n,
+                            syncState.lastGenresSyncedAt,
+                          ),
+                        ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
+                sectionGap,
 
-          // ---- Mobile sync guardrails ----
-          Card(
-            child: SwitchListTile(
-              value: backgroundUnmeteredOnly,
-              onChanged: (enabled) async {
-                final dao = ref.read(navisDatabaseProvider).appSettingsDao;
-                await dao.updateBackgroundSyncUnmeteredOnly(enabled: enabled);
-              },
-              title: Text(l10n.syncSettingsBackgroundUnmeteredOnlyLabel),
-              subtitle: Text(
-                l10n.syncSettingsBackgroundUnmeteredOnlyDescription,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // ---- Sync interval picker ----
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    l10n.syncSettingsIntervalLabel,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n.syncSettingsIntervalDescription,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    initialValue: _intervalChoices.contains(currentInterval)
-                        ? currentInterval
-                        : 60,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: _intervalChoices
-                        .map(
-                          (minutes) => DropdownMenuItem<int>(
-                            value: minutes,
-                            child: Text(_intervalLabel(l10n, minutes)),
+                if (androidBackgroundAvailable &&
+                    serverConfig != null) ...<Widget>[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            l10n.syncSettingsAndroidBackgroundTitle,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) async {
-                      if (value == null) return;
+                          const SizedBox(height: 8),
+                          if (androidBackgroundState
+                                  ?.androidBackgroundSyncEnabled !=
+                              true)
+                            Text(
+                              l10n.syncSettingsAndroidBackgroundDisabled,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            )
+                          else if (currentInterval <= 0)
+                            Text(
+                              l10n.syncSettingsAndroidBackgroundManual,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            )
+                          else
+                            Text(
+                              l10n.syncSettingsAndroidBackgroundCadence(
+                                androidBackgroundState
+                                        ?.androidRequestedIntervalMinutes ??
+                                    currentInterval,
+                              ),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          if (androidBackgroundState?.androidWorkState ==
+                                  'blocked' &&
+                              backgroundUnmeteredOnly) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Text(
+                              l10n.syncSettingsAndroidBackgroundWaitingUnmetered,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.syncSettingsAndroidBackgroundLastAttempt,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          Text(
+                            androidBackgroundState?.androidWorkerCompletedAt ==
+                                    null
+                                ? l10n.syncSettingsAndroidBackgroundNoAttempt
+                                : _formatTimestamp(
+                                    context,
+                                    l10n,
+                                    androidBackgroundState!
+                                        .androidWorkerCompletedAt,
+                                  ),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          if (androidBackgroundState?.androidWorkerResult !=
+                              null) ...<Widget>[
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.syncSettingsAndroidBackgroundOutcome(
+                                _humanize(
+                                  androidBackgroundState!.androidWorkerResult!,
+                                ),
+                              ),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  sectionGap,
+                ],
+
+                // ---- Mobile sync guardrails ----
+                Card(
+                  child: SwitchListTile(
+                    value: backgroundUnmeteredOnly,
+                    onChanged: (enabled) async {
                       final dao = ref
                           .read(navisDatabaseProvider)
                           .appSettingsDao;
-                      await dao.updateSyncIntervalMinutes(value);
+                      await dao.updateBackgroundSyncUnmeteredOnly(
+                        enabled: enabled,
+                      );
                     },
+                    title: Text(l10n.syncSettingsBackgroundUnmeteredOnlyLabel),
+                    subtitle: Text(
+                      l10n.syncSettingsBackgroundUnmeteredOnlyDescription,
+                    ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+                ),
+                sectionGap,
 
-          OutlinedButton.icon(
-            onPressed: isRunning
-                ? null
-                : () => ref
-                      .read(librarySyncControllerProvider.notifier)
-                      .syncNow(),
-            icon: const Icon(Icons.refresh),
-            label: Text(l10n.syncSettingsCheckForUpdates),
-          ),
-          if (showMobileDataAction) ...<Widget>[
-            const SizedBox(height: 8),
-            FilledButton.icon(
-              onPressed: () async {
-                await ref
-                    .read(librarySyncControllerProvider.notifier)
-                    .syncUsingMobileData();
-              },
-              icon: const Icon(Icons.signal_cellular_alt),
-              label: Text(l10n.syncSettingsSyncUsingMobileData),
-            ),
-          ],
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: isRunning
-                ? null
-                : () => _repairLibrary(context, ref, syncPolicy.isMetered),
-            icon: const Icon(Icons.sync),
-            label: Text(
-              isRunning
-                  ? l10n.syncSettingsRepairLibraryMetadataRunning
-                  : l10n.syncSettingsRepairLibraryMetadata,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            l10n.syncSettingsRepairLibraryMetadataDescription,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          if (awaitingDeletionConfirmation) ...<Widget>[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: isRunning
-                  ? null
-                  : () => _discardRepairCandidate(context, ref),
-              icon: const Icon(Icons.delete_outline),
-              label: Text(l10n.syncSettingsRepairDiscardCandidate),
-            ),
-          ],
-          if (isRunning) ...<Widget>[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () =>
-                  ref.read(librarySyncControllerProvider.notifier).cancelSync(),
-              icon: const Icon(Icons.cancel_outlined),
-              label: Text(l10n.commonCancel),
-            ),
-          ],
-          if (hasFailure) ...<Widget>[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: isRunning
-                  ? null
-                  : () async {
+                // ---- Sync interval picker ----
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          l10n.syncSettingsIntervalLabel,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.syncSettingsIntervalDescription,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        sectionGap,
+                        DropdownButtonFormField<int>(
+                          initialValue:
+                              _intervalChoices.contains(currentInterval)
+                              ? currentInterval
+                              : 60,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: _intervalChoices
+                              .map(
+                                (minutes) => DropdownMenuItem<int>(
+                                  value: minutes,
+                                  child: Text(_intervalLabel(l10n, minutes)),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) async {
+                            if (value == null) return;
+                            final dao = ref
+                                .read(navisDatabaseProvider)
+                                .appSettingsDao;
+                            await dao.updateSyncIntervalMinutes(value);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                OutlinedButton.icon(
+                  onPressed: isRunning
+                      ? null
+                      : () => ref
+                            .read(librarySyncControllerProvider.notifier)
+                            .syncNow(),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.syncSettingsCheckForUpdates),
+                ),
+                if (showMobileDataAction) ...<Widget>[
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: () async {
                       await ref
                           .read(librarySyncControllerProvider.notifier)
-                          .syncNow();
+                          .syncUsingMobileData();
                     },
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.commonRetry),
+                    icon: const Icon(Icons.signal_cellular_alt),
+                    label: Text(l10n.syncSettingsSyncUsingMobileData),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: isRunning
+                      ? null
+                      : () =>
+                            _repairLibrary(context, ref, syncPolicy.isMetered),
+                  icon: const Icon(Icons.sync),
+                  label: Text(
+                    isRunning
+                        ? l10n.syncSettingsRepairLibraryMetadataRunning
+                        : l10n.syncSettingsRepairLibraryMetadata,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.syncSettingsRepairLibraryMetadataDescription,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (awaitingDeletionConfirmation) ...<Widget>[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: isRunning
+                        ? null
+                        : () => _discardRepairCandidate(context, ref),
+                    icon: const Icon(Icons.delete_outline),
+                    label: Text(l10n.syncSettingsRepairDiscardCandidate),
+                  ),
+                ],
+                if (isRunning) ...<Widget>[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => ref
+                        .read(librarySyncControllerProvider.notifier)
+                        .cancelSync(),
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: Text(l10n.commonCancel),
+                  ),
+                ],
+                if (hasFailure) ...<Widget>[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: isRunning
+                        ? null
+                        : () async {
+                            await ref
+                                .read(librarySyncControllerProvider.notifier)
+                                .syncNow();
+                          },
+                    icon: const Icon(Icons.refresh),
+                    label: Text(l10n.commonRetry),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ],
+          ),
+        ),
       ),
     );
   }

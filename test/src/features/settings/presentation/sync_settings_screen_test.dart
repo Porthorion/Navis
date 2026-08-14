@@ -66,6 +66,12 @@ void main() {
   testWidgets('shows the latest destructive library change from the ledger', (
     tester,
   ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
     final database = createTestDatabase();
     addTearDown(database.close);
     final serverId = await database
@@ -139,6 +145,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byTooltip('Back to Settings'), findsOneWidget);
     expect(find.text('Last library change'), findsOneWidget);
     expect(
       find.text(

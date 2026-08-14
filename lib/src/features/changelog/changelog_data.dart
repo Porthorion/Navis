@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop Sync Settings now uses a continuous workspace with a clear return to Settings',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Weekly playlists now keep their track layout visible while loading and offer clearer recovery when unavailable',
         type: ChangelogEntryType.improvement,
       ),

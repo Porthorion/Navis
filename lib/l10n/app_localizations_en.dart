@@ -273,6 +273,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsAndroidBackgroundTitle => 'Android background sync';
 
   @override
+  String get syncSettingsBackToSettings => 'Back to Settings';
+
+  @override
   String get syncSettingsAndroidBackgroundDisabled =>
       'Disabled for this app build.';
 
