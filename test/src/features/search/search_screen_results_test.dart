@@ -140,6 +140,54 @@ Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
 
 void main() {
   group('SearchScreen results', () {
+    testWidgets('names the query when a completed search has no matches', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+
+      final database = createTestDatabase();
+      final container = _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient((_) async => const SearchResult3()),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'No matches');
+      await _pumpUntilFound(tester, find.text('No results for "No matches"'));
+
+      expect(find.text('Try a different search term.'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+    });
+
+    testWidgets('offers Retry when an otherwise empty search request fails', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+
+      final database = createTestDatabase();
+      final container = _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient((_) async {
+          throw DioException(requestOptions: RequestOptions());
+        }),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'Connection failure');
+      await _pumpUntilFound(tester, find.text('Could not load search results'));
+
+      expect(find.text('Check your connection and try again.'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
     testWidgets('marks the current song returned by search', (tester) async {
       if (!sqliteAvailable) return;
 
