@@ -9,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
@@ -80,6 +82,7 @@ class _PlaybackSettingsScreenState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final settingsAsync = ref.watch(appSettingsProvider);
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     settingsAsync.whenData((settings) {
       if (_didHydrateForm) {
@@ -90,7 +93,17 @@ class _PlaybackSettingsScreenState
     });
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsPlaybackTitle)),
+      appBar: AppBar(
+        automaticallyImplyLeading: !desktopMode,
+        leading: desktopMode
+            ? IconButton(
+                tooltip: l10n.syncSettingsBackToSettings,
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => NavService.returnToSettings(context, ref),
+              )
+            : null,
+        title: Text(l10n.settingsPlaybackTitle),
+      ),
       body: settingsAsync.when(
         data: (_) => _buildForm(context, l10n),
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -104,409 +117,431 @@ class _PlaybackSettingsScreenState
 
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
     _scheduleAutosave();
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final legacyInstantMixLocked = ref.watch(legacyInstantMixLockedProvider);
     final effectiveLegacyInstantMix =
         legacyInstantMixLocked || _legacyInstantMixEnabled;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: <Widget>[
-        Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                l10n.playbackSettingsWifiSectionTitle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                initialValue: _wifiBitRate,
-                decoration: InputDecoration(
-                  labelText: l10n.playbackSettingsWifiQualityLabel,
-                ),
-                items: _qualityOptions
-                    .map(
-                      (value) => DropdownMenuItem<int?>(
-                        value: value,
-                        child: Text(_qualityLabel(l10n, value)),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _wifiBitRate = value),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String?>(
-                initialValue: _wifiFormat,
-                decoration: InputDecoration(
-                  labelText: l10n.playbackSettingsWifiFormatLabel,
-                ),
-                items: _formatOptions
-                    .map(
-                      (value) => DropdownMenuItem<String?>(
-                        value: value,
-                        child: Text(_formatLabel(l10n, value)),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _wifiFormat = value),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                l10n.playbackSettingsCellularSectionTitle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                initialValue: _cellularBitRate,
-                decoration: InputDecoration(
-                  labelText: l10n.playbackSettingsCellularQualityLabel,
-                ),
-                items: _qualityOptions
-                    .map(
-                      (value) => DropdownMenuItem<int?>(
-                        value: value,
-                        child: Text(_qualityLabel(l10n, value)),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _cellularBitRate = value),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String?>(
-                initialValue: _cellularFormat,
-                decoration: InputDecoration(
-                  labelText: l10n.playbackSettingsCellularFormatLabel,
-                ),
-                items: _formatOptions
-                    .map(
-                      (value) => DropdownMenuItem<String?>(
-                        value: value,
-                        child: Text(_formatLabel(l10n, value)),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _cellularFormat = value),
-              ),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _cachedPlaybackFirst,
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _cachedPlaybackFirst = value),
-                title: Text(l10n.playbackSettingsCachedFirstTitle),
-                subtitle: Text(l10n.playbackSettingsCachedFirstSubtitle),
-              ),
-              const SizedBox(height: 24),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _scrobbleEnabled,
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _scrobbleEnabled = value),
-                title: Text(l10n.playbackSettingsScrobbleTitle),
-                subtitle: Text(l10n.playbackSettingsScrobbleSubtitle),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _albumQueueEnabled,
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _albumQueueEnabled = value),
-                title: Text(
-                  l10n.playbackSettingsAlbumQueueTitle,
-                ),
-                subtitle: Text(
-                  l10n.playbackSettingsAlbumQueueSubtitle,
-                ),
-              ),
-              if (_albumQueueEnabled)
-                Padding(
-                  padding: const EdgeInsets.only(left: 16),
-                  child: SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _likedQueueEnabled,
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1040),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            desktopMode ? 24 : 16,
+            desktopMode ? 24 : 16,
+            desktopMode ? 24 : 16,
+            16,
+          ),
+          children: <Widget>[
+            Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    l10n.playbackSettingsWifiSectionTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int?>(
+                    initialValue: _wifiBitRate,
+                    decoration: InputDecoration(
+                      labelText: l10n.playbackSettingsWifiQualityLabel,
+                    ),
+                    items: _qualityOptions
+                        .map(
+                          (value) => DropdownMenuItem<int?>(
+                            value: value,
+                            child: Text(_qualityLabel(l10n, value)),
+                          ),
+                        )
+                        .toList(growable: false),
                     onChanged: _isSaving
                         ? null
-                        : (value) => setState(() => _likedQueueEnabled = value),
-                    title: Text(l10n.playbackSettingsLikedQueueTitle),
-                    subtitle: Text(l10n.playbackSettingsLikedQueueSubtitle),
+                        : (value) => setState(() => _wifiBitRate = value),
                   ),
-                ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _useLrclib,
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _useLrclib = value),
-                title: Text(l10n.playbackSettingsLrclibTitle),
-                subtitle: Text(l10n.playbackSettingsLrclibSubtitle),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _gaplessEnabled,
-                onChanged: _isSaving ? null : _setGaplessEnabled,
-                title: Text(l10n.playbackSettingsGaplessTitle),
-                subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
-              ),
-              if (_gaplessEnabled) ...<Widget>[
-                Padding(
-                  padding: const EdgeInsets.only(left: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SwitchListTile(
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _wifiFormat,
+                    decoration: InputDecoration(
+                      labelText: l10n.playbackSettingsWifiFormatLabel,
+                    ),
+                    items: _formatOptions
+                        .map(
+                          (value) => DropdownMenuItem<String?>(
+                            value: value,
+                            child: Text(_formatLabel(l10n, value)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(() => _wifiFormat = value),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    l10n.playbackSettingsCellularSectionTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int?>(
+                    initialValue: _cellularBitRate,
+                    decoration: InputDecoration(
+                      labelText: l10n.playbackSettingsCellularQualityLabel,
+                    ),
+                    items: _qualityOptions
+                        .map(
+                          (value) => DropdownMenuItem<int?>(
+                            value: value,
+                            child: Text(_qualityLabel(l10n, value)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(() => _cellularBitRate = value),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _cellularFormat,
+                    decoration: InputDecoration(
+                      labelText: l10n.playbackSettingsCellularFormatLabel,
+                    ),
+                    items: _formatOptions
+                        .map(
+                          (value) => DropdownMenuItem<String?>(
+                            value: value,
+                            child: Text(_formatLabel(l10n, value)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(() => _cellularFormat = value),
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _cachedPlaybackFirst,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) =>
+                              setState(() => _cachedPlaybackFirst = value),
+                    title: Text(l10n.playbackSettingsCachedFirstTitle),
+                    subtitle: Text(l10n.playbackSettingsCachedFirstSubtitle),
+                  ),
+                  const SizedBox(height: 24),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _scrobbleEnabled,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(() => _scrobbleEnabled = value),
+                    title: Text(l10n.playbackSettingsScrobbleTitle),
+                    subtitle: Text(l10n.playbackSettingsScrobbleSubtitle),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _albumQueueEnabled,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(() => _albumQueueEnabled = value),
+                    title: Text(
+                      l10n.playbackSettingsAlbumQueueTitle,
+                    ),
+                    subtitle: Text(
+                      l10n.playbackSettingsAlbumQueueSubtitle,
+                    ),
+                  ),
+                  if (_albumQueueEnabled)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        value: _crossfadeEnabled,
-                        onChanged: _isSaving ? null : _setCrossfadeEnabled,
-                        title: Text(l10n.playbackSettingsCrossfadeEnableTitle),
-                        subtitle: Text(
-                          l10n.playbackSettingsCrossfadeEnableSubtitle,
-                        ),
+                        value: _likedQueueEnabled,
+                        onChanged: _isSaving
+                            ? null
+                            : (value) =>
+                                  setState(() => _likedQueueEnabled = value),
+                        title: Text(l10n.playbackSettingsLikedQueueTitle),
+                        subtitle: Text(l10n.playbackSettingsLikedQueueSubtitle),
                       ),
-                      if (_crossfadeEnabled) ...[
-                        Text(
-                          l10n.playbackSettingsCrossfadeDurationLabel(
-                            _crossfadeDurationSeconds,
-                          ),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        Slider(
-                          value: _crossfadeDurationSeconds.toDouble(),
-                          min: 1,
-                          max: 12,
-                          divisions: 11,
-                          label: '${_crossfadeDurationSeconds}s',
-                          onChanged: _isSaving
-                              ? null
-                              : (value) => setState(
-                                  () =>
-                                      _crossfadeDurationSeconds = value.round(),
-                                ),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: _crossfadeType,
-                          decoration: InputDecoration(
-                            labelText: l10n.playbackSettingsCrossfadeTypeLabel,
-                          ),
-                          items: [
-                            DropdownMenuItem(
-                              value: 'normal',
-                              child: Text(
-                                l10n.playbackSettingsCrossfadeTypeNormal,
-                              ),
+                    ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _useLrclib,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(() => _useLrclib = value),
+                    title: Text(l10n.playbackSettingsLrclibTitle),
+                    subtitle: Text(l10n.playbackSettingsLrclibSubtitle),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _gaplessEnabled,
+                    onChanged: _isSaving ? null : _setGaplessEnabled,
+                    title: Text(l10n.playbackSettingsGaplessTitle),
+                    subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
+                  ),
+                  if (_gaplessEnabled) ...<Widget>[
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: _crossfadeEnabled,
+                            onChanged: _isSaving ? null : _setCrossfadeEnabled,
+                            title: Text(
+                              l10n.playbackSettingsCrossfadeEnableTitle,
                             ),
-                            DropdownMenuItem(
-                              value: 'smart',
-                              child: Text(
-                                l10n.playbackSettingsCrossfadeTypeSmart,
+                            subtitle: Text(
+                              l10n.playbackSettingsCrossfadeEnableSubtitle,
+                            ),
+                          ),
+                          if (_crossfadeEnabled) ...[
+                            Text(
+                              l10n.playbackSettingsCrossfadeDurationLabel(
+                                _crossfadeDurationSeconds,
                               ),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            Slider(
+                              value: _crossfadeDurationSeconds.toDouble(),
+                              min: 1,
+                              max: 12,
+                              divisions: 11,
+                              label: '${_crossfadeDurationSeconds}s',
+                              onChanged: _isSaving
+                                  ? null
+                                  : (value) => setState(
+                                      () => _crossfadeDurationSeconds = value
+                                          .round(),
+                                    ),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              initialValue: _crossfadeType,
+                              decoration: InputDecoration(
+                                labelText:
+                                    l10n.playbackSettingsCrossfadeTypeLabel,
+                              ),
+                              items: [
+                                DropdownMenuItem(
+                                  value: 'normal',
+                                  child: Text(
+                                    l10n.playbackSettingsCrossfadeTypeNormal,
+                                  ),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'smart',
+                                  child: Text(
+                                    l10n.playbackSettingsCrossfadeTypeSmart,
+                                  ),
+                                ),
+                              ],
+                              onChanged: _isSaving
+                                  ? null
+                                  : (value) {
+                                      if (value != null) {
+                                        setState(() => _crossfadeType = value);
+                                      }
+                                    },
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _crossfadeType == 'smart'
+                                  ? l10n.playbackSettingsCrossfadeTypeSmartDescription
+                                  : l10n.playbackSettingsCrossfadeTypeNormalDescription,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outline,
+                                  ),
                             ),
                           ],
-                          onChanged: _isSaving
-                              ? null
-                              : (value) {
-                                  if (value != null) {
-                                    setState(() => _crossfadeType = value);
-                                  }
-                                },
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _crossfadeType == 'smart'
-                              ? l10n.playbackSettingsCrossfadeTypeSmartDescription
-                              : l10n.playbackSettingsCrossfadeTypeNormalDescription,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: effectiveLegacyInstantMix,
+                    onChanged: (_isSaving || legacyInstantMixLocked)
+                        ? null
+                        : (value) {
+                            setState(() => _legacyInstantMixEnabled = value);
+                            _autosaveDebounce?.cancel();
+                            unawaited(_persistAutosave(_formSignature()));
+                          },
+                    title: Text(l10n.playbackSettingsLegacyInstantMixTitle),
+                    subtitle: Text(
+                      legacyInstantMixLocked
+                          ? l10n.playbackSettingsLegacyInstantMixLocked
+                          : l10n.playbackSettingsLegacyInstantMixSubtitle,
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _fullscreenModeLyrics,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) =>
+                              setState(() => _fullscreenModeLyrics = value),
+                    title: const Text('Fullscreen Mode Lyrics'),
+                    subtitle: const Text(
+                      'Open lyrics in fullscreen directly from Now Playing.',
+                    ),
+                  ),
+                  // ── ReplayGain section ─────────────────────────────────────
+                  const SizedBox(height: 24),
+                  Text(
+                    l10n.playbackSettingsReplayGainSectionTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _replayGainMode,
+                    decoration: InputDecoration(
+                      labelText: l10n.playbackSettingsReplayGainModeLabel,
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'off',
+                        child: Text(l10n.playbackSettingsReplayGainModeOff),
+                      ),
+                      DropdownMenuItem(
+                        value: 'track',
+                        child: Text(l10n.playbackSettingsReplayGainModeTrack),
+                      ),
+                      DropdownMenuItem(
+                        value: 'album',
+                        child: Text(l10n.playbackSettingsReplayGainModeAlbum),
+                      ),
                     ],
+                    onChanged: _isSaving
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _replayGainMode = value);
+                            }
+                          },
                   ),
-                ),
-              ],
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: effectiveLegacyInstantMix,
-                onChanged: (_isSaving || legacyInstantMixLocked)
-                    ? null
-                    : (value) {
-                        setState(() => _legacyInstantMixEnabled = value);
-                        _autosaveDebounce?.cancel();
-                        unawaited(_persistAutosave(_formSignature()));
-                      },
-                title: Text(l10n.playbackSettingsLegacyInstantMixTitle),
-                subtitle: Text(
-                  legacyInstantMixLocked
-                      ? l10n.playbackSettingsLegacyInstantMixLocked
-                      : l10n.playbackSettingsLegacyInstantMixSubtitle,
-                ),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _fullscreenModeLyrics,
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _fullscreenModeLyrics = value),
-                title: const Text('Fullscreen Mode Lyrics'),
-                subtitle: const Text(
-                  'Open lyrics in fullscreen directly from Now Playing.',
-                ),
-              ),
-              // ── ReplayGain section ─────────────────────────────────────
-              const SizedBox(height: 24),
-              Text(
-                l10n.playbackSettingsReplayGainSectionTitle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _replayGainMode,
-                decoration: InputDecoration(
-                  labelText: l10n.playbackSettingsReplayGainModeLabel,
-                ),
-                items: [
-                  DropdownMenuItem(
-                    value: 'off',
-                    child: Text(l10n.playbackSettingsReplayGainModeOff),
+                  const SizedBox(height: 4),
+                  Text(
+                    _replayGainMode == 'off'
+                        ? l10n.playbackSettingsReplayGainModeOffDescription
+                        : _replayGainMode == 'track'
+                        ? l10n.playbackSettingsReplayGainModeTrackDescription
+                        : l10n.playbackSettingsReplayGainModeAlbumDescription,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
                   ),
-                  DropdownMenuItem(
-                    value: 'track',
-                    child: Text(l10n.playbackSettingsReplayGainModeTrack),
+                  if (_replayGainMode != 'off') ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      '${l10n.playbackSettingsReplayGainPreampLabel}: '
+                      '${_replayGainPreamp.toStringAsFixed(1)} dB',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Slider(
+                      value: _replayGainPreamp.clamp(
+                        _minReplayGainPreamp,
+                        _maxReplayGainPreamp,
+                      ),
+                      min: _minReplayGainPreamp,
+                      max: _maxReplayGainPreamp,
+                      divisions: 24,
+                      label: '${_replayGainPreamp.toStringAsFixed(1)} dB',
+                      onChanged: _isSaving
+                          ? null
+                          : (value) => setState(
+                              () => _replayGainPreamp =
+                                  _normalizeReplayGainPreamp(
+                                    value,
+                                  ),
+                            ),
+                    ),
+                    Text(
+                      l10n.playbackSettingsReplayGainPreampSubtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                  // ── Playback Speed section ─────────────────────────────────
+                  const SizedBox(height: 24),
+                  Text(
+                    l10n.playbackSettingsPlaybackSpeedLabel,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  DropdownMenuItem(
-                    value: 'album',
-                    child: Text(l10n.playbackSettingsReplayGainModeAlbum),
+                  const SizedBox(height: 12),
+                  Text(
+                    formatPlaybackSpeed(_playbackSpeed),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                ],
-                onChanged: _isSaving
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          setState(() => _replayGainMode = value);
-                        }
-                      },
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _replayGainMode == 'off'
-                    ? l10n.playbackSettingsReplayGainModeOffDescription
-                    : _replayGainMode == 'track'
-                    ? l10n.playbackSettingsReplayGainModeTrackDescription
-                    : l10n.playbackSettingsReplayGainModeAlbumDescription,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ),
-              if (_replayGainMode != 'off') ...[
-                const SizedBox(height: 12),
-                Text(
-                  '${l10n.playbackSettingsReplayGainPreampLabel}: '
-                  '${_replayGainPreamp.toStringAsFixed(1)} dB',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Slider(
-                  value: _replayGainPreamp.clamp(
-                    _minReplayGainPreamp,
-                    _maxReplayGainPreamp,
+                  Slider(
+                    value: _playbackSpeed.clamp(
+                      _minPlaybackSpeed,
+                      _maxPlaybackSpeed,
+                    ),
+                    min: _minPlaybackSpeed,
+                    max: _maxPlaybackSpeed,
+                    divisions: 6,
+                    label: formatPlaybackSpeed(_playbackSpeed),
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(
+                            () =>
+                                _playbackSpeed = _normalizePlaybackSpeed(value),
+                          ),
                   ),
-                  min: _minReplayGainPreamp,
-                  max: _maxReplayGainPreamp,
-                  divisions: 24,
-                  label: '${_replayGainPreamp.toStringAsFixed(1)} dB',
-                  onChanged: _isSaving
-                      ? null
-                      : (value) => setState(
-                          () => _replayGainPreamp = _normalizeReplayGainPreamp(
-                            value,
+                  Text(
+                    l10n.playbackSettingsPlaybackSpeedSubtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildExperimentalSection(context, l10n),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: <Widget>[
+                      if (_isAutoSaving)
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
-                ),
-                Text(
-                  l10n.playbackSettingsReplayGainPreampSubtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
+                      if (_isAutoSaving) const SizedBox(width: 8),
+                      Text(
+                        _isAutoSaving
+                            ? 'Saving changes...'
+                            : 'Changes save automatically',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-              // ── Playback Speed section ─────────────────────────────────
-              const SizedBox(height: 24),
-              Text(
-                l10n.playbackSettingsPlaybackSpeedLabel,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                formatPlaybackSpeed(_playbackSpeed),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              Slider(
-                value: _playbackSpeed.clamp(
-                  _minPlaybackSpeed,
-                  _maxPlaybackSpeed,
-                ),
-                min: _minPlaybackSpeed,
-                max: _maxPlaybackSpeed,
-                divisions: 6,
-                label: formatPlaybackSpeed(_playbackSpeed),
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(
-                        () => _playbackSpeed = _normalizePlaybackSpeed(value),
-                      ),
-              ),
-              Text(
-                l10n.playbackSettingsPlaybackSpeedSubtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildExperimentalSection(context, l10n),
-              const SizedBox(height: 20),
-              Row(
-                children: <Widget>[
-                  if (_isAutoSaving)
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  if (_isAutoSaving) const SizedBox(width: 8),
-                  Text(
-                    _isAutoSaving
-                        ? 'Saving changes...'
-                        : 'Changes save automatically',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _isSaving ? null : _resetDefaults,
+                    child: Text(l10n.playbackSettingsResetAction),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _isSaving ? null : _resetDefaults,
-                child: Text(l10n.playbackSettingsResetAction),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 

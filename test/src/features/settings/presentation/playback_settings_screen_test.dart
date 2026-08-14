@@ -7,7 +7,9 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
+import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
@@ -98,6 +100,27 @@ void main() {
       expect(find.text('Skip silence when possible'), findsNothing);
       expect(find.text('Changes save automatically'), findsOneWidget);
       expect(find.text('Reset defaults'), findsOneWidget);
+    });
+
+    testWidgets('desktop playback settings keep a Settings return path', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(initialSettings),
+            ),
+          ],
+          child: _buildTestApp(desktopMode: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Back to Settings'), findsOneWidget);
+      expect(find.text('Wi-Fi streaming'), findsOneWidget);
     });
 
     testWidgets('autosave persists values and reset triggers defaults', (
@@ -294,11 +317,20 @@ void main() {
   });
 }
 
-Widget _buildTestApp() {
+Widget _buildTestApp({bool desktopMode = false}) {
   return MaterialApp(
     theme: testTheme(),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
-    home: const PlaybackSettingsScreen(),
+    home: desktopMode
+        ? AdaptiveContextScope(
+            adaptiveContext: resolveAdaptiveContext(
+              desktopRuntime: true,
+              viewportSize: const Size(1280, 800),
+              safePadding: EdgeInsets.zero,
+            ),
+            child: const PlaybackSettingsScreen(),
+          )
+        : const PlaybackSettingsScreen(),
   );
 }

@@ -46,6 +46,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Desktop Playback settings now has a clear return to Settings and a more focused reading width',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Weekly playlists now keep their track layout visible while loading and offer clearer recovery when unavailable',
         type: ChangelogEntryType.improvement,
       ),
