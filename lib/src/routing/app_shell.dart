@@ -1289,6 +1289,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: AppNoticeScope(
               notifier: _appNoticeController,
               child: Scaffold(
+                key: const ValueKey<String>('appShellScaffold'),
                 // Keep the expanded player at full height even if a hidden text field
                 // elsewhere (e.g. Search) still has keyboard insets in flight.
                 resizeToAvoidBottomInset:

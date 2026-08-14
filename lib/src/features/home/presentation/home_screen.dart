@@ -1911,7 +1911,8 @@ class _HomeSection<T> extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(top: topPadding),
       child: desktopMode
-          ? DesktopPanel(
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[

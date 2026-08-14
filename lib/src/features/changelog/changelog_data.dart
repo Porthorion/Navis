@@ -70,6 +70,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Home now uses a calmer continuous desktop workspace while keeping album cards easy to scan',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Settings labels are now ready for localization across desktop and mobile',
         type: ChangelogEntryType.improvement,
       ),

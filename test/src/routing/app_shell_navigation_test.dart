@@ -504,7 +504,7 @@ void main() {
     expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
     expect(tester.takeException(), isNull);
     await expectLater(
-      find.byKey(const ValueKey('desktopPlayerBar')),
+      find.byKey(const ValueKey<String>('appShellScaffold')),
       matchesGoldenFile('goldens/desktop_view_empty_800x600.png'),
     );
     await tester.pump(const Duration(milliseconds: 201));
@@ -739,7 +739,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await expectLater(
-      find.byKey(const ValueKey('desktopPlayerBar')),
+      find.byKey(const ValueKey<String>('appShellScaffold')),
       matchesGoldenFile('goldens/desktop_view_active_800x600.png'),
     );
     await tester.pump(const Duration(milliseconds: 201));
@@ -762,7 +762,7 @@ void main() {
       }
       expect(tester.takeException(), isNull);
       await expectLater(
-        find.byKey(const ValueKey<String>('desktopPlayerBar')),
+        find.byKey(const ValueKey<String>('appShellScaffold')),
         matchesGoldenFile('goldens/desktop_player_long_metadata_800x600.png'),
       );
       await tester.pump(const Duration(milliseconds: 201));
@@ -778,7 +778,7 @@ void main() {
     expect(find.text(_longMetadataSong.artistName!), findsOneWidget);
     expect(tester.takeException(), isNull);
     await expectLater(
-      find.byKey(const ValueKey<String>('desktopPlayerBar')),
+      find.byKey(const ValueKey<String>('appShellScaffold')),
       matchesGoldenFile('goldens/desktop_player_long_metadata_1280x800.png'),
     );
     await tester.pump(const Duration(milliseconds: 201));
@@ -793,7 +793,7 @@ void main() {
     expect(find.text(_longMetadataSong.artistName!), findsOneWidget);
     expect(tester.takeException(), isNull);
     await expectLater(
-      find.byKey(const ValueKey<String>('desktopPlayerBar')),
+      find.byKey(const ValueKey<String>('appShellScaffold')),
       matchesGoldenFile(
         'goldens/desktop_player_long_metadata_1920x1080.png',
       ),
@@ -864,7 +864,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     await expectLater(
-      find.byKey(const ValueKey('desktopPlayerBar')),
+      find.byKey(const ValueKey<String>('appShellScaffold')),
       matchesGoldenFile('goldens/desktop_player_actions_887.png'),
     );
     await tester.pump(const Duration(milliseconds: 201));
