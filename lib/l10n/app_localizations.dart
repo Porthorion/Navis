@@ -3143,11 +3143,23 @@ abstract class AppLocalizations {
   /// **'No results found'**
   String get searchNoResults;
 
+  /// No description provided for @searchNoResultsForQuery.
+  ///
+  /// In en, this message translates to:
+  /// **'No results for \"{query}\"'**
+  String searchNoResultsForQuery(String query);
+
   /// No description provided for @searchNoResultsSubtitle.
   ///
   /// In en, this message translates to:
   /// **'Try a different search term.'**
   String get searchNoResultsSubtitle;
+
+  /// No description provided for @searchLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load search results'**
+  String get searchLoadError;
 
   /// No description provided for @searchArtistsSection.
   ///

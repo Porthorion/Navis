@@ -162,6 +162,10 @@ For Search ordering and presentation, set
 `NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED=1`; the harness asserts relevance-
 first/source-tie ordering through the production provider and captures the
 settled results before and after restart.
+For the recoverable empty failure state, use an intentionally unmatched query
+with `NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE=1`. This clone-only switch
+sets the authenticated diagnostics override before the production Search
+provider runs; it must never be used outside the isolated clone profile.
 Set `NAVIS_PRESENTATION_SEARCH_FILTER=songs` and
 `NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE=1` to additionally play the first remote
 song through the production queue path and capture its Now Playing metadata.

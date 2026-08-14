@@ -803,7 +803,16 @@
   "searchRecentTitle": "Recent searches",
   "searchClearRecent": "Clear",
   "searchNoResults": "No results found",
+  "searchNoResultsForQuery": "No results for \"{query}\"",
+  "@searchNoResultsForQuery": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
   "searchNoResultsSubtitle": "Try a different search term.",
+  "searchLoadError": "Could not load search results",
   "searchArtistsSection": "Artists",
   "searchAlbumsSection": "Albums",
   "searchSongsSection": "Songs",

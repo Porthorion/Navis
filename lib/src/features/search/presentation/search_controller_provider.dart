@@ -9,6 +9,7 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 class SearchQueryNotifier extends Notifier<String> {
   @override
@@ -85,11 +86,17 @@ class SearchResultsState {
     required this.result,
     required this.isWaitingForApi,
     required this.isLocalOnly,
+    required this.remoteSearchFailed,
   });
 
   final SearchResult3 result;
   final bool isWaitingForApi;
   final bool isLocalOnly;
+
+  /// True when local search completed but the online supplement failed.
+  /// Callers should preserve useful local results and offer recovery when the
+  /// result would otherwise look like an authoritative empty search.
+  final bool remoteSearchFailed;
 }
 
 final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
@@ -120,6 +127,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
         result: localResult,
         isWaitingForApi: false,
         isLocalOnly: true,
+        remoteSearchFailed: false,
       );
       return;
     }
@@ -130,21 +138,31 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
         result: localResult,
         isWaitingForApi: false,
         isLocalOnly: true,
+        remoteSearchFailed: false,
       );
       return;
     }
 
     final cancelToken = CancelToken();
     ref.onDispose(cancelToken.cancel);
+    final forceRemoteFailure = ref.watch(
+      syncDiagnosticsOverridesProvider.select(
+        (overrides) => overrides.forceSearchRemoteFailure,
+      ),
+    );
 
     const defaultCount = 20;
     yield SearchResultsState(
       result: localResult,
       isWaitingForApi: true,
       isLocalOnly: false,
+      remoteSearchFailed: false,
     );
 
     try {
+      if (forceRemoteFailure) {
+        throw StateError('Remote search failure injected by diagnostics.');
+      }
       final apiResult = _filterResultByType(
         rankSearchResult(
           await api.search3(
@@ -175,12 +193,14 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
         ),
         isWaitingForApi: false,
         isLocalOnly: false,
+        remoteSearchFailed: false,
       );
     } on Object {
       yield SearchResultsState(
         result: localResult,
         isWaitingForApi: false,
         isLocalOnly: false,
+        remoteSearchFailed: true,
       );
     }
   },

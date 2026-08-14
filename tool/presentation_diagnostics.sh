@@ -8,6 +8,7 @@ SEARCH_QUERY="${NAVIS_PRESENTATION_SEARCH_QUERY:-}"
 SEARCH_FILTER="${NAVIS_PRESENTATION_SEARCH_FILTER:-all}"
 SEARCH_REQUIRE_MIXED="${NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED:-0}"
 SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
+FORCE_SEARCH_REMOTE_FAILURE="${NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE:-0}"
 BOOTSTRAP_FAILURE_ATTEMPTS="${NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS:-0}"
 if [[ "$MODE" != "clone" ]] ||
    [[ ! "$ROUTE" =~ ^/ ]] ||
@@ -16,8 +17,10 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$SEARCH_FILTER" =~ ^(all|artists|albums|songs)$ ]] ||
    [[ ! "$SEARCH_REQUIRE_MIXED" =~ ^(0|1)$ ]] ||
    [[ ! "$SEARCH_PLAY_REMOTE" =~ ^(0|1)$ ]] ||
+   [[ ! "$FORCE_SEARCH_REMOTE_FAILURE" =~ ^(0|1)$ ]] ||
    [[ ! "$BOOTSTRAP_FAILURE_ATTEMPTS" =~ ^[0-9]+$ ]] ||
    [[ "$SEARCH_PLAY_REMOTE" == "1" && "$SEARCH_FILTER" != "songs" ]] ||
+   [[ "$FORCE_SEARCH_REMOTE_FAILURE" == "1" && "$ROUTE" != "/search" ]] ||
    [[ -n "$SEARCH_QUERY" && "$ROUTE" != "/search" ]]; then
   echo "Usage: $0 clone [/local-route] [safe-label]" >&2
   echo "Set NAVIS_PRESENTATION_SEARCH_QUERY only with the /search route." >&2
@@ -366,6 +369,11 @@ run_capture() {
       '{"cachedListenBrainzPresentation":true}' \
       > "$OUTPUT_ROOT/$prefix-listenbrainz-cache-override.json"
   fi
+  if [[ "$FORCE_SEARCH_REMOTE_FAILURE" == "1" ]]; then
+    api POST /v1/diagnostics/overrides \
+      '{"forceSearchRemoteFailure":true}' \
+      > "$OUTPUT_ROOT/$prefix-search-failure-override.json"
+  fi
   api POST /v1/presentation/navigate "$(navigation_body)" \
     > "$OUTPUT_ROOT/$prefix-navigation.json"
   validate_navigation "$OUTPUT_ROOT/$prefix-navigation.json"
@@ -531,7 +539,8 @@ python3 - \
   "$OUTPUT_ROOT/restart-screenshot.json" \
   "$([[ -n "$SEARCH_QUERY" ]] && echo 1 || echo 0)" \
   "$SEARCH_PLAY_REMOTE" \
-  "$BOOTSTRAP_FAILURE_ATTEMPTS" <<'PY'
+  "$BOOTSTRAP_FAILURE_ATTEMPTS" \
+  "$FORCE_SEARCH_REMOTE_FAILURE" <<'PY'
 import json, sys
 screenshots = []
 for path in sys.argv[4:6]:
@@ -559,7 +568,8 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
         ] + (["GET /v1/playback/bootstrap/status"]
              if int(sys.argv[8]) > 0 else [])
           + (["POST /v1/diagnostics/overrides"]
-             if sys.argv[2].startswith("/library/listenbrainz/") else [])
+             if sys.argv[2].startswith("/library/listenbrainz/") or
+                sys.argv[9] == "1" else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([
               "POST /v1/presentation/search/play",

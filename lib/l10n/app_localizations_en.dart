@@ -1752,7 +1752,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchNoResults => 'No results found';
 
   @override
+  String searchNoResultsForQuery(String query) {
+    return 'No results for \"$query\"';
+  }
+
+  @override
   String get searchNoResultsSubtitle => 'Try a different search term.';
+
+  @override
+  String get searchLoadError => 'Could not load search results';
 
   @override
   String get searchArtistsSection => 'Artists';

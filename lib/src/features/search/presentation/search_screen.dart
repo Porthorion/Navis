@@ -373,6 +373,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildResults({bool desktopMode = false}) {
     final results = ref.watch(debouncedSearchProvider);
+    final query = ref.watch(searchQueryProvider).trim();
     final filter = ref.watch(searchFilterProvider);
     final l10n = AppLocalizations.of(context)!;
 
@@ -392,9 +393,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (!hasResults && state.isWaitingForApi) {
           return const ShimmerListPage(count: 8);
         }
+        if (!hasResults && state.remoteSearchFailed) {
+          return ErrorState(
+            title: l10n.searchLoadError,
+            onRetry: () => ref.invalidate(debouncedSearchProvider),
+          );
+        }
         if (!hasResults) {
           return EmptyState(
-            title: l10n.searchNoResults,
+            title: l10n.searchNoResultsForQuery(query),
             subtitle: l10n.searchNoResultsSubtitle,
             icon: Icons.search_off,
           );
@@ -462,7 +469,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       },
       loading: () => const ShimmerListPage(count: 8),
       error: (error, _) => ErrorState(
-        title: l10n.searchNoResults,
+        title: l10n.searchLoadError,
         onRetry: () => ref.invalidate(debouncedSearchProvider),
       ),
     );

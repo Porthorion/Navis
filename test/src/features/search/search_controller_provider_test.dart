@@ -543,7 +543,41 @@ void main() {
 
       expect(emissions.last.result.artists.single.id, 'local-fallback');
       expect(emissions.last.isWaitingForApi, isFalse);
+      expect(emissions.last.remoteSearchFailed, isTrue);
       expect(asyncValues.where((value) => value.hasError), isEmpty);
     });
+
+    test(
+      'API failure with no local match exposes recoverable empty state',
+      () async {
+        if (!sqliteAvailable) return;
+
+        final database = createTestDatabase();
+        final container = _createContainer(
+          database,
+          api: _FakeSearchApiClient((_) async {
+            throw DioException(requestOptions: RequestOptions());
+          }),
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        final emissions = <SearchResultsState>[];
+        final subscription = _listenToSearch(container, emissions);
+        addTearDown(subscription.close);
+
+        container.read(searchQueryProvider.notifier).submit('Unmatched query');
+        await _waitForEmissions(emissions, 2);
+
+        final result = emissions.last;
+        expect(result.isWaitingForApi, isFalse);
+        expect(result.remoteSearchFailed, isTrue);
+        expect(result.result.artists, isEmpty);
+        expect(result.result.albums, isEmpty);
+        expect(result.result.songs, isEmpty);
+      },
+    );
   });
 }

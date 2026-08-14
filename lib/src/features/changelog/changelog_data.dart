@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Search now clearly distinguishes no matches from a recoverable loading failure',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Fullscreen artwork now keeps its preview visible until the full-resolution, zoom-ready image is ready',
         type: ChangelogEntryType.fix,
       ),

@@ -329,6 +329,12 @@ persisting display labels, and captures the settled result list on both runs.
 With the songs filter and `NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE=1`, it also
 uses `POST /v1/presentation/search/play` plus the player-overlay controller to
 capture the selected remote result in Now Playing.
+For a recoverable Search-failure capture, use an intentionally unmatched query
+with `NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE=1`. The clone-only
+launcher applies the authenticated diagnostics override before submitting the
+query, so the production page can be inspected without introducing a device or
+server failure. Cached/local matches must remain visible when they exist; only
+an otherwise empty failed search should render the retryable error state.
 
 Use the focused volume-memory scenario for desktop volume changes:
 

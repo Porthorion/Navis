@@ -411,6 +411,7 @@ void main() {
         'nativeMetered': true,
         'requestReporting': true,
         'cachedListenBrainzPresentation': true,
+        'forceSearchRemoteFailure': true,
       },
     );
 
@@ -418,6 +419,7 @@ void main() {
     expect(response.body['networkType'], 'cellular');
     expect(response.body['requestReporting'], isTrue);
     expect(response.body['cachedListenBrainzPresentation'], isTrue);
+    expect(response.body['forceSearchRemoteFailure'], isTrue);
 
     final cleared = await _request(
       fixture.port,
@@ -429,6 +431,7 @@ void main() {
     expect(cleared.statusCode, HttpStatus.ok);
     expect(cleared.body['networkType'], isNull);
     expect(cleared.body['nativeMetered'], isNull);
+    expect(cleared.body['forceSearchRemoteFailure'], isFalse);
   });
 
   test(

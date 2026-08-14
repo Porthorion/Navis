@@ -45,6 +45,13 @@ Last updated: 2026-08-15
   semantics coverage pass; final quality gate evidence is recorded with this
   change.)
 
+- [x] Search result-state clarity — 2026-08-15 (approved: a successful empty
+  Search now identifies the submitted query, while an otherwise empty remote
+  failure uses the retryable error state. Local matches remain available if the
+  remote supplement fails. Focused provider, diagnostics-contract, and visual
+  regression coverage pass; isolated Linux clone captures verified both the
+  forced failure and successful-empty pages before and after clean restart.)
+
 - [x] Settings localization consistency — 2026-08-13 (Settings group headings
   and desktop-specific shortcut/workspace copy now use generated localization
   strings rather than bypassing the app's localization contract. Focused
