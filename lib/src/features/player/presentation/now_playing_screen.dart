@@ -1934,6 +1934,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final motion = MotionPolicy.of(context);
     final song = widget.song;
     final playback = widget.playback;
     final isRadio = playback.isRadioMode;
@@ -1956,15 +1957,24 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       }
     });
     _updateLatchedArtTransitionDirection(playback);
-    final songSwapTransitionBuilder = _songSwapTransitionBuilder;
+    final songSwapTransitionBuilder = motion.reduceMotion
+        ? _identityTransitionBuilder
+        : _songSwapTransitionBuilder;
     const songSwapArtDuration = Duration(milliseconds: 250);
     final artHandoffActive = _artSwipeAwaitingTrackChange || _artSwipeSettling;
-    final effectiveSongSwapArtDuration = artHandoffActive
+    final effectiveSongSwapArtDuration = motion.reduceMotion || artHandoffActive
         ? Duration.zero
         : songSwapArtDuration;
-    final effectiveSongSwapArtTransitionBuilder = artHandoffActive
+    final effectiveSongSwapArtTransitionBuilder =
+        motion.reduceMotion || artHandoffActive
         ? _identityTransitionBuilder
         : _songSwapArtTransitionBuilder;
+    final artLyricsSwapDuration = motion.reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 220);
+    final trackInfoSwapDuration = motion.reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 280);
 
     final title = isRadio
         ? (radioMeta?.nowPlayingTitle ??
@@ -2195,11 +2205,14 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   maxSize: artMaxSize,
                 )
               : AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
+                  key: const ValueKey<String>(
+                    'compactWideNowPlayingArtLyricsSwitcher',
+                  ),
+                  duration: artLyricsSwapDuration,
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
                   layoutBuilder: _coverArtSwitcherLayoutBuilder,
-                  transitionBuilder: _songSwapTransitionBuilder,
+                  transitionBuilder: songSwapTransitionBuilder,
                   child: showInlineLyrics
                       ? _InlineLyrics(
                           key: ValueKey<String>(
@@ -2229,7 +2242,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 280),
+                    key: const ValueKey<String>(
+                      'compactWideNowPlayingTrackInfoSwitcher',
+                    ),
+                    duration: trackInfoSwapDuration,
                     switchInCurve: Curves.easeOut,
                     switchOutCurve: Curves.easeIn,
                     transitionBuilder: songSwapTransitionBuilder,
@@ -2636,11 +2652,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 maxSize: artMaxSize,
               )
             : AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
+                key: const ValueKey<String>('nowPlayingArtLyricsSwitcher'),
+                duration: artLyricsSwapDuration,
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 layoutBuilder: _coverArtSwitcherLayoutBuilder,
-                transitionBuilder: _songSwapTransitionBuilder,
+                transitionBuilder: songSwapTransitionBuilder,
                 child: showInlineLyrics
                     ? _InlineLyrics(
                         key: ValueKey<String>(
@@ -2668,7 +2685,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               ),
             ),
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 280),
+            key: const ValueKey<String>('nowPlayingTrackInfoSwitcher'),
+            duration: trackInfoSwapDuration,
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
             transitionBuilder: songSwapTransitionBuilder,
@@ -2927,7 +2945,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         final splitTopInfo = Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 280),
+            duration: trackInfoSwapDuration,
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
             transitionBuilder: songSwapTransitionBuilder,
@@ -3002,7 +3020,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             Center(child: splitCoverArt),
             const SizedBox(height: 12),
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 280),
+              duration: trackInfoSwapDuration,
               switchInCurve: Curves.easeOut,
               switchOutCurve: Curves.easeIn,
               transitionBuilder: songSwapTransitionBuilder,

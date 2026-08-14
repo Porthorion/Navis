@@ -173,6 +173,26 @@ void main() {
             .duration,
         Duration.zero,
       );
+      expect(
+        tester
+            .widget<AnimatedSwitcher>(
+              find.byKey(
+                const ValueKey<String>('nowPlayingArtLyricsSwitcher'),
+              ),
+            )
+            .duration,
+        Duration.zero,
+      );
+      expect(
+        tester
+            .widget<AnimatedSwitcher>(
+              find.byKey(
+                const ValueKey<String>('nowPlayingTrackInfoSwitcher'),
+              ),
+            )
+            .duration,
+        Duration.zero,
+      );
     },
   );
 

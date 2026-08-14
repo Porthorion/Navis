@@ -106,6 +106,13 @@ Last updated: 2026-08-14
   carousels now stop auto-advancing and use direct state changes; other Now
   Playing switchers remain to be migrated.)
 
+- [ ] Now Playing reduced-motion transition coverage — partial: 2026-08-14
+  (approved on physical Android: phone and compact-wide art/lyrics and
+  track-metadata switchers now present their next state immediately when the
+  platform requests reduced motion, while normal playback retains the existing
+  220–280 ms handoff. Focused transition, adaptive, and motion-frame golden
+  coverage passes; wide-panel overlays remain.)
+
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact
   source Hero tag now travels through `NavService` to album detail from Home,
