@@ -2346,11 +2346,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceLanguageSystemDefault => 'System default';
 
   @override
+  String get appearanceLanguageUnavailable =>
+      'Language switching is disabled in this build.';
+
+  @override
+  String get appearanceLanguageEnglish => 'English';
+
+  @override
   String get appearanceColorSchemeLabel => 'Color Scheme';
 
   @override
   String get appearanceColorSchemeSub =>
       'Choose a seed color for the app\'s color palette.';
+
+  @override
+  String get appearanceColorSchemeDynamicSub =>
+      'Selected colors are used when album art has no available accent.';
 
   @override
   String get appearanceColorDefault => 'Default';
@@ -2359,7 +2370,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceColorCustom => 'Custom';
 
   @override
+  String appearanceColorCustomSemantics(Object label) {
+    return '$label, custom color';
+  }
+
+  @override
   String get appearanceColorPickerTitle => 'Pick a custom color';
+
+  @override
+  String get appearanceColorPickerHexLabel => 'Hex';
 
   @override
   String get appearanceColorPickerSave => 'Save as preset';
@@ -2391,6 +2410,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appearanceArtTintedSub =>
       'Tint the Now Playing background with colours from the album art.';
+
+  @override
+  String get appearanceDynamicAlbumColorLabel => 'Dynamic Album Color';
+
+  @override
+  String get appearanceDynamicAlbumColorEnabledSub =>
+      'Album art is currently overriding the selected color when artwork is available.';
+
+  @override
+  String get appearanceDynamicAlbumColorDisabledSub =>
+      'Use the currently playing album art to theme app accent colors.';
 
   @override
   String get cacheSettingsCoverArtSection => 'Cover art cache';

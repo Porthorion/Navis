@@ -4097,6 +4097,18 @@ abstract class AppLocalizations {
   /// **'System default'**
   String get appearanceLanguageSystemDefault;
 
+  /// No description provided for @appearanceLanguageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Language switching is disabled in this build.'**
+  String get appearanceLanguageUnavailable;
+
+  /// No description provided for @appearanceLanguageEnglish.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get appearanceLanguageEnglish;
+
   /// No description provided for @appearanceColorSchemeLabel.
   ///
   /// In en, this message translates to:
@@ -4108,6 +4120,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose a seed color for the app\'s color palette.'**
   String get appearanceColorSchemeSub;
+
+  /// No description provided for @appearanceColorSchemeDynamicSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected colors are used when album art has no available accent.'**
+  String get appearanceColorSchemeDynamicSub;
 
   /// No description provided for @appearanceColorDefault.
   ///
@@ -4121,11 +4139,23 @@ abstract class AppLocalizations {
   /// **'Custom'**
   String get appearanceColorCustom;
 
+  /// No description provided for @appearanceColorCustomSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'{label}, custom color'**
+  String appearanceColorCustomSemantics(Object label);
+
   /// No description provided for @appearanceColorPickerTitle.
   ///
   /// In en, this message translates to:
   /// **'Pick a custom color'**
   String get appearanceColorPickerTitle;
+
+  /// No description provided for @appearanceColorPickerHexLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hex'**
+  String get appearanceColorPickerHexLabel;
 
   /// No description provided for @appearanceColorPickerSave.
   ///
@@ -4180,6 +4210,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tint the Now Playing background with colours from the album art.'**
   String get appearanceArtTintedSub;
+
+  /// No description provided for @appearanceDynamicAlbumColorLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Dynamic Album Color'**
+  String get appearanceDynamicAlbumColorLabel;
+
+  /// No description provided for @appearanceDynamicAlbumColorEnabledSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Album art is currently overriding the selected color when artwork is available.'**
+  String get appearanceDynamicAlbumColorEnabledSub;
+
+  /// No description provided for @appearanceDynamicAlbumColorDisabledSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the currently playing album art to theme app accent colors.'**
+  String get appearanceDynamicAlbumColorDisabledSub;
 
   /// No description provided for @cacheSettingsCoverArtSection.
   ///

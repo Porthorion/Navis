@@ -192,7 +192,11 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.bySemanticsLabel('Custom: Coral, custom color'),
+      find.bySemanticsLabel(
+        lookupAppLocalizations(
+          const Locale('en'),
+        ).appearanceColorCustomSemantics('Custom: Coral'),
+      ),
       findsOneWidget,
     );
 
@@ -213,9 +217,13 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Hex'), 'FFFFFF');
+    final l10n = lookupAppLocalizations(const Locale('en'));
+    await tester.enterText(
+      find.widgetWithText(TextField, l10n.appearanceColorPickerHexLabel),
+      'FFFFFF',
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save as preset'));
+    await tester.tap(find.text(l10n.appearanceColorPickerSave));
     await tester.pumpAndSettle();
 
     final database = container.read(navisDatabaseProvider);
@@ -229,12 +237,14 @@ void main() {
   ) async {
     await pumpAppearance(tester, dynamicAlbumColorEnabled: true);
 
+    final l10n = lookupAppLocalizations(const Locale('en'));
+
     expect(
-      find.textContaining('Album art is currently overriding'),
+      find.text(l10n.appearanceDynamicAlbumColorEnabledSub),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Selected colors are used when album art'),
+      find.text(l10n.appearanceColorSchemeDynamicSub),
       findsOneWidget,
     );
   });

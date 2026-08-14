@@ -1093,11 +1093,21 @@
   "appearanceThemeSystem": "Auto",
   "appearanceLanguageLabel": "Language",
   "appearanceLanguageSystemDefault": "System default",
+  "appearanceLanguageUnavailable": "Language switching is disabled in this build.",
+  "appearanceLanguageEnglish": "English",
   "appearanceColorSchemeLabel": "Color Scheme",
   "appearanceColorSchemeSub": "Choose a seed color for the app's color palette.",
+  "appearanceColorSchemeDynamicSub": "Selected colors are used when album art has no available accent.",
   "appearanceColorDefault": "Default",
   "appearanceColorCustom": "Custom",
+  "appearanceColorCustomSemantics": "{label}, custom color",
+  "@appearanceColorCustomSemantics": {
+    "placeholders": {
+      "label": {}
+    }
+  },
   "appearanceColorPickerTitle": "Pick a custom color",
+  "appearanceColorPickerHexLabel": "Hex",
   "appearanceColorPickerSave": "Save as preset",
   "appearanceColorPickerApply": "Apply",
   "appearanceColorPresetSaved": "Custom preset saved",
@@ -1113,6 +1123,9 @@
 
   "appearanceArtTintedLabel": "Art-tinted Now Playing",
   "appearanceArtTintedSub": "Tint the Now Playing background with colours from the album art.",
+  "appearanceDynamicAlbumColorLabel": "Dynamic Album Color",
+  "appearanceDynamicAlbumColorEnabledSub": "Album art is currently overriding the selected color when artwork is available.",
+  "appearanceDynamicAlbumColorDisabledSub": "Use the currently playing album art to theme app accent colors.",
 
   "cacheSettingsCoverArtSection": "Cover art cache",
   "cacheSettingsCoverArtDescription": "Cached album artwork images. Larger limits reduce network requests but use more storage.",

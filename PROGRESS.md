@@ -52,11 +52,13 @@ Last updated: 2026-08-15
   regression coverage pass; isolated Linux clone captures verified both the
   forced failure and successful-empty pages before and after clean restart.)
 
-- [x] Settings localization consistency — 2026-08-13 (Settings group headings
-  and desktop-specific shortcut/workspace copy now use generated localization
-  strings rather than bypassing the app's localization contract. Focused
-  adaptive Settings coverage passes; final quality gate evidence is recorded
-  with this change.)
+- [x] Settings localization consistency — 2026-08-13–15 (Settings group
+  headings and desktop-specific shortcut/workspace copy, plus Appearance's
+  dynamic-album-color, language-availability, color-fallback, color-picker,
+  and custom-color semantic labels, now use generated localization strings
+  rather than bypassing the app's localization contract. Focused adaptive
+  Settings coverage passes; final quality gate evidence is recorded with this
+  change.)
 
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full

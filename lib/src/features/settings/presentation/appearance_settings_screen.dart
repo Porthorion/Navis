@@ -202,11 +202,11 @@ class AppearanceSettingsScreen extends ConsumerWidget {
             },
           ),
           SwitchListTile(
-            title: const Text('Dynamic Album Color'),
+            title: Text(l10n.appearanceDynamicAlbumColorLabel),
             subtitle: Text(
               dynamicAlbumColorEnabled
-                  ? 'Album art is currently overriding the selected color when artwork is available.'
-                  : 'Use the currently playing album art to theme app accent colors.',
+                  ? l10n.appearanceDynamicAlbumColorEnabledSub
+                  : l10n.appearanceDynamicAlbumColorDisabledSub,
             ),
             value: dynamicAlbumColorEnabled,
             onChanged: (enabled) async {
@@ -453,10 +453,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
   }
 }
 
-String _localeLabel(Locale locale) {
+String _localeLabel(Locale locale, AppLocalizations l10n) {
   switch (locale.languageCode) {
     case 'en':
-      return 'English';
+      return l10n.appearanceLanguageEnglish;
     default:
       return locale.languageCode;
   }
@@ -482,9 +482,7 @@ class _LanguageSelector extends StatelessWidget {
         initialValue: appLocale,
         decoration: InputDecoration(
           border: const OutlineInputBorder(),
-          helperText: enabled
-              ? null
-              : 'Language switching is disabled in this build.',
+          helperText: enabled ? null : l10n.appearanceLanguageUnavailable,
         ),
         items: <DropdownMenuItem<String?>>[
           DropdownMenuItem<String?>(
@@ -494,7 +492,7 @@ class _LanguageSelector extends StatelessWidget {
           ...AppLocalizations.supportedLocales.map(
             (locale) => DropdownMenuItem<String?>(
               value: locale.languageCode,
-              child: Text(_localeLabel(locale)),
+              child: Text(_localeLabel(locale, l10n)),
             ),
           ),
         ],
@@ -804,7 +802,7 @@ class _ColorSchemeGrid extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text(
-              'Selected colors are used when album art has no available accent.',
+              l10n.appearanceColorSchemeDynamicSub,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -991,6 +989,7 @@ class _ColorChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const size = 52.0;
+    final l10n = AppLocalizations.of(context)!;
     final colorBrightness = ThemeData.estimateBrightnessForColor(color);
     final checkColor = colorBrightness == Brightness.dark
         ? Colors.white
@@ -998,7 +997,7 @@ class _ColorChip extends StatelessWidget {
     final child = Semantics(
       button: true,
       selected: isSelected,
-      label: isCustom ? '$label, custom color' : label,
+      label: isCustom ? l10n.appearanceColorCustomSemantics(label) : label,
       child: GestureDetector(
         onTap: onTap,
         onLongPress: onLongPress,
@@ -1267,9 +1266,9 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             TextField(
               controller: _hexController,
               focusNode: _hexFocusNode,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 prefixText: '#',
-                labelText: 'Hex',
+                labelText: l10n.appearanceColorPickerHexLabel,
                 isDense: true,
                 border: OutlineInputBorder(),
                 contentPadding: EdgeInsets.symmetric(
