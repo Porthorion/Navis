@@ -2264,23 +2264,29 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 SongDownloadStatus.downloaded,
                           );
                       if (isFullyDownloaded) {
-                        return ListTile(
-                          leading: Icon(
-                            Icons.delete_outlined,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                          title: Text(
-                            l10n.deleteDownloadAction,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: Icon(
+                                Icons.delete_outlined,
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                              title: Text(
+                                l10n.deleteDownloadAction,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.of(sheetContext).pop();
+                                unawaited(
+                                  _deleteAllAlbumDownloads(context, songs),
+                                );
+                              },
                             ),
-                          ),
-                          onTap: () {
-                            Navigator.of(sheetContext).pop();
-                            unawaited(
-                              _deleteAllAlbumDownloads(context, songs),
-                            );
-                          },
+                          ],
                         );
                       }
                       return ListTile(

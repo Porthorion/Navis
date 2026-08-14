@@ -126,6 +126,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Album action menus now clearly separate download removal',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Long mobile album titles now size down when they can fit cleanly',
         type: ChangelogEntryType.improvement,
       ),

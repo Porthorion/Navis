@@ -126,7 +126,8 @@ Future<void> showAlbumContextMenu(
                     unawaited(_toggleAlbumStar(ref, albumId, isStarred));
                   },
                 ),
-                if (isFullyDownloaded)
+                if (isFullyDownloaded) ...<Widget>[
+                  const Divider(height: 1),
                   ListTile(
                     leading: Icon(
                       Icons.delete_outlined,
@@ -142,8 +143,8 @@ Future<void> showAlbumContextMenu(
                       Navigator.of(sheetContext).pop();
                       unawaited(_deleteAlbumDownloads(context, menuRef, songs));
                     },
-                  )
-                else
+                  ),
+                ] else
                   ListTile(
                     leading: const Icon(Icons.download_outlined),
                     title: Text(l10n.libraryAlbumMenuDownload),
@@ -211,10 +212,14 @@ Future<void> _showDesktopAlbumContextMenu(
         value: _AlbumContextAction.toggleLike,
         child: Text(isStarred ? l10n.actionLiked : l10n.actionLike),
       ),
+      if (isFullyDownloaded) const PopupMenuDivider(),
       PopupMenuItem<_AlbumContextAction>(
         value: isFullyDownloaded
             ? _AlbumContextAction.deleteDownload
             : _AlbumContextAction.download,
+        textStyle: isFullyDownloaded
+            ? TextStyle(color: Theme.of(context).colorScheme.error)
+            : null,
         child: Text(
           isFullyDownloaded
               ? l10n.deleteDownloadAction

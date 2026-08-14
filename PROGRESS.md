@@ -110,8 +110,9 @@ Last updated: 2026-08-14
   parity, and destructive-action rules for albums, artists, playlists, songs,
   Home cards, and player surfaces. Song overflow menus now separate transport
   actions from library/navigation actions, and place Remove download after a
-  divider in the error color on phone and desktop. Album and playlist headers
-  and menus remain to be harmonised through reviewed visual changes.)
+  divider in the error color on phone and desktop. Album context and detail
+  menus now apply the same destructive-action treatment. Playlist headers and
+  menus remain to be harmonised through reviewed visual changes.)
 
 - [ ] Reduced-motion surface coverage — partial: 2026-08-13 (the shared
   motion policy now removes transient status-notice travel and fade alongside
