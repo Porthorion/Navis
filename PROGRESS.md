@@ -116,15 +116,18 @@ Last updated: 2026-08-14
   the existing route and Hero behavior, and switches the expandable player
   sheet, queue, fullscreen artwork viewer, and Now Playing metadata pager
   without decorative motion; Like feedback also becomes instant. Home
-  carousels now stop auto-advancing and use direct state changes; other Now
-  Playing switchers remain to be migrated.)
+  carousels now stop auto-advancing and use direct state changes. Remaining
+  lower-frequency decorative surfaces still need their own audit.)
 
-- [ ] Now Playing reduced-motion transition coverage — partial: 2026-08-14
-  (approved on physical Android: phone and compact-wide art/lyrics and
-  track-metadata switchers now present their next state immediately when the
-  platform requests reduced motion, while normal playback retains the existing
-  220–280 ms handoff. Focused transition, adaptive, and motion-frame golden
-  coverage passes; wide-panel overlays remain.)
+- [x] Now Playing reduced-motion transition coverage — 2026-08-14
+  (phone and compact-wide art/lyrics and track-metadata switchers now present
+  their next state immediately when the platform requests reduced motion.
+  Compact-wide Queue, Mix, and Settings panels also skip their fade/slide;
+  normal motion retains semantic 120–280 ms timing. Desktop right-pane panels
+  are already static. Focused adaptive behavior and motion-frame golden
+  coverage pass; Linux isolated normal-motion startup, Now Playing overlay,
+  app-owned screenshot, and clean-restart validation are recorded with this
+  change.)
 
 - [ ] Album artwork navigation transition live verification — 2026-08-13 (the
   exact

@@ -175,23 +175,37 @@ class _EmbeddedNowPlayingPanelScaffoldState
 
   late final AnimationController _transitionController;
   bool _dismissRequested = false;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
     super.initState();
     _transitionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
-      reverseDuration: const Duration(milliseconds: 200),
+      duration: Duration.zero,
+      reverseDuration: Duration.zero,
       value: 0,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        unawaited(
-          _transitionController.animateTo(1, curve: Curves.easeOutCubic),
-        );
+        if (_reduceMotion) {
+          _transitionController.value = 1;
+        } else {
+          unawaited(
+            _transitionController.animateTo(1, curve: Curves.easeOutCubic),
+          );
+        }
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final motion = MotionPolicy.of(context);
+    _reduceMotion = motion.reduceMotion;
+    _transitionController.duration = motion.navigationReverse;
+    _transitionController.reverseDuration = motion.surface;
   }
 
   @override
@@ -226,6 +240,11 @@ class _EmbeddedNowPlayingPanelScaffoldState
       return;
     }
     _dismissRequested = true;
+    if (_reduceMotion) {
+      _transitionController.value = 0;
+      widget.onBack();
+      return;
+    }
     await _transitionController.animateBack(0, curve: Curves.easeInCubic);
     if (!mounted) {
       return;
@@ -235,6 +254,10 @@ class _EmbeddedNowPlayingPanelScaffoldState
 
   void _settleAfterGesture({double velocity = 0}) {
     if (_dismissRequested) {
+      return;
+    }
+    if (_reduceMotion) {
+      _transitionController.value = 1;
       return;
     }
     final shouldDismiss =
@@ -247,7 +270,7 @@ class _EmbeddedNowPlayingPanelScaffoldState
     unawaited(
       _transitionController.animateTo(
         1,
-        duration: const Duration(milliseconds: 180),
+        duration: MotionPolicy.of(context).surface,
         curve: Curves.easeOutCubic,
       ),
     );
@@ -265,13 +288,17 @@ class _EmbeddedNowPlayingPanelScaffoldState
         notification.metrics.pixels >
             notification.metrics.minScrollExtent + 0.5 &&
         _transitionController.value < 0.995) {
-      unawaited(
-        _transitionController.animateTo(
-          1,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-        ),
-      );
+      if (_reduceMotion) {
+        _transitionController.value = 1;
+      } else {
+        unawaited(
+          _transitionController.animateTo(
+            1,
+            duration: MotionPolicy.of(context).feedback,
+            curve: Curves.easeOut,
+          ),
+        );
+      }
       return false;
     }
     if (notification is ScrollEndNotification) {
@@ -283,21 +310,8 @@ class _EmbeddedNowPlayingPanelScaffoldState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AnimatedBuilder(
-      animation: _transitionController,
-      builder: (context, child) {
-        final progress = _transitionController.value.clamp(0, 1).toDouble();
-        final eased = Curves.easeOutCubic.transform(progress);
-        final opacity = Curves.easeOut.transform(progress);
-        final translateY = (1 - eased) * 52;
-        return Opacity(
-          opacity: opacity,
-          child: Transform.translate(
-            offset: Offset(0, translateY),
-            child: child,
-          ),
-        );
-      },
+    final panel = KeyedSubtree(
+      key: const ValueKey<String>('embedded-now-playing-panel'),
       child: Material(
         color: theme.colorScheme.surface,
         child: SafeArea(
@@ -371,6 +385,26 @@ class _EmbeddedNowPlayingPanelScaffoldState
         ),
       ),
     );
+    if (_reduceMotion) {
+      return panel;
+    }
+    return AnimatedBuilder(
+      animation: _transitionController,
+      builder: (context, child) {
+        final progress = _transitionController.value.clamp(0, 1).toDouble();
+        final eased = Curves.easeOutCubic.transform(progress);
+        final opacity = Curves.easeOut.transform(progress);
+        final translateY = (1 - eased) * 52;
+        return Opacity(
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(0, translateY),
+            child: child,
+          ),
+        );
+      },
+      child: panel,
+    );
   }
 }
 
@@ -413,22 +447,36 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   bool _dismissing = false;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
-      reverseDuration: const Duration(milliseconds: 260),
+      duration: Duration.zero,
+      reverseDuration: Duration.zero,
       value: 0,
     );
     _controller.addStatusListener(_onAnimationStatus);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        unawaited(_controller.animateTo(1, curve: Curves.easeOutCubic));
+        if (_reduceMotion) {
+          _controller.value = 1;
+        } else {
+          unawaited(_controller.animateTo(1, curve: Curves.easeOutCubic));
+        }
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final motion = MotionPolicy.of(context);
+    _reduceMotion = motion.reduceMotion;
+    _controller.duration = motion.navigationForward;
+    _controller.reverseDuration = motion.navigationReverse;
   }
 
   @override
@@ -473,6 +521,15 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
 
   void _settleAfterDrag({double velocity = 0}) {
     if (_dismissing) return;
+    if (_reduceMotion) {
+      if (velocity > _CompactWideOverlaySheet._flingThreshold ||
+          _controller.value < _CompactWideOverlaySheet._snapDismissThreshold) {
+        _startDismiss();
+      } else {
+        _controller.value = 1;
+      }
+      return;
+    }
     final absVelocity = velocity.abs();
     final height = _viewportHeight();
     if (absVelocity > _CompactWideOverlaySheet._flingThreshold) {
@@ -492,7 +549,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
         unawaited(
           _controller.animateTo(
             1,
-            duration: const Duration(milliseconds: 180),
+            duration: MotionPolicy.of(context).surface,
             curve: Curves.easeOutCubic,
           ),
         );
@@ -503,6 +560,10 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
   void _startDismiss({double? flingVelocity}) {
     if (_dismissing) return;
     _dismissing = true;
+    if (_reduceMotion) {
+      _controller.value = 0;
+      return;
+    }
     if (flingVelocity != null) {
       // Keep a real swipe tied to its gesture velocity.
       _controller.fling(velocity: -flingVelocity);
@@ -530,13 +591,17 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
             notification.metrics.minScrollExtent + 0.5 &&
         _controller.value < 0.995) {
       // Scrolling down into content — snap back to fully open.
-      unawaited(
-        _controller.animateTo(
-          1,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-        ),
-      );
+      if (_reduceMotion) {
+        _controller.value = 1;
+      } else {
+        unawaited(
+          _controller.animateTo(
+            1,
+            duration: MotionPolicy.of(context).feedback,
+            curve: Curves.easeOut,
+          ),
+        );
+      }
       return false;
     }
     if (notification is ScrollEndNotification) {
@@ -553,37 +618,16 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final progress = _controller.value;
-        // Fade in quickly (complete by 50% of the slide) then stay fully
-        // opaque, and fade out symmetrically when dragging back down.
-        final opacity = Curves.easeOut.transform(
-          (progress / 0.5).clamp(0.0, 1.0),
-        );
-        return Opacity(
-          opacity: opacity,
-          child: FractionalTranslation(
-            translation: Offset(0, 1.0 - progress),
-            child: child,
-          ),
-        );
-      },
+    final panel = KeyedSubtree(
+      key: const ValueKey<String>('compact-wide-now-playing-panel'),
       child: Material(
         color: cs.surface,
         child: SafeArea(
           top: true,
           bottom: false,
-          // The GestureDetector wraps the ENTIRE panel so dismissal drags
-          // can start from any non-scrollable region (pill, title bar, or
-          // the queue header row).  The inner scrollable wins the gesture
-          // arena for normal scroll gestures; this detector takes over when
-          // the list is at its top boundary or the drag is on a
-          // non-scrollable area.
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onVerticalDragStart: (_) {}, // no-op; reserved for future use
+            onVerticalDragStart: (_) {},
             onVerticalDragUpdate: (details) {
               final delta = details.primaryDelta;
               if (delta == null) return;
@@ -593,13 +637,11 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
               final velocity = details.primaryVelocity ?? 0;
               _settleAfterDrag(velocity: velocity);
             },
-            onVerticalDragCancel: () => _settleAfterDrag(),
+            onVerticalDragCancel: _settleAfterDrag,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                // ── Drag pill + optional title bar ─────────────────────────
                 const SizedBox(height: 8),
-                // Drag pill indicator.
                 Center(
                   child: Container(
                     width: 32,
@@ -620,7 +662,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
                           tooltip: MaterialLocalizations.of(
                             context,
                           ).backButtonTooltip,
-                          onPressed: () => _startDismiss(),
+                          onPressed: _startDismiss,
                           icon: const Icon(Icons.arrow_back),
                         ),
                         Expanded(
@@ -637,7 +679,6 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
                   const Divider(height: 1),
                 ] else
                   const SizedBox(height: 4),
-                // ── Scrollable content area ─────────────────────────────────
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: _handleScrollNotification,
@@ -649,6 +690,28 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
           ),
         ),
       ),
+    );
+    if (_reduceMotion) {
+      return panel;
+    }
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = _controller.value;
+        // Fade in quickly (complete by 50% of the slide) then stay fully
+        // opaque, and fade out symmetrically when dragging back down.
+        final opacity = Curves.easeOut.transform(
+          (progress / 0.5).clamp(0.0, 1.0),
+        );
+        return Opacity(
+          opacity: opacity,
+          child: FractionalTranslation(
+            translation: Offset(0, 1.0 - progress),
+            child: child,
+          ),
+        );
+      },
+      child: panel,
     );
   }
 }

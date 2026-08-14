@@ -76,6 +76,8 @@ Future<void> _pumpNowPlaying(
   WidgetTester tester,
   ProviderContainer container, {
   bool reduceMotion = false,
+  bool wideEmbeddedMode = false,
+  bool compactWideLandscapeMode = false,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -90,8 +92,12 @@ Future<void> _pumpNowPlaying(
           ).copyWith(disableAnimations: reduceMotion),
           child: child!,
         ),
-        home: const Scaffold(
-          body: NowPlayingScreen(onCollapse: _noopCollapse),
+        home: Scaffold(
+          body: NowPlayingScreen(
+            wideEmbeddedMode: wideEmbeddedMode,
+            compactWideLandscapeMode: compactWideLandscapeMode,
+            onCollapse: _noopCollapse,
+          ),
         ),
       ),
     ),
@@ -260,4 +266,85 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'compact-wide panels skip travel and fade when reduced motion is enabled',
+    (tester) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+      setAdaptiveTestViewport(tester, const Size(560, 360));
+      final container = _createContainer();
+      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+
+      await _pumpNowPlaying(
+        tester,
+        container,
+        reduceMotion: true,
+        wideEmbeddedMode: true,
+        compactWideLandscapeMode: true,
+      );
+
+      await tester.tap(find.byTooltip('Settings').first);
+      await tester.pump();
+
+      final panel = find.byKey(
+        const ValueKey<String>('compact-wide-now-playing-panel'),
+      );
+      expect(panel, findsOneWidget);
+      expect(
+        find.ancestor(of: panel, matching: find.byType(Opacity)),
+        findsNothing,
+      );
+      expect(
+        find.ancestor(
+          of: panel,
+          matching: find.byType(FractionalTranslation),
+        ),
+        findsNothing,
+      );
+
+      await tester.tap(find.byTooltip('Back').first);
+      await tester.pump();
+      await tester.pump();
+
+      expect(panel, findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('compact-wide panels retain travel with normal motion', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(560, 360));
+    final container = _createContainer();
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+
+    await _pumpNowPlaying(
+      tester,
+      container,
+      wideEmbeddedMode: true,
+      compactWideLandscapeMode: true,
+    );
+
+    await tester.tap(find.byTooltip('Settings').first);
+    await tester.pump();
+
+    final panel = find.byKey(
+      const ValueKey<String>('compact-wide-now-playing-panel'),
+    );
+    final translation = find.ancestor(
+      of: panel,
+      matching: find.byType(FractionalTranslation),
+    );
+    expect(translation, findsOneWidget);
+    expect(
+      tester.widget<FractionalTranslation>(translation).translation.dy,
+      greaterThan(0),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

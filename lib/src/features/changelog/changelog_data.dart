@@ -110,6 +110,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Wide Now Playing panels now respect your system reduced-motion preference',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Long mobile album titles now size down when they can fit cleanly',
         type: ChangelogEntryType.improvement,
       ),
