@@ -60,6 +60,12 @@ Last updated: 2026-08-15
   Settings coverage passes; final quality gate evidence is recorded with this
   change.)
 
+- [x] Desktop weekly track action parity — 2026-08-15 (the visible More
+  control and secondary click now open the same anchored desktop context menu;
+  phones retain the existing touch sheet. Focused desktop interaction coverage
+  rejects a bottom-sheet fallback, with deterministic before/after menu
+  captures.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

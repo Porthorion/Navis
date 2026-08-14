@@ -623,6 +623,12 @@ class _ListenBrainzWeeklyDetailContentState
             horizontalTitleGap: 6,
             onTap: () => _playOneTableSong(tableSong),
             onLongPress: () => showSongContextMenu(context, ref, tableSong),
+            onSecondaryTapDown: (details) => showSongContextMenu(
+              context,
+              ref,
+              tableSong,
+              anchor: details.globalPosition,
+            ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -630,14 +636,21 @@ class _ListenBrainzWeeklyDetailContentState
                   songId: tableSong.id,
                   onDownload: () => _downloadSong(tableSong),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.more_vert),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
+                Builder(
+                  builder: (buttonContext) => IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
+                    onPressed: () => showSongContextMenu(
+                      context,
+                      ref,
+                      tableSong,
+                      anchor: _menuAnchorFor(buttonContext),
+                    ),
                   ),
-                  onPressed: () => showSongContextMenu(context, ref, tableSong),
                 ),
               ],
             ),
@@ -666,6 +679,13 @@ class _ListenBrainzWeeklyDetailContentState
         );
       },
     );
+  }
+
+  Offset? _menuAnchorFor(BuildContext anchorContext) {
+    if (!isDesktopRuntime) return null;
+    final renderObject = anchorContext.findRenderObject();
+    if (renderObject is! RenderBox) return null;
+    return renderObject.localToGlobal(renderObject.size.center(Offset.zero));
   }
 
   void _queueSongs(List<SongsTableData> songs, {required bool shuffle}) {

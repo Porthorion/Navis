@@ -531,13 +531,25 @@ Future<void> _pumpWeeklyDetail(
   WidgetTester tester, {
   required Stream<List<ListenBrainzDiscoverPlaylist>> playlists,
   String sourcePatch = 'weekly-jams',
+  NavisDatabase? database,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       key: ValueKey<Stream<List<ListenBrainzDiscoverPlaylist>>>(playlists),
-      overrides: <Override>[
-        listenBrainzDiscoverStreamProvider.overrideWith((ref) => playlists),
-      ],
+      overrides: database == null
+          ? <Override>[
+              listenBrainzDiscoverStreamProvider.overrideWith(
+                (ref) => playlists,
+              ),
+            ]
+          : withTestDatabase(
+              database,
+              overrides: <Override>[
+                listenBrainzDiscoverStreamProvider.overrideWith(
+                  (ref) => playlists,
+                ),
+              ],
+            ),
       child: MaterialApp(
         theme: testTheme(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -1945,6 +1957,35 @@ void main() {
     );
     _expectWeeklyMarkerAlignedWithNumber(tester);
 
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('desktop weekly track menu button opens the anchored menu', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1366, 900));
+    await _pumpWeeklyDetail(
+      tester,
+      sourcePatch: 'weekly-exploration',
+      database: database,
+      playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+        <ListenBrainzDiscoverPlaylist>[
+          _listenBrainzPlaylistWithTableSongs(),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Weekly Song 1').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.more_vert).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Play now'), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
+
+    await tester.tapAt(const Offset(12, 880));
+    await tester.pumpAndSettle();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
   });
