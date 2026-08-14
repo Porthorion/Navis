@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../helpers/adaptive_test_harness.dart';
@@ -25,15 +26,19 @@ ProviderContainer _createContainerWithDatabase({
 
 Future<void> _pumpSearchScreen(
   WidgetTester tester,
-  ProviderContainer container,
-) async {
+  ProviderContainer container, {
+  bool desktopIconsOnly = false,
+}) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(
+      child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: SearchScreen(),
+        home: DesktopNavigationPresentationScope(
+          iconsOnly: desktopIconsOnly,
+          child: const SearchScreen(),
+        ),
       ),
     ),
   );
@@ -74,7 +79,11 @@ void main() {
           step.appBar ? findsOneWidget : findsNothing,
         );
         if (step.desktopFrame) {
-          expect(find.text('Search'), findsOneWidget);
+          expect(find.byType(TextField), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey<String>('desktopSearchWorkspaceTitle')),
+            findsNothing,
+          );
           expect(find.byType(DesktopPanel), findsNothing);
         }
         expect(tester.takeException(), isNull);

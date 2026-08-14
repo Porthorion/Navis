@@ -138,6 +138,35 @@ class AdaptiveInputPolicyScope extends InheritedWidget {
   }
 }
 
+/// Exposes the currently visible desktop navigation treatment to a workspace.
+///
+/// Desktop pages use this to avoid duplicating orientation chrome when the
+/// persistent rail already has labels, while still providing a compact header
+/// whenever the rail is icon-only.
+class DesktopNavigationPresentationScope extends InheritedWidget {
+  const DesktopNavigationPresentationScope({
+    required this.iconsOnly,
+    required super.child,
+    super.key,
+  });
+
+  final bool iconsOnly;
+
+  static bool iconsOnlyOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<
+              DesktopNavigationPresentationScope
+            >()
+            ?.iconsOnly ??
+        false;
+  }
+
+  @override
+  bool updateShouldNotify(covariant DesktopNavigationPresentationScope old) {
+    return old.iconsOnly != iconsOnly;
+  }
+}
+
 bool get isDesktopRuntime {
   if (kIsWeb) {
     return false;

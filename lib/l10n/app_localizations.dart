@@ -4796,25 +4796,25 @@ abstract class AppLocalizations {
   /// No description provided for @desktopNavbarAutohideLabel.
   ///
   /// In en, this message translates to:
-  /// **'Autohide Sidebar'**
+  /// **'Collapse Sidebar'**
   String get desktopNavbarAutohideLabel;
 
   /// No description provided for @desktopNavbarAutohideSub.
   ///
   /// In en, this message translates to:
-  /// **'Sidebar slides away automatically; hover the left edge to reveal it.'**
+  /// **'When inactive, the sidebar collapses to icons. Hover it to expand.'**
   String get desktopNavbarAutohideSub;
 
   /// No description provided for @desktopNavbarLockTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Lock sidebar'**
+  /// **'Keep sidebar expanded'**
   String get desktopNavbarLockTooltip;
 
   /// No description provided for @desktopNavbarUnlockTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Unlock sidebar'**
+  /// **'Collapse sidebar when inactive'**
   String get desktopNavbarUnlockTooltip;
 
   /// No description provided for @homeSectionContinueListening.

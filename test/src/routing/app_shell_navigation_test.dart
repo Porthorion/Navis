@@ -29,6 +29,7 @@ import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -382,6 +383,45 @@ void main() {
     // Clicking the desktop player bar no longer opens the expanded player;
     // the whole-bar InkWell was removed. Verify the bar itself is still present.
     expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop sidebar autohide retains an icon-only navigation rail', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final settings = const AppSettingsModel.defaults().copyWith(
+      desktopNavbarAutohide: true,
+    );
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        appSettingsProvider.overrideWithValue(AsyncData(settings)),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final sidebar = find.byKey(const ValueKey<String>('desktopSidebarRegion'));
+    expect(sidebar, findsOneWidget);
+    expect(tester.getSize(sidebar).width, 64);
+    expect(
+      find.descendant(of: sidebar, matching: find.text('Home')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: sidebar, matching: find.byIcon(Icons.home_outlined)),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

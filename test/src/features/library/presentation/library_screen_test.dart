@@ -22,6 +22,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -179,6 +180,7 @@ ListenBrainzDiscoverPlaylist _virtualPlaylist({
 Widget _buildLibraryScreen({
   required List<Object?> overrides,
   bool showPlaylistsPage = false,
+  bool desktopIconsOnly = false,
 }) {
   return ProviderScope(
     overrides: withTestDatabase(
@@ -199,7 +201,10 @@ Widget _buildLibraryScreen({
       theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const LibraryScreen(),
+      home: DesktopNavigationPresentationScope(
+        iconsOnly: desktopIconsOnly,
+        child: const LibraryScreen(),
+      ),
     ),
   );
 }
@@ -276,12 +281,14 @@ Future<void> _pumpLibraryScreen(
   WidgetTester tester, {
   required List<Object?> overrides,
   bool showPlaylistsPage = false,
+  bool desktopIconsOnly = false,
   bool settle = true,
 }) async {
   await tester.pumpWidget(
     _buildLibraryScreen(
       overrides: overrides,
       showPlaylistsPage: showPlaylistsPage,
+      desktopIconsOnly: desktopIconsOnly,
     ),
   );
   if (settle) {
@@ -324,6 +331,66 @@ void main() {
   });
 
   group('LibraryScreen', () {
+    _testWidgetsWithCleanup(
+      'desktop library uses the integrated workspace frame',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(1200, 900));
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+          desktopIconsOnly: true,
+        );
+
+        expect(
+          find.byKey(const ValueKey<String>('libraryDesktopWorkspaceToolbar')),
+          findsOneWidget,
+        );
+        expect(find.text('Library'), findsOneWidget);
+        expect(find.byType(DesktopPanel), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'desktop library omits a duplicate header with a labeled rail',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(1200, 900));
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(
+          find.byKey(const ValueKey<String>('libraryDesktopWorkspaceToolbar')),
+          findsNothing,
+        );
+        expect(find.byType(DesktopPanel), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     _testWidgetsWithCleanup(
       'renders two tabs and switches between local data lists',
       (

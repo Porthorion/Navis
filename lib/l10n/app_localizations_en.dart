@@ -2717,17 +2717,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopNavbarStyleIcons => 'Icons';
 
   @override
-  String get desktopNavbarAutohideLabel => 'Autohide Sidebar';
+  String get desktopNavbarAutohideLabel => 'Collapse Sidebar';
 
   @override
   String get desktopNavbarAutohideSub =>
-      'Sidebar slides away automatically; hover the left edge to reveal it.';
+      'When inactive, the sidebar collapses to icons. Hover it to expand.';
 
   @override
-  String get desktopNavbarLockTooltip => 'Lock sidebar';
+  String get desktopNavbarLockTooltip => 'Keep sidebar expanded';
 
   @override
-  String get desktopNavbarUnlockTooltip => 'Unlock sidebar';
+  String get desktopNavbarUnlockTooltip => 'Collapse sidebar when inactive';
 
   @override
   String get homeSectionContinueListening => 'Continue Listening';

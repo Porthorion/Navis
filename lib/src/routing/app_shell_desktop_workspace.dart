@@ -84,8 +84,7 @@ class _DesktopWorkspace extends StatefulWidget {
 class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
   static const Duration _animDuration = Duration(milliseconds: 280);
   static const Curve _animCurve = Curves.easeOutCubic;
-  static const double _collapsedWidth = 4.0;
-  static const double _magnetZoneWidth = 40.0;
+  static const double _collapsedWidth = 64.0;
   static const Duration _collapseDelay = Duration(milliseconds: 500);
   static const Duration _navExpandHoldDuration = Duration(milliseconds: 1600);
 
@@ -168,47 +167,51 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final effectiveSidebarWidth = widget.navbarAutohide && !_sidebarVisible
+    final sidebarIconsOnly =
+        widget.navbarStyle == 'icons' ||
+        (widget.navbarAutohide && !_sidebarVisible);
+    final effectiveNavbarStyle = sidebarIconsOnly
+        ? 'icons'
+        : widget.navbarStyle;
+    final effectiveSidebarWidth = sidebarIconsOnly
         ? _collapsedWidth
         : widget.sidebarWidth;
 
     final sidebarContent = Material(
       color: colors.surfaceContainerLow,
       child: SafeArea(
-        child: widget.navbarAutohide && !_sidebarVisible
-            ? const SizedBox.expand()
-            : SizedBox(
-                key: const ValueKey<String>('desktopSidebarRegion'),
-                width: widget.sidebarWidth,
-                child: Padding(
-                  padding: widget.navbarStyle == 'icons'
-                      ? const EdgeInsets.fromLTRB(4, 12, 4, 12)
-                      : const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  child: _RailSidebar(
-                    navbarStyle: widget.navbarStyle,
-                    selectedIndex: widget.selectedIndex,
-                    onDestinationSelected: widget.onDestinationSelected,
-                    destinations: widget.destinations,
-                    showLibrarySubNavigation: widget.showLibrarySubNavigation,
-                    allowScrollableRail: widget.allowScrollableRail,
-                    selectedLibrarySection: widget.selectedLibrarySection,
-                    visibleLibrarySections: widget.visibleLibrarySections,
-                    onLibrarySectionSelected: widget.onLibrarySectionSelected,
-                    showPlayer: false,
-                    playback: widget.playback,
-                    songTitle: widget.songTitle,
-                    songArtist: widget.songArtist,
-                    coverArtId: widget.coverArtId,
-                    coverArtUrl: widget.coverArtUrl,
-                    isExternalSource: widget.isExternalSource,
-                    isRadio: widget.playback.isRadioMode,
-                    radioArtUrl: widget.playback.radioStation?.nowPlayingArtUrl,
-                    onOpenPlayer: widget.onOpenPlayer,
-                    navbarAutohide: widget.navbarAutohide,
-                    onToggleAutohide: widget.onToggleAutohide,
-                  ),
-                ),
-              ),
+        child: SizedBox(
+          key: const ValueKey<String>('desktopSidebarRegion'),
+          width: effectiveSidebarWidth,
+          child: Padding(
+            padding: sidebarIconsOnly
+                ? const EdgeInsets.fromLTRB(4, 12, 4, 12)
+                : const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: _RailSidebar(
+              navbarStyle: effectiveNavbarStyle,
+              selectedIndex: widget.selectedIndex,
+              onDestinationSelected: widget.onDestinationSelected,
+              destinations: widget.destinations,
+              showLibrarySubNavigation: widget.showLibrarySubNavigation,
+              allowScrollableRail: widget.allowScrollableRail,
+              selectedLibrarySection: widget.selectedLibrarySection,
+              visibleLibrarySections: widget.visibleLibrarySections,
+              onLibrarySectionSelected: widget.onLibrarySectionSelected,
+              showPlayer: false,
+              playback: widget.playback,
+              songTitle: widget.songTitle,
+              songArtist: widget.songArtist,
+              coverArtId: widget.coverArtId,
+              coverArtUrl: widget.coverArtUrl,
+              isExternalSource: widget.isExternalSource,
+              isRadio: widget.playback.isRadioMode,
+              radioArtUrl: widget.playback.radioStation?.nowPlayingArtUrl,
+              onOpenPlayer: widget.onOpenPlayer,
+              navbarAutohide: widget.navbarAutohide,
+              onToggleAutohide: widget.onToggleAutohide,
+            ),
+          ),
+        ),
       ),
     );
 
@@ -226,14 +229,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                         duration: _animDuration,
                         curve: _animCurve,
                         width: effectiveSidebarWidth,
-                        child: ClipRect(
-                          child: OverflowBox(
-                            alignment: Alignment.centerLeft,
-                            minWidth: widget.sidebarWidth,
-                            maxWidth: widget.sidebarWidth,
-                            child: sidebarContent,
-                          ),
-                        ),
+                        child: sidebarContent,
                       ),
                     ),
                     VerticalDivider(
@@ -319,7 +315,12 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                                                 children: <Widget>[
                                                   Positioned.fill(
                                                     child:
-                                                        widget.navigationShell,
+                                                        DesktopNavigationPresentationScope(
+                                                          iconsOnly:
+                                                              sidebarIconsOnly,
+                                                          child: widget
+                                                              .navigationShell,
+                                                        ),
                                                   ),
                                                   if (widget.showLyricsOverlay)
                                                     Positioned.fill(
@@ -370,7 +371,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                   bottom: 0,
                   width: _sidebarVisible
                       ? widget.sidebarWidth
-                      : _magnetZoneWidth,
+                      : _collapsedWidth,
                   child: MouseRegion(
                     opaque: false,
                     onEnter: _onMouseEnterSidebar,

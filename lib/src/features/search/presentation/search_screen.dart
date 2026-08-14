@@ -201,6 +201,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     if (desktopMode) {
       final colors = Theme.of(context).colorScheme;
+      final showDesktopWorkspaceTitle =
+          DesktopNavigationPresentationScope.iconsOnlyOf(context);
       return Scaffold(
         body: SafeArea(
           child: DesktopFrame(
@@ -214,12 +216,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
                     child: Row(
                       children: <Widget>[
-                        Text(
-                          l10n.navSearch,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(width: 20),
+                        if (showDesktopWorkspaceTitle) ...<Widget>[
+                          Text(
+                            l10n.navSearch,
+                            key: const ValueKey<String>(
+                              'desktopSearchWorkspaceTitle',
+                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(width: 20),
+                        ],
                         Expanded(
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 620),

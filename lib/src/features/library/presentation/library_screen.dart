@@ -740,6 +740,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     if (useWideLibraryNavigation) {
       if (desktopMode) {
+        final colors = Theme.of(context).colorScheme;
+        final showDesktopWorkspaceHeader =
+            DesktopNavigationPresentationScope.iconsOnlyOf(context);
         return Scaffold(
           body: SafeArea(
             bottom: false,
@@ -748,13 +751,44 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 MediaQuery.sizeOf(context).width,
               ),
               padding: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: DesktopPanel(
-                  padding: EdgeInsets.zero,
-                  child: bodyContent,
-                ),
-              ),
+              child: showDesktopWorkspaceHeader
+                  ? Column(
+                      children: <Widget>[
+                        Material(
+                          key: const ValueKey<String>(
+                            'libraryDesktopWorkspaceToolbar',
+                          ),
+                          color: colors.surfaceContainerLow,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                            child: Row(
+                              children: <Widget>[
+                                Text(
+                                  l10n.libraryTitle,
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  _sectionTitle(l10n, activeSection),
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: colors.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: colors.outlineVariant.withValues(alpha: 0.35),
+                        ),
+                        Expanded(child: bodyContent),
+                      ],
+                    )
+                  : bodyContent,
             ),
           ),
         );
@@ -860,13 +894,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
 
     if (desktopMode) {
+      final colors = Theme.of(context).colorScheme;
+      final showDesktopWorkspaceHeader =
+          DesktopNavigationPresentationScope.iconsOnlyOf(context);
       return Scaffold(
         body: SafeArea(
           child: DesktopFrame(
             layoutClass: resolveDesktopLayoutClass(
               MediaQuery.sizeOf(context).width,
             ),
-            child: DesktopPanel(child: content),
+            padding: EdgeInsets.zero,
+            child: showDesktopWorkspaceHeader
+                ? Column(
+                    children: <Widget>[
+                      Material(
+                        color: colors.surfaceContainerLow,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                          child: Text(
+                            l10n.libraryTitle,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: colors.outlineVariant.withValues(alpha: 0.35),
+                      ),
+                      Expanded(child: content),
+                    ],
+                  )
+                : content,
           ),
         ),
       );

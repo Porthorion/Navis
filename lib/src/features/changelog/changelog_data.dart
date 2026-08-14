@@ -66,6 +66,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Desktop Library is now a continuous workspace, and collapsed navigation stays available as an icon rail',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Settings labels are now ready for localization across desktop and mobile',
         type: ChangelogEntryType.improvement,
       ),
