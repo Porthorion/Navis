@@ -119,13 +119,15 @@ Last updated: 2026-08-15
   Focused artwork-viewer and cover-art suites pass.)
 
 
-- [ ] Reduced-motion surface coverage — partial: 2026-08-13 (the shared
+- [x] Reduced-motion surface coverage — 2026-08-15 (the shared
   motion policy now removes transient status-notice travel and fade alongside
   the existing route and Hero behavior, and switches the expandable player
   sheet, queue, fullscreen artwork viewer, and Now Playing metadata pager
-  without decorative motion; Like feedback also becomes instant. Home
-  carousels now stop auto-advancing and use direct state changes. Remaining
-  lower-frequency decorative surfaces still need their own audit.)
+  and artwork tint without decorative motion; Like feedback also becomes
+  instant. Home carousels stop auto-advancing and use direct state changes.
+  Normal artwork-tint changes use the shared 180 ms surface timing. Focused
+  phone and compact-wide tests cover both the normal and reduced-motion
+  contracts.)
 
 - [x] Safe recoverable error copy — 2026-08-14 (album-refresh notices,
   generic radio-load errors, Playback Settings, and Match Flow now use

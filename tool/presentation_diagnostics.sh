@@ -8,6 +8,7 @@ SEARCH_QUERY="${NAVIS_PRESENTATION_SEARCH_QUERY:-}"
 SEARCH_FILTER="${NAVIS_PRESENTATION_SEARCH_FILTER:-all}"
 SEARCH_REQUIRE_MIXED="${NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED:-0}"
 SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
+OPEN_NOW_PLAYING="${NAVIS_PRESENTATION_OPEN_NOW_PLAYING:-0}"
 FORCE_SEARCH_REMOTE_FAILURE="${NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE:-0}"
 BOOTSTRAP_FAILURE_ATTEMPTS="${NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS:-0}"
 if [[ "$MODE" != "clone" ]] ||
@@ -17,6 +18,7 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$SEARCH_FILTER" =~ ^(all|artists|albums|songs)$ ]] ||
    [[ ! "$SEARCH_REQUIRE_MIXED" =~ ^(0|1)$ ]] ||
    [[ ! "$SEARCH_PLAY_REMOTE" =~ ^(0|1)$ ]] ||
+   [[ ! "$OPEN_NOW_PLAYING" =~ ^(0|1)$ ]] ||
    [[ ! "$FORCE_SEARCH_REMOTE_FAILURE" =~ ^(0|1)$ ]] ||
    [[ ! "$BOOTSTRAP_FAILURE_ATTEMPTS" =~ ^[0-9]+$ ]] ||
    [[ "$SEARCH_PLAY_REMOTE" == "1" && "$SEARCH_FILTER" != "songs" ]] ||
@@ -403,6 +405,15 @@ run_capture() {
         > "$OUTPUT_ROOT/$prefix-now-playing-overlay.json"
     fi
   fi
+  if [[ "$OPEN_NOW_PLAYING" == "1" && "$SEARCH_PLAY_REMOTE" != "1" ]]; then
+    api POST /v1/presentation/player-overlay \
+      '{"surface":"nowPlaying","visible":true}' \
+      > "$OUTPUT_ROOT/$prefix-now-playing-overlay.json"
+  fi
+  if [[ "$SEARCH_PLAY_REMOTE" == "1" || "$OPEN_NOW_PLAYING" == "1" ]]; then
+    capture_window_screenshot \
+      "$prefix-now-playing-screenshot" "$prefix-now-playing"
+  fi
   if [[ "${NAVIS_DESKTOP_LAYOUT_DIAGNOSTICS:-0}" == "1" ]]; then
     api GET /v1/presentation/window \
       > "$OUTPUT_ROOT/$prefix-window-before.json"
@@ -540,7 +551,8 @@ python3 - \
   "$([[ -n "$SEARCH_QUERY" ]] && echo 1 || echo 0)" \
   "$SEARCH_PLAY_REMOTE" \
   "$BOOTSTRAP_FAILURE_ATTEMPTS" \
-  "$FORCE_SEARCH_REMOTE_FAILURE" <<'PY'
+  "$FORCE_SEARCH_REMOTE_FAILURE" \
+  "$OPEN_NOW_PLAYING" <<'PY'
 import json, sys
 screenshots = []
 for path in sys.argv[4:6]:
@@ -574,7 +586,9 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
           + ([
               "POST /v1/presentation/search/play",
               "POST /v1/presentation/player-overlay",
-            ] if sys.argv[7] == "1" else []),
+            ] if sys.argv[7] == "1" else [])
+          + (["POST /v1/presentation/player-overlay"]
+             if sys.argv[10] == "1" and sys.argv[7] != "1" else []),
         "screenshots": screenshots,
         "visualInspection": "required-by-agent",
         "logReview": "no-hard-fail-patterns",

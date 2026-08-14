@@ -335,6 +335,9 @@ launcher applies the authenticated diagnostics override before submitting the
 query, so the production page can be inspected without introducing a device or
 server failure. Cached/local matches must remain visible when they exist; only
 an otherwise empty failed search should render the retryable error state.
+For an independent Now Playing capture, set
+`NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1`; the clone-only launcher opens the
+existing production overlay and captures it without starting a remote stream.
 
 Use the focused volume-memory scenario for desktop volume changes:
 

@@ -166,6 +166,8 @@ For the recoverable empty failure state, use an intentionally unmatched query
 with `NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE=1`. This clone-only switch
 sets the authenticated diagnostics override before the production Search
 provider runs; it must never be used outside the isolated clone profile.
+Set `NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1` to capture the current clone
+profile's Now Playing overlay without depending on remote stream playback.
 Set `NAVIS_PRESENTATION_SEARCH_FILTER=songs` and
 `NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE=1` to additionally play the first remote
 song through the production queue path and capture its Now Playing metadata.

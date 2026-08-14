@@ -170,6 +170,7 @@ NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1 NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUM
 NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=2 ./tool/presentation_diagnostics.sh clone / bootstrap-retry  # startup retry + loading screenshot suite
 NAVIS_PRESENTATION_SEARCH_QUERY='query' ./tool/presentation_diagnostics.sh clone /search search  # Search ordering + screenshot
 NAVIS_PRESENTATION_SEARCH_QUERY='unmatched-query' NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE=1 ./tool/presentation_diagnostics.sh clone /search search-failure  # clone-only Search failure-state screenshot
+NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1 ./tool/presentation_diagnostics.sh clone / now-playing  # clone-only Now Playing screenshot without remote playback
 ./tool/desktop_layout_diagnostics.sh  # Desktop View/Mini Player resize + screenshot suite
 ./tool/auth_lifecycle_diagnostics.sh clone  # isolated first-sync/logout suite
 

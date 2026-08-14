@@ -173,6 +173,14 @@ void main() {
       );
       expect(
         tester
+            .widget<AnimatedContainer>(
+              find.byKey(const ValueKey<String>('nowPlayingSurfaceTint')),
+            )
+            .duration,
+        Duration.zero,
+      );
+      expect(
+        tester
             .widget<AnimatedSize>(
               find.byKey(const ValueKey<String>('nowPlayingInfoSize')),
             )
@@ -201,6 +209,27 @@ void main() {
       );
     },
   );
+
+  testWidgets('Now Playing surface tint uses the shared surface timing', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    await _pumpNowPlaying(tester, container);
+
+    expect(
+      tester
+          .widget<AnimatedContainer>(
+            find.byKey(const ValueKey<String>('nowPlayingSurfaceTint')),
+          )
+          .duration,
+      const Duration(milliseconds: 180),
+    );
+  });
 
   testWidgets(
     'fullscreen action row hides retired Listen Together control',

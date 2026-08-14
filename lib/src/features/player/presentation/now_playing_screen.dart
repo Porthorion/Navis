@@ -405,6 +405,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final motion = MotionPolicy.of(context);
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final effectiveWideMode =
         widget.wideEmbeddedMode || adaptiveContext.useDesktopShell;
@@ -523,7 +524,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final nowPlayingSurface = Material(
       color: surfaceColor,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 420),
+        key: const ValueKey<String>('nowPlayingSurfaceTint'),
+        duration: motion.surface,
         curve: Curves.easeInOutCubic,
         decoration: BoxDecoration(
           gradient: tintColor != null

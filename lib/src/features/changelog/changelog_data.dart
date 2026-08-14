@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Now Playing artwork tint now changes more quickly and respects reduced-motion preferences',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Search now clearly distinguishes no matches from a recoverable loading failure',
         type: ChangelogEntryType.improvement,
       ),
