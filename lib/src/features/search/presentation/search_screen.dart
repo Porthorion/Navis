@@ -200,36 +200,62 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     if (desktopMode) {
+      final colors = Theme.of(context).colorScheme;
       return Scaffold(
         body: SafeArea(
           child: DesktopFrame(
             layoutClass: layoutClass,
+            padding: EdgeInsets.zero,
             child: Column(
               children: <Widget>[
-                DesktopPanel(
-                  child: _SearchBar(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    hint: l10n.searchHint,
-                    onChanged: _onQueryChanged,
-                    onSubmitted: _onSearchSubmitted,
-                    onClear: hasQuery ? _clearSearch : null,
-                    desktopMode: true,
+                Material(
+                  color: colors.surfaceContainerLow,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
+                    child: Row(
+                      children: <Widget>[
+                        Text(
+                          l10n.navSearch,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(width: 20),
+                        Expanded(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 620),
+                            child: _SearchBar(
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              hint: l10n.searchHint,
+                              onChanged: _onQueryChanged,
+                              onSubmitted: _onSearchSubmitted,
+                              onClear: hasQuery ? _clearSearch : null,
+                              desktopMode: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                if (hasQuery) _SearchFilterChips(desktopMode: true),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: colors.outlineVariant.withValues(alpha: 0.35),
+                ),
+                if (hasQuery)
+                  Material(
+                    color: colors.surfaceContainerLow,
+                    child: _SearchFilterChips(desktopMode: true),
+                  ),
                 if (hasQuery) _OfflineSearchBanner(desktopMode: true),
                 Expanded(
-                  child: DesktopPanel(
-                    padding: EdgeInsets.zero,
-                    child: hasQuery
-                        ? _buildResults(desktopMode: true)
-                        : _buildRecentSearches(
-                            desktopMode: true,
-                            compactWideLandscapeMode: compactWideLandscapeMode,
-                          ),
-                  ),
+                  child: hasQuery
+                      ? _buildResults(desktopMode: true)
+                      : _buildRecentSearches(
+                          desktopMode: true,
+                          compactWideLandscapeMode: compactWideLandscapeMode,
+                        ),
                 ),
               ],
             ),
@@ -371,6 +397,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (state.isWaitingForApi) const LinearProgressIndicator(),
             Expanded(
               child: ListView(
+                padding: desktopMode
+                    ? const EdgeInsets.fromLTRB(16, 6, 16, 20)
+                    : EdgeInsets.zero,
                 children: <Widget>[
                   if (data.artists.isNotEmpty)
                     _ArtistResultsSection(
@@ -557,7 +586,7 @@ class _SearchFilterChips extends ConsumerWidget {
 
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: desktopMode ? 4 : 16,
+        horizontal: desktopMode ? 20 : 16,
         vertical: 4,
       ),
       child: SingleChildScrollView(
@@ -632,7 +661,6 @@ class _OfflineSearchBanner extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     return Container(
       width: double.infinity,
-      margin: desktopMode ? const EdgeInsets.only(bottom: 8) : EdgeInsets.zero,
       padding: EdgeInsets.symmetric(
         horizontal: desktopMode ? 12 : 16,
         vertical: 8,

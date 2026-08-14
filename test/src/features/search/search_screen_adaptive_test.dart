@@ -73,6 +73,10 @@ void main() {
           find.byType(AppBar),
           step.appBar ? findsOneWidget : findsNothing,
         );
+        if (step.desktopFrame) {
+          expect(find.text('Search'), findsOneWidget);
+          expect(find.byType(DesktopPanel), findsNothing);
+        }
         expect(tester.takeException(), isNull);
       }
     },

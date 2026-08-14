@@ -62,6 +62,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Desktop Search now uses an integrated command strip and continuous results workspace',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Settings labels are now ready for localization across desktop and mobile',
         type: ChangelogEntryType.improvement,
       ),

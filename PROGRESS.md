@@ -57,6 +57,13 @@ Last updated: 2026-08-14
   text-scale golden coverage passes; the approved implementation is committed
   in `9061afd`.)
 
+- [ ] Desktop integrated-workspace system — partial: 2026-08-14 (approved
+  first slice: Search now uses a fixed command strip and one continuous,
+  dense results workspace instead of two floating rounded cards. Tablet and
+  phone layouts remain unchanged. Focused adaptive, results, and deterministic
+  before/after visual coverage passes; apply the same desktop framing to
+  Library, Home, Downloads, and Settings through separate reviewed changes.)
+
 - [ ] Cross-platform entity-action placement policy — partial: 2026-08-14
   (approved on physical Android: playlist detail now makes Play the one filled
   primary action and keeps Shuffle and Download tonal, matching the established
