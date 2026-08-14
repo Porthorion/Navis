@@ -493,9 +493,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Cache was reset, but full metadata resync failed.';
 
   @override
-  String playbackSettingsLoadError(Object message) {
-    return 'Could not load playback settings: $message';
-  }
+  String get playbackSettingsLoadError => 'Could not load playback settings';
 
   @override
   String get playbackSettingsWifiSectionTitle => 'Wi-Fi streaming';
@@ -604,18 +602,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsSaveSuccess => 'Playback settings saved.';
 
   @override
-  String playbackSettingsSaveFailure(Object message) {
-    return 'Could not save playback settings: $message';
-  }
+  String get playbackSettingsSaveFailure =>
+      'Could not save playback settings. Try again.';
 
   @override
   String get playbackSettingsResetSuccess =>
       'Playback settings reset to defaults.';
 
   @override
-  String playbackSettingsResetFailure(Object message) {
-    return 'Could not reset playback settings: $message';
-  }
+  String get playbackSettingsResetFailure =>
+      'Could not reset playback settings. Try again.';
 
   @override
   String get playbackSettingsCrossfadeSectionTitle => 'Cross-fade';
@@ -3025,14 +3021,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Create a flow, choose a master song, then add the songs that should follow it.';
 
   @override
-  String matchFlowLoadError(String error) {
-    return 'Could not load Match Flow: $error';
-  }
+  String get matchFlowLoadError => 'Could not load Match Flow';
 
   @override
-  String matchFlowSaveError(String error) {
-    return 'Could not save Match Flow: $error';
-  }
+  String get matchFlowSaveError => 'Could not save Match Flow. Try again.';
 
   @override
   String matchFlowSongCount(int count) {

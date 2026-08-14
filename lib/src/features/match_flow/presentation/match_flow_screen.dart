@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
@@ -44,14 +45,9 @@ class MatchFlowScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              l10n.matchFlowLoadError(error.toString()),
-              textAlign: TextAlign.center,
-            ),
-          ),
+        error: (_, _) => ErrorState(
+          title: l10n.matchFlowLoadError,
+          onRetry: () => ref.invalidate(matchFlowsProvider),
         ),
       ),
     );
@@ -61,11 +57,11 @@ class MatchFlowScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     try {
       await ref.read(matchFlowDaoProvider).createFlow();
-    } on Object catch (error) {
+    } on Object {
       if (!context.mounted) return;
       showAppNotice(
         context,
-        message: l10n.matchFlowSaveError(error.toString()),
+        message: l10n.matchFlowSaveError,
         level: AppNoticeLevel.error,
       );
     }
@@ -379,11 +375,11 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
         level: AppNoticeLevel.info,
       );
       return false;
-    } on Object catch (error) {
+    } on Object {
       if (!context.mounted) return false;
       showAppNotice(
         context,
-        message: l10n.matchFlowSaveError(error.toString()),
+        message: l10n.matchFlowSaveError,
         level: AppNoticeLevel.error,
       );
       return false;

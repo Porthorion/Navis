@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -93,14 +94,9 @@ class _PlaybackSettingsScreenState
       body: settingsAsync.when(
         data: (_) => _buildForm(context, l10n),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              l10n.playbackSettingsLoadError(error.toString()),
-              textAlign: TextAlign.center,
-            ),
-          ),
+        error: (_, _) => ErrorState(
+          title: l10n.playbackSettingsLoadError,
+          onRetry: () => ref.invalidate(appSettingsProvider),
         ),
       ),
     );
@@ -851,14 +847,14 @@ class _PlaybackSettingsScreenState
         await handler.setPlaybackSpeed(settings.playbackSpeed);
       }
       _lastSavedSignature = signature;
-    } on Object catch (error) {
+    } on Object {
       if (!mounted) {
         return;
       }
       final l10n = AppLocalizations.of(context)!;
       showAppNotice(
         context,
-        message: l10n.playbackSettingsSaveFailure(error.toString()),
+        message: l10n.playbackSettingsSaveFailure,
         level: AppNoticeLevel.error,
       );
     } finally {
@@ -914,13 +910,13 @@ class _PlaybackSettingsScreenState
         message: l10n.playbackSettingsResetSuccess,
         level: AppNoticeLevel.success,
       );
-    } on Object catch (error) {
+    } on Object {
       if (!mounted) {
         return;
       }
       showAppNotice(
         context,
-        message: l10n.playbackSettingsResetFailure(error.toString()),
+        message: l10n.playbackSettingsResetFailure,
         level: AppNoticeLevel.error,
       );
     } finally {

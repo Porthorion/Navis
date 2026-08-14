@@ -122,6 +122,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Playback Settings and Match Flow errors now offer clear retry guidance',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Long mobile album titles now size down when they can fit cleanly',
         type: ChangelogEntryType.improvement,
       ),

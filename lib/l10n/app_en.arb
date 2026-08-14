@@ -231,12 +231,7 @@
   "cacheSettingsResetLibraryCacheConfirmAction": "Reset cache",
   "cacheSettingsResetLibraryCacheSuccess": "Library cache reset and full metadata resync completed.",
   "cacheSettingsResetLibraryCacheFailure": "Cache was reset, but full metadata resync failed.",
-  "playbackSettingsLoadError": "Could not load playback settings: {message}",
-  "@playbackSettingsLoadError": {
-    "placeholders": {
-      "message": {}
-    }
-  },
+  "playbackSettingsLoadError": "Could not load playback settings",
   "playbackSettingsWifiSectionTitle": "Wi-Fi streaming",
   "playbackSettingsWifiQualityLabel": "Max bitrate",
   "playbackSettingsWifiFormatLabel": "Preferred format",
@@ -282,19 +277,9 @@
   },
   "playbackSettingsFormatOriginal": "Server default",
   "playbackSettingsSaveSuccess": "Playback settings saved.",
-  "playbackSettingsSaveFailure": "Could not save playback settings: {message}",
-  "@playbackSettingsSaveFailure": {
-    "placeholders": {
-      "message": {}
-    }
-  },
+  "playbackSettingsSaveFailure": "Could not save playback settings. Try again.",
   "playbackSettingsResetSuccess": "Playback settings reset to defaults.",
-  "playbackSettingsResetFailure": "Could not reset playback settings: {message}",
-  "@playbackSettingsResetFailure": {
-    "placeholders": {
-      "message": {}
-    }
-  },
+  "playbackSettingsResetFailure": "Could not reset playback settings. Try again.",
   "playbackSettingsCrossfadeSectionTitle": "Cross-fade",
   "playbackSettingsCrossfadeEnableTitle": "Enable cross-fade",
   "playbackSettingsCrossfadeEnableSubtitle": "Smoothly blend the end of one track into the start of the next.",
@@ -1388,18 +1373,8 @@
   "matchFlowCreateAction": "New Flow",
   "matchFlowEmptyTitle": "No Match Flows yet",
   "matchFlowEmptySubtitle": "Create a flow, choose a master song, then add the songs that should follow it.",
-  "matchFlowLoadError": "Could not load Match Flow: {error}",
-  "@matchFlowLoadError": {
-    "placeholders": {
-      "error": { "type": "String" }
-    }
-  },
-  "matchFlowSaveError": "Could not save Match Flow: {error}",
-  "@matchFlowSaveError": {
-    "placeholders": {
-      "error": { "type": "String" }
-    }
-  },
+  "matchFlowLoadError": "Could not load Match Flow",
+  "matchFlowSaveError": "Could not save Match Flow. Try again.",
   "matchFlowSongCount": "{count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
   "@matchFlowSongCount": {
     "placeholders": {

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
@@ -56,14 +57,9 @@ class _MatchFlowSongSearchScreenState
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        l10n.matchFlowLoadError(snapshot.error.toString()),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                  return ErrorState(
+                    title: l10n.matchFlowLoadError,
+                    onRetry: _retrySearch,
                   );
                 }
                 final songs = snapshot.data ?? const <SongsTableData>[];
@@ -99,6 +95,12 @@ class _MatchFlowSongSearchScreenState
     });
   }
 
+  void _retrySearch() {
+    setState(() {
+      _results = _load(_controller.text);
+    });
+  }
+
   Future<List<SongsTableData>> _load(String query) {
     final libraryDao = ref.read(navisDatabaseProvider).libraryDao;
     final trimmed = query.trim();
@@ -131,11 +133,11 @@ class _MatchFlowSongSearchScreenState
         message: error.message,
         level: AppNoticeLevel.info,
       );
-    } on Object catch (error) {
+    } on Object {
       if (!mounted) return;
       showAppNotice(
         context,
-        message: l10n.matchFlowSaveError(error.toString()),
+        message: l10n.matchFlowSaveError,
         level: AppNoticeLevel.error,
       );
     }

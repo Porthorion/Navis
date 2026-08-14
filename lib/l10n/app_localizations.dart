@@ -909,8 +909,8 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsLoadError.
   ///
   /// In en, this message translates to:
-  /// **'Could not load playback settings: {message}'**
-  String playbackSettingsLoadError(Object message);
+  /// **'Could not load playback settings'**
+  String get playbackSettingsLoadError;
 
   /// No description provided for @playbackSettingsWifiSectionTitle.
   ///
@@ -1101,8 +1101,8 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsSaveFailure.
   ///
   /// In en, this message translates to:
-  /// **'Could not save playback settings: {message}'**
-  String playbackSettingsSaveFailure(Object message);
+  /// **'Could not save playback settings. Try again.'**
+  String get playbackSettingsSaveFailure;
 
   /// No description provided for @playbackSettingsResetSuccess.
   ///
@@ -1113,8 +1113,8 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsResetFailure.
   ///
   /// In en, this message translates to:
-  /// **'Could not reset playback settings: {message}'**
-  String playbackSettingsResetFailure(Object message);
+  /// **'Could not reset playback settings. Try again.'**
+  String get playbackSettingsResetFailure;
 
   /// No description provided for @playbackSettingsCrossfadeSectionTitle.
   ///
@@ -5336,14 +5336,14 @@ abstract class AppLocalizations {
   /// No description provided for @matchFlowLoadError.
   ///
   /// In en, this message translates to:
-  /// **'Could not load Match Flow: {error}'**
-  String matchFlowLoadError(String error);
+  /// **'Could not load Match Flow'**
+  String get matchFlowLoadError;
 
   /// No description provided for @matchFlowSaveError.
   ///
   /// In en, this message translates to:
-  /// **'Could not save Match Flow: {error}'**
-  String matchFlowSaveError(String error);
+  /// **'Could not save Match Flow. Try again.'**
+  String get matchFlowSaveError;
 
   /// No description provided for @matchFlowSongCount.
   ///
