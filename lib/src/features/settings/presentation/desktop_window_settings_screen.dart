@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class DesktopWindowSettingsScreen extends ConsumerWidget {
   const DesktopWindowSettingsScreen({super.key});
@@ -32,16 +32,30 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
       );
     }
 
-    final content = ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      children: <Widget>[
-        DesktopSectionHeader(
-          title: l10n.desktopWindowTitle,
-          subtitle: l10n.desktopWindowSubtitle,
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          tooltip: l10n.syncSettingsBackToSettings,
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => NavService.returnToSettings(context, ref),
         ),
-        DesktopPanel(
-          child: Column(
+        title: Text(l10n.desktopWindowTitle),
+      ),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1040),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
             children: <Widget>[
+              Text(
+                l10n.desktopWindowSubtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.picture_in_picture_alt_outlined),
@@ -85,22 +99,7 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ],
-    );
-
-    if (adaptiveContext.useDesktopShell) {
-      return Scaffold(
-        appBar: AppBar(title: Text(l10n.desktopWindowTitle)),
-        body: DesktopFrame(
-          layoutClass: adaptiveContext.desktopLayoutClass,
-          child: content,
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.desktopWindowTitle)),
-      body: content,
+      ),
     );
   }
 }

@@ -6,6 +6,8 @@ import 'package:navis/src/features/settings/presentation/desktop_window_settings
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 
+import '../../../../helpers/adaptive_test_harness.dart';
+
 void main() {
   testWidgets('desktop window screen shows unavailable state outside desktop', (
     tester,
@@ -48,10 +50,11 @@ void main() {
   testWidgets('desktop window screen exposes Mini Player controls', (
     tester,
   ) async {
+    setAdaptiveTestViewport(tester, const Size(1280, 800));
     final controller = DesktopWindowController.fallback(desktopRuntime: true);
     final desktopContext = resolveAdaptiveContext(
       desktopRuntime: true,
-      viewportSize: const Size(1008, 640),
+      viewportSize: const Size(1280, 800),
       safePadding: EdgeInsets.zero,
     );
 
@@ -72,8 +75,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byTooltip('Back to Settings'), findsOneWidget);
     expect(find.text('Mini Player'), findsOneWidget);
     expect(find.text('Keep Mini Player on top'), findsOneWidget);
     expect(controller.isMiniPlayerMode, isFalse);
+    expect(tester.getSize(find.byType(ListView)).width, 1040);
+    await expectLater(
+      find.byType(DesktopWindowSettingsScreen),
+      matchesGoldenFile('goldens/desktop_window_settings_workspace.png'),
+    );
   });
 }

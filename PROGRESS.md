@@ -145,6 +145,13 @@ Last updated: 2026-08-15
   and tablet layouts are unchanged. Focused component-golden coverage and
   isolated Linux before/after clean-restart captures pass.)
 
+- [x] Desktop Window workspace — 2026-08-16 (approved: Desktop Window now
+  removes its duplicate heading and floating panel in favor of the shared
+  constrained workspace, with an explicit Back-to-Settings path. Its Mini
+  Player and always-on-top controls retain their existing behavior. Focused
+  component-golden coverage and isolated Linux before/after clean-restart
+  captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%
