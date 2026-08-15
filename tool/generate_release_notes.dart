@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Privacy information now uses a clearer responsive desktop reading layout',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Match Flow now uses the full desktop workspace with New Flow in the header',
       type: _EntryType.improvement,
     ),

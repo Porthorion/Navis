@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Privacy information now uses a clearer responsive desktop reading layout',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Match Flow now uses the full desktop workspace with New Flow in the header',
         type: ChangelogEntryType.improvement,
       ),

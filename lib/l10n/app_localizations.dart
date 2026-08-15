@@ -718,6 +718,60 @@ abstract class AppLocalizations {
   /// **'Desktop workspace controls and app preferences'**
   String get settingsDesktopWorkspaceSubtitle;
 
+  /// No description provided for @privacyAccountsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts and credentials'**
+  String get privacyAccountsTitle;
+
+  /// No description provided for @privacyAccountsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Passwords and external service tokens are stored through the platform secure credential store when available.'**
+  String get privacyAccountsBody;
+
+  /// No description provided for @privacyScrobblingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'External scrobbling'**
+  String get privacyScrobblingTitle;
+
+  /// No description provided for @privacyScrobblingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'If you enable ListenBrainz, Navis sends listening activity for played tracks to those services. This can include track title, artist, album, duration, play time, and now-playing status. ListenBrainz user tokens remain on your device.'**
+  String get privacyScrobblingBody;
+
+  /// No description provided for @privacyDownloadsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads and cache'**
+  String get privacyDownloadsTitle;
+
+  /// No description provided for @privacyDownloadsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline downloads, playback cache, artwork, lyrics, and library metadata are stored on your device so playback and browsing can work without repeatedly fetching the same data. You can clear cache data from Settings.'**
+  String get privacyDownloadsBody;
+
+  /// No description provided for @privacyDiagnosticsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostics'**
+  String get privacyDiagnosticsTitle;
+
+  /// No description provided for @privacyDiagnosticsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures.'**
+  String get privacyDiagnosticsBody;
+
+  /// No description provided for @privacySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis does not operate a central account service for your music library. Data is exchanged with the servers and optional third-party services you configure.'**
+  String get privacySummary;
+
   /// No description provided for @syncSettingsTitle.
   ///
   /// In en, this message translates to:

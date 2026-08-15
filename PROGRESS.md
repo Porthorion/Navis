@@ -172,6 +172,13 @@ Last updated: 2026-08-16
   tablet retain the floating action button. Focused behavior/component-golden
   coverage and isolated Linux before/after clean-restart captures pass.)
 
+- [x] Desktop Privacy reading layout — 2026-08-16 (approved: Privacy now
+  uses the full desktop canvas as two responsive reading columns instead of
+  one overlong text measure; phone remains a single reading column. Policy
+  titles and explanatory text now use `AppLocalizations`. Focused
+  desktop/phone layout coverage and isolated Linux before/after clean-restart
+  captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

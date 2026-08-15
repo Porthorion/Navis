@@ -348,6 +348,38 @@ class AppLocalizationsEn extends AppLocalizations {
       'Desktop workspace controls and app preferences';
 
   @override
+  String get privacyAccountsTitle => 'Accounts and credentials';
+
+  @override
+  String get privacyAccountsBody =>
+      'Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Passwords and external service tokens are stored through the platform secure credential store when available.';
+
+  @override
+  String get privacyScrobblingTitle => 'External scrobbling';
+
+  @override
+  String get privacyScrobblingBody =>
+      'If you enable ListenBrainz, Navis sends listening activity for played tracks to those services. This can include track title, artist, album, duration, play time, and now-playing status. ListenBrainz user tokens remain on your device.';
+
+  @override
+  String get privacyDownloadsTitle => 'Downloads and cache';
+
+  @override
+  String get privacyDownloadsBody =>
+      'Offline downloads, playback cache, artwork, lyrics, and library metadata are stored on your device so playback and browsing can work without repeatedly fetching the same data. You can clear cache data from Settings.';
+
+  @override
+  String get privacyDiagnosticsTitle => 'Diagnostics';
+
+  @override
+  String get privacyDiagnosticsBody =>
+      'Navis avoids logging raw credentials and redacts sensitive authentication values from diagnostics. Network errors may still include service names or non-secret request context needed to troubleshoot failures.';
+
+  @override
+  String get privacySummary =>
+      'Navis does not operate a central account service for your music library. Data is exchanged with the servers and optional third-party services you configure.';
+
+  @override
   String get syncSettingsTitle => 'Sync Settings';
 
   @override
