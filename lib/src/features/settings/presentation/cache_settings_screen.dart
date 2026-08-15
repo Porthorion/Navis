@@ -10,6 +10,8 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -409,230 +411,283 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final rollingStats = ref.watch(rollingCacheStatsProvider);
     final rollingActivity = ref.watch(rollingCacheActivityProvider);
     final budgetBytes = ref.watch(rollingCacheBudgetBytesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.cacheSettingsTitle)),
+      appBar: AppBar(
+        automaticallyImplyLeading: !desktopMode,
+        leading: desktopMode
+            ? IconButton(
+                tooltip: l10n.syncSettingsBackToSettings,
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => NavService.returnToSettings(context, ref),
+              )
+            : null,
+        title: Text(l10n.cacheSettingsTitle),
+      ),
       body: _clearing
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: <Widget>[
-                // ---- Rolling cache section ----
-                _SectionHeader(title: l10n.cacheSettingsRollingSection),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    l10n.cacheSettingsRollingDescription,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                rollingStats.when(
-                  data: (stats) => _CacheStatsCard(
-                    usedBytes: stats.totalBytes,
-                    budgetBytes: budgetBytes,
-                    trackCount: stats.trackCount,
-                    formatBytes: formatBytes,
-                    l10n: l10n,
-                    isRolling: true,
-                  ),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
-                if (rollingActivity.isCaching)
-                  _RollingCacheActivity(activity: rollingActivity),
-                // Budget slider
-                if (_budgetMb != null) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            l10n.cacheSettingsRollingBudgetLabel,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Flexible(
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              _budgetLabel(_budgetMb!, l10n),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.end,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Slider(
-                    value: _budgetMb!.toDouble(),
-                    min: _minBudgetMb.toDouble(),
-                    max: _maxBudgetMb.toDouble(),
-                    divisions: (_maxBudgetMb - _minBudgetMb) ~/ _stepMb,
-                    label: _budgetLabel(_budgetMb!, l10n),
-                    onChanged: (value) {
-                      setState(() => _budgetMb = value.round());
-                    },
-                    onChangeEnd: (value) => _saveBudget(value.round()),
-                  ),
-                ],
-                ListTile(
-                  leading: const Icon(Icons.delete_outline),
-                  title: Text(l10n.cacheSettingsClearRolling),
-                  onTap: _clearRollingCache,
-                ),
-                const Divider(),
-
-                // ---- Cover art cache ----
-                _SectionHeader(title: l10n.cacheSettingsCoverArtSection),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    l10n.cacheSettingsCoverArtDescription,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                if (_coverArtStorageBytes != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                    child: Text(
-                      l10n.cacheSettingsCoverArtSizeLabel(
-                        formatBytes(_coverArtStorageBytes!),
+          : Theme(
+              data: desktopMode
+                  ? Theme.of(context).copyWith(
+                      cardTheme: const CardThemeData(
+                        color: Colors.transparent,
+                        elevation: 0,
+                        margin: EdgeInsets.zero,
+                        shadowColor: Colors.transparent,
+                        surfaceTintColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(),
                       ),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                    )
+                  : Theme.of(context),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1040),
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      desktopMode ? 8 : 0,
+                      desktopMode ? 8 : 0,
+                      desktopMode ? 8 : 0,
+                      16,
                     ),
-                  ),
-                if (_coverArtMax != null) ...[
-                  SwitchListTile(
-                    value: _coverArtMax == 0,
-                    onChanged: (unlimited) async {
-                      final newMax = unlimited ? 0 : _minCoverArt;
-                      setState(() => _coverArtMax = newMax);
-                      await _saveCoverArtMax(newMax);
-                    },
-                    title: Text(l10n.cacheSettingsCoverArtUnlimitedLabel),
-                    subtitle: Text(
-                      l10n.cacheSettingsCoverArtUnlimitedSubtitle,
-                    ),
-                  ),
-                  if (_coverArtMax! > 0) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              l10n.cacheSettingsCoverArtMaxLabel,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Flexible(
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                l10n.cacheSettingsCoverArtMaxValue(
-                                  _coverArtMax!,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.end,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Slider(
-                      value: _coverArtMax!.toDouble(),
-                      min: _minCoverArt.toDouble(),
-                      max: _maxCoverArt.toDouble(),
-                      divisions: (_maxCoverArt - _minCoverArt) ~/ _stepCoverArt,
-                      label: l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
-                      onChanged: (value) {
-                        setState(() => _coverArtMax = value.round());
-                      },
-                      onChangeEnd: (value) => _saveCoverArtMax(value.round()),
-                    ),
-                  ],
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      l10n.cacheSettingsCoverArtRestart,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-                if (_isCaching)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.cacheSettingsPrecachingProgress(
-                            _cachingProgress,
-                            _cachingTotal,
-                          ),
+                    children: <Widget>[
+                      // ---- Rolling cache section ----
+                      _SectionHeader(title: l10n.cacheSettingsRollingSection),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          l10n.cacheSettingsRollingDescription,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
-                          value: _cachingTotal > 0
-                              ? _cachingProgress / _cachingTotal
-                              : null,
+                      ),
+                      const SizedBox(height: 8),
+                      rollingStats.when(
+                        data: (stats) => _CacheStatsCard(
+                          usedBytes: stats.totalBytes,
+                          budgetBytes: budgetBytes,
+                          trackCount: stats.trackCount,
+                          formatBytes: formatBytes,
+                          l10n: l10n,
+                          isRolling: true,
+                        ),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (_, _) => const SizedBox.shrink(),
+                      ),
+                      if (rollingActivity.isCaching)
+                        _RollingCacheActivity(activity: rollingActivity),
+                      // Budget slider
+                      if (_budgetMb != null) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: Text(
+                                  l10n.cacheSettingsRollingBudgetLabel,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Flexible(
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    _budgetLabel(_budgetMb!, l10n),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.end,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Slider(
+                          value: _budgetMb!.toDouble(),
+                          min: _minBudgetMb.toDouble(),
+                          max: _maxBudgetMb.toDouble(),
+                          divisions: (_maxBudgetMb - _minBudgetMb) ~/ _stepMb,
+                          label: _budgetLabel(_budgetMb!, l10n),
+                          onChanged: (value) {
+                            setState(() => _budgetMb = value.round());
+                          },
+                          onChangeEnd: (value) => _saveBudget(value.round()),
                         ),
                       ],
-                    ),
+                      ListTile(
+                        leading: const Icon(Icons.delete_outline),
+                        title: Text(l10n.cacheSettingsClearRolling),
+                        onTap: _clearRollingCache,
+                      ),
+                      const Divider(),
+
+                      // ---- Cover art cache ----
+                      _SectionHeader(title: l10n.cacheSettingsCoverArtSection),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          l10n.cacheSettingsCoverArtDescription,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      if (_coverArtStorageBytes != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                          child: Text(
+                            l10n.cacheSettingsCoverArtSizeLabel(
+                              formatBytes(_coverArtStorageBytes!),
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ),
+                      if (_coverArtMax != null) ...[
+                        SwitchListTile(
+                          value: _coverArtMax == 0,
+                          onChanged: (unlimited) async {
+                            final newMax = unlimited ? 0 : _minCoverArt;
+                            setState(() => _coverArtMax = newMax);
+                            await _saveCoverArtMax(newMax);
+                          },
+                          title: Text(l10n.cacheSettingsCoverArtUnlimitedLabel),
+                          subtitle: Text(
+                            l10n.cacheSettingsCoverArtUnlimitedSubtitle,
+                          ),
+                        ),
+                        if (_coverArtMax! > 0) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    l10n.cacheSettingsCoverArtMaxLabel,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Flexible(
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      l10n.cacheSettingsCoverArtMaxValue(
+                                        _coverArtMax!,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.end,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Slider(
+                            value: _coverArtMax!.toDouble(),
+                            min: _minCoverArt.toDouble(),
+                            max: _maxCoverArt.toDouble(),
+                            divisions:
+                                (_maxCoverArt - _minCoverArt) ~/ _stepCoverArt,
+                            label: l10n.cacheSettingsCoverArtMaxValue(
+                              _coverArtMax!,
+                            ),
+                            onChanged: (value) {
+                              setState(() => _coverArtMax = value.round());
+                            },
+                            onChangeEnd: (value) =>
+                                _saveCoverArtMax(value.round()),
+                          ),
+                        ],
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            l10n.cacheSettingsCoverArtRestart,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                      ],
+                      if (_isCaching)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.cacheSettingsPrecachingProgress(
+                                  _cachingProgress,
+                                  _cachingTotal,
+                                ),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              const SizedBox(height: 4),
+                              LinearProgressIndicator(
+                                value: _cachingTotal > 0
+                                    ? _cachingProgress / _cachingTotal
+                                    : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (_coverArtMax == 0 && !_isCaching)
+                        ListTile(
+                          leading: const Icon(
+                            Icons.download_for_offline_outlined,
+                          ),
+                          title: Text(l10n.cacheSettingsPrecacheTitle),
+                          subtitle: Text(l10n.cacheSettingsPrecacheSubtitle),
+                          onTap: _preCacheAllCoverArt,
+                        ),
+                      ListTile(
+                        leading: const Icon(Icons.image_outlined),
+                        title: Text(l10n.cacheSettingsClearCoverArt),
+                        onTap: _clearCoverArtCache,
+                      ),
+                      const Divider(),
+                      ListTile(
+                        leading: const Icon(Icons.build_circle_outlined),
+                        title: Text(l10n.cacheSettingsResetLibraryCache),
+                        subtitle: Text(
+                          l10n.cacheSettingsResetLibraryCacheDescription,
+                        ),
+                        onTap: _clearing ? null : _resetLibraryCache,
+                      ),
+                    ],
                   ),
-                if (_coverArtMax == 0 && !_isCaching)
-                  ListTile(
-                    leading: const Icon(Icons.download_for_offline_outlined),
-                    title: Text(l10n.cacheSettingsPrecacheTitle),
-                    subtitle: Text(l10n.cacheSettingsPrecacheSubtitle),
-                    onTap: _preCacheAllCoverArt,
-                  ),
-                ListTile(
-                  leading: const Icon(Icons.image_outlined),
-                  title: Text(l10n.cacheSettingsClearCoverArt),
-                  onTap: _clearCoverArtCache,
                 ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.build_circle_outlined),
-                  title: Text(l10n.cacheSettingsResetLibraryCache),
-                  subtitle: Text(
-                    l10n.cacheSettingsResetLibraryCacheDescription,
-                  ),
-                  onTap: _clearing ? null : _resetLibraryCache,
-                ),
-              ],
+              ),
             ),
     );
   }

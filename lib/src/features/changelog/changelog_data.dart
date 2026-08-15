@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop Cache Settings now keeps storage controls focused with a direct return to Settings',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop Configuration actions now stay reachable at larger system text sizes',
         type: ChangelogEntryType.fix,
       ),

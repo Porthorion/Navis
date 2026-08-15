@@ -138,6 +138,13 @@ Last updated: 2026-08-15
   448 px wide-desktop form rather than clipping. Focused behavior and
   component-golden coverage pass; normal-scale layout is unchanged.)
 
+- [x] Desktop Cache Settings workspace — 2026-08-16 (approved: Cache &
+  Storage now uses the same constrained desktop workspace and explicit
+  Back-to-Settings path as its nested peers, so cache sliders and destructive
+  actions stay readable rather than stretching across the full window. Phone
+  and tablet layouts are unchanged. Focused component-golden coverage and
+  isolated Linux before/after clean-restart captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%
