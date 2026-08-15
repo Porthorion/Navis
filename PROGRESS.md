@@ -115,6 +115,12 @@ Last updated: 2026-08-15
   phones retain the immersive header. Focused widget/golden and migration
   coverage, isolated Linux capture, and Android emulator review pass.)
 
+- [x] Artist-detail initial loading hierarchy — 2026-08-15 (a cold artist
+  route now preserves the header, action, and album-list geometry with a
+  labelled, static skeleton rather than a generic low-contrast list shimmer.
+  Phone and desktop golden coverage plus an isolated Linux clean-restart
+  presentation capture pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

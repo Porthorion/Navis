@@ -541,6 +541,82 @@ void main() {
       await _disposeApp(tester);
     });
 
+    testWidgets('artist detail phone loading preserves page hierarchy golden', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        _buildApp(
+          child: const ArtistDetailScreen(artistId: 'artist-loading'),
+          database: database,
+          adaptiveContext: _mobileContext,
+          theme: ThemeData.dark(useMaterial3: true),
+          overrides: [
+            artistByIdProvider('artist-loading').overrideWithValue(
+              const AsyncLoading(),
+            ),
+            artistAlbumSectionsProvider('artist-loading').overrideWithValue(
+              const AsyncLoading(),
+            ),
+            songsByArtistProvider('artist-loading').overrideWithValue(
+              const AsyncLoading(),
+            ),
+            artistInfoProvider('artist-loading').overrideWithValue(
+              const AsyncLoading(),
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      expect(find.bySemanticsLabel('Loading artist details'), findsOneWidget);
+      expect(find.text('Artist'), findsOneWidget);
+      await expectLater(
+        find.byType(ArtistDetailScreen),
+        matchesGoldenFile('goldens/artist_detail_phone_loading_after.png'),
+      );
+      await _disposeApp(tester);
+    });
+
+    testWidgets(
+      'artist detail desktop loading preserves page hierarchy golden',
+      (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, const Size(1440, 900));
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistDetailScreen(artistId: 'artist-loading'),
+            database: database,
+            adaptiveContext: _desktopContext,
+            theme: ThemeData.dark(useMaterial3: true),
+            overrides: [
+              artistByIdProvider('artist-loading').overrideWithValue(
+                const AsyncLoading(),
+              ),
+              artistAlbumSectionsProvider('artist-loading').overrideWithValue(
+                const AsyncLoading(),
+              ),
+              songsByArtistProvider('artist-loading').overrideWithValue(
+                const AsyncLoading(),
+              ),
+              artistInfoProvider('artist-loading').overrideWithValue(
+                const AsyncLoading(),
+              ),
+            ],
+          ),
+        );
+        await tester.pump();
+
+        expect(find.bySemanticsLabel('Loading artist details'), findsOneWidget);
+        await expectLater(
+          find.byType(ArtistDetailScreen),
+          matchesGoldenFile('goldens/artist_detail_desktop_loading_after.png'),
+        );
+        await _disposeApp(tester);
+      },
+    );
+
     testWidgets(
       'artist detail hides featured section when there are no featured albums',
       (

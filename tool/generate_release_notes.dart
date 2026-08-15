@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Artist pages now keep their header, actions, and album layout visible while details first load',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Artist pages now keep their identity, album count, and More action stable while details refresh',
       type: _EntryType.improvement,
     ),

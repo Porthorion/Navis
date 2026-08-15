@@ -2555,6 +2555,12 @@ abstract class AppLocalizations {
   /// **'Could not load artist details'**
   String get artistDetailLoadErrorTitle;
 
+  /// No description provided for @artistDetailLoadingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading artist details'**
+  String get artistDetailLoadingLabel;
+
   /// No description provided for @artistTopTracksSection.
   ///
   /// In en, this message translates to:

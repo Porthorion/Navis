@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Artist pages now keep their header, actions, and album layout visible while details first load',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Artist pages now keep their identity, album count, and More action stable while details refresh',
         type: ChangelogEntryType.improvement,
       ),

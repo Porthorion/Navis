@@ -1439,6 +1439,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistDetailLoadErrorTitle => 'Could not load artist details';
 
   @override
+  String get artistDetailLoadingLabel => 'Loading artist details';
+
+  @override
   String get artistTopTracksSection => 'Top Tracks';
 
   @override

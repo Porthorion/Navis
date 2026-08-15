@@ -344,7 +344,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           ),
         );
       },
-      loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
+      loading: () => const _ArtistDetailLoadingState(),
       error: (error, _) => ErrorState(
         title: l10n.artistDetailLoadErrorTitle,
         onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
@@ -388,6 +388,157 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
               child: artistBody,
             )
           : artistBody,
+    );
+  }
+}
+
+/// The initial detail query has no artist identity to preserve yet. Keep the
+/// page's eventual silhouette visible so a cold deep link never reads as an
+/// empty page while the local library stream is connecting.
+class _ArtistDetailLoadingState extends StatelessWidget {
+  const _ArtistDetailLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final headerHeight = (availableWidth * (desktopMode ? 0.32 : 0.43))
+            .clamp(260.0, desktopMode ? 420.0 : 560.0);
+
+        return Semantics(
+          label: l10n.artistDetailLoadingLabel,
+          child: ExcludeSemantics(
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              children: <Widget>[
+                SizedBox(
+                  height: headerHeight,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: <Color>[
+                          colorScheme.surfaceContainerHighest,
+                          colorScheme.surfaceContainerHigh,
+                          colorScheme.surface,
+                        ],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const <Widget>[
+                            _ArtistDetailLoadingPlaceholder(
+                              height: 44,
+                              width: 240,
+                            ),
+                            SizedBox(height: 10),
+                            _ArtistDetailLoadingPlaceholder(
+                              height: 16,
+                              width: 96,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Row(
+                    children: <Widget>[
+                      _ArtistDetailLoadingPlaceholder(height: 40, width: 88),
+                      SizedBox(width: 10),
+                      _ArtistDetailLoadingPlaceholder(height: 40, width: 104),
+                      SizedBox(width: 10),
+                      _ArtistDetailLoadingPlaceholder(height: 40, width: 88),
+                    ],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 28, 16, 12),
+                  child: _ArtistDetailLoadingPlaceholder(
+                    height: 24,
+                    width: 92,
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: <Widget>[
+                      _ArtistDetailLoadingAlbumRow(),
+                      SizedBox(height: 12),
+                      _ArtistDetailLoadingAlbumRow(),
+                      SizedBox(height: 12),
+                      _ArtistDetailLoadingAlbumRow(),
+                      SizedBox(height: 12),
+                      _ArtistDetailLoadingAlbumRow(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ArtistDetailLoadingAlbumRow extends StatelessWidget {
+  const _ArtistDetailLoadingAlbumRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: <Widget>[
+        _ArtistDetailLoadingPlaceholder(height: 88, width: 88),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _ArtistDetailLoadingPlaceholder(height: 16),
+              SizedBox(height: 8),
+              _ArtistDetailLoadingPlaceholder(height: 12, width: 128),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ArtistDetailLoadingPlaceholder extends StatelessWidget {
+  const _ArtistDetailLoadingPlaceholder({
+    required this.height,
+    this.width = double.infinity,
+  });
+
+  final double height;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: SizedBox(height: height, width: width),
     );
   }
 }

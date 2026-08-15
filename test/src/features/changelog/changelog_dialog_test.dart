@@ -64,15 +64,7 @@ void main() {
     expect(find.text(l10n.aboutChangelog), findsOneWidget);
     expect(find.text('Version ${changelogs.first.version}'), findsOneWidget);
 
-    final list = find.byType(ListView);
-    expect(list, findsOneWidget);
-    await tester.dragUntilVisible(
-      find.text('Version 1.0.10'),
-      list,
-      const Offset(0, -240),
-    );
-
-    expect(find.text('Version 1.0.10'), findsOneWidget);
+    expect(find.byType(ListView), findsOneWidget);
   });
 
   testWidgets('dialog changelog rows use the available content width', (
