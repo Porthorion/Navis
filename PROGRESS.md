@@ -66,6 +66,11 @@ Last updated: 2026-08-15
   rejects a bottom-sheet fallback, with deterministic before/after menu
   captures.)
 
+- [x] Desktop Library playlist owner-action parity — 2026-08-15 (the routed
+  Library playlist rows now expose More and secondary-click actions as one
+  anchored rename/delete menu; touch rows retain the original long-press
+  sheet. Focused desktop interaction and before/after visual coverage pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

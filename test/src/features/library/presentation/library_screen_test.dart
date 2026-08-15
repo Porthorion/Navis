@@ -1257,6 +1257,54 @@ void main() {
     );
 
     _testWidgetsWithCleanup(
+      'desktop playlist More opens the anchored owner-action menu',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1366, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              playlistLibraryItemsProvider.overrideWithValue(
+                const AsyncData<List<PlaylistLibraryItem>>(
+                  <PlaylistLibraryItem>[
+                    PlaylistLibraryItem.normal(
+                      PlaylistsTableData(
+                        id: 'server-mix',
+                        name: 'Server Mix',
+                        songCount: 3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Rename playlist'), findsOneWidget);
+        expect(find.byType(BottomSheet), findsNothing);
+      },
+    );
+
+    _testWidgetsWithCleanup(
       'playlists tab keeps ListenBrainz rows read-only',
       (tester) async {
         await tester.pumpWidget(

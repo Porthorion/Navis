@@ -246,7 +246,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
 
   Widget _buildPlaylistTile(PlaylistsTableData playlist) {
     final l10n = AppLocalizations.of(context)!;
-    return ListTile(
+    final tile = ListTile(
       minLeadingWidth: 48,
       horizontalTitleGap: 12,
       leading: SizedBox(
@@ -265,13 +265,49 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       subtitle: playlist.songCount != null
           ? Text(l10n.playlistsSongCount(playlist.songCount!))
           : null,
-      trailing: const Icon(Icons.chevron_right),
+      trailing: isDesktopRuntime
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Builder(
+                  builder: (buttonContext) => IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    tooltip: l10n.nowPlayingMore,
+                    onPressed: () {
+                      final renderObject = buttonContext.findRenderObject();
+                      if (renderObject is! RenderBox) return;
+                      _showPlaylistActions(
+                        context,
+                        playlist,
+                        anchor: renderObject.localToGlobal(
+                          renderObject.size.center(Offset.zero),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const Icon(Icons.chevron_right),
+              ],
+            )
+          : const Icon(Icons.chevron_right),
       onTap: () => NavService.openPlaylistDetail(
         context,
         ref,
         playlist.id,
       ),
-      onLongPress: () => _showPlaylistActions(context, playlist),
+      onLongPress: isDesktopRuntime
+          ? null
+          : () => _showPlaylistActions(context, playlist),
+    );
+    if (!isDesktopRuntime) return tile;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onSecondaryTapDown: (details) => _showPlaylistActions(
+        context,
+        playlist,
+        anchor: details.globalPosition,
+      ),
+      child: tile,
     );
   }
 
@@ -338,8 +374,15 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
 
   void _showPlaylistActions(
     BuildContext context,
-    PlaylistsTableData playlist,
-  ) {
+    PlaylistsTableData playlist, {
+    Offset? anchor,
+  }) {
+    if (anchor != null && isDesktopRuntime) {
+      unawaited(
+        _showDesktopPlaylistActions(context, playlist, anchor: anchor),
+      );
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet<void>(
       context: context,
@@ -373,6 +416,40 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
         ),
       ),
     );
+  }
+
+  Future<void> _showDesktopPlaylistActions(
+    BuildContext context,
+    PlaylistsTableData playlist, {
+    required Offset anchor,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final action = await showDesktopContextMenu<_PlaylistContextAction>(
+      context: context,
+      anchor: anchor,
+      items: <PopupMenuEntry<_PlaylistContextAction>>[
+        PopupMenuItem<_PlaylistContextAction>(
+          value: _PlaylistContextAction.rename,
+          child: Text(l10n.playlistsRenameTitle),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<_PlaylistContextAction>(
+          value: _PlaylistContextAction.delete,
+          textStyle: TextStyle(color: colors.error),
+          child: Text(l10n.playlistsDeleteConfirmTitle),
+        ),
+      ],
+    );
+    if (!context.mounted || action == null) return;
+    switch (action) {
+      case _PlaylistContextAction.rename:
+        _showRenameDialog(context, playlist);
+        return;
+      case _PlaylistContextAction.delete:
+        _confirmDelete(context, playlist);
+        return;
+    }
   }
 
   void _showRenameDialog(BuildContext context, PlaylistsTableData playlist) {
@@ -472,6 +549,8 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     );
   }
 }
+
+enum _PlaylistContextAction { rename, delete }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Liked Albums — full-screen list (navigated to from the "See all" button)

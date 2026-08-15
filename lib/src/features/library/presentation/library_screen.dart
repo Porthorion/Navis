@@ -15,6 +15,7 @@ import 'package:navis/src/common_widgets/artist_card.dart';
 import 'package:navis/src/common_widgets/artist_grid_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';

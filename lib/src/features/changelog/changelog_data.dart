@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop playlist ownership actions now open a focused anchored menu from More or right-click',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Weekly playlist track actions now use the same anchored menu from the desktop More button and right-click',
         type: ChangelogEntryType.improvement,
       ),
