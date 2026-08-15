@@ -64,6 +64,7 @@ Future<_QueueSpyController> _pumpQueueSheet(
   WidgetTester tester, {
   required PlaybackSnapshot snapshot,
   Set<String> externalSongIds = const <String>{},
+  TextScaler? textScaler,
 }) async {
   final queueSpy = _QueueSpyController(snapshot.queueSongIds);
   await tester.pumpWidget(
@@ -85,6 +86,12 @@ Future<_QueueSpyController> _pumpQueueSheet(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: textScaler == null
+            ? null
+            : (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+                child: child!,
+              ),
         home: Scaffold(
           body: QueueSheet(scrollController: ScrollController()),
         ),
@@ -152,5 +159,31 @@ void main() {
     );
 
     expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsOneWidget);
+  });
+
+  testWidgets('phone Queue remains usable at 200 percent text scale', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await _pumpQueueSheet(
+      tester,
+      snapshot: _pendingSnapshot,
+      textScaler: const TextScaler.linear(2),
+    );
+
+    expect(find.text('Track song-1'), findsOneWidget);
+    expect(find.text('Track song-2'), findsOneWidget);
+    expect(find.byIcon(Icons.delete_outline), findsAtLeastNWidgets(1));
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byType(QueueSheet),
+      matchesGoldenFile('goldens/queue_sheet_text_scale_200.png'),
+    );
   });
 }
