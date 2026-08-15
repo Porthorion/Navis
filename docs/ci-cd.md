@@ -176,6 +176,10 @@ For Radio's filtered-empty state, run
 The clone-only scenario enables a deterministic station fixture, drives the
 production Library filter through its authenticated diagnostics control, and
 captures the state before and after a clean restart.
+For the persistent error-notice treatment, run
+`NAVIS_PRESENTATION_ERROR_NOTICE=1 ./tool/presentation_diagnostics.sh clone / error-notice`.
+It posts a bounded diagnostics-only error to the mounted global notice host,
+then captures the visible recovery surface before and after a clean restart.
 
 Desktop layout changes also run the isolated window-mode scenario:
 

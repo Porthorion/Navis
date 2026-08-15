@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Error messages now stay visible until dismissed and keep their Dismiss action clear',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Radio filters now explain when no stations match and offer Show all stations',
         type: ChangelogEntryType.improvement,
       ),

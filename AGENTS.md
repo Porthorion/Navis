@@ -171,6 +171,7 @@ NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=2 ./tool/presentation_diagnostic
 NAVIS_PRESENTATION_SEARCH_QUERY='query' ./tool/presentation_diagnostics.sh clone /search search  # Search ordering + screenshot
 NAVIS_PRESENTATION_SEARCH_QUERY='unmatched-query' NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE=1 ./tool/presentation_diagnostics.sh clone /search search-failure  # clone-only Search failure-state screenshot
 NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match' ./tool/presentation_diagnostics.sh clone '/library#radio' radio-filtered-empty  # clone-only Radio filtered-empty screenshot
+NAVIS_PRESENTATION_ERROR_NOTICE=1 ./tool/presentation_diagnostics.sh clone / error-notice  # clone-only persistent error-notice screenshot
 NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1 ./tool/presentation_diagnostics.sh clone / now-playing  # clone-only Now Playing screenshot without remote playback
 ./tool/desktop_layout_diagnostics.sh  # Desktop View/Mini Player resize + screenshot suite
 ./tool/auth_lifecycle_diagnostics.sh clone  # isolated first-sync/logout suite

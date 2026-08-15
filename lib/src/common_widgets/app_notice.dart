@@ -1,9 +1,43 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 enum AppNoticeLevel { info, success, error }
+
+/// Clone-diagnostics command for exercising the mounted global notice host.
+/// Ordinary product flows call [showAppNotice] directly and never write this
+/// provider.
+@immutable
+class AppNoticeDiagnosticsCommand {
+  const AppNoticeDiagnosticsCommand({
+    required this.message,
+    required this.level,
+  });
+
+  final String message;
+  final AppNoticeLevel level;
+}
+
+class AppNoticeDiagnosticsController
+    extends Notifier<AppNoticeDiagnosticsCommand?> {
+  @override
+  AppNoticeDiagnosticsCommand? build() => null;
+
+  void show({required String message, required AppNoticeLevel level}) {
+    state = AppNoticeDiagnosticsCommand(message: message, level: level);
+  }
+}
+
+final appNoticeDiagnosticsProvider =
+    NotifierProvider<
+      AppNoticeDiagnosticsController,
+      AppNoticeDiagnosticsCommand?
+    >(
+      AppNoticeDiagnosticsController.new,
+    );
 
 @immutable
 class AppNoticeData {
@@ -36,6 +70,14 @@ class AppNoticeController extends ChangeNotifier {
     if (message.trim().isEmpty) {
       return;
     }
+    final activeNotice = _notice;
+    // A failure remains the current task until the person dismisses it or a
+    // newer failure supersedes it. Routine confirmations must not erase a
+    // recovery message before it can be read.
+    if (activeNotice?.level == AppNoticeLevel.error &&
+        level != AppNoticeLevel.error) {
+      return;
+    }
     if (!replaceCurrent && _notice != null) {
       return;
     }
@@ -47,7 +89,9 @@ class AppNoticeController extends ChangeNotifier {
       duration: duration,
     );
     notifyListeners();
-    _dismissTimer = Timer(duration, dismiss);
+    if (level != AppNoticeLevel.error) {
+      _dismissTimer = Timer(duration, dismiss);
+    }
   }
 
   void dismiss() {
@@ -204,6 +248,7 @@ class _NoticePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isError = notice.level == AppNoticeLevel.error;
     final (icon, bgColor, fgColor) = switch (notice.level) {
       AppNoticeLevel.success => (
         Icons.check_circle_outline,
@@ -225,34 +270,39 @@ class _NoticePill extends StatelessWidget {
     return Semantics(
       container: true,
       liveRegion: true,
-      button: true,
+      button: !isError,
       label: notice.message,
-      onTap: onDismissed,
-      child: ExcludeSemantics(
-        child: Dismissible(
-          key: ValueKey<int>(notice.id),
-          direction: DismissDirection.up,
-          onDismissed: (_) => onDismissed(),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Material(
-              elevation: 8,
-              borderRadius: BorderRadius.circular(999),
-              color: bgColor,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: onDismissed,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(icon, size: 18, color: fgColor),
-                      const SizedBox(width: 10),
-                      Flexible(
+      onTap: isError ? null : onDismissed,
+      child: Dismissible(
+        key: ValueKey<int>(notice.id),
+        direction: DismissDirection.up,
+        onDismissed: (_) => onDismissed(),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Material(
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(isError ? 22 : 999),
+              side: isError
+                  ? BorderSide(color: colorScheme.error.withValues(alpha: .55))
+                  : BorderSide.none,
+            ),
+            color: bgColor,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(isError ? 22 : 999),
+              onTap: isError ? null : onDismissed,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(icon, size: 18, color: fgColor),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: ExcludeSemantics(
                         child: Text(
                           notice.message,
                           maxLines: 2,
@@ -260,8 +310,26 @@ class _NoticePill extends StatelessWidget {
                           style: TextStyle(color: fgColor),
                         ),
                       ),
+                    ),
+                    if (isError) ...<Widget>[
+                      const SizedBox(width: 6),
+                      TextButton(
+                        key: const ValueKey<String>('appNoticeDismissAction'),
+                        onPressed: onDismissed,
+                        style: TextButton.styleFrom(
+                          foregroundColor: fgColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          minimumSize: const Size(0, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        child: Text(
+                          AppLocalizations.of(context)?.updateDismiss ??
+                              'Dismiss',
+                        ),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),

@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -344,6 +345,46 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, <String, Object?>{
           'query': query,
           'section': _container.read(librarySectionProvider).name,
+        });
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/presentation/notice') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final rawMessage = body['message'];
+        final message = rawMessage is String ? rawMessage.trim() : '';
+        final rawLevel = body['level'];
+        AppNoticeLevel? level;
+        if (rawLevel is String) {
+          for (final candidate in AppNoticeLevel.values) {
+            if (candidate.name == rawLevel) {
+              level = candidate;
+              break;
+            }
+          }
+        }
+        if (message.isEmpty || message.length > 240 || level == null) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error':
+                'message must be a non-empty string up to 240 characters and level must be info, success, or error',
+          });
+          return;
+        }
+        _container
+            .read(appNoticeDiagnosticsProvider.notifier)
+            .show(message: message, level: level);
+        await presentation.waitForFrame();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'level': level.name,
+          'messageLength': message.length,
         });
         return;
       }

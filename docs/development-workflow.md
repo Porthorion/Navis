@@ -259,6 +259,10 @@ control-plane contract. Android is observation-only:
   `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'` on `/library#radio` so a
   filtered-empty Radio state can be captured before and after restart without
   querying or modifying the configured server.
+- Clone-only `POST /v1/presentation/notice` sends one bounded status notice to
+  the mounted global notice host. `NAVIS_PRESENTATION_ERROR_NOTICE=1` uses it
+  to capture the persistent error treatment and its explicit Dismiss action;
+  production code never writes the diagnostics provider.
 - Desktop volume memory exposes `GET /v1/playback/volume`, clone-only
   `POST /v1/playback/volume` with a numeric `value` from 0 through 1, and
   clone-only `POST /v1/playback/volume/toggle-mute`. The status response
@@ -349,6 +353,10 @@ For Radio's filtered-empty recovery, use route `/library#radio` with
 deterministic clone-only station fixture, applies the query through the
 authenticated Library-filter control, validates that Radio is selected, and
 captures the settled state before and after a clean restart.
+For persistent error-notice review, set `NAVIS_PRESENTATION_ERROR_NOTICE=1`.
+The isolated launcher posts the recovery message through the mounted notice
+host, validates its accepted level, and captures the visible action without
+simulating a device-level error.
 
 Use the focused volume-memory scenario for desktop volume changes:
 

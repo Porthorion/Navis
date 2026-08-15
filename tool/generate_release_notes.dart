@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Error messages now stay visible until dismissed and keep their Dismiss action clear',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Radio filters now explain when no stations match and offer Show all stations',
       type: _EntryType.improvement,
     ),

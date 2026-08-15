@@ -11,6 +11,7 @@ SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
 OPEN_NOW_PLAYING="${NAVIS_PRESENTATION_OPEN_NOW_PLAYING:-0}"
 FORCE_SEARCH_REMOTE_FAILURE="${NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE:-0}"
 RADIO_FILTER_QUERY="${NAVIS_PRESENTATION_RADIO_FILTER_QUERY:-}"
+ERROR_NOTICE="${NAVIS_PRESENTATION_ERROR_NOTICE:-0}"
 BOOTSTRAP_FAILURE_ATTEMPTS="${NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS:-0}"
 if [[ "$MODE" != "clone" ]] ||
    [[ ! "$ROUTE" =~ ^/ ]] ||
@@ -21,6 +22,7 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$SEARCH_PLAY_REMOTE" =~ ^(0|1)$ ]] ||
    [[ ! "$OPEN_NOW_PLAYING" =~ ^(0|1)$ ]] ||
    [[ ! "$FORCE_SEARCH_REMOTE_FAILURE" =~ ^(0|1)$ ]] ||
+   [[ ! "$ERROR_NOTICE" =~ ^(0|1)$ ]] ||
    [[ ! "$BOOTSTRAP_FAILURE_ATTEMPTS" =~ ^[0-9]+$ ]] ||
    [[ "$SEARCH_PLAY_REMOTE" == "1" && "$SEARCH_FILTER" != "songs" ]] ||
    [[ "$FORCE_SEARCH_REMOTE_FAILURE" == "1" && "$ROUTE" != "/search" ]] ||
@@ -204,6 +206,16 @@ print(json.dumps({"query": sys.argv[1]}))
 PY
 }
 
+error_notice_body() {
+  python3 <<'PY'
+import json
+print(json.dumps({
+    "message": "Could not refresh this album. Check your connection and try again.",
+    "level": "error",
+}))
+PY
+}
+
 validate_search() {
   python3 - "$1" "$SEARCH_REQUIRE_MIXED" "$2" <<'PY'
 import json, sys
@@ -259,6 +271,15 @@ import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
 if value.get("query") != sys.argv[2] or value.get("section") != "radio":
     raise SystemExit(f"radio filter was not applied to the Radio section: {value}")
+PY
+}
+
+validate_error_notice() {
+  python3 - "$1" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+if value.get("level") != "error" or value.get("messageLength", 0) <= 0:
+    raise SystemExit(f"error notice was not accepted: {value}")
 PY
 }
 
@@ -415,6 +436,12 @@ run_capture() {
     validate_radio_filter "$OUTPUT_ROOT/$prefix-radio-filter.json"
     # The diagnostic control updates the same Library state as keyboard input;
     # wait for the filtered frame before capturing it.
+    sleep 1
+  fi
+  if [[ "$ERROR_NOTICE" == "1" ]]; then
+    api POST /v1/presentation/notice "$(error_notice_body)" \
+      > "$OUTPUT_ROOT/$prefix-error-notice.json"
+    validate_error_notice "$OUTPUT_ROOT/$prefix-error-notice.json"
     sleep 1
   fi
   if [[ -n "$SEARCH_QUERY" ]]; then
@@ -586,7 +613,8 @@ python3 - \
   "$BOOTSTRAP_FAILURE_ATTEMPTS" \
   "$FORCE_SEARCH_REMOTE_FAILURE" \
   "$OPEN_NOW_PLAYING" \
-  "$([[ -n "$RADIO_FILTER_QUERY" ]] && echo 1 || echo 0)" <<'PY'
+  "$([[ -n "$RADIO_FILTER_QUERY" ]] && echo 1 || echo 0)" \
+  "$ERROR_NOTICE" <<'PY'
 import json, sys
 screenshots = []
 for path in sys.argv[4:6]:
@@ -618,6 +646,8 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
                 sys.argv[9] == "1" or sys.argv[11] == "1" else [])
           + (["POST /v1/presentation/library-filter"]
              if sys.argv[11] == "1" else [])
+          + (["POST /v1/presentation/notice"]
+             if sys.argv[12] == "1" else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([
               "POST /v1/presentation/search/play",

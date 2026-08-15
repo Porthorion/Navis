@@ -45,6 +45,12 @@ Last updated: 2026-08-15
   semantics coverage pass; final quality gate evidence is recorded with this
   change.)
 
+- [x] Persistent actionable error notices — 2026-08-15 (errors now remain
+  visible until Dismiss or swipe, have an explicit Dismiss action, and cannot
+  be replaced by routine success/info feedback; a clone-only presentation
+  control captures the mounted global host through the app API. Focused
+  lifecycle, shell, diagnostics-contract, and visual coverage pass.)
+
 - [x] Search result-state clarity — 2026-08-15 (approved: a successful empty
   Search now identifies the submitted query, while an otherwise empty remote
   failure uses the retryable error state. Local matches remain available if the

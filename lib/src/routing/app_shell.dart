@@ -123,6 +123,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   // the only correct approach.
   AdaptiveInputPolicy? _cachedInputPolicy;
   Size? _lastReportedDesktopViewport;
+  late final ProviderSubscription<AppNoticeDiagnosticsCommand?>
+  _noticeDiagnosticsSubscription;
 
   // NOTE: We intentionally do NOT use WidgetsBindingObserver.didPopRoute()
   // for back-button handling. That observer fires BEFORE the Navigator
@@ -134,10 +136,22 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
+    _noticeDiagnosticsSubscription = ref
+        .listenManual<AppNoticeDiagnosticsCommand?>(
+          appNoticeDiagnosticsProvider,
+          (previous, next) {
+            if (!mounted || next == null) {
+              return;
+            }
+            _appNoticeController.show(message: next.message, level: next.level);
+          },
+          fireImmediately: true,
+        );
   }
 
   @override
   void dispose() {
+    _noticeDiagnosticsSubscription.close();
     _removeGlobalKeyHandler();
     _queueCoverArtPrefetchDebounce?.cancel();
     _quickSearchController.dispose();

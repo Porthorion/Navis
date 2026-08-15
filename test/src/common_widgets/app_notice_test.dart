@@ -98,6 +98,86 @@ void main() {
     expect(find.text('Auto dismiss'), findsNothing);
   });
 
+  testWidgets('error notice remains until its explicit Dismiss action', (
+    tester,
+  ) async {
+    final controller = AppNoticeController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppNoticeScope(
+            notifier: controller,
+            child: Stack(
+              children: <Widget>[
+                const SizedBox.expand(),
+                AppNoticeHost(controller: controller),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    controller.show(
+      message: 'Could not refresh this album.',
+      level: AppNoticeLevel.error,
+      duration: const Duration(milliseconds: 40),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+
+    expect(find.text('Could not refresh this album.'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('appNoticeDismissAction')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('appNoticeDismissAction')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Could not refresh this album.'), findsNothing);
+  });
+
+  testWidgets('error notice is not replaced by routine success or info', (
+    tester,
+  ) async {
+    final controller = AppNoticeController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppNoticeScope(
+            notifier: controller,
+            child: Stack(
+              children: <Widget>[
+                const SizedBox.expand(),
+                AppNoticeHost(controller: controller),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    controller.show(message: 'Connection failed.', level: AppNoticeLevel.error);
+    await tester.pump();
+    controller.show(message: 'Album saved.', level: AppNoticeLevel.success);
+    await tester.pump();
+
+    expect(find.text('Connection failed.'), findsOneWidget);
+    expect(find.text('Album saved.'), findsNothing);
+
+    controller.show(
+      message: 'Connection still failed.',
+      level: AppNoticeLevel.error,
+    );
+    await tester.pump();
+    expect(find.text('Connection failed.'), findsNothing);
+    expect(find.text('Connection still failed.'), findsOneWidget);
+  });
+
   testWidgets('notice is configured for swipe-up dismiss', (tester) async {
     final controller = AppNoticeController();
     addTearDown(controller.dispose);

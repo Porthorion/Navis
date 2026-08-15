@@ -10,6 +10,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
@@ -538,6 +539,7 @@ void main() {
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
         ('POST', '/v1/presentation/library-filter'),
+        ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),
@@ -639,6 +641,36 @@ void main() {
         'no-match',
       );
 
+      final invalidNotice = await _request(
+        fixture.port,
+        '/v1/presentation/notice',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{
+          'message': 'Could not save album.',
+          'level': 'unknown',
+        },
+      );
+      expect(invalidNotice.statusCode, HttpStatus.badRequest);
+
+      final notice = await _request(
+        fixture.port,
+        '/v1/presentation/notice',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{
+          'message': 'Could not save album.',
+          'level': 'error',
+        },
+      );
+      expect(notice.statusCode, HttpStatus.ok);
+      expect(notice.body['level'], 'error');
+      expect(notice.body['messageLength'], 21);
+      expect(
+        fixture.container.read(appNoticeDiagnosticsProvider)?.level,
+        AppNoticeLevel.error,
+      );
+
       final overlay = await _request(
         fixture.port,
         '/v1/presentation/player-overlay',
@@ -710,6 +742,7 @@ void main() {
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
         ('POST', '/v1/presentation/library-filter'),
+        ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),
@@ -730,6 +763,7 @@ void main() {
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
         ('POST', '/v1/presentation/library-filter'),
+        ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),
