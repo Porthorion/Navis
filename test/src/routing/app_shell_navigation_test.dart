@@ -34,6 +34,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
@@ -2075,6 +2076,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(playerSheetExpandedProvider), isFalse);
+  });
+
+  testWidgets('system back at Home announces the localized exit prompt', (
+    tester,
+  ) async {
+    NavService.clearExitPrompt();
+    addTearDown(NavService.clearExitPrompt);
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+
+    expect(find.text('Press back again to exit'), findsOneWidget);
   });
 
   testWidgets('reduced motion opens and dismisses the queue without travel', (

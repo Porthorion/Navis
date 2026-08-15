@@ -5,6 +5,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -327,7 +328,9 @@ abstract final class NavService {
       _lastBackPress = now;
       final controller = noticeController ?? AppNoticeScope.maybeOf(context);
       if (controller != null) {
-        controller.show(message: 'Press back again to exit');
+        controller.show(
+          message: AppLocalizations.of(context)!.navigationBackToExitPrompt,
+        );
       }
     }
   }

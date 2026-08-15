@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'The Android exit prompt is now ready for translation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Battery and playback prompt labels are now ready for translation',
       type: _EntryType.improvement,
     ),

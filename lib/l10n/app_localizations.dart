@@ -136,6 +136,12 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get navSettings;
 
+  /// No description provided for @navigationBackToExitPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Press back again to exit'**
+  String get navigationBackToExitPrompt;
+
   /// No description provided for @loginTitle.
   ///
   /// In en, this message translates to:

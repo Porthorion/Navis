@@ -207,6 +207,10 @@ Last updated: 2026-08-16
   lyrics setting now use `AppLocalizations`; English presentation is
   unchanged and focused Playback Settings coverage passes.)
 
+- [x] Shell exit-prompt localization — 2026-08-16 (the Android double-back
+  exit notice now uses `AppLocalizations`; English presentation is unchanged
+  and focused system-back coverage passes.)
+
 - [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
   page now identifies the artist in its app bar, including when Last.fm has no
   tracks to show, rather than presenting the generic Playlist title. Focused

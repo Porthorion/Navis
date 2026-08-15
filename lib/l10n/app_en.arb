@@ -6,6 +6,7 @@
   "navRadio": "Radio",
   "navPlaylists": "Playlists",
   "navSettings": "Settings",
+  "navigationBackToExitPrompt": "Press back again to exit",
   "loginTitle": "Sign in",
   "loginSubtitle": "Connect to your Subsonic or Navidrome server.",
   "loginServerUrlLabel": "Server URL",

@@ -30,6 +30,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navSettings => 'Settings';
 
   @override
+  String get navigationBackToExitPrompt => 'Press back again to exit';
+
+  @override
   String get loginTitle => 'Sign in';
 
   @override
