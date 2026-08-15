@@ -86,7 +86,9 @@ void main() {
       required UpdateInfo? updateInfo,
       bool desktopMode = false,
     }) async {
-      await tester.binding.setSurfaceSize(const Size(900, 1200));
+      await tester.binding.setSurfaceSize(
+        desktopMode ? const Size(1280, 800) : const Size(900, 1200),
+      );
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(
@@ -160,6 +162,23 @@ void main() {
 
       expect(find.byTooltip('Back to Settings'), findsOneWidget);
       expect(find.text('Navis'), findsOneWidget);
+    });
+
+    testWidgets('wide desktop About uses the available canvas in columns', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+      await pumpAbout(tester, updateInfo: null, desktopMode: true);
+
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      final dataUsage = find.text(l10n.aboutDataUsageTitle);
+      final licenses = find.text(l10n.aboutLicenses);
+
+      expect(tester.getTopLeft(licenses).dx, greaterThan(700));
+      expect(
+        tester.getTopLeft(dataUsage).dx,
+        lessThan(tester.getTopLeft(licenses).dx),
+      );
     });
 
     testWidgets('shows Play Store action for store redirect updates', (

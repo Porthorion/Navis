@@ -179,6 +179,14 @@ Last updated: 2026-08-16
   desktop/phone layout coverage and isolated Linux before/after clean-restart
   captures pass.)
 
+- [x] Desktop About workspace — 2026-08-16 (approved: About now uses the
+  available desktop canvas as a responsive two-column overview: the compact
+  horizontal app identity and network-usage controls stay together, while
+  links and update controls remain immediately visible alongside them. Phone
+  and compact desktop retain the established single-column composition.
+  Focused behavior/layout coverage and isolated Linux before/after
+  clean-restart captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

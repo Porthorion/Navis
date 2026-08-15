@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop About now uses a responsive overview for usage, links, and updates',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Privacy information now uses a clearer responsive desktop reading layout',
         type: ChangelogEntryType.improvement,
       ),

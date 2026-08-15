@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Desktop About now uses a responsive overview for usage, links, and updates',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Privacy information now uses a clearer responsive desktop reading layout',
       type: _EntryType.improvement,
     ),
