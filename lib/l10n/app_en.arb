@@ -919,6 +919,10 @@
   "queueSaveAsPlaylistSaved": "Playlist saved",
 
   "searchHint": "Search artists, albums, songs...",
+  "quickSearchHint": "Search library...",
+  "quickSearchSubmitTooltip": "Search",
+  "quickSearchEverything": "Search Everything",
+  "instantRadioAction": "Instant Radio",
   "searchRecentTitle": "Recent searches",
   "searchClearRecent": "Clear",
   "searchNoResults": "No results found",

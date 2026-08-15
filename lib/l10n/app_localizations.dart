@@ -3665,6 +3665,30 @@ abstract class AppLocalizations {
   /// **'Search artists, albums, songs...'**
   String get searchHint;
 
+  /// No description provided for @quickSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search library...'**
+  String get quickSearchHint;
+
+  /// No description provided for @quickSearchSubmitTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get quickSearchSubmitTooltip;
+
+  /// No description provided for @quickSearchEverything.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Everything'**
+  String get quickSearchEverything;
+
+  /// No description provided for @instantRadioAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant Radio'**
+  String get instantRadioAction;
+
   /// No description provided for @searchRecentTitle.
   ///
   /// In en, this message translates to:

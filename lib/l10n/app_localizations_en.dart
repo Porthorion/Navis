@@ -2062,6 +2062,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchHint => 'Search artists, albums, songs...';
 
   @override
+  String get quickSearchHint => 'Search library...';
+
+  @override
+  String get quickSearchSubmitTooltip => 'Search';
+
+  @override
+  String get quickSearchEverything => 'Search Everything';
+
+  @override
+  String get instantRadioAction => 'Instant Radio';
+
+  @override
   String get searchRecentTitle => 'Recent searches';
 
   @override

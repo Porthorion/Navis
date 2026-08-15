@@ -193,6 +193,11 @@ Last updated: 2026-08-16
   layouts remain unchanged. Focused geometry/golden coverage and isolated
   Linux before/after clean-restart captures pass.)
 
+- [x] Desktop quick-search and Home action localization — 2026-08-16
+  (desktop quick-search's hint, submit control, and filter labels, plus Home's
+  Instant Radio label and tooltip, now use `AppLocalizations`; focused shell
+  and Home coverage passes.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

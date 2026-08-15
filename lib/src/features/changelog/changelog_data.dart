@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop quick-search and Home action labels are now ready for translation',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop Playlist Detail now uses a full-width workspace header',
         type: ChangelogEntryType.improvement,
       ),

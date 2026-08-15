@@ -25,13 +25,6 @@ class _DesktopQuickSearchOverlay extends StatefulWidget {
 
 class _DesktopQuickSearchOverlayState
     extends State<_DesktopQuickSearchOverlay> {
-  static const List<String> _filterLabels = [
-    'Search Everything',
-    'Artists',
-    'Albums',
-    'Songs',
-  ];
-
   static const List<SearchResultType?> _filterValues = [
     null,
     SearchResultType.artists,
@@ -68,6 +61,13 @@ class _DesktopQuickSearchOverlayState
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final filterLabels = <String>[
+      l10n.quickSearchEverything,
+      l10n.searchArtistsSection,
+      l10n.searchAlbumsSection,
+      l10n.searchSongsSection,
+    ];
     return FocusScope(
       autofocus: true,
       child: Shortcuts(
@@ -150,8 +150,8 @@ class _DesktopQuickSearchOverlayState
                                         focusNode: widget.focusNode,
                                         autofocus: true,
                                         textInputAction: TextInputAction.search,
-                                        decoration: const InputDecoration(
-                                          hintText: 'Search library...',
+                                        decoration: InputDecoration(
+                                          hintText: l10n.quickSearchHint,
                                           border: InputBorder.none,
                                           isDense: true,
                                         ),
@@ -160,7 +160,7 @@ class _DesktopQuickSearchOverlayState
                                     ),
                                   ),
                                   IconButton(
-                                    tooltip: 'Search',
+                                    tooltip: l10n.quickSearchSubmitTooltip,
                                     onPressed: _submit,
                                     icon: const Icon(
                                       Icons.arrow_forward_rounded,
@@ -173,9 +173,9 @@ class _DesktopQuickSearchOverlayState
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: <Widget>[
-                                  for (int i = 0; i < _filterLabels.length; i++)
+                                  for (int i = 0; i < filterLabels.length; i++)
                                     FilterChip(
-                                      label: Text(_filterLabels[i]),
+                                      label: Text(filterLabels[i]),
                                       selected: _selectedIndex == i,
                                       onSelected: (_) => setState(() {
                                         _selectedIndex = i;

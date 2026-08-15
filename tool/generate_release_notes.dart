@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Desktop quick-search and Home action labels are now ready for translation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Desktop Playlist Detail now uses a full-width workspace header',
       type: _EntryType.improvement,
     ),

@@ -4517,7 +4517,7 @@ class _HomeActionRow extends ConsumerWidget {
             onPressed: toggleDownloadedOnly,
           ),
           IconButton(
-            tooltip: 'Instant Radio',
+            tooltip: l10n.instantRadioAction,
             constraints: variant == _HomeActionRowVariant.compactWide
                 ? iconConstraints
                 : null,
@@ -4570,8 +4570,8 @@ class _HomeActionRow extends ConsumerWidget {
                     ),
                     onPressed: likedIds.isEmpty ? null : startInstantRadio,
                     icon: const Icon(Icons.radio_rounded),
-                    label: const Text(
-                      'Instant Radio',
+                    label: Text(
+                      l10n.instantRadioAction,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
