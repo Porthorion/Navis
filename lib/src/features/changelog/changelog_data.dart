@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Add to playlist now uses a focused dialog on desktop while keeping the mobile sheet',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop playlist ownership actions now open a focused anchored menu from More or right-click',
         type: ChangelogEntryType.improvement,
       ),

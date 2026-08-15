@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 /// Shows a bottom sheet that lets the user pick a playlist to add
 /// the given [songIds] to. Also offers a "New playlist" option at the top.
@@ -15,6 +16,24 @@ Future<void> showAddToPlaylistSheet(
   WidgetRef ref,
   List<String> songIds,
 ) async {
+  if (isDesktopRuntime) {
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogContext) {
+        final availableHeight = MediaQuery.sizeOf(dialogContext).height - 96;
+        return Dialog(
+          child: SizedBox(
+            width: 460,
+            height: availableHeight.clamp(320.0, 560.0),
+            child: _AddToPlaylistSheet(songIds: songIds),
+          ),
+        );
+      },
+    );
+    return;
+  }
+
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -35,11 +54,11 @@ Future<void> showAddToPlaylistSheet(
 class _AddToPlaylistSheet extends ConsumerWidget {
   const _AddToPlaylistSheet({
     required this.songIds,
-    required this.scrollController,
+    this.scrollController,
   });
 
   final List<String> songIds;
-  final ScrollController scrollController;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
