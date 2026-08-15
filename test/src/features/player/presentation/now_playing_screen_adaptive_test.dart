@@ -78,6 +78,7 @@ Future<void> _pumpNowPlaying(
   bool reduceMotion = false,
   bool wideEmbeddedMode = false,
   bool compactWideLandscapeMode = false,
+  TextScaler? textScaler,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -87,9 +88,13 @@ Future<void> _pumpNowPlaying(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(disableAnimations: reduceMotion),
+          data:
+              MediaQuery.of(
+                context,
+              ).copyWith(
+                disableAnimations: reduceMotion,
+                textScaler: textScaler,
+              ),
           child: child!,
         ),
         home: Scaffold(
@@ -252,6 +257,31 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('phone now playing remains usable at 200 percent text scale', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+
+    await _pumpNowPlaying(
+      tester,
+      container,
+      textScaler: const TextScaler.linear(2),
+    );
+
+    expect(find.byKey(const Key('nowPlayingCloseButton')), findsOneWidget);
+    expect(find.byTooltip('Queue'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byType(NowPlayingScreen),
+      matchesGoldenFile('goldens/now_playing_text_scale_200.png'),
+    );
+  });
 
   testWidgets(
     'compact-wide player hides retired Listen Together settings entry',
