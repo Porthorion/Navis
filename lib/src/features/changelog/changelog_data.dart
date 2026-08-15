@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Weekly playlist availability and playback actions are now ready for translation',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Artist Top Tracks now keeps the artist name visible when no tracks are available',
         type: ChangelogEntryType.improvement,
       ),

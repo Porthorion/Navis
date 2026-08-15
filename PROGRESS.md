@@ -198,6 +198,10 @@ Last updated: 2026-08-16
   Instant Radio label and tooltip, now use `AppLocalizations`; focused shell
   and Home coverage passes.)
 
+- [x] Weekly playlist action localization — 2026-08-16 (the Home discovery
+  sheet now uses the shared localized availability count and Play/Shuffle
+  labels; English presentation is unchanged.)
+
 - [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
   page now identifies the artist in its app bar, including when Last.fm has no
   tracks to show, rather than presenting the generic Playlist title. Focused

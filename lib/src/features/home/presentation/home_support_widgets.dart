@@ -418,6 +418,7 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final playableSongs = playlist.playableSongs;
@@ -465,7 +466,10 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
                       ],
                       const SizedBox(height: 8),
                       Text(
-                        '${playlist.matchedCount} of ${playlist.totalCount} available',
+                        l10n.weeklyPlaylistAvailableCount(
+                          playlist.matchedCount,
+                          playlist.totalCount,
+                        ),
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: cs.onSurface.withValues(alpha: 0.68),
                         ),
@@ -502,7 +506,7 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
                           }
                         },
                   icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Play'),
+                  label: Text(l10n.albumDetailPlayAction),
                 ),
                 const SizedBox(width: 10),
                 OutlinedButton.icon(
@@ -534,7 +538,7 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
                           }
                         },
                   icon: const Icon(Icons.shuffle_rounded),
-                  label: const Text('Shuffle'),
+                  label: Text(l10n.albumDetailShuffleAction),
                 ),
               ],
             ),

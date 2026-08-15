@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Weekly playlist availability and playback actions are now ready for translation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Artist Top Tracks now keeps the artist name visible when no tracks are available',
       type: _EntryType.improvement,
     ),
