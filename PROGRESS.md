@@ -133,6 +133,11 @@ Last updated: 2026-08-15
   and dynamic server values remain literal. Focused Configuration behavior
   coverage passes.)
 
+- [x] Desktop Configuration large-text guardrail — 2026-08-16 (at 200%
+  system text, the Last.fm API-key link and Save action now wrap within the
+  448 px wide-desktop form rather than clipping. Focused behavior and
+  component-golden coverage pass; normal-scale layout is unchanged.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

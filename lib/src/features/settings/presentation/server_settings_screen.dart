@@ -878,14 +878,17 @@ class _LastFmCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
                 children: <Widget>[
                   TextButton.icon(
                     onPressed: onGetApiKey,
                     icon: const Icon(Icons.open_in_new, size: 16),
                     label: Text(l10n.configurationLastFmGetApiKey),
                   ),
-                  const Spacer(),
                   FilledButton.tonal(
                     onPressed: isSaving ? null : onSave,
                     child: isSaving

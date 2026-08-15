@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop Configuration actions now stay reachable at larger system text sizes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Configuration controls, validation feedback, and secret-field tooltips are now ready for translation',
         type: ChangelogEntryType.improvement,
       ),

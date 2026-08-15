@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Desktop Configuration actions now stay reachable at larger system text sizes',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Configuration controls, validation feedback, and secret-field tooltips are now ready for translation',
       type: _EntryType.improvement,
     ),

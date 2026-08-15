@@ -307,6 +307,46 @@ void main() {
     );
   });
 
+  testWidgets(
+    'keeps wide desktop external-service controls usable at 200 percent text scale',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+
+      await tester.pumpWidget(
+        _buildTestApp(
+          configNotifier: _TestServerConfigNotifier(initialConfig),
+          connectionService: _FakeServerConnectionService(),
+          signOutService: _FakeSignOutService(),
+          desktopMode: true,
+          lastFmBundled: false,
+          credentialStore: _MemoryExternalScrobbleCredentialStore(),
+          textScaler: TextScaler.linear(2),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(
+          const ValueKey<String>('server-settings-external-services-grid'),
+        ),
+        findsOneWidget,
+      );
+      expect(_textFieldWithLabel('API Key'), findsOneWidget);
+      expect(_textFieldWithLabel('User token'), findsOneWidget);
+      expect(find.text('Validate and save'), findsOneWidget);
+      expect(find.text('Get Token'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Validate and save'),
+        240,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await expectLater(
+        find.byType(ServerSettingsScreen),
+        matchesGoldenFile('goldens/server_settings_desktop_text_scale_200.png'),
+      );
+    },
+  );
+
   testWidgets('renders external service configuration fields', (tester) async {
     await tester.pumpWidget(
       _buildTestApp(
@@ -520,6 +560,7 @@ Widget _buildTestApp({
   LastFmApiClient Function(String)? lastFmClientFactory,
   ListenBrainzApiClient? listenBrainzClient,
   bool desktopMode = false,
+  TextScaler? textScaler,
 }) {
   final overrides = [
     serverConfigProvider.overrideWith(() => configNotifier),
@@ -547,6 +588,12 @@ Widget _buildTestApp({
       theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      builder: textScaler == null
+          ? null
+          : (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+              child: child!,
+            ),
       home: desktopMode
           ? AdaptiveContextScope(
               adaptiveContext: resolveAdaptiveContext(
