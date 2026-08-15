@@ -85,6 +85,7 @@ void main() {
       WidgetTester tester, {
       required UpdateInfo? updateInfo,
       bool desktopMode = false,
+      TextScaler? textScaler,
     }) async {
       await tester.binding.setSurfaceSize(
         desktopMode ? const Size(1280, 800) : const Size(900, 1200),
@@ -127,6 +128,14 @@ void main() {
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
+            builder: textScaler == null
+                ? null
+                : (context, child) => MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      textScaler: textScaler,
+                    ),
+                    child: child!,
+                  ),
             home: desktopMode
                 ? AdaptiveContextScope(
                     adaptiveContext: resolveAdaptiveContext(
@@ -179,6 +188,23 @@ void main() {
         tester.getTopLeft(dataUsage).dx,
         lessThan(tester.getTopLeft(licenses).dx),
       );
+    });
+
+    testWidgets('wide desktop About remains usable at 200 percent text', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+      await pumpAbout(
+        tester,
+        updateInfo: null,
+        desktopMode: true,
+        textScaler: const TextScaler.linear(2),
+      );
+
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      expect(find.text(l10n.aboutDataUsageTitle), findsOneWidget);
+      expect(find.text(l10n.updateCheckTitle), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('shows Play Store action for store redirect updates', (
