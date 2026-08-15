@@ -76,6 +76,11 @@ Last updated: 2026-08-15
   the draggable bottom sheet. Focused desktop behavior and before/after visual
   coverage pass.)
 
+- [x] Desktop download-quality picker — 2026-08-15 (the shared quality chooser
+  now opens as a bounded modal dialog on desktop, while phone and tablet retain
+  the original bottom sheet. Focused desktop behavior and before/after visual
+  coverage pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%
