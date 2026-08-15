@@ -10,6 +10,7 @@ SEARCH_REQUIRE_MIXED="${NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED:-0}"
 SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
 OPEN_NOW_PLAYING="${NAVIS_PRESENTATION_OPEN_NOW_PLAYING:-0}"
 FORCE_SEARCH_REMOTE_FAILURE="${NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE:-0}"
+RADIO_FILTER_QUERY="${NAVIS_PRESENTATION_RADIO_FILTER_QUERY:-}"
 BOOTSTRAP_FAILURE_ATTEMPTS="${NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS:-0}"
 if [[ "$MODE" != "clone" ]] ||
    [[ ! "$ROUTE" =~ ^/ ]] ||
@@ -23,9 +24,12 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$BOOTSTRAP_FAILURE_ATTEMPTS" =~ ^[0-9]+$ ]] ||
    [[ "$SEARCH_PLAY_REMOTE" == "1" && "$SEARCH_FILTER" != "songs" ]] ||
    [[ "$FORCE_SEARCH_REMOTE_FAILURE" == "1" && "$ROUTE" != "/search" ]] ||
+   [[ -n "$RADIO_FILTER_QUERY" && "$ROUTE" != "/library#radio" ]] ||
+   (( ${#RADIO_FILTER_QUERY} > 64 )) ||
    [[ -n "$SEARCH_QUERY" && "$ROUTE" != "/search" ]]; then
   echo "Usage: $0 clone [/local-route] [safe-label]" >&2
   echo "Set NAVIS_PRESENTATION_SEARCH_QUERY only with the /search route." >&2
+  echo "Set NAVIS_PRESENTATION_RADIO_FILTER_QUERY only with /library#radio (up to 64 characters)." >&2
   exit 64
 fi
 
@@ -193,6 +197,13 @@ print(json.dumps({"query": sys.argv[1], "filter": sys.argv[2]}))
 PY
 }
 
+radio_filter_body() {
+  python3 - "$RADIO_FILTER_QUERY" <<'PY'
+import json, sys
+print(json.dumps({"query": sys.argv[1]}))
+PY
+}
+
 validate_search() {
   python3 - "$1" "$SEARCH_REQUIRE_MIXED" "$2" <<'PY'
 import json, sys
@@ -239,6 +250,15 @@ import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
 if value.get("actualLocation") != sys.argv[2]:
     raise SystemExit(f"navigation did not reach requested route: {value}")
+PY
+}
+
+validate_radio_filter() {
+  python3 - "$1" "$RADIO_FILTER_QUERY" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+if value.get("query") != sys.argv[2] or value.get("section") != "radio":
+    raise SystemExit(f"radio filter was not applied to the Radio section: {value}")
 PY
 }
 
@@ -376,6 +396,11 @@ run_capture() {
       '{"forceSearchRemoteFailure":true}' \
       > "$OUTPUT_ROOT/$prefix-search-failure-override.json"
   fi
+  if [[ -n "$RADIO_FILTER_QUERY" ]]; then
+    api POST /v1/diagnostics/overrides \
+      '{"radioPresentationFixture":true}' \
+      > "$OUTPUT_ROOT/$prefix-radio-fixture-override.json"
+  fi
   api POST /v1/presentation/navigate "$(navigation_body)" \
     > "$OUTPUT_ROOT/$prefix-navigation.json"
   validate_navigation "$OUTPUT_ROOT/$prefix-navigation.json"
@@ -384,6 +409,14 @@ run_capture() {
   # presentation endpoint captures visual evidence.
   sleep 5
   wait_for_presentation "$OUTPUT_ROOT/$prefix-presentation-after.json"
+  if [[ -n "$RADIO_FILTER_QUERY" ]]; then
+    api POST /v1/presentation/library-filter "$(radio_filter_body)" \
+      > "$OUTPUT_ROOT/$prefix-radio-filter.json"
+    validate_radio_filter "$OUTPUT_ROOT/$prefix-radio-filter.json"
+    # The diagnostic control updates the same Library state as keyboard input;
+    # wait for the filtered frame before capturing it.
+    sleep 1
+  fi
   if [[ -n "$SEARCH_QUERY" ]]; then
     api POST /v1/presentation/search "$(search_body)" \
       > "$OUTPUT_ROOT/$prefix-search.json"
@@ -552,7 +585,8 @@ python3 - \
   "$SEARCH_PLAY_REMOTE" \
   "$BOOTSTRAP_FAILURE_ATTEMPTS" \
   "$FORCE_SEARCH_REMOTE_FAILURE" \
-  "$OPEN_NOW_PLAYING" <<'PY'
+  "$OPEN_NOW_PLAYING" \
+  "$([[ -n "$RADIO_FILTER_QUERY" ]] && echo 1 || echo 0)" <<'PY'
 import json, sys
 screenshots = []
 for path in sys.argv[4:6]:
@@ -581,7 +615,9 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
              if int(sys.argv[8]) > 0 else [])
           + (["POST /v1/diagnostics/overrides"]
              if sys.argv[2].startswith("/library/listenbrainz/") or
-                sys.argv[9] == "1" else [])
+                sys.argv[9] == "1" or sys.argv[11] == "1" else [])
+          + (["POST /v1/presentation/library-filter"]
+             if sys.argv[11] == "1" else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([
               "POST /v1/presentation/search/play",

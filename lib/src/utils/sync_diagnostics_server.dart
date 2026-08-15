@@ -318,6 +318,36 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'POST' &&
+          path == '/v1/presentation/library-filter') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final rawQuery = body['query'];
+        final query = rawQuery is String ? rawQuery.trim() : '';
+        if (query.isEmpty || query.length > 64) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'query must be a non-empty string up to 64 characters',
+          });
+          return;
+        }
+        _container
+            .read(libraryTypeFilterDiagnosticsProvider.notifier)
+            .setQuery(query);
+        await presentation.waitForFrame();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'query': query,
+          'section': _container.read(librarySectionProvider).name,
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
           path == '/v1/presentation/player-overlay') {
         if (!allowsMutations) {
           await _forbidden(request);

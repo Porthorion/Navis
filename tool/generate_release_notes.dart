@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Radio filters now explain when no stations match and offer Show all stations',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Artist actions now offer Play, Shuffle, Add to Queue, and Like from More, long-press, or desktop right-click',
       type: _EntryType.improvement,
     ),

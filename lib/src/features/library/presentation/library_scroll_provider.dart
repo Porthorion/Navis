@@ -108,3 +108,18 @@ final libraryTypeFilterActiveProvider =
     NotifierProvider<_LibraryTypeFilterActiveNotifier, bool>(
       _LibraryTypeFilterActiveNotifier.new,
     );
+
+/// Clone-diagnostics command for exercising the production Library filter
+/// without desktop input automation. It is ignored until [LibraryScreen]
+/// subscribes and is never written by ordinary product flows.
+class LibraryTypeFilterDiagnosticsController extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setQuery(String query) => state = query;
+}
+
+final libraryTypeFilterDiagnosticsProvider =
+    NotifierProvider<LibraryTypeFilterDiagnosticsController, String?>(
+      LibraryTypeFilterDiagnosticsController.new,
+    );

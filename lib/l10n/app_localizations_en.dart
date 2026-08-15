@@ -920,6 +920,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Add internet radio stations on your server to see them here.';
 
   @override
+  String radioFilteredEmptyTitle(String query) {
+    return 'No stations match “$query”';
+  }
+
+  @override
+  String get radioFilteredEmptySubtitle =>
+      'Try a different filter, or show all stations.';
+
+  @override
+  String get radioFilteredEmptyAction => 'Show all stations';
+
+  @override
   String get radioLoadErrorTitle => 'Could not load radio stations';
 
   @override

@@ -28,6 +28,7 @@ class RadioTabContent extends ConsumerWidget {
     super.key,
     this.scrollController,
     this.typeFilterQuery = '',
+    this.onClearTypeFilter,
   });
 
   /// Optional external [ScrollController] so that a parent widget (e.g.
@@ -37,6 +38,11 @@ class RadioTabContent extends ConsumerWidget {
   /// When non-empty, only stations whose name contains this query
   /// (case-insensitive) are shown.
   final String typeFilterQuery;
+
+  /// Clears the enclosing Library type-to-filter query when a filtered Radio
+  /// result has no matches. Standalone Radio has no type filter, so it leaves
+  /// this unset and retains the ordinary empty-library state.
+  final VoidCallback? onClearTypeFilter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,6 +62,7 @@ class RadioTabContent extends ConsumerWidget {
       },
       child: stationsAsync.when(
         data: (stations) {
+          final hasStations = stations.isNotEmpty;
           if (typeFilterQuery.isNotEmpty) {
             final query = typeFilterQuery.toLowerCase();
             stations = stations
@@ -65,13 +72,30 @@ class RadioTabContent extends ConsumerWidget {
                 .toList();
           }
           if (stations.isEmpty) {
+            final isFilteredEmpty = hasStations && typeFilterQuery.isNotEmpty;
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: <Widget>[
                 EmptyState(
-                  title: l10n.radioEmptyTitle,
-                  subtitle: l10n.radioEmptySubtitle,
-                  icon: Icons.radio_outlined,
+                  title: isFilteredEmpty
+                      ? l10n.radioFilteredEmptyTitle(typeFilterQuery)
+                      : l10n.radioEmptyTitle,
+                  subtitle: isFilteredEmpty
+                      ? l10n.radioFilteredEmptySubtitle
+                      : l10n.radioEmptySubtitle,
+                  icon: isFilteredEmpty
+                      ? Icons.search_off_outlined
+                      : Icons.radio_outlined,
+                  action: isFilteredEmpty && onClearTypeFilter != null
+                      ? FilledButton.tonalIcon(
+                          key: const ValueKey<String>(
+                            'radioClearTypeFilterAction',
+                          ),
+                          onPressed: onClearTypeFilter,
+                          icon: const Icon(Icons.filter_alt_off_outlined),
+                          label: Text(l10n.radioFilteredEmptyAction),
+                        )
+                      : null,
                 ),
               ],
             );

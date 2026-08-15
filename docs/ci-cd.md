@@ -171,6 +171,11 @@ profile's Now Playing overlay without depending on remote stream playback.
 Set `NAVIS_PRESENTATION_SEARCH_FILTER=songs` and
 `NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE=1` to additionally play the first remote
 song through the production queue path and capture its Now Playing metadata.
+For Radio's filtered-empty state, run
+`NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match' ./tool/presentation_diagnostics.sh clone '/library#radio' radio-filtered-empty`.
+The clone-only scenario enables a deterministic station fixture, drives the
+production Library filter through its authenticated diagnostics control, and
+captures the state before and after a clean restart.
 
 Desktop layout changes also run the isolated window-mode scenario:
 

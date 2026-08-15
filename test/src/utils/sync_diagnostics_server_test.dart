@@ -537,6 +537,7 @@ void main() {
         ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/library-filter'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),
@@ -614,6 +615,30 @@ void main() {
         LibrarySection.liked,
       );
 
+      final invalidLibraryFilter = await _request(
+        fixture.port,
+        '/v1/presentation/library-filter',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'query': ''},
+      );
+      expect(invalidLibraryFilter.statusCode, HttpStatus.badRequest);
+
+      final libraryFilter = await _request(
+        fixture.port,
+        '/v1/presentation/library-filter',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'query': 'no-match'},
+      );
+      expect(libraryFilter.statusCode, HttpStatus.ok);
+      expect(libraryFilter.body['query'], 'no-match');
+      expect(libraryFilter.body['section'], 'liked');
+      expect(
+        fixture.container.read(libraryTypeFilterDiagnosticsProvider),
+        'no-match',
+      );
+
       final overlay = await _request(
         fixture.port,
         '/v1/presentation/player-overlay',
@@ -684,6 +709,7 @@ void main() {
         ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/library-filter'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),
@@ -703,6 +729,7 @@ void main() {
       for (final endpoint in <(String, String)>[
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/library-filter'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
         ('POST', '/v1/presentation/screenshot'),

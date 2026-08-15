@@ -154,6 +154,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   LibrarySection? _pendingSectionSync;
   late final ProviderSubscription<int> _libraryScrollSubscription;
   late final ProviderSubscription<bool> _downloadedOnlySubscription;
+  late final ProviderSubscription<String?> _typeFilterDiagnosticsSubscription;
   int _lastLibraryScrollRequest = 0;
 
   // ── Type-to-filter (keyboard-driven inline search) ──────────────────────
@@ -204,6 +205,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         });
       },
     );
+    _typeFilterDiagnosticsSubscription = ref.listenManual<String?>(
+      libraryTypeFilterDiagnosticsProvider,
+      (previous, next) {
+        if (!mounted || next == null) {
+          return;
+        }
+        _updateTypeFilter(next);
+      },
+    );
     HardwareKeyboard.instance.addHandler(_onLibraryKeyEvent);
   }
 
@@ -211,6 +221,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void dispose() {
     _libraryScrollSubscription.close();
     _downloadedOnlySubscription.close();
+    _typeFilterDiagnosticsSubscription.close();
     _tabController?.removeListener(_handleTabControllerTick);
     _tabController?.dispose();
     _albumsScrollController
@@ -484,6 +495,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       LibrarySection.radio => RadioTabContent(
         scrollController: _radioScrollController,
         typeFilterQuery: _typeFilterQuery,
+        onClearTypeFilter: _clearTypeFilter,
       ),
     };
   }

@@ -303,6 +303,13 @@ final showAlbumsPageProvider = Provider<bool>((ref) {
 });
 
 final showRadioPageProvider = Provider<bool>((ref) {
+  if (ref.watch(
+    syncDiagnosticsOverridesProvider.select(
+      (overrides) => overrides.radioPresentationFixture,
+    ),
+  )) {
+    return true;
+  }
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
@@ -1346,6 +1353,20 @@ final albumTileDownloadStateProvider =
 final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
   ref,
 ) async {
+  final usePresentationFixture = ref.watch(
+    syncDiagnosticsOverridesProvider.select(
+      (overrides) => overrides.radioPresentationFixture,
+    ),
+  );
+  if (usePresentationFixture) {
+    return const <InternetRadioStation>[
+      InternetRadioStation(
+        id: 'diagnostics-radio-station',
+        name: 'Navis Test Radio',
+        streamUrl: 'https://example.invalid/navis-test-radio',
+      ),
+    ];
+  }
   final api = ref.watch(subsonicApiProvider);
   if (api == null) {
     return const <InternetRadioStation>[];

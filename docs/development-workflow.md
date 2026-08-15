@@ -253,6 +253,12 @@ control-plane contract. Android is observation-only:
   queue or Now Playing through `playerOverlayStackProvider`; add similarly
   narrow production-controller actions for non-route UI instead of simulating
   coordinate clicks.
+- Clone-only `POST /v1/presentation/library-filter` applies a bounded
+  type-to-filter query through the mounted production Library screen. Together
+  with the deterministic `radioPresentationFixture` override, it supports
+  `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'` on `/library#radio` so a
+  filtered-empty Radio state can be captured before and after restart without
+  querying or modifying the configured server.
 - Desktop volume memory exposes `GET /v1/playback/volume`, clone-only
   `POST /v1/playback/volume` with a numeric `value` from 0 through 1, and
   clone-only `POST /v1/playback/volume/toggle-mute`. The status response
@@ -338,6 +344,11 @@ an otherwise empty failed search should render the retryable error state.
 For an independent Now Playing capture, set
 `NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1`; the clone-only launcher opens the
 existing production overlay and captures it without starting a remote stream.
+For Radio's filtered-empty recovery, use route `/library#radio` with
+`NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'`. The launcher enables a
+deterministic clone-only station fixture, applies the query through the
+authenticated Library-filter control, validates that Radio is selected, and
+captures the settled state before and after a clean restart.
 
 Use the focused volume-memory scenario for desktop volume changes:
 

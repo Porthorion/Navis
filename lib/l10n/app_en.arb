@@ -395,6 +395,16 @@
   "radioTitle": "Radio",
   "radioEmptyTitle": "No radio stations found",
   "radioEmptySubtitle": "Add internet radio stations on your server to see them here.",
+  "radioFilteredEmptyTitle": "No stations match \u201c{query}\u201d",
+  "@radioFilteredEmptyTitle": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "radioFilteredEmptySubtitle": "Try a different filter, or show all stations.",
+  "radioFilteredEmptyAction": "Show all stations",
   "radioLoadErrorTitle": "Could not load radio stations",
   "radioUnsupportedMessage": "This server does not expose internet radio station endpoints.",
   "radioStopStation": "Stop radio",

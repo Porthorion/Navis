@@ -1632,6 +1632,24 @@ abstract class AppLocalizations {
   /// **'Add internet radio stations on your server to see them here.'**
   String get radioEmptySubtitle;
 
+  /// No description provided for @radioFilteredEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No stations match “{query}”'**
+  String radioFilteredEmptyTitle(String query);
+
+  /// No description provided for @radioFilteredEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a different filter, or show all stations.'**
+  String get radioFilteredEmptySubtitle;
+
+  /// No description provided for @radioFilteredEmptyAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all stations'**
+  String get radioFilteredEmptyAction;
+
   /// No description provided for @radioLoadErrorTitle.
   ///
   /// In en, this message translates to:

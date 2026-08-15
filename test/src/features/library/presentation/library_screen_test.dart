@@ -18,6 +18,7 @@ import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwo
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
@@ -1140,6 +1141,74 @@ void main() {
 
       expect(find.text('Radio'), findsOneWidget);
     });
+
+    _testWidgetsWithCleanup(
+      'diagnostic Library filter reaches Radio and Show all stations restores it',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: withTestDatabase(
+            _testDatabase,
+            overrides: [
+              showRadioPageProvider.overrideWithValue(true),
+              showArtistsPageProvider.overrideWithValue(true),
+              showPlaylistsPageProvider.overrideWithValue(false),
+              artistViewModeProvider.overrideWithValue('list'),
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData<ServerConfigModel?>(null),
+              ),
+              subsonicApiProvider.overrideWithValue(null),
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              radioStationsProvider.overrideWith(
+                (ref) async => const <InternetRadioStation>[
+                  InternetRadioStation(
+                    id: 'radio-test',
+                    name: 'Navis Test Radio',
+                    streamUrl: 'https://example.com/radio',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              theme: testTheme(),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const LibraryScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Radio'));
+        await tester.pumpAndSettle();
+        container
+            .read(libraryTypeFilterDiagnosticsProvider.notifier)
+            .setQuery('lofi');
+        await tester.pumpAndSettle();
+
+        expect(find.text('No stations match \u201clofi\u201d'), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey<String>('radioClearTypeFilterAction')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Navis Test Radio'), findsOneWidget);
+      },
+    );
 
     _testWidgetsWithCleanup(
       'playlists tab renders ListenBrainz playlists before normal playlists with divider',

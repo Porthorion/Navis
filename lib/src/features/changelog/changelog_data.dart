@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Radio filters now explain when no stations match and offer Show all stations',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Artist actions now offer Play, Shuffle, Add to Queue, and Like from More, long-press, or desktop right-click',
         type: ChangelogEntryType.improvement,
       ),

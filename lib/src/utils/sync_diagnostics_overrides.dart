@@ -15,6 +15,7 @@ class SyncDiagnosticsOverrides {
     this.requestReporting = false,
     this.cachedListenBrainzPresentation = false,
     this.forceSearchRemoteFailure = false,
+    this.radioPresentationFixture = false,
   });
 
   final NetworkType? networkType;
@@ -26,6 +27,7 @@ class SyncDiagnosticsOverrides {
   final bool requestReporting;
   final bool cachedListenBrainzPresentation;
   final bool forceSearchRemoteFailure;
+  final bool radioPresentationFixture;
 
   SyncDiagnosticsOverrides copyWith({
     NetworkType? networkType,
@@ -37,6 +39,7 @@ class SyncDiagnosticsOverrides {
     bool? requestReporting,
     bool? cachedListenBrainzPresentation,
     bool? forceSearchRemoteFailure,
+    bool? radioPresentationFixture,
     bool clearNetworkType = false,
     bool clearNativeMetered = false,
     bool clearBackgroundSyncUnmeteredOnly = false,
@@ -66,6 +69,8 @@ class SyncDiagnosticsOverrides {
           cachedListenBrainzPresentation ?? this.cachedListenBrainzPresentation,
       forceSearchRemoteFailure:
           forceSearchRemoteFailure ?? this.forceSearchRemoteFailure,
+      radioPresentationFixture:
+          radioPresentationFixture ?? this.radioPresentationFixture,
     );
   }
 
@@ -79,6 +84,7 @@ class SyncDiagnosticsOverrides {
     'requestReporting': requestReporting,
     'cachedListenBrainzPresentation': cachedListenBrainzPresentation,
     'forceSearchRemoteFailure': forceSearchRemoteFailure,
+    'radioPresentationFixture': radioPresentationFixture,
   };
 
   static SyncDiagnosticsOverrides fromJson(Map<String, Object?> json) {
@@ -104,6 +110,8 @@ class SyncDiagnosticsOverrides {
           json['cachedListenBrainzPresentation'] as bool? ?? false,
       forceSearchRemoteFailure:
           json['forceSearchRemoteFailure'] as bool? ?? false,
+      radioPresentationFixture:
+          json['radioPresentationFixture'] as bool? ?? false,
     );
   }
 }
