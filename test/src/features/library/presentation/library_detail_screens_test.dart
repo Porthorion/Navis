@@ -1059,6 +1059,65 @@ void main() {
       await _disposeApp(tester);
     });
 
+    testWidgets(
+      'compact desktop album header keeps actions and first track in view',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(800, 600));
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _desktopContext,
+          album: _albumWithSongs(
+            const <SongsTableData>[
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'compact-track-1',
+                title: 'Compact Track 1',
+                track: 1,
+              ),
+              SongsTableData(
+                isProvisional: false,
+                isExternal: false,
+                id: 'compact-track-2',
+                title: 'Compact Track 2',
+                track: 2,
+              ),
+            ],
+            name: 'Replay (Original Game Soundtrack)',
+          ),
+        );
+
+        final header = find.byKey(
+          const ValueKey<String>('albumDetailDesktopHeader'),
+        );
+        final headerBox = tester.renderObject<RenderBox>(header);
+        final firstTrackBox = tester.renderObject<RenderBox>(
+          find.text('Compact Track 1'),
+        );
+
+        expect(headerBox.size.height, lessThanOrEqualTo(300));
+        expect(
+          firstTrackBox.localToGlobal(Offset.zero).dy,
+          lessThan(tester.view.physicalSize.height),
+        );
+        expect(find.byTooltip('Download Album'), findsOneWidget);
+        expect(
+          find.widgetWithText(OutlinedButton, 'Download Album'),
+          findsNothing,
+        );
+        expect(find.text('Filters'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await expectLater(
+          find.byType(AlbumDetailScreen),
+          matchesGoldenFile(
+            'goldens/album_detail_desktop_compact_header_after.png',
+          ),
+        );
+        await _disposeApp(tester);
+      },
+    );
+
     testWidgets('desktop album track actions use the anchored More menu', (
       tester,
     ) async {

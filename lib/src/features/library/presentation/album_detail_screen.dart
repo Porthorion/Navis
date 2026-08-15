@@ -277,7 +277,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
               // ── Desktop layout: horizontal header + scrollable track panel ──
               if (desktopMode) {
-                const artSize = 260.0;
+                final desktopLayoutClass = resolveDesktopLayoutClass(
+                  MediaQuery.sizeOf(context).width,
+                );
+                final compactDesktop =
+                    desktopLayoutClass == DesktopLayoutClass.compactDesktop;
+                final artSize = compactDesktop ? 208.0 : 260.0;
                 final colors = Theme.of(context).colorScheme;
                 final textTheme = Theme.of(context).textTheme;
                 final albumInfoWidget = albumInfoAsync.when(
@@ -360,9 +365,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 return SafeArea(
                   bottom: false,
                   child: DesktopFrame(
-                    layoutClass: resolveDesktopLayoutClass(
-                      MediaQuery.sizeOf(context).width,
-                    ),
+                    layoutClass: desktopLayoutClass,
                     padding: EdgeInsets.zero,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -374,7 +377,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           ),
                           color: colors.surfaceContainerHigh,
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                            padding: EdgeInsets.fromLTRB(
+                              compactDesktop ? 20 : 24,
+                              compactDesktop ? 16 : 24,
+                              compactDesktop ? 20 : 24,
+                              compactDesktop ? 14 : 20,
+                            ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: <Widget>[
@@ -408,7 +416,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     loadPriority: CoverArtLoadPriority.critical,
                                   ),
                                 ),
-                                const SizedBox(width: 28),
+                                SizedBox(width: compactDesktop ? 20 : 28),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -418,15 +426,21 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       // Album title — large
                                       Text(
                                         details.name,
-                                        style: textTheme.displaySmall?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: -0.5,
-                                          height: 1.1,
-                                        ),
+                                        style:
+                                            (compactDesktop
+                                                    ? textTheme.headlineLarge
+                                                    : textTheme.displaySmall)
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: -0.5,
+                                                  height: 1.1,
+                                                ),
                                         maxLines: 3,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        height: compactDesktop ? 8 : 10,
+                                      ),
                                       // Artist · Year · Count
                                       Wrap(
                                         crossAxisAlignment:
@@ -466,7 +480,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           ],
                                         ],
                                       ),
-                                      const SizedBox(height: 20),
+                                      SizedBox(
+                                        height: compactDesktop ? 16 : 20,
+                                      ),
                                       // Primary action buttons
                                       Wrap(
                                         spacing: 8,
@@ -512,112 +528,165 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                             label: l10n.actionLike,
                                             starredLabel: l10n.actionLiked,
                                           ),
-                                          OutlinedButton.icon(
-                                            onPressed: () async {
-                                              final choice =
-                                                  await showDownloadQualitySheet(
-                                                    context,
-                                                  );
-                                              if (choice == null ||
-                                                  !context.mounted) {
-                                                return;
-                                              }
-                                              final service = ref.read(
-                                                downloadServiceProvider,
-                                              );
-                                              final count = await service
-                                                  .enqueueAlbum(
-                                                    widget.albumId,
-                                                    quality: choice.quality,
-                                                    format: choice.format,
-                                                  );
-                                              if (context.mounted) {
-                                                showAppNotice(
-                                                  context,
-                                                  message: l10n
-                                                      .downloadAlbumQueued(
-                                                        count,
-                                                      ),
-                                                  level: AppNoticeLevel.success,
-                                                );
-                                              }
-                                            },
-                                            icon: const Icon(
-                                              Icons.download_outlined,
-                                              size: 18,
+                                          if (compactDesktop)
+                                            IconButton.outlined(
+                                              tooltip: l10n
+                                                  .albumDetailDownloadAction,
+                                              onPressed: () => unawaited(
+                                                _downloadAlbumSongs(context),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.download_outlined,
+                                                size: 18,
+                                              ),
+                                            )
+                                          else
+                                            OutlinedButton.icon(
+                                              onPressed: () => unawaited(
+                                                _downloadAlbumSongs(context),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.download_outlined,
+                                                size: 18,
+                                              ),
+                                              label: Text(
+                                                l10n.albumDetailDownloadAction,
+                                              ),
                                             ),
-                                            label: Text(
-                                              l10n.albumDetailDownloadAction,
-                                            ),
-                                          ),
                                         ],
                                       ),
-                                      const SizedBox(height: 10),
-                                      // Rating button
-                                      _RatingButton(
-                                        rating: albumRating,
-                                        loading: _isUpdatingRating,
-                                        onChanged: (next) => unawaited(
-                                          _updateAlbumRating(next),
+                                      if (compactDesktop) ...<Widget>[
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 6,
+                                          crossAxisAlignment:
+                                              WrapCrossAlignment.center,
+                                          children: <Widget>[
+                                            _RatingButton(
+                                              rating: albumRating,
+                                              loading: _isUpdatingRating,
+                                              onChanged: (next) => unawaited(
+                                                _updateAlbumRating(next),
+                                              ),
+                                            ),
+                                            Icon(
+                                              Icons.filter_list,
+                                              size: 14,
+                                              color: colors.onSurfaceVariant,
+                                            ),
+                                            Text(
+                                              l10n.albumDetailFilterLabel,
+                                              style: textTheme.labelSmall
+                                                  ?.copyWith(
+                                                    color:
+                                                        colors.onSurfaceVariant,
+                                                  ),
+                                            ),
+                                            FilterChip(
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              label: Text(
+                                                l10n.libraryLikedOnlyFilter,
+                                              ),
+                                              avatar: Icon(
+                                                _showLikedOnly
+                                                    ? Icons.favorite
+                                                    : Icons.favorite_border,
+                                                size: 16,
+                                              ),
+                                              selected: _showLikedOnly,
+                                              onSelected: (value) => setState(
+                                                () => _showLikedOnly = value,
+                                              ),
+                                            ),
+                                            FilterChip(
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              label: Text(
+                                                l10n.libraryDownloadedOnlyFilter,
+                                              ),
+                                              avatar: Icon(
+                                                _showDownloadedOnly
+                                                    ? Icons.download_done
+                                                    : Icons.download_outlined,
+                                                size: 16,
+                                              ),
+                                              selected: _showDownloadedOnly,
+                                              onSelected: (value) => setState(
+                                                () =>
+                                                    _showDownloadedOnly = value,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      // Filter chips with header
-                                      Row(
-                                        children: <Widget>[
-                                          Icon(
-                                            Icons.filter_list,
-                                            size: 14,
-                                            color: colors.onSurfaceVariant,
+                                      ] else ...<Widget>[
+                                        const SizedBox(height: 10),
+                                        _RatingButton(
+                                          rating: albumRating,
+                                          loading: _isUpdatingRating,
+                                          onChanged: (next) => unawaited(
+                                            _updateAlbumRating(next),
                                           ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            l10n.albumDetailFilterLabel,
-                                            style: textTheme.labelSmall
-                                                ?.copyWith(
-                                                  color:
-                                                      colors.onSurfaceVariant,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: <Widget>[
-                                          FilterChip(
-                                            label: Text(
-                                              l10n.libraryLikedOnlyFilter,
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Row(
+                                          children: <Widget>[
+                                            Icon(
+                                              Icons.filter_list,
+                                              size: 14,
+                                              color: colors.onSurfaceVariant,
                                             ),
-                                            avatar: Icon(
-                                              _showLikedOnly
-                                                  ? Icons.favorite
-                                                  : Icons.favorite_border,
-                                              size: 18,
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              l10n.albumDetailFilterLabel,
+                                              style: textTheme.labelSmall
+                                                  ?.copyWith(
+                                                    color:
+                                                        colors.onSurfaceVariant,
+                                                  ),
                                             ),
-                                            selected: _showLikedOnly,
-                                            onSelected: (value) => setState(
-                                              () => _showLikedOnly = value,
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: <Widget>[
+                                            FilterChip(
+                                              label: Text(
+                                                l10n.libraryLikedOnlyFilter,
+                                              ),
+                                              avatar: Icon(
+                                                _showLikedOnly
+                                                    ? Icons.favorite
+                                                    : Icons.favorite_border,
+                                                size: 18,
+                                              ),
+                                              selected: _showLikedOnly,
+                                              onSelected: (value) => setState(
+                                                () => _showLikedOnly = value,
+                                              ),
                                             ),
-                                          ),
-                                          FilterChip(
-                                            label: Text(
-                                              l10n.libraryDownloadedOnlyFilter,
+                                            FilterChip(
+                                              label: Text(
+                                                l10n.libraryDownloadedOnlyFilter,
+                                              ),
+                                              avatar: Icon(
+                                                _showDownloadedOnly
+                                                    ? Icons.download_done
+                                                    : Icons.download_outlined,
+                                                size: 18,
+                                              ),
+                                              selected: _showDownloadedOnly,
+                                              onSelected: (value) => setState(
+                                                () =>
+                                                    _showDownloadedOnly = value,
+                                              ),
                                             ),
-                                            avatar: Icon(
-                                              _showDownloadedOnly
-                                                  ? Icons.download_done
-                                                  : Icons.download_outlined,
-                                              size: 18,
-                                            ),
-                                            selected: _showDownloadedOnly,
-                                            onSelected: (value) => setState(
-                                              () => _showDownloadedOnly = value,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                          ],
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),

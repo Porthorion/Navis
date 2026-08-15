@@ -208,6 +208,13 @@ Last updated: 2026-08-16
   desktop empty-state coverage and isolated Linux before/after clean-restart
   captures pass.)
 
+- [x] Compact desktop Album Detail density — 2026-08-16 (approved: at the
+  smallest desktop workspace, the album hero becomes compact enough to keep
+  the first tracks visible; its core actions remain direct, Download retains a
+  tooltip-backed control, and Rating/filters share the available line. Wide
+  desktop and mobile remain unchanged. Focused geometry/golden coverage and
+  isolated Linux before/after clean-restart captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

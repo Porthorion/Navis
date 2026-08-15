@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Compact desktop album pages now keep tracks visible alongside album actions',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Weekly playlist availability and playback actions are now ready for translation',
       type: _EntryType.improvement,
     ),

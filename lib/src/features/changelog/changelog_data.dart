@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Compact desktop album pages now keep tracks visible alongside album actions',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Weekly playlist availability and playback actions are now ready for translation',
         type: ChangelogEntryType.improvement,
       ),
