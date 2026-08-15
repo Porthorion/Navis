@@ -211,6 +211,10 @@ Last updated: 2026-08-16
   exit notice now uses `AppLocalizations`; English presentation is unchanged
   and focused system-back coverage passes.)
 
+- [x] Compact album-card large-text regression coverage — 2026-08-16 (the
+  shared 150 px album card keeps intentionally long title and artist metadata
+  overflow-free at 200% text scale.)
+
 - [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
   page now identifies the artist in its app bar, including when Last.fm has no
   tracks to show, rather than presenting the generic Playlist title. Focused
