@@ -66,16 +66,19 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     super.dispose();
   }
 
-  void _initLastFmKey(AppSettingsModel settings) {
+  void _initLastFmKey(AppSettingsModel settings, AppLocalizations l10n) {
     if (_lastFmKeyInitialized) return;
     _lastFmKeyInitialized = true;
     _lastFmApiKeyController.text = settings.lastFmApiKey ?? '';
     if ((settings.lastFmApiKey ?? '').trim().isNotEmpty) {
-      _lastFmApiKeySuccess = 'Last.fm API key saved.';
+      _lastFmApiKeySuccess = l10n.configurationLastFmApiKeySaved;
     }
   }
 
-  Future<void> _hydrateExternalCredentials(AppSettingsModel settings) async {
+  Future<void> _hydrateExternalCredentials(
+    AppSettingsModel settings,
+    AppLocalizations l10n,
+  ) async {
     if (_externalCredentialsHydrated) return;
     _externalCredentialsHydrated = true;
     final store = ref.read(externalScrobbleCredentialStoreProvider);
@@ -84,7 +87,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     _listenBrainzTokenController.text = listenBrainzToken;
     setState(() {
       if (settings.listenBrainzTokenValid) {
-        _listenBrainzSuccess = 'ListenBrainz token validated.';
+        _listenBrainzSuccess = l10n.configurationListenBrainzTokenValidated;
       }
     });
   }
@@ -145,8 +148,8 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             }
 
             settingsAsync.whenData((settings) {
-              _initLastFmKey(settings);
-              unawaited(_hydrateExternalCredentials(settings));
+              _initLastFmKey(settings, l10n);
+              unawaited(_hydrateExternalCredentials(settings, l10n));
             });
             final currentSettings =
                 settingsAsync.asData?.value ??
@@ -486,7 +489,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
         if (!result.valid) {
           if (!mounted) return;
           setState(() {
-            _lastFmApiKeyError = _lastFmApiKeyFailureMessage(result);
+            _lastFmApiKeyError = _lastFmApiKeyFailureMessage(result, l10n);
             _lastFmApiKeySuccess = null;
           });
           return;
@@ -535,10 +538,11 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   }
 
   Future<void> _validateListenBrainz(AppSettingsModel settings) async {
+    final l10n = AppLocalizations.of(context)!;
     final token = _listenBrainzTokenController.text.trim();
     if (token.isEmpty) {
       setState(() {
-        _listenBrainzError = 'Enter a ListenBrainz user token.';
+        _listenBrainzError = l10n.configurationListenBrainzTokenRequired;
         _listenBrainzSuccess = null;
       });
       return;
@@ -567,7 +571,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             );
         if (!mounted) return;
         setState(() {
-          _listenBrainzError = 'Invalid ListenBrainz token.';
+          _listenBrainzError = l10n.configurationListenBrainzTokenInvalid;
           _listenBrainzSuccess = null;
         });
         return;
@@ -590,13 +594,12 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           .refreshAfterTokenValidation();
       setState(() {
         _listenBrainzError = null;
-        _listenBrainzSuccess = 'ListenBrainz token validated.';
+        _listenBrainzSuccess = l10n.configurationListenBrainzTokenValidated;
       });
     } on Object {
       if (!mounted) return;
       setState(() {
-        _listenBrainzError =
-            'ListenBrainz is unavailable. Check your connection and try again.';
+        _listenBrainzError = l10n.configurationListenBrainzUnavailable;
         _listenBrainzSuccess = null;
       });
     } finally {
@@ -651,14 +654,17 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     }
   }
 
-  String _lastFmApiKeyFailureMessage(LastFmApiKeyValidationResult result) {
+  String _lastFmApiKeyFailureMessage(
+    LastFmApiKeyValidationResult result,
+    AppLocalizations l10n,
+  ) {
     if (result.apiErrorCode == 10 || result.statusCode == 403) {
-      return 'Invalid Last.fm API key.';
+      return l10n.configurationLastFmApiKeyInvalid;
     }
     if (result.statusCode == 429) {
-      return 'Last.fm is rate limiting validation. Try again later.';
+      return l10n.configurationLastFmApiKeyRateLimited;
     }
-    return result.message ?? 'Could not validate this Last.fm API key.';
+    return result.message ?? l10n.configurationLastFmApiKeyValidationFailed;
   }
 
   String _toUserMessage(Object error, AppLocalizations l10n) {
@@ -856,13 +862,15 @@ class _LastFmCard extends StatelessWidget {
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined,
                         ),
-                        tooltip: obscureApiKey ? 'Show' : 'Hide',
+                        tooltip: obscureApiKey
+                            ? l10n.configurationShowSecret
+                            : l10n.configurationHideSecret,
                         onPressed: onToggleObscure,
                       ),
                       if (controller.text.isNotEmpty)
                         IconButton(
                           icon: const Icon(Icons.clear),
-                          tooltip: 'Clear',
+                          tooltip: l10n.configurationClearSecret,
                           onPressed: onClear,
                         ),
                     ],
@@ -927,6 +935,7 @@ class _ListenBrainzCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final valid = settings.listenBrainzTokenValid;
     final enabled = settings.listenBrainzScrobblingEnabled && valid;
@@ -959,7 +968,7 @@ class _ListenBrainzCard extends StatelessWidget {
               controller: controller,
               obscureText: obscureToken,
               decoration: InputDecoration(
-                labelText: 'User token',
+                labelText: l10n.configurationListenBrainzTokenLabel,
                 border: const OutlineInputBorder(),
                 enabledBorder: successText != null && errorText == null
                     ? OutlineInputBorder(
@@ -979,12 +988,14 @@ class _ListenBrainzCard extends StatelessWidget {
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                       ),
-                      tooltip: obscureToken ? 'Show' : 'Hide',
+                      tooltip: obscureToken
+                          ? l10n.configurationShowSecret
+                          : l10n.configurationHideSecret,
                       onPressed: onToggleObscure,
                     ),
                     if (controller.text.isNotEmpty)
                       IconButton(
-                        tooltip: 'Clear',
+                        tooltip: l10n.configurationClearSecret,
                         onPressed: onClear,
                         icon: const Icon(Icons.clear),
                       ),
@@ -1006,12 +1017,12 @@ class _ListenBrainzCard extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.verified_outlined),
-                  label: const Text('Validate and save'),
+                  label: Text(l10n.configurationListenBrainzValidateAndSave),
                 ),
                 TextButton.icon(
                   onPressed: onOpenTokenSettings,
                   icon: const Icon(Icons.open_in_new),
-                  label: const Text('Get Token'),
+                  label: Text(l10n.configurationListenBrainzGetToken),
                 ),
               ],
             ),

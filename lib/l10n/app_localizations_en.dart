@@ -1084,12 +1084,57 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configurationLastFmApiKeyCleared => 'Last.fm API key removed.';
 
   @override
+  String get configurationLastFmApiKeyInvalid => 'Invalid Last.fm API key.';
+
+  @override
+  String get configurationLastFmApiKeyRateLimited =>
+      'Last.fm is rate limiting validation. Try again later.';
+
+  @override
+  String get configurationLastFmApiKeyValidationFailed =>
+      'Could not validate this Last.fm API key.';
+
+  @override
   String get configurationLastFmBundledNotice =>
       'API key bundled with this build';
 
   @override
   String get configurationLastFmBundledSubtitle =>
       'This build includes a Last.fm API key. You do not need to provide your own.';
+
+  @override
+  String get configurationShowSecret => 'Show';
+
+  @override
+  String get configurationHideSecret => 'Hide';
+
+  @override
+  String get configurationClearSecret => 'Clear';
+
+  @override
+  String get configurationListenBrainzTokenLabel => 'User token';
+
+  @override
+  String get configurationListenBrainzTokenRequired =>
+      'Enter a ListenBrainz user token.';
+
+  @override
+  String get configurationListenBrainzTokenInvalid =>
+      'Invalid ListenBrainz token.';
+
+  @override
+  String get configurationListenBrainzTokenValidated =>
+      'ListenBrainz token validated.';
+
+  @override
+  String get configurationListenBrainzUnavailable =>
+      'ListenBrainz is unavailable. Check your connection and try again.';
+
+  @override
+  String get configurationListenBrainzValidateAndSave => 'Validate and save';
+
+  @override
+  String get configurationListenBrainzGetToken => 'Get Token';
 
   @override
   String get commonQueued => 'Queued';

@@ -1932,6 +1932,24 @@ abstract class AppLocalizations {
   /// **'Last.fm API key removed.'**
   String get configurationLastFmApiKeyCleared;
 
+  /// No description provided for @configurationLastFmApiKeyInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid Last.fm API key.'**
+  String get configurationLastFmApiKeyInvalid;
+
+  /// No description provided for @configurationLastFmApiKeyRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm is rate limiting validation. Try again later.'**
+  String get configurationLastFmApiKeyRateLimited;
+
+  /// No description provided for @configurationLastFmApiKeyValidationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not validate this Last.fm API key.'**
+  String get configurationLastFmApiKeyValidationFailed;
+
   /// No description provided for @configurationLastFmBundledNotice.
   ///
   /// In en, this message translates to:
@@ -1943,6 +1961,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This build includes a Last.fm API key. You do not need to provide your own.'**
   String get configurationLastFmBundledSubtitle;
+
+  /// No description provided for @configurationShowSecret.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get configurationShowSecret;
+
+  /// No description provided for @configurationHideSecret.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide'**
+  String get configurationHideSecret;
+
+  /// No description provided for @configurationClearSecret.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get configurationClearSecret;
+
+  /// No description provided for @configurationListenBrainzTokenLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'User token'**
+  String get configurationListenBrainzTokenLabel;
+
+  /// No description provided for @configurationListenBrainzTokenRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a ListenBrainz user token.'**
+  String get configurationListenBrainzTokenRequired;
+
+  /// No description provided for @configurationListenBrainzTokenInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid ListenBrainz token.'**
+  String get configurationListenBrainzTokenInvalid;
+
+  /// No description provided for @configurationListenBrainzTokenValidated.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz token validated.'**
+  String get configurationListenBrainzTokenValidated;
+
+  /// No description provided for @configurationListenBrainzUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'ListenBrainz is unavailable. Check your connection and try again.'**
+  String get configurationListenBrainzUnavailable;
+
+  /// No description provided for @configurationListenBrainzValidateAndSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Validate and save'**
+  String get configurationListenBrainzValidateAndSave;
+
+  /// No description provided for @configurationListenBrainzGetToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Get Token'**
+  String get configurationListenBrainzGetToken;
 
   /// No description provided for @commonQueued.
   ///

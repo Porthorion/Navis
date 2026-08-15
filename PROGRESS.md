@@ -127,6 +127,12 @@ Last updated: 2026-08-15
   readable single column. Focused adaptive layout coverage and isolated Linux
   before/after clean-restart presentation captures pass.)
 
+- [x] Configuration localization completion — 2026-08-16 (external-service
+  field labels, validation feedback, primary actions, and Show/Hide/Clear
+  tooltips now use `AppLocalizations`; only product names, URLs, route IDs,
+  and dynamic server values remain literal. Focused Configuration behavior
+  coverage passes.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

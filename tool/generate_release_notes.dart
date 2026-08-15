@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Configuration controls, validation feedback, and secret-field tooltips are now ready for translation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Desktop Configuration now keeps independent external services side by side on wide windows',
       type: _EntryType.improvement,
     ),

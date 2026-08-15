@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Configuration controls, validation feedback, and secret-field tooltips are now ready for translation',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop Configuration now keeps independent external services side by side on wide windows',
         type: ChangelogEntryType.improvement,
       ),
