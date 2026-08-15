@@ -1118,6 +1118,42 @@ void main() {
       },
     );
 
+    testWidgets('compact desktop album header remains usable at 130% text', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(800, 600));
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _desktopContext,
+        textScaler: const TextScaler.linear(1.3),
+        album: _albumWithSongs(
+          const <SongsTableData>[
+            SongsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'compact-large-text-track',
+              title: 'Compact Large Text Track',
+              track: 1,
+            ),
+          ],
+          name: 'Replay (Original Game Soundtrack)',
+        ),
+      );
+
+      expect(find.text('Replay (Original Game Soundtrack)'), findsOneWidget);
+      expect(find.text('Compact Large Text Track'), findsOneWidget);
+      expect(find.byTooltip('Download Album'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(AlbumDetailScreen),
+        matchesGoldenFile(
+          'goldens/album_detail_desktop_compact_header_text_scale_130.png',
+        ),
+      );
+      await _disposeApp(tester);
+    });
+
     testWidgets('desktop album track actions use the anchored More menu', (
       tester,
     ) async {

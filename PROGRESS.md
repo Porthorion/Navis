@@ -212,8 +212,9 @@ Last updated: 2026-08-16
   smallest desktop workspace, the album hero becomes compact enough to keep
   the first tracks visible; its core actions remain direct, Download retains a
   tooltip-backed control, and Rating/filters share the available line. Wide
-  desktop and mobile remain unchanged. Focused geometry/golden coverage and
-  isolated Linux before/after clean-restart captures pass.)
+  desktop and mobile remain unchanged. Focused geometry/golden coverage,
+  including a 130% text-scale wrap regression, and isolated Linux
+  before/after clean-restart captures pass.)
 
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
