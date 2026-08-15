@@ -227,6 +227,17 @@ const SongsTableData _longMetadataSong = SongsTableData(
   isExternal: false,
 );
 
+const SongsTableData _remoteMetadataSong = SongsTableData(
+  id: 'song-1',
+  title: 'A Remote Track With Clear Provenance',
+  artistName: 'Remote Artist',
+  albumName: 'Remote Album',
+  artistId: 'artist-1',
+  albumId: 'album-1',
+  isProvisional: false,
+  isExternal: true,
+);
+
 void main() {
   IconButton desktopActionButton(WidgetTester tester, String key) {
     return tester.widget<IconButton>(
@@ -780,6 +791,42 @@ void main() {
     await tester.pump(const Duration(milliseconds: 201));
   });
 
+  testWidgets('800x600 Desktop View preserves remote-source provenance', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        songByIdProvider.overrideWith(
+          (ref, songId) => Stream.value(
+            songId == _remoteMetadataSong.id ? _remoteMetadataSong : null,
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('remote-source-indicator')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey<String>('appShellScaffold')),
+      matchesGoldenFile('goldens/desktop_player_remote_metadata_800x600.png'),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
   testWidgets(
     'desktop player truncates representative long metadata at 800px',
     (
@@ -1221,6 +1268,48 @@ void main() {
     await expectLater(
       find.byKey(const ValueKey('desktopMiniPlayerSurface')),
       matchesGoldenFile('goldens/mini_player_active_560x360.png'),
+    );
+  });
+
+  testWidgets('560x360 Mini Player preserves remote-source provenance', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(560, 360);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final windowController = DesktopWindowController.fallback(
+      desktopRuntime: true,
+    );
+    await windowController.setMiniPlayerMode(true);
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => windowController,
+        ),
+        songByIdProvider.overrideWith(
+          (ref, songId) => Stream.value(
+            songId == _remoteMetadataSong.id ? _remoteMetadataSong : null,
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('remote-source-indicator')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey('desktopMiniPlayerSurface')),
+      matchesGoldenFile('goldens/mini_player_remote_metadata_560x360.png'),
     );
   });
 
