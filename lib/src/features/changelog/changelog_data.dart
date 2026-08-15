@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop Playlist Detail now uses a full-width workspace header',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop About now uses a responsive overview for usage, links, and updates',
         type: ChangelogEntryType.improvement,
       ),

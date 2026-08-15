@@ -125,6 +125,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               layoutClass: resolveDesktopLayoutClass(
                 MediaQuery.sizeOf(context).width,
               ),
+              padding: EdgeInsets.zero,
               child: playlistBody,
             )
           : playlistBody,
@@ -150,6 +151,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         .map((entry) => entry.song)
         .toList(growable: false);
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    const desktopTrackPadding = EdgeInsets.fromLTRB(24, 0, 24, 0);
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -160,93 +162,108 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         slivers: [
           SliverToBoxAdapter(
             child: desktopMode
-                ? DesktopPanel(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        CoverArtImage(
-                          coverArtId: playlist.coverArt,
-                          size: kCoverArtStandardSize,
-                          height: 220,
-                          borderRadius: BorderRadius.circular(16),
-                          placeholderIcon: Icons.queue_music,
-                        ),
-                        const SizedBox(width: 24),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                playlist.name,
-                                style: Theme.of(
-                                  context,
-                                ).textTheme.headlineMedium,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                l10n.playlistDetailMeta(
-                                  playlist.owner ?? '',
-                                  visibleSongs.length,
+                ? ColoredBox(
+                    key: const ValueKey<String>(
+                      'playlist-detail-desktop-header',
+                    ),
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          CoverArtImage(
+                            coverArtId: playlist.coverArt,
+                            size: kCoverArtStandardSize,
+                            height: 220,
+                            borderRadius: BorderRadius.circular(16),
+                            placeholderIcon: Icons.queue_music,
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  playlist.name,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.headlineMedium,
                                 ),
-                              ),
-                              if (downloadedOnly) ...<Widget>[
-                                const SizedBox(height: 8),
-                                Chip(
-                                  label: Text(l10n.libraryDownloadedOnlyFilter),
-                                  avatar: const Icon(
-                                    Icons.download_done,
-                                    size: 18,
+                                const SizedBox(height: 6),
+                                Text(
+                                  l10n.playlistDetailMeta(
+                                    playlist.owner ?? '',
+                                    visibleSongs.length,
                                   ),
                                 ),
-                              ],
-                              const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: <Widget>[
-                                  // Play is the one primary entity action;
-                                  // Shuffle and Download remain supporting
-                                  // actions, matching album and artist detail.
-                                  FilledButton.icon(
-                                    onPressed: visibleSongs.isEmpty
-                                        ? null
-                                        : () => _queuePlaylist(
-                                            visibleSongs,
-                                            shuffle: false,
-                                          ),
-                                    icon: const Icon(Icons.play_arrow),
-                                    label: Text(l10n.playlistDetailPlayAction),
-                                  ),
-                                  FilledButton.tonalIcon(
-                                    onPressed: visibleSongs.isEmpty
-                                        ? null
-                                        : () => _queuePlaylist(
-                                            visibleSongs,
-                                            shuffle: true,
-                                          ),
-                                    icon: const Icon(Icons.shuffle_outlined),
+                                if (downloadedOnly) ...<Widget>[
+                                  const SizedBox(height: 8),
+                                  Chip(
                                     label: Text(
-                                      l10n.playlistDetailShuffleAction,
+                                      l10n.libraryDownloadedOnlyFilter,
+                                    ),
+                                    avatar: const Icon(
+                                      Icons.download_done,
+                                      size: 18,
                                     ),
                                   ),
-                                  FilledButton.tonalIcon(
-                                    onPressed: visibleSongs.isEmpty
-                                        ? null
-                                        : () => unawaited(
-                                            _downloadPlaylist(
-                                              playlist,
-                                              visibleSongs,
-                                            ),
-                                          ),
-                                    icon: const Icon(Icons.download_outlined),
-                                    label: Text(l10n.downloadAction),
-                                  ),
                                 ],
-                              ),
-                            ],
+                                const SizedBox(height: 16),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: <Widget>[
+                                    // Play is the one primary entity action;
+                                    // Shuffle and Download remain supporting
+                                    // actions, matching album and artist detail.
+                                    FilledButton.icon(
+                                      onPressed: visibleSongs.isEmpty
+                                          ? null
+                                          : () => _queuePlaylist(
+                                              visibleSongs,
+                                              shuffle: false,
+                                            ),
+                                      icon: const Icon(Icons.play_arrow),
+                                      label: Text(
+                                        l10n.playlistDetailPlayAction,
+                                      ),
+                                    ),
+                                    FilledButton.tonalIcon(
+                                      onPressed: visibleSongs.isEmpty
+                                          ? null
+                                          : () => _queuePlaylist(
+                                              visibleSongs,
+                                              shuffle: true,
+                                            ),
+                                      icon: const Icon(
+                                        Icons.shuffle_outlined,
+                                      ),
+                                      label: Text(
+                                        l10n.playlistDetailShuffleAction,
+                                      ),
+                                    ),
+                                    FilledButton.tonalIcon(
+                                      onPressed: visibleSongs.isEmpty
+                                          ? null
+                                          : () => unawaited(
+                                              _downloadPlaylist(
+                                                playlist,
+                                                visibleSongs,
+                                              ),
+                                            ),
+                                      icon: const Icon(
+                                        Icons.download_outlined,
+                                      ),
+                                      label: Text(l10n.downloadAction),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   )
                 : Column(
@@ -336,89 +353,98 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   ),
           ),
           if (visibleSongs.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: isLoading
-                  ? const ShimmerListPage()
-                  : downloadedOnly
-                  ? EmptyState(
-                      title: l10n.libraryDownloadedOnlyEmpty,
-                      subtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
-                      icon: Icons.download_done_outlined,
-                    )
-                  : EmptyState(
-                      title: l10n.playlistDetailEmptyTitle,
-                      subtitle: l10n.playlistDetailEmptySubtitle,
-                      icon: Icons.music_note_outlined,
-                    ),
+            SliverPadding(
+              padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
+              sliver: SliverFillRemaining(
+                hasScrollBody: false,
+                child: isLoading
+                    ? const ShimmerListPage()
+                    : downloadedOnly
+                    ? EmptyState(
+                        title: l10n.libraryDownloadedOnlyEmpty,
+                        subtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
+                        icon: Icons.download_done_outlined,
+                      )
+                    : EmptyState(
+                        title: l10n.playlistDetailEmptyTitle,
+                        subtitle: l10n.playlistDetailEmptySubtitle,
+                        icon: Icons.music_note_outlined,
+                      ),
+              ),
             )
           else if (downloadedOnly)
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final entry = visibleEntries[index];
-                final song = entry.song;
-                return Material(
-                  type: MaterialType.transparency,
-                  child: TrackListTile(
-                    song: song,
-                    onTap: () => _playNow(visibleSongs, index),
-                    onLongPress: () =>
-                        _showSongActions(song, entry.playlistIndex),
-                    onSecondaryTapDown: (details) => _showSongActions(
-                      song,
-                      entry.playlistIndex,
-                      anchor: details.globalPosition,
+            SliverPadding(
+              padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final entry = visibleEntries[index];
+                  final song = entry.song;
+                  return Material(
+                    type: MaterialType.transparency,
+                    child: TrackListTile(
+                      song: song,
+                      onTap: () => _playNow(visibleSongs, index),
+                      onLongPress: () =>
+                          _showSongActions(song, entry.playlistIndex),
+                      onSecondaryTapDown: (details) => _showSongActions(
+                        song,
+                        entry.playlistIndex,
+                        anchor: details.globalPosition,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          SongDownloadStatusIcon(
+                            songId: song.id,
+                            onDownload: () => unawaited(_downloadSong(song)),
+                          ),
+                          _songActionsButton(song, entry.playlistIndex),
+                        ],
+                      ),
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        SongDownloadStatusIcon(
-                          songId: song.id,
-                          onDownload: () => unawaited(_downloadSong(song)),
-                        ),
-                        _songActionsButton(song, entry.playlistIndex),
-                      ],
-                    ),
-                  ),
-                );
-              }, childCount: visibleEntries.length),
+                  );
+                }, childCount: visibleEntries.length),
+              ),
             )
           else
-            SliverReorderableList(
-              onReorder: (oldIndex, newIndex) =>
-                  unawaited(_reorderTrack(songs, oldIndex, newIndex)),
-              itemCount: songs.length,
-              itemBuilder: (context, index) {
-                final song = songs[index];
-                return Material(
-                  key: ValueKey('${widget.playlistId}-${song.id}-$index'),
-                  type: MaterialType.transparency,
-                  child: TrackListTile(
-                    song: song,
-                    onTap: () => _playNow(songs, index),
-                    onLongPress: () => _showSongActions(song, index),
-                    onSecondaryTapDown: (details) => _showSongActions(
-                      song,
-                      index,
-                      anchor: details.globalPosition,
+            SliverPadding(
+              padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
+              sliver: SliverReorderableList(
+                onReorder: (oldIndex, newIndex) =>
+                    unawaited(_reorderTrack(songs, oldIndex, newIndex)),
+                itemCount: songs.length,
+                itemBuilder: (context, index) {
+                  final song = songs[index];
+                  return Material(
+                    key: ValueKey('${widget.playlistId}-${song.id}-$index'),
+                    type: MaterialType.transparency,
+                    child: TrackListTile(
+                      song: song,
+                      onTap: () => _playNow(songs, index),
+                      onLongPress: () => _showSongActions(song, index),
+                      onSecondaryTapDown: (details) => _showSongActions(
+                        song,
+                        index,
+                        anchor: details.globalPosition,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          SongDownloadStatusIcon(
+                            songId: song.id,
+                            onDownload: () => unawaited(_downloadSong(song)),
+                          ),
+                          _songActionsButton(song, index),
+                          ReorderableDragStartListener(
+                            index: index,
+                            child: const Icon(Icons.drag_handle),
+                          ),
+                        ],
+                      ),
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        SongDownloadStatusIcon(
-                          songId: song.id,
-                          onDownload: () => unawaited(_downloadSong(song)),
-                        ),
-                        _songActionsButton(song, index),
-                        ReorderableDragStartListener(
-                          index: index,
-                          child: const Icon(Icons.drag_handle),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
         ],

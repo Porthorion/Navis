@@ -187,6 +187,12 @@ Last updated: 2026-08-16
   Focused behavior/layout coverage, including 200% text scale, and isolated
   Linux before/after clean-restart captures pass.)
 
+- [x] Desktop Playlist Detail workspace — 2026-08-16 (approved: Playlist
+  Detail now uses a full-width tonal header rather than a detached rounded
+  panel, with the track list still inset for scanning. Phone and tablet
+  layouts remain unchanged. Focused geometry/golden coverage and isolated
+  Linux before/after clean-restart captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%
