@@ -19,6 +19,7 @@ import 'package:navis/src/features/downloads/presentation/download_quality_sheet
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 
@@ -411,16 +412,32 @@ class _TopTrackTile extends ConsumerWidget {
             onDownload: () => _downloadSong(context, ref, resolvedId),
             size: 20,
           ),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            iconSize: 20,
-            constraints: const BoxConstraints(),
-            padding: const EdgeInsets.all(8),
-            onPressed: dbSong != null
-                ? () => unawaited(
-                    showSongContextMenu(context, ref, dbSong),
-                  )
-                : null,
+          Builder(
+            builder: (buttonContext) => IconButton(
+              icon: const Icon(Icons.more_vert),
+              iconSize: 20,
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.all(8),
+              onPressed: dbSong == null
+                  ? null
+                  : () {
+                      final renderObject = buttonContext.findRenderObject();
+                      final anchor =
+                          !isDesktopRuntime || renderObject is! RenderBox
+                          ? null
+                          : renderObject.localToGlobal(
+                              renderObject.size.center(Offset.zero),
+                            );
+                      unawaited(
+                        showSongContextMenu(
+                          context,
+                          ref,
+                          dbSong,
+                          anchor: anchor,
+                        ),
+                      );
+                    },
+            ),
           ),
         ],
       );

@@ -4,14 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/song.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 import '../../../../helpers/test_theme.dart';
+import '../../../../helpers/test_database.dart';
 
 class _QueueSpyController extends QueueController {
   List<String>? lastReplaceIds;
@@ -153,6 +156,73 @@ void main() {
     expect(queueSpy.lastReplaceIds, const <String>['song-2']);
     expect(queueSpy.lastStartIndex, 0);
     expect(queueSpy.lastAutoPlay, isTrue);
+  });
+
+  testWidgets('desktop top-track More opens the anchored song menu', (
+    tester,
+  ) async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(900, 700);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    const localSong = SongsTableData(
+      id: 'song-menu',
+      title: 'Menu Song',
+      artistName: 'Test Artist',
+      isProvisional: false,
+      isExternal: false,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            albumQueueEnabledProvider.overrideWithValue(false),
+            artistTopTracksProvider.overrideWith(
+              (ref, artistName) async => [
+                _track(rank: 1, id: 'song-menu', title: 'Menu Song'),
+              ],
+            ),
+            songByIdProvider.overrideWith(
+              (ref, songId) => Stream.value(localSong),
+            ),
+            songDownloadStateProvider.overrideWith(
+              (ref, songId) => SongDownloadState.none,
+            ),
+            subsonicApiProvider.overrideWithValue(null),
+          ],
+        ),
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AdaptiveContextScope(
+            adaptiveContext: resolveAdaptiveContext(
+              desktopRuntime: true,
+              viewportSize: const Size(900, 700),
+              safePadding: EdgeInsets.zero,
+            ),
+            child: const Scaffold(
+              body: ArtistTopTracksSection(artistName: 'Test Artist'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.text('Play now'), findsOneWidget);
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('queues all resolved top tracks when Album Queue is enabled', (

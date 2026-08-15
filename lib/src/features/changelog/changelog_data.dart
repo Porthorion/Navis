@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Artist Top Tracks More now uses the same focused desktop menu as right-click',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Album-track More and right-click actions now use one focused desktop menu',
         type: ChangelogEntryType.improvement,
       ),
