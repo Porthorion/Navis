@@ -264,40 +264,98 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                         ),
                         const SizedBox(height: 8),
 
-                        // Last.fm card
-                        _LastFmCard(
-                          settings: currentSettings,
-                          isBundled: isBundled,
-                          isSaving: _isSavingApiKey,
-                          obscureApiKey: _obscureApiKey,
-                          controller: _lastFmApiKeyController,
-                          apiKeyError: _lastFmApiKeyError,
-                          apiKeySuccess: _lastFmApiKeySuccess,
-                          onToggleObscure: () =>
-                              setState(() => _obscureApiKey = !_obscureApiKey),
-                          onSave: _saveLastFmKey,
-                          onClear: _clearLastFmKey,
-                          onGetApiKey: _openLastFmApiPage,
-                        ),
-                        sectionGap,
-                        _ListenBrainzCard(
-                          settings: currentSettings,
-                          isBusy: _isListenBrainzBusy,
-                          obscureToken: _obscureListenBrainzToken,
-                          controller: _listenBrainzTokenController,
-                          errorText: _listenBrainzError,
-                          successText: _listenBrainzSuccess,
-                          onToggleObscure: () => setState(
-                            () => _obscureListenBrainzToken =
-                                !_obscureListenBrainzToken,
+                        if (desktopMode &&
+                            resolveAdaptiveContextFor(
+                                  context,
+                                ).desktopLayoutClass !=
+                                DesktopLayoutClass.compactDesktop)
+                          Row(
+                            key: const ValueKey<String>(
+                              'server-settings-external-services-grid',
+                            ),
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Expanded(
+                                child: _LastFmCard(
+                                  settings: currentSettings,
+                                  isBundled: isBundled,
+                                  isSaving: _isSavingApiKey,
+                                  obscureApiKey: _obscureApiKey,
+                                  controller: _lastFmApiKeyController,
+                                  apiKeyError: _lastFmApiKeyError,
+                                  apiKeySuccess: _lastFmApiKeySuccess,
+                                  onToggleObscure: () => setState(
+                                    () => _obscureApiKey = !_obscureApiKey,
+                                  ),
+                                  onSave: _saveLastFmKey,
+                                  onClear: _clearLastFmKey,
+                                  onGetApiKey: _openLastFmApiPage,
+                                ),
+                              ),
+                              const SizedBox(width: 32),
+                              Expanded(
+                                child: _ListenBrainzCard(
+                                  settings: currentSettings,
+                                  isBusy: _isListenBrainzBusy,
+                                  obscureToken: _obscureListenBrainzToken,
+                                  controller: _listenBrainzTokenController,
+                                  errorText: _listenBrainzError,
+                                  successText: _listenBrainzSuccess,
+                                  onToggleObscure: () => setState(
+                                    () => _obscureListenBrainzToken =
+                                        !_obscureListenBrainzToken,
+                                  ),
+                                  onValidate: () =>
+                                      _validateListenBrainz(currentSettings),
+                                  onClear: () =>
+                                      _clearListenBrainz(currentSettings),
+                                  onOpenTokenSettings:
+                                      _openListenBrainzTokenPage,
+                                  onEnabledChanged: (value) =>
+                                      _setListenBrainzEnabled(
+                                        currentSettings,
+                                        value,
+                                      ),
+                                ),
+                              ),
+                            ],
+                          )
+                        else ...<Widget>[
+                          _LastFmCard(
+                            settings: currentSettings,
+                            isBundled: isBundled,
+                            isSaving: _isSavingApiKey,
+                            obscureApiKey: _obscureApiKey,
+                            controller: _lastFmApiKeyController,
+                            apiKeyError: _lastFmApiKeyError,
+                            apiKeySuccess: _lastFmApiKeySuccess,
+                            onToggleObscure: () => setState(
+                              () => _obscureApiKey = !_obscureApiKey,
+                            ),
+                            onSave: _saveLastFmKey,
+                            onClear: _clearLastFmKey,
+                            onGetApiKey: _openLastFmApiPage,
                           ),
-                          onValidate: () =>
-                              _validateListenBrainz(currentSettings),
-                          onClear: () => _clearListenBrainz(currentSettings),
-                          onOpenTokenSettings: _openListenBrainzTokenPage,
-                          onEnabledChanged: (value) =>
-                              _setListenBrainzEnabled(currentSettings, value),
-                        ),
+                          sectionGap,
+                          _ListenBrainzCard(
+                            settings: currentSettings,
+                            isBusy: _isListenBrainzBusy,
+                            obscureToken: _obscureListenBrainzToken,
+                            controller: _listenBrainzTokenController,
+                            errorText: _listenBrainzError,
+                            successText: _listenBrainzSuccess,
+                            onToggleObscure: () => setState(
+                              () => _obscureListenBrainzToken =
+                                  !_obscureListenBrainzToken,
+                            ),
+                            onValidate: () =>
+                                _validateListenBrainz(currentSettings),
+                            onClear: () => _clearListenBrainz(currentSettings),
+                            onOpenTokenSettings: _openListenBrainzTokenPage,
+                            onEnabledChanged: (value) =>
+                                _setListenBrainzEnabled(currentSettings, value),
+                          ),
+                        ],
                       ],
                     ),
                   ),

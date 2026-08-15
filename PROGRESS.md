@@ -121,6 +121,12 @@ Last updated: 2026-08-15
   Phone and desktop golden coverage plus an isolated Linux clean-restart
   presentation capture pass.)
 
+- [x] Desktop Configuration external-services layout — 2026-08-16 (approved
+  wide-desktop treatment: independent Last.fm and ListenBrainz forms now share
+  one two-column workspace, while compact desktop and mobile retain the
+  readable single column. Focused adaptive layout coverage and isolated Linux
+  before/after clean-restart presentation captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

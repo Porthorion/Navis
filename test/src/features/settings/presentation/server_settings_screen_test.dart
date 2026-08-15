@@ -276,6 +276,37 @@ void main() {
     expect(Theme.of(cardContext).cardTheme.color, Colors.transparent);
   });
 
+  testWidgets('uses a two-column external-services workspace on wide desktop', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1280, 800));
+
+    await tester.pumpWidget(
+      _buildTestApp(
+        configNotifier: _TestServerConfigNotifier(initialConfig),
+        connectionService: _FakeServerConnectionService(),
+        signOutService: _FakeSignOutService(),
+        desktopMode: true,
+        lastFmBundled: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(
+        const ValueKey<String>('server-settings-external-services-grid'),
+      ),
+      findsOneWidget,
+    );
+    final lastFmPosition = tester.getTopLeft(find.text('Last.fm'));
+    final listenBrainzPosition = tester.getTopLeft(find.text('ListenBrainz'));
+    expect(listenBrainzPosition.dx, greaterThan(lastFmPosition.dx));
+    expect(
+      listenBrainzPosition.dy,
+      closeTo(lastFmPosition.dy, 16),
+    );
+  });
+
   testWidgets('renders external service configuration fields', (tester) async {
     await tester.pumpWidget(
       _buildTestApp(
@@ -294,6 +325,12 @@ void main() {
     expect(find.text('Last.fm'), findsOneWidget);
     expect(find.text('ListenBrainz'), findsOneWidget);
     expect(find.text('Get Token'), findsOneWidget);
+    expect(
+      find.byKey(
+        const ValueKey<String>('server-settings-external-services-grid'),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('does not render retired Listen Together configuration', (

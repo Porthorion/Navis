@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Desktop Configuration now keeps independent external services side by side on wide windows',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Artist pages now keep their header, actions, and album layout visible while details first load',
       type: _EntryType.improvement,
     ),
