@@ -13,11 +13,13 @@ class ArtistGridCard extends ConsumerWidget {
     super.key,
     this.onTap,
     this.onLongPress,
+    this.onSecondaryTapDown,
   });
 
   final ArtistsTableData artist;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,6 +29,7 @@ class ArtistGridCard extends ConsumerWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
+      onSecondaryTapDown: onSecondaryTapDown,
       onLongPress: onLongPress == null
           ? null
           : () {

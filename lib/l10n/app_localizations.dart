@@ -2345,6 +2345,12 @@ abstract class AppLocalizations {
   /// **'Open artist'**
   String get libraryArtistMenuOpen;
 
+  /// No description provided for @libraryArtistAddedToQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist added to queue'**
+  String get libraryArtistAddedToQueue;
+
   /// No description provided for @libraryAlbumMenuOpen.
   ///
   /// In en, this message translates to:

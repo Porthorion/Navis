@@ -599,6 +599,7 @@
   "librarySortTitle": "Title",
   "librarySortDuration": "Duration",
   "libraryArtistMenuOpen": "Open artist",
+  "libraryArtistAddedToQueue": "Artist added to queue",
   "libraryAlbumMenuOpen": "Open album",
   "librarySongMenuPlayNow": "Play now",
   "librarySongMenuAddToQueue": "Add to queue",

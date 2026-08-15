@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
@@ -2157,6 +2158,16 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       widgets.add(
         InkWell(
           onTap: () => NavService.openArtistDetail(context, ref, artist.id),
+          onLongPress: () =>
+              unawaited(showArtistContextMenu(context, ref, artist.id)),
+          onSecondaryTapDown: (details) => unawaited(
+            showArtistContextMenu(
+              context,
+              ref,
+              artist.id,
+              anchor: details.globalPosition,
+            ),
+          ),
           child: Text(artist.name, style: textStyle),
         ),
       );

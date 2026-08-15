@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -798,8 +799,37 @@ class _ArtistResultsSection extends ConsumerWidget {
                     : '',
                 isRemote: isRemote,
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: Builder(
+                builder: (buttonContext) => IconButton(
+                  icon: const Icon(Icons.more_horiz),
+                  tooltip: MaterialLocalizations.of(
+                    buttonContext,
+                  ).showMenuTooltip,
+                  onPressed: () {
+                    final renderObject = buttonContext.findRenderObject();
+                    if (renderObject is! RenderBox) return;
+                    unawaited(
+                      showArtistContextMenu(
+                        context,
+                        ref,
+                        artist.id,
+                        anchor: renderObject.localToGlobal(
+                          renderObject.size.center(Offset.zero),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
               onTap: () => NavService.openArtistDetail(context, ref, artist.id),
+              onSecondaryTapDown: (details) => unawaited(
+                showArtistContextMenu(
+                  context,
+                  ref,
+                  artist.id,
+                  anchor: details.globalPosition,
+                ),
+              ),
             );
           }
           return ListTile(
@@ -812,6 +842,30 @@ class _ArtistResultsSection extends ConsumerWidget {
               isRemote: isRemote,
             ),
             onTap: () => NavService.openArtistDetail(context, ref, artist.id),
+            onLongPress: () =>
+                unawaited(showArtistContextMenu(context, ref, artist.id)),
+            trailing: Builder(
+              builder: (buttonContext) => IconButton(
+                icon: const Icon(Icons.more_horiz),
+                tooltip: MaterialLocalizations.of(
+                  buttonContext,
+                ).showMenuTooltip,
+                onPressed: () {
+                  final renderObject = buttonContext.findRenderObject();
+                  if (renderObject is! RenderBox) return;
+                  unawaited(
+                    showArtistContextMenu(
+                      context,
+                      ref,
+                      artist.id,
+                      anchor: renderObject.localToGlobal(
+                        renderObject.size.center(Offset.zero),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           );
         }),
       ],

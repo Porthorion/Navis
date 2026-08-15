@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Artist actions now offer Play, Shuffle, Add to Queue, and Like from More, long-press, or desktop right-click',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Fullscreen artwork now keeps its preview visible until the full-resolution, zoom-ready image is ready',
       type: _EntryType.fix,
     ),

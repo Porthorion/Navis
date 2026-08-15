@@ -5,11 +5,13 @@ class _LikedArtistStripTile extends ConsumerWidget {
     required this.artist,
     this.onTap,
     this.onLongPress,
+    this.onSecondaryTapDown,
   });
 
   final ArtistsTableData artist;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,6 +23,7 @@ class _LikedArtistStripTile extends ConsumerWidget {
       borderRadius: BorderRadius.circular(10),
       onTap: onTap,
       onLongPress: onLongPress,
+      onSecondaryTapDown: onSecondaryTapDown,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
         child: Column(

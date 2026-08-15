@@ -12,10 +12,11 @@ import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
+import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/artist_grid_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
-import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -1151,7 +1152,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               ref,
                               artist.id,
                             ),
-                            onLongPress: () => _showArtistMenu(context, artist),
+                            onLongPress: () =>
+                                _showArtistActions(context, artist.id),
+                            onMorePressed: (anchor) => _showArtistActions(
+                              context,
+                              artist.id,
+                              anchor: anchor,
+                            ),
+                            onSecondaryTapDown: (details) => _showArtistActions(
+                              context,
+                              artist.id,
+                              anchor: details.globalPosition,
+                            ),
                             onStarToggled: () => _toggleArtistStar(artist),
                           ),
                         );
@@ -1895,7 +1907,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                 artist.id,
                               ),
                               onLongPress: () =>
-                                  _showArtistMenu(context, artist),
+                                  _showArtistActions(context, artist.id),
+                              onSecondaryTapDown: (details) =>
+                                  _showArtistActions(
+                                    context,
+                                    artist.id,
+                                    anchor: details.globalPosition,
+                                  ),
                             ),
                           );
                         },
@@ -2441,7 +2459,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           ref,
                           artist.id,
                         ),
-                        onLongPress: () => _showArtistMenu(context, artist),
+                        onLongPress: () =>
+                            _showArtistActions(context, artist.id),
+                        onSecondaryTapDown: (details) => _showArtistActions(
+                          context,
+                          artist.id,
+                          anchor: details.globalPosition,
+                        ),
                       ),
                     );
                   }, childCount: grouped[letter]?.length ?? 0),
@@ -2779,30 +2803,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
   }
 
-  Future<void> _showArtistMenu(
+  void _showArtistActions(
     BuildContext context,
-    ArtistsTableData artist,
-  ) async {
-    final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.open_in_new_outlined),
-                title: Text(l10n.libraryArtistMenuOpen),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  NavService.openArtistDetail(this.context, ref, artist.id);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    String artistId, {
+    Offset? anchor,
+  }) {
+    unawaited(showArtistContextMenu(context, ref, artistId, anchor: anchor));
   }
 }

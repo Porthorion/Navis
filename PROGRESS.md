@@ -95,6 +95,13 @@ Last updated: 2026-08-15
   control now opens the same anchored song menu as secondary click; phone and
   tablet retain the touch sheet. Focused behavior and visual coverage pass.)
 
+- [x] Artist action parity — 2026-08-15 (artist detail, Library list rows,
+  and search rows now expose a shared Open, Play, Shuffle, Add to Queue, and
+  Like/Unlike action set through More; touch long-press and desktop right-click
+  reach the same actions from grid, strip, similar-artist, and artist-link
+  surfaces. Focused menu behavior and isolated Linux artist-detail presentation
+  capture pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

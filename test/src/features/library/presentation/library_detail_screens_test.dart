@@ -483,6 +483,7 @@ void main() {
       expect(find.textContaining('1 albums'), findsOneWidget);
       expect(find.text('Albums'), findsOneWidget);
       expect(find.text('Featured In'), findsOneWidget);
+      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
       expect(find.text('Album 1'), findsAtLeastNWidgets(1));
       expect(find.text('Album 2'), findsAtLeastNWidgets(1));
       await _disposeApp(tester);

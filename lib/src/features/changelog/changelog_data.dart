@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Artist actions now offer Play, Shuffle, Add to Queue, and Like from More, long-press, or desktop right-click',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Artist Top Tracks More now uses the same focused desktop menu as right-click',
         type: ChangelogEntryType.improvement,
       ),

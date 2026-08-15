@@ -12,6 +12,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -335,7 +336,37 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.artistDetailTitle),
-        actions: <Widget>[],
+        actions: artist.when(
+          data: (artistData) {
+            if (artistData == null) return const <Widget>[];
+            return <Widget>[
+              Builder(
+                builder: (buttonContext) => IconButton(
+                  icon: const Icon(Icons.more_horiz),
+                  tooltip: MaterialLocalizations.of(
+                    buttonContext,
+                  ).showMenuTooltip,
+                  onPressed: () {
+                    final renderObject = buttonContext.findRenderObject();
+                    if (renderObject is! RenderBox) return;
+                    unawaited(
+                      showArtistContextMenu(
+                        context,
+                        ref,
+                        artistData.id,
+                        anchor: renderObject.localToGlobal(
+                          renderObject.size.center(Offset.zero),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ];
+          },
+          loading: () => const <Widget>[],
+          error: (_, _) => const <Widget>[],
+        ),
       ),
       body: desktopMode
           ? DesktopFrame(
@@ -869,6 +900,17 @@ class _SimilarArtistCard extends ConsumerWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => NavService.openArtistDetail(context, ref, artist.id),
+      onLongPress: () => unawaited(
+        showArtistContextMenu(context, ref, artist.id),
+      ),
+      onSecondaryTapDown: (details) => unawaited(
+        showArtistContextMenu(
+          context,
+          ref,
+          artist.id,
+          anchor: details.globalPosition,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Column(

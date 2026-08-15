@@ -1317,6 +1317,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryArtistMenuOpen => 'Open artist';
 
   @override
+  String get libraryArtistAddedToQueue => 'Artist added to queue';
+
+  @override
   String get libraryAlbumMenuOpen => 'Open album';
 
   @override
