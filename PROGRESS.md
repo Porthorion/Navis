@@ -198,6 +198,12 @@ Last updated: 2026-08-16
   Instant Radio label and tooltip, now use `AppLocalizations`; focused shell
   and Home coverage passes.)
 
+- [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
+  page now identifies the artist in its app bar, including when Last.fm has no
+  tracks to show, rather than presenting the generic Playlist title. Focused
+  desktop empty-state coverage and isolated Linux before/after clean-restart
+  captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

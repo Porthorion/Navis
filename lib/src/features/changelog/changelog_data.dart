@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Artist Top Tracks now keeps the artist name visible when no tracks are available',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop quick-search and Home action labels are now ready for translation',
         type: ChangelogEntryType.improvement,
       ),

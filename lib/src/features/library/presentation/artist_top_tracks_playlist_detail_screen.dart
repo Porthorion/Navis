@@ -37,6 +37,10 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
     final artistAsync = ref.watch(artistByIdProvider(artistId));
     final artistInfoAsync = ref.watch(artistInfoProvider(artistId));
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    final artist = artistAsync.asData?.value;
+    final appBarTitle = artist == null
+        ? l10n.playlistDetailTitle
+        : l10n.artistTopTracksPlaylistTitle(artist.name);
 
     final body = artistAsync.when(
       data: (artist) {
@@ -86,7 +90,7 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.playlistDetailTitle)),
+      appBar: AppBar(title: Text(appBarTitle)),
       body: desktopMode
           ? DesktopFrame(
               layoutClass: resolveDesktopLayoutClass(

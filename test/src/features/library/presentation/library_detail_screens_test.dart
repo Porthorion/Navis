@@ -17,6 +17,8 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
@@ -490,6 +492,47 @@ void main() {
       expect(find.text('Album 2'), findsAtLeastNWidgets(1));
       await _disposeApp(tester);
     });
+
+    testWidgets(
+      'artist top tracks keeps its artist-specific title when empty',
+      (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistTopTracksPlaylistDetailScreen(
+              artistId: 'artist-top-tracks',
+            ),
+            database: database,
+            adaptiveContext: _desktopContext,
+            overrides: [
+              artistByIdProvider('artist-top-tracks').overrideWithValue(
+                const AsyncData(
+                  ArtistsTableData(
+                    isProvisional: false,
+                    isExternal: false,
+                    id: 'artist-top-tracks',
+                    name: 'Test Artist',
+                  ),
+                ),
+              ),
+              artistInfoProvider('artist-top-tracks').overrideWithValue(
+                const AsyncData(null),
+              ),
+              artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
+                const AsyncData(<ResolvedArtistTopTrack>[]),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('This is Test Artist'), findsOneWidget);
+        expect(find.text('Playlist'), findsNothing);
+        expect(find.text('No top tracks'), findsOneWidget);
+        await _disposeApp(tester);
+      },
+    );
 
     testWidgets('artist detail phone action hierarchy golden', (tester) async {
       setAdaptiveTestViewport(tester, const Size(390, 844));
