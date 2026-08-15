@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +19,7 @@ import 'package:navis/src/features/library/presentation/album_detail_screen.dart
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
+import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -882,6 +884,53 @@ void main() {
         ),
         findsNothing,
       );
+      await _disposeApp(tester);
+    });
+
+    testWidgets('desktop album track actions use the anchored More menu', (
+      tester,
+    ) async {
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _desktopContext,
+        album: _albumWithSongs(
+          const <SongsTableData>[
+            SongsTableData(
+              isProvisional: false,
+              isExternal: false,
+              id: 'desktop-menu-track',
+              title: 'Desktop Menu Track',
+              track: 1,
+            ),
+          ],
+        ),
+      );
+      final track = find.ancestor(
+        of: find.text('Desktop Menu Track'),
+        matching: find.byType(TrackListTile),
+      );
+      await tester.tap(
+        find.descendant(of: track, matching: find.byIcon(Icons.more_vert)),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Rate'), findsOneWidget);
+      expect(find.byType(PopupMenuDivider), findsOneWidget);
+
+      await tester.tapAt(const Offset(8, 8));
+      await tester.pump(const Duration(milliseconds: 300));
+      final gesture = await tester.startGesture(
+        tester.getCenter(track),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Rate'), findsOneWidget);
+      expect(find.byType(BottomSheet), findsNothing);
       await _disposeApp(tester);
     });
 

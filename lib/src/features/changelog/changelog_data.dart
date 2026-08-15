@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Album-track More and right-click actions now use one focused desktop menu',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Downloaded-track menus now separate the destructive Remove Download action',
         type: ChangelogEntryType.improvement,
       ),

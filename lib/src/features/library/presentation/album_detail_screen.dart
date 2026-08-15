@@ -10,6 +10,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
@@ -247,6 +248,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             onTap: () => _playNow(song),
                             onLongPress: () =>
                                 unawaited(_showSongActions(song)),
+                            onSecondaryTapDown: (details) => unawaited(
+                              _showSongActions(
+                                song,
+                                anchor: details.globalPosition,
+                              ),
+                            ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
@@ -255,15 +262,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   onDownload: () =>
                                       unawaited(_downloadSong(song)),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.more_vert),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 36,
-                                    minHeight: 36,
+                                _AlbumSongMoreButton(
+                                  onPressed: (anchor) => unawaited(
+                                    _showSongActions(song, anchor: anchor),
                                   ),
-                                  onPressed: () =>
-                                      unawaited(_showSongActions(song)),
                                 ),
                               ],
                             ),
@@ -1585,7 +1587,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
   }
 
-  Future<void> _showSongActions(SongsTableData song) async {
+  Future<void> _showSongActions(
+    SongsTableData song, {
+    Offset? anchor,
+  }) async {
+    if (anchor != null && isDesktopRuntime) {
+      await _showDesktopSongActions(song, anchor: anchor);
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1761,6 +1770,157 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _showDesktopSongActions(
+    SongsTableData song, {
+    required Offset anchor,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    final isLiked =
+        ref.read(songStarredProvider(song.id)).asData?.value ??
+        song.starred != null;
+    final isDownloaded =
+        ref.read(songDownloadStateProvider(song.id)).status ==
+        SongDownloadStatus.downloaded;
+    final action = await showDesktopContextMenu<_AlbumSongContextAction>(
+      context: context,
+      anchor: anchor,
+      items: <PopupMenuEntry<_AlbumSongContextAction>>[
+        PopupMenuItem<_AlbumSongContextAction>(
+          value: _AlbumSongContextAction.playNow,
+          child: Text(l10n.librarySongMenuPlayNow),
+        ),
+        PopupMenuItem<_AlbumSongContextAction>(
+          value: _AlbumSongContextAction.addQueue,
+          child: Text(l10n.librarySongMenuAddToQueue),
+        ),
+        PopupMenuItem<_AlbumSongContextAction>(
+          value: _AlbumSongContextAction.playNext,
+          child: Text(l10n.librarySongMenuPlayNext),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<_AlbumSongContextAction>(
+          value: _AlbumSongContextAction.toggleLike,
+          child: Text(isLiked ? l10n.actionLiked : l10n.actionLike),
+        ),
+        PopupMenuItem<_AlbumSongContextAction>(
+          value: _AlbumSongContextAction.rate,
+          child: Text(l10n.ratingTitle),
+        ),
+        if (song.artistId != null && song.artistId!.isNotEmpty)
+          PopupMenuItem<_AlbumSongContextAction>(
+            value: _AlbumSongContextAction.openArtist,
+            child: Text(l10n.librarySongMenuOpenArtist),
+          ),
+        PopupMenuItem<_AlbumSongContextAction>(
+          value: _AlbumSongContextAction.addToPlaylist,
+          child: Text(l10n.librarySongMenuAddToPlaylist),
+        ),
+        if (isDownloaded) const PopupMenuDivider(),
+        PopupMenuItem<_AlbumSongContextAction>(
+          value: isDownloaded
+              ? _AlbumSongContextAction.deleteDownload
+              : _AlbumSongContextAction.download,
+          textStyle: isDownloaded
+              ? TextStyle(color: Theme.of(context).colorScheme.error)
+              : null,
+          child: Text(
+            isDownloaded ? l10n.deleteDownloadAction : l10n.downloadAction,
+          ),
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _AlbumSongContextAction.playNow:
+        _playNow(song);
+        return;
+      case _AlbumSongContextAction.addQueue:
+        ref
+            .read(queueProvider.notifier)
+            .fireAndForget(
+              () => ref.read(queueProvider.notifier).add(song.id),
+              label: 'addToQueue',
+            );
+        showAppNotice(
+          context,
+          message: l10n.librarySongAddedToQueue(song.title),
+          level: AppNoticeLevel.success,
+        );
+        return;
+      case _AlbumSongContextAction.playNext:
+        _playNext(song);
+        return;
+      case _AlbumSongContextAction.toggleLike:
+        try {
+          await toggleSongStar(song.id, ref);
+        } on Object {
+          if (mounted) {
+            showAppNotice(
+              context,
+              message: l10n.albumDetailStarFailure,
+              level: AppNoticeLevel.error,
+            );
+          }
+        }
+        return;
+      case _AlbumSongContextAction.rate:
+        await _showSongRatingDialog(song);
+        return;
+      case _AlbumSongContextAction.openArtist:
+        NavService.openArtistDetail(context, ref, song.artistId!);
+        return;
+      case _AlbumSongContextAction.addToPlaylist:
+        await showAddToPlaylistSheet(context, ref, <String>[song.id]);
+        return;
+      case _AlbumSongContextAction.download:
+        await _downloadSong(song);
+        return;
+      case _AlbumSongContextAction.deleteDownload:
+        await _deleteDownload(song);
+        return;
+    }
+  }
+
+  Future<void> _showSongRatingDialog(SongsTableData song) {
+    final l10n = AppLocalizations.of(context)!;
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.ratingTitle),
+        content: Consumer(
+          builder: (_, ratingRef, _) {
+            final rating = ratingRef
+                .watch(songRatingProvider(song.id))
+                .asData
+                ?.value;
+            return RatingWidget(
+              rating: rating,
+              onChanged: (next) {
+                unawaited(
+                  setSongRating(song.id, next, ref)
+                      .then((_) {
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                      })
+                      .catchError((_) {
+                        if (mounted) {
+                          showAppNotice(
+                            context,
+                            message: l10n.ratingUpdateFailed,
+                            level: AppNoticeLevel.error,
+                          );
+                        }
+                      }),
+                );
+              },
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -2715,6 +2875,46 @@ class _RatingButtonState extends State<_RatingButton>
 }
 
 // ── Render-item types for disc-grouped track lists ─────────────────────────
+
+enum _AlbumSongContextAction {
+  playNow,
+  addQueue,
+  playNext,
+  toggleLike,
+  rate,
+  openArtist,
+  addToPlaylist,
+  download,
+  deleteDownload,
+}
+
+class _AlbumSongMoreButton extends StatefulWidget {
+  const _AlbumSongMoreButton({required this.onPressed});
+
+  final ValueChanged<Offset?> onPressed;
+
+  @override
+  State<_AlbumSongMoreButton> createState() => _AlbumSongMoreButtonState();
+}
+
+class _AlbumSongMoreButtonState extends State<_AlbumSongMoreButton> {
+  Offset? _anchor() {
+    if (!isDesktopRuntime) return null;
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox) return null;
+    return renderObject.localToGlobal(renderObject.size.center(Offset.zero));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.more_vert),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+      onPressed: () => widget.onPressed(_anchor()),
+    );
+  }
+}
 
 sealed class _AlbumRenderItem {
   const _AlbumRenderItem();

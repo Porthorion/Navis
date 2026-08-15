@@ -86,6 +86,11 @@ Last updated: 2026-08-15
   context menu and mobile sheet. Focused desktop secondary-click behavior and
   before/after visual coverage pass.)
 
+- [x] Desktop album-track action parity — 2026-08-15 (album-detail More and
+  secondary-click actions now share one anchored desktop menu, with Rate
+  opening a compact dialog; phones retain the existing touch sheet. Focused
+  interaction and before/after visual coverage pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%
