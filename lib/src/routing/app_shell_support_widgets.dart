@@ -7,6 +7,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
@@ -32,16 +33,14 @@ class _BatteryOptimizationSheet extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            'Keep background sync alive',
+            l10n.batteryOptimizationPromptTitle,
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Battery optimization is still enabled for Navis. '
-            'Disabling it helps background sync finish reliably without the '
-            'system shutting the app down early.',
+            l10n.batteryOptimizationPromptBody,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colors.onSurfaceVariant,
               height: 1.45,
@@ -65,7 +64,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Recommended if you rely on automatic library scans.',
+                    l10n.batteryOptimizationPromptRecommendation,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
@@ -80,7 +79,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Later'),
+                  child: Text(l10n.batteryOptimizationPromptLaterAction),
                 ),
               ),
               const SizedBox(width: 12),
@@ -88,7 +87,9 @@ class _BatteryOptimizationSheet extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: onOpenSettings,
                   icon: const Icon(Icons.open_in_new),
-                  label: const Text('Open settings'),
+                  label: Text(
+                    l10n.batteryOptimizationPromptOpenSettingsAction,
+                  ),
                 ),
               ),
             ],

@@ -202,6 +202,11 @@ Last updated: 2026-08-16
   sheet now uses the shared localized availability count and Play/Shuffle
   labels; English presentation is unchanged.)
 
+- [x] Battery and playback prompt localization — 2026-08-16 (the Android
+  battery-optimization prompt, playback-speed Close control, and fullscreen
+  lyrics setting now use `AppLocalizations`; English presentation is
+  unchanged and focused Playback Settings coverage passes.)
+
 - [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
   page now identifies the artist in its app bar, including when Last.fm has no
   tracks to show, rather than presenting the generic Playlist title. Focused

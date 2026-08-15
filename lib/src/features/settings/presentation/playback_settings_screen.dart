@@ -391,9 +391,9 @@ class _PlaybackSettingsScreenState
                         ? null
                         : (value) =>
                               setState(() => _fullscreenModeLyrics = value),
-                    title: const Text('Fullscreen Mode Lyrics'),
-                    subtitle: const Text(
-                      'Open lyrics in fullscreen directly from Now Playing.',
+                    title: Text(l10n.playbackSettingsFullscreenLyricsTitle),
+                    subtitle: Text(
+                      l10n.playbackSettingsFullscreenLyricsSubtitle,
                     ),
                   ),
                   // ── ReplayGain section ─────────────────────────────────────

@@ -346,6 +346,36 @@ abstract class AppLocalizations {
   /// **'Offline mode'**
   String get serverOfflineQuietBanner;
 
+  /// No description provided for @batteryOptimizationPromptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep background sync alive'**
+  String get batteryOptimizationPromptTitle;
+
+  /// No description provided for @batteryOptimizationPromptBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery optimization is still enabled for Navis. Disabling it helps background sync finish reliably without the system shutting the app down early.'**
+  String get batteryOptimizationPromptBody;
+
+  /// No description provided for @batteryOptimizationPromptRecommendation.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended if you rely on automatic library scans.'**
+  String get batteryOptimizationPromptRecommendation;
+
+  /// No description provided for @batteryOptimizationPromptLaterAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get batteryOptimizationPromptLaterAction;
+
+  /// No description provided for @batteryOptimizationPromptOpenSettingsAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get batteryOptimizationPromptOpenSettingsAction;
+
   /// No description provided for @settingsTitle.
   ///
   /// In en, this message translates to:
@@ -1565,6 +1595,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Playback speed'**
   String get playbackSettingsPlaybackSpeedLabel;
+
+  /// No description provided for @playbackSettingsCloseAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get playbackSettingsCloseAction;
+
+  /// No description provided for @playbackSettingsFullscreenLyricsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fullscreen Mode Lyrics'**
+  String get playbackSettingsFullscreenLyricsTitle;
+
+  /// No description provided for @playbackSettingsFullscreenLyricsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open lyrics in fullscreen directly from Now Playing.'**
+  String get playbackSettingsFullscreenLyricsSubtitle;
 
   /// No description provided for @playbackSettingsPlaybackSpeedSubtitle.
   ///

@@ -145,6 +145,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverOfflineQuietBanner => 'Offline mode';
 
   @override
+  String get batteryOptimizationPromptTitle => 'Keep background sync alive';
+
+  @override
+  String get batteryOptimizationPromptBody =>
+      'Battery optimization is still enabled for Navis. Disabling it helps background sync finish reliably without the system shutting the app down early.';
+
+  @override
+  String get batteryOptimizationPromptRecommendation =>
+      'Recommended if you rely on automatic library scans.';
+
+  @override
+  String get batteryOptimizationPromptLaterAction => 'Later';
+
+  @override
+  String get batteryOptimizationPromptOpenSettingsAction => 'Open settings';
+
+  @override
   String get settingsTitle => 'Settings';
 
   @override
@@ -863,6 +880,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsPlaybackSpeedLabel => 'Playback speed';
+
+  @override
+  String get playbackSettingsCloseAction => 'Close';
+
+  @override
+  String get playbackSettingsFullscreenLyricsTitle => 'Fullscreen Mode Lyrics';
+
+  @override
+  String get playbackSettingsFullscreenLyricsSubtitle =>
+      'Open lyrics in fullscreen directly from Now Playing.';
 
   @override
   String get playbackSettingsPlaybackSpeedSubtitle =>

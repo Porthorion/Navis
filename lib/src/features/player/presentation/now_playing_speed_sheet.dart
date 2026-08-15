@@ -83,7 +83,7 @@ class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
                   onPressed: _isSaving
                       ? null
                       : () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
+                  child: Text(l10n.playbackSettingsCloseAction),
                 ),
               ],
             ),
