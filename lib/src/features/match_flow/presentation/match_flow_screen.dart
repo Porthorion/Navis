@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 final matchFlowsProvider = StreamProvider<List<MatchFlowWithSongs>>((ref) {
   return ref.watch(matchFlowDaoProvider).watchFlowsWithSongs();
@@ -23,13 +24,29 @@ class MatchFlowScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final flowsAsync = ref.watch(matchFlowsProvider);
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.matchFlowTitle)),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _createFlow(context, ref),
-        icon: const Icon(Icons.add),
-        label: Text(l10n.matchFlowCreateAction),
+      appBar: AppBar(
+        title: Text(l10n.matchFlowTitle),
+        actions: <Widget>[
+          if (desktopMode)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: FilledButton.icon(
+                onPressed: () => _createFlow(context, ref),
+                icon: const Icon(Icons.add),
+                label: Text(l10n.matchFlowCreateAction),
+              ),
+            ),
+        ],
       ),
+      floatingActionButton: desktopMode
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _createFlow(context, ref),
+              icon: const Icon(Icons.add),
+              label: Text(l10n.matchFlowCreateAction),
+            ),
       body: flowsAsync.when(
         data: (flows) {
           if (flows.isEmpty) {
@@ -38,7 +55,12 @@ class MatchFlowScreen extends ConsumerWidget {
             );
           }
           return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            padding: EdgeInsets.fromLTRB(
+              desktopMode ? 24 : 16,
+              desktopMode ? 24 : 16,
+              desktopMode ? 24 : 16,
+              desktopMode ? 24 : 96,
+            ),
             itemCount: flows.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) => _MatchFlowCard(flow: flows[index]),

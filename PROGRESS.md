@@ -166,6 +166,12 @@ Last updated: 2026-08-16
   behavior/component-golden coverage and isolated Linux before/after
   clean-restart captures pass.)
 
+- [x] Desktop Match Flow workspace — 2026-08-16 (approved: Match Flow now
+  uses the full responsive desktop canvas for flow cards and promotes New Flow
+  from a mobile-style floating action button to a header action. Phone and
+  tablet retain the floating action button. Focused behavior/component-golden
+  coverage and isolated Linux before/after clean-restart captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

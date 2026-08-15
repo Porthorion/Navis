@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Match Flow now uses the full desktop workspace with New Flow in the header',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop Appearance settings now use a focused workspace with a direct return to Settings',
         type: ChangelogEntryType.improvement,
       ),

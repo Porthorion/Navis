@@ -7,8 +7,11 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
+import '../../../../helpers/adaptive_test_harness.dart';
 
 void main() {
   group('MatchFlowScreen', () {
@@ -172,12 +175,44 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump(const Duration(milliseconds: 1));
     });
+
+    testWidgets('desktop uses a full-width flow workspace and header action', (
+      tester,
+    ) async {
+      await database.matchFlowDao.createFlow(name: 'Warmup');
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+
+      await tester.pumpWidget(
+        _buildTestApp(
+          database,
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: true,
+            viewportSize: const Size(1280, 800),
+            safePadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.widgetWithText(FilledButton, 'New Flow'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(tester.getSize(find.byType(ListView)).width, 1280);
+      await expectLater(
+        find.byType(MatchFlowScreen),
+        matchesGoldenFile('goldens/match_flow_desktop_header_action.png'),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 1));
+    });
   });
 }
 
 Widget _buildTestApp(
   NavisDatabase database, {
   PlaybackSnapshot? playbackSnapshot,
+  AdaptiveContext? adaptiveContext,
 }) {
   return ProviderScope(
     overrides: withTestDatabase(
@@ -191,7 +226,12 @@ Widget _buildTestApp(
       theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const MatchFlowScreen(),
+      home: adaptiveContext == null
+          ? const MatchFlowScreen()
+          : AdaptiveContextScope(
+              adaptiveContext: adaptiveContext,
+              child: const MatchFlowScreen(),
+            ),
     ),
   );
 }
