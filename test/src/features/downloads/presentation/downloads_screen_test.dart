@@ -1,4 +1,5 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -140,6 +141,94 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'desktop downloaded-track menu separates the destructive action',
+    (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(900, 700);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      const song = SongsTableData(
+        id: 'downloaded-song',
+        title: 'Downloaded Song',
+        artistName: 'Artist',
+        isProvisional: false,
+        isExternal: false,
+      );
+      final track = CachedTracksTableData(
+        songId: song.id,
+        filePath: '/tmp/downloaded-song.mp3',
+        fileSize: 1000000,
+        format: 'mp3',
+        bitRate: 320,
+        lastAccessedAt: DateTime(2026),
+        cacheType: CacheType.permanent,
+        downloadStatus: DownloadStatus.complete,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              downloadQueueProvider.overrideWithValue(
+                const AsyncData(<DownloadQueueTableData>[]),
+              ),
+              permanentCachedTracksProvider.overrideWithValue(
+                AsyncData(<CachedTracksTableData>[track]),
+              ),
+              songByIdProvider.overrideWith(
+                (ref, songId) => Stream.value(song),
+              ),
+              playerStateProvider.overrideWithValue(_pausedSnapshot(song.id)),
+            ],
+          ),
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: AdaptiveContextScope(
+              adaptiveContext: resolveAdaptiveContext(
+                desktopRuntime: true,
+                viewportSize: const Size(900, 700),
+                safePadding: EdgeInsets.zero,
+              ),
+              child: const DownloadsScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Downloaded'));
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text(song.title)),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PopupMenuDivider), findsOneWidget);
+      final removeItem = tester.widget<PopupMenuItem<dynamic>>(
+        find.ancestor(
+          of: find.text('Remove download'),
+          matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+        ),
+      );
+      expect(
+        removeItem.textStyle?.color,
+        Theme.of(
+          tester.element(find.byType(DownloadsScreen)),
+        ).colorScheme.error,
+      );
+    },
+  );
 
   testWidgets('Downloads search empty state can restore the full queue', (
     tester,

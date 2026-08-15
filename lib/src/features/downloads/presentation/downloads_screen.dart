@@ -704,8 +704,10 @@ class _DownloadedTrackTile extends ConsumerWidget {
             value: _DownloadedTrackAction.openFolder,
             child: Text(l10n.downloadsOpenFolderAction),
           ),
+          const PopupMenuDivider(),
           PopupMenuItem<_DownloadedTrackAction>(
             value: _DownloadedTrackAction.removeDownload,
+            textStyle: TextStyle(color: Theme.of(context).colorScheme.error),
             child: Text(l10n.downloadsRemoveAction),
           ),
         ],
@@ -793,9 +795,16 @@ class _DownloadedTrackTile extends ConsumerWidget {
                   );
                 },
               ),
+              const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: Text(l10n.downloadsRemoveAction),
+                leading: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  l10n.downloadsRemoveAction,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
                   await _handleTrackMenuAction(

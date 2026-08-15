@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Downloaded-track menus now separate the destructive Remove Download action',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Download Quality now uses a focused dialog on desktop while keeping the mobile sheet',
         type: ChangelogEntryType.improvement,
       ),
