@@ -929,6 +929,52 @@ void main() {
     await tester.pump(const Duration(milliseconds: 201));
   });
 
+  testWidgets('desktop player remains usable at 200 percent text scale', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        songByIdProvider.overrideWith(
+          (ref, songId) => Stream.value(
+            songId == _longMetadataSong.id ? _longMetadataSong : null,
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MediaQuery(
+        data: MediaQueryData.fromView(
+          tester.view,
+        ).copyWith(textScaler: const TextScaler.linear(2)),
+        child: UncontrolledProviderScope(
+          container: container,
+          child: testNavisApp,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('desktopPlayerBar')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byKey(const ValueKey<String>('desktopPlayerBar')),
+      matchesGoldenFile(
+        'goldens/desktop_player_long_metadata_800x600_text_scale_200.png',
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
   testWidgets('887px compact Desktop player action golden', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(887, 900);
