@@ -24,6 +24,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _DelayedReplaceHandler implements NavisPlaybackHandler {
@@ -204,6 +205,7 @@ Widget _buildApp({
   required List<dynamic> overrides,
   AdaptiveContext? adaptiveContext,
   TextScaler? textScaler,
+  ThemeData? theme,
 }) {
   return ProviderScope(
     overrides: [
@@ -218,7 +220,7 @@ Widget _buildApp({
       ...overrides.cast(),
     ],
     child: MaterialApp(
-      theme: testTheme(),
+      theme: testTheme(theme),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       builder: textScaler == null
@@ -478,14 +480,64 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Artist'), findsOneWidget);
-      expect(find.text('Artist 1'), findsOneWidget);
-      expect(find.textContaining('1 albums'), findsOneWidget);
+      expect(find.text('Artist'), findsNothing);
+      expect(find.text('Artist 1'), findsNWidgets(2));
+      expect(find.textContaining('1 albums'), findsNWidgets(2));
       expect(find.text('Albums'), findsOneWidget);
       expect(find.text('Featured In'), findsOneWidget);
       expect(find.byIcon(Icons.more_horiz), findsOneWidget);
       expect(find.text('Album 1'), findsAtLeastNWidgets(1));
       expect(find.text('Album 2'), findsAtLeastNWidgets(1));
+      await _disposeApp(tester);
+    });
+
+    testWidgets('artist detail phone action hierarchy golden', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        _buildApp(
+          child: const ArtistDetailScreen(artistId: 'artist-phone'),
+          database: database,
+          adaptiveContext: _mobileContext,
+          theme: ThemeData.dark(useMaterial3: true),
+          overrides: [
+            artistByIdProvider('artist-phone').overrideWithValue(
+              const AsyncData(
+                ArtistsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'artist-phone',
+                  name: 'Phone Artist',
+                  albumCount: 12,
+                ),
+              ),
+            ),
+            songsByArtistProvider('artist-phone').overrideWithValue(
+              const AsyncData(<SongsTableData>[
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'phone-song',
+                  title: 'Phone Song',
+                ),
+              ]),
+            ),
+            artistAlbumSectionsProvider('artist-phone').overrideWithValue(
+              const AsyncData(ArtistAlbumSections()),
+            ),
+            artistInfoProvider('artist-phone').overrideWithValue(
+              const AsyncData(null),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Play'), findsOneWidget);
+      expect(find.text('Shuffle'), findsOneWidget);
+      expect(find.text('More'), findsOneWidget);
+      await expectLater(
+        find.byType(ArtistDetailScreen),
+        matchesGoldenFile('goldens/artist_detail_phone_actions_after.png'),
+      );
       await _disposeApp(tester);
     });
 

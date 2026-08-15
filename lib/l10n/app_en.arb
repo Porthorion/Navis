@@ -1435,6 +1435,7 @@
   "libraryAlbumAddedToQueue": "Album added to queue",
   "actionLike": "Like",
   "actionLiked": "Liked",
+  "actionMore": "More",
   "remoteSourceActionUnavailable": "Not available for remote tracks.",
   "remoteSourceInstantMixUnavailable": "Instant Mix requires a locally scanned track.",
 

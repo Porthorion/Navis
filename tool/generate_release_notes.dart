@@ -57,6 +57,14 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Artist pages now keep their identity, album count, and More action stable while details refresh',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Older partial library migrations no longer prevent Android playback startup',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Error messages now stay visible until dismissed and keep their Dismiss action clear',
       type: _EntryType.improvement,
     ),

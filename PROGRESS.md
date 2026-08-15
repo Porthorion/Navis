@@ -108,6 +108,13 @@ Last updated: 2026-08-15
   surfaces. Focused menu behavior and isolated Linux artist-detail presentation
   capture pass.)
 
+- [x] Artist-detail hierarchy — 2026-08-15 (approved desktop and Android
+  treatment: artist identity persists in the app bar during refresh, the
+  artwork header shows the album count, Play is primary, and Shuffle/More are
+  secondary. Desktop alone uses a shorter header to reveal albums sooner;
+  phones retain the immersive header. Focused widget/golden and migration
+  coverage, isolated Linux capture, and Android emulator review pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

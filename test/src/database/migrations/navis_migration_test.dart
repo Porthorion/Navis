@@ -701,6 +701,32 @@ SET group_listening_enabled = 1,
         raw.execute('ALTER TABLE albums DROP COLUMN catalog_generation;');
         raw.execute('ALTER TABLE songs DROP COLUMN catalog_generation;');
         raw.execute('ALTER TABLE network_usage_events DROP COLUMN operation;');
+        raw.execute(
+          'ALTER TABLE server_config RENAME TO server_config_legacy;',
+        );
+        raw.execute('''
+          CREATE TABLE server_config (
+            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+            name TEXT NULL,
+            url TEXT NOT NULL,
+            username TEXT NOT NULL,
+            api_version TEXT NOT NULL,
+            capabilities TEXT NULL,
+            last_synced INTEGER NULL,
+            last_full_synced INTEGER NULL,
+            is_authenticated INTEGER NULL
+          );
+        ''');
+        raw.execute('''
+          INSERT INTO server_config (
+            id, name, url, username, api_version, capabilities, last_synced,
+            last_full_synced, is_authenticated
+          )
+          SELECT id, name, url, username, api_version, capabilities,
+            last_synced, last_full_synced, NULL
+          FROM server_config_legacy;
+        ''');
+        raw.execute('DROP TABLE server_config_legacy;');
         raw.execute('PRAGMA user_version = 54;');
       } finally {
         raw.close();
@@ -724,6 +750,10 @@ SET group_listening_enabled = 1,
       expect(state.catalogFingerprint, 'artist-1');
       expect(state.auditOffset, 3);
       expect(state.currentGeneration, 1);
+      expect(
+        (await migrated.serverDao.getActiveServer())?.isAuthenticated,
+        isTrue,
+      );
       expect(
         (await migrated.libraryDao.getArtistById(
           'artist-1',

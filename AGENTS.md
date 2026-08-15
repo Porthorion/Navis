@@ -810,6 +810,11 @@ DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyn
   server/account profile from an active credential session. Profile identity
   is normalized base URL plus trimmed username; same-profile login updates the
   row in place, while replacement is an explicit destructive operation.
+- A partially applied legacy profile can expose a nullable
+  `server_config.is_authenticated` column before its v61 migration. The v54
+  sync-state import must read only v54 server fields, and v61 must normalize
+  null values to authenticated before normal server reads. Keep the regression
+  fixture in `test/src/database/migrations/navis_migration_test.dart`.
 
 ### Session lifecycle
 

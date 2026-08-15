@@ -5471,6 +5471,12 @@ abstract class AppLocalizations {
   /// **'Liked'**
   String get actionLiked;
 
+  /// No description provided for @actionMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get actionMore;
+
   /// No description provided for @remoteSourceActionUnavailable.
   ///
   /// In en, this message translates to:

@@ -30,6 +30,14 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Artist pages now keep their identity, album count, and More action stable while details refresh',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Older partial library migrations no longer prevent Android playback startup',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Error messages now stay visible until dismissed and keep their Dismiss action clear',
         type: ChangelogEntryType.improvement,
       ),

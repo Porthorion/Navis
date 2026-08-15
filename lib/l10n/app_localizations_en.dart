@@ -3122,6 +3122,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get actionLiked => 'Liked';
 
   @override
+  String get actionMore => 'More';
+
+  @override
   String get remoteSourceActionUnavailable =>
       'Not available for remote tracks.';
 

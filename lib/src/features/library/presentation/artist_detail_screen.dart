@@ -123,6 +123,8 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     );
     final songs = ref.watch(songsByArtistProvider(widget.artistId));
     final artistInfo = ref.watch(artistInfoProvider(widget.artistId));
+    final currentArtist = artist.value;
+    final availableSongs = songs.value ?? const <SongsTableData>[];
 
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final artistBody = artist.when(
@@ -158,6 +160,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     return _ArtistImageHeader(
                       imageUrl: url,
                       artistName: artistData.name,
+                      albumCount: artistData.albumCount,
                       isStarred: isStarred,
                       isStarring: _isStarring,
                       onStarToggle: _isStarring
@@ -170,6 +173,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   // No photo — plain name row
                   return _ArtistNameHeader(
                     name: artistData.name,
+                    albumCount: artistData.albumCount,
                     isExternalSource: artistData.isExternal,
                     isStarred: isStarred,
                     isStarring: _isStarring,
@@ -181,6 +185,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 },
                 loading: () => _ArtistNameHeader(
                   name: artistData.name,
+                  albumCount: artistData.albumCount,
                   isExternalSource: artistData.isExternal,
                   isStarred: isStarred,
                   isStarring: _isStarring,
@@ -189,6 +194,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 ),
                 error: (_, _) => _ArtistNameHeader(
                   name: artistData.name,
+                  albumCount: artistData.albumCount,
                   isExternalSource: artistData.isExternal,
                   isStarred: isStarred,
                   isStarring: _isStarring,
@@ -216,7 +222,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 error: (_, _) => const SizedBox.shrink(),
               ),
               // ── Play / Shuffle buttons ────────────────────────────────
-              if ((songs.asData?.value ?? const []).isNotEmpty)
+              if (availableSongs.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Wrap(
@@ -225,7 +231,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     children: [
                       FilledButton.icon(
                         onPressed: () => _queueArtist(
-                          songs.asData!.value,
+                          availableSongs,
                           shuffle: false,
                         ),
                         icon: const Icon(Icons.play_arrow_rounded),
@@ -233,11 +239,22 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                       ),
                       FilledButton.tonalIcon(
                         onPressed: () => _queueArtist(
-                          songs.asData!.value,
+                          availableSongs,
                           shuffle: true,
                         ),
                         icon: const Icon(Icons.shuffle, size: 18),
                         label: Text(l10n.albumDetailShuffleAction),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () => unawaited(
+                          showArtistContextMenu(
+                            context,
+                            ref,
+                            artistData.id,
+                          ),
+                        ),
+                        icon: const Icon(Icons.more_horiz, size: 18),
+                        label: Text(l10n.actionMore),
                       ),
                     ],
                   ),
@@ -335,38 +352,33 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     );
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.artistDetailTitle),
-        actions: artist.when(
-          data: (artistData) {
-            if (artistData == null) return const <Widget>[];
-            return <Widget>[
-              Builder(
-                builder: (buttonContext) => IconButton(
-                  icon: const Icon(Icons.more_horiz),
-                  tooltip: MaterialLocalizations.of(
-                    buttonContext,
-                  ).showMenuTooltip,
-                  onPressed: () {
-                    final renderObject = buttonContext.findRenderObject();
-                    if (renderObject is! RenderBox) return;
-                    unawaited(
-                      showArtistContextMenu(
-                        context,
-                        ref,
-                        artistData.id,
-                        anchor: renderObject.localToGlobal(
-                          renderObject.size.center(Offset.zero),
+        title: Text(currentArtist?.name ?? l10n.artistDetailTitle),
+        actions: currentArtist == null
+            ? const <Widget>[]
+            : <Widget>[
+                Builder(
+                  builder: (buttonContext) => IconButton(
+                    icon: const Icon(Icons.more_horiz),
+                    tooltip: MaterialLocalizations.of(
+                      buttonContext,
+                    ).showMenuTooltip,
+                    onPressed: () {
+                      final renderObject = buttonContext.findRenderObject();
+                      if (renderObject is! RenderBox) return;
+                      unawaited(
+                        showArtistContextMenu(
+                          context,
+                          ref,
+                          currentArtist.id,
+                          anchor: renderObject.localToGlobal(
+                            renderObject.size.center(Offset.zero),
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ];
-          },
-          loading: () => const <Widget>[],
-          error: (_, _) => const <Widget>[],
-        ),
+              ],
       ),
       body: desktopMode
           ? DesktopFrame(
@@ -387,6 +399,7 @@ class _ArtistImageHeader extends StatelessWidget {
   const _ArtistImageHeader({
     required this.imageUrl,
     required this.artistName,
+    required this.albumCount,
     required this.isStarred,
     required this.isStarring,
     required this.onStarToggle,
@@ -396,6 +409,7 @@ class _ArtistImageHeader extends StatelessWidget {
 
   final String imageUrl;
   final String artistName;
+  final int? albumCount;
   final bool isStarred;
   final bool isStarring;
   final VoidCallback? onStarToggle;
@@ -409,7 +423,9 @@ class _ArtistImageHeader extends StatelessWidget {
         final availableWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
-        final headerHeight = (availableWidth * 0.43).clamp(260.0, 560.0);
+        final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+        final headerHeight = (availableWidth * (desktopMode ? 0.32 : 0.43))
+            .clamp(260.0, desktopMode ? 420.0 : 560.0);
 
         // Gradually shift the vertical anchor from top (portrait/narrow screens
         // where topCenter works well for portrait artist shots) toward center
@@ -488,6 +504,26 @@ class _ArtistImageHeader extends StatelessWidget {
                               overflow: TextOverflow.clip,
                             ),
                           ),
+                          if (albumCount != null) ...<Widget>[
+                            const SizedBox(height: 6),
+                            Text(
+                              AppLocalizations.of(
+                                context,
+                              )!.artistCardAlbumCount(
+                                albumCount!,
+                              ),
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.82),
+                                    shadows: const <Shadow>[
+                                      Shadow(
+                                        blurRadius: 8,
+                                        color: Color(0xCC000000),
+                                      ),
+                                    ],
+                                  ),
+                            ),
+                          ],
                           if (isExternalSource) ...<Widget>[
                             const SizedBox(height: 8),
                             const RemoteSourceIndicator(
@@ -523,6 +559,7 @@ class _ArtistImageHeader extends StatelessWidget {
 class _ArtistNameHeader extends StatelessWidget {
   const _ArtistNameHeader({
     required this.name,
+    required this.albumCount,
     required this.isStarred,
     required this.isStarring,
     required this.onStarToggle,
@@ -531,6 +568,7 @@ class _ArtistNameHeader extends StatelessWidget {
   });
 
   final String name;
+  final int? albumCount;
   final bool isStarred;
   final bool isStarring;
   final VoidCallback? onStarToggle;
@@ -539,6 +577,7 @@ class _ArtistNameHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return Container(
@@ -580,6 +619,10 @@ class _ArtistNameHeader extends StatelessWidget {
                     overflow: TextOverflow.clip,
                   ),
                 ),
+                if (albumCount != null) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Text(l10n.artistCardAlbumCount(albumCount!)),
+                ],
                 if (isExternalSource) ...<Widget>[
                   const SizedBox(height: 8),
                   const RemoteSourceIndicator(

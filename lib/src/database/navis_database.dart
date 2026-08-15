@@ -486,6 +486,10 @@ class NavisDatabase extends _$NavisDatabase {
         serverConfigTable.isAuthenticated,
       );
     }
+    await customStatement(
+      'UPDATE server_config SET is_authenticated = 1 '
+      'WHERE is_authenticated IS NULL',
+    );
   }
 
   Future<void> from59To60(Migrator migrator) async {
@@ -815,9 +819,22 @@ class NavisDatabase extends _$NavisDatabase {
         !await _tableExists('library_sync_state')) {
       return;
     }
-    final servers = await select(serverConfigTable).get();
+    // An interrupted development-era migration can leave the later-added
+    // is_authenticated column nullable. Read only the v54 fields needed here;
+    // v61 normalizes that column before the app consumes server records.
+    final servers =
+        await (selectOnly(serverConfigTable)..addColumns(<Expression<Object>>[
+              serverConfigTable.id,
+              serverConfigTable.capabilities,
+              serverConfigTable.lastSynced,
+            ]))
+            .get();
     for (final server in servers) {
-      final navis = _readLegacyNavisCapabilities(server.capabilities);
+      final serverId = server.read(serverConfigTable.id)!;
+      final navis = _readLegacyNavisCapabilities(
+        server.read(serverConfigTable.capabilities),
+      );
+      final lastSynced = server.read(serverConfigTable.lastSynced);
       final cursor = _parseSyncDate(navis['libraryIndexesCursor']);
       final unsupportedAt = _parseSyncDate(
         navis['libraryIndexesUnsupportedAt'],
@@ -827,7 +844,7 @@ class NavisDatabase extends _$NavisDatabase {
       );
       await into(librarySyncStateTable).insert(
         LibrarySyncStateTableCompanion.insert(
-          serverId: Value(server.id),
+          serverId: Value(serverId),
           conditionalIndexesMode: Value(
             unsupportedAt != null
                 ? 'unsupported'
@@ -843,8 +860,8 @@ class NavisDatabase extends _$NavisDatabase {
           catalogFingerprint: Value(
             _legacyString(navis['libraryIndexesFingerprint']),
           ),
-          lastCheckedAt: Value(server.lastSynced),
-          lastCatalogSyncedAt: Value(server.lastSynced),
+          lastCheckedAt: Value(lastSynced),
+          lastCatalogSyncedAt: Value(lastSynced),
           lastAuxiliarySyncedAt: Value(
             _parseSyncDate(navis['auxiliarySyncLastSyncedAt']),
           ),
