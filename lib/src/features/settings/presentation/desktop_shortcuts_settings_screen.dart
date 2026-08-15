@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class DesktopShortcutsSettingsScreen extends ConsumerStatefulWidget {
   const DesktopShortcutsSettingsScreen({super.key});
@@ -187,6 +190,8 @@ class _DesktopShortcutsSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final platform = Theme.of(context).platform;
     final shortcuts = ref.watch(desktopShortcutBindingsProvider);
     final colors = Theme.of(context).colorScheme;
@@ -197,10 +202,18 @@ class _DesktopShortcutsSettingsScreenState
       onKeyEvent: (node, event) => _handleCaptureKey(node, event, platform),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Keyboard Shortcuts'),
+          automaticallyImplyLeading: !desktopMode,
+          leading: desktopMode
+              ? IconButton(
+                  tooltip: l10n.syncSettingsBackToSettings,
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => NavService.returnToSettings(context, ref),
+                )
+              : null,
+          title: Text(l10n.settingsDesktopShortcutsTitle),
           actions: <Widget>[
             IconButton(
-              tooltip: 'Reset to defaults',
+              tooltip: l10n.desktopShortcutsReset,
               onPressed: () {
                 ref
                     .read(desktopShortcutBindingsProvider.notifier)
@@ -212,78 +225,95 @@ class _DesktopShortcutsSettingsScreenState
             const SizedBox(width: 8),
           ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-          children: <Widget>[
-            // --- Configurable Shortcuts ---
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-              child: Text(
-                'Customizable',
-                style: textTheme.titleSmall?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w600,
+        body: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1040),
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                desktopMode ? 24 : 12,
+                desktopMode ? 24 : 8,
+                desktopMode ? 24 : 12,
+                24,
+              ),
+              children: <Widget>[
+                // --- Configurable Shortcuts ---
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                  child: Text(
+                    l10n.desktopShortcutsCustomizable,
+                    style: textTheme.titleSmall?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            for (final action in configurableDesktopShortcutActions)
-              _ShortcutCaptureTile(
-                action: action,
-                title: _shortcutActionTitle(action),
-                description: _shortcutActionDescription(action),
-                icon: _shortcutActionIcon(action),
-                isCapturing: _capturingAction == action,
-                binding: _capturingAction == action
-                    ? _capturedBinding
-                    : shortcuts[action],
-                capturedBinding: _capturingAction == action
-                    ? _capturedBinding
-                    : null,
-                liveInput: _capturingAction == action ? _liveInput : null,
-                platform: platform,
-                onPressed: () => _startCapture(action, shortcuts[action]),
-              ),
-            const SizedBox(height: 18),
-            // --- Built-in Shortcuts (read-only) ---
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-              child: Text(
-                'Built-in',
-                style: textTheme.titleSmall?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w600,
+                for (final action
+                    in configurableDesktopShortcutActions) ...<Widget>[
+                  _ShortcutCaptureTile(
+                    action: action,
+                    title: _shortcutActionTitle(action, l10n),
+                    description: _shortcutActionDescription(action, l10n),
+                    icon: _shortcutActionIcon(action),
+                    isCapturing: _capturingAction == action,
+                    binding: _capturingAction == action
+                        ? _capturedBinding
+                        : shortcuts[action],
+                    capturedBinding: _capturingAction == action
+                        ? _capturedBinding
+                        : null,
+                    liveInput: _capturingAction == action ? _liveInput : null,
+                    platform: platform,
+                    onPressed: () => _startCapture(action, shortcuts[action]),
+                  ),
+                  const Divider(height: 1),
+                ],
+                const SizedBox(height: 18),
+                // --- Built-in Shortcuts (read-only) ---
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                  child: Text(
+                    l10n.desktopShortcutsBuiltIn,
+                    style: textTheme.titleSmall?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
+                _BuiltInShortcutTile(
+                  icon: Icons.play_arrow_rounded,
+                  title: l10n.desktopShortcutsPlayPauseTitle,
+                  description: l10n.desktopShortcutsTogglePlaybackDescription,
+                  shortcutLabel: l10n.desktopShortcutsSpace,
+                ),
+                const Divider(height: 1),
+                _BuiltInShortcutTile(
+                  icon: Icons.skip_previous_rounded,
+                  title: l10n.desktopShortcutsPreviousTrackTitle,
+                  description: l10n.desktopShortcutsPreviousTrackDescription,
+                  shortcutLabel: platform == TargetPlatform.macOS
+                      ? l10n.desktopShortcutsPreviousBindingMac
+                      : l10n.desktopShortcutsPreviousBinding,
+                ),
+                const Divider(height: 1),
+                _BuiltInShortcutTile(
+                  icon: Icons.skip_next_rounded,
+                  title: l10n.desktopShortcutsNextTrackTitle,
+                  description: l10n.desktopShortcutsNextTrackDescription,
+                  shortcutLabel: platform == TargetPlatform.macOS
+                      ? l10n.desktopShortcutsNextBindingMac
+                      : l10n.desktopShortcutsNextBinding,
+                ),
+                const Divider(height: 1),
+                _BuiltInShortcutTile(
+                  icon: Icons.close_rounded,
+                  title: l10n.desktopShortcutsDismissOverlayTitle,
+                  description: l10n.desktopShortcutsDismissOverlayDescription,
+                  shortcutLabel: l10n.desktopShortcutsEscape,
+                ),
+              ],
             ),
-            _BuiltInShortcutTile(
-              icon: Icons.play_arrow_rounded,
-              title: 'Play / Pause',
-              description: 'Toggle playback',
-              shortcutLabel: 'Space',
-            ),
-            _BuiltInShortcutTile(
-              icon: Icons.skip_previous_rounded,
-              title: 'Previous Track',
-              description: 'Skip to previous track',
-              shortcutLabel: platform == TargetPlatform.macOS
-                  ? '←  or  Option+,'
-                  : '←  or  Alt+,',
-            ),
-            _BuiltInShortcutTile(
-              icon: Icons.skip_next_rounded,
-              title: 'Next Track',
-              description: 'Skip to next track',
-              shortcutLabel: platform == TargetPlatform.macOS
-                  ? '→  or  Option+.'
-                  : '→  or  Alt+.',
-            ),
-            _BuiltInShortcutTile(
-              icon: Icons.close_rounded,
-              title: 'Dismiss Overlay',
-              description: 'Close the topmost overlay or dialog',
-              shortcutLabel: 'Esc',
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -307,41 +337,61 @@ class _DesktopShortcutsSettingsScreenState
     };
   }
 
-  String _shortcutActionTitle(DesktopCommandAction action) {
+  String _shortcutActionTitle(
+    DesktopCommandAction action,
+    AppLocalizations l10n,
+  ) {
     return switch (action) {
-      DesktopCommandAction.openQuickSearch => 'Quick Search',
-      DesktopCommandAction.focusSearch => 'Focus Search',
-      DesktopCommandAction.toggleQueue => 'Toggle Queue',
-      DesktopCommandAction.goHome => 'Go to Home',
-      DesktopCommandAction.goLibrary => 'Go to Library',
-      DesktopCommandAction.goSearch => 'Go to Search',
-      DesktopCommandAction.goSettings => 'Go to Settings',
-      DesktopCommandAction.toggleNowPlaying => 'Toggle Now Playing',
-      DesktopCommandAction.playPause => 'Play / Pause',
-      DesktopCommandAction.nextTrack => 'Next Track',
-      DesktopCommandAction.previousTrack => 'Previous Track',
-      DesktopCommandAction.refreshLibrary => 'Refresh Library',
-      DesktopCommandAction.forceRescanLibrary => 'Force Full Rescan',
+      DesktopCommandAction.openQuickSearch =>
+        l10n.desktopShortcutsQuickSearchTitle,
+      DesktopCommandAction.focusSearch => l10n.desktopShortcutsFocusSearchTitle,
+      DesktopCommandAction.toggleQueue => l10n.desktopShortcutsToggleQueueTitle,
+      DesktopCommandAction.goHome => l10n.desktopShortcutsGoHomeTitle,
+      DesktopCommandAction.goLibrary => l10n.desktopShortcutsGoLibraryTitle,
+      DesktopCommandAction.goSearch => l10n.desktopShortcutsGoSearchTitle,
+      DesktopCommandAction.goSettings => l10n.desktopShortcutsGoSettingsTitle,
+      DesktopCommandAction.toggleNowPlaying =>
+        l10n.desktopShortcutsToggleNowPlayingTitle,
+      DesktopCommandAction.playPause => l10n.desktopShortcutsPlayPauseTitle,
+      DesktopCommandAction.nextTrack => l10n.desktopShortcutsNextTrackTitle,
+      DesktopCommandAction.previousTrack =>
+        l10n.desktopShortcutsPreviousTrackTitle,
+      DesktopCommandAction.refreshLibrary =>
+        l10n.desktopShortcutsRefreshLibraryTitle,
+      DesktopCommandAction.forceRescanLibrary =>
+        l10n.desktopShortcutsForceRescanTitle,
     };
   }
 
-  String _shortcutActionDescription(DesktopCommandAction action) {
+  String _shortcutActionDescription(
+    DesktopCommandAction action,
+    AppLocalizations l10n,
+  ) {
     return switch (action) {
-      DesktopCommandAction.openQuickSearch => 'Open the quick-search overlay',
+      DesktopCommandAction.openQuickSearch =>
+        l10n.desktopShortcutsQuickSearchDescription,
       DesktopCommandAction.focusSearch =>
-        'Navigate to search and focus the input',
-      DesktopCommandAction.toggleQueue => 'Show or hide the playback queue',
-      DesktopCommandAction.goHome => 'Navigate to the home screen',
-      DesktopCommandAction.goLibrary => 'Navigate to the library',
-      DesktopCommandAction.goSearch => 'Navigate to search',
-      DesktopCommandAction.goSettings => 'Open settings',
-      DesktopCommandAction.toggleNowPlaying => 'Expand or collapse now playing',
-      DesktopCommandAction.playPause => 'Toggle playback',
-      DesktopCommandAction.nextTrack => 'Skip to next track',
-      DesktopCommandAction.previousTrack => 'Skip to previous track',
-      DesktopCommandAction.refreshLibrary => 'Sync new changes to the library',
+        l10n.desktopShortcutsFocusSearchDescription,
+      DesktopCommandAction.toggleQueue =>
+        l10n.desktopShortcutsToggleQueueDescription,
+      DesktopCommandAction.goHome => l10n.desktopShortcutsGoHomeDescription,
+      DesktopCommandAction.goLibrary =>
+        l10n.desktopShortcutsGoLibraryDescription,
+      DesktopCommandAction.goSearch => l10n.desktopShortcutsGoSearchDescription,
+      DesktopCommandAction.goSettings =>
+        l10n.desktopShortcutsGoSettingsDescription,
+      DesktopCommandAction.toggleNowPlaying =>
+        l10n.desktopShortcutsToggleNowPlayingDescription,
+      DesktopCommandAction.playPause =>
+        l10n.desktopShortcutsTogglePlaybackDescription,
+      DesktopCommandAction.nextTrack =>
+        l10n.desktopShortcutsNextTrackDescription,
+      DesktopCommandAction.previousTrack =>
+        l10n.desktopShortcutsPreviousTrackDescription,
+      DesktopCommandAction.refreshLibrary =>
+        l10n.desktopShortcutsRefreshLibraryDescription,
       DesktopCommandAction.forceRescanLibrary =>
-        'Force a complete rescan of all library files',
+        l10n.desktopShortcutsForceRescanDescription,
     };
   }
 }
@@ -382,13 +432,14 @@ class _ShortcutCaptureTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context)!;
 
     // Subtitle: live preview during capture, description otherwise.
     final String subtitle;
     if (isCapturing && capturedBinding != null) {
-      subtitle = 'Enter to save · Backspace to clear · Esc to cancel';
+      subtitle = l10n.desktopShortcutsCaptureSaved;
     } else if (isCapturing) {
-      subtitle = 'Hold modifiers then press a key (e.g. Ctrl+Shift+F)';
+      subtitle = l10n.desktopShortcutsCapturePrompt;
     } else {
       subtitle = description;
     }
@@ -404,17 +455,18 @@ class _ShortcutCaptureTile extends StatelessWidget {
     } else if (isCapturing && liveInput != null) {
       buttonLabel = '$liveInput+';
     } else if (isCapturing) {
-      buttonLabel = 'Waiting for new input…';
+      buttonLabel = l10n.desktopShortcutsWaiting;
     } else {
-      buttonLabel = binding?.formatLabel(platform) ?? 'Not Set';
+      buttonLabel =
+          binding?.formatLabel(platform) ?? l10n.desktopShortcutsNotSet;
     }
 
-    return Card(
-      elevation: isCapturing ? 2 : 0,
+    return Material(
       color: isCapturing
           ? colors.primaryContainer.withValues(alpha: 0.25)
-          : null,
+          : Colors.transparent,
       child: ListTile(
+        contentPadding: EdgeInsets.zero,
         onTap: onPressed,
         leading: Icon(icon, color: colors.onSurfaceVariant, size: 22),
         title: Text(title, style: textTheme.bodyLarge),
@@ -489,10 +541,10 @@ class _BuiltInShortcutTile extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Card(
-      elevation: 0,
-      color: colors.surfaceContainerLow,
+    return Material(
+      color: Colors.transparent,
       child: ListTile(
+        contentPadding: EdgeInsets.zero,
         leading: Icon(
           icon,
           color: colors.onSurfaceVariant.withValues(alpha: 0.6),

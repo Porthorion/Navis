@@ -466,6 +466,252 @@ abstract class AppLocalizations {
   /// **'Customize desktop key bindings'**
   String get settingsDesktopShortcutsSubtitle;
 
+  /// No description provided for @desktopShortcutsReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to defaults'**
+  String get desktopShortcutsReset;
+
+  /// No description provided for @desktopShortcutsCustomizable.
+  ///
+  /// In en, this message translates to:
+  /// **'Customizable'**
+  String get desktopShortcutsCustomizable;
+
+  /// No description provided for @desktopShortcutsBuiltIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get desktopShortcutsBuiltIn;
+
+  /// No description provided for @desktopShortcutsCaptureSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter to save · Backspace to clear · Esc to cancel'**
+  String get desktopShortcutsCaptureSaved;
+
+  /// No description provided for @desktopShortcutsCapturePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold modifiers then press a key (e.g. Ctrl+Shift+F)'**
+  String get desktopShortcutsCapturePrompt;
+
+  /// No description provided for @desktopShortcutsWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for new input…'**
+  String get desktopShortcutsWaiting;
+
+  /// No description provided for @desktopShortcutsNotSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get desktopShortcutsNotSet;
+
+  /// No description provided for @desktopShortcutsQuickSearchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Search'**
+  String get desktopShortcutsQuickSearchTitle;
+
+  /// No description provided for @desktopShortcutsQuickSearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the quick-search overlay'**
+  String get desktopShortcutsQuickSearchDescription;
+
+  /// No description provided for @desktopShortcutsFocusSearchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Search'**
+  String get desktopShortcutsFocusSearchTitle;
+
+  /// No description provided for @desktopShortcutsFocusSearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigate to search and focus the input'**
+  String get desktopShortcutsFocusSearchDescription;
+
+  /// No description provided for @desktopShortcutsToggleQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Queue'**
+  String get desktopShortcutsToggleQueueTitle;
+
+  /// No description provided for @desktopShortcutsToggleQueueDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Show or hide the playback queue'**
+  String get desktopShortcutsToggleQueueDescription;
+
+  /// No description provided for @desktopShortcutsGoHomeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Home'**
+  String get desktopShortcutsGoHomeTitle;
+
+  /// No description provided for @desktopShortcutsGoHomeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigate to the home screen'**
+  String get desktopShortcutsGoHomeDescription;
+
+  /// No description provided for @desktopShortcutsGoLibraryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Library'**
+  String get desktopShortcutsGoLibraryTitle;
+
+  /// No description provided for @desktopShortcutsGoLibraryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigate to the library'**
+  String get desktopShortcutsGoLibraryDescription;
+
+  /// No description provided for @desktopShortcutsGoSearchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Search'**
+  String get desktopShortcutsGoSearchTitle;
+
+  /// No description provided for @desktopShortcutsGoSearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigate to search'**
+  String get desktopShortcutsGoSearchDescription;
+
+  /// No description provided for @desktopShortcutsGoSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Settings'**
+  String get desktopShortcutsGoSettingsTitle;
+
+  /// No description provided for @desktopShortcutsGoSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get desktopShortcutsGoSettingsDescription;
+
+  /// No description provided for @desktopShortcutsToggleNowPlayingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Now Playing'**
+  String get desktopShortcutsToggleNowPlayingTitle;
+
+  /// No description provided for @desktopShortcutsToggleNowPlayingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand or collapse now playing'**
+  String get desktopShortcutsToggleNowPlayingDescription;
+
+  /// No description provided for @desktopShortcutsPlayPauseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Play / Pause'**
+  String get desktopShortcutsPlayPauseTitle;
+
+  /// No description provided for @desktopShortcutsTogglePlaybackDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle playback'**
+  String get desktopShortcutsTogglePlaybackDescription;
+
+  /// No description provided for @desktopShortcutsNextTrackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Next Track'**
+  String get desktopShortcutsNextTrackTitle;
+
+  /// No description provided for @desktopShortcutsNextTrackDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip to next track'**
+  String get desktopShortcutsNextTrackDescription;
+
+  /// No description provided for @desktopShortcutsPreviousTrackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous Track'**
+  String get desktopShortcutsPreviousTrackTitle;
+
+  /// No description provided for @desktopShortcutsPreviousTrackDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip to previous track'**
+  String get desktopShortcutsPreviousTrackDescription;
+
+  /// No description provided for @desktopShortcutsRefreshLibraryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Library'**
+  String get desktopShortcutsRefreshLibraryTitle;
+
+  /// No description provided for @desktopShortcutsRefreshLibraryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync new changes to the library'**
+  String get desktopShortcutsRefreshLibraryDescription;
+
+  /// No description provided for @desktopShortcutsForceRescanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Force Full Rescan'**
+  String get desktopShortcutsForceRescanTitle;
+
+  /// No description provided for @desktopShortcutsForceRescanDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Force a complete rescan of all library files'**
+  String get desktopShortcutsForceRescanDescription;
+
+  /// No description provided for @desktopShortcutsSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Space'**
+  String get desktopShortcutsSpace;
+
+  /// No description provided for @desktopShortcutsPreviousBindingMac.
+  ///
+  /// In en, this message translates to:
+  /// **'← or Option+,'**
+  String get desktopShortcutsPreviousBindingMac;
+
+  /// No description provided for @desktopShortcutsPreviousBinding.
+  ///
+  /// In en, this message translates to:
+  /// **'← or Alt+'**
+  String get desktopShortcutsPreviousBinding;
+
+  /// No description provided for @desktopShortcutsNextBindingMac.
+  ///
+  /// In en, this message translates to:
+  /// **'→ or Option+.'**
+  String get desktopShortcutsNextBindingMac;
+
+  /// No description provided for @desktopShortcutsNextBinding.
+  ///
+  /// In en, this message translates to:
+  /// **'→ or Alt+.'**
+  String get desktopShortcutsNextBinding;
+
+  /// No description provided for @desktopShortcutsDismissOverlayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss Overlay'**
+  String get desktopShortcutsDismissOverlayTitle;
+
+  /// No description provided for @desktopShortcutsDismissOverlayDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Close the topmost overlay or dialog'**
+  String get desktopShortcutsDismissOverlayDescription;
+
+  /// No description provided for @desktopShortcutsEscape.
+  ///
+  /// In en, this message translates to:
+  /// **'Esc'**
+  String get desktopShortcutsEscape;
+
   /// No description provided for @settingsDesktopWorkspaceSubtitle.
   ///
   /// In en, this message translates to:

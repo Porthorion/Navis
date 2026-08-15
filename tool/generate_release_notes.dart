@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Desktop Keyboard Shortcuts now uses a focused workspace with a direct return to Settings',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Desktop Window settings now use a focused workspace with a direct return to Settings',
       type: _EntryType.improvement,
     ),

@@ -211,6 +211,139 @@ class AppLocalizationsEn extends AppLocalizations {
       'Customize desktop key bindings';
 
   @override
+  String get desktopShortcutsReset => 'Reset to defaults';
+
+  @override
+  String get desktopShortcutsCustomizable => 'Customizable';
+
+  @override
+  String get desktopShortcutsBuiltIn => 'Built-in';
+
+  @override
+  String get desktopShortcutsCaptureSaved =>
+      'Enter to save · Backspace to clear · Esc to cancel';
+
+  @override
+  String get desktopShortcutsCapturePrompt =>
+      'Hold modifiers then press a key (e.g. Ctrl+Shift+F)';
+
+  @override
+  String get desktopShortcutsWaiting => 'Waiting for new input…';
+
+  @override
+  String get desktopShortcutsNotSet => 'Not set';
+
+  @override
+  String get desktopShortcutsQuickSearchTitle => 'Quick Search';
+
+  @override
+  String get desktopShortcutsQuickSearchDescription =>
+      'Open the quick-search overlay';
+
+  @override
+  String get desktopShortcutsFocusSearchTitle => 'Focus Search';
+
+  @override
+  String get desktopShortcutsFocusSearchDescription =>
+      'Navigate to search and focus the input';
+
+  @override
+  String get desktopShortcutsToggleQueueTitle => 'Toggle Queue';
+
+  @override
+  String get desktopShortcutsToggleQueueDescription =>
+      'Show or hide the playback queue';
+
+  @override
+  String get desktopShortcutsGoHomeTitle => 'Go to Home';
+
+  @override
+  String get desktopShortcutsGoHomeDescription => 'Navigate to the home screen';
+
+  @override
+  String get desktopShortcutsGoLibraryTitle => 'Go to Library';
+
+  @override
+  String get desktopShortcutsGoLibraryDescription => 'Navigate to the library';
+
+  @override
+  String get desktopShortcutsGoSearchTitle => 'Go to Search';
+
+  @override
+  String get desktopShortcutsGoSearchDescription => 'Navigate to search';
+
+  @override
+  String get desktopShortcutsGoSettingsTitle => 'Go to Settings';
+
+  @override
+  String get desktopShortcutsGoSettingsDescription => 'Open settings';
+
+  @override
+  String get desktopShortcutsToggleNowPlayingTitle => 'Toggle Now Playing';
+
+  @override
+  String get desktopShortcutsToggleNowPlayingDescription =>
+      'Expand or collapse now playing';
+
+  @override
+  String get desktopShortcutsPlayPauseTitle => 'Play / Pause';
+
+  @override
+  String get desktopShortcutsTogglePlaybackDescription => 'Toggle playback';
+
+  @override
+  String get desktopShortcutsNextTrackTitle => 'Next Track';
+
+  @override
+  String get desktopShortcutsNextTrackDescription => 'Skip to next track';
+
+  @override
+  String get desktopShortcutsPreviousTrackTitle => 'Previous Track';
+
+  @override
+  String get desktopShortcutsPreviousTrackDescription =>
+      'Skip to previous track';
+
+  @override
+  String get desktopShortcutsRefreshLibraryTitle => 'Refresh Library';
+
+  @override
+  String get desktopShortcutsRefreshLibraryDescription =>
+      'Sync new changes to the library';
+
+  @override
+  String get desktopShortcutsForceRescanTitle => 'Force Full Rescan';
+
+  @override
+  String get desktopShortcutsForceRescanDescription =>
+      'Force a complete rescan of all library files';
+
+  @override
+  String get desktopShortcutsSpace => 'Space';
+
+  @override
+  String get desktopShortcutsPreviousBindingMac => '← or Option+,';
+
+  @override
+  String get desktopShortcutsPreviousBinding => '← or Alt+';
+
+  @override
+  String get desktopShortcutsNextBindingMac => '→ or Option+.';
+
+  @override
+  String get desktopShortcutsNextBinding => '→ or Alt+.';
+
+  @override
+  String get desktopShortcutsDismissOverlayTitle => 'Dismiss Overlay';
+
+  @override
+  String get desktopShortcutsDismissOverlayDescription =>
+      'Close the topmost overlay or dialog';
+
+  @override
+  String get desktopShortcutsEscape => 'Esc';
+
+  @override
   String get settingsDesktopWorkspaceSubtitle =>
       'Desktop workspace controls and app preferences';
 

@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ---
 
@@ -151,6 +151,13 @@ Last updated: 2026-08-15
   Player and always-on-top controls retain their existing behavior. Focused
   component-golden coverage and isolated Linux before/after clean-restart
   captures pass.)
+
+- [x] Desktop Keyboard Shortcuts workspace — 2026-08-16 (approved: Keyboard
+  Shortcuts now uses a constrained, divider-separated command reference with
+  a direct Back-to-Settings path instead of stacked cards. Shortcut capture
+  behavior is unchanged, and its visible command, capture, and built-in
+  binding copy is localized. Focused behavior/component-golden coverage and
+  isolated Linux before/after clean-restart captures pass.)
 
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
