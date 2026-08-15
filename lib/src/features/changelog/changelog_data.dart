@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop Appearance settings now use a focused workspace with a direct return to Settings',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Desktop Keyboard Shortcuts now uses a focused workspace with a direct return to Settings',
         type: ChangelogEntryType.improvement,
       ),

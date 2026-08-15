@@ -159,6 +159,13 @@ Last updated: 2026-08-16
   binding copy is localized. Focused behavior/component-golden coverage and
   isolated Linux before/after clean-restart captures pass.)
 
+- [x] Desktop Appearance workspace — 2026-08-16 (approved: Appearance now
+  uses the same constrained workspace and explicit Back-to-Settings path as
+  nested desktop peers, keeping palette and selection controls within one
+  coherent reading width. Phone and tablet layouts are unchanged. Focused
+  behavior/component-golden coverage and isolated Linux before/after
+  clean-restart captures pass.)
+
 - [x] Non-blocking update-notes discovery — 2026-08-14 (normal release notes
   now appear as a localized, dismissible Home card that opens the full
   changelog instead of a blocking first-run dialog. Focused Home and 200%

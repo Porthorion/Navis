@@ -5,9 +5,11 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
+import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
@@ -19,6 +21,7 @@ void main() {
     int? colorSeed,
     List<int> customPresets = const <int>[],
     bool dynamicAlbumColorEnabled = false,
+    AdaptiveContext? adaptiveContext,
   }) async {
     final database = createTestDatabase();
     final settings = const AppSettingsModel.defaults().copyWith(
@@ -48,11 +51,20 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           theme: testTheme(buildLightTheme(defaultColorSchemeSeedColor)),
-          home: const AppearanceSettingsScreen(),
+          home: adaptiveContext == null
+              ? const AppearanceSettingsScreen()
+              : AdaptiveContextScope(
+                  adaptiveContext: adaptiveContext,
+                  child: const AppearanceSettingsScreen(),
+                ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (adaptiveContext == null) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
     return container;
   }
 
@@ -246,6 +258,27 @@ void main() {
     expect(
       find.text(l10n.appearanceColorSchemeDynamicSub),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('desktop appearance uses a focused settings workspace', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1280, 800));
+    await pumpAppearance(
+      tester,
+      adaptiveContext: resolveAdaptiveContext(
+        desktopRuntime: true,
+        viewportSize: const Size(1280, 800),
+        safePadding: EdgeInsets.zero,
+      ),
+    );
+
+    expect(find.byTooltip('Back to Settings'), findsOneWidget);
+    expect(tester.getSize(find.byType(ListView)).width, 1040);
+    await expectLater(
+      find.byType(AppearanceSettingsScreen),
+      matchesGoldenFile('goldens/appearance_settings_desktop_workspace.png'),
     );
   });
 }
