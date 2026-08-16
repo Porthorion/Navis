@@ -77,6 +77,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
               ),
               const Spacer(),
               IconButton(
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.of(context).pop(),
               ),

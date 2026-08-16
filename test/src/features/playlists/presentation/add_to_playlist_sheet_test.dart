@@ -58,6 +58,7 @@ void main() {
 
     expect(find.byType(Dialog), findsOneWidget);
     expect(find.text('Add to playlist'), findsOneWidget);
+    expect(find.byTooltip('Close'), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
   });
 }
