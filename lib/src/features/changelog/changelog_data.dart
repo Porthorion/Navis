@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Queue loading errors now explain how to recover without technical details',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Library filters and sorting now remain readable with large system text',
         type: ChangelogEntryType.improvement,
       ),

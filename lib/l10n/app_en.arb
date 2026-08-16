@@ -837,6 +837,7 @@
   "queueUnavailableTrackDescription": "This track is no longer available in your library.",
   "queueUnknownArtist": "Unknown artist",
   "queueTrackLoadError": "Error loading track",
+  "queueTrackLoadErrorDescription": "This track couldn't be loaded. You can remove it from the queue or try again later.",
   "queueClearAction": "Clear queue",
   "queueClearConfirmTitle": "Clear queue?",
   "queueClearConfirmMessage": "This will remove all tracks from the queue.",

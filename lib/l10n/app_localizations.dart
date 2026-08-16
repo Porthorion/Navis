@@ -3335,6 +3335,12 @@ abstract class AppLocalizations {
   /// **'Error loading track'**
   String get queueTrackLoadError;
 
+  /// No description provided for @queueTrackLoadErrorDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This track couldn\'t be loaded. You can remove it from the queue or try again later.'**
+  String get queueTrackLoadErrorDescription;
+
   /// No description provided for @queueClearAction.
   ///
   /// In en, this message translates to:

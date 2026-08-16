@@ -65,6 +65,7 @@ Future<_QueueSpyController> _pumpQueueSheet(
   required PlaybackSnapshot snapshot,
   Set<String> externalSongIds = const <String>{},
   Set<String> missingSongIds = const <String>{},
+  Set<String> failedSongIds = const <String>{},
   TextScaler? textScaler,
 }) async {
   final queueSpy = _QueueSpyController(snapshot.queueSongIds);
@@ -75,15 +76,19 @@ Future<_QueueSpyController> _pumpQueueSheet(
         queueProvider.overrideWith(() => queueSpy),
         currentQueueSongIdProvider.overrideWithValue(snapshot.currentSongId),
         songByIdProvider.overrideWith(
-          (ref, songId) => Stream.value(
-            missingSongIds.contains(songId)
-                ? null
-                : _song(
-                    songId,
-                    'Track $songId',
-                    isExternal: externalSongIds.contains(songId),
-                  ),
-          ),
+          (ref, songId) => failedSongIds.contains(songId)
+              ? Stream<SongsTableData?>.error(
+                  StateError('Local metadata lookup failed.'),
+                )
+              : Stream.value(
+                  missingSongIds.contains(songId)
+                      ? null
+                      : _song(
+                          songId,
+                          'Track $songId',
+                          isExternal: externalSongIds.contains(songId),
+                        ),
+                ),
         ),
       ],
       child: MaterialApp(
@@ -190,6 +195,53 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('ID:'), findsNothing);
+  });
+
+  testWidgets('queue load errors use safe recovery copy and allow removal', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final queueSpy = await _pumpQueueSheet(
+      tester,
+      snapshot: const PlaybackSnapshot(
+        queueSongIds: <String>['failed-song'],
+        currentSongId: 'failed-song',
+        currentIndex: 0,
+        playing: false,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration.zero,
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+      ),
+      failedSongIds: const <String>{'failed-song'},
+    );
+
+    expect(find.text('Error loading track'), findsOneWidget);
+    expect(
+      find.text(
+        "This track couldn't be loaded. You can remove it from the queue or try again later.",
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Local metadata lookup failed'), findsNothing);
+    expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(queueSpy.removeCalls, 1);
+    await expectLater(
+      find.byType(QueueSheet),
+      matchesGoldenFile('goldens/queue_sheet_load_error_after.png'),
+    );
   });
 
   testWidgets('phone Queue remains usable at 200 percent text scale', (

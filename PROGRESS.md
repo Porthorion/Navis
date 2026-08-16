@@ -225,6 +225,11 @@ Last updated: 2026-08-16
   library, rather than exposing its raw internal ID. Focused Queue coverage
   passes.)
 
+- [x] Queue load-error recovery — 2026-08-16 (approved: Queue sheet and full
+  Queue failures now use plain-language recovery copy rather than raw
+  exception text, with an available direct Remove action. Focused Queue-sheet
+  and full-Queue behavior coverage passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

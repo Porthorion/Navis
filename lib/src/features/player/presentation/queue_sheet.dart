@@ -511,7 +511,12 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
       error: (error, _) => ListTile(
         key: widget.key,
         title: Text(l10n.queueTrackLoadError),
-        subtitle: Text(error.toString()),
+        subtitle: Text(l10n.queueTrackLoadErrorDescription),
+        trailing: IconButton(
+          tooltip: l10n.commonRemove,
+          onPressed: widget.actionsDisabled ? null : widget.onRemove,
+          icon: const Icon(Icons.delete_outline),
+        ),
       ),
     );
   }

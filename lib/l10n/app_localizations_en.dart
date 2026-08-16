@@ -1875,6 +1875,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queueTrackLoadError => 'Error loading track';
 
   @override
+  String get queueTrackLoadErrorDescription =>
+      'This track couldn\'t be loaded. You can remove it from the queue or try again later.';
+
+  @override
   String get queueClearAction => 'Clear queue';
 
   @override
