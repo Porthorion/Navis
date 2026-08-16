@@ -301,6 +301,10 @@ Last updated: 2026-08-16
   phone sheet now expose the platform Close label on their close-only picker
   action. Focused picker coverage passes.)
 
+- [x] Artist Top Tracks More label — 2026-08-17 (the visible song overflow
+  trigger now exposes the platform Show menu label on desktop and mobile.
+  Focused top-tracks coverage passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

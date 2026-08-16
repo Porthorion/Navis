@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Artist Top Tracks controls now have a clearer More label',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Add to Playlist controls now have a clearer close label',
         type: ChangelogEntryType.improvement,
       ),

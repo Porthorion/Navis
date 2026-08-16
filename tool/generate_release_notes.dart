@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Artist Top Tracks controls now have a clearer More label',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Add to Playlist controls now have a clearer close label',
       type: _EntryType.improvement,
     ),

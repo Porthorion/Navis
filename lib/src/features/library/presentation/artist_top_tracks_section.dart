@@ -414,6 +414,7 @@ class _TopTrackTile extends ConsumerWidget {
           ),
           Builder(
             builder: (buttonContext) => IconButton(
+              tooltip: MaterialLocalizations.of(buttonContext).showMenuTooltip,
               icon: const Icon(Icons.more_vert),
               iconSize: 20,
               constraints: const BoxConstraints(),

@@ -214,6 +214,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.byTooltip('Show menu'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(BottomSheet), findsNothing);
