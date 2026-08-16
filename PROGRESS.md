@@ -260,12 +260,10 @@ Last updated: 2026-08-16
   actions and the standard app bar contract. Focused album-detail coverage
   passes.)
 
-- [ ] Deep-link presentation capture stability — observed 2026-08-16
-  (isolated Linux Album deep-link diagnostics alternated between a settled
-  fallback page and a blank transitional frame after route acknowledgement.
-  Runtime health and logs were clean, so this is recorded as a visual-proof
-  tooling gap rather than an app regression; add a stable-content capture
-  condition before using this route as screenshot or motion evidence.)
+- [x] Deep-link presentation evidence check — 2026-08-16 (an apparent blank
+  preview in isolated Linux Album deep-link captures was ruled out by direct
+  pixel comparison: the captured PNGs were effectively identical settled
+  frames. No app or diagnostic regression was found.)
 
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
