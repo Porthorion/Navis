@@ -29,30 +29,9 @@ class _TransportControls extends ConsumerWidget {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          if (isDesktopRuntime)
-            Tooltip(
-              message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  shape: const CircleBorder(),
-                  padding: EdgeInsets.all(compact ? 12 : 16),
-                ),
-                onPressed: () {
-                  final handler = ref.read(audioHandlerProvider);
-                  if (isPlaying) {
-                    unawaited(handler?.pause());
-                  } else {
-                    unawaited(handler?.play());
-                  }
-                },
-                child: Icon(
-                  isPlaying ? Icons.pause : Icons.play_arrow,
-                  size: compact ? 30 : 36,
-                ),
-              ),
-            )
-          else
-            FilledButton(
+          Tooltip(
+            message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
+            child: FilledButton(
               style: FilledButton.styleFrom(
                 shape: const CircleBorder(),
                 padding: EdgeInsets.all(compact ? 12 : 16),
@@ -70,6 +49,7 @@ class _TransportControls extends ConsumerWidget {
                 size: compact ? 30 : 36,
               ),
             ),
+          ),
           SizedBox(width: compact ? 10 : 16),
           IconButton(
             icon: Icon(Icons.stop, size: compact ? 28 : 32),
@@ -176,30 +156,9 @@ class _TransportControls extends ConsumerWidget {
               },
             ),
             SizedBox(width: compact ? 4 : 8),
-            if (isDesktopRuntime)
-              Tooltip(
-                message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    shape: const CircleBorder(),
-                    padding: EdgeInsets.all(compact ? 12 : 16),
-                  ),
-                  onPressed: () {
-                    final handler = ref.read(audioHandlerProvider);
-                    if (isPlaying) {
-                      unawaited(handler?.pause());
-                    } else {
-                      unawaited(handler?.play());
-                    }
-                  },
-                  child: Icon(
-                    isPlaying ? Icons.pause : Icons.play_arrow,
-                    size: compact ? 30 : 36,
-                  ),
-                ),
-              )
-            else
-              FilledButton(
+            Tooltip(
+              message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
+              child: FilledButton(
                 style: FilledButton.styleFrom(
                   shape: const CircleBorder(),
                   padding: EdgeInsets.all(compact ? 12 : 16),
@@ -217,6 +176,7 @@ class _TransportControls extends ConsumerWidget {
                   size: compact ? 30 : 36,
                 ),
               ),
+            ),
             SizedBox(width: compact ? 4 : 8),
             IconButton(
               icon: Icon(Icons.skip_next, size: compact ? 28 : 32),

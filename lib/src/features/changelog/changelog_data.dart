@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Phone Play and Pause controls now have clearer long-press labels',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Download failure notifications no longer expose internal track IDs',
         type: ChangelogEntryType.improvement,
       ),

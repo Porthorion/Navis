@@ -272,6 +272,7 @@ void main() {
       await _pumpNowPlaying(tester, container);
 
       expect(find.byTooltip('Queue'), findsOneWidget);
+      expect(find.byTooltip('Pause'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('groupListeningSessionButton')),
         findsNothing,
