@@ -57,7 +57,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   late final UpdateService _service;
   _DownloadPhase _phase = _DownloadPhase.confirm;
   double _progress = 0;
-  String? _error;
   // True when the error occurred while *applying* the downloaded artifact
   // (as opposed to during the download itself). Used to tailor the error UI.
   bool _isApplyError = false;
@@ -119,7 +118,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
     setState(() {
       _phase = _DownloadPhase.downloading;
       _progress = 0;
-      _error = null;
       _isApplyError = false;
     });
 
@@ -153,7 +151,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
       if (mounted) {
         setState(() {
           _phase = _DownloadPhase.error;
-          _error = e.message;
         });
       }
     } on PlatformException catch (e) {
@@ -167,7 +164,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             _phase = _DownloadPhase.signatureMismatch;
           } else {
             _phase = _DownloadPhase.error;
-            _error = e.message ?? e.code;
           }
         });
       }
@@ -176,7 +172,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
       if (mounted) {
         setState(() {
           _phase = _DownloadPhase.error;
-          _error = e.toString();
         });
       }
     }
@@ -314,17 +309,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
                 ),
               ],
             ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
           ],
         );
     }
@@ -379,7 +363,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
                     setState(() {
                       _isApplyError = true;
                       _phase = _DownloadPhase.error;
-                      _error = e.toString();
                     });
                   }
                 }
@@ -411,7 +394,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
                       _phase = _DownloadPhase.signatureMismatch;
                     } else {
                       _phase = _DownloadPhase.error;
-                      _error = e.message ?? e.code;
                     }
                   });
                 }

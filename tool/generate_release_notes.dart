@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Update download failures now provide clear recovery without technical details',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Queue loading errors now explain how to recover without technical details',
       type: _EntryType.improvement,
     ),

@@ -230,6 +230,11 @@ Last updated: 2026-08-16
   exception text, with an available direct Remove action. Focused Queue-sheet
   and full-Queue behavior coverage passes.)
 
+- [x] Update failure recovery — 2026-08-16 (approved: update failures keep
+  concise recovery copy and retain Retry and Download Manually without raw
+  technical exception text. Focused dialog behavior coverage and Android
+  emulator before/after visual review pass.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

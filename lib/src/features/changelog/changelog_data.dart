@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Update download failures now provide clear recovery without technical details',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Queue loading errors now explain how to recover without technical details',
         type: ChangelogEntryType.improvement,
       ),
