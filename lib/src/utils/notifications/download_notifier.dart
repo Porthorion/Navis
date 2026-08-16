@@ -7,6 +7,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 class DownloadNotifier {
   DownloadNotifier._();
 
+  /// Notification titles must not include internal song IDs or backend detail.
+  static const String failureNotificationTitle = 'Download failed';
+
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
@@ -111,7 +114,7 @@ class DownloadNotifier {
   }
 
   /// Show a notification when a download fails.
-  static Future<void> showFailed({required String title}) async {
+  static Future<void> showFailed() async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
 
     const androidDetails = AndroidNotificationDetails(
@@ -127,7 +130,7 @@ class DownloadNotifier {
     try {
       await _plugin.show(
         id: _summaryId,
-        title: title,
+        title: failureNotificationTitle,
         notificationDetails: const NotificationDetails(
           android: androidDetails,
         ),

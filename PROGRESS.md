@@ -275,6 +275,11 @@ Last updated: 2026-08-16
   server detail with a concise, safe instruction to reopen Navis. Focused
   notification-copy coverage passes.)
 
+- [x] Download notification recovery copy — 2026-08-16 (permanent Android
+  download failures now use one safe generic title and cannot expose an
+  internal song ID in the system notification. Focused notifier coverage
+  passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

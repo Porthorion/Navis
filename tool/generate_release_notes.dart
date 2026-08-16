@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Download failure notifications no longer expose internal track IDs',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Library Sync notifications now provide safe recovery guidance',
       type: _EntryType.improvement,
     ),

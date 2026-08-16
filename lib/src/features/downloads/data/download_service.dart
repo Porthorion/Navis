@@ -750,9 +750,7 @@ class DownloadService {
             'DownloadService: Source not found (${response.statusCode}) for $songId — marking as permanently failed',
           );
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-          await DownloadNotifier.showFailed(
-            title: 'Download failed: $songId',
-          ).catchError((_) {});
+          await DownloadNotifier.showFailed().catchError((_) {});
         } else {
           await _handleFailure(
             item,
@@ -878,9 +876,7 @@ class DownloadService {
       });
     } else {
       await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-      await DownloadNotifier.showFailed(
-        title: 'Download failed: ${item.songId}',
-      ).catchError((_) {});
+      await DownloadNotifier.showFailed().catchError((_) {});
       AppLogger.warning(
         'DownloadService: Permanently failed ${item.songId}: $reason',
       );

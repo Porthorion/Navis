@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Download failure notifications no longer expose internal track IDs',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Library Sync notifications now provide safe recovery guidance',
         type: ChangelogEntryType.improvement,
       ),
