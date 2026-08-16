@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Fullscreen artwork controls now have clearer close labels',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Phone Play and Pause controls now have clearer long-press labels',
       type: _EntryType.improvement,
     ),

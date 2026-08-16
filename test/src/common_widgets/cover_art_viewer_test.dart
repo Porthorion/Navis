@@ -38,6 +38,7 @@ Future<void> _pumpViewerHarness(
   );
   await tester.tap(find.text('Open artwork'));
   await tester.pump();
+  await tester.pump(const Duration(milliseconds: 200));
 }
 
 void main() {
@@ -52,6 +53,7 @@ void main() {
     final route = observer.pushedRoute! as PageRoute<dynamic>;
     expect(route.transitionDuration, const Duration(milliseconds: 170));
     expect(route.reverseTransitionDuration, const Duration(milliseconds: 130));
+    expect(find.byTooltip('Close'), findsOneWidget);
   });
 
   testWidgets('art viewer opens without fade for reduced motion', (
@@ -89,6 +91,8 @@ void main() {
           ),
         ),
       );
+
+      expect(find.byTooltip('Close'), findsOneWidget);
 
       final fullResolution = tester.widget<CoverArtImage>(
         find.byWidgetPredicate(

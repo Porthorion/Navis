@@ -53,6 +53,7 @@ class _RemoteArtViewerScreen extends StatelessWidget {
           color: Colors.black.withValues(alpha: 0.45),
           shape: const CircleBorder(),
           child: IconButton(
+            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
             icon: const Icon(Icons.close),
             color: Colors.white,
             onPressed: () => Navigator.of(context).pop(),
@@ -175,6 +176,7 @@ class CoverArtViewerScreen extends StatelessWidget {
           color: Colors.black.withValues(alpha: 0.45),
           shape: const CircleBorder(),
           child: IconButton(
+            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
             icon: const Icon(Icons.close),
             color: Colors.white,
             onPressed: () => Navigator.of(context).pop(),

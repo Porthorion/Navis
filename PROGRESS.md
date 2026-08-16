@@ -284,6 +284,10 @@ Last updated: 2026-08-16
   transport control now exposes the same localized long-press and assistive
   label on phone as it does on desktop. Focused adaptive coverage passes.)
 
+- [x] Fullscreen artwork close labels — 2026-08-16 (local and remote artwork
+  viewers now expose the platform Close label on their close-only controls.
+  Focused artwork-viewer coverage passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused
