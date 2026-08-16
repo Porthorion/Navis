@@ -270,6 +270,11 @@ Last updated: 2026-08-16
   surface or route for them; only Android Auto exposes the capability. A
   Library-section proposal needs visual approval before implementation.)
 
+- [x] Library Sync notification recovery copy — 2026-08-16 (Android failure
+  notifications now retain the cancelled/failed distinction but replace raw
+  server detail with a concise, safe instruction to reopen Navis. Focused
+  notification-copy coverage passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

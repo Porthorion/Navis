@@ -133,8 +133,8 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
     );
     await _safeShow(
       _summaryId,
-      title: _failureTitle(state),
-      body: _failureBody(state),
+      title: librarySyncNotificationFailureTitle(state),
+      body: librarySyncNotificationFailureBody(state),
       details: androidDetails,
     );
   }
@@ -180,20 +180,24 @@ String _completionBody(LibrarySyncState state) {
   return 'Library is already up to date.';
 }
 
-String _failureTitle(LibrarySyncState state) {
-  final message = state.errorMessage?.toLowerCase() ?? '';
-  if (message.contains('cancel')) {
+String librarySyncNotificationFailureTitle(LibrarySyncState state) {
+  if (librarySyncNotificationWasCancelled(state)) {
     return 'Library scan cancelled';
   }
   return 'Library scan failed';
 }
 
-String _failureBody(LibrarySyncState state) {
-  final message = state.errorMessage?.trim();
-  if (message != null && message.isNotEmpty) {
-    return message;
-  }
-  return 'Something interrupted the scan.';
+String librarySyncNotificationFailureBody(LibrarySyncState state) {
+  // Sync state keeps raw transport and backend detail for diagnostics, but a
+  // system notification is a recovery surface, not a log viewer. Preserve a
+  // stable, safe next step instead of exposing server implementation detail.
+  return librarySyncNotificationWasCancelled(state)
+      ? 'The scan stopped before it finished. Open Navis to try again.'
+      : 'The scan could not finish. Open Navis to try again.';
+}
+
+bool librarySyncNotificationWasCancelled(LibrarySyncState state) {
+  return (state.errorMessage?.toLowerCase() ?? '').contains('cancel');
 }
 
 String _stageLabel(LibrarySyncState state) {

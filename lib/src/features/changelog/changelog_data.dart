@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Library Sync notifications now provide safe recovery guidance',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Album navigation and actions now have clearer long-press labels on phones',
         type: ChangelogEntryType.improvement,
       ),

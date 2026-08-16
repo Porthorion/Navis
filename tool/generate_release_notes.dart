@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Library Sync notifications now provide safe recovery guidance',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Album navigation and actions now have clearer long-press labels on phones',
       type: _EntryType.improvement,
     ),
