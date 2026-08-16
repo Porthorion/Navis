@@ -293,6 +293,10 @@ Last updated: 2026-08-16
   named actions without changing the layout. Focused Queue sheet coverage
   passes.)
 
+- [x] Password visibility label — 2026-08-16 (the sign-in password toggle
+  now announces the localized next action, Show password or Hide password,
+  without changing the credential form layout. Focused Login coverage passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

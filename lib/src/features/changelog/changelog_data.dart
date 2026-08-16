@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Sign-in password controls now have clearer Show and Hide labels',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Queue controls now have a clearer close label',
         type: ChangelogEntryType.improvement,
       ),

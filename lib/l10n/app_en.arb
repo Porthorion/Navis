@@ -12,6 +12,8 @@
   "loginServerUrlLabel": "Server URL",
   "loginUsernameLabel": "Username",
   "loginPasswordLabel": "Password",
+  "loginShowPassword": "Show password",
+  "loginHidePassword": "Hide password",
   "loginTestConnection": "Test connection",
   "loginTestingConnection": "Testing connection...",
   "loginConnect": "Connect",

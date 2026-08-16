@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Sign-in password controls now have clearer Show and Hide labels',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Queue controls now have a clearer close label',
       type: _EntryType.improvement,
     ),

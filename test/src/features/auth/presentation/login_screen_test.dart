@@ -483,4 +483,29 @@ void main() {
     expect(notifier.savedConfigSnapshot()?.url, 'http://x.test');
     await _disposeApp(tester);
   });
+
+  testWidgets('password visibility control has an explicit stateful label', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _buildTestApp(
+        database: database,
+        overrides: [
+          serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Show password'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pump();
+
+    expect(find.byTooltip('Hide password'), findsOneWidget);
+    await _disposeApp(tester);
+  });
 }

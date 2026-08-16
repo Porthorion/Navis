@@ -172,6 +172,18 @@ abstract class AppLocalizations {
   /// **'Password'**
   String get loginPasswordLabel;
 
+  /// No description provided for @loginShowPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get loginShowPassword;
+
+  /// No description provided for @loginHidePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get loginHidePassword;
+
   /// No description provided for @loginTestConnection.
   ///
   /// In en, this message translates to:
