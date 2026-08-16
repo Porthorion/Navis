@@ -1865,6 +1865,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queueUnknownTrack => 'Unknown track';
 
   @override
+  String get queueUnavailableTrackDescription =>
+      'This track is no longer available in your library.';
+
+  @override
   String get queueUnknownArtist => 'Unknown artist';
 
   @override

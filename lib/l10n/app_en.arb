@@ -834,6 +834,7 @@
   "commonLoading": "Loading…",
   "queueTitle": "Queue",
   "queueUnknownTrack": "Unknown track",
+  "queueUnavailableTrackDescription": "This track is no longer available in your library.",
   "queueUnknownArtist": "Unknown artist",
   "queueTrackLoadError": "Error loading track",
   "queueClearAction": "Clear queue",

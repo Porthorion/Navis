@@ -220,6 +220,11 @@ Last updated: 2026-08-16
   same natural-language spacing. Focused coordinator/UI coverage and isolated
   Linux before/after clean-restart captures pass.)
 
+- [x] Missing queue-track recovery copy — 2026-08-16 (Queue and expanded
+  Queue views now explain that a missing track is unavailable in the local
+  library, rather than exposing its raw internal ID. Focused Queue coverage
+  passes.)
+
 - [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
   page now identifies the artist in its app bar, including when Last.fm has no
   tracks to show, rather than presenting the generic Playlist title. Focused

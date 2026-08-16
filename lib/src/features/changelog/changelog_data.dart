@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Missing queue tracks now explain what happened without internal IDs',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Sync status messages now use clearer resume labels',
         type: ChangelogEntryType.improvement,
       ),

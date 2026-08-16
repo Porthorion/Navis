@@ -3317,6 +3317,12 @@ abstract class AppLocalizations {
   /// **'Unknown track'**
   String get queueUnknownTrack;
 
+  /// No description provided for @queueUnavailableTrackDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This track is no longer available in your library.'**
+  String get queueUnavailableTrackDescription;
+
   /// No description provided for @queueUnknownArtist.
   ///
   /// In en, this message translates to:

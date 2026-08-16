@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Missing queue tracks now explain what happened without internal IDs',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Sync status messages now use clearer resume labels',
       type: _EntryType.improvement,
     ),

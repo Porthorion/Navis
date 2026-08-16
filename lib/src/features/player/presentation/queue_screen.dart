@@ -206,7 +206,7 @@ class _QueueItem extends ConsumerWidget {
           return ListTile(
             key: key,
             title: Text(l10n.queueUnknownTrack),
-            subtitle: Text('ID: $songId'),
+            subtitle: Text(l10n.queueUnavailableTrackDescription),
           );
         }
 

@@ -64,6 +64,7 @@ Future<_QueueSpyController> _pumpQueueSheet(
   WidgetTester tester, {
   required PlaybackSnapshot snapshot,
   Set<String> externalSongIds = const <String>{},
+  Set<String> missingSongIds = const <String>{},
   TextScaler? textScaler,
 }) async {
   final queueSpy = _QueueSpyController(snapshot.queueSongIds);
@@ -75,11 +76,13 @@ Future<_QueueSpyController> _pumpQueueSheet(
         currentQueueSongIdProvider.overrideWithValue(snapshot.currentSongId),
         songByIdProvider.overrideWith(
           (ref, songId) => Stream.value(
-            _song(
-              songId,
-              'Track $songId',
-              isExternal: externalSongIds.contains(songId),
-            ),
+            missingSongIds.contains(songId)
+                ? null
+                : _song(
+                    songId,
+                    'Track $songId',
+                    isExternal: externalSongIds.contains(songId),
+                  ),
           ),
         ),
       ],
@@ -159,6 +162,34 @@ void main() {
     );
 
     expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsOneWidget);
+  });
+
+  testWidgets('missing queued tracks explain availability without raw IDs', (
+    tester,
+  ) async {
+    await _pumpQueueSheet(
+      tester,
+      snapshot: const PlaybackSnapshot(
+        queueSongIds: <String>['missing-song'],
+        currentSongId: 'missing-song',
+        currentIndex: 0,
+        playing: false,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration.zero,
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+      ),
+      missingSongIds: const <String>{'missing-song'},
+    );
+
+    expect(find.text('Unknown track'), findsOneWidget);
+    expect(
+      find.text('This track is no longer available in your library.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('ID:'), findsNothing);
   });
 
   testWidgets('phone Queue remains usable at 200 percent text scale', (

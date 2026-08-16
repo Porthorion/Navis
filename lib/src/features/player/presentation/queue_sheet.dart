@@ -393,7 +393,7 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
           return ListTile(
             key: widget.key,
             title: Text(l10n.queueUnknownTrack),
-            subtitle: Text('ID: ${widget.songId}'),
+            subtitle: Text(l10n.queueUnavailableTrackDescription),
           );
         }
 
