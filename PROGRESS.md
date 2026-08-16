@@ -265,6 +265,11 @@ Last updated: 2026-08-16
   pixel comparison: the captured PNGs were effectively identical settled
   frames. No app or diagnostic regression was found.)
 
+- [ ] Genre browsing discovery — audit finding 2026-08-16 (the local catalog
+  syncs and stores genres, but desktop and mobile have no production Library
+  surface or route for them; only Android Auto exposes the capability. A
+  Library-section proposal needs visual approval before implementation.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused
