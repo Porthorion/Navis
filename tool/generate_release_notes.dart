@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Library filters and sorting now remain readable with large system text',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Missing queue tracks now explain what happened without internal IDs',
       type: _EntryType.improvement,
     ),

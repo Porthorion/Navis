@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Library filters and sorting now remain readable with large system text',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Missing queue tracks now explain what happened without internal IDs',
         type: ChangelogEntryType.improvement,
       ),

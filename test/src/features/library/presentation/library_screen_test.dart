@@ -403,6 +403,17 @@ void main() {
         expect(find.text('Albums'), findsOneWidget);
         expect(find.text('Downloaded'), findsOneWidget);
         expect(find.text('Recently Added'), findsOneWidget);
+        final downloadedFilter = find.widgetWithText(
+          FilterChip,
+          'Downloaded',
+        );
+        final sortDropdown = find.byKey(
+          const ValueKey<String>('libraryAlbumSortControl'),
+        );
+        expect(
+          tester.getRect(sortDropdown).top,
+          greaterThan(tester.getRect(downloadedFilter).bottom),
+        );
         expect(tester.takeException(), isNull);
       },
     );

@@ -448,6 +448,7 @@ class _SortFilterRow<T> extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     Widget buildSortDropdown() {
       return DropdownButton<T>(
+        key: const ValueKey<String>('libraryAlbumSortControl'),
         value: sortValue,
         isExpanded: true,
         isDense: true,
@@ -460,7 +461,13 @@ class _SortFilterRow<T> extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final useStackedLayout = constraints.maxWidth < 320;
+          // At large system text the two controls still fit geometrically,
+          // but each loses enough width to truncate its state label. Stack
+          // them before that happens so both the active filter and sort stay
+          // legible and directly actionable.
+          final useStackedLayout =
+              constraints.maxWidth < 320 ||
+              MediaQuery.textScalerOf(context).scale(1) > 1.3;
 
           final filters = Wrap(
             spacing: 8,

@@ -225,9 +225,11 @@ Last updated: 2026-08-16
   library, rather than exposing its raw internal ID. Focused Queue coverage
   passes.)
 
-- [x] Mobile Library large-text regression coverage — 2026-08-16 (the phone
-  tab strip, Downloaded filter, and sort control remain overflow-free at 200%
-  text scale.)
+- [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
+  scales above 130%, the Downloaded filter and sort control stack so both
+  active labels remain visible; the default compact row is unchanged. Focused
+  200% widget geometry coverage and inspected Android emulator before/after
+  captures pass.)
 
 - [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
   page now identifies the artist in its app bar, including when Last.fm has no
