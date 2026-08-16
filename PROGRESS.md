@@ -215,6 +215,11 @@ Last updated: 2026-08-16
   shared 150 px album card keeps intentionally long title and artist metadata
   overflow-free at 200% text scale.)
 
+- [x] Sync Settings resume-reason clarity — 2026-08-16 (resumed durable work
+  now writes a readable reason, while older persisted reasons render with the
+  same natural-language spacing. Focused coordinator/UI coverage and isolated
+  Linux before/after clean-restart captures pass.)
+
 - [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
   page now identifies the artist in its app bar, including when Last.fm has no
   tracks to show, rather than presenting the generic Playlist title. Focused

@@ -1035,7 +1035,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             (!_readIsForeground() || _readHasActivePlayback()));
     return LibrarySyncPlan(
       kind: kind,
-      reason: 'resume${kind.name}',
+      reason: 'resume${kind.name[0].toUpperCase()}${kind.name.substring(1)}',
       shouldExecute: !mustDefer,
       deferred: mustDefer,
     );

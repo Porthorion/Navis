@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Sync status messages now use clearer resume labels',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'The Android exit prompt is now ready for translation',
       type: _EntryType.improvement,
     ),

@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Sync status messages now use clearer resume labels',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'The Android exit prompt is now ready for translation',
         type: ChangelogEntryType.improvement,
       ),

@@ -658,6 +658,7 @@ void main() {
       final result = await activePlaybackCoordinator.syncNow();
 
       expect(result.status, LibrarySyncStatus.succeeded);
+      expect(result.planReason, 'resumeDeltaReconcile');
       expect(probeEngine.syncNowCalls, 1);
     },
     skip: !sqliteAvailable,

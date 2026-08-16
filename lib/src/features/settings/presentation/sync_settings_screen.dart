@@ -724,6 +724,14 @@ class SyncSettingsScreen extends ConsumerWidget {
   }
 
   String _humanize(String value) {
+    for (final kind in LibrarySyncPlanKind.values) {
+      // Older persisted resume reasons combined the prefix and enum value
+      // without a camel-case boundary (for example, `resumetargetedHydration`).
+      // Keep those statuses readable after the write-side format is corrected.
+      if (value == 'resume${kind.name}') {
+        return 'resume ${_humanize(kind.name)}';
+      }
+    }
     return value
         .replaceAllMapped(
           RegExp('([a-z0-9])([A-Z])'),
