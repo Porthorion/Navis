@@ -925,6 +925,8 @@ void main() {
         find.byKey(const ValueKey<String>('albumDetailCompactWideSplitPane')),
         findsNothing,
       );
+      expect(find.byTooltip('Back'), findsOneWidget);
+      expect(find.byTooltip('Retry'), findsOneWidget);
       await tester.drag(
         find.byType(CustomScrollView).first,
         const Offset(0, -360),

@@ -255,6 +255,18 @@ Last updated: 2026-08-16
   Like, and More actions now expose the same localized long-press labels as
   their compact desktop counterparts. Focused album-detail coverage passes.)
 
+- [x] Phone album-header navigation labels — 2026-08-16 (the custom artwork
+  header now also labels its Back and Retry icons, matching the direct album
+  actions and the standard app bar contract. Focused album-detail coverage
+  passes.)
+
+- [ ] Deep-link presentation capture stability — observed 2026-08-16
+  (isolated Linux Album deep-link diagnostics alternated between a settled
+  fallback page and a blank transitional frame after route acknowledgement.
+  Runtime health and logs were clean, so this is recorded as a visual-proof
+  tooling gap rather than an app regression; add a stable-content capture
+  condition before using this route as screenshot or motion evidence.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

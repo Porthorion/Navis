@@ -1184,11 +1184,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     systemOverlayStyle: SystemUiOverlayStyle.light,
                     leading: _buildAnimatedNavButton(
                       icon: Icons.arrow_back,
+                      tooltip: MaterialLocalizations.of(
+                        context,
+                      ).backButtonTooltip,
                       onPressed: () => context.pop(),
                     ),
                     actions: <Widget>[
                       _buildAnimatedNavButton(
                         icon: Icons.refresh,
+                        tooltip: l10n.commonRetry,
                         isLoading: _isRefreshingAlbum,
                         onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
                       ),
@@ -2348,6 +2352,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   /// surface (collapsed), controlled by [_headerProgress].
   Widget _buildAnimatedNavButton({
     required IconData icon,
+    required String tooltip,
     required VoidCallback? onPressed,
     bool isLoading = false,
   }) {
@@ -2366,6 +2371,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           shape: BoxShape.circle,
         ),
         child: IconButton(
+          tooltip: tooltip,
           icon: isLoading
               ? SizedBox(
                   width: 20,
@@ -2996,6 +3002,7 @@ class _AlbumSongMoreButtonState extends State<_AlbumSongMoreButton> {
   @override
   Widget build(BuildContext context) {
     return IconButton(
+      tooltip: MaterialLocalizations.of(context).showMenuTooltip,
       icon: const Icon(Icons.more_vert),
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
