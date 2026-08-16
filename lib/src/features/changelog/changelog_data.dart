@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'AudioMuse setup is now available from Settings on desktop and mobile',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Update download failures now provide clear recovery without technical details',
         type: ChangelogEntryType.improvement,
       ),

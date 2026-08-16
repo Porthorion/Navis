@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'AudioMuse setup is now available from Settings on desktop and mobile',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
       'Update download failures now provide clear recovery without technical details',
       type: _EntryType.improvement,
     ),

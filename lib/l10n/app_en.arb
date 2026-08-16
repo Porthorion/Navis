@@ -1435,6 +1435,7 @@
 
   "audioMuseSettingsTitle": "AudioMuse AI",
   "audioMuseSettingsSubtitle": "AI-powered smart queuing & discovery",
+  "audioMuseSettingsLoadError": "Could not load AudioMuse settings",
   "audioMuseEnabledLabel": "Enable AudioMuse",
   "audioMuseEnabledSubtitle": "Connect to an AudioMuse server for AI recommendations",
   "audioMuseServerUrlLabel": "Server URL",

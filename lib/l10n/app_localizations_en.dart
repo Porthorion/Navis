@@ -3206,6 +3206,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'AI-powered smart queuing & discovery';
 
   @override
+  String get audioMuseSettingsLoadError => 'Could not load AudioMuse settings';
+
+  @override
   String get audioMuseEnabledLabel => 'Enable AudioMuse';
 
   @override

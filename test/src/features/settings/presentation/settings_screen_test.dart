@@ -95,6 +95,7 @@ void main() {
       expect(find.text('Listen Together'), findsNothing);
       expect(find.text('External Services'), findsNothing);
       expect(find.text('Configuration'), findsOneWidget);
+      expect(find.text('AudioMuse AI'), findsOneWidget);
     },
   );
 }

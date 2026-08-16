@@ -626,6 +626,7 @@ void main() {
     expect(configuredLocations, contains('/library/playlists/:id'));
     expect(configuredLocations, contains('/settings'));
     expect(configuredLocations, contains('/settings/server'));
+    expect(configuredLocations, contains('/settings/audiomuse'));
     expect(configuredLocations, contains('/settings/cache'));
     expect(configuredLocations, contains('/settings/sync'));
     expect(configuredLocations, contains('/settings/playback'));

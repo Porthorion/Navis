@@ -5633,6 +5633,12 @@ abstract class AppLocalizations {
   /// **'AI-powered smart queuing & discovery'**
   String get audioMuseSettingsSubtitle;
 
+  /// No description provided for @audioMuseSettingsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load AudioMuse settings'**
+  String get audioMuseSettingsLoadError;
+
   /// No description provided for @audioMuseEnabledLabel.
   ///
   /// In en, this message translates to:

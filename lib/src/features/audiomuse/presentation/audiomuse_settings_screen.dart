@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class AudioMuseSettingsScreen extends ConsumerStatefulWidget {
   const AudioMuseSettingsScreen({super.key});
@@ -111,15 +114,29 @@ class _AudioMuseSettingsScreenState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final settingsAsync = ref.watch(appSettingsProvider);
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.audioMuseSettingsTitle)),
+      appBar: AppBar(
+        automaticallyImplyLeading: !desktopMode,
+        leading: desktopMode
+            ? IconButton(
+                tooltip: l10n.syncSettingsBackToSettings,
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => NavService.returnToSettings(context, ref),
+              )
+            : null,
+        title: Text(l10n.audioMuseSettingsTitle),
+      ),
       body: settingsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('$error')),
+        error: (_, _) => ErrorState(
+          title: l10n.audioMuseSettingsLoadError,
+          onRetry: () => ref.invalidate(appSettingsProvider),
+        ),
         data: (settings) {
           _initFromSettings(settings);
-          return ListView(
+          final content = ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: <Widget>[
               // ── Enable toggle ──────────────────────────────────────────
@@ -209,6 +226,16 @@ class _AudioMuseSettingsScreenState
                 ),
               ],
             ],
+          );
+          if (!desktopMode) return content;
+          return SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: content,
+              ),
+            ),
           );
         },
       ),
