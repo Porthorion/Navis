@@ -925,6 +925,15 @@ void main() {
         find.byKey(const ValueKey<String>('albumDetailCompactWideSplitPane')),
         findsNothing,
       );
+      await tester.drag(
+        find.byType(CustomScrollView).first,
+        const Offset(0, -360),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byTooltip('Play'), findsOneWidget);
+      expect(find.byTooltip('Shuffle'), findsOneWidget);
+      expect(find.byTooltip('Like'), findsOneWidget);
+      expect(find.byTooltip('Show menu'), findsOneWidget);
       await _disposeApp(tester);
     });
 

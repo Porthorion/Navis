@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Album actions now have clearer long-press labels on phones',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Now Playing Like feedback now respects reduced-motion preferences',
       type: _EntryType.improvement,
     ),

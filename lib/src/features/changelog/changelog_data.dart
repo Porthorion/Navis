@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Album actions now have clearer long-press labels on phones',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Now Playing Like feedback now respects reduced-motion preferences',
         type: ChangelogEntryType.improvement,
       ),

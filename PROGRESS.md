@@ -251,6 +251,10 @@ Last updated: 2026-08-16
   reduced motion, while normal-motion feedback is retained. Focused adaptive
   widget coverage passes.)
 
+- [x] Phone album-action labels — 2026-08-16 (the icon-only Play, Shuffle,
+  Like, and More actions now expose the same localized long-press labels as
+  their compact desktop counterparts. Focused album-detail coverage passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

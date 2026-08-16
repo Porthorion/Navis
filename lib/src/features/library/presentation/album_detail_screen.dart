@@ -1322,6 +1322,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: <Widget>[
                               IconButton(
+                                tooltip: l10n.albumDetailPlayAction,
                                 icon: const Icon(Icons.play_arrow),
                                 onPressed: filteredSongs.isEmpty
                                     ? null
@@ -1331,6 +1332,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       ),
                               ),
                               IconButton(
+                                tooltip: l10n.albumDetailShuffleAction,
                                 icon: const Icon(Icons.shuffle),
                                 onPressed: filteredSongs.isEmpty
                                     ? null
@@ -1347,6 +1349,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               ),
                               const Spacer(),
                               IconButton(
+                                tooltip: isStarred
+                                    ? l10n.actionLiked
+                                    : l10n.albumDetailStarAction,
                                 icon: Icon(
                                   isStarred
                                       ? Icons.favorite
@@ -1358,6 +1363,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     : () => _toggleStar(isStarred: isStarred),
                               ),
                               IconButton(
+                                tooltip: MaterialLocalizations.of(
+                                  context,
+                                ).showMenuTooltip,
                                 icon: const Icon(Icons.more_vert),
                                 onPressed: () => unawaited(
                                   _showMobileAlbumContextMenu(
