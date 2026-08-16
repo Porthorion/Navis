@@ -182,6 +182,7 @@ Widget _buildLibraryScreen({
   required List<Object?> overrides,
   bool showPlaylistsPage = false,
   bool desktopIconsOnly = false,
+  TextScaler? textScaler,
 }) {
   return ProviderScope(
     overrides: withTestDatabase(
@@ -204,7 +205,16 @@ Widget _buildLibraryScreen({
       supportedLocales: AppLocalizations.supportedLocales,
       home: DesktopNavigationPresentationScope(
         iconsOnly: desktopIconsOnly,
-        child: const LibraryScreen(),
+        child: Builder(
+          builder: (context) => textScaler == null
+              ? const LibraryScreen()
+              : MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: textScaler,
+                  ),
+                  child: const LibraryScreen(),
+                ),
+        ),
       ),
     ),
   );
@@ -289,6 +299,7 @@ Future<void> _pumpLibraryScreen(
   required List<Object?> overrides,
   bool showPlaylistsPage = false,
   bool desktopIconsOnly = false,
+  TextScaler? textScaler,
   bool settle = true,
 }) async {
   await tester.pumpWidget(
@@ -296,6 +307,7 @@ Future<void> _pumpLibraryScreen(
       overrides: overrides,
       showPlaylistsPage: showPlaylistsPage,
       desktopIconsOnly: desktopIconsOnly,
+      textScaler: textScaler,
     ),
   );
   if (settle) {
@@ -365,6 +377,36 @@ void main() {
   );
 
   group('LibraryScreen', () {
+    _testWidgetsWithCleanup(
+      'phone Library tabs and filters remain usable at 200 percent text scale',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await _pumpLibraryScreen(
+          tester,
+          textScaler: const TextScaler.linear(2),
+          showPlaylistsPage: true,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(find.byType(TabBar), findsOneWidget);
+        expect(find.text('Albums'), findsOneWidget);
+        expect(find.text('Downloaded'), findsOneWidget);
+        expect(find.text('Recently Added'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     _testWidgetsWithCleanup(
       'desktop library uses the integrated workspace frame',
       (tester) async {

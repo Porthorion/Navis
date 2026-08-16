@@ -225,6 +225,10 @@ Last updated: 2026-08-16
   library, rather than exposing its raw internal ID. Focused Queue coverage
   passes.)
 
+- [x] Mobile Library large-text regression coverage — 2026-08-16 (the phone
+  tab strip, Downloaded filter, and sort control remain overflow-free at 200%
+  text scale.)
+
 - [x] Artist Top Tracks contextual title — 2026-08-16 (approved: the detail
   page now identifies the artist in its app bar, including when Last.fm has no
   tracks to show, rather than presenting the generic Playlist title. Focused
