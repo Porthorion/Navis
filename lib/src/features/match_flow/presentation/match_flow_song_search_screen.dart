@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
+import 'package:navis/src/features/match_flow/presentation/match_flow_error_message.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -130,7 +131,7 @@ class _MatchFlowSongSearchScreenState
       if (!mounted) return;
       showAppNotice(
         context,
-        message: error.message,
+        message: matchFlowErrorMessage(l10n, error),
         level: AppNoticeLevel.info,
       );
     } on Object {

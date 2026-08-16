@@ -1533,6 +1533,9 @@
   "matchFlowEmptySubtitle": "Create a flow, choose a master song, then add the songs that should follow it.",
   "matchFlowLoadError": "Could not load Match Flow",
   "matchFlowSaveError": "Could not save Match Flow. Try again.",
+  "matchFlowSongAlreadyInFlow": "This song is already in the flow.",
+  "matchFlowMissing": "Match Flow no longer exists.",
+  "matchFlowMasterSongInAnotherFlow": "This song is already the master song in another flow.",
   "matchFlowSongCount": "{count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
   "@matchFlowSongCount": {
     "placeholders": {

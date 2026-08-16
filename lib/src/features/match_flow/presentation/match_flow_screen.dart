@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
+import 'package:navis/src/features/match_flow/presentation/match_flow_error_message.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
@@ -393,7 +394,7 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
       if (!context.mounted) return false;
       showAppNotice(
         context,
-        message: error.message,
+        message: matchFlowErrorMessage(l10n, error),
         level: AppNoticeLevel.info,
       );
       return false;

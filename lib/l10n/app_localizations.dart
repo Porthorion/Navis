@@ -6047,6 +6047,24 @@ abstract class AppLocalizations {
   /// **'Could not save Match Flow. Try again.'**
   String get matchFlowSaveError;
 
+  /// No description provided for @matchFlowSongAlreadyInFlow.
+  ///
+  /// In en, this message translates to:
+  /// **'This song is already in the flow.'**
+  String get matchFlowSongAlreadyInFlow;
+
+  /// No description provided for @matchFlowMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Match Flow no longer exists.'**
+  String get matchFlowMissing;
+
+  /// No description provided for @matchFlowMasterSongInAnotherFlow.
+  ///
+  /// In en, this message translates to:
+  /// **'This song is already the master song in another flow.'**
+  String get matchFlowMasterSongInAnotherFlow;
+
   /// No description provided for @matchFlowSongCount.
   ///
   /// In en, this message translates to:

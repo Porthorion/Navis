@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Match Flow recovery notices are now ready for translation',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'AudioMuse setup is now available from Settings on desktop and mobile',
         type: ChangelogEntryType.newFeature,
       ),

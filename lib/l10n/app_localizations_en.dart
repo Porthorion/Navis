@@ -3440,6 +3440,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchFlowSaveError => 'Could not save Match Flow. Try again.';
 
   @override
+  String get matchFlowSongAlreadyInFlow => 'This song is already in the flow.';
+
+  @override
+  String get matchFlowMissing => 'Match Flow no longer exists.';
+
+  @override
+  String get matchFlowMasterSongInAnotherFlow =>
+      'This song is already the master song in another flow.';
+
+  @override
   String matchFlowSongCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

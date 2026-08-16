@@ -77,7 +77,13 @@ void main() {
 
       expect(
         () => database.matchFlowDao.addSong(flowId, 'master-a'),
-        throwsA(isA<MatchFlowException>()),
+        throwsA(
+          isA<MatchFlowException>().having(
+            (error) => error.failure,
+            'failure',
+            MatchFlowFailure.songAlreadyInFlow,
+          ),
+        ),
       );
     });
 
@@ -89,7 +95,13 @@ void main() {
       final second = await database.matchFlowDao.createFlow();
       expect(
         () => database.matchFlowDao.addSong(second, 'master-a'),
-        throwsA(isA<MatchFlowException>()),
+        throwsA(
+          isA<MatchFlowException>().having(
+            (error) => error.failure,
+            'failure',
+            MatchFlowFailure.masterInAnotherFlow,
+          ),
+        ),
       );
     });
 
@@ -110,7 +122,13 @@ void main() {
             'master-x',
             newIndex: 0,
           ),
-          throwsA(isA<MatchFlowException>()),
+          throwsA(
+            isA<MatchFlowException>().having(
+              (error) => error.failure,
+              'failure',
+              MatchFlowFailure.masterInAnotherFlow,
+            ),
+          ),
         );
       },
     );

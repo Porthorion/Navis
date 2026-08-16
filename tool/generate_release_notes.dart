@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Match Flow recovery notices are now ready for translation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'AudioMuse setup is now available from Settings on desktop and mobile',
       type: _EntryType.newFeature,
     ),

@@ -7,13 +7,12 @@ import 'package:uuid/uuid.dart';
 
 part 'match_flow_dao.g.dart';
 
+enum MatchFlowFailure { songAlreadyInFlow, flowMissing, masterInAnotherFlow }
+
 class MatchFlowException implements Exception {
-  const MatchFlowException(this.message);
+  const MatchFlowException(this.failure);
 
-  final String message;
-
-  @override
-  String toString() => message;
+  final MatchFlowFailure failure;
 }
 
 class MatchFlowSongEntry {
@@ -154,7 +153,7 @@ class MatchFlowDao extends DatabaseAccessor<NavisDatabase>
       await _ensureFlowExists(flowId);
       final existing = await _orderedLinks(flowId);
       if (existing.any((link) => link.songId == id)) {
-        throw const MatchFlowException('This song is already in the flow.');
+        throw const MatchFlowException(MatchFlowFailure.songAlreadyInFlow);
       }
       if (existing.isEmpty) {
         await _ensureMasterAvailable(id, excludingFlowId: flowId);
@@ -332,7 +331,7 @@ class MatchFlowDao extends DatabaseAccessor<NavisDatabase>
               ..limit(1))
             .getSingleOrNull();
     if (flow == null) {
-      throw const MatchFlowException('Match Flow no longer exists.');
+      throw const MatchFlowException(MatchFlowFailure.flowMissing);
     }
   }
 
@@ -377,9 +376,7 @@ class MatchFlowDao extends DatabaseAccessor<NavisDatabase>
               ..limit(1))
             .getSingleOrNull();
     if (conflict != null) {
-      throw const MatchFlowException(
-        'This song is already the master song in another flow.',
-      );
+      throw const MatchFlowException(MatchFlowFailure.masterInAnotherFlow);
     }
   }
 

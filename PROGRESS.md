@@ -241,6 +241,11 @@ Last updated: 2026-08-16
   settings-load errors use safe Retry recovery. Focused route, screen, and
   Settings coverage plus Linux and Android emulator visual review pass.)
 
+- [x] Match Flow recovery localization — 2026-08-16 (the expected local
+  constraint notices now have structured failure reasons and localized UI
+  copy, retaining the current English wording. Focused DAO and Match Flow
+  presentation coverage passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused
