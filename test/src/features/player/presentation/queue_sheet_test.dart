@@ -112,6 +112,28 @@ Future<_QueueSpyController> _pumpQueueSheet(
 }
 
 void main() {
+  testWidgets('Queue close action has an explicit platform label', (
+    tester,
+  ) async {
+    await _pumpQueueSheet(
+      tester,
+      snapshot: const PlaybackSnapshot(
+        queueSongIds: <String>[],
+        currentSongId: null,
+        currentIndex: null,
+        playing: false,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration.zero,
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+      ),
+    );
+
+    expect(find.byTooltip('Close'), findsOneWidget);
+  });
+
   testWidgets('duplicate song IDs mark only the current queue occurrence', (
     tester,
   ) async {

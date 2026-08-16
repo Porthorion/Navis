@@ -288,6 +288,11 @@ Last updated: 2026-08-16
   viewers now expose the platform Close label on their close-only controls.
   Focused artwork-viewer coverage passes.)
 
+- [x] Queue sheet close label — 2026-08-16 (the compact Queue sheet now gives
+  its close-only header action the platform Close label, matching its other
+  named actions without changing the layout. Focused Queue sheet coverage
+  passes.)
+
 - [x] Mobile Library large-text readability — 2026-08-16 (approved: at text
   scales above 130%, the Downloaded filter and sort control stack so both
   active labels remain visible; the default compact row is unchanged. Focused

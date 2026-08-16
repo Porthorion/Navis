@@ -198,6 +198,7 @@ class _QueueSheetHeader extends ConsumerWidget {
           child: Row(
             children: <Widget>[
               IconButton(
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                 icon: const Icon(Icons.close),
                 onPressed: () {
                   NavService.dismissKeyboard(context);

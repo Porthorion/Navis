@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Queue controls now have a clearer close label',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Fullscreen artwork controls now have clearer close labels',
         type: ChangelogEntryType.improvement,
       ),
