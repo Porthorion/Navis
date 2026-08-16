@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Now Playing Like feedback now respects reduced-motion preferences',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Match Flow recovery notices are now ready for translation',
         type: ChangelogEntryType.improvement,
       ),

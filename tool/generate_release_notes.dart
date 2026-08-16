@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Now Playing Like feedback now respects reduced-motion preferences',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Match Flow recovery notices are now ready for translation',
       type: _EntryType.improvement,
     ),

@@ -50,7 +50,8 @@ class _ActionRowState extends ConsumerState<_ActionRow>
   @override
   void didUpdateWidget(_ActionRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isLiked != oldWidget.isLiked) {
+    if (widget.isLiked != oldWidget.isLiked &&
+        !MotionPolicy.of(context).reduceMotion) {
       _likeController.forward(from: 0);
     }
   }
@@ -128,15 +129,23 @@ class _ActionRowState extends ConsumerState<_ActionRow>
               ),
       ),
       _NowPlayingActionButton(
-        icon: ScaleTransition(
-          scale: _likeScale,
-          child: Icon(
-            widget.isLiked ? Icons.favorite : Icons.favorite_border,
-            color: widget.isLiked
-                ? colorScheme.primary
-                : colorScheme.onSurfaceVariant,
-          ),
-        ),
+        icon: MotionPolicy.of(context).reduceMotion
+            ? Icon(
+                widget.isLiked ? Icons.favorite : Icons.favorite_border,
+                color: widget.isLiked
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              )
+            : ScaleTransition(
+                key: const ValueKey<String>('nowPlayingLikeFeedbackScale'),
+                scale: _likeScale,
+                child: Icon(
+                  widget.isLiked ? Icons.favorite : Icons.favorite_border,
+                  color: widget.isLiked
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+                ),
+              ),
         label: widget.isLiked ? l10n.actionLiked : l10n.actionLike,
         isDisabled: isRemote,
         onTap: widget.songId == null

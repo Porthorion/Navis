@@ -212,8 +212,30 @@ void main() {
             .duration,
         Duration.zero,
       );
+      expect(
+        find.byKey(const ValueKey<String>('nowPlayingLikeFeedbackScale')),
+        findsNothing,
+      );
     },
   );
+
+  testWidgets('Now Playing Like feedback retains its normal motion', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+
+    await _pumpNowPlaying(tester, container);
+
+    expect(
+      find.byKey(const ValueKey<String>('nowPlayingLikeFeedbackScale')),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('Now Playing surface tint uses the shared surface timing', (
     tester,
