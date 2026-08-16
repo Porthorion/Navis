@@ -71,13 +71,49 @@ void main() {
     expect(find.text('Retry'), findsOneWidget);
     expect(find.textContaining('Connection refused'), findsNothing);
   });
+
+  testWidgets('keeps the enabled form usable at 200% text scale', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(360, 800));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(repository),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+        ],
+        child: _app(textScaler: const TextScaler.linear(2)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(SwitchListTile));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsNWidgets(2));
+    await tester.scrollUntilVisible(
+      find.text('Test connection'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Test connection'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
-Widget _app({bool desktopMode = false}) {
+Widget _app({bool desktopMode = false, TextScaler? textScaler}) {
   return MaterialApp(
     theme: testTheme(),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
+    builder: textScaler == null
+        ? null
+        : (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+            child: child!,
+          ),
     home: desktopMode
         ? AdaptiveContextScope(
             adaptiveContext: resolveAdaptiveContext(
