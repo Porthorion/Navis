@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Fixed desktop More and right-click menus failing to open until after navigation',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Desktop Lyrics now keeps the current track visible',
         type: ChangelogEntryType.improvement,
       ),

@@ -19,6 +19,13 @@ Last updated: 2026-08-17
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Cold-start desktop context menus — 2026-08-17 (desktop Artist More no
+  longer waits for unwarmed local streams before opening; pending playback
+  actions resolve their data after selection. The shared popup helper retries
+  against its owning navigator overlay when the first shell frame is still
+  laying out. Cold-stream, existing action, and desktop-menu visual tests
+  pass; isolated Linux Home diagnostics completed with a clean restart.)
+
 - [x] Library first-frame diagnostic investigation — 2026-08-17 (earlier
   launcher captures were inconsistent. Authenticated app-owned screenshots of
   mounted Albums and an initial populated Search frame were visually complete,

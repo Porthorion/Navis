@@ -130,20 +130,15 @@ Future<void> _showDesktopArtistContextMenu(
   required Offset anchor,
 }) async {
   final l10n = AppLocalizations.of(context)!;
-  var artist = ref.read(artistByIdProvider(artistId)).asData?.value;
-  var songs =
-      ref.read(songsByArtistProvider(artistId)).asData?.value ??
-      const <SongsTableData>[];
-  // The library cards do not otherwise need an individual artist's tracks.
-  // Resolve the local streams before constructing the popup so its playback
-  // actions are immediately usable instead of briefly appearing disabled.
-  try {
-    artist = await ref.read(artistByIdProvider(artistId).future);
-    songs = await ref.read(songsByArtistProvider(artistId).future);
-  } on Object {
-    // Keep navigation and liking available when local detail data is delayed.
-  }
-  if (!context.mounted) return;
+  final artist = ref.read(artistByIdProvider(artistId)).asData?.value;
+  final songsAsync = ref.read(songsByArtistProvider(artistId));
+  final songs = songsAsync.asData?.value;
+  final canUsePlaybackActions =
+      songsAsync.isLoading || songs?.isNotEmpty == true;
+  // A More action must open on the first shell frame. Waiting for an unwarmed
+  // stream here made the complete menu appear unresponsive until another
+  // route had subscribed to the artist's local data. The always-valid Open
+  // and Like actions remain available while playback actions wait for data.
   final isStarred = artist?.starred != null;
   final action = await showDesktopContextMenu<_ArtistContextAction>(
     context: context,
@@ -155,17 +150,17 @@ Future<void> _showDesktopArtistContextMenu(
       ),
       PopupMenuItem<_ArtistContextAction>(
         value: _ArtistContextAction.play,
-        enabled: songs.isNotEmpty,
+        enabled: canUsePlaybackActions,
         child: Text(l10n.albumDetailPlayAction),
       ),
       PopupMenuItem<_ArtistContextAction>(
         value: _ArtistContextAction.shuffle,
-        enabled: songs.isNotEmpty,
+        enabled: canUsePlaybackActions,
         child: Text(l10n.albumDetailShuffleAction),
       ),
       PopupMenuItem<_ArtistContextAction>(
         value: _ArtistContextAction.addToQueue,
-        enabled: songs.isNotEmpty,
+        enabled: canUsePlaybackActions,
         child: Text(l10n.libraryAlbumMenuAddToQueue),
       ),
       const PopupMenuDivider(),
@@ -182,18 +177,49 @@ Future<void> _showDesktopArtistContextMenu(
       _openArtist(context, ref, artistId);
       return;
     case _ArtistContextAction.play:
-      _queueArtist(ref, songs);
+      await _queueArtistWhenReady(ref, artistId);
       return;
     case _ArtistContextAction.shuffle:
-      _queueArtist(ref, songs, shuffle: true);
+      await _queueArtistWhenReady(ref, artistId, shuffle: true);
       return;
     case _ArtistContextAction.addToQueue:
-      await _addArtistToQueue(context, ref, songs);
+      final resolvedSongs = await _artistSongsWhenReady(ref, artistId);
+      if (!context.mounted) return;
+      await _addArtistToQueue(
+        context,
+        ref,
+        resolvedSongs,
+      );
       return;
     case _ArtistContextAction.toggleLike:
       await _toggleArtistStar(context, ref, artistId, isStarred);
       return;
   }
+}
+
+Future<List<SongsTableData>> _artistSongsWhenReady(
+  WidgetRef ref,
+  String artistId,
+) async {
+  final current = ref.read(songsByArtistProvider(artistId)).asData?.value;
+  if (current != null) return current;
+  try {
+    return await ref.read(songsByArtistProvider(artistId).future);
+  } on Object {
+    return const <SongsTableData>[];
+  }
+}
+
+Future<void> _queueArtistWhenReady(
+  WidgetRef ref,
+  String artistId, {
+  bool shuffle = false,
+}) async {
+  _queueArtist(
+    ref,
+    await _artistSongsWhenReady(ref, artistId),
+    shuffle: shuffle,
+  );
 }
 
 void _openArtist(BuildContext context, WidgetRef ref, String artistId) {

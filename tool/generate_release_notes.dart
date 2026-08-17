@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Fixed desktop More and right-click menus failing to open until after navigation',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Desktop Lyrics now keeps the current track visible',
       type: _EntryType.improvement,
     ),

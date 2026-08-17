@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +31,49 @@ class _QueueSpyController extends QueueController {
 }
 
 void main() {
+  testWidgets('desktop artist actions open before local artist streams emit', (
+    tester,
+  ) async {
+    final songs = StreamController<List<SongsTableData>>();
+    final container = ProviderContainer(
+      overrides: [
+        artistByIdProvider.overrideWith((ref, artistId) => Stream.value(null)),
+        songsByArtistProvider.overrideWith((ref, artistId) => songs.stream),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await songs.close();
+    });
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Consumer(
+            builder: (context, ref, _) => ElevatedButton(
+              onPressed: () => showArtistContextMenu(
+                context,
+                ref,
+                'artist-1',
+                anchor: const Offset(400, 200),
+              ),
+              child: const Text('Open desktop artist actions'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open desktop artist actions'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open artist'), findsOneWidget);
+    expect(find.text('Play'), findsOneWidget);
+  });
+
   testWidgets('artist actions expose playback and library controls', (
     tester,
   ) async {
