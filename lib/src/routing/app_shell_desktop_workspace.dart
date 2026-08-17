@@ -328,6 +328,10 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                                                           _DesktopLyricsOverlay(
                                                             onClose: widget
                                                                 .onToggleLyrics,
+                                                            songTitle: widget
+                                                                .songTitle,
+                                                            songArtist: widget
+                                                                .songArtist,
                                                           ),
                                                     ),
                                                 ],

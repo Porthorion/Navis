@@ -19,6 +19,7 @@ import 'package:navis/src/features/library/presentation/album_detail_screen.dart
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
+import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
@@ -530,6 +531,116 @@ void main() {
         expect(find.text('This is Test Artist'), findsOneWidget);
         expect(find.text('Playlist'), findsNothing);
         expect(find.text('No top tracks'), findsOneWidget);
+        await _disposeApp(tester);
+      },
+    );
+
+    testWidgets(
+      'artist top tracks uses the continuous desktop detail header',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(1440, 900));
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistTopTracksPlaylistDetailScreen(
+              artistId: 'artist-top-tracks',
+            ),
+            database: database,
+            adaptiveContext: _desktopContext,
+            overrides: [
+              artistByIdProvider('artist-top-tracks').overrideWithValue(
+                const AsyncData(
+                  ArtistsTableData(
+                    isProvisional: false,
+                    isExternal: false,
+                    id: 'artist-top-tracks',
+                    name: 'Test Artist',
+                  ),
+                ),
+              ),
+              artistInfoProvider('artist-top-tracks').overrideWithValue(
+                const AsyncData(null),
+              ),
+              artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
+                const AsyncData(<ResolvedArtistTopTrack>[
+                  ResolvedArtistTopTrack(
+                    rank: 1,
+                    title: 'North Star',
+                    artist: 'Test Artist',
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(
+            const ValueKey<String>('artist-top-tracks-desktop-header'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(
+            const ValueKey<String>('artist-top-tracks-desktop-fade'),
+          ),
+          findsOneWidget,
+        );
+        final artwork = tester.widget<ArtistVirtualPlaylistArtwork>(
+          find.byType(ArtistVirtualPlaylistArtwork),
+        );
+        expect(artwork.size, 260);
+        expect(artwork.borderRadius, 16);
+        expect(find.text('This is Test Artist'), findsAtLeastNWidgets(1));
+        expect(find.text('Test Artist · 1 song'), findsOneWidget);
+        expect(find.text('North Star'), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
+        await _disposeApp(tester);
+      },
+    );
+
+    testWidgets(
+      'artist top tracks keeps the playlist hierarchy on phone',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistTopTracksPlaylistDetailScreen(
+              artistId: 'artist-top-tracks',
+            ),
+            database: database,
+            adaptiveContext: _mobileContext,
+            overrides: [
+              artistByIdProvider('artist-top-tracks').overrideWithValue(
+                const AsyncData(
+                  ArtistsTableData(
+                    isProvisional: false,
+                    isExternal: false,
+                    id: 'artist-top-tracks',
+                    name: 'Test Artist',
+                  ),
+                ),
+              ),
+              artistInfoProvider('artist-top-tracks').overrideWithValue(
+                const AsyncData(null),
+              ),
+              artistTopTracksPlaylistProvider('Test Artist').overrideWithValue(
+                const AsyncData(<ResolvedArtistTopTrack>[
+                  ResolvedArtistTopTrack(
+                    rank: 1,
+                    title: 'North Star',
+                    artist: 'Test Artist',
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('This is Test Artist'), findsAtLeastNWidgets(1));
+        expect(find.text('Test Artist · 1 song'), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
         await _disposeApp(tester);
       },
     );

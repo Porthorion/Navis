@@ -33,13 +33,6 @@ class SettingsScreen extends ConsumerWidget {
         group: groupConnection,
       ),
       _SettingsEntry(
-        icon: Icons.auto_awesome_outlined,
-        title: l10n.audioMuseSettingsTitle,
-        subtitle: l10n.audioMuseSettingsSubtitle,
-        route: '/settings/audiomuse',
-        group: groupConnection,
-      ),
-      _SettingsEntry(
         icon: Icons.folder_copy_outlined,
         title: l10n.settingsCacheTitle,
         subtitle: l10n.settingsCacheSubtitle,

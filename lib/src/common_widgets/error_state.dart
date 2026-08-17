@@ -24,7 +24,7 @@ class ErrorState extends StatelessWidget {
     final displayedMessage =
         message ?? (onRetry == null ? null : l10n.commonErrorRecoveryHint);
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,

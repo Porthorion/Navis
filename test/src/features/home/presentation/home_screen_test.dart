@@ -708,6 +708,53 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
   });
 
+  testWidgets('weekly unavailable-track states use localized recovery copy', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1366, 900));
+    const playlist = ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'jams',
+        title: 'Weekly Jams for alice',
+        sourcePatch: 'weekly-jams',
+        tracks: <ListenBrainzPlaylistTrack>[
+          ListenBrainzPlaylistTrack(title: 'Pending track'),
+          ListenBrainzPlaylistTrack(title: 'Ambiguous track'),
+          ListenBrainzPlaylistTrack(title: 'Unavailable track'),
+        ],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[
+        ListenBrainzResolvedRecommendation(
+          track: ListenBrainzPlaylistTrack(title: 'Pending track'),
+          status: ListenBrainzRecommendationMatchStatus.pending,
+        ),
+        ListenBrainzResolvedRecommendation(
+          track: ListenBrainzPlaylistTrack(title: 'Ambiguous track'),
+          status: ListenBrainzRecommendationMatchStatus.ambiguous,
+        ),
+        ListenBrainzResolvedRecommendation(
+          track: ListenBrainzPlaylistTrack(title: 'Unavailable track'),
+          status: ListenBrainzRecommendationMatchStatus.unmatched,
+        ),
+      ],
+    );
+
+    await _pumpWeeklyDetail(
+      tester,
+      playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+        const <ListenBrainzDiscoverPlaylist>[playlist],
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(find.text('Matching'), findsOneWidget);
+    expect(find.text('Ambiguous match'), findsOneWidget);
+    expect(find.text('Not available on your server'), findsOneWidget);
+    expect(find.byTooltip('Matching'), findsOneWidget);
+    expect(find.byTooltip('Search'), findsNWidgets(2));
+  });
+
   testWidgets('home does not show retired Listen Together entry point', (
     tester,
   ) async {
@@ -1978,7 +2025,20 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Weekly Song 1').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.more_vert).first);
+    final moreButton = find.byIcon(Icons.more_vert).first;
+    final tooltip = find.ancestor(
+      of: moreButton,
+      matching: find.byType(Tooltip),
+    );
+    expect(
+      tester.widget<Tooltip>(tooltip).message,
+      MaterialLocalizations.of(tester.element(moreButton)).showMenuTooltip,
+    );
+    expect(
+      tooltip,
+      findsOneWidget,
+    );
+    await tester.tap(moreButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Play now'), findsOneWidget);
@@ -2191,6 +2251,14 @@ void main() {
       );
       final heartIcon = heartButton.icon as Icon;
       expect(heartIcon.icon, Icons.favorite);
+      expect(heartButton.tooltip, 'Liked');
+
+      final menuButton = tester.widget<IconButton>(
+        find.byKey(
+          const ValueKey<String>('home-random-desktop-menu-interaction-song-1'),
+        ),
+      );
+      expect(menuButton.tooltip, 'More');
 
       await tester.tap(
         find.byKey(

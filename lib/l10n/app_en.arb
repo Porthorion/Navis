@@ -135,6 +135,30 @@
   "syncSettingsStatusDeferred": "Sync deferred",
   "syncSettingsStatusCancelled": "Sync cancelled; work saved",
   "syncSettingsStatusFailed": "Last sync failed",
+  "syncSettingsFailureDescription": "Could not refresh your library. Check your connection and try again.",
+  "syncSettingsPlanLabel": "Sync plan",
+  "syncSettingsPendingWorkLabel": "Pending work",
+  "syncSettingsPendingWorkValue": "{count} task(s) pending",
+  "@syncSettingsPendingWorkValue": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "syncSettingsCatalogUpdateLabel": "Catalog update",
+  "syncSettingsCatalogUpdateValue": "{milliseconds} ms",
+  "@syncSettingsCatalogUpdateValue": {
+    "placeholders": {
+      "milliseconds": {}
+    }
+  },
+  "syncSettingsLastRunLabel": "Last run",
+  "syncSettingsLastRunValue": "{requests} request(s) • {bytes}",
+  "@syncSettingsLastRunValue": {
+    "placeholders": {
+      "requests": {},
+      "bytes": {}
+    }
+  },
   "syncSettingsLastCheckedLabel": "Last checked",
   "syncSettingsNextAutomaticCheckLabel": "Next automatic check",
   "syncSettingsNextAutomaticCheckScheduling": "Scheduling…",
@@ -376,6 +400,7 @@
   "playbackSettingsPlaybackSpeedSubtitle": "Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.",
   "playbackSettingsAlbumQueueTitle": "Album Queue",
   "playbackSettingsAlbumQueueSubtitle": "Tapping a track in an album queues the entire album and starts playback at that track.",
+  "playbackSettingsExperimentalTitle": "Experimental",
   "playbackSettingsLikedQueueTitle": "Liked Queue",
   "playbackSettingsLikedQueueSubtitle": "Tapping a track on the Liked page queues all your liked songs and starts at that track.",
   "homeTitle": "Home",
@@ -420,6 +445,9 @@
   "weeklyPlaylistNoTracksYet": "No tracks yet",
   "weeklyPlaylistReady": "Ready",
   "weeklyPlaylistMatching": "Matching",
+  "weeklyPlaylistSearchAction": "Search",
+  "weeklyPlaylistAmbiguousMatch": "Ambiguous match",
+  "weeklyPlaylistTrackUnavailable": "Not available on your server",
   "homeContinueListeningTitle": "Continue listening",
   "homeContinueListeningResume": "Resume",
   "homeContinueListeningOpenNowPlaying": "Open player",
@@ -546,7 +574,22 @@
   "detailUnavailableBackToLibrary": "Back to Library",
   "commonCancel": "Cancel",
   "libraryTitle": "Library",
+  "libraryFilteringLabel": "Filtering: \"{query}\"",
+  "@libraryFilteringLabel": {
+    "placeholders": {
+      "query": {"type": "String"}
+    }
+  },
+  "libraryFilterNoResults": "No results for \"{query}\"",
+  "@libraryFilterNoResults": {
+    "placeholders": {
+      "query": {"type": "String"}
+    }
+  },
+  "libraryFilterNoResultsSubtitle": "Try a different search",
   "libraryTabArtists": "Artists",
+  "librarySwitchToArtistGrid": "Switch to artist grid view",
+  "librarySwitchToArtistList": "Switch to artist list view",
   "libraryTabAlbums": "Albums",
   "libraryTabLiked": "Liked",
   "libraryTabSongs": "Songs",
@@ -1435,23 +1478,6 @@
   "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data?",
   "serverSettingsConnectionInfoTitle": "Connection info",
 
-  "audioMuseSettingsTitle": "AudioMuse AI",
-  "audioMuseSettingsSubtitle": "AI-powered smart queuing & discovery",
-  "audioMuseSettingsLoadError": "Could not load AudioMuse settings",
-  "audioMuseEnabledLabel": "Enable AudioMuse",
-  "audioMuseEnabledSubtitle": "Connect to an AudioMuse server for AI recommendations",
-  "audioMuseServerUrlLabel": "Server URL",
-  "audioMuseServerUrlHint": "https://audiomuse.example.com",
-  "audioMuseApiKeyLabel": "API Key",
-  "audioMuseApiKeyHint": "Optional — leave blank if not required",
-  "audioMuseTestConnection": "Test connection",
-  "audioMuseTestConnectionSuccess": "Connected to AudioMuse (v{version}).",
-  "@audioMuseTestConnectionSuccess": {
-    "placeholders": {
-      "version": { "type": "String" }
-    }
-  },
-  "audioMuseTestConnectionFailed": "Could not connect to AudioMuse server.",
   "audioMuseSimilarArtists": "AI Similar Artists",
   "audioMuseSimilarAlbums": "You might also like",
   "audioMuseSmartQueue": "Smart Queue",
@@ -1478,9 +1504,6 @@
   },
   "audioMuseMixFailed": "Could not generate AI mix. Try again later.",
   "audioMuseNotConfigured": "AudioMuse is not configured. Set it up in Settings.",
-  "audioMuseConnectionSection": "Connection",
-  "audioMuseDisabledHint": "Enable AudioMuse above to configure the server.",
-
   "smartQueueTitle": "Smart Queues",
   "smartQueueSubtitle": "AI-powered queuing based on sonic analysis",
   "smartQueueButton": "Smart Queue",

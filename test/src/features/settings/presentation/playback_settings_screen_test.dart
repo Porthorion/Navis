@@ -96,6 +96,7 @@ void main() {
       expect(find.text('Cached First'), findsOneWidget);
       expect(find.text('Enable scrobbling'), findsOneWidget);
       expect(find.text('Enable gapless playback'), findsOneWidget);
+      expect(find.text('Experimental'), findsOneWidget);
       expect(find.text('Show Radio page'), findsNothing);
       expect(find.text('Skip silence when possible'), findsNothing);
       expect(find.text('Changes save automatically'), findsOneWidget);

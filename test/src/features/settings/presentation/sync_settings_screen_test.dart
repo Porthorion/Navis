@@ -216,6 +216,158 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('desktop summarizes sync state without exposing server errors', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final database = createTestDatabase();
+    addTearDown(database.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...withTestDatabase(database),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              stateValue: LibrarySyncState(
+                status: LibrarySyncStatus.failed,
+                stage: LibrarySyncStage.completed,
+                errorMessage: 'HTTP 502 from a private server',
+                planKind: LibrarySyncPlanKind.targetedHydration,
+                planReason: 'resume targeted hydration',
+                pendingWorkCount: 49,
+                lastApplyDurationMs: 235,
+                apiRequests: 2,
+                lastRunBytes: 29696,
+              ),
+            ),
+          ),
+          syncNetworkPolicyProvider.overrideWith(
+            (_) => const SyncNetworkPolicy(
+              networkType: NetworkType.wifi,
+              isMetered: false,
+              allowsBackgroundSync: true,
+              allowsHardProbe: true,
+              allowsInteractiveHydration: true,
+            ),
+          ),
+          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+        ],
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SyncSettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Could not refresh your library. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('HTTP 502 from a private server'), findsNothing);
+    expect(find.text('Sync plan'), findsOneWidget);
+    expect(find.text('Pending work'), findsOneWidget);
+    expect(find.text('Catalog update'), findsOneWidget);
+    expect(find.text('Last run'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('phone retains the stacked sync-status reading order', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final database = createTestDatabase();
+    addTearDown(database.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...withTestDatabase(database),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            () => _FakeLibrarySyncController(
+              stateValue: LibrarySyncState(
+                status: LibrarySyncStatus.idle,
+                stage: LibrarySyncStage.idle,
+                planKind: LibrarySyncPlanKind.targetedHydration,
+                planReason: 'resume targeted hydration',
+                pendingWorkCount: 49,
+                lastApplyDurationMs: 235,
+                apiRequests: 2,
+                lastRunBytes: 29696,
+              ),
+            ),
+          ),
+          syncNetworkPolicyProvider.overrideWith(
+            (_) => const SyncNetworkPolicy(
+              networkType: NetworkType.wifi,
+              isMetered: false,
+              allowsBackgroundSync: true,
+              allowsHardProbe: true,
+              allowsInteractiveHydration: true,
+            ),
+          ),
+          backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
+        ],
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SyncSettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Strategy: targeted hydration — resume targeted hydration'),
+      findsOneWidget,
+    );
+    expect(find.text('49 resumable task(s) pending'), findsOneWidget);
+    expect(find.text('Catalog applied in 235 ms'), findsOneWidget);
+    expect(find.text('Last run: 2 request(s) • 29.0 KB'), findsOneWidget);
+    expect(find.text('Sync plan'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
   testWidgets('renders last synced and triggers force full sync', (
     tester,
   ) async {

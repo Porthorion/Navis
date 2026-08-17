@@ -130,7 +130,7 @@ class SyncSettingsScreen extends ConsumerWidget {
                                 .isNotEmpty) ...<Widget>[
                           const SizedBox(height: 8),
                           Text(
-                            syncState.errorMessage!,
+                            l10n.syncSettingsFailureDescription,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -144,26 +144,54 @@ class SyncSettingsScreen extends ConsumerWidget {
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
-                        if (syncState.planKind != null) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsStrategy(
-                              _humanize(syncState.planKind!.name),
-                              _humanize(
-                                syncState.planReason ?? 'selected by planner',
+                        if (desktopMode)
+                          _DesktopSyncStatusMetrics(
+                            plan: syncState.planKind == null
+                                ? null
+                                : '${_humanize(syncState.planKind!.name)}\n'
+                                      '${_humanize(syncState.planReason ?? 'selected by planner')}',
+                            pendingWork: syncState.pendingWorkCount > 0
+                                ? l10n.syncSettingsPendingWorkValue(
+                                    syncState.pendingWorkCount,
+                                  )
+                                : null,
+                            catalogApply: syncState.lastApplyDurationMs == null
+                                ? null
+                                : l10n.syncSettingsCatalogUpdateValue(
+                                    syncState.lastApplyDurationMs!,
+                                  ),
+                            lastRun:
+                                syncState.apiRequests > 0 ||
+                                    syncState.lastRunBytes > 0
+                                ? l10n.syncSettingsLastRunValue(
+                                    syncState.apiRequests,
+                                    _formatBytes(syncState.lastRunBytes),
+                                  )
+                                : null,
+                            l10n: l10n,
+                          )
+                        else ...<Widget>[
+                          if (syncState.planKind != null) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Text(
+                              l10n.syncSettingsStrategy(
+                                _humanize(syncState.planKind!.name),
+                                _humanize(
+                                  syncState.planReason ?? 'selected by planner',
+                                ),
                               ),
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                        if (syncState.pendingWorkCount > 0) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.syncSettingsPendingWork(
-                              syncState.pendingWorkCount,
+                          ],
+                          if (syncState.pendingWorkCount > 0) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Text(
+                              l10n.syncSettingsPendingWork(
+                                syncState.pendingWorkCount,
+                              ),
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
+                          ],
                         ],
                         if (syncState.candidateGeneration != null &&
                             syncState.candidateStatus != null) ...<Widget>[
@@ -195,7 +223,8 @@ class SyncSettingsScreen extends ConsumerWidget {
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
-                        if (syncState.lastApplyDurationMs != null) ...<Widget>[
+                        if (!desktopMode &&
+                            syncState.lastApplyDurationMs != null) ...<Widget>[
                           const SizedBox(height: 8),
                           Text(
                             l10n.syncSettingsApplyDuration(
@@ -213,8 +242,9 @@ class SyncSettingsScreen extends ConsumerWidget {
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
-                        if (syncState.apiRequests > 0 ||
-                            syncState.lastRunBytes > 0) ...<Widget>[
+                        if (!desktopMode &&
+                            (syncState.apiRequests > 0 ||
+                                syncState.lastRunBytes > 0)) ...<Widget>[
                           const SizedBox(height: 8),
                           Text(
                             l10n.syncSettingsUsage(
@@ -811,6 +841,80 @@ class SyncSettingsScreen extends ConsumerWidget {
       return int.tryParse(value) ?? 0;
     }
     return 0;
+  }
+}
+
+class _DesktopSyncStatusMetrics extends StatelessWidget {
+  const _DesktopSyncStatusMetrics({
+    required this.l10n,
+    this.plan,
+    this.pendingWork,
+    this.catalogApply,
+    this.lastRun,
+  });
+
+  final AppLocalizations l10n;
+  final String? plan;
+  final String? pendingWork;
+  final String? catalogApply;
+  final String? lastRun;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = <({String label, String value})>[
+      if (plan != null) (label: l10n.syncSettingsPlanLabel, value: plan!),
+      if (pendingWork != null)
+        (label: l10n.syncSettingsPendingWorkLabel, value: pendingWork!),
+      if (catalogApply != null)
+        (label: l10n.syncSettingsCatalogUpdateLabel, value: catalogApply!),
+      if (lastRun != null)
+        (label: l10n.syncSettingsLastRunLabel, value: lastRun!),
+    ];
+    if (metrics.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final textTheme = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columnCount = constraints.maxWidth >= 840 ? 4 : 2;
+          const gap = 24.0;
+          final itemWidth =
+              (constraints.maxWidth - gap * (columnCount - 1)) / columnCount;
+          return Wrap(
+            spacing: gap,
+            runSpacing: 16,
+            children: metrics
+                .map(
+                  (metric) => SizedBox(
+                    width: itemWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          metric.label,
+                          style: textTheme.labelMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          metric.value,
+                          style: textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          );
+        },
+      ),
+    );
   }
 }
 

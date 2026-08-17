@@ -183,6 +183,7 @@ Widget _buildLibraryScreen({
   bool showPlaylistsPage = false,
   bool desktopIconsOnly = false,
   TextScaler? textScaler,
+  String artistViewMode = 'list',
 }) {
   return ProviderScope(
     overrides: withTestDatabase(
@@ -191,7 +192,7 @@ Widget _buildLibraryScreen({
         showRadioPageProvider.overrideWithValue(false),
         showArtistsPageProvider.overrideWithValue(true),
         showPlaylistsPageProvider.overrideWithValue(showPlaylistsPage),
-        artistViewModeProvider.overrideWithValue('list'),
+        artistViewModeProvider.overrideWithValue(artistViewMode),
         serverConfigStateProvider.overrideWithValue(
           const AsyncData<ServerConfigModel?>(null),
         ),
@@ -301,6 +302,7 @@ Future<void> _pumpLibraryScreen(
   bool desktopIconsOnly = false,
   TextScaler? textScaler,
   bool settle = true,
+  String artistViewMode = 'list',
 }) async {
   await tester.pumpWidget(
     _buildLibraryScreen(
@@ -308,6 +310,7 @@ Future<void> _pumpLibraryScreen(
       showPlaylistsPage: showPlaylistsPage,
       desktopIconsOnly: desktopIconsOnly,
       textScaler: textScaler,
+      artistViewMode: artistViewMode,
     ),
   );
   if (settle) {
@@ -329,6 +332,50 @@ void main() {
   setUpAll(() {
     _testDatabase = createTestDatabase();
   });
+
+  _testWidgetsWithCleanup(
+    'artist view toggle describes the view it will switch to',
+    (tester) async {
+      final artists = <ArtistsTableData>[
+        ArtistsTableData(
+          isProvisional: false,
+          isExternal: false,
+          id: 'artist-toggle-test',
+          name: 'Toggle Artist',
+          albumCount: 1,
+        ),
+      ];
+
+      await _pumpLibraryScreen(
+        tester,
+        overrides: [
+          artistsProvider.overrideWithValue(AsyncData(artists)),
+          albumCountProvider.overrideWithValue(const AsyncData(0)),
+          pagedAlbumsProvider.overrideWith(
+            (ref, request) => Stream.value(const <AlbumsTableData>[]),
+          ),
+        ],
+      );
+      await _switchToArtistsTab(tester);
+
+      expect(find.byTooltip('Switch to artist grid view'), findsOneWidget);
+
+      await _pumpLibraryScreen(
+        tester,
+        artistViewMode: 'grid',
+        overrides: [
+          artistsProvider.overrideWithValue(AsyncData(artists)),
+          albumCountProvider.overrideWithValue(const AsyncData(0)),
+          pagedAlbumsProvider.overrideWith(
+            (ref, request) => Stream.value(const <AlbumsTableData>[]),
+          ),
+        ],
+      );
+      await _switchToArtistsTab(tester);
+
+      expect(find.byTooltip('Switch to artist list view'), findsOneWidget);
+    },
+  );
 
   tearDownAll(() async {
     await _testDatabase.close();
@@ -1260,6 +1307,17 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Navis Test Radio'), findsOneWidget);
+
+        await tester.tap(find.text('Artists'));
+        await tester.pumpAndSettle();
+        container
+            .read(libraryTypeFilterDiagnosticsProvider.notifier)
+            .setQuery('guest');
+        await tester.pumpAndSettle();
+
+        expect(find.text('No results for "guest"'), findsOneWidget);
+        expect(find.text('Filtering: "guest"'), findsOneWidget);
+        expect(find.byTooltip('Show all'), findsOneWidget);
       },
     );
 
@@ -1638,6 +1696,19 @@ void main() {
 
         expect(find.byType(TrackListTile), findsOneWidget);
         expect(find.byType(DesktopListRow), findsNothing);
+        final compactMoreButton = find.ancestor(
+          of: find.descendant(
+            of: find.byType(TrackListTile),
+            matching: find.byIcon(Icons.more_vert),
+          ),
+          matching: find.byType(IconButton),
+        );
+        expect(
+          tester.widget<IconButton>(compactMoreButton).tooltip,
+          MaterialLocalizations.of(
+            tester.element(compactMoreButton),
+          ).showMenuTooltip,
+        );
 
         tester.view.physicalSize = const Size(1200, 1200);
         await tester.pumpAndSettle();
@@ -1645,6 +1716,25 @@ void main() {
         expect(find.byType(DesktopListRow), findsOneWidget);
         expect(find.byType(TrackListTile), findsNothing);
         expect(find.text('Desktop Liked Song'), findsOneWidget);
+        final desktopMoreButton = find.ancestor(
+          of: find.descendant(
+            of: find.byType(DesktopListRow),
+            matching: find.byIcon(Icons.more_horiz),
+          ),
+          matching: find.byType(IconButton),
+        );
+        expect(
+          tester.widget<IconButton>(desktopMoreButton).tooltip,
+          MaterialLocalizations.of(
+            tester.element(desktopMoreButton),
+          ).showMenuTooltip,
+        );
+        await tester.tap(desktopMoreButton);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.text('Play now'), findsOneWidget);
+        expect(find.byType(BottomSheet), findsNothing);
+        await tester.tapAt(const Offset(8, 8));
+        await tester.pump(const Duration(milliseconds: 300));
       },
     );
 

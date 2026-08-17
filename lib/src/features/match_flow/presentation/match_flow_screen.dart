@@ -684,6 +684,7 @@ class _MatchFlowSongTile extends ConsumerWidget {
               button: true,
               label: l10n.commonRemove,
               child: IconButton(
+                tooltip: l10n.commonRemove,
                 onPressed: onRemove,
                 icon: const Icon(Icons.close),
               ),

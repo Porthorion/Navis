@@ -9,6 +9,7 @@ import 'package:navis/src/features/library/data/lastfm_artist_cache.dart';
 import 'package:navis/src/features/library/data/local_track_matcher.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -91,6 +92,40 @@ final artistTopTracksRawProvider = FutureProvider.autoDispose
           disposeTimer = null;
         });
         ref.onDispose(() => disposeTimer?.cancel());
+
+        final usePresentationFixture = ref.watch(
+          syncDiagnosticsOverridesProvider.select(
+            (overrides) => overrides.artistTopTracksPresentationFixture,
+          ),
+        );
+        if (usePresentationFixture) {
+          return const <LastFmArtistTopTrack>[
+            LastFmArtistTopTrack(
+              rank: 1,
+              title: 'North Star',
+              artist: 'Navis demo artist',
+              listeners: 482910,
+            ),
+            LastFmArtistTopTrack(
+              rank: 2,
+              title: 'Afterglow',
+              artist: 'Navis demo artist',
+              listeners: 318745,
+            ),
+            LastFmArtistTopTrack(
+              rank: 3,
+              title: 'Blue Hour',
+              artist: 'Navis demo artist',
+              listeners: 245180,
+            ),
+            LastFmArtistTopTrack(
+              rank: 4,
+              title: 'Slow Motion',
+              artist: 'Navis demo artist',
+              listeners: 198352,
+            ),
+          ];
+        }
 
         final hasKey = ref.watch(hasLastFmApiKeyProvider);
         if (!hasKey) return const [];

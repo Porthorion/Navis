@@ -254,11 +254,18 @@ control-plane contract. Android is observation-only:
   narrow production-controller actions for non-route UI instead of simulating
   coordinate clicks.
 - Clone-only `POST /v1/presentation/library-filter` applies a bounded
-  type-to-filter query through the mounted production Library screen. Together
-  with the deterministic `radioPresentationFixture` override, it supports
-  `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'` on `/library#radio` so a
-  filtered-empty Radio state can be captured before and after restart without
-  querying or modifying the configured server.
+  type-to-filter query through the mounted production Library screen.
+  `NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match'` on `/library` captures
+  the real Albums filtered-empty state before and after restart. Together with
+  the deterministic `radioPresentationFixture` override,
+  `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'` on `/library#radio`
+  captures the Radio equivalent without querying or modifying the configured
+  server.
+- `NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE=1` on an existing local
+  `/library/artists/<artist-id>/top-tracks` route supplies four deterministic
+  Last.fm-shaped rows through the production artist-top-tracks provider. It is
+  clone-only and makes the populated detail layout reviewable without using a
+  Last.fm key or querying the configured server.
 - Clone-only `POST /v1/presentation/notice` sends one bounded status notice to
   the mounted global notice host. `NAVIS_PRESENTATION_ERROR_NOTICE=1` uses it
   to capture the persistent error treatment and its explicit Dismiss action;
@@ -348,11 +355,16 @@ an otherwise empty failed search should render the retryable error state.
 For an independent Now Playing capture, set
 `NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1`; the clone-only launcher opens the
 existing production overlay and captures it without starting a remote stream.
-For Radio's filtered-empty recovery, use route `/library#radio` with
-`NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'`. The launcher enables a
-deterministic clone-only station fixture, applies the query through the
-authenticated Library-filter control, validates that Radio is selected, and
-captures the settled state before and after a clean restart.
+For an Albums filtered-empty capture, use route `/library` with
+`NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match'`. For Radio's equivalent,
+use `/library#radio` with `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'`.
+The latter enables a deterministic clone-only station fixture; both paths use
+the authenticated Library-filter control and capture the settled state before
+and after a clean restart.
+For a populated Artist Top Tracks capture, use an existing artist route with
+`NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE=1`. The clone-only fixture is
+applied through the authenticated diagnostics override before navigation, so
+the real detail screen can be reviewed without external Last.fm traffic.
 For persistent error-notice review, set `NAVIS_PRESENTATION_ERROR_NOTICE=1`.
 The isolated launcher posts the recovery message through the mounted notice
 host, validates its accepted level, and captures the visible action without

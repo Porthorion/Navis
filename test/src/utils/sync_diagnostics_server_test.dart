@@ -24,6 +24,7 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:dio/dio.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as p;
 
@@ -413,6 +414,7 @@ void main() {
         'requestReporting': true,
         'cachedListenBrainzPresentation': true,
         'forceSearchRemoteFailure': true,
+        'artistTopTracksPresentationFixture': true,
       },
     );
 
@@ -421,6 +423,7 @@ void main() {
     expect(response.body['requestReporting'], isTrue);
     expect(response.body['cachedListenBrainzPresentation'], isTrue);
     expect(response.body['forceSearchRemoteFailure'], isTrue);
+    expect(response.body['artistTopTracksPresentationFixture'], isTrue);
 
     final cleared = await _request(
       fixture.port,
@@ -433,6 +436,7 @@ void main() {
     expect(cleared.body['networkType'], isNull);
     expect(cleared.body['nativeMetered'], isNull);
     expect(cleared.body['forceSearchRemoteFailure'], isFalse);
+    expect(cleared.body['artistTopTracksPresentationFixture'], isFalse);
   });
 
   test(
@@ -693,6 +697,11 @@ void main() {
       );
       expect(nowPlaying.statusCode, HttpStatus.ok);
       expect(nowPlaying.body['visible'], isTrue);
+      expect(nowPlaying.body['desktopNowPlayingVisible'], isTrue);
+      expect(
+        fixture.container.read(desktopNowPlayingDiagnosticsProvider),
+        isTrue,
+      );
 
       when(
         () => presentation.capture(label: 'Bad Label'),

@@ -602,6 +602,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final song = recommendation.song;
     final track = recommendation.track;
     final pending =
@@ -622,7 +623,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
         ? <String>[
             if (track.creator != null) track.creator!,
             if (track.album != null) track.album!,
-            'Matching',
+            l10n.weeklyPlaylistMatching,
           ].join(' · ')
         : song == null
         ? <String>[
@@ -630,8 +631,8 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
             if (track.album != null) track.album!,
             recommendation.status ==
                     ListenBrainzRecommendationMatchStatus.ambiguous
-                ? 'Ambiguous match'
-                : 'Not available on your server',
+                ? l10n.weeklyPlaylistAmbiguousMatch
+                : l10n.weeklyPlaylistTrackUnavailable,
           ].join(' · ')
         : <String>[
             if (song.artist != null) song.artist!,
@@ -696,7 +697,9 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
               alignment: Alignment.centerRight,
               child: playableSong == null
                   ? IconButton(
-                      tooltip: pending ? 'Matching' : 'Search',
+                      tooltip: pending
+                          ? l10n.weeklyPlaylistMatching
+                          : l10n.weeklyPlaylistSearchAction,
                       icon: Icon(
                         pending
                             ? Icons.hourglass_empty_rounded

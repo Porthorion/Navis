@@ -499,6 +499,7 @@ class _ListenBrainzWeeklyDetailContentState
           shape: BoxShape.circle,
         ),
         child: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: Icon(icon, color: iconColor),
           onPressed: onPressed,
         ),
@@ -638,6 +639,9 @@ class _ListenBrainzWeeklyDetailContentState
                 ),
                 Builder(
                   builder: (buttonContext) => IconButton(
+                    tooltip: MaterialLocalizations.of(
+                      buttonContext,
+                    ).showMenuTooltip,
                     icon: const Icon(Icons.more_vert),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
@@ -3237,6 +3241,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
                           ? colors.primary
                           : colors.onSurfaceVariant.withValues(alpha: 0.88),
                     ),
+                    tooltip: isLiked ? l10n.actionLiked : l10n.actionLike,
                     onPressed: () {
                       unawaited(
                         toggleSongStar(song.id, ref).catchError((_) {
@@ -3300,6 +3305,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
                       ),
                       padding: EdgeInsets.zero,
                       iconSize: 18,
+                      tooltip: l10n.actionMore,
                       color: colors.primary.withValues(alpha: 0.9),
                       icon: const Icon(Icons.more_horiz_rounded),
                       onPressed: () {

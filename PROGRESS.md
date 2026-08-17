@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-16
+Last updated: 2026-08-17
 
 ---
 
@@ -18,6 +18,59 @@ Last updated: 2026-08-16
 > precedent. Current agent policy requires the authenticated Navis API and
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
+
+- [x] Library first-frame diagnostic investigation — 2026-08-17 (earlier
+  launcher captures were inconsistent. Authenticated app-owned screenshots of
+  mounted Albums and an initial populated Search frame were visually complete,
+  while some clean-restart capture frames were incomplete. Manual observation
+  did not reproduce a persistent app defect; no artificial startup delay was
+  added.)
+
+- [x] Liked-song overflow consistency — 2026-08-17 (compact and desktop More
+  controls now expose the platform Show menu label; the desktop action anchors
+  the existing menu to its pressed control instead of the Library page.)
+
+- [x] Legacy screen ownership audit — 2026-08-17 (`PlaylistsScreen` and the
+  `RadioScreen` wrapper have no production router, import, or navigation
+  reference. They are documented as low-priority, separately scoped cleanup
+  candidates rather than being treated as live design surfaces.)
+
+- [x] Home weekly playlist More label — 2026-08-17 (the visible Home song
+  overflow trigger now exposes the platform Show menu label while retaining
+  its existing desktop context menu and touch behavior. Focused interaction
+  coverage and isolated Linux Home capture with a clean restart pass.)
+
+- [x] Match Flow remove label — 2026-08-17 (the icon-only song remove action
+  now exposes a consistent Remove label on pointer, touch, and assistive paths.)
+
+- [x] Search clear label — 2026-08-17 (the conditional query-clear icon now
+  exposes a consistent Clear label on pointer, touch, and assistive paths.)
+
+- [x] Sync Settings desktop summary — 2026-08-17 (approved desktop status
+  overview uses adaptive plan/work/catalog/run metrics instead of a log-like
+  column; phone ordering remains unchanged and failed syncs use safe recovery
+  copy rather than raw server detail.)
+
+- [x] Home recommendation action labels — 2026-08-17 (desktop Like and More
+  controls and the mobile Weekly Back action now expose their shared labels
+  without changing the artwork-led layout.)
+
+- [x] Error-state large-text recovery — 2026-08-17 (shared error states now
+  scroll on constrained large-text phone layouts so recovery copy and Retry
+  remain reachable without changing normal composition.)
+
+- [x] Artist-view toggle clarity — 2026-08-17 (the Library artist view icon
+  now explains whether it will switch to grid or list view; both states have
+  focused widget coverage.)
+
+- [x] Weekly playlist row localization — 2026-08-17 (pending, ambiguous,
+  unavailable, and search affordances now use `AppLocalizations`; desktop
+  weekly-detail coverage verifies all states.)
+
+- [x] Library filter and Playback localization — 2026-08-17 (Library's active
+  filter banner, filtered-empty recovery copy, and clear affordance, plus the
+  Playback experimental heading, now use `AppLocalizations`; clone diagnostics
+  captures the production Albums filtered-empty state.)
 
 - [x] Reduced-motion navigation foundation — 2026-08-13 (new semantic
   `MotionPolicy` honors the platform accessibility preference: album/detail
@@ -235,11 +288,10 @@ Last updated: 2026-08-16
   technical exception text. Focused dialog behavior coverage and Android
   emulator before/after visual review pass.)
 
-- [x] AudioMuse configuration discovery — 2026-08-16 (approved: Settings now
-  exposes AudioMuse under Connection and routes to its existing setup surface.
-  Desktop uses the standard return path and constrained configuration layout;
-  settings-load errors use safe Retry recovery. Focused route, screen, and
-  Settings coverage plus Linux and Android emulator visual review pass.)
+- [x] AudioMuse settings surface removed — 2026-08-17 (user-directed: removed
+  the Settings entry, `/settings/audiomuse` route, configuration page, and
+  release-note claim. The pre-existing direct AudioMuse integration remains
+  force-disabled as documented in Phase 11.)
 
 - [x] Match Flow recovery localization — 2026-08-16 (the expected local
   constraint notices now have structured failure reasons and localized UI
@@ -265,10 +317,10 @@ Last updated: 2026-08-16
   pixel comparison: the captured PNGs were effectively identical settled
   frames. No app or diagnostic regression was found.)
 
-- [ ] Genre browsing discovery — audit finding 2026-08-16 (the local catalog
-  syncs and stores genres, but desktop and mobile have no production Library
-  surface or route for them; only Android Auto exposes the capability. A
-  Library-section proposal needs visual approval before implementation.)
+- [x] Genre browsing scope decision — 2026-08-17 (deferred by product
+  decision. Genres remain local-catalog metadata and Android Auto capability;
+  no desktop or mobile Library destination is planned without a fresh stated
+  product priority and visual review.)
 
 - [x] Library Sync notification recovery copy — 2026-08-16 (Android failure
   notifications now retain the cancelled/failed distinction but replace raw
@@ -316,6 +368,21 @@ Last updated: 2026-08-16
   tracks to show, rather than presenting the generic Playlist title. Focused
   desktop empty-state coverage and isolated Linux before/after clean-restart
   captures pass.)
+
+- [x] Artist Top Tracks playlist hierarchy — 2026-08-17 (approved: desktop
+  now uses an artwork-led tonal detail header, strong playlist title,
+  artist-and-track-count metadata, direct Play action, supporting actions,
+  and a gentle transition into the inset track list; phone retains its compact
+  layout with the same information/action hierarchy. The virtual multi-album
+  artwork remains animated. Focused adaptive coverage, isolated Linux capture,
+  clean restart, and final quality gate pass.)
+
+- [x] Desktop Lyrics track context — 2026-08-17 (approved: the expanded
+  desktop Lyrics header now preserves a quiet, truncating title-and-artist
+  context beside its Lyrics label, without adding a card or duplicate
+  transport controls. The clone-only diagnostics control now opens this real
+  desktop surface for visual validation. Focused semantics/golden coverage,
+  isolated Linux capture, clean restart, and final quality gate pass.)
 
 - [x] Compact desktop Album Detail density — 2026-08-16 (approved: at the
   smallest desktop workspace, the album hero becomes compact enough to keep
@@ -1250,7 +1317,8 @@ Last updated: 2026-08-16
 
 - [x] `AudioMuseService` interface + API client — `AudioMuseApiClient` (Dio-based, 6 endpoints) + `AudioMuseRepository` with graceful degradation
 - [x] `audioMuseAvailableProvider` (feature flag) — plus `audioMuseConfigProvider`, `audioMuseRepositoryProvider`, and 4 family providers in `app_providers.dart`
-- [x] Settings: server URL, API key, test connection — `AudioMuseSettingsScreen` at `/settings/audiomuse` with enable toggle, URL/key fields, test connection
+- [x] Settings configuration page — removed 2026-08-17 by product decision;
+  the disabled integration has no client-facing setup route
 - [x] Backlog item moved to Phase 22 (Core Technical Debt & Evidence Closeout) — 2026-03-05 (original: Server auto-detection via Navidrome plugin — deferred)
 - [x] Smart auto-queue (appends AI-recommended tracks) — `InstantMixNotifier._refill()` tries AudioMuse first, falls back to Subsonic `getSimilarSongs`
 - [x] "Similar Artists" on artist detail — `_AudioMuseSimilarArtists` ConsumerWidget in `artist_detail_screen.dart`
@@ -1261,7 +1329,9 @@ Last updated: 2026-08-16
 - [x] Schema v20 migration — 3 new columns (`audio_muse_server_url`, `audio_muse_api_key`, `audio_muse_enabled`) with `_columnExists` guards
 - [x] Domain models — `AudioMuseConfig`, `AudioMuseRecommendation`, `AudioMuseMix`, `AudioMuseHealth` in `audiomuse_models.dart`
 - [x] l10n — 20+ new `audioMuse*` localization keys in `app_en.arb`
-- [x] **Disabled** — `audioMuseAvailableProvider` hardcoded to `false`; settings tile commented out; all UI gated behind the provider auto-hides
+- [x] **Disabled** — `audioMuseAvailableProvider` is hardcoded to `false`; no
+  Settings route or setup page exists, and all remaining UI is gated behind
+  the provider
 
 ## Phase 12: Android Auto & CarPlay
 - [x] Backlog moved to priority-ordered Phase 26 (In-Car & Desktop Platforms) — 2026-03-05 (original open tasks retained verbatim in Phase 26)

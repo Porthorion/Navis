@@ -1026,8 +1026,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   isGridMode ? Icons.view_list : Icons.grid_view,
                 ),
                 tooltip: isGridMode
-                    ? l10n.libraryTabArtists
-                    : l10n.libraryTabArtists,
+                    ? l10n.librarySwitchToArtistList
+                    : l10n.librarySwitchToArtistGrid,
                 onPressed: () async {
                   final repo = ref.read(settingsRepositoryProvider);
                   final settings = await repo.getSettings();
@@ -1064,7 +1064,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     children: <Widget>[
                       EmptyState(
                         title: _typeFilterQuery.isNotEmpty
-                            ? 'No results for "$_typeFilterQuery"'
+                            ? l10n.libraryFilterNoResults(_typeFilterQuery)
                             : _artistsLikedOnly
                             ? l10n.libraryLikedOnlyEmptyTitle
                             : _downloadedOnly
@@ -1383,7 +1383,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         hasScrollBody: false,
                         child: EmptyState(
                           title: _typeFilterQuery.isNotEmpty
-                              ? 'No results for "$_typeFilterQuery"'
+                              ? l10n.libraryFilterNoResults(_typeFilterQuery)
                               : _downloadedOnly
                               ? l10n.libraryDownloadedOnlyEmpty
                               : l10n.libraryAlbumsEmptyTitle,
@@ -1581,10 +1581,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     children: <Widget>[
                       EmptyState(
                         title: _typeFilterQuery.isNotEmpty
-                            ? 'No results for "$_typeFilterQuery"'
+                            ? l10n.libraryFilterNoResults(_typeFilterQuery)
                             : l10n.libraryAlbumsByYearEmptyTitle,
                         subtitle: _typeFilterQuery.isNotEmpty
-                            ? 'Try a different search'
+                            ? l10n.libraryFilterNoResultsSubtitle
                             : l10n.libraryAlbumsByYearEmptySubtitle,
                         icon: _typeFilterQuery.isNotEmpty
                             ? Icons.search_off_rounded
@@ -1859,12 +1859,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   hasScrollBody: false,
                   child: EmptyState(
                     title: _typeFilterQuery.isNotEmpty
-                        ? 'No results for "$_typeFilterQuery"'
+                        ? l10n.libraryFilterNoResults(_typeFilterQuery)
                         : _downloadedOnly
                         ? l10n.libraryDownloadedOnlyEmpty
                         : l10n.libraryLikedEmptyTitle,
                     subtitle: _typeFilterQuery.isNotEmpty
-                        ? 'Try a different search'
+                        ? l10n.libraryFilterNoResultsSubtitle
                         : _downloadedOnly
                         ? l10n.libraryDownloadedOnlyEmptySubtitle
                         : l10n.libraryLikedEmptySubtitle,
@@ -2108,27 +2108,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                                 const SizedBox(width: 2),
-                                IconButton(
-                                  icon: const Icon(Icons.more_horiz),
-                                  onPressed: () {
-                                    final renderObject = context
-                                        .findRenderObject();
-                                    Offset? anchor;
-                                    if (renderObject is RenderBox) {
-                                      anchor = renderObject.localToGlobal(
-                                        Offset(
-                                          renderObject.size.width * 0.92,
-                                          renderObject.size.height / 2,
-                                        ),
+                                Builder(
+                                  builder: (buttonContext) => IconButton(
+                                    tooltip: MaterialLocalizations.of(
+                                      buttonContext,
+                                    ).showMenuTooltip,
+                                    icon: const Icon(Icons.more_horiz),
+                                    onPressed: () {
+                                      final renderObject = buttonContext
+                                          .findRenderObject();
+                                      final anchor = renderObject is RenderBox
+                                          ? renderObject.localToGlobal(
+                                              renderObject.size.center(
+                                                Offset.zero,
+                                              ),
+                                            )
+                                          : null;
+                                      showSongContextMenu(
+                                        this.context,
+                                        ref,
+                                        song,
+                                        anchor: anchor,
                                       );
-                                    }
-                                    showSongContextMenu(
-                                      this.context,
-                                      ref,
-                                      song,
-                                      anchor: anchor,
-                                    );
-                                  },
+                                    },
+                                  ),
                                 ),
                               ],
                             ),
@@ -2159,10 +2162,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               onDownload: () =>
                                   unawaited(_downloadLikedSong(song)),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.more_vert),
-                              onPressed: () =>
-                                  showSongContextMenu(this.context, ref, song),
+                            Builder(
+                              builder: (buttonContext) => IconButton(
+                                tooltip: MaterialLocalizations.of(
+                                  buttonContext,
+                                ).showMenuTooltip,
+                                icon: const Icon(Icons.more_vert),
+                                onPressed: () => showSongContextMenu(
+                                  this.context,
+                                  ref,
+                                  song,
+                                ),
+                              ),
                             ),
                           ],
                         ),

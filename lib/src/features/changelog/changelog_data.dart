@@ -30,6 +30,54 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Desktop Lyrics now keeps the current track visible',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Artist Top Tracks now has an artwork-led playlist detail view',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Home playlist song controls now have a clearer More label',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Liked song controls now use clearer, correctly anchored More menus',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Match Flow song controls now clearly label the remove action',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Search now clearly labels its query-clear control',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Sync Settings now presents desktop status in a clearer, safer summary',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Home recommendation actions now have clearer labels',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Recovery screens now remain usable with large text on small displays',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Artist view controls now clearly describe grid and list changes',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Weekly playlist recovery states are now ready for translation',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Library filtering and Playback headings are now ready for translation',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Artist Top Tracks controls now have a clearer More label',
         type: ChangelogEntryType.improvement,
       ),
@@ -72,10 +120,6 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Match Flow recovery notices are now ready for translation',
         type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'AudioMuse setup is now available from Settings on desktop and mobile',
-        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Update download failures now provide clear recovery without technical details',

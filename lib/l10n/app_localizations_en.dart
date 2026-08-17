@@ -436,6 +436,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsStatusFailed => 'Last sync failed';
 
   @override
+  String get syncSettingsFailureDescription =>
+      'Could not refresh your library. Check your connection and try again.';
+
+  @override
+  String get syncSettingsPlanLabel => 'Sync plan';
+
+  @override
+  String get syncSettingsPendingWorkLabel => 'Pending work';
+
+  @override
+  String syncSettingsPendingWorkValue(Object count) {
+    return '$count task(s) pending';
+  }
+
+  @override
+  String get syncSettingsCatalogUpdateLabel => 'Catalog update';
+
+  @override
+  String syncSettingsCatalogUpdateValue(Object milliseconds) {
+    return '$milliseconds ms';
+  }
+
+  @override
+  String get syncSettingsLastRunLabel => 'Last run';
+
+  @override
+  String syncSettingsLastRunValue(Object requests, Object bytes) {
+    return '$requests request(s) • $bytes';
+  }
+
+  @override
   String get syncSettingsLastCheckedLabel => 'Last checked';
 
   @override
@@ -912,6 +943,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tapping a track in an album queues the entire album and starts playback at that track.';
 
   @override
+  String get playbackSettingsExperimentalTitle => 'Experimental';
+
+  @override
   String get playbackSettingsLikedQueueTitle => 'Liked Queue';
 
   @override
@@ -1001,6 +1035,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get weeklyPlaylistMatching => 'Matching';
+
+  @override
+  String get weeklyPlaylistSearchAction => 'Search';
+
+  @override
+  String get weeklyPlaylistAmbiguousMatch => 'Ambiguous match';
+
+  @override
+  String get weeklyPlaylistTrackUnavailable => 'Not available on your server';
 
   @override
   String get homeContinueListeningTitle => 'Continue listening';
@@ -1356,7 +1399,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryTitle => 'Library';
 
   @override
+  String libraryFilteringLabel(String query) {
+    return 'Filtering: \"$query\"';
+  }
+
+  @override
+  String libraryFilterNoResults(String query) {
+    return 'No results for \"$query\"';
+  }
+
+  @override
+  String get libraryFilterNoResultsSubtitle => 'Try a different search';
+
+  @override
   String get libraryTabArtists => 'Artists';
+
+  @override
+  String get librarySwitchToArtistGrid => 'Switch to artist grid view';
+
+  @override
+  String get librarySwitchToArtistList => 'Switch to artist list view';
 
   @override
   String get libraryTabAlbums => 'Albums';
@@ -3205,47 +3267,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverSettingsConnectionInfoTitle => 'Connection info';
 
   @override
-  String get audioMuseSettingsTitle => 'AudioMuse AI';
-
-  @override
-  String get audioMuseSettingsSubtitle =>
-      'AI-powered smart queuing & discovery';
-
-  @override
-  String get audioMuseSettingsLoadError => 'Could not load AudioMuse settings';
-
-  @override
-  String get audioMuseEnabledLabel => 'Enable AudioMuse';
-
-  @override
-  String get audioMuseEnabledSubtitle =>
-      'Connect to an AudioMuse server for AI recommendations';
-
-  @override
-  String get audioMuseServerUrlLabel => 'Server URL';
-
-  @override
-  String get audioMuseServerUrlHint => 'https://audiomuse.example.com';
-
-  @override
-  String get audioMuseApiKeyLabel => 'API Key';
-
-  @override
-  String get audioMuseApiKeyHint => 'Optional — leave blank if not required';
-
-  @override
-  String get audioMuseTestConnection => 'Test connection';
-
-  @override
-  String audioMuseTestConnectionSuccess(String version) {
-    return 'Connected to AudioMuse (v$version).';
-  }
-
-  @override
-  String get audioMuseTestConnectionFailed =>
-      'Could not connect to AudioMuse server.';
-
-  @override
   String get audioMuseSimilarArtists => 'AI Similar Artists';
 
   @override
@@ -3285,13 +3306,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get audioMuseNotConfigured =>
       'AudioMuse is not configured. Set it up in Settings.';
-
-  @override
-  String get audioMuseConnectionSection => 'Connection';
-
-  @override
-  String get audioMuseDisabledHint =>
-      'Enable AudioMuse above to configure the server.';
 
   @override
   String get smartQueueTitle => 'Smart Queues';

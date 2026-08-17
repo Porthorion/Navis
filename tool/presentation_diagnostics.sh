@@ -11,6 +11,8 @@ SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
 OPEN_NOW_PLAYING="${NAVIS_PRESENTATION_OPEN_NOW_PLAYING:-0}"
 FORCE_SEARCH_REMOTE_FAILURE="${NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE:-0}"
 RADIO_FILTER_QUERY="${NAVIS_PRESENTATION_RADIO_FILTER_QUERY:-}"
+LIBRARY_FILTER_QUERY="${NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY:-}"
+ARTIST_TOP_TRACKS_FIXTURE="${NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE:-0}"
 ERROR_NOTICE="${NAVIS_PRESENTATION_ERROR_NOTICE:-0}"
 BOOTSTRAP_FAILURE_ATTEMPTS="${NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS:-0}"
 if [[ "$MODE" != "clone" ]] ||
@@ -22,18 +24,26 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$SEARCH_PLAY_REMOTE" =~ ^(0|1)$ ]] ||
    [[ ! "$OPEN_NOW_PLAYING" =~ ^(0|1)$ ]] ||
    [[ ! "$FORCE_SEARCH_REMOTE_FAILURE" =~ ^(0|1)$ ]] ||
+   [[ ! "$ARTIST_TOP_TRACKS_FIXTURE" =~ ^(0|1)$ ]] ||
    [[ ! "$ERROR_NOTICE" =~ ^(0|1)$ ]] ||
    [[ ! "$BOOTSTRAP_FAILURE_ATTEMPTS" =~ ^[0-9]+$ ]] ||
    [[ "$SEARCH_PLAY_REMOTE" == "1" && "$SEARCH_FILTER" != "songs" ]] ||
    [[ "$FORCE_SEARCH_REMOTE_FAILURE" == "1" && "$ROUTE" != "/search" ]] ||
+   [[ "$ARTIST_TOP_TRACKS_FIXTURE" == "1" && ! "$ROUTE" =~ ^/library/artists/[^/]+/top-tracks$ ]] ||
+   [[ -n "$RADIO_FILTER_QUERY" && -n "$LIBRARY_FILTER_QUERY" ]] ||
    [[ -n "$RADIO_FILTER_QUERY" && "$ROUTE" != "/library#radio" ]] ||
-   (( ${#RADIO_FILTER_QUERY} > 64 )) ||
+   [[ -n "$LIBRARY_FILTER_QUERY" && "$ROUTE" != "/library" ]] ||
+   (( ${#RADIO_FILTER_QUERY} > 64 || ${#LIBRARY_FILTER_QUERY} > 64 )) ||
    [[ -n "$SEARCH_QUERY" && "$ROUTE" != "/search" ]]; then
   echo "Usage: $0 clone [/local-route] [safe-label]" >&2
   echo "Set NAVIS_PRESENTATION_SEARCH_QUERY only with the /search route." >&2
   echo "Set NAVIS_PRESENTATION_RADIO_FILTER_QUERY only with /library#radio (up to 64 characters)." >&2
+  echo "Set NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY only with /library (up to 64 characters)." >&2
+  echo "Set NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE=1 only with an artist top-tracks route." >&2
   exit 64
 fi
+
+FILTER_QUERY="${LIBRARY_FILTER_QUERY:-$RADIO_FILTER_QUERY}"
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DB="${NAVIS_DIAGNOSTICS_PRIMARY_DB:-$HOME/Documents/navis.sqlite.sqlite}"
@@ -199,8 +209,8 @@ print(json.dumps({"query": sys.argv[1], "filter": sys.argv[2]}))
 PY
 }
 
-radio_filter_body() {
-  python3 - "$RADIO_FILTER_QUERY" <<'PY'
+library_filter_body() {
+  python3 - "$1" <<'PY'
 import json, sys
 print(json.dumps({"query": sys.argv[1]}))
 PY
@@ -265,12 +275,14 @@ if value.get("actualLocation") != sys.argv[2]:
 PY
 }
 
-validate_radio_filter() {
-  python3 - "$1" "$RADIO_FILTER_QUERY" <<'PY'
+validate_library_filter() {
+  python3 - "$1" "$2" "$3" <<'PY'
 import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
-if value.get("query") != sys.argv[2] or value.get("section") != "radio":
-    raise SystemExit(f"radio filter was not applied to the Radio section: {value}")
+if value.get("query") != sys.argv[2]:
+    raise SystemExit(f"library filter was not applied: {value}")
+if sys.argv[3] and value.get("section") != sys.argv[3]:
+    raise SystemExit(f"library filter was applied to the wrong section: {value}")
 PY
 }
 
@@ -422,6 +434,11 @@ run_capture() {
       '{"radioPresentationFixture":true}' \
       > "$OUTPUT_ROOT/$prefix-radio-fixture-override.json"
   fi
+  if [[ "$ARTIST_TOP_TRACKS_FIXTURE" == "1" ]]; then
+    api POST /v1/diagnostics/overrides \
+      '{"artistTopTracksPresentationFixture":true}' \
+      > "$OUTPUT_ROOT/$prefix-artist-top-tracks-fixture-override.json"
+  fi
   api POST /v1/presentation/navigate "$(navigation_body)" \
     > "$OUTPUT_ROOT/$prefix-navigation.json"
   validate_navigation "$OUTPUT_ROOT/$prefix-navigation.json"
@@ -430,10 +447,14 @@ run_capture() {
   # presentation endpoint captures visual evidence.
   sleep 5
   wait_for_presentation "$OUTPUT_ROOT/$prefix-presentation-after.json"
-  if [[ -n "$RADIO_FILTER_QUERY" ]]; then
-    api POST /v1/presentation/library-filter "$(radio_filter_body)" \
-      > "$OUTPUT_ROOT/$prefix-radio-filter.json"
-    validate_radio_filter "$OUTPUT_ROOT/$prefix-radio-filter.json"
+  if [[ -n "$FILTER_QUERY" ]]; then
+    api POST /v1/presentation/library-filter "$(library_filter_body "$FILTER_QUERY")" \
+      > "$OUTPUT_ROOT/$prefix-library-filter.json"
+    if [[ -n "$RADIO_FILTER_QUERY" ]]; then
+      validate_library_filter "$OUTPUT_ROOT/$prefix-library-filter.json" "$FILTER_QUERY" radio
+    else
+      validate_library_filter "$OUTPUT_ROOT/$prefix-library-filter.json" "$FILTER_QUERY" albums
+    fi
     # The diagnostic control updates the same Library state as keyboard input;
     # wait for the filtered frame before capturing it.
     sleep 1
@@ -613,7 +634,9 @@ python3 - \
   "$BOOTSTRAP_FAILURE_ATTEMPTS" \
   "$FORCE_SEARCH_REMOTE_FAILURE" \
   "$OPEN_NOW_PLAYING" \
+  "$([[ -n "$FILTER_QUERY" ]] && echo 1 || echo 0)" \
   "$([[ -n "$RADIO_FILTER_QUERY" ]] && echo 1 || echo 0)" \
+  "$ARTIST_TOP_TRACKS_FIXTURE" \
   "$ERROR_NOTICE" <<'PY'
 import json, sys
 screenshots = []
@@ -643,11 +666,12 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
              if int(sys.argv[8]) > 0 else [])
           + (["POST /v1/diagnostics/overrides"]
              if sys.argv[2].startswith("/library/listenbrainz/") or
-                sys.argv[9] == "1" or sys.argv[11] == "1" else [])
+                sys.argv[9] == "1" or sys.argv[12] == "1" or
+                sys.argv[13] == "1" else [])
           + (["POST /v1/presentation/library-filter"]
              if sys.argv[11] == "1" else [])
           + (["POST /v1/presentation/notice"]
-             if sys.argv[12] == "1" else [])
+             if sys.argv[14] == "1" else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([
               "POST /v1/presentation/search/play",

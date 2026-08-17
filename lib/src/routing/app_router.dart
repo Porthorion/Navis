@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/auth/presentation/login_screen.dart';
 import 'package:navis/src/features/auth/presentation/initial_server_sync_screen.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
-import 'package:navis/src/features/audiomuse/presentation/audiomuse_settings_screen.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
@@ -255,14 +254,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       context: context,
                       key: state.pageKey,
                       child: const ServerSettingsScreen(),
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'audiomuse',
-                    pageBuilder: (context, state) => buildSlideFadePage(
-                      context: context,
-                      key: state.pageKey,
-                      child: const AudioMuseSettingsScreen(),
                     ),
                   ),
                   GoRoute(

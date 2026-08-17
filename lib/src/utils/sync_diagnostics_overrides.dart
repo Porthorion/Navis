@@ -16,6 +16,7 @@ class SyncDiagnosticsOverrides {
     this.cachedListenBrainzPresentation = false,
     this.forceSearchRemoteFailure = false,
     this.radioPresentationFixture = false,
+    this.artistTopTracksPresentationFixture = false,
   });
 
   final NetworkType? networkType;
@@ -28,6 +29,7 @@ class SyncDiagnosticsOverrides {
   final bool cachedListenBrainzPresentation;
   final bool forceSearchRemoteFailure;
   final bool radioPresentationFixture;
+  final bool artistTopTracksPresentationFixture;
 
   SyncDiagnosticsOverrides copyWith({
     NetworkType? networkType,
@@ -40,6 +42,7 @@ class SyncDiagnosticsOverrides {
     bool? cachedListenBrainzPresentation,
     bool? forceSearchRemoteFailure,
     bool? radioPresentationFixture,
+    bool? artistTopTracksPresentationFixture,
     bool clearNetworkType = false,
     bool clearNativeMetered = false,
     bool clearBackgroundSyncUnmeteredOnly = false,
@@ -71,6 +74,9 @@ class SyncDiagnosticsOverrides {
           forceSearchRemoteFailure ?? this.forceSearchRemoteFailure,
       radioPresentationFixture:
           radioPresentationFixture ?? this.radioPresentationFixture,
+      artistTopTracksPresentationFixture:
+          artistTopTracksPresentationFixture ??
+          this.artistTopTracksPresentationFixture,
     );
   }
 
@@ -85,6 +91,7 @@ class SyncDiagnosticsOverrides {
     'cachedListenBrainzPresentation': cachedListenBrainzPresentation,
     'forceSearchRemoteFailure': forceSearchRemoteFailure,
     'radioPresentationFixture': radioPresentationFixture,
+    'artistTopTracksPresentationFixture': artistTopTracksPresentationFixture,
   };
 
   static SyncDiagnosticsOverrides fromJson(Map<String, Object?> json) {
@@ -112,6 +119,8 @@ class SyncDiagnosticsOverrides {
           json['forceSearchRemoteFailure'] as bool? ?? false,
       radioPresentationFixture:
           json['radioPresentationFixture'] as bool? ?? false,
+      artistTopTracksPresentationFixture:
+          json['artistTopTracksPresentationFixture'] as bool? ?? false,
     );
   }
 }
@@ -166,4 +175,24 @@ final syncDiagnosticsOverridesProvider =
       SyncDiagnosticsOverrides
     >(
       SyncDiagnosticsOverridesController.new,
+    );
+
+/// Clone-diagnostics-only override for the desktop Now Playing surface.
+///
+/// Desktop intentionally presents the player as a lyrics overlay rather than
+/// the phone/tablet expanded sheet. The diagnostics API uses this narrow
+/// override so its `nowPlaying` control captures the same surface a desktop
+/// user opens from the player bar, without changing production interaction.
+class DesktopNowPlayingDiagnosticsController extends Notifier<bool?> {
+  @override
+  bool? build() => null;
+
+  void setVisible(bool visible) => state = visible;
+
+  void clear() => state = null;
+}
+
+final desktopNowPlayingDiagnosticsProvider =
+    NotifierProvider<DesktopNowPlayingDiagnosticsController, bool?>(
+      DesktopNowPlayingDiagnosticsController.new,
     );

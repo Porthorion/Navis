@@ -12,6 +12,7 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
@@ -70,6 +71,13 @@ class _FakeSubsonicApiClient extends SubsonicApiClient {
     activeSearchCalls--;
     return const SearchResult3();
   }
+}
+
+class _FixtureDiagnosticsOverrides extends SyncDiagnosticsOverridesController {
+  @override
+  SyncDiagnosticsOverrides build() => const SyncDiagnosticsOverrides(
+    artistTopTracksPresentationFixture: true,
+  );
 }
 
 List<LastFmArtistTopTrack> _lastFmTracks(int count) {
@@ -164,6 +172,32 @@ void main() {
     expect(fakeLastFm.callCount, 1);
     expect(tracks, hasLength(12));
   });
+
+  test(
+    'clone-only presentation fixture bypasses Last.fm credentials',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          hasLastFmApiKeyProvider.overrideWithValue(false),
+          syncDiagnosticsOverridesProvider.overrideWith(
+            _FixtureDiagnosticsOverrides.new,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final tracks = await container.read(
+        artistTopTracksRawProvider('Any Artist').future,
+      );
+
+      expect(tracks.map((track) => track.title), <String>[
+        'North Star',
+        'Afterglow',
+        'Blue Hour',
+        'Slow Motion',
+      ]);
+    },
+  );
 
   test(
     'raw provider is shared by section and virtual playlist providers',

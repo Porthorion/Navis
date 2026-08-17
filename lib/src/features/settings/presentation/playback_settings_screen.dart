@@ -586,7 +586,7 @@ class _PlaybackSettingsScreenState
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Experimental',
+                      l10n.playbackSettingsExperimentalTitle,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),

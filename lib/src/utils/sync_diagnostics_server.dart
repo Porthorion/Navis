@@ -429,12 +429,20 @@ class SyncDiagnosticsServer {
         } else {
           controller.collapse();
         }
+        if (surface == 'nowPlaying') {
+          _container
+              .read(desktopNowPlayingDiagnosticsProvider.notifier)
+              .setVisible(visible);
+        }
         await presentation.waitForFrame();
         final stack = _container.read(playerOverlayStackProvider);
         await _respond(request, HttpStatus.ok, <String, Object?>{
           'surface': surface,
           'visible': stack.contains(route),
           'stack': stack.map((route) => route.name).toList(growable: false),
+          'desktopNowPlayingVisible': _container.read(
+            desktopNowPlayingDiagnosticsProvider,
+          ),
         });
         return;
       }

@@ -117,6 +117,10 @@ mode.
 route. That path reads only the isolated weekly cache through production
 providers; it does not copy, validate, log, or return ListenBrainz credentials
 or usernames.
+It may also enable `artistTopTracksPresentationFixture` for an explicit local
+artist Top Tracks route. That fixture supplies deterministic rows through the
+production provider and never requires a Last.fm key or contacts the configured
+server.
 
 Desktop volume restart behavior has a focused manual runtime gate:
 
@@ -171,11 +175,17 @@ profile's Now Playing overlay without depending on remote stream playback.
 Set `NAVIS_PRESENTATION_SEARCH_FILTER=songs` and
 `NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE=1` to additionally play the first remote
 song through the production queue path and capture its Now Playing metadata.
-For Radio's filtered-empty state, run
+For the real Albums filtered-empty state, run
+`NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match' ./tool/presentation_diagnostics.sh clone /library library-filtered-empty`.
+For Radio's equivalent, run
 `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match' ./tool/presentation_diagnostics.sh clone '/library#radio' radio-filtered-empty`.
-The clone-only scenario enables a deterministic station fixture, drives the
-production Library filter through its authenticated diagnostics control, and
-captures the state before and after a clean restart.
+The Radio path enables a deterministic station fixture; both drive the
+production Library filter through its authenticated diagnostics control and
+capture the state before and after a clean restart.
+For a populated Artist Top Tracks review, run
+`NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE=1 ./tool/presentation_diagnostics.sh clone '/library/artists/<artist-id>/top-tracks' artist-top-tracks`.
+It applies deterministic clone-only rows before navigating to the production
+detail screen.
 For the persistent error-notice treatment, run
 `NAVIS_PRESENTATION_ERROR_NOTICE=1 ./tool/presentation_diagnostics.sh clone / error-notice`.
 It posts a bounded diagnostics-only error to the mounted global notice host,

@@ -1,9 +1,15 @@
 part of 'app_shell.dart';
 
 class _DesktopLyricsOverlay extends ConsumerWidget {
-  const _DesktopLyricsOverlay({required this.onClose});
+  const _DesktopLyricsOverlay({
+    required this.onClose,
+    required this.songTitle,
+    required this.songArtist,
+  });
 
   final VoidCallback onClose;
+  final String? songTitle;
+  final String? songArtist;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -13,6 +19,12 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
     final songId = playback.currentSongId;
     final position =
         ref.watch(playbackPositionProvider).asData?.value ?? playback.position;
+    final title = (songTitle ?? '').trim().isEmpty
+        ? l10n.miniPlayerUnknownTrack
+        : songTitle!.trim();
+    final artist = (songArtist ?? '').trim().isEmpty
+        ? l10n.miniPlayerUnknownArtist
+        : songArtist!.trim();
 
     return Material(
       color: colors.surface,
@@ -35,11 +47,49 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
                   const SizedBox(width: 10),
                   Text(
                     l10n.nowPlayingLyrics,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 1,
+                    height: 28,
+                    color: colors.outlineVariant.withValues(alpha: 0.56),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Semantics(
+                      key: const ValueKey<String>('desktopLyricsTrackContext'),
+                      container: true,
+                      label: '$title, $artist',
+                      child: ExcludeSemantics(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   IconButton(
                     tooltip: MaterialLocalizations.of(
                       context,

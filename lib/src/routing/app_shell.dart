@@ -63,6 +63,7 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 part 'app_shell_support_widgets.dart';
 part 'app_shell_quick_search_overlay.dart';
@@ -479,6 +480,12 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _toggleDesktopLyricsOverlay() {
+    final diagnosticsOverride = ref.read(desktopNowPlayingDiagnosticsProvider);
+    if (diagnosticsOverride != null) {
+      ref.read(desktopNowPlayingDiagnosticsProvider.notifier).clear();
+      setState(() => _showDesktopLyricsOverlay = false);
+      return;
+    }
     setState(() => _showDesktopLyricsOverlay = !_showDesktopLyricsOverlay);
   }
 
@@ -804,6 +811,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
     final mediaSize = MediaQuery.sizeOf(context);
     final desktopRuntime = ref.watch(desktopPresentationRuntimeProvider);
+    final desktopNowPlayingDiagnosticsOverride = ref.watch(
+      desktopNowPlayingDiagnosticsProvider,
+    );
+    final showDesktopLyricsOverlay =
+        desktopNowPlayingDiagnosticsOverride ?? _showDesktopLyricsOverlay;
     final mediaPadding = MediaQuery.paddingOf(context);
     final mediaViewPadding = MediaQuery.viewPaddingOf(context);
     // On AAOS, the car controls bar is reported via viewPadding.bottom.
@@ -1372,7 +1384,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         onDismissQueue: _handleQueueOverlayDismissed,
                         queueToggleFocusNode: _desktopQueueToggleFocusNode,
                         queueOverlayKey: _queueOverlayKey,
-                        showLyricsOverlay: _showDesktopLyricsOverlay,
+                        showLyricsOverlay: showDesktopLyricsOverlay,
                         onToggleLyrics: _toggleDesktopLyricsOverlay,
                         onSystemBack: () {
                           if (_dismissNowPlayingInternalOverlayIfExpanded()) {

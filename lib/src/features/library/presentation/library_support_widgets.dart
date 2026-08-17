@@ -12,6 +12,7 @@ class _TypeFilterBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -25,19 +26,22 @@ class _TypeFilterBadge extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Filtering: "$query"',
+              l10n.libraryFilteringLabel(query),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          GestureDetector(
-            onTap: onClear,
-            child: Icon(
-              Icons.close_rounded,
-              size: 18,
-              color: theme.colorScheme.onSurfaceVariant,
+          Tooltip(
+            message: l10n.libraryClearFiltersAction,
+            child: GestureDetector(
+              onTap: onClear,
+              child: Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],

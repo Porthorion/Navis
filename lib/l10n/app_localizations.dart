@@ -880,6 +880,54 @@ abstract class AppLocalizations {
   /// **'Last sync failed'**
   String get syncSettingsStatusFailed;
 
+  /// No description provided for @syncSettingsFailureDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not refresh your library. Check your connection and try again.'**
+  String get syncSettingsFailureDescription;
+
+  /// No description provided for @syncSettingsPlanLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync plan'**
+  String get syncSettingsPlanLabel;
+
+  /// No description provided for @syncSettingsPendingWorkLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending work'**
+  String get syncSettingsPendingWorkLabel;
+
+  /// No description provided for @syncSettingsPendingWorkValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} task(s) pending'**
+  String syncSettingsPendingWorkValue(Object count);
+
+  /// No description provided for @syncSettingsCatalogUpdateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Catalog update'**
+  String get syncSettingsCatalogUpdateLabel;
+
+  /// No description provided for @syncSettingsCatalogUpdateValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{milliseconds} ms'**
+  String syncSettingsCatalogUpdateValue(Object milliseconds);
+
+  /// No description provided for @syncSettingsLastRunLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Last run'**
+  String get syncSettingsLastRunLabel;
+
+  /// No description provided for @syncSettingsLastRunValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{requests} request(s) • {bytes}'**
+  String syncSettingsLastRunValue(Object requests, Object bytes);
+
   /// No description provided for @syncSettingsLastCheckedLabel.
   ///
   /// In en, this message translates to:
@@ -1650,6 +1698,12 @@ abstract class AppLocalizations {
   /// **'Tapping a track in an album queues the entire album and starts playback at that track.'**
   String get playbackSettingsAlbumQueueSubtitle;
 
+  /// No description provided for @playbackSettingsExperimentalTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Experimental'**
+  String get playbackSettingsExperimentalTitle;
+
   /// No description provided for @playbackSettingsLikedQueueTitle.
   ///
   /// In en, this message translates to:
@@ -1781,6 +1835,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Matching'**
   String get weeklyPlaylistMatching;
+
+  /// No description provided for @weeklyPlaylistSearchAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get weeklyPlaylistSearchAction;
+
+  /// No description provided for @weeklyPlaylistAmbiguousMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Ambiguous match'**
+  String get weeklyPlaylistAmbiguousMatch;
+
+  /// No description provided for @weeklyPlaylistTrackUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available on your server'**
+  String get weeklyPlaylistTrackUnavailable;
 
   /// No description provided for @homeContinueListeningTitle.
   ///
@@ -2424,11 +2496,41 @@ abstract class AppLocalizations {
   /// **'Library'**
   String get libraryTitle;
 
+  /// No description provided for @libraryFilteringLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Filtering: \"{query}\"'**
+  String libraryFilteringLabel(String query);
+
+  /// No description provided for @libraryFilterNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results for \"{query}\"'**
+  String libraryFilterNoResults(String query);
+
+  /// No description provided for @libraryFilterNoResultsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a different search'**
+  String get libraryFilterNoResultsSubtitle;
+
   /// No description provided for @libraryTabArtists.
   ///
   /// In en, this message translates to:
   /// **'Artists'**
   String get libraryTabArtists;
+
+  /// No description provided for @librarySwitchToArtistGrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to artist grid view'**
+  String get librarySwitchToArtistGrid;
+
+  /// No description provided for @librarySwitchToArtistList.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to artist list view'**
+  String get librarySwitchToArtistList;
 
   /// No description provided for @libraryTabAlbums.
   ///
@@ -5633,78 +5735,6 @@ abstract class AppLocalizations {
   /// **'Connection info'**
   String get serverSettingsConnectionInfoTitle;
 
-  /// No description provided for @audioMuseSettingsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'AudioMuse AI'**
-  String get audioMuseSettingsTitle;
-
-  /// No description provided for @audioMuseSettingsSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'AI-powered smart queuing & discovery'**
-  String get audioMuseSettingsSubtitle;
-
-  /// No description provided for @audioMuseSettingsLoadError.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not load AudioMuse settings'**
-  String get audioMuseSettingsLoadError;
-
-  /// No description provided for @audioMuseEnabledLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable AudioMuse'**
-  String get audioMuseEnabledLabel;
-
-  /// No description provided for @audioMuseEnabledSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect to an AudioMuse server for AI recommendations'**
-  String get audioMuseEnabledSubtitle;
-
-  /// No description provided for @audioMuseServerUrlLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Server URL'**
-  String get audioMuseServerUrlLabel;
-
-  /// No description provided for @audioMuseServerUrlHint.
-  ///
-  /// In en, this message translates to:
-  /// **'https://audiomuse.example.com'**
-  String get audioMuseServerUrlHint;
-
-  /// No description provided for @audioMuseApiKeyLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'API Key'**
-  String get audioMuseApiKeyLabel;
-
-  /// No description provided for @audioMuseApiKeyHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Optional — leave blank if not required'**
-  String get audioMuseApiKeyHint;
-
-  /// No description provided for @audioMuseTestConnection.
-  ///
-  /// In en, this message translates to:
-  /// **'Test connection'**
-  String get audioMuseTestConnection;
-
-  /// No description provided for @audioMuseTestConnectionSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Connected to AudioMuse (v{version}).'**
-  String audioMuseTestConnectionSuccess(String version);
-
-  /// No description provided for @audioMuseTestConnectionFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not connect to AudioMuse server.'**
-  String get audioMuseTestConnectionFailed;
-
   /// No description provided for @audioMuseSimilarArtists.
   ///
   /// In en, this message translates to:
@@ -5770,18 +5800,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AudioMuse is not configured. Set it up in Settings.'**
   String get audioMuseNotConfigured;
-
-  /// No description provided for @audioMuseConnectionSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Connection'**
-  String get audioMuseConnectionSection;
-
-  /// No description provided for @audioMuseDisabledHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable AudioMuse above to configure the server.'**
-  String get audioMuseDisabledHint;
 
   /// No description provided for @smartQueueTitle.
   ///

@@ -96,6 +96,7 @@ class ArtistTopTracksPlaylistDetailScreen extends ConsumerWidget {
               layoutClass: resolveDesktopLayoutClass(
                 MediaQuery.sizeOf(context).width,
               ),
+              padding: EdgeInsets.zero,
               child: body,
             )
           : body,
@@ -125,43 +126,58 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
         .nonNulls
         .toList(growable: false);
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    const desktopTrackPadding = EdgeInsets.symmetric(horizontal: 24);
+    final colors = Theme.of(context).colorScheme;
 
     return CustomScrollView(
       slivers: <Widget>[
         SliverToBoxAdapter(
           child: desktopMode
-              ? DesktopPanel(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      ArtistVirtualPlaylistArtwork(
-                        coverArtIds: coverArtIds,
-                        imageUrl: imageUrl,
-                        size: 220,
-                        borderRadius: 12,
-                      ),
-                      const SizedBox(width: 24),
-                      Expanded(
-                        child: _PlaylistHeaderText(
-                          artistName: artistName,
-                          onPlay: resolvedSongs.isEmpty
-                              ? null
-                              : () => _queueSongs(ref, resolvedSongs),
-                          onShuffle: resolvedSongs.isEmpty
-                              ? null
-                              : () => _queueSongs(
-                                  ref,
-                                  resolvedSongs,
-                                  shuffle: true,
-                                ),
-                          onDownload: resolvedSongs.isEmpty
-                              ? null
-                              : () => unawaited(
-                                  _downloadSongs(context, ref, resolvedSongs),
-                                ),
+              ? ColoredBox(
+                  key: const ValueKey<String>(
+                    'artist-top-tracks-desktop-header',
+                  ),
+                  color: colors.surfaceContainerHigh,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        ArtistVirtualPlaylistArtwork(
+                          coverArtIds: coverArtIds,
+                          imageUrl: imageUrl,
+                          size: 260,
+                          borderRadius: 16,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 28),
+                        Expanded(
+                          child: _PlaylistHeaderText(
+                            artistName: artistName,
+                            trackCount: tracks.length,
+                            desktopMode: true,
+                            onPlay: resolvedSongs.isEmpty
+                                ? null
+                                : () => _queueSongs(ref, resolvedSongs),
+                            onShuffle: resolvedSongs.isEmpty
+                                ? null
+                                : () => _queueSongs(
+                                    ref,
+                                    resolvedSongs,
+                                    shuffle: true,
+                                  ),
+                            onDownload: resolvedSongs.isEmpty
+                                ? null
+                                : () => unawaited(
+                                    _downloadSongs(
+                                      context,
+                                      ref,
+                                      resolvedSongs,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : Column(
@@ -182,6 +198,8 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                       child: _PlaylistHeaderText(
                         artistName: artistName,
+                        trackCount: tracks.length,
+                        desktopMode: false,
                         onPlay: resolvedSongs.isEmpty
                             ? null
                             : () => _queueSongs(ref, resolvedSongs),
@@ -202,12 +220,29 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
                   ],
                 ),
         ),
-        SliverList.builder(
-          itemCount: tracks.length,
-          itemBuilder: (context, index) {
-            final track = tracks[index];
-            return _RankedTopTrackRow(track: track);
-          },
+        if (desktopMode)
+          SliverToBoxAdapter(
+            child: Container(
+              key: const ValueKey<String>('artist-top-tracks-desktop-fade'),
+              height: 28,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[colors.surfaceContainerHigh, colors.surface],
+                ),
+              ),
+            ),
+          ),
+        SliverPadding(
+          padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
+          sliver: SliverList.builder(
+            itemCount: tracks.length,
+            itemBuilder: (context, index) {
+              final track = tracks[index];
+              return _RankedTopTrackRow(track: track);
+            },
+          ),
         ),
         const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
       ],
@@ -259,12 +294,16 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
 class _PlaylistHeaderText extends StatelessWidget {
   const _PlaylistHeaderText({
     required this.artistName,
+    required this.trackCount,
+    required this.desktopMode,
     required this.onPlay,
     required this.onShuffle,
     required this.onDownload,
   });
 
   final String artistName;
+  final int trackCount;
+  final bool desktopMode;
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
   final VoidCallback? onDownload;
@@ -272,21 +311,37 @@ class _PlaylistHeaderText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
           l10n.artistTopTracksPlaylistTitle(artistName),
-          style: Theme.of(context).textTheme.headlineMedium,
+          style: desktopMode
+              ? theme.textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                )
+              : theme.textTheme.headlineSmall,
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: desktopMode ? 8 : 6),
+        Text(
+          l10n.playlistDetailMeta(artistName, trackCount),
+          style: desktopMode
+              ? theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                )
+              : null,
+        ),
+        SizedBox(height: desktopMode ? 20 : 16),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: <Widget>[
-            FilledButton.tonalIcon(
+            FilledButton.icon(
               onPressed: onPlay,
-              icon: const Icon(Icons.play_arrow_outlined),
+              icon: const Icon(Icons.play_arrow),
               label: Text(l10n.playlistDetailPlayAction),
             ),
             FilledButton.tonalIcon(

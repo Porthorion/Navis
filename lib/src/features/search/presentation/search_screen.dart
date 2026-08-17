@@ -555,6 +555,7 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: BorderSide.none,
@@ -578,6 +579,7 @@ class _SearchBar extends StatelessWidget {
             : null,
         suffixIcon: onClear != null
             ? IconButton(
+                tooltip: l10n.searchClearRecent,
                 icon: const Icon(Icons.close),
                 onPressed: onClear,
               )

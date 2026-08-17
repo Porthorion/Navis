@@ -57,6 +57,54 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Desktop Lyrics now keeps the current track visible',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Artist Top Tracks now has an artwork-led playlist detail view',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Home playlist song controls now have a clearer More label',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Liked song controls now use clearer, correctly anchored More menus',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Match Flow song controls now clearly label the remove action',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Search now clearly labels its query-clear control',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Sync Settings now presents desktop status in a clearer, safer summary',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Home recommendation actions now have clearer labels',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Recovery screens now remain usable with large text on small displays',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Artist view controls now clearly describe grid and list changes',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Weekly playlist recovery states are now ready for translation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Library filtering and Playback headings are now ready for translation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Artist Top Tracks controls now have a clearer More label',
       type: _EntryType.improvement,
     ),
@@ -99,10 +147,6 @@ const List<_Version> _changelogs = [
     _Entry(
       'Match Flow recovery notices are now ready for translation',
       type: _EntryType.improvement,
-    ),
-    _Entry(
-      'AudioMuse setup is now available from Settings on desktop and mobile',
-      type: _EntryType.newFeature,
     ),
     _Entry(
       'Update download failures now provide clear recovery without technical details',

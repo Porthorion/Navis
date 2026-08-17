@@ -47,6 +47,14 @@ void main() {
 
       expect(find.text('Song A'), findsOneWidget);
       expect(find.text('Song B'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.widgetWithIcon(IconButton, Icons.close).first,
+            )
+            .tooltip,
+        'Remove',
+      );
 
       await tester.tap(find.byType(Switch).first);
       await tester.pump(const Duration(milliseconds: 250));

@@ -100,5 +100,29 @@ void main() {
         expect(_searchFocusNode(tester).hasFocus, isFalse);
       },
     );
+
+    testWidgets('query clear action has a clear label', (tester) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+
+      final container = _createContainerWithDatabase();
+      await _pumpSearchScreen(tester, container);
+
+      await tester.enterText(find.byType(TextField), 'navis');
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        tester
+            .widget<IconButton>(
+              find.widgetWithIcon(IconButton, Icons.close),
+            )
+            .tooltip,
+        'Clear',
+      );
+
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.close));
+      await tester.pump();
+    });
   });
 }

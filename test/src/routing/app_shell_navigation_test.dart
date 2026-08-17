@@ -1112,6 +1112,57 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'desktop Lyrics retains the current track context in its header',
+    (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 600);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          songByIdProvider.overrideWith(
+            (ref, songId) => Stream.value(
+              songId == _longMetadataSong.id ? _longMetadataSong : null,
+            ),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
+      );
+      await tester.pumpAndSettle();
+
+      final context = find.byKey(
+        const ValueKey<String>('desktopLyricsTrackContext'),
+      );
+      expect(context, findsOneWidget);
+      expect(
+        tester.getSemantics(context).getSemanticsData().label,
+        '${_longMetadataSong.title}, ${_longMetadataSong.artistName}',
+      );
+      expect(find.byTooltip('Close'), findsOneWidget);
+      await expectLater(
+        find.byKey(const ValueKey<String>('appShellScaffold')),
+        matchesGoldenFile('goldens/desktop_lyrics_header_context_800x600.png'),
+      );
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(milliseconds: 201));
+    },
+  );
+
   testWidgets('Desktop radio keeps invalid action slots visibly disabled', (
     tester,
   ) async {
