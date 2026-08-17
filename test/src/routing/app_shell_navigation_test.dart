@@ -1163,6 +1163,57 @@ void main() {
     },
   );
 
+  testWidgets('desktop Lyrics keeps long context readable at 200 percent', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        songByIdProvider.overrideWith(
+          (ref, songId) => Stream.value(
+            songId == _longMetadataSong.id ? _longMetadataSong : null,
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MediaQuery(
+        data: MediaQueryData.fromView(
+          tester.view,
+        ).copyWith(textScaler: const TextScaler.linear(2)),
+        child: UncontrolledProviderScope(
+          container: container,
+          child: testNavisApp,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('desktopPlayerLyricsButton')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('desktopLyricsTrackContext')),
+      findsOneWidget,
+    );
+    await expectLater(
+      find.byKey(const ValueKey<String>('appShellScaffold')),
+      matchesGoldenFile(
+        'goldens/desktop_lyrics_header_context_800x600_text_scale_200.png',
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(milliseconds: 201));
+  });
+
   testWidgets('Desktop radio keeps invalid action slots visibly disabled', (
     tester,
   ) async {

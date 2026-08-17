@@ -645,6 +645,64 @@ void main() {
       },
     );
 
+    testWidgets(
+      'artist top tracks remains readable at 200 percent phone text scale',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistTopTracksPlaylistDetailScreen(
+              artistId: 'artist-top-tracks',
+            ),
+            database: database,
+            adaptiveContext: _mobileContext,
+            textScaler: const TextScaler.linear(2),
+            overrides: [
+              artistByIdProvider('artist-top-tracks').overrideWithValue(
+                const AsyncData(
+                  ArtistsTableData(
+                    isProvisional: false,
+                    isExternal: false,
+                    id: 'artist-top-tracks',
+                    name: 'Test Artist With A Long Name',
+                  ),
+                ),
+              ),
+              artistInfoProvider('artist-top-tracks').overrideWithValue(
+                const AsyncData(null),
+              ),
+              artistTopTracksPlaylistProvider(
+                'Test Artist With A Long Name',
+              ).overrideWithValue(
+                const AsyncData(<ResolvedArtistTopTrack>[
+                  ResolvedArtistTopTrack(
+                    rank: 1,
+                    title: 'North Star',
+                    artist: 'Test Artist With A Long Name',
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('This is Test Artist With A Long Name'),
+          findsAtLeastNWidgets(1),
+        );
+        expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
+        await expectLater(
+          find.byType(ArtistTopTracksPlaylistDetailScreen),
+          matchesGoldenFile(
+            'goldens/artist_top_tracks_phone_text_scale_200.png',
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await _disposeApp(tester);
+      },
+    );
+
     testWidgets('artist detail phone action hierarchy golden', (tester) async {
       setAdaptiveTestViewport(tester, const Size(390, 844));
       await tester.pumpWidget(

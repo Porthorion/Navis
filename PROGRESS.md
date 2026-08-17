@@ -384,6 +384,14 @@ Last updated: 2026-08-17
   desktop surface for visual validation. Focused semantics/golden coverage,
   isolated Linux capture, clean restart, and final quality gate pass.)
 
+- [x] Design-audit maintenance closeout — 2026-08-17 (current-routed-surface
+  container, state, responsive, and visible-action inventories are resolved:
+  raw cards are intentional local/auth/player exceptions, audited states have
+  distinct recovery, routed More/context actions follow one platform contract,
+  and new 200% visual regression goldens cover phone Artist Top Tracks and the
+  constrained desktop Lyrics header. Focused coverage and final quality gate
+  pass.)
+
 - [x] Compact desktop Album Detail density — 2026-08-16 (approved: at the
   smallest desktop workspace, the album hero becomes compact enough to keep
   the first tracks visible; its core actions remain direct, Download retains a
