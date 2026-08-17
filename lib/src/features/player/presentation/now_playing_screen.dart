@@ -33,6 +33,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
+import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/motion_policy.dart';
@@ -52,76 +53,86 @@ part 'now_playing_wide_panels.dart';
 /// A single artist entry for [_TrackInfo.artistLinks].
 typedef _ArtistLink = ({String name, VoidCallback? onTap});
 
-enum _TrackNavigationFeedback { replayCurrent, noNext }
+enum _TrackNavigationFeedback {
+  restartCurrent,
+  unavailableNext,
+  unavailablePrevious,
+}
 
-Widget _songSwapTransitionBuilder(Widget child, Animation<double> animation) {
+enum _TrackArtworkMotion { automatic, manual }
+
+Widget _songSwapMetadataTransitionBuilder(
+  Widget child,
+  Animation<double> animation, {
+  required _TrackArtworkMotion motion,
+}) {
+  final manual = motion == _TrackArtworkMotion.manual;
   final curved = CurvedAnimation(
     parent: animation,
-    curve: Curves.easeOutCubic,
+    // Manual skips intentionally hand metadata over after artwork has settled.
+    curve: manual
+        ? const Interval(0.68, 1, curve: Curves.easeOutCubic)
+        : Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
   );
   return FadeTransition(
     opacity: curved,
-    child: ScaleTransition(
-      scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
+    child: SlideTransition(
+      position: Tween<Offset>(
+        begin: manual ? const Offset(0, 0.055) : const Offset(0, 0.02),
+        end: Offset.zero,
+      ).animate(curved),
       child: child,
     ),
   );
 }
 
-Widget _songSwapArtDirectionalTransitionBuilder(
+Widget _songSwapArtTransitionBuilder(
   Widget child,
   Animation<double> animation, {
-  required ManualTrackChangeDirection direction,
+  required _TrackArtworkMotion motion,
 }) {
-  // Manual direction semantics:
-  // next => old art exits left, new art enters from right.
-  // previous => old art exits right, new art enters from left.
-  // Use full-width travel so artwork moves fully off-screen.
-  const slideDistance = 1.0;
-  final incomingBeginX = switch (direction) {
-    ManualTrackChangeDirection.next => slideDistance,
-    ManualTrackChangeDirection.previous => -slideDistance,
-  };
-  final outgoingEndX = switch (direction) {
-    ManualTrackChangeDirection.next => -slideDistance,
-    ManualTrackChangeDirection.previous => slideDistance,
-  };
-
-  final isOutgoing =
-      animation.status == AnimationStatus.reverse ||
-      animation.status == AnimationStatus.dismissed;
-
-  // Sequence the transition to avoid visual "stacking":
-  // old art moves out first, then new art moves in.
-  const outgoingWindow = Interval(0, 0.5, curve: Curves.easeInCubic);
-  const incomingWindow = Interval(0.5, 1, curve: Curves.easeOutCubic);
-
-  if (isOutgoing) {
-    final curvedOut = CurvedAnimation(
-      parent: ReverseAnimation(animation),
-      curve: outgoingWindow,
+  if (motion == _TrackArtworkMotion.automatic) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
     );
-    return ScaleTransition(
-      scale: Tween<double>(begin: 1, end: 0.82).animate(curvedOut),
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: Offset.zero,
-          end: Offset(outgoingEndX, 0),
-        ).animate(curvedOut),
+    return FadeTransition(
+      opacity: curved,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
         child: child,
       ),
     );
   }
 
-  final curvedIn = CurvedAnimation(parent: animation, curve: incomingWindow);
-  return ScaleTransition(
-    scale: Tween<double>(begin: 0.84, end: 1).animate(curvedIn),
-    child: SlideTransition(
-      position: Tween<Offset>(
-        begin: Offset(incomingBeginX, 0),
-        end: Offset.zero,
-      ).animate(curvedIn),
+  final isOutgoing =
+      animation.status == AnimationStatus.reverse ||
+      animation.status == AnimationStatus.dismissed;
+
+  if (isOutgoing) {
+    final curvedOut = CurvedAnimation(
+      parent: ReverseAnimation(animation),
+      curve: const Interval(0, 0.38, curve: Curves.easeInCubic),
+    );
+    return FadeTransition(
+      opacity: Tween<double>(begin: 1, end: 0.04).animate(curvedOut),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 1, end: 0.985).animate(curvedOut),
+        child: child,
+      ),
+    );
+  }
+
+  final curvedIn = CurvedAnimation(
+    parent: animation,
+    curve: const Interval(0.42, 1, curve: Curves.easeOutCubic),
+  );
+  return FadeTransition(
+    opacity: Tween<double>(begin: 0, end: 1).animate(curvedIn),
+    child: ScaleTransition(
+      scale: Tween<double>(begin: 0.985, end: 1).animate(curvedIn),
       child: child,
     ),
   );
@@ -409,7 +420,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final effectiveWideMode =
         widget.wideEmbeddedMode || adaptiveContext.useDesktopShell;
-    final playback = ref.watch(playerStateProvider);
+    final transportPresentationFixture = ref.watch(
+      transportMotionPresentationFixtureProvider,
+    );
+    final PlaybackSnapshot playback =
+        transportPresentationFixture?.playback ??
+        ref.watch<PlaybackSnapshot>(playerStateProvider);
     final currentSongId = playback.currentSongId;
     final songAsync = currentSongId == null
         ? const AsyncValue<SongsTableData?>.data(null)
@@ -551,6 +567,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             final nowPlayingBody = _NowPlayingBody(
               playback: playback,
               song: playback.isRadioMode ? null : song,
+              diagnosticsTransportCue: transportPresentationFixture?.cue,
               wideEmbeddedMode: widget.compactWideLandscapeMode
                   ? true
                   : effectiveWideMode,
@@ -1001,6 +1018,7 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
   const _NowPlayingBody({
     required this.playback,
     this.song,
+    this.diagnosticsTransportCue,
     this.wideEmbeddedMode = false,
     this.compactWideLandscapeMode = false,
     this.showEmbeddedVolumeBelowActions = false,
@@ -1012,6 +1030,7 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
 
   final PlaybackSnapshot playback;
   final SongsTableData? song;
+  final TransportVisualCue? diagnosticsTransportCue;
   final bool wideEmbeddedMode;
   final bool compactWideLandscapeMode;
   final bool showEmbeddedVolumeBelowActions;
@@ -1025,7 +1044,7 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
 }
 
 class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   _WideNowPlayingPanel _widePanel = _WideNowPlayingPanel.none;
   bool _isCompactWidePanelDismissing = false;
   bool _showLyrics = false;
@@ -1037,24 +1056,14 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   static const double _wideSwipeQueueDistance = 96;
   double _wideSwipeDistance = 0;
   bool _handledWideSwipe = false;
-  ManualTrackChangeDirection? _pendingManualSkipDirection;
-  String? _manualSkipFromSongId;
-  int _lastHandledManualSkipCueToken = 0;
-  bool _manualSkipConsumeScheduled = false;
-  Timer? _manualSkipCueResetTimer;
-  Timer? _manualSkipConsumeTimer;
+  TransportVisualCue? _pendingTrackChangeCue;
+  int _lastHandledTransportVisualCueToken = 0;
+  Timer? _pendingTrackChangeCueResetTimer;
+  Timer? _trackNavigationFeedbackResetTimer;
   String? _lastArtTransitionSongId;
-  int? _lastArtTransitionQueueIndex;
-  int _lastArtTransitionQueueLength = 0;
-  ManualTrackChangeDirection _latchedArtTransitionDirection =
-      ManualTrackChangeDirection.next;
-  late final AnimatedSwitcherTransitionBuilder _songSwapArtTransitionBuilder;
+  _TrackArtworkMotion _latchedArtworkMotion = _TrackArtworkMotion.automatic;
   late final AnimationController _artSwipeController;
-  bool _artSwipeAwaitingTrackChange = false;
-  bool _artSwipeSettling = false;
-  String? _artSwipeFromSongId;
-  Timer? _artSwipeResetTimer;
-  bool _artSwipeReleaseHandoffScheduled = false;
+  late final AnimationController _trackNavigationFeedbackController;
   _TrackNavigationFeedback? _trackNavigationFeedback;
 
   bool _dismissInternalOverlaysIfVisible() {
@@ -1112,18 +1121,16 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   @override
   void initState() {
     super.initState();
-    _songSwapArtTransitionBuilder = (child, animation) =>
-        _songSwapArtDirectionalTransitionBuilder(
-          child,
-          animation,
-          direction: _latchedArtTransitionDirection,
-        );
     _artSwipeController = AnimationController(
       vsync: this,
       lowerBound: -1,
       upperBound: 1,
       value: 0,
-      duration: const Duration(milliseconds: 220),
+      duration: const Duration(milliseconds: 170),
+    );
+    _trackNavigationFeedbackController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
     );
     _publishBackInterceptor();
     _publishCompactWideOverlayActiveState(defer: true);
@@ -1146,29 +1153,18 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             widget.onCompactWideQueueRequestChanged) {
       _publishCompactWideQueueRequest();
     }
-    if (_artSwipeAwaitingTrackChange) {
-      final fromSongId = _artSwipeFromSongId;
-      final currentSongId = widget.playback.currentSongId;
-      if (fromSongId == null ||
-          currentSongId == null ||
-          currentSongId != fromSongId) {
-        _artSwipeResetTimer?.cancel();
-        _artSwipeResetTimer = null;
-        _artSwipeFromSongId = null;
-        _artSwipeAwaitingTrackChange = false;
-        _artSwipeSettling = true;
-        _artSwipeController.value = 0;
-        _scheduleArtSwipeHandoffRelease();
-      }
+    final cue = widget.diagnosticsTransportCue;
+    if (cue != null && cue.token != oldWidget.diagnosticsTransportCue?.token) {
+      _handleTransportVisualCue(cue);
     }
   }
 
   @override
   void dispose() {
-    _manualSkipCueResetTimer?.cancel();
-    _manualSkipConsumeTimer?.cancel();
-    _artSwipeResetTimer?.cancel();
+    _pendingTrackChangeCueResetTimer?.cancel();
+    _trackNavigationFeedbackResetTimer?.cancel();
     _artSwipeController.dispose();
+    _trackNavigationFeedbackController.dispose();
     widget.onBackInterceptorChanged?.call(null);
     widget.onCompactWideOverlayActiveChanged?.call(false);
     widget.onCompactWideQueueRequestChanged?.call(null);
@@ -1176,132 +1172,73 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     super.dispose();
   }
 
-  void _armManualSkipCue(ManualTrackChangeCue cue) {
-    if (cue.token <= _lastHandledManualSkipCueToken) {
+  void _handleTransportVisualCue(TransportVisualCue cue) {
+    if (cue.token <= _lastHandledTransportVisualCueToken) {
       return;
     }
-    _lastHandledManualSkipCueToken = cue.token;
-    _manualSkipCueResetTimer?.cancel();
-    _manualSkipConsumeTimer?.cancel();
-    final fromSongId =
-        cue.fromSongId ?? ref.read(playerStateProvider).currentSongId;
-    if (fromSongId == null) {
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _pendingManualSkipDirection = cue.direction;
-      _manualSkipFromSongId = fromSongId;
-      _manualSkipConsumeScheduled = false;
-    });
-    _manualSkipCueResetTimer = Timer(_manualSkipCueTimeout(), () {
-      if (!mounted) {
-        return;
-      }
-      setState(_clearManualSkipCue);
-    });
-  }
-
-  Duration _manualSkipCueTimeout() {
-    final settings = ref.read(appSettingsProvider).asData?.value;
-    final crossfadeSeconds = settings?.crossfadeDurationSeconds ?? 5;
-    // Budget for decode/prewarm + fade + swap jitter before we consider
-    // the manual cue stale.
-    final timeoutSeconds = (crossfadeSeconds + 10).clamp(10, 30);
-    return Duration(seconds: timeoutSeconds);
-  }
-
-  void _clearManualSkipCue() {
-    _pendingManualSkipDirection = null;
-    _manualSkipFromSongId = null;
-    _manualSkipConsumeScheduled = false;
-    _manualSkipCueResetTimer?.cancel();
-    _manualSkipCueResetTimer = null;
-    _manualSkipConsumeTimer?.cancel();
-    _manualSkipConsumeTimer = null;
-  }
-
-  ManualTrackChangeDirection? _resolveManualSkipDirectionForTransition(
-    PlaybackSnapshot playback,
-  ) {
-    final pendingDirection = _pendingManualSkipDirection;
-    final fromSongId = _manualSkipFromSongId;
-    final currentSongId = playback.currentSongId;
-    if (pendingDirection == null ||
-        fromSongId == null ||
-        currentSongId == null ||
-        currentSongId == fromSongId) {
-      return null;
-    }
-    if (!_manualSkipConsumeScheduled) {
-      _manualSkipConsumeScheduled = true;
-      // Keep the manual direction alive for the full swap animation; clearing
-      // on the next frame can cause AnimatedSwitcher to rebuild with the
-      // default transition mid-flight.
-      _manualSkipConsumeTimer = Timer(const Duration(milliseconds: 480), () {
-        if (!mounted) {
+    _lastHandledTransportVisualCueToken = cue.token;
+    switch (cue.intent) {
+      case TransportVisualIntent.next || TransportVisualIntent.previous:
+        final fromSongId =
+            cue.fromSongId ?? ref.read(playerStateProvider).currentSongId;
+        if (fromSongId == null || !mounted) {
           return;
         }
-        setState(_clearManualSkipCue);
-      });
+        final normalizedCue = cue.fromSongId == fromSongId
+            ? cue
+            : TransportVisualCue(
+                token: cue.token,
+                intent: cue.intent,
+                fromSongId: fromSongId,
+              );
+        _pendingTrackChangeCueResetTimer?.cancel();
+        setState(() => _pendingTrackChangeCue = normalizedCue);
+        // This guards a failed source load without coupling visuals to the
+        // crossfade preference or decode latency.
+        _pendingTrackChangeCueResetTimer = Timer(
+          const Duration(seconds: 5),
+          _clearPendingTrackChangeCue,
+        );
+      case TransportVisualIntent.restartCurrent:
+        _showTrackNavigationFeedback(_TrackNavigationFeedback.restartCurrent);
+      case TransportVisualIntent.unavailableNext:
+        _showTrackNavigationFeedback(_TrackNavigationFeedback.unavailableNext);
+      case TransportVisualIntent.unavailablePrevious:
+        _showTrackNavigationFeedback(
+          _TrackNavigationFeedback.unavailablePrevious,
+        );
     }
-    return pendingDirection;
   }
 
-  ManualTrackChangeDirection? _inferTrackChangeDirectionFromQueue(
-    PlaybackSnapshot playback,
-  ) {
+  void _clearPendingTrackChangeCue() {
+    if (!mounted) return;
+    setState(() => _pendingTrackChangeCue = null);
+    _pendingTrackChangeCueResetTimer?.cancel();
+    _pendingTrackChangeCueResetTimer = null;
+  }
+
+  _TrackArtworkMotion _resolveArtworkMotion(PlaybackSnapshot playback) {
     final previousSongId = _lastArtTransitionSongId;
-    final previousIndex = _lastArtTransitionQueueIndex;
-    final previousLength = _lastArtTransitionQueueLength;
     final currentSongId = playback.currentSongId;
-    final currentIndex = playback.currentIndex;
-    final currentLength = playback.queueSongIds.length;
-
-    ManualTrackChangeDirection? inferredDirection;
-    final songChanged =
-        previousSongId != null &&
-        currentSongId != null &&
-        previousSongId != currentSongId;
-    if (songChanged &&
-        previousIndex != null &&
-        currentIndex != null &&
-        previousLength > 0 &&
-        currentLength > 0) {
-      if (currentIndex > previousIndex) {
-        inferredDirection = ManualTrackChangeDirection.next;
-      } else if (currentIndex < previousIndex) {
-        inferredDirection = ManualTrackChangeDirection.previous;
-      } else if (previousLength == currentLength) {
-        if (previousIndex == previousLength - 1 && currentIndex == 0) {
-          inferredDirection = ManualTrackChangeDirection.next;
-        } else if (previousIndex == 0 && currentIndex == previousLength - 1) {
-          inferredDirection = ManualTrackChangeDirection.previous;
-        }
-      }
-    }
-
     _lastArtTransitionSongId = currentSongId;
-    _lastArtTransitionQueueIndex = currentIndex;
-    _lastArtTransitionQueueLength = currentLength;
-    return inferredDirection;
-  }
-
-  ManualTrackChangeDirection? _resolveArtTransitionDirection(
-    PlaybackSnapshot playback,
-  ) {
-    final manualDirection = _resolveManualSkipDirectionForTransition(playback);
-    final inferredDirection = _inferTrackChangeDirectionFromQueue(playback);
-    return manualDirection ?? inferredDirection;
-  }
-
-  void _updateLatchedArtTransitionDirection(PlaybackSnapshot playback) {
-    final direction = _resolveArtTransitionDirection(playback);
-    if (direction != null) {
-      _latchedArtTransitionDirection = direction;
+    if (previousSongId == null || previousSongId == currentSongId) {
+      // AnimatedSwitcher can rebuild for timeline, metadata, and download
+      // updates while a handoff is in flight. Keep its original transition
+      // contract latched through those unrelated frames.
+      return _latchedArtworkMotion;
     }
+    final cue = _pendingTrackChangeCue;
+    if (currentSongId != null && cue?.fromSongId == previousSongId) {
+      _pendingTrackChangeCue = null;
+      _pendingTrackChangeCueResetTimer?.cancel();
+      _pendingTrackChangeCueResetTimer = null;
+      return switch (cue!.intent) {
+        TransportVisualIntent.next ||
+        TransportVisualIntent.previous => _TrackArtworkMotion.manual,
+        _ => _TrackArtworkMotion.automatic,
+      };
+    }
+    return _TrackArtworkMotion.automatic;
   }
 
   _NowPlayingLayoutMode _resolveLayoutMode(double width) {
@@ -1378,25 +1315,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     return ids[nextIndex];
   }
 
-  String? _resolvePreviousSongIdForSwipe(PlaybackSnapshot playback) {
-    if (playback.isRadioMode) {
-      return null;
-    }
-    final ids = playback.queueSongIds;
-    final currentIndex = playback.currentIndex;
-    if (ids.isEmpty ||
-        currentIndex == null ||
-        currentIndex < 0 ||
-        currentIndex >= ids.length) {
-      return null;
-    }
-    var previousIndex = currentIndex - 1;
-    if (previousIndex < 0) {
-      return null;
-    }
-    return ids[previousIndex];
-  }
-
   bool _canManualSkipDirection(
     PlaybackSnapshot playback,
     ManualTrackChangeDirection direction,
@@ -1466,11 +1384,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   }
 
   void _handleArtHorizontalDragStart(DragStartDetails details) {
-    if (_artSwipeAwaitingTrackChange) {
-      return;
-    }
-    _artSwipeResetTimer?.cancel();
-    _artSwipeResetTimer = null;
     _artSwipeController.stop();
   }
 
@@ -1478,9 +1391,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     DragUpdateDetails details,
     double viewportWidth,
   ) {
-    if (_artSwipeAwaitingTrackChange) {
-      return;
-    }
     final delta = details.primaryDelta;
     if (delta == null) {
       return;
@@ -1502,133 +1412,47 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       // Edge resistance to avoid hard snapping when no track exists in
       // the swiped direction.
       nextValue = _artSwipeController.value + (normalizedDelta * 0.28);
-      nextValue = nextValue.clamp(-0.2, 0.2);
+      nextValue = nextValue.clamp(-0.08, 0.08);
     } else {
-      nextValue = nextValue.clamp(-1.0, 1.0);
+      // Dragging gives only a gentle press response. The new cover is never
+      // exposed under the finger, so the completed handoff remains clean.
+      nextValue = nextValue.clamp(-0.28, 0.28);
     }
     _artSwipeController.value = nextValue;
   }
 
   Future<void> _animateArtSwipeTo(
     double target, {
-    Duration duration = const Duration(milliseconds: 180),
+    Duration duration = const Duration(milliseconds: 170),
     Curve curve = Curves.easeOutCubic,
   }) {
     _artSwipeController.duration = duration;
     return _artSwipeController.animateTo(target, curve: curve);
   }
 
-  void _scheduleArtSwipeHandoffRelease() {
-    if (_artSwipeReleaseHandoffScheduled) {
-      return;
-    }
-    _artSwipeReleaseHandoffScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _artSwipeReleaseHandoffScheduled = false;
-      if (!mounted || !_artSwipeSettling) {
-        return;
-      }
-      setState(() {
-        _artSwipeSettling = false;
-      });
-    });
-  }
-
-  Future<void> _animateEdgeSnapback(
-    ManualTrackChangeDirection direction,
-    _TrackNavigationFeedback feedback,
-  ) async {
-    final edgeTarget = switch (direction) {
-      ManualTrackChangeDirection.next => -0.14,
-      ManualTrackChangeDirection.previous => 0.14,
-    };
+  void _showTrackNavigationFeedback(_TrackNavigationFeedback feedback) {
+    _trackNavigationFeedbackResetTimer?.cancel();
     setState(() => _trackNavigationFeedback = feedback);
-    try {
-      await _animateArtSwipeTo(
-        edgeTarget,
-        duration: const Duration(milliseconds: 95),
-        curve: Curves.easeOut,
-      );
-      await _animateArtSwipeTo(
-        0,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOutCubic,
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _trackNavigationFeedback = null);
-      }
-    }
+    _trackNavigationFeedbackController.forward(from: 0);
+    _trackNavigationFeedbackResetTimer = Timer(
+      const Duration(milliseconds: 170),
+      () {
+        if (mounted) {
+          setState(() => _trackNavigationFeedback = null);
+        }
+      },
+    );
   }
 
-  Future<void> _triggerManualSkipWithAnimation(
-    ManualTrackChangeDirection direction, {
-    double? initialSwipe,
-  }) async {
-    if (_artSwipeAwaitingTrackChange || _artSwipeSettling) {
-      return;
-    }
-    final playback = widget.playback;
-    if (direction == ManualTrackChangeDirection.previous) {
-      final previousAction = navisResolvePreviousTrackAction(
-        queueLength: playback.queueSongIds.length,
-        currentIndex: playback.currentIndex,
-        position: _livePlaybackPosition(playback),
-      );
-      if (previousAction == NavisPreviousTrackAction.none) {
-        return;
-      }
-      if (previousAction == NavisPreviousTrackAction.restartCurrent) {
-        unawaited(HapticFeedback.selectionClick());
-        unawaited(ref.read(audioHandlerProvider)?.skipToPrevious());
-        await _animateEdgeSnapback(
-          direction,
-          _TrackNavigationFeedback.replayCurrent,
-        );
-        return;
-      }
-    } else if (!_canManualSkipDirection(playback, direction)) {
-      unawaited(HapticFeedback.selectionClick());
-      await _animateEdgeSnapback(
-        direction,
-        _TrackNavigationFeedback.noNext,
-      );
-      return;
-    }
-
-    if (initialSwipe != null) {
-      _artSwipeController.value = initialSwipe.clamp(-1.0, 1.0);
-    }
-    final target = switch (direction) {
-      ManualTrackChangeDirection.next => -1.0,
-      ManualTrackChangeDirection.previous => 1.0,
-    };
-    final remainingDistance = (target - _artSwipeController.value).abs();
-    final commitMs = (190 + (remainingDistance * 170)).round().clamp(190, 320);
-    await _animateArtSwipeTo(
-      target,
-      duration: Duration(milliseconds: commitMs),
-      curve: Curves.easeOutCubic,
-    );
-
+  void _requestManualTransport(ManualTrackChangeDirection direction) {
     final handler = ref.read(audioHandlerProvider);
-    if (handler == null) {
-      await _animateArtSwipeTo(0, duration: const Duration(milliseconds: 180));
-      return;
-    }
-
-    setState(() {
-      _latchedArtTransitionDirection = direction;
-      _artSwipeAwaitingTrackChange = true;
-      _artSwipeSettling = false;
-      _artSwipeFromSongId = widget.playback.currentSongId;
-    });
-    _artSwipeResetTimer?.cancel();
-    _artSwipeResetTimer = Timer(
-      const Duration(milliseconds: 1800),
-      _resetArtSwipeAfterCommitTimeout,
-    );
+    if (handler == null) return;
+    // Playback starts immediately. The handler publishes the resulting visual
+    // intent (skip, restart, or boundary resistance) for every control source.
     unawaited(HapticFeedback.selectionClick());
+    unawaited(
+      _animateArtSwipeTo(0, duration: const Duration(milliseconds: 120)),
+    );
     switch (direction) {
       case ManualTrackChangeDirection.next:
         unawaited(handler.skipToNext());
@@ -1637,23 +1461,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     }
   }
 
-  void _resetArtSwipeAfterCommitTimeout() {
-    if (!mounted || !_artSwipeAwaitingTrackChange) {
-      return;
-    }
-    _artSwipeResetTimer = null;
-    setState(() {
-      _artSwipeAwaitingTrackChange = false;
-      _artSwipeFromSongId = null;
-      _artSwipeSettling = false;
-    });
-    _artSwipeController.value = 0;
-  }
-
   Future<void> _handleArtHorizontalDragEnd(DragEndDetails details) async {
-    if (_artSwipeAwaitingTrackChange || _artSwipeSettling) {
-      return;
-    }
     final swipe = _artSwipeController.value;
     final velocity = details.primaryVelocity ?? 0;
     final shouldCommit = swipe.abs() > 0.24 || velocity.abs() > 980;
@@ -1665,37 +1473,29 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final direction = (swipe < -0.02 || (swipe.abs() <= 0.02 && velocity < 0))
         ? ManualTrackChangeDirection.next
         : ManualTrackChangeDirection.previous;
-    await _triggerManualSkipWithAnimation(direction, initialSwipe: swipe);
+    _requestManualTransport(direction);
   }
 
   void _handleArtHorizontalDragCancel() {
-    if (_artSwipeAwaitingTrackChange || _artSwipeSettling) {
-      return;
-    }
     unawaited(
       _animateArtSwipeTo(0, duration: const Duration(milliseconds: 220)),
     );
   }
 
   void _handleManualPreviousButton() {
-    unawaited(
-      _triggerManualSkipWithAnimation(ManualTrackChangeDirection.previous),
-    );
+    _requestManualTransport(ManualTrackChangeDirection.previous);
   }
 
   void _handleManualNextButton() {
-    unawaited(_triggerManualSkipWithAnimation(ManualTrackChangeDirection.next));
+    _requestManualTransport(ManualTrackChangeDirection.next);
   }
 
   Widget _buildInteractiveSwipeableArt({
     required Key key,
     required Widget currentArt,
-    required Widget? previousArt,
-    required Widget? nextArt,
     required bool swipeEnabled,
   }) {
-    final enabled =
-        swipeEnabled && !_artSwipeAwaitingTrackChange && !_artSwipeSettling;
+    final enabled = swipeEnabled;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1715,16 +1515,27 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               ? _handleArtHorizontalDragCancel
               : null,
           child: AnimatedBuilder(
-            animation: _artSwipeController,
+            animation: Listenable.merge(<Listenable>[
+              _artSwipeController,
+              _trackNavigationFeedbackController,
+            ]),
             builder: (context, _) {
-              final swipe = _artSwipeController.value.clamp(-1.0, 1.0);
-              final absSwipe = swipe.abs();
-              final incoming = swipe < -0.001
-                  ? nextArt
-                  : (swipe > 0.001 ? previousArt : null);
-              final incomingOffsetX = swipe < 0 ? 1 + swipe : -1 + swipe;
+              final swipe = _artSwipeController.value.clamp(-0.28, 0.28);
+              final absSwipe = (swipe.abs() / 0.28).clamp(0.0, 1.0);
               final feedback = _trackNavigationFeedback;
-              final feedbackProgress = (absSwipe / 0.14).clamp(0.0, 1.0);
+              final feedbackProgress = math.sin(
+                math.pi * _trackNavigationFeedbackController.value,
+              );
+              final feedbackDirection = switch (feedback) {
+                _TrackNavigationFeedback.restartCurrent ||
+                _TrackNavigationFeedback.unavailablePrevious => 1.0,
+                _TrackNavigationFeedback.unavailableNext => -1.0,
+                null => 0.0,
+              };
+              final reducedMotion = MotionPolicy.of(context).reduceMotion;
+              final feedbackOffset = reducedMotion
+                  ? 0.0
+                  : feedbackDirection * 0.018 * feedbackProgress;
               final l10n = AppLocalizations.of(context)!;
               final colorScheme = Theme.of(context).colorScheme;
               return ClipRect(
@@ -1732,67 +1543,58 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   alignment: Alignment.center,
                   clipBehavior: Clip.hardEdge,
                   children: <Widget>[
-                    if (incoming != null)
-                      FractionalTranslation(
-                        translation: Offset(incomingOffsetX, 0),
-                        child: Transform.scale(
-                          scale: 0.84 + (0.16 * absSwipe),
-                          child: incoming,
-                        ),
-                      ),
                     FractionalTranslation(
-                      translation: Offset(swipe, 0),
+                      translation: Offset(feedbackOffset, 0),
                       child: Transform.scale(
-                        scale: 1 - (0.18 * absSwipe),
+                        scale: 1 - (0.015 * absSwipe),
                         child: currentArt,
                       ),
                     ),
                     if (feedback != null)
-                      Align(
-                        alignment:
-                            feedback == _TrackNavigationFeedback.replayCurrent
-                            ? Alignment.centerLeft
-                            : Alignment.centerRight,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: Opacity(
-                            opacity: feedbackProgress,
-                            child: Transform.scale(
-                              scale: 0.8 + (0.2 * feedbackProgress),
-                              child: Semantics(
-                                liveRegion: true,
-                                label:
-                                    feedback ==
-                                        _TrackNavigationFeedback.replayCurrent
-                                    ? l10n.nowPlayingRestartCurrent
-                                    : l10n.nowPlayingNoNextTrack,
-                                child: DecoratedBox(
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: Semantics(
+                            liveRegion: true,
+                            label:
+                                feedback ==
+                                    _TrackNavigationFeedback.restartCurrent
+                                ? l10n.nowPlayingRestartCurrent
+                                : feedback ==
+                                      _TrackNavigationFeedback
+                                          .unavailablePrevious
+                                ? l10n.nowPlayingRestartCurrent
+                                : l10n.nowPlayingNoNextTrack,
+                            child: Align(
+                              alignment: feedbackDirection > 0
+                                  ? Alignment.centerLeft
+                                  : Alignment.centerRight,
+                              child: ExcludeSemantics(
+                                child: Container(
                                   key: ValueKey<String>(
                                     'track-navigation-feedback-${feedback.name}',
                                   ),
+                                  width: 34,
+                                  height: double.infinity,
                                   decoration: BoxDecoration(
-                                    color: colorScheme.primaryContainer,
-                                    shape: BoxShape.circle,
-                                    boxShadow: <BoxShadow>[
-                                      BoxShadow(
-                                        color: colorScheme.shadow.withValues(
-                                          alpha: 0.22,
+                                    gradient: LinearGradient(
+                                      begin: feedbackDirection > 0
+                                          ? Alignment.centerLeft
+                                          : Alignment.centerRight,
+                                      end: feedbackDirection > 0
+                                          ? Alignment.centerRight
+                                          : Alignment.centerLeft,
+                                      colors: <Color>[
+                                        colorScheme.primary.withValues(
+                                          alpha:
+                                              (reducedMotion
+                                                      ? 0.36
+                                                      : 0.36 * feedbackProgress)
+                                                  .clamp(0.0, 1.0),
                                         ),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: SizedBox.square(
-                                    dimension: 52,
-                                    child: Icon(
-                                      feedback ==
-                                              _TrackNavigationFeedback
-                                                  .replayCurrent
-                                          ? Icons.replay_rounded
-                                          : Icons.skip_next_rounded,
-                                      color: colorScheme.onPrimaryContainer,
-                                      size: 30,
+                                        colorScheme.primary.withValues(
+                                          alpha: 0,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -1949,34 +1751,45 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final playbackSpeed =
         ref.watch(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
     final fullscreenLyricsMode = ref.watch(fullscreenModeLyricsProvider);
-    ref.listen<AsyncValue<ManualTrackChangeCue>>(manualTrackChangeCueProvider, (
+    ref.listen<AsyncValue<TransportVisualCue>>(transportVisualCueProvider, (
       _,
       next,
     ) {
       final cue = next.asData?.value;
       if (cue != null) {
-        _armManualSkipCue(cue);
+        _handleTransportVisualCue(cue);
       }
     });
-    _updateLatchedArtTransitionDirection(playback);
+    _latchedArtworkMotion = _resolveArtworkMotion(playback);
     final songSwapTransitionBuilder = motion.reduceMotion
         ? _identityTransitionBuilder
-        : _songSwapTransitionBuilder;
-    const songSwapArtDuration = Duration(milliseconds: 250);
-    final artHandoffActive = _artSwipeAwaitingTrackChange || _artSwipeSettling;
-    final effectiveSongSwapArtDuration = motion.reduceMotion || artHandoffActive
+        : (Widget child, Animation<double> animation) =>
+              _songSwapMetadataTransitionBuilder(
+                child,
+                animation,
+                motion: _latchedArtworkMotion,
+              );
+    final effectiveSongSwapArtDuration = motion.reduceMotion
         ? Duration.zero
-        : songSwapArtDuration;
-    final effectiveSongSwapArtTransitionBuilder =
-        motion.reduceMotion || artHandoffActive
+        : _latchedArtworkMotion == _TrackArtworkMotion.automatic
+        ? const Duration(milliseconds: 160)
+        : const Duration(milliseconds: 220);
+    final effectiveSongSwapArtTransitionBuilder = motion.reduceMotion
         ? _identityTransitionBuilder
-        : _songSwapArtTransitionBuilder;
+        : (Widget child, Animation<double> animation) =>
+              _songSwapArtTransitionBuilder(
+                child,
+                animation,
+                motion: _latchedArtworkMotion,
+              );
     final artLyricsSwapDuration = motion.reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 220);
     final trackInfoSwapDuration = motion.reduceMotion
         ? Duration.zero
-        : const Duration(milliseconds: 280);
+        : _latchedArtworkMotion == _TrackArtworkMotion.automatic
+        ? const Duration(milliseconds: 160)
+        : const Duration(milliseconds: 300);
 
     final title = isRadio
         ? (radioMeta?.nowPlayingTitle ??
@@ -2061,10 +1874,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final nextSong = nextSongId == null
         ? null
         : ref.watch(songByIdProvider(nextSongId)).asData?.value;
-    final previousSongId = _resolvePreviousSongIdForSwipe(playback);
-    final previousSong = previousSongId == null
-        ? null
-        : ref.watch(songByIdProvider(previousSongId)).asData?.value;
     if (nextSong != null &&
         nextSong.albumId != null &&
         nextSong.albumId!.isNotEmpty) {
@@ -2178,26 +1987,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             maxSize: artMaxSize,
                             isExternalSource: song?.isExternal ?? false,
                           )),
-              previousArt: previousSong == null
-                  ? null
-                  : _CoverArt(
-                      coverArtId: previousSong.coverArt,
-                      semanticLabel: previousSong.title.isNotEmpty
-                          ? previousSong.title
-                          : l10n.nowPlayingUnknownTrack,
-                      maxSize: artMaxSize,
-                      isExternalSource: previousSong.isExternal,
-                    ),
-              nextArt: nextSong == null
-                  ? null
-                  : _CoverArt(
-                      coverArtId: nextSong.coverArt,
-                      semanticLabel: nextSong.title.isNotEmpty
-                          ? nextSong.title
-                          : l10n.nowPlayingUnknownTrack,
-                      maxSize: artMaxSize,
-                      isExternalSource: nextSong.isExternal,
-                    ),
             ),
           );
 
@@ -2625,26 +2414,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           maxSize: artMaxSize,
                           isExternalSource: song?.isExternal ?? false,
                         )),
-            previousArt: previousSong == null
-                ? null
-                : _CoverArt(
-                    coverArtId: previousSong.coverArt,
-                    semanticLabel: previousSong.title.isNotEmpty
-                        ? previousSong.title
-                        : l10n.nowPlayingUnknownTrack,
-                    maxSize: artMaxSize,
-                    isExternalSource: previousSong.isExternal,
-                  ),
-            nextArt: nextSong == null
-                ? null
-                : _CoverArt(
-                    coverArtId: nextSong.coverArt,
-                    semanticLabel: nextSong.title.isNotEmpty
-                        ? nextSong.title
-                        : l10n.nowPlayingUnknownTrack,
-                    maxSize: artMaxSize,
-                    isExternalSource: nextSong.isExternal,
-                  ),
           ),
         );
 
@@ -2994,26 +2763,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                 maxSize: splitCoverArtMaxSize,
                                 isExternalSource: song?.isExternal ?? false,
                               )),
-                  previousArt: previousSong == null
-                      ? null
-                      : _CoverArt(
-                          coverArtId: previousSong.coverArt,
-                          semanticLabel: previousSong.title.isNotEmpty
-                              ? previousSong.title
-                              : l10n.nowPlayingUnknownTrack,
-                          maxSize: splitCoverArtMaxSize,
-                          isExternalSource: previousSong.isExternal,
-                        ),
-                  nextArt: nextSong == null
-                      ? null
-                      : _CoverArt(
-                          coverArtId: nextSong.coverArt,
-                          semanticLabel: nextSong.title.isNotEmpty
-                              ? nextSong.title
-                              : l10n.nowPlayingUnknownTrack,
-                          maxSize: splitCoverArtMaxSize,
-                          isExternalSource: nextSong.isExternal,
-                        ),
                 ),
         );
         final splitBottomStack = Column(

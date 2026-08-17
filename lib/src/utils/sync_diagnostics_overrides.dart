@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 /// Runtime overrides used by the Linux sync diagnostics API (clone mode only).
@@ -196,3 +198,80 @@ final desktopNowPlayingDiagnosticsProvider =
     NotifierProvider<DesktopNowPlayingDiagnosticsController, bool?>(
       DesktopNowPlayingDiagnosticsController.new,
     );
+
+/// Clone-only deterministic state for Now Playing transport presentation.
+///
+/// It never reaches production because only the authenticated clone
+/// diagnostics endpoint writes it.  Keeping this separate from the audio
+/// handler lets screenshots exercise visual outcomes without streaming audio,
+/// modifying the user's queue, or relying on server timing.
+@immutable
+class TransportMotionPresentationFixture {
+  const TransportMotionPresentationFixture({
+    required this.playback,
+    required this.sequence,
+    this.cue,
+  });
+
+  final PlaybackSnapshot playback;
+  final int sequence;
+  final TransportVisualCue? cue;
+}
+
+class TransportMotionPresentationController
+    extends Notifier<TransportMotionPresentationFixture?> {
+  int _sequence = 0;
+
+  @override
+  TransportMotionPresentationFixture? build() => null;
+
+  void setBaseline(List<String> songIds, {required int currentIndex}) {
+    state = TransportMotionPresentationFixture(
+      playback: _playback(songIds, currentIndex),
+      sequence: ++_sequence,
+    );
+  }
+
+  void apply(
+    List<String> songIds, {
+    required int currentIndex,
+    TransportVisualIntent? intent,
+    String? fromSongId,
+  }) {
+    state = TransportMotionPresentationFixture(
+      playback: _playback(songIds, currentIndex),
+      sequence: ++_sequence,
+      cue: intent == null
+          ? null
+          : TransportVisualCue(
+              token: _sequence,
+              intent: intent,
+              fromSongId: fromSongId,
+            ),
+    );
+  }
+
+  void clear() => state = null;
+
+  PlaybackSnapshot _playback(List<String> songIds, int currentIndex) {
+    final safeIndex = currentIndex.clamp(0, songIds.length - 1);
+    return PlaybackSnapshot(
+      queueSongIds: List<String>.unmodifiable(songIds),
+      currentSongId: songIds[safeIndex],
+      currentIndex: safeIndex,
+      playing: true,
+      processingState: AudioProcessingState.ready,
+      position: const Duration(seconds: 42),
+      duration: const Duration(minutes: 3, seconds: 42),
+      bufferedPosition: const Duration(minutes: 1, seconds: 8),
+      shuffleMode: AudioServiceShuffleMode.none,
+      repeatMode: AudioServiceRepeatMode.none,
+    );
+  }
+}
+
+final transportMotionPresentationFixtureProvider =
+    NotifierProvider<
+      TransportMotionPresentationController,
+      TransportMotionPresentationFixture?
+    >(TransportMotionPresentationController.new);

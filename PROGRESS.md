@@ -19,6 +19,16 @@ Last updated: 2026-08-17
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Mobile Now Playing transport-motion polish — completed: 2026-08-17
+  (handler-owned visual outcomes now keep every manual transport source
+  consistent; manual mobile changes use a clean artwork handoff, automatic
+  changes use a neutral focus fade, and restart/queue boundaries use a small
+  dynamic-color edge pulse instead of floating icons. Reduced motion remains
+  direct. Focused widget, handler, and diagnostics tests plus `./tool/check.sh`
+  pass. An isolated Linux clone completed authenticated transport controls,
+  app-owned screenshots, and a clean-restart retest; the reviewed Dev APK was
+  installed on the connected Android device without clearing its profile.)
+
 - [ ] Windows SMTC owned-adapter validation — partial: 2026-08-17
   (implemented the local Rust/WinRT manual-SMTC adapter, ordered bridge state
   publication, stable `com.navis.app.navis` AppUserModelID, safe artwork/event

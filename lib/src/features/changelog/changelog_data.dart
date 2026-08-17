@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Now Playing transport changes are smoother on mobile, with calmer automatic advances and clearer restart and queue-edge feedback',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Fixed Windows media controls so system playback, seeking, shuffle, and repeat reliably follow Navis playback',
         type: ChangelogEntryType.fix,
       ),

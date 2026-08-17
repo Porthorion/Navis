@@ -151,8 +151,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
   final StreamController<PlaybackSnapshot> _snapshotController =
       StreamController<PlaybackSnapshot>.broadcast();
-  final StreamController<ManualTrackChangeCue> _manualTrackChangeCueController =
-      StreamController<ManualTrackChangeCue>.broadcast();
+  final StreamController<TransportVisualCue> _transportVisualCueController =
+      StreamController<TransportVisualCue>.broadcast();
 
   final StreamController<Duration> _positionController =
       StreamController<Duration>.broadcast();
@@ -238,7 +238,7 @@ class NavisAudioHandler extends BaseAudioHandler
   int? _crossfadeActiveTransitionId;
   int? _crossfadePrewarmLatencyMs;
   DateTime? _crossfadeFadeStartedAt;
-  int _manualTrackChangeCueToken = 0;
+  int _transportVisualCueToken = 0;
 
   /// The queue index of the track loaded on `_crossfadePlayer`.
   int? _crossfadeTargetIndex;
@@ -268,8 +268,8 @@ class NavisAudioHandler extends BaseAudioHandler
   Stream<PlaybackSnapshot> get snapshotStream => _snapshotController.stream;
 
   @override
-  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
-      _manualTrackChangeCueController.stream;
+  Stream<TransportVisualCue> get transportVisualCueStream =>
+      _transportVisualCueController.stream;
 
   @override
   Stream<void> get radioStreamErrorStream => _radioStreamErrorController.stream;
@@ -4539,10 +4539,14 @@ class NavisAudioHandler extends BaseAudioHandler
         currentIndex: currentIndex,
         forward: true,
       )) {
+        _emitTransportVisualCue(
+          TransportVisualIntent.unavailableNext,
+          fromSongId: _snapshot.currentSongId,
+        );
         return;
       }
-      _emitManualTrackChangeCue(
-        ManualTrackChangeDirection.next,
+      _emitTransportVisualCue(
+        TransportVisualIntent.next,
         fromSongId: _snapshot.currentSongId,
       );
       _clearQueueReplacementMetadataAnchor();
@@ -4566,15 +4570,23 @@ class NavisAudioHandler extends BaseAudioHandler
       );
       switch (action) {
         case NavisPreviousTrackAction.none:
+          _emitTransportVisualCue(
+            TransportVisualIntent.unavailablePrevious,
+            fromSongId: _snapshot.currentSongId,
+          );
           return;
         case NavisPreviousTrackAction.restartCurrent:
+          _emitTransportVisualCue(
+            TransportVisualIntent.restartCurrent,
+            fromSongId: _snapshot.currentSongId,
+          );
           _clearQueueReplacementMetadataAnchor();
           await _player.seek(Duration.zero);
           _scheduleTransportPersistence(context: 'skip previous restart');
           return;
         case NavisPreviousTrackAction.skipToPrevious:
-          _emitManualTrackChangeCue(
-            ManualTrackChangeDirection.previous,
+          _emitTransportVisualCue(
+            TransportVisualIntent.previous,
             fromSongId: _snapshot.currentSongId,
           );
           _clearQueueReplacementMetadataAnchor();
@@ -5032,17 +5044,17 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
-  void _emitManualTrackChangeCue(
-    ManualTrackChangeDirection direction, {
+  void _emitTransportVisualCue(
+    TransportVisualIntent intent, {
     required String? fromSongId,
   }) {
-    if (_manualTrackChangeCueController.isClosed) {
+    if (_transportVisualCueController.isClosed) {
       return;
     }
-    _manualTrackChangeCueController.add(
-      ManualTrackChangeCue(
-        token: ++_manualTrackChangeCueToken,
-        direction: direction,
+    _transportVisualCueController.add(
+      TransportVisualCue(
+        token: ++_transportVisualCueToken,
+        intent: intent,
         fromSongId: fromSongId,
       ),
     );
@@ -5935,7 +5947,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _ensurePlayerDisposalStarted();
     await _androidAutoBrowseNotifier.dispose();
     await _snapshotController.close();
-    await _manualTrackChangeCueController.close();
+    await _transportVisualCueController.close();
     await _positionController.close();
     await _bufferStateController.close();
     await _radioStreamErrorController.close();

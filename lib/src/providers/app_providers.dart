@@ -1478,14 +1478,14 @@ final playbackSnapshotProvider = StreamProvider<PlaybackSnapshot>((ref) async* {
   yield* handler.snapshotStream;
 });
 
-final manualTrackChangeCueProvider = StreamProvider<ManualTrackChangeCue>((
+final transportVisualCueProvider = StreamProvider<TransportVisualCue>((
   ref,
 ) {
   final handler = ref.watch(audioHandlerProvider);
   if (handler == null) {
-    return const Stream<ManualTrackChangeCue>.empty();
+    return const Stream<TransportVisualCue>.empty();
   }
-  return handler.manualTrackChangeCueStream;
+  return handler.transportVisualCueStream;
 });
 
 final playerStateProvider = Provider<PlaybackSnapshot>((ref) {

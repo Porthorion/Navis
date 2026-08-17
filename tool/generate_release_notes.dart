@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Now Playing transport changes are smoother on mobile, with calmer automatic advances and clearer restart and queue-edge feedback',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Fixed Windows media controls so system playback, seeking, shuffle, and repeat reliably follow Navis playback',
       type: _EntryType.fix,
     ),

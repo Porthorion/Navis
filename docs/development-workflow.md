@@ -374,6 +374,12 @@ an otherwise empty failed search should render the retryable error state.
 For an independent Now Playing capture, set
 `NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1`; the clone-only launcher opens the
 existing production overlay and captures it without starting a remote stream.
+For a deterministic transport state, set
+`NAVIS_PRESENTATION_TRANSPORT_ACTION` to `baseline`, `manualNext`,
+`manualPrevious`, `automaticAdvance`, `restartCurrent`, `unavailableNext`,
+`unavailablePrevious`, or `rapidNext`. The authenticated clone-only control
+uses local cloned songs only; it never starts audio or alters the persisted
+queue.
 For an Albums filtered-empty capture, use route `/library` with
 `NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match'`. For Radio's equivalent,
 use `/library#radio` with `NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match'`.

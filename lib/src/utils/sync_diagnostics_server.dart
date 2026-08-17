@@ -446,6 +446,128 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' && path == '/v1/presentation/transport') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final action = body['action'];
+        if (action is! String ||
+            !const <String>{
+              'baseline',
+              'manualNext',
+              'manualPrevious',
+              'automaticAdvance',
+              'restartCurrent',
+              'unavailableNext',
+              'unavailablePrevious',
+              'rapidNext',
+            }.contains(action)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'action is not a supported transport presentation state',
+          });
+          return;
+        }
+        final songs = await _container
+            .read(navisDatabaseProvider)
+            .libraryDao
+            .getAllSongs();
+        if (songs.length < 2) {
+          await _respond(
+            request,
+            HttpStatus.unprocessableEntity,
+            <String, Object?>{
+              'error':
+                  'transport presentation requires at least two local songs',
+            },
+          );
+          return;
+        }
+        final ids = songs
+            .take(3)
+            .map((song) => song.id)
+            .toList(growable: false);
+        final fixture = _container.read(
+          transportMotionPresentationFixtureProvider.notifier,
+        );
+        final startsOnSecond = action == 'manualPrevious';
+        final baselineIndex = startsOnSecond ? 1 : 0;
+        fixture.setBaseline(ids, currentIndex: baselineIndex);
+        await presentation.waitForFrame();
+        switch (action) {
+          case 'baseline':
+            break;
+          case 'manualNext':
+            fixture.apply(
+              ids,
+              currentIndex: 1,
+              intent: TransportVisualIntent.next,
+              fromSongId: ids[0],
+            );
+          case 'manualPrevious':
+            fixture.apply(
+              ids,
+              currentIndex: 0,
+              intent: TransportVisualIntent.previous,
+              fromSongId: ids[1],
+            );
+          case 'automaticAdvance':
+            fixture.apply(ids, currentIndex: 1);
+          case 'restartCurrent':
+            fixture.apply(
+              ids,
+              currentIndex: 0,
+              intent: TransportVisualIntent.restartCurrent,
+              fromSongId: ids[0],
+            );
+          case 'unavailableNext':
+            fixture.apply(
+              ids,
+              currentIndex: ids.length - 1,
+              intent: TransportVisualIntent.unavailableNext,
+              fromSongId: ids.last,
+            );
+          case 'unavailablePrevious':
+            fixture.apply(
+              ids,
+              currentIndex: 0,
+              intent: TransportVisualIntent.unavailablePrevious,
+              fromSongId: ids[0],
+            );
+          case 'rapidNext':
+            fixture.apply(
+              ids,
+              currentIndex: 1,
+              intent: TransportVisualIntent.next,
+              fromSongId: ids[0],
+            );
+            if (ids.length > 2) {
+              fixture.apply(
+                ids,
+                currentIndex: 2,
+                intent: TransportVisualIntent.next,
+                fromSongId: ids[1],
+              );
+            }
+        }
+        await presentation.waitForFrame();
+        final state = _container.read(
+          transportMotionPresentationFixtureProvider,
+        );
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'action': action,
+          'currentIndex': state?.playback.currentIndex,
+          'intent': state?.cue?.intent.name,
+          'sequence': state?.sequence,
+        });
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/presentation/screenshot') {
         if (!allowsMutations) {
           await _forbidden(request);

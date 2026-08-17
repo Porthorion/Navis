@@ -50,7 +50,7 @@ final _testPlaybackProvider =
     );
 
 ProviderContainer _createContainer({
-  required Stream<ManualTrackChangeCue> cueStream,
+  required Stream<TransportVisualCue> cueStream,
   PlaybackBufferState bufferState = const PlaybackBufferState.idle(),
 }) {
   final database = createTestDatabase();
@@ -61,7 +61,7 @@ ProviderContainer _createContainer({
         playerStateProvider.overrideWith(
           (ref) => ref.watch(_testPlaybackProvider),
         ),
-        manualTrackChangeCueProvider.overrideWith((ref) => cueStream),
+        transportVisualCueProvider.overrideWith((ref) => cueStream),
         playbackBufferStateProvider.overrideWithValue(AsyncData(bufferState)),
       ],
     ),
@@ -121,7 +121,7 @@ void main() {
     });
 
     final container = _createContainer(
-      cueStream: const Stream<ManualTrackChangeCue>.empty(),
+      cueStream: const Stream<TransportVisualCue>.empty(),
       bufferState: const PlaybackBufferState(
         songId: 'song-1',
         bufferedPosition: Duration(minutes: 1, seconds: 20),
@@ -163,7 +163,7 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final cueController = StreamController<ManualTrackChangeCue>.broadcast();
+      final cueController = StreamController<TransportVisualCue>.broadcast();
       addTearDown(cueController.close);
 
       final container = _createContainer(cueStream: cueController.stream);
@@ -184,9 +184,9 @@ void main() {
       await tester.pumpAndSettle();
 
       cueController.add(
-        const ManualTrackChangeCue(
+        const TransportVisualCue(
           token: 1,
-          direction: ManualTrackChangeDirection.next,
+          intent: TransportVisualIntent.next,
           fromSongId: 'song-1',
         ),
       );
@@ -200,6 +200,39 @@ void main() {
       expect(find.byKey(const ValueKey<String>('art-shell')), findsOneWidget);
     },
   );
+
+  testWidgets('automatic advances avoid directional artwork travel', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) return;
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(880, 1200);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainer(
+      cueStream: const Stream<TransportVisualCue>.empty(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: NowPlayingScreen()),
+        ),
+      ),
+    );
+    container.read(_testPlaybackProvider.notifier).state = _song1Playback;
+    await tester.pumpAndSettle();
+    container.read(_testPlaybackProvider.notifier).state = _song2Playback;
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(_findActiveHorizontalSlideTransitions(), findsNothing);
+  });
 
   testWidgets(
     'lyrics close stays neutral even after manual direction was latched',
@@ -215,7 +248,7 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final cueController = StreamController<ManualTrackChangeCue>.broadcast();
+      final cueController = StreamController<TransportVisualCue>.broadcast();
       addTearDown(cueController.close);
 
       final container = _createContainer(cueStream: cueController.stream);
@@ -236,9 +269,9 @@ void main() {
       await tester.pumpAndSettle();
 
       cueController.add(
-        const ManualTrackChangeCue(
+        const TransportVisualCue(
           token: 1,
-          direction: ManualTrackChangeDirection.next,
+          intent: TransportVisualIntent.next,
           fromSongId: 'song-1',
         ),
       );
@@ -260,7 +293,7 @@ void main() {
   );
 
   testWidgets(
-    'queue boundary actions use replay and no-next feedback',
+    'transport outcomes use quiet rewind and edge feedback',
     (tester) async {
       if (!sqliteAvailable) {
         return;
@@ -273,7 +306,7 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final cueController = StreamController<ManualTrackChangeCue>.broadcast();
+      final cueController = StreamController<TransportVisualCue>.broadcast();
       addTearDown(cueController.close);
       final container = _createContainer(cueStream: cueController.stream);
 
@@ -292,53 +325,65 @@ void main() {
       container.read(_testPlaybackProvider.notifier).state = _song1Playback;
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.skip_previous));
+      cueController.add(
+        const TransportVisualCue(
+          token: 1,
+          intent: TransportVisualIntent.restartCurrent,
+          fromSongId: 'song-1',
+        ),
+      );
       await tester.pump(const Duration(milliseconds: 48));
 
       expect(
         find.byKey(
           const ValueKey<String>(
-            'track-navigation-feedback-replayCurrent',
+            'track-navigation-feedback-restartCurrent',
           ),
         ),
         findsOneWidget,
       );
-      expect(find.byIcon(Icons.replay_rounded), findsOneWidget);
 
       await tester.pumpAndSettle();
       expect(
         find.byKey(
           const ValueKey<String>(
-            'track-navigation-feedback-replayCurrent',
+            'track-navigation-feedback-restartCurrent',
           ),
         ),
         findsNothing,
       );
 
-      container.read(_testPlaybackProvider.notifier).state = _song2Playback
-          .copyWith(position: const Duration(seconds: 42));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.skip_previous));
+      cueController.add(
+        const TransportVisualCue(
+          token: 2,
+          intent: TransportVisualIntent.unavailablePrevious,
+          fromSongId: 'song-1',
+        ),
+      );
       await tester.pump(const Duration(milliseconds: 48));
 
       expect(
         find.byKey(
           const ValueKey<String>(
-            'track-navigation-feedback-replayCurrent',
+            'track-navigation-feedback-unavailablePrevious',
           ),
         ),
         findsOneWidget,
       );
 
       await tester.pumpAndSettle();
-      container.read(_testPlaybackProvider.notifier).state = _song2Playback;
-      await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.skip_next).first);
+      cueController.add(
+        const TransportVisualCue(
+          token: 3,
+          intent: TransportVisualIntent.unavailableNext,
+          fromSongId: 'song-1',
+        ),
+      );
       await tester.pump(const Duration(milliseconds: 48));
 
       expect(
         find.byKey(
-          const ValueKey<String>('track-navigation-feedback-noNext'),
+          const ValueKey<String>('track-navigation-feedback-unavailableNext'),
         ),
         findsOneWidget,
       );
@@ -346,7 +391,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byKey(
-          const ValueKey<String>('track-navigation-feedback-noNext'),
+          const ValueKey<String>('track-navigation-feedback-unavailableNext'),
         ),
         findsNothing,
       );

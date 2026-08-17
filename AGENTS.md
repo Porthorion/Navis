@@ -177,6 +177,7 @@ NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match' ./tool/presentation_diagnosti
 NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE=1 ./tool/presentation_diagnostics.sh clone '/library/artists/<artist-id>/top-tracks' artist-top-tracks  # clone-only Artist Top Tracks screenshot
 NAVIS_PRESENTATION_ERROR_NOTICE=1 ./tool/presentation_diagnostics.sh clone / error-notice  # clone-only persistent error-notice screenshot
 NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1 ./tool/presentation_diagnostics.sh clone / now-playing  # clone-only Now Playing screenshot without remote playback
+NAVIS_PRESENTATION_TRANSPORT_ACTION=manualNext ./tool/presentation_diagnostics.sh clone / transport-next  # clone-only Now Playing transport fixture + screenshot
 ./tool/desktop_layout_diagnostics.sh  # Desktop View/Mini Player resize + screenshot suite
 ./tool/auth_lifecycle_diagnostics.sh clone  # isolated first-sync/logout suite
 ./tool/windows_smtc_diagnostics.ps1 -SourceDatabase C:\path\to\navis.sqlite.sqlite -CredentialFile C:\path\to\diagnostics-password -SongId first-song-id -SecondSongId second-song-id  # Windows-only isolated GMTC suite

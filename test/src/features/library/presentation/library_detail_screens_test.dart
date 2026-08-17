@@ -67,8 +67,8 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
       const Stream<PlaybackLoadFailure>.empty();
 
   @override
-  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
-      const Stream<ManualTrackChangeCue>.empty();
+  Stream<TransportVisualCue> get transportVisualCueStream =>
+      const Stream<TransportVisualCue>.empty();
 
   @override
   Future<void> waitUntilReady() async {}

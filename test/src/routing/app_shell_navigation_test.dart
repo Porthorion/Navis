@@ -86,8 +86,7 @@ class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
       return switch (invocation.memberName) {
         #snapshot => _activePlayback,
         #snapshotStream => const Stream<PlaybackSnapshot>.empty(),
-        #manualTrackChangeCueStream =>
-          const Stream<ManualTrackChangeCue>.empty(),
+        #transportVisualCueStream => const Stream<TransportVisualCue>.empty(),
         #positionStream => const Stream<Duration>.empty(),
         #bufferState => const PlaybackBufferState.idle(),
         #bufferStateStream => const Stream<PlaybackBufferState>.empty(),

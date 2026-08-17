@@ -4,16 +4,30 @@ import 'package:flutter/foundation.dart';
 
 enum ManualTrackChangeDirection { next, previous }
 
+/// The visual outcome of a user-originated transport request.
+///
+/// This is deliberately independent from playback completion.  The handler
+/// emits it immediately before applying the transport command, so touch,
+/// keyboard, headset, and desktop media-session controls all lead to the same
+/// visual response without ever waiting for UI animation.
+enum TransportVisualIntent {
+  next,
+  previous,
+  restartCurrent,
+  unavailableNext,
+  unavailablePrevious,
+}
+
 @immutable
-class ManualTrackChangeCue {
-  const ManualTrackChangeCue({
+class TransportVisualCue {
+  const TransportVisualCue({
     required this.token,
-    required this.direction,
+    required this.intent,
     required this.fromSongId,
   });
 
   final int token;
-  final ManualTrackChangeDirection direction;
+  final TransportVisualIntent intent;
   final String? fromSongId;
 }
 

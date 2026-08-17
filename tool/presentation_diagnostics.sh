@@ -9,6 +9,7 @@ SEARCH_FILTER="${NAVIS_PRESENTATION_SEARCH_FILTER:-all}"
 SEARCH_REQUIRE_MIXED="${NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED:-0}"
 SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
 OPEN_NOW_PLAYING="${NAVIS_PRESENTATION_OPEN_NOW_PLAYING:-0}"
+TRANSPORT_ACTION="${NAVIS_PRESENTATION_TRANSPORT_ACTION:-}"
 FORCE_SEARCH_REMOTE_FAILURE="${NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE:-0}"
 RADIO_FILTER_QUERY="${NAVIS_PRESENTATION_RADIO_FILTER_QUERY:-}"
 LIBRARY_FILTER_QUERY="${NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY:-}"
@@ -23,6 +24,7 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$SEARCH_REQUIRE_MIXED" =~ ^(0|1)$ ]] ||
    [[ ! "$SEARCH_PLAY_REMOTE" =~ ^(0|1)$ ]] ||
    [[ ! "$OPEN_NOW_PLAYING" =~ ^(0|1)$ ]] ||
+   [[ -n "$TRANSPORT_ACTION" && ! "$TRANSPORT_ACTION" =~ ^(baseline|manualNext|manualPrevious|automaticAdvance|restartCurrent|unavailableNext|unavailablePrevious|rapidNext)$ ]] ||
    [[ ! "$FORCE_SEARCH_REMOTE_FAILURE" =~ ^(0|1)$ ]] ||
    [[ ! "$ARTIST_TOP_TRACKS_FIXTURE" =~ ^(0|1)$ ]] ||
    [[ ! "$ERROR_NOTICE" =~ ^(0|1)$ ]] ||
@@ -486,12 +488,20 @@ run_capture() {
         > "$OUTPUT_ROOT/$prefix-now-playing-overlay.json"
     fi
   fi
-  if [[ "$OPEN_NOW_PLAYING" == "1" && "$SEARCH_PLAY_REMOTE" != "1" ]]; then
+  if [[ ( "$OPEN_NOW_PLAYING" == "1" || -n "$TRANSPORT_ACTION" ) && "$SEARCH_PLAY_REMOTE" != "1" ]]; then
     api POST /v1/presentation/player-overlay \
       '{"surface":"nowPlaying","visible":true}' \
       > "$OUTPUT_ROOT/$prefix-now-playing-overlay.json"
   fi
-  if [[ "$SEARCH_PLAY_REMOTE" == "1" || "$OPEN_NOW_PLAYING" == "1" ]]; then
+  if [[ -n "$TRANSPORT_ACTION" ]]; then
+    api POST /v1/presentation/transport \
+      "{\"action\":\"$TRANSPORT_ACTION\"}" \
+      > "$OUTPUT_ROOT/$prefix-transport.json"
+    sleep 1
+    capture_window_screenshot \
+      "$prefix-transport-$TRANSPORT_ACTION-screenshot" \
+      "$prefix-transport-$TRANSPORT_ACTION"
+  elif [[ "$SEARCH_PLAY_REMOTE" == "1" || "$OPEN_NOW_PLAYING" == "1" ]]; then
     capture_window_screenshot \
       "$prefix-now-playing-screenshot" "$prefix-now-playing"
   fi

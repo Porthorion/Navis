@@ -802,10 +802,17 @@ so stale partial-file cleanup cannot race a new lock-cache download. If the OS
 sends duplicate Play requests while the queue is empty, both await the same
 fallback queue preparation instead of cancelling each other.
 
-Now Playing commits a full directional artwork transition only for an actual
-queue-index change. Previous actions that restart the current track and Next
-actions at the end of the queue use a short directional snapback with
-replay/end-of-queue feedback instead.
+Now Playing receives a handler-owned `TransportVisualCue` for every manual
+Previous/Next outcome, regardless of whether it originated from touch, swipe,
+keyboard, headset, or an external media session. Successful manual changes use
+a 220 ms clean artwork handoff: the previous cover drops away, the new cover
+settles without lateral travel, and metadata fades upward only after artwork
+settles. Automatic advances use a short non-directional focus fade.
+Restart-current and unavailable-edge requests retain the same artwork and use
+one small dynamic-color edge pulse rather than a floating icon; no UI animation
+delays audio transport. Reduced motion applies direct state changes with
+accessible feedback only. The clone-only presentation API can drive these
+states without starting audio or modifying a queue.
 
 ### Sync Flow
 

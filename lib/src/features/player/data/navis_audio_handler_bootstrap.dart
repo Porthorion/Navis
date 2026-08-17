@@ -175,8 +175,8 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   Stream<PlaybackSnapshot> get snapshotStream => _delegate.snapshotStream;
 
   @override
-  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
-      _delegate.manualTrackChangeCueStream;
+  Stream<TransportVisualCue> get transportVisualCueStream =>
+      _delegate.transportVisualCueStream;
 
   @override
   Stream<Duration> get positionStream => _delegate.positionStream;
@@ -376,8 +376,8 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
   Stream<PlaybackSnapshot> get snapshotStream => _delegate.snapshotStream;
 
   @override
-  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
-      _delegate.manualTrackChangeCueStream;
+  Stream<TransportVisualCue> get transportVisualCueStream =>
+      _delegate.transportVisualCueStream;
 
   @override
   Stream<Duration> get positionStream => _delegate.positionStream;

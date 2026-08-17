@@ -3,7 +3,7 @@ part of 'navis_audio_handler.dart';
 abstract class NavisPlaybackHandler {
   PlaybackSnapshot get snapshot;
   Stream<PlaybackSnapshot> get snapshotStream;
-  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream;
+  Stream<TransportVisualCue> get transportVisualCueStream;
   Stream<Duration> get positionStream;
   PlaybackBufferState get bufferState;
   Stream<PlaybackBufferState> get bufferStateStream;
