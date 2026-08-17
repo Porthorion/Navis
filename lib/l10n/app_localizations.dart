@@ -3383,6 +3383,90 @@ abstract class AppLocalizations {
   /// **'Restoring your listening session…'**
   String get playbackBootstrapLoadingSubtitle;
 
+  /// No description provided for @playbackBootstrapRecoveryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback is taking longer than usual'**
+  String get playbackBootstrapRecoveryTitle;
+
+  /// No description provided for @playbackBootstrapRecoverySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis will keep retrying. You can also recover local playback data or continue without playback.'**
+  String get playbackBootstrapRecoverySubtitle;
+
+  /// No description provided for @playbackBootstrapContinueToSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue to sign in'**
+  String get playbackBootstrapContinueToSignIn;
+
+  /// No description provided for @playbackRecoveryRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry playback'**
+  String get playbackRecoveryRetry;
+
+  /// No description provided for @playbackRecoveryResetCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset library cache and retry'**
+  String get playbackRecoveryResetCache;
+
+  /// No description provided for @playbackRecoveryResetConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Library Cache?'**
+  String get playbackRecoveryResetConfirmTitle;
+
+  /// No description provided for @playbackRecoveryResetConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music and your sign-in will be kept.'**
+  String get playbackRecoveryResetConfirmBody;
+
+  /// No description provided for @playbackRecoveryResetConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset cache'**
+  String get playbackRecoveryResetConfirmAction;
+
+  /// No description provided for @playbackRecoveryWipeConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out and clear local data?'**
+  String get playbackRecoveryWipeConfirmTitle;
+
+  /// No description provided for @playbackRecoveryWipeConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.'**
+  String get playbackRecoveryWipeConfirmBody;
+
+  /// No description provided for @playbackRecoveryWipeConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear local data'**
+  String get playbackRecoveryWipeConfirmAction;
+
+  /// No description provided for @playbackRecoveryActionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not complete playback recovery. Try again.'**
+  String get playbackRecoveryActionFailed;
+
+  /// No description provided for @playbackRecoverySheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback unavailable'**
+  String get playbackRecoverySheetTitle;
+
+  /// No description provided for @playbackRecoverySheetSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'You can keep browsing Navis. Choose a recovery action before trying playback again.'**
+  String get playbackRecoverySheetSubtitle;
+
   /// No description provided for @playbackUnavailableInitializing.
   ///
   /// In en, this message translates to:

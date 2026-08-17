@@ -65,7 +65,7 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
     resetPlayback: () async {
       await ref
           .read(audioBootstrapControllerProvider.notifier)
-          .resetSessionAndWait();
+          .abortForSessionTeardown();
     },
     resetTransientUi: () async {
       ref.read(sleepTimerProvider.notifier).cancel();

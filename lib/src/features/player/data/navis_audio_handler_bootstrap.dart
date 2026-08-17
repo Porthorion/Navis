@@ -25,6 +25,20 @@ Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
   }
 }
 
+/// Discards a pending platform-handler initialization even when it has not
+/// produced a handler yet. This is used by startup recovery so a retry cannot
+/// be pinned to a native initialization future that will never complete.
+void invalidateNavisPlaybackHandlerInitialization() {
+  final cache = _audioHandlerInitCache;
+  if (cache == null) {
+    return;
+  }
+  cache.invalidated = true;
+  if (identical(_audioHandlerInitCache, cache)) {
+    _audioHandlerInitCache = null;
+  }
+}
+
 void beginNavisPlaybackHandlerTeardown(NavisPlaybackHandler handler) {
   _invalidateNavisAudioHandlerCache(handler);
   if (handler is WindowsNavisPlaybackHandler) {

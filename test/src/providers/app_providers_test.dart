@@ -1410,6 +1410,53 @@ void main() {
     });
 
     test(
+      'bootstrap teardown abandons a stuck initializer and retries fresh',
+      () async {
+        final stuckInitializer = Completer<NavisPlaybackHandler>();
+        final staleHandler = _FakePlaybackHandler();
+        final freshHandler = _FakePlaybackHandler();
+        var initializerCalls = 0;
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerInitializerProvider.overrideWithValue(() {
+              initializerCalls += 1;
+              return initializerCalls == 1
+                  ? stuckInitializer.future
+                  : Future<NavisPlaybackHandler>.value(freshHandler);
+            }),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await staleHandler.dispose();
+          await freshHandler.dispose();
+        });
+
+        container
+            .read(audioBootstrapControllerProvider.notifier)
+            .ensureInitialized();
+        await Future<void>.delayed(Duration.zero);
+        await container
+            .read(audioBootstrapControllerProvider.notifier)
+            .abortForSessionTeardown();
+
+        expect(
+          container.read(audioBootstrapControllerProvider).status,
+          AudioBootstrapStatus.failed,
+        );
+        expect(container.read(audioHandlerStateProvider), isNull);
+
+        await container.read(audioBootstrapControllerProvider.notifier).retry();
+        expect(initializerCalls, 2);
+        expect(container.read(audioHandlerStateProvider), same(freshHandler));
+
+        stuckInitializer.complete(staleHandler);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(container.read(audioHandlerStateProvider), same(freshHandler));
+      },
+    );
+
+    test(
       'audio bootstrap timeout can recover when initialization completes late',
       () async {
         final delayedCompleter = Completer<NavisPlaybackHandler>();

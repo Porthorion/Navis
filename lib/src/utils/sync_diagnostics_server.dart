@@ -28,6 +28,7 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -385,6 +386,40 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, <String, Object?>{
           'level': level.name,
           'messageLength': message.length,
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/playback-recovery') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final action = body['action'];
+        final recovery = _container.read(playbackRecoveryServiceProvider);
+        switch (action) {
+          case 'retry':
+            recovery.retryPlayback();
+          case 'resetCache':
+            await recovery.resetLibraryCacheAndRetry();
+          case 'signOutKeepData':
+            await recovery.signOut(wipeLocalData: false);
+          case 'signOutWipeData':
+            await recovery.signOut(wipeLocalData: true);
+          default:
+            await _respond(request, HttpStatus.badRequest, <String, Object?>{
+              'error':
+                  'action must be retry, resetCache, signOutKeepData, or signOutWipeData',
+            });
+            return;
+        }
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'action': action,
+          'bootstrap': _container
+              .read(audioBootstrapControllerProvider)
+              .status
+              .name,
         });
         return;
       }

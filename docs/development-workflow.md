@@ -272,6 +272,10 @@ control-plane contract. Android is observation-only:
   queue or Now Playing through `playerOverlayStackProvider`; add similarly
   narrow production-controller actions for non-route UI instead of simulating
   coordinate clicks.
+- Clone-only `POST /v1/presentation/playback-recovery` drives the production
+  retry, cache-reset, and sign-out recovery controller after delayed playback
+  bootstrap. It accepts only its bounded action names and never exposes
+  session secrets.
 - Clone-only `POST /v1/presentation/library-filter` applies a bounded
   type-to-filter query through the mounted production Library screen.
   `NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY='no-match'` on `/library` captures
@@ -349,6 +353,12 @@ presentation command. The launcher injects two failures before audio-handler
 construction, asserts the authenticated bootstrap status reports a scheduled
 retry, captures the still-loading gate, then verifies normal post-bootstrap
 presentation after recovery.
+
+To validate the user recovery controls, inject four failures and set
+`NAVIS_PRESENTATION_BOOTSTRAP_RECOVERY=1`. The launcher waits past the
+ten-second threshold, captures the startup-recovery UI, drives its production
+retry controller through `POST /v1/presentation/playback-recovery`, and then
+verifies normal presentation after the fresh bootstrap attempt.
 
 For `/library/listenbrainz/<sourcePatch>` routes, the script enables a
 clone-only cached-playlist presentation override through the authenticated

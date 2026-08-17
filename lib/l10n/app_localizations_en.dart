@@ -1905,6 +1905,55 @@ class AppLocalizationsEn extends AppLocalizations {
       'Restoring your listening session…';
 
   @override
+  String get playbackBootstrapRecoveryTitle =>
+      'Playback is taking longer than usual';
+
+  @override
+  String get playbackBootstrapRecoverySubtitle =>
+      'Navis will keep retrying. You can also recover local playback data or continue without playback.';
+
+  @override
+  String get playbackBootstrapContinueToSignIn => 'Continue to sign in';
+
+  @override
+  String get playbackRecoveryRetry => 'Retry playback';
+
+  @override
+  String get playbackRecoveryResetCache => 'Reset library cache and retry';
+
+  @override
+  String get playbackRecoveryResetConfirmTitle => 'Reset Library Cache?';
+
+  @override
+  String get playbackRecoveryResetConfirmBody =>
+      'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music and your sign-in will be kept.';
+
+  @override
+  String get playbackRecoveryResetConfirmAction => 'Reset cache';
+
+  @override
+  String get playbackRecoveryWipeConfirmTitle =>
+      'Sign out and clear local data?';
+
+  @override
+  String get playbackRecoveryWipeConfirmBody =>
+      'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.';
+
+  @override
+  String get playbackRecoveryWipeConfirmAction => 'Clear local data';
+
+  @override
+  String get playbackRecoveryActionFailed =>
+      'Could not complete playback recovery. Try again.';
+
+  @override
+  String get playbackRecoverySheetTitle => 'Playback unavailable';
+
+  @override
+  String get playbackRecoverySheetSubtitle =>
+      'You can keep browsing Navis. Choose a recovery action before trying playback again.';
+
+  @override
   String get playbackUnavailableInitializing =>
       'Playback is still initializing. Try again in a moment.';
 

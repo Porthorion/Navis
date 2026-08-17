@@ -33,6 +33,7 @@ import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/mix_mode_reconciliation_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/playback_recovery_sheet.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
@@ -87,6 +88,7 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   static const double _sideRailWidth = 270;
   static const int _kQueueCoverArtPrefetchAheadCount = 6;
+  bool _playbackRecoverySheetOpen = false;
   static const int _kQueueCoverArtPrefetchSizePx = kCoverArtStandardSize;
   static const int _kQueueCoverArtPrefetchDedupeCap = 320;
   final ValueNotifier<double> _playerSheetProgress = ValueNotifier<double>(0);
@@ -522,6 +524,20 @@ class _AppShellState extends ConsumerState<AppShell> {
     return l10n.playbackActionFailed;
   }
 
+  void _showPlaybackRecoverySheet() {
+    if (_playbackRecoverySheetOpen || !mounted) {
+      return;
+    }
+    _playbackRecoverySheetOpen = true;
+    unawaited(
+      showPlaybackRecoverySheet(context).whenComplete(() {
+        if (mounted) {
+          _playbackRecoverySheetOpen = false;
+        }
+      }),
+    );
+  }
+
   Future<void> _maybePromptForBatteryOptimization() async {
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
     if (serverConfig == null || ref.read(syncIntervalMinutesProvider) <= 0) {
@@ -709,6 +725,13 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (!mounted) return;
       final error = next.asData?.value;
       if (error == null) return;
+      final unavailable = error.error;
+      if (unavailable is PlaybackUnavailableException &&
+          (unavailable.reason == PlaybackUnavailableReason.initializing ||
+              unavailable.reason == PlaybackUnavailableReason.startupFailed)) {
+        _showPlaybackRecoverySheet();
+        return;
+      }
       _appNoticeController.show(
         message: _playbackErrorMessage(l10n, error),
         level: AppNoticeLevel.error,

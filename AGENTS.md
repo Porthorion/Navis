@@ -170,6 +170,7 @@ NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1 NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUM
 ./tool/playback_indicator_diagnostics.sh clone  # isolated song-indicator suite
 ./tool/presentation_diagnostics.sh clone / home  # app-owned screenshot suite
 NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=2 ./tool/presentation_diagnostics.sh clone / bootstrap-retry  # startup retry + loading screenshot suite
+NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=4 NAVIS_PRESENTATION_BOOTSTRAP_RECOVERY=1 ./tool/presentation_diagnostics.sh clone / bootstrap-recovery  # delayed startup-recovery screenshot + retry action
 NAVIS_PRESENTATION_SEARCH_QUERY='query' ./tool/presentation_diagnostics.sh clone /search search  # Search ordering + screenshot
 NAVIS_PRESENTATION_SEARCH_QUERY='unmatched-query' NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE=1 ./tool/presentation_diagnostics.sh clone /search search-failure  # clone-only Search failure-state screenshot
 NAVIS_PRESENTATION_RADIO_FILTER_QUERY='no-match' ./tool/presentation_diagnostics.sh clone '/library#radio' radio-filtered-empty  # clone-only Radio filtered-empty screenshot
@@ -311,7 +312,15 @@ presentation/ # screens, widgets, *_provider.dart files
   `SystemChrome` or notification work. `AndroidUiBootstrapGate` runs UI
   operations once after `resumed`; never gate the media handler on a timeout
   or guessed headless state.
-- Playback bootstrap keeps the loading gate visible during failures and retries every three seconds until ready. Timeout and stale/late completion guards remain active; clone diagnostics may inject initial failures only through `NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS` and observe safe attempt state through `GET /v1/playback/bootstrap/status`.
+- Playback bootstrap retries every three seconds until ready. After ten seconds,
+  its loading gate offers authenticated cache-reset/sign-out recovery or an
+  unauthenticated Login escape. Teardown invalidates a hung native attempt
+  without awaiting it, and a late handler is disposed rather than restored.
+  After a Login escape, startup failures surface the same recovery actions only
+  when playback is requested. Clone diagnostics may inject initial failures
+  through `NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS`, observe safe state
+  through `GET /v1/playback/bootstrap/status`, and exercise recovery through
+  `POST /v1/presentation/playback-recovery`.
 
 ### Provider organization (`lib/src/providers/app_providers.dart`)
 

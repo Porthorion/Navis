@@ -873,6 +873,34 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
     await state.handler?.resetSession();
   }
 
+  /// Supersedes a stuck startup attempt without waiting for its native future.
+  ///
+  /// Session recovery must remain available when a platform audio service
+  /// never resolves. Any handler that does arrive later is disposed by the
+  /// stale-completion branch in [_initialize].
+  Future<void> abortForSessionTeardown() async {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _activeAttempt = ++_attemptEpoch;
+    invalidateNavisPlaybackHandlerInitialization();
+    final attachedHandler = state.handler;
+    if (attachedHandler != null) {
+      try {
+        await attachedHandler.resetSession();
+      } on Object catch (error, stackTrace) {
+        AppLogger.warning(
+          'Resetting attached playback during startup recovery failed: '
+          '$error\n$stackTrace',
+        );
+      }
+    }
+    await ref.read(audioHandlerStateProvider.notifier).clearHandler();
+    state = AudioBootstrapState.failed(
+      'Playback initialization was stopped.',
+      attempt: _activeAttempt,
+    );
+  }
+
   Future<void> retry() {
     _retryTimer?.cancel();
     _retryTimer = null;
@@ -961,7 +989,20 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
         unawaited(
           initFuture.then<void>(
             (handler) async {
-              if (_activeAttempt != attemptId || !timedOut) {
+              if (_activeAttempt != attemptId) {
+                unawaited(() async {
+                  try {
+                    await disposeNavisPlaybackHandler(handler);
+                  } on Object catch (error, stackTrace) {
+                    AppLogger.warning(
+                      'Discarding stale audio bootstrap handler failed: '
+                      '$error\n$stackTrace',
+                    );
+                  }
+                }());
+                return;
+              }
+              if (!timedOut) {
                 return;
               }
               await promoteReady(handler, recoveredFromTimeout: true);

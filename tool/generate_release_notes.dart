@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Playback startup now offers cache reset and sign-out recovery controls instead of trapping you on a loading screen',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Now Playing transport changes are smoother on mobile, with calmer automatic advances and clearer restart and queue-edge feedback',
       type: _EntryType.improvement,
     ),

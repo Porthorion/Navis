@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -176,6 +178,11 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
 
   bool _overlayDismissed = false;
   bool _completionTriggered = false;
+  Timer? _recoveryTimer;
+  bool _recoveryAvailable = false;
+  bool _allowRouterWhilePlaybackUnavailable = false;
+  bool _isRecovering = false;
+  String? _recoveryError;
 
   @override
   void initState() {
@@ -201,18 +208,25 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
         });
       }
     });
+    _recoveryTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && !_overlayDismissed && !_completionTriggered) {
+        setState(() => _recoveryAvailable = true);
+      }
+    });
   }
 
   @override
   void dispose() {
     _ringController.dispose();
     _exitController.dispose();
+    _recoveryTimer?.cancel();
     super.dispose();
   }
 
   void _onBootstrapReady() {
     if (_completionTriggered) return;
     _completionTriggered = true;
+    _recoveryTimer?.cancel();
     unawaited(
       _ringController.forward().then<void>((_) async {
         await Future<void>.delayed(const Duration(milliseconds: 260));
@@ -221,11 +235,101 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
     );
   }
 
+  Future<bool> _confirm({
+    required String title,
+    required String body,
+    required String action,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(AppLocalizations.of(dialogContext)!.cancelAction),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _runRecovery(
+    Future<void> Function(PlaybackRecoveryService service) action,
+  ) async {
+    if (_isRecovering) {
+      return;
+    }
+    setState(() {
+      _isRecovering = true;
+      _recoveryError = null;
+    });
+    try {
+      await action(ref.read(playbackRecoveryServiceProvider));
+    } on Object {
+      if (mounted) {
+        setState(
+          () => _recoveryError = AppLocalizations.of(
+            context,
+          )!.playbackRecoveryActionFailed,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRecovering = false);
+      }
+    }
+  }
+
+  Future<void> _resetCache() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (!await _confirm(
+      title: l10n.playbackRecoveryResetConfirmTitle,
+      body: l10n.playbackRecoveryResetConfirmBody,
+      action: l10n.playbackRecoveryResetConfirmAction,
+    )) {
+      return;
+    }
+    await _runRecovery((service) => service.resetLibraryCacheAndRetry());
+  }
+
+  Future<void> _signOut({required bool wipeLocalData}) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (wipeLocalData &&
+        !await _confirm(
+          title: l10n.playbackRecoveryWipeConfirmTitle,
+          body: l10n.playbackRecoveryWipeConfirmBody,
+          action: l10n.playbackRecoveryWipeConfirmAction,
+        )) {
+      return;
+    }
+    await _runRecovery((service) async {
+      await service.signOut(wipeLocalData: wipeLocalData);
+      if (mounted) {
+        setState(() => _allowRouterWhilePlaybackUnavailable = true);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_overlayDismissed) return widget.child;
+    if (_overlayDismissed || _allowRouterWhilePlaybackUnavailable) {
+      return widget.child;
+    }
 
     final bootstrap = ref.watch(audioBootstrapControllerProvider);
+    final hasAuthenticatedSession =
+        ref.watch(serverConfigStateProvider).asData?.value != null;
 
     if (bootstrap.status == AudioBootstrapStatus.ready) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -243,6 +347,17 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
             ringFill: _ringFill.value,
             isRingCompleting: _completionTriggered,
             exitProgress: _exit.value,
+            showRecovery: _recoveryAvailable,
+            hasAuthenticatedSession: hasAuthenticatedSession,
+            isRecovering: _isRecovering,
+            recoveryError: _recoveryError,
+            onContinueToSignIn: () {
+              _recoveryTimer?.cancel();
+              setState(() => _allowRouterWhilePlaybackUnavailable = true);
+            },
+            onResetCache: _resetCache,
+            onSignOutKeepData: () => _signOut(wipeLocalData: false),
+            onSignOutWipeData: () => _signOut(wipeLocalData: true),
           ),
         ),
       ],
@@ -255,6 +370,14 @@ class _BootstrapSplashScreen extends StatelessWidget {
     required this.ringFill,
     required this.isRingCompleting,
     required this.exitProgress,
+    required this.showRecovery,
+    required this.hasAuthenticatedSession,
+    required this.isRecovering,
+    required this.recoveryError,
+    required this.onContinueToSignIn,
+    required this.onResetCache,
+    required this.onSignOutKeepData,
+    required this.onSignOutWipeData,
   });
 
   // 0.0–1.0 value for the determinate ring once completion is triggered.
@@ -265,6 +388,14 @@ class _BootstrapSplashScreen extends StatelessWidget {
 
   // 0.0 = fully visible, 1.0 = fully gone (exit animation).
   final double exitProgress;
+  final bool showRecovery;
+  final bool hasAuthenticatedSession;
+  final bool isRecovering;
+  final String? recoveryError;
+  final VoidCallback onContinueToSignIn;
+  final VoidCallback onResetCache;
+  final VoidCallback onSignOutKeepData;
+  final VoidCallback onSignOutWipeData;
 
   @override
   Widget build(BuildContext context) {
@@ -330,20 +461,81 @@ class _BootstrapSplashScreen extends StatelessWidget {
                       child: Column(
                         children: <Widget>[
                           Text(
-                            AppLocalizations.of(
-                              context,
-                            )!.playbackBootstrapLoadingTitle,
+                            showRecovery
+                                ? AppLocalizations.of(
+                                    context,
+                                  )!.playbackBootstrapRecoveryTitle
+                                : AppLocalizations.of(
+                                    context,
+                                  )!.playbackBootstrapLoadingTitle,
                             style: Theme.of(context).textTheme.titleLarge,
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            AppLocalizations.of(
-                              context,
-                            )!.playbackBootstrapLoadingSubtitle,
+                            showRecovery
+                                ? AppLocalizations.of(
+                                    context,
+                                  )!.playbackBootstrapRecoverySubtitle
+                                : AppLocalizations.of(
+                                    context,
+                                  )!.playbackBootstrapLoadingSubtitle,
                             style: Theme.of(context).textTheme.bodyMedium,
                             textAlign: TextAlign.center,
                           ),
+                          if (showRecovery) ...<Widget>[
+                            const SizedBox(height: 20),
+                            if (isRecovering)
+                              const CircularProgressIndicator()
+                            else if (hasAuthenticatedSession) ...<Widget>[
+                              OutlinedButton(
+                                onPressed: onResetCache,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.playbackRecoveryResetCache,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: onSignOutKeepData,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.serverSettingsSignOutKeepData,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: onSignOutWipeData,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.serverSettingsSignOutWipeData,
+                                ),
+                              ),
+                            ] else
+                              FilledButton(
+                                onPressed: onContinueToSignIn,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.playbackBootstrapContinueToSignIn,
+                                ),
+                              ),
+                            if (recoveryError != null) ...<Widget>[
+                              const SizedBox(height: 12),
+                              Text(
+                                recoveryError!,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
+                                    ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ],
                         ],
                       ),
                     ),

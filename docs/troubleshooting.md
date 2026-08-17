@@ -167,6 +167,11 @@ Use this quick matrix to classify failures:
 
 1. Bootstrap failure:
 - Symptoms: `Playback initialization failed`, `timed out after 5s`, bootstrap gate remains blocked.
+- Recovery: after ten seconds, use **Reset library cache and retry** (keeps
+  downloads and your session), **Sign out (keep local data)**, or **Sign out
+  and clear local data**. Before sign-in, choose **Continue to sign in**; a
+  later playback attempt will offer the same recovery actions if audio remains
+  unavailable.
 - Checks:
   - run `flutter clean && flutter pub get`
   - reinstall app (`adb uninstall com.navis.app.navis`)

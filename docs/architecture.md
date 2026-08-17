@@ -48,9 +48,12 @@ Located in `lib/src/providers/app_providers.dart`:
   - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses
     `WindowsSmtcBridge` backed by the local `navis_windows_smtc` Rust/WinRT
     manual-SMTC adapter; Android, iOS, and macOS use `audio_service`
-  - Bootstrap remains behind the loading gate while initialization fails and
-    retries every three seconds; its existing timeout and stale-completion
-    protections continue to govern every attempt.
+  - Bootstrap retries every three seconds while initialization fails. Its
+    startup gate exposes cache-reset and sign-out recovery after ten seconds;
+    an unauthenticated user can continue to Login without waiting for audio.
+    A teardown supersedes a hung native attempt without awaiting it, and any
+    later handler is disposed. If audio remains unavailable after Login, the
+    next playback action opens the same non-blocking recovery sheet.
   - Android Auto can invoke Dart before `MainActivity` exists. Navis creates
     the provider container and starts audio bootstrap immediately, while
     `AndroidUiBootstrapGate` defers `SystemChrome`, notification, diagnostics

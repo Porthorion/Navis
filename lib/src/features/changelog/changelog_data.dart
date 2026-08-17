@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Playback startup now offers cache reset and sign-out recovery controls instead of trapping you on a loading screen',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Now Playing transport changes are smoother on mobile, with calmer automatic advances and clearer restart and queue-edge feedback',
         type: ChangelogEntryType.improvement,
       ),

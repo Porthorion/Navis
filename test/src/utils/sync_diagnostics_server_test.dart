@@ -495,6 +495,36 @@ void main() {
   );
 
   test(
+    'playback recovery diagnostics action has a bounded clone-only contract',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+
+      final invalid = await _request(
+        fixture.port,
+        '/v1/presentation/playback-recovery',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'action': 'invalid'},
+      );
+      expect(invalid.statusCode, HttpStatus.badRequest);
+      await fixture.close();
+
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      final forbidden = await _request(
+        primary.port,
+        '/v1/presentation/playback-recovery',
+        method: 'POST',
+        token: primary.token,
+        body: <String, Object?>{'action': 'retry'},
+      );
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+    },
+  );
+
+  test(
     'presentation endpoints use the authenticated clone control plane',
     () async {
       final presentation = _MockPresentationController();

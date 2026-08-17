@@ -16,6 +16,7 @@ LIBRARY_FILTER_QUERY="${NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY:-}"
 ARTIST_TOP_TRACKS_FIXTURE="${NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE:-0}"
 ERROR_NOTICE="${NAVIS_PRESENTATION_ERROR_NOTICE:-0}"
 BOOTSTRAP_FAILURE_ATTEMPTS="${NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS:-0}"
+BOOTSTRAP_RECOVERY="${NAVIS_PRESENTATION_BOOTSTRAP_RECOVERY:-0}"
 if [[ "$MODE" != "clone" ]] ||
    [[ ! "$ROUTE" =~ ^/ ]] ||
    [[ "$ROUTE" =~ ^// ]] ||
@@ -29,6 +30,8 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$ARTIST_TOP_TRACKS_FIXTURE" =~ ^(0|1)$ ]] ||
    [[ ! "$ERROR_NOTICE" =~ ^(0|1)$ ]] ||
    [[ ! "$BOOTSTRAP_FAILURE_ATTEMPTS" =~ ^[0-9]+$ ]] ||
+   [[ ! "$BOOTSTRAP_RECOVERY" =~ ^(0|1)$ ]] ||
+   [[ "$BOOTSTRAP_RECOVERY" == "1" && "$BOOTSTRAP_FAILURE_ATTEMPTS" -lt 4 ]] ||
    [[ "$SEARCH_PLAY_REMOTE" == "1" && "$SEARCH_FILTER" != "songs" ]] ||
    [[ "$FORCE_SEARCH_REMOTE_FAILURE" == "1" && "$ROUTE" != "/search" ]] ||
    [[ "$ARTIST_TOP_TRACKS_FIXTURE" == "1" && ! "$ROUTE" =~ ^/library/artists/[^/]+/top-tracks$ ]] ||
@@ -42,6 +45,7 @@ if [[ "$MODE" != "clone" ]] ||
   echo "Set NAVIS_PRESENTATION_RADIO_FILTER_QUERY only with /library#radio (up to 64 characters)." >&2
   echo "Set NAVIS_PRESENTATION_LIBRARY_FILTER_QUERY only with /library (up to 64 characters)." >&2
   echo "Set NAVIS_PRESENTATION_ARTIST_TOP_TRACKS_FIXTURE=1 only with an artist top-tracks route." >&2
+  echo "Set NAVIS_PRESENTATION_BOOTSTRAP_RECOVERY=1 with at least four injected bootstrap failures." >&2
   exit 64
 fi
 
@@ -417,8 +421,15 @@ run_capture() {
       echo "Timed out waiting for the scheduled playback bootstrap retry." >&2
       exit 70
     fi
-    sleep 1
-    capture_window_screenshot "$prefix-bootstrap-loading" "$prefix-bootstrap-loading"
+    if [[ "$BOOTSTRAP_RECOVERY" == "1" ]]; then
+      sleep 10
+      capture_window_screenshot "$prefix-bootstrap-recovery" "$prefix-bootstrap-recovery"
+      api POST /v1/presentation/playback-recovery '{"action":"retry"}' \
+        > "$OUTPUT_ROOT/$prefix-bootstrap-recovery-action.json"
+    else
+      sleep 1
+      capture_window_screenshot "$prefix-bootstrap-loading" "$prefix-bootstrap-loading"
+    fi
   fi
   wait_for_presentation "$OUTPUT_ROOT/$prefix-presentation-before.json"
   if [[ "$ROUTE" =~ ^/library/listenbrainz/ ]]; then
@@ -647,7 +658,8 @@ python3 - \
   "$([[ -n "$FILTER_QUERY" ]] && echo 1 || echo 0)" \
   "$([[ -n "$RADIO_FILTER_QUERY" ]] && echo 1 || echo 0)" \
   "$ARTIST_TOP_TRACKS_FIXTURE" \
-  "$ERROR_NOTICE" <<'PY'
+  "$ERROR_NOTICE" \
+  "$BOOTSTRAP_RECOVERY" <<'PY'
 import json, sys
 screenshots = []
 for path in sys.argv[4:6]:
@@ -682,6 +694,8 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
              if sys.argv[11] == "1" else [])
           + (["POST /v1/presentation/notice"]
              if sys.argv[14] == "1" else [])
+          + (["POST /v1/presentation/playback-recovery"]
+             if sys.argv[15] == "1" else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([
               "POST /v1/presentation/search/play",

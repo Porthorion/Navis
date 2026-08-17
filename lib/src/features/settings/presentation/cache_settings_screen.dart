@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -254,11 +255,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
     setState(() => _clearing = true);
     try {
-      final db = ref.read(navisDatabaseProvider);
-
-      await _clearCacheByType(CacheType.rolling);
-      await ref.read(coverArtCacheManagerProvider).emptyCache();
-      await db.libraryDao.clearLibraryData();
+      await ref.read(libraryCacheResetServiceProvider).reset();
 
       final syncState = await ref
           .read(librarySyncControllerProvider.notifier)

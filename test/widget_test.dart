@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/app_router.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import 'helpers/test_theme.dart';
@@ -35,6 +39,25 @@ class _StaticAudioBootstrapController extends AudioBootstrapController {
 
   @override
   void ensureInitialized() {}
+}
+
+class _FakePlaybackRecoveryService implements PlaybackRecoveryService {
+  int retryCalls = 0;
+  int resetCalls = 0;
+  bool? signOutWipeLocalData;
+
+  @override
+  void retryPlayback() => retryCalls += 1;
+
+  @override
+  Future<void> resetLibraryCacheAndRetry() async {
+    resetCalls += 1;
+  }
+
+  @override
+  Future<void> signOut({required bool wipeLocalData}) async {
+    signOutWipeLocalData = wipeLocalData;
+  }
 }
 
 void main() {
@@ -123,4 +146,92 @@ void main() {
     expect(find.text('Playback initialization failed'), findsNothing);
     expect(find.text('Retry playback startup'), findsNothing);
   });
+
+  testWidgets('shows an unauthenticated recovery escape after ten seconds', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _noDbOverrides(
+          extras: [
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            audioBootstrapControllerProvider.overrideWith(
+              () => _StaticAudioBootstrapController(
+                state: const AudioBootstrapState.failed('failed'),
+              ),
+            ),
+          ],
+        ),
+        child: const NavisApp(
+          requirePlaybackBootstrap: true,
+          splashFactory: NoSplash.splashFactory,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Continue to sign in'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.text('Continue to sign in'), findsOneWidget);
+
+    await tester.tap(find.text('Continue to sign in'));
+    await tester.pump();
+    expect(
+      find.text('Connect to your Subsonic or Navidrome server.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'shows authenticated startup recovery actions after ten seconds',
+    (
+      tester,
+    ) async {
+      final recovery = _FakePlaybackRecoveryService();
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => const SizedBox.shrink(),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noDbOverrides(
+            extras: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(
+                  ServerConfigModel(
+                    url: 'https://example.com',
+                    username: 'alice',
+                    password: 'secret',
+                    apiVersion: '1.16.1',
+                  ),
+                ),
+              ),
+              playbackRecoveryServiceProvider.overrideWithValue(recovery),
+              appRouterProvider.overrideWithValue(router),
+              audioBootstrapControllerProvider.overrideWith(
+                () => _StaticAudioBootstrapController(
+                  state: const AudioBootstrapState.failed('failed'),
+                ),
+              ),
+            ],
+          ),
+          child: const NavisApp(
+            requirePlaybackBootstrap: true,
+            splashFactory: NoSplash.splashFactory,
+          ),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 10));
+
+      expect(find.text('Reset library cache and retry'), findsOneWidget);
+      expect(find.text('Sign out (keep local data)'), findsOneWidget);
+      expect(find.text('Sign out and clear local data'), findsOneWidget);
+    },
+  );
 }
