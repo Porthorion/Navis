@@ -18,6 +18,7 @@ import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart' as schema;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
+import 'package:navis/src/features/auto/data/android_auto_browse_notifier.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
@@ -32,6 +33,7 @@ import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
+import 'package:rxdart/rxdart.dart';
 
 part 'navis_playback_handler_contract.dart';
 part 'navis_playback_rules.dart';
@@ -136,6 +138,8 @@ class NavisAudioHandler extends BaseAudioHandler
   final void Function(RollingCacheActivity activity)?
   _reportRollingCacheActivity;
   late final AutoMediaTreeService _autoMediaTreeService;
+  final AndroidAutoBrowseNotifier _androidAutoBrowseNotifier =
+      AndroidAutoBrowseNotifier();
   // Only instantiated on Android: downloads cover art to local files so that
   // audio_service can populate METADATA_KEY_ALBUM_ART on the MediaSession,
   // which AAOS uses for the background art behind playback controls.
@@ -300,6 +304,13 @@ class NavisAudioHandler extends BaseAudioHandler
     String parentMediaId, [
     Map<String, dynamic>? options,
   ]) => _autoMediaTreeService.getChildren(parentMediaId, options);
+
+  @override
+  ValueStream<Map<String, dynamic>> subscribeToChildren(
+    String parentMediaId,
+  ) =>
+      _androidAutoBrowseNotifier.streamFor(parentMediaId) ??
+      super.subscribeToChildren(parentMediaId);
 
   @override
   Future<MediaItem?> getMediaItem(String mediaId) =>
@@ -4440,6 +4451,8 @@ class NavisAudioHandler extends BaseAudioHandler
       'positionMs': snapshot.position.inMilliseconds,
       'bufferedPositionMs': snapshot.bufferedPosition.inMilliseconds,
       'durationMs': snapshot.duration.inMilliseconds,
+      'shuffleMode': snapshot.shuffleMode.name,
+      'repeatMode': snapshot.repeatMode.name,
       'sourceKind': _currentSourceKind,
       'lockCachingBypassed': songId != null
           ? _lockCachingBypassedSongIds.contains(songId)
@@ -4823,21 +4836,8 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> _notifyAndroidAutoBrowseRefresh() async {
-    if (!_isAndroidRuntime) {
-      return;
-    }
-    try {
-      await AudioServiceBackground.notifyChildrenChanged();
-      await AudioServiceBackground.notifyChildrenChanged(AutoMediaRoot.recent);
-      await AudioServiceBackground.notifyChildrenChanged(
-        AudioService.recentRootId,
-      );
-      AppLogger.info('Android Auto browse roots refresh requested.');
-    } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Android Auto browse refresh request failed: $error\n$stackTrace',
-      );
-    }
+    _androidAutoBrowseNotifier.notifyParentsChanged();
+    AppLogger.info('Android Auto browse roots refresh requested.');
   }
 
   AudioProcessingState _mapProcessingState(ProcessingState state) {
@@ -5933,6 +5933,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await _persistSafely(_persistPosition, context: 'dispose handler');
     }
     await _ensurePlayerDisposalStarted();
+    await _androidAutoBrowseNotifier.dispose();
     await _snapshotController.close();
     await _manualTrackChangeCueController.close();
     await _positionController.close();

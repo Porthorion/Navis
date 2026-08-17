@@ -49,7 +49,8 @@ Minimum tested versions:
   resume, and transport controls over a validated media browser connection.
 - Linux: desktop now-playing and media-key integration use the app-owned
   MPRIS bridge over `dbus`.
-- Windows: system media transport controls are bridged through `smtc_windows`.
+- Windows: system media transport controls use Navis’s owned manual-SMTC
+  Rust/WinRT adapter with a stable Navis session identity.
 - macOS: desktop runtime is supported, but native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` integration is still planned work.
 
 ## Tech Stack
@@ -65,7 +66,7 @@ Minimum tested versions:
 | Android background work | WorkManager | 2.11.2 |
 | Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.12.0 |
 | Linux desktop media | dbus | ^0.7.10 |
-| Windows desktop media | smtc_windows | ^1.1.0 |
+| Windows desktop media | Navis-owned `navis_windows_smtc` | local Rust/WinRT adapter |
 
 ## Dependency Maintenance
 

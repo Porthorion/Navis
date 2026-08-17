@@ -19,6 +19,31 @@ Last updated: 2026-08-17
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [ ] Windows SMTC owned-adapter validation — partial: 2026-08-17
+  (implemented the local Rust/WinRT manual-SMTC adapter, ordered bridge state
+  publication, stable `com.navis.app.navis` AppUserModelID, safe artwork/event
+  handling, and the isolated `tool/windows_smtc_diagnostics.ps1` GMTC suite.
+  Focused bridge tests, native Windows Rust tests, a current isolated Windows
+  profile build, and `./tool/check.sh` passed. Remaining: run the authenticated
+  two-song GMTC control scenario on the Windows VM. Its required isolated
+  Navis diagnostics credential file is not available in the normal checkout;
+  the new script requires it explicitly and does not read or alter the normal
+  profile.)
+
+- [ ] Android Auto service-first startup stabilization — partial: 2026-08-17
+  (evidence: `AndroidUiBootstrapGate` keeps audio bootstrap independent from
+  activity-only platform setup; `AndroidAutoBrowseNotifier` removes the null
+  browse-notification options failure; `./tool/android_auto_cold_start_diagnostics.sh`
+  passed on the isolated Pixel_9_Pro_XL API 37 phone emulator with an external
+  MediaBrowser client, four root tabs, completed handler bootstrap, no
+  headless UI setup, and a subsequent warm Activity launch; `./tool/check.sh`
+  passed. A clean service-first external MediaBrowser test also passed on an
+  SM-S948B physical phone in 1.15 seconds with the same four tabs and no
+  Navis fatal/UI-bootstrap logs. DHU warm projection connected; the cold
+  projection attempt was blocked before Navis started by Android Auto's own
+  `gearhead:projection` `Already connected` crash. Remaining: reset that DHU
+  state, then complete the cold-start browse, playback, and reconnect smoke.)
+
 - [x] Cold-start desktop context menus — 2026-08-17 (desktop Artist More no
   longer waits for unwarmed local streams before opening; pending playback
   actions resolve their data after selection. The shared popup helper retries

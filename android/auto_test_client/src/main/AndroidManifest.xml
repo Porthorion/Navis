@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <!-- The external test client must be able to resolve the dev sidecar's
+             exported MediaBrowserService on Android 11+. -->
+        <package android:name="com.navis.app.navis.dev" />
+        <intent>
+            <action android:name="android.media.browse.MediaBrowserService" />
+        </intent>
+    </queries>
+
+    <application android:label="Navis Auto Test Client" />
+</manifest>

@@ -57,7 +57,15 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.5', [
     _Entry(
+      'Fixed Windows media controls so system playback, seeking, shuffle, and repeat reliably follow Navis playback',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Fixed desktop More and right-click menus failing to open until after navigation',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Fixed Android Auto opening from a cold phone start and made media browse refreshes reliable',
       type: _EntryType.fix,
     ),
     _Entry(

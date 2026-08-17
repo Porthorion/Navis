@@ -45,11 +45,16 @@ Located in `lib/src/providers/app_providers.dart`:
   - `audioHandlerStateProvider` - Audio handler state controller
   - `playbackSnapshotProvider` - Current playback state stream
   - `playerStateProvider` - Simplified playback state
-  - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses the
-    app-owned SMTC bridge; Android, iOS, and macOS use `audio_service`
+  - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses
+    `WindowsSmtcBridge` backed by the local `navis_windows_smtc` Rust/WinRT
+    manual-SMTC adapter; Android, iOS, and macOS use `audio_service`
   - Bootstrap remains behind the loading gate while initialization fails and
     retries every three seconds; its existing timeout and stale-completion
     protections continue to govern every attempt.
+  - Android Auto can invoke Dart before `MainActivity` exists. Navis creates
+    the provider container and starts audio bootstrap immediately, while
+    `AndroidUiBootstrapGate` defers `SystemChrome`, notification, diagnostics
+    UI, and `runApp` work until the first Android `resumed` lifecycle state.
 
 - **Android Auto phone projection**
   - The canonical `com.ryanheise.audioservice.AudioService` is the exported
@@ -67,6 +72,12 @@ Located in `lib/src/providers/app_providers.dart`:
   - Search merges server artists/albums/songs with local playlists, prioritizes
     songs and playlists with exact matches first, times out server work after
     eight seconds, and falls back to local results.
+  - `AndroidAutoBrowseNotifier` owns non-null child-change streams for the
+    root, recent, and system-recent parents. This replaces deprecated static
+    `notifyChildrenChanged` calls whose null options are rejected by AndroidX.
+  - `tool/android_auto_cold_start_diagnostics.sh` validates the service-first
+    contract from an external MediaBrowser client on a phone emulator before
+    the physical-phone DHU projection smoke test.
   - See `docs/android-auto-testing.md` for DHU validation and
     `docs/android_auto_real_car_testing.md` for trusted-store real-car checks.
 
@@ -774,7 +785,10 @@ The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads
 position from `positionStream`; Windows SMTC coalesces routine timeline updates
 to about one per second and sends track changes and seek discontinuities
-immediately. Interactive seek bars render `bufferStateStream` as a subtle
+immediately. The Windows runner assigns `com.navis.app.navis` before Flutter
+creates a window; the owned Rust adapter uses manual SMTC, retains and revokes
+WinRT event tokens, serializes complete state writes, and omits unusable
+artwork while retaining text metadata. Interactive seek bars render `bufferStateStream` as a subtle
 secondary track and ignore states keyed to another song. For queued songs,
 `MediaItem.duration` remains authoritative while a transcoded decoder reports a
 growing partial duration; the decoder duration is only a fallback when metadata

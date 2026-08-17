@@ -17,6 +17,24 @@ For default real-car validation, use the Play-installed trusted-source runbook:
 3. **Physical Android device** (emulators don't support Android Auto) connected via USB
 4. **Android Auto app** installed on the device (from Play Store)
 
+## Automated Cold-Start Regression Gate
+
+Run this before the physical-phone DHU checklist whenever Android Auto startup,
+audio bootstrap, notifications, or media browsing changes:
+
+```bash
+./tool/android_auto_cold_start_diagnostics.sh
+```
+
+It requires one running standard Android **phone emulator**. The command builds
+and installs only `Navis Dev`, force-stops it, then runs a separate test-client
+APK that binds the canonical `AudioService` as a head unit would. It never
+launches `MainActivity`, and asserts the service initializes in 10 seconds and
+returns the four root tabs: Liked, Recent, Playlists, and Library.
+
+This is the repeatable automated regression test for the service-first path.
+It does not replace the physical phone required for DHU phone projection.
+
 ## Setup
 
 ### 1. Enable Developer Mode on Phone
@@ -110,6 +128,8 @@ Once the DHU is running, use these commands in the DHU terminal:
 
 ### Connection & Discovery
 
+- [ ] Force-stop Navis without opening `MainActivity`, then connect DHU; Navis
+  loads its browse root without a crash, hang, or reconnect workaround
 - [ ] Navis appears in the DHU's media app list
 - [ ] Navis icon displays correctly
 - [ ] Tapping Navis opens the media browse interface

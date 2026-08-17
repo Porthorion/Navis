@@ -150,11 +150,13 @@ flutter test test/path/to/foo_test.dart
 # Dev sidecar app (`.dev` suffix, `Navis Dev`, dev update channel)
 ./tool/dev_app.sh run -d <device-id>
 ./tool/dev_app.sh apk
+./tool/dev_app.sh apk-debug
 ./tool/dev_app.sh linux
 ./tool/dev_app.sh linux-icon  # refresh content-addressed desktop icon/cache
 ./tool/dev_app.sh auto       # Android Auto
 ./tool/dev_app.sh dhu        # Desktop Head Unit
 ./tool/verify_android_auto_manifest.sh  # Android Auto manifest/APK contract
+./tool/android_auto_cold_start_diagnostics.sh  # Android emulator service-first MediaBrowser gate
 ./tool/sync_diagnostics.sh clone  # isolated Linux profile sync/API suite
 ./tool/sync_diagnostics.sh throughput  # isolated single-repair throughput sample
 ./tool/sync_diagnostics.sh full-rescan  # isolated live-scale Repair Library trace + preparing-state capture
@@ -177,6 +179,7 @@ NAVIS_PRESENTATION_ERROR_NOTICE=1 ./tool/presentation_diagnostics.sh clone / err
 NAVIS_PRESENTATION_OPEN_NOW_PLAYING=1 ./tool/presentation_diagnostics.sh clone / now-playing  # clone-only Now Playing screenshot without remote playback
 ./tool/desktop_layout_diagnostics.sh  # Desktop View/Mini Player resize + screenshot suite
 ./tool/auth_lifecycle_diagnostics.sh clone  # isolated first-sync/logout suite
+./tool/windows_smtc_diagnostics.ps1 -SourceDatabase C:\path\to\navis.sqlite.sqlite -CredentialFile C:\path\to\diagnostics-password -SongId first-song-id -SecondSongId second-song-id  # Windows-only isolated GMTC suite
 
 # Release (runs check unless --skip-checks)
 ./tool/release.sh v1.2.3
@@ -232,7 +235,7 @@ These strings in test output cause `check.sh` to fail:
 | Models | freezed + json_serializable | ^3.1.0 / ^6.13.1 |
 | Desktop audio | just_audio_media_kit | ^2.1.0 |
 | Linux media | dbus | ^0.7.10 |
-| Windows media | smtc_windows | ^1.1.0 |
+| Windows media | `third_party/navis_windows_smtc` | Navis-owned Rust/WinRT adapter |
 | Android scheduling | androidx.work:work-runtime-ktx | 2.11.2 |
 
 **Providers are hand-written** (`NotifierProvider`, `Provider`, `StreamProvider`, etc.) — **not** `@riverpod` codegen. `riverpod_generator` is not in `pubspec.yaml`.
@@ -297,11 +300,16 @@ presentation/ # screens, widgets, *_provider.dart files
 2. Initialize desktop audio backend (`just_audio_media_kit` on macOS/Linux/Windows)
 3. Create root `ProviderContainer` via `_createRootProviderContainer()`
 4. `audioBootstrapControllerProvider.notifier.ensureInitialized()`
-5. `NotificationBootstrap.initialize()`
+5. On Android, defer orientation, edge-to-edge, notifications, diagnostics UI, and `runApp` until the first `resumed` lifecycle event; other platforms continue immediately.
 6. `runApp(UncontrolledProviderScope(container: rootContainer, child: NavisApp(...)))`
 
 - Uses `UncontrolledProviderScope` with a pre-built container — **not** a bare `ProviderScope`.
 - `NavisApp(requirePlaybackBootstrap: true)` — UI reads playback via providers; never create handler state ad hoc.
+- Android Auto can create the audio-service Flutter engine while no activity is
+  attached. Audio bootstrap must run before—and independently of—UI-only
+  `SystemChrome` or notification work. `AndroidUiBootstrapGate` runs UI
+  operations once after `resumed`; never gate the media handler on a timeout
+  or guessed headless state.
 - Playback bootstrap keeps the loading gate visible during failures and retries every three seconds until ready. Timeout and stale/late completion guards remain active; clone diagnostics may inject initial failures only through `NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS` and observe safe attempt state through `GET /v1/playback/bootstrap/status`.
 
 ### Provider organization (`lib/src/providers/app_providers.dart`)
@@ -350,7 +358,15 @@ track-keyed `bufferStateStream` so late buffer events cannot leak onto a new
 song. Known song metadata is authoritative for timeline duration, especially
 while transcoded decoder duration is still growing. Windows SMTC coalesces
 normal timeline writes to roughly once per second, while track changes and seek
-discontinuities update immediately.
+discontinuities update immediately. Windows uses the Navis-owned
+`third_party/navis_windows_smtc` manual-SMTC adapter, not the upstream
+`smtc_windows` API or its private generated bindings. The runner assigns
+AppUserModelID `com.navis.app.navis` before creating Flutter windows. Keep
+adapter state writes ordered, retain and revoke WinRT event tokens, propagate
+native failures to Dart, and skip unusable artwork without withholding text
+metadata. Validate changes with `tool/windows_smtc_diagnostics.ps1` against an
+isolated Windows profile and GMTC commands; that OS interface is authoritative
+for Windows media integration.
 
 Song rows derive their shared `inactive`, `current`, or `loading` presentation
 from `song_playback_indicator.dart`. While switching, `loadingSongId` is the
@@ -370,6 +386,14 @@ download, or genre context, but persisted and transport queue IDs remain raw
 Subsonic song IDs. Projected search must put songs and playlists first and
 fall back to the local database within the Android for Cars 10-second
 content-load limit.
+
+Android Auto may start the service before `MainActivity`, so the root provider
+container and audio bootstrap must remain headless-safe. Browse refreshes use
+the handler-owned `AndroidAutoBrowseNotifier` streams for root, recent, and
+system-recent parents; do not restore deprecated static
+`notifyChildrenChanged` calls because AndroidX rejects their null options. Run
+`./tool/android_auto_cold_start_diagnostics.sh` on a standard phone emulator
+before the required physical-phone DHU smoke test.
 
 Queue replacement is two-phase for album-style queues: phase 1 prepares only
 the tapped song in the transport queue so playback starts quickly; phase 2
@@ -983,7 +1007,7 @@ Commits reference issues as `fix(#N):` or `(issue #N)`.
 | **macOS debug** | `just_audio_media_kit` skipped unless `NAVIS_ENABLE_MEDIA_KIT_DEBUG=true` |
 | **macOS release** | Native Control Centre bridge (`MPRemoteCommandCenter`) still pending |
 | **Linux** | MPRIS via the app-owned `dbus` bridge |
-| **Windows** | SMTC via `smtc_windows` |
+| **Windows** | Manual SMTC via the Navis-owned `navis_windows_smtc` adapter; stable AppUserModelID `com.navis.app.navis` |
 | **Android** | `audio_service` media session and Android Auto phone projection in `features/auto/`; constrained WorkManager background library sync is internally gated and uses a headless Dart entrypoint; manifest service class must remain the canonical plugin `AudioService` |
 | **iOS** | CarPlay and media-session parity under audit |
 | **Listen Together** | Retired; no active UI files remain and no Voyage sibling repo is required |

@@ -30,7 +30,15 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.5',
     entries: [
       ChangelogEntry(
+        'Fixed Windows media controls so system playback, seeking, shuffle, and repeat reliably follow Navis playback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fixed desktop More and right-click menus failing to open until after navigation',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed Android Auto opening from a cold phone start and made media browse refreshes reliable',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

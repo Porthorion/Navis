@@ -97,13 +97,13 @@ tar \
 
 # Bundle the pub packages required by pubspec.lock so the Windows VM can run
 # flutter pub get --offline even without internet access. Also include the
-# cargokit (smtc_windows) build_tool dependencies which are at different pinned
-# versions than the main app.
+# vendored SMTC adapter's cargokit build-tool dependencies, which are pinned
+# independently from the main app.
 printf '[remote-windows] Bundling pub package cache...\n'
 _pub_cache_host="${HOME}/.pub-cache/hosted/pub.dev"
 _lock_file="${REPO_ROOT}/pubspec.lock"
-# smtc_windows ships cargokit which has its own pinned pubspec.lock
-_cargokit_lock="${_pub_cache_host}/smtc_windows-1.1.0/cargokit/build_tool/pubspec.lock"
+# The first-party Windows adapter ships cargokit with its own lockfile.
+_cargokit_lock="${REPO_ROOT}/third_party/navis_windows_smtc/cargokit/build_tool/pubspec.lock"
 _pkg_dirs=()
 _seen=()
 _collect_lock_pkgs() {
@@ -281,7 +281,7 @@ if (Test-Path $_vswhere) {
 # cargokit uses Get-Item on path components that may include hidden Windows
 # system junctions (e.g. AppData), which fails without -Force in SSH sessions.
 # Use .NET file APIs to bypass the PowerShell hidden-item restriction.
-$_resolvePs1 = [System.IO.Path]::Combine($workspaceDir, 'windows', 'flutter', 'ephemeral', '.plugin_symlinks', 'smtc_windows', 'cargokit', 'cmake', 'resolve_symlinks.ps1')
+$_resolvePs1 = [System.IO.Path]::Combine($workspaceDir, 'windows', 'flutter', 'ephemeral', '.plugin_symlinks', 'navis_windows_smtc', 'cargokit', 'cmake', 'resolve_symlinks.ps1')
 if ([System.IO.File]::Exists($_resolvePs1)) {
     $_c = [System.IO.File]::ReadAllText($_resolvePs1)
     if ($_c -match 'Get-Item \$realPath' -and $_c -notmatch 'Get-Item -Force \$realPath') {
@@ -390,7 +390,7 @@ Get-ChildItem $_sqlite3PubBase -Directory | Where-Object { $_.Name -like 'sqlite
 # this silently fails, leaving package_config.json absent and causing
 # "Couldn't resolve the package 'build_tool'" at compile time.
 # Adding --offline makes it resolve from $PUB_CACHE (our bundled cache).
-$_cargokitRoot = [System.IO.Path]::Combine($workspaceDir, 'windows', 'flutter', 'ephemeral', '.plugin_symlinks', 'smtc_windows', 'cargokit')
+$_cargokitRoot = [System.IO.Path]::Combine($workspaceDir, 'windows', 'flutter', 'ephemeral', '.plugin_symlinks', 'navis_windows_smtc', 'cargokit')
 $_runBuildToolCmd = [System.IO.Path]::Combine($_cargokitRoot, 'run_build_tool.cmd')
 if ([System.IO.File]::Exists($_runBuildToolCmd)) {
     $_c = [System.IO.File]::ReadAllText($_runBuildToolCmd)

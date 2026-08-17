@@ -852,6 +852,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.19.2"
+  navis_windows_smtc:
+    dependency: "direct main"
+    description:
+      path: "third_party/navis_windows_smtc"
+      relative: true
+    source: path
+    version: "1.1.0"
   nm:
     dependency: transitive
     description:
@@ -1053,7 +1060,7 @@ packages:
     source: hosted
     version: "3.3.2"
   rxdart:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: rxdart
       sha256: "5c3004a4a8dbb94bd4bf5412a4def4acdaa12e12f269737a5751369e12d1a962"
@@ -1153,14 +1160,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  smtc_windows:
-    dependency: "direct main"
-    description:
-      name: smtc_windows
-      sha256: dee279b0ddf663c4c729a88bca4e57fb4861aa1b3d01e230bdbf1277b8bfe664
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.0"
   source_gen:
     dependency: transitive
     description:

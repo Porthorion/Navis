@@ -11,6 +11,7 @@
 #   ./tool/dev_app.sh linux [flutter-run-args...]
 #   ./tool/dev_app.sh linux-icon
 #   ./tool/dev_app.sh apk [flutter-build-args...]
+#   ./tool/dev_app.sh apk-debug [flutter-build-args...]
 #   ./tool/dev_app.sh auto [flutter-run-args...]
 #   ./tool/dev_app.sh dhu
 #
@@ -115,6 +116,9 @@ case "${MODE}" in
     ;;
   apk)
     flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
+    ;;
+  apk-debug)
+    flutter build apk --debug "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   auto)
     # Run on an Android Automotive OS (AAOS) emulator — no DHU or phone needed.

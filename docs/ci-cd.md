@@ -2,6 +2,11 @@
 
 All quality gates and release publishing run locally. There is no CI runner — `tool/check.sh` and `tool/release.sh` replace what Forgejo Actions workflows would do.
 
+Windows media-session changes additionally require the Windows-only isolated
+GMTC validation command described in `docs/development-workflow.md`:
+`tool/windows_smtc_diagnostics.ps1`. It runs after Linux smoke and focused
+tests; it is not a replacement for `./tool/check.sh`.
+
 ## Quality Gate (`tool/check.sh`)
 
 Run before every commit (automatically enforced if the pre-commit hook is enabled):
@@ -32,6 +37,19 @@ gate:
 It checks that release discovery metadata and the canonical
 `com.ryanheise.audioservice.AudioService` are present and no privileged
 media-browser bind permission blocks Android Auto.
+
+Android Auto's service-first regression has a separate Android phone-emulator
+gate. It builds only the `.dev` sidecar, force-stops it, and binds an external
+MediaBrowser client without launching `MainActivity`:
+
+```bash
+./tool/android_auto_cold_start_diagnostics.sh
+```
+
+The diagnostic requires exactly one running, non-automotive Android emulator.
+It asserts the service connects within 10 seconds, exposes the four Navis root
+tabs, completes audio bootstrap, and emits no fatal Android or Flutter logs.
+It complements, but does not replace, the physical-phone DHU projection check.
 
 Library sync metered-network guardrails are exercised by the clone diagnostics
 suite (`./tool/sync_diagnostics.sh clone`):

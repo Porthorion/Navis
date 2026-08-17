@@ -197,13 +197,32 @@ behavior under test:
 | Flutter accessibility semantics | Widget semantics tests; AT-SPI only when the platform bridge itself is in scope |
 | Linux media-session integration | Linux app API plus MPRIS |
 | Android or Android Auto | Linux startup smoke plus the Android media-session/MediaBrowser API on a device, emulator, or DHU as appropriate |
-| Windows media integration | Linux startup smoke plus the Windows app and SMTC |
+| Windows media integration | Linux startup smoke plus `tool/windows_smtc_diagnostics.ps1` on Windows and GMTC |
 | macOS or iOS integration | Linux startup smoke plus the affected Apple target and its supported platform interface |
 
 MPRIS, SMTC, MediaBrowser, and corresponding Apple interfaces are authoritative
 only for their OS-owned integration. They do not replace the Navis API for
 ordinary Flutter state. If the affected target is unavailable, mark the work
 unverified or blocked; only the user may explicitly accept deferred validation.
+
+### Windows SMTC diagnostics
+
+Run `tool/windows_smtc_diagnostics.ps1` from an isolated current-build
+directory on Windows. It requires an isolated copy of a configured database,
+an explicit diagnostics credential file, and two playable local song IDs. The
+script starts a profile build with the authenticated diagnostics API, then uses
+Windows Global Media Transport Controls (GMTC)—not desktop automation—to verify
+Navis’s AppUserModelID, metadata, capabilities, transport commands, seek,
+shuffle/repeat, timeline progress, and clean restart. It writes only under its
+specified output root and never prints the bearer token, server URL, or media
+metadata.
+
+```powershell
+.\tool\windows_smtc_diagnostics.ps1 `
+  -SourceDatabase C:\path\to\navis.sqlite.sqlite `
+  -CredentialFile C:\path\to\diagnostics-password `
+  -SongId first-song-id -SecondSongId second-song-id
+```
 
 ### Desktop app API
 
@@ -630,6 +649,7 @@ Use the helper script to run or build a sidecar app without manually exporting v
 ```bash
 ./tool/dev_app.sh run -d <device-id>
 ./tool/dev_app.sh apk
+./tool/dev_app.sh apk-debug
 ```
 
 Defaults used by this script:
@@ -640,6 +660,10 @@ Defaults used by this script:
 - `--dart-define=NAVIS_SELF_UPDATE=true`
 - Android builds use the `sideload` flavor and emit
   `build/app/outputs/flutter-apk/app-sideload-release.apk`.
+
+`apk-debug` emits an installable debug sidecar and accepts normal Flutter build
+arguments. The Android Auto emulator gate uses its x86_64 split APK so it can
+fit reliably on a standard phone AVD.
 
 This ensures the dev app can live next to stable and the in-app updater checks dev-channel release assets.
 
@@ -654,6 +678,18 @@ The verifier requires the automotive descriptor, projection metadata, exported
 canonical `com.ryanheise.audioservice.AudioService`, media-browser intent
 filter, icon/theme metadata, and the absence of the privileged bind permission.
 If an APK already exists, it also confirms that the descriptor was packaged.
+
+Before physical-phone DHU validation, run the automated cold-start regression
+on a standard Android phone emulator:
+
+```bash
+./tool/android_auto_cold_start_diagnostics.sh
+```
+
+The command installs only the `.dev` sidecar, force-stops it, then uses an
+external MediaBrowser client to start the canonical audio service without ever
+launching `MainActivity`. It is intentionally not an AAOS test and does not
+replace DHU projection validation.
 
 When Android SDK/device is not available locally, you can still verify app startup behavior with Linux desktop:
 

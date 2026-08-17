@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/app.dart';
+import 'package:navis/src/bootstrap/android_ui_bootstrap_gate.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart'
     as android_background_sync;
@@ -31,7 +32,6 @@ Future<void> navisBackgroundSyncEntrypoint() =>
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _unlockMobileOrientations();
 
   _initializeDesktopAudioBackend();
   if (_isDesktopRuntime) {
@@ -50,30 +50,59 @@ Future<void> main() async {
       .read(audioBootstrapControllerProvider.notifier)
       .ensureInitialized();
 
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  AppLogger.info('Edge-to-edge mode enabled.');
+  Future<void> startUi() async {
+    await _unlockMobileOrientations();
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    AppLogger.info('Edge-to-edge mode enabled.');
 
-  await NotificationBootstrap.initialize();
+    await NotificationBootstrap.initialize();
 
-  final app = UncontrolledProviderScope(
-    container: rootContainer,
-    child: NavisApp(
-      requirePlaybackBootstrap: true,
-      schedulePlaybackBootstrap: false,
-      onBootstrapOverlayDismissed: diagnosticsPresentation?.markAppReady,
-    ),
-  );
-  runApp(diagnosticsPresentation?.wrap(app) ?? app);
-  if (_syncDiagnosticsRuntimeEnabled) {
-    unawaited(
-      _startSyncDiagnostics(
-        container: rootContainer,
-        database: diagnosticsDatabase ?? desktopBootstrap?.database,
-        presentationController: diagnosticsPresentation,
+    final app = UncontrolledProviderScope(
+      container: rootContainer,
+      child: NavisApp(
+        requirePlaybackBootstrap: true,
+        schedulePlaybackBootstrap: false,
+        onBootstrapOverlayDismissed: diagnosticsPresentation?.markAppReady,
       ),
     );
+    runApp(diagnosticsPresentation?.wrap(app) ?? app);
+    if (_syncDiagnosticsRuntimeEnabled) {
+      unawaited(
+        _startSyncDiagnostics(
+          container: rootContainer,
+          database: diagnosticsDatabase ?? desktopBootstrap?.database,
+          presentationController: diagnosticsPresentation,
+        ),
+      );
+    }
+  }
+
+  if (_isAndroidRuntime) {
+    final gate = AndroidUiBootstrapGate(
+      startUi: startUi,
+      onError: (error, stackTrace) {
+        AppLogger.error(
+          'Android UI bootstrap failed. Media service remains available.',
+          error,
+          stackTrace,
+        );
+      },
+    );
+    _androidUiLifecycleListener?.dispose();
+    _androidUiLifecycleListener = AppLifecycleListener(
+      onResume: () {
+        unawaited(gate.handleLifecycleState(AppLifecycleState.resumed));
+      },
+    );
+    unawaited(
+      gate.handleLifecycleState(WidgetsBinding.instance.lifecycleState),
+    );
+  } else {
+    await startUi();
   }
 }
+
+AppLifecycleListener? _androidUiLifecycleListener;
 
 ProviderContainer _createRootProviderContainer({
   required _DesktopBootstrap? desktopBootstrap,

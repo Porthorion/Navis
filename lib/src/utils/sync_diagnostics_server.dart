@@ -959,6 +959,56 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' && path == '/v1/playback/queue') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        final body = await _readJson(request);
+        final rawSongIds = body['songIds'];
+        if (rawSongIds is! List || rawSongIds.length < 2) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'at least two songIds are required',
+          });
+          return;
+        }
+        final songIds = rawSongIds
+            .whereType<String>()
+            .map((songId) => songId.trim())
+            .where((songId) => songId.isNotEmpty)
+            .toList(growable: false);
+        if (songIds.length != rawSongIds.length) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'songIds must be non-empty strings',
+          });
+          return;
+        }
+        final database = _container.read(navisDatabaseProvider);
+        final songs = <SongsTableData>[];
+        for (final songId in songIds) {
+          final song = await database.libraryDao.getSongById(songId);
+          if (song == null) {
+            await _respond(request, HttpStatus.notFound, <String, Object?>{
+              'error': 'song not found',
+              'songId': songId,
+            });
+            return;
+          }
+          songs.add(song);
+        }
+        await _container
+            .read(queueProvider.notifier)
+            .replaceWithTableData(
+              songs,
+            );
+        await _respond(request, HttpStatus.accepted, <String, Object?>{
+          'status': 'starting',
+          'songIds': songIds,
+        });
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/playback/status') {
         final handler = await _waitForPlaybackHandler();
         await handler.waitUntilReady();
