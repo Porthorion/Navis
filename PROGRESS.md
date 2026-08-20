@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-17
+Last updated: 2026-08-20
 
 ---
 
@@ -477,7 +477,7 @@ Last updated: 2026-08-17
   inspected app-owned screenshot pass before and after a clean restart; the
   final `./tool/check.sh` passes with 1,120 tests and 1 skip.)
 
-- [ ] Cross-platform entity-action placement policy — partial: 2026-08-15
+- [x] Cross-platform entity-action placement policy — 2026-08-15
   (approved: playlist detail makes Play the one filled primary action and keeps
   Shuffle and Download tonal, matching album/artist hierarchy on phone and
   desktop. Song, album, and playlist-track menus now group direct, utility,
@@ -486,10 +486,12 @@ Last updated: 2026-08-17
   for secondary click and the More button, while phone retains its touch sheet.
   Focused before/after goldens and secondary-pointer widget coverage pass;
   `./tool/check.sh` and isolated Linux playlist-detail app-API/screenshot
-  diagnostics pass with a clean restart. Remaining scope is future
-  playlist-level desktop owner actions.)
+  diagnostics pass with a clean restart. The later Desktop Library playlist
+  owner-action slice closed the remaining rename/delete action parity through
+  the same anchored desktop menu (evidence: `eff8155e`,
+  `test/src/features/playlists/presentation/playlists_screen_test.dart`).)
 
-- [ ] State-clarity contract — partial: 2026-08-14 (approved: filtered-empty
+- [x] State-clarity contract — 2026-08-15 (approved: filtered-empty
   Artists, Albums, Albums by Year, and Liked views now provide one localized
   `Show all` recovery action that clears active filters without leaving the
   current section. Weekly playlist detail now preserves track-shaped geometry
@@ -501,13 +503,17 @@ Last updated: 2026-08-17
   pass. Ordinary offline mode now remains visible without borrowing
   destructive error styling; action failures retain it.
   Final `./tool/check.sh` passes with 1,120 tests and 1 skip; isolated Linux
-  weekly-detail diagnostics pass before and after a clean restart. Safe
-  offline and recoverable-error copy remains.)
+  weekly-detail diagnostics pass before and after a clean restart. The later
+  safe recoverable-error copy, calm offline treatment, and persistent
+  actionable error-notice slices closed the remaining state-copy scope
+  (evidence: `1fd3dae3`, `fb809f1c`, `21be8a95`).)
 
-- [ ] Active desktop metadata visual coverage — partial: 2026-08-13
+- [x] Active desktop metadata visual coverage — 2026-08-15
   (deterministic player-bar goldens now cover long title/artist truncation at
   800×600, standard and ultra-wide hierarchy, and 130% text scale. Mini Player
-  has active/empty coverage; remote variants remain.)
+  has active/empty coverage; the later 800×600 Desktop View and 560×360 Mini
+  Player Remote fixtures closed the remaining provenance variants (evidence:
+  `441b6259`, `test/src/routing/app_shell_navigation_test.dart`).)
 
 - [x] Mobile album-title fit refinement — 2026-08-13 (the original
   artwork-led header remains; its album title now steps down only when a full
@@ -1462,14 +1468,23 @@ Last updated: 2026-08-17
 - [x] Render existing server ratings in list/detail UI where available — 2026-03-05 (evidence: `userRating` added to `Song`/`Album` API models + DB tables in `lib/src/api/models/song.dart`, `lib/src/api/models/album.dart`, `lib/src/database/tables/songs_table.dart`, `lib/src/database/tables/albums_table.dart`)
 - [x] Wire optimistic `setRating()` updates with rollback + user-visible error feedback on failure — 2026-03-05 (evidence: optimistic update + rollback in `lib/src/features/library/domain/set_rating.dart`; failure snackbars in `song_context_menu.dart` and `album_detail_screen.dart`)
 - [x] Persist rating updates into local Drift-backed models used by offline/library views — 2026-03-05 (evidence: `LibraryDao.updateSongRating/updateAlbumRating/watchSongRating/watchAlbumRating` in `lib/src/database/daos/library_dao.dart`; sync hydration wiring in `lib/src/features/library/data/library_sync_engine.dart`)
-- [ ] Add tests for rating provider logic and at least one widget interaction flow — partial: 2026-03-05 (remaining: add focused rating-domain/provider tests and a dedicated star-tap widget interaction assertion)
+- [ ] Add tests for rating provider logic and at least one widget interaction
+  flow — partial: 2026-08-20 (completed: catalog-diff coverage proves local
+  rating fields do not trigger server catalog rewrites; remaining: focused
+  `setRating` optimistic-update/rollback tests and a dedicated rating-control
+  widget interaction assertion; evidence:
+  `test/src/features/library/data/library_catalog_diff_analyzer_test.dart`)
 
 ### 15.9 — Rich Album Metadata (MEDIUM)
 - [x] Fetch `getAlbumInfo2(id)` for album detail enrichment — 2026-03-05 (evidence: `albumInfoProvider` in `lib/src/providers/app_providers.dart` calls `SubsonicApiClient.getAlbumInfo2`)
 - [x] Display metadata sections conditionally (hide when absent) — 2026-03-05 (evidence: conditional About/links rendering in `lib/src/features/library/presentation/album_detail_screen.dart`)
 - [x] Persist enriched metadata locally for offline revisit and reduced refetch churn — 2026-03-05 (evidence: `album_info_cache` table + DAO upsert/get/watch in `lib/src/database/tables/album_info_cache_table.dart` and `lib/src/database/daos/library_dao.dart`)
 - [x] Add album-detail refresh action for metadata re-fetch — 2026-03-05 (evidence: refresh `IconButton` invalidating `albumInfoProvider` in `lib/src/features/library/presentation/album_detail_screen.dart`)
-- [ ] Add tests for parse/persist/render paths — partial: 2026-03-05 (remaining: add explicit provider/DAO tests for cache expiry fallback and metadata section rendering branches)
+- [ ] Add tests for parse/persist/render paths — partial: 2026-08-20
+  (completed: album-detail widget coverage renders supplied album information
+  with the local track list; remaining: explicit API parse, DAO persistence,
+  cache-expiry/fallback, and absent-section branch tests; evidence:
+  `test/src/features/library/presentation/library_detail_screens_test.dart`)
 
 ## Phase 16: Search & Offline Sync
 
@@ -1598,7 +1613,15 @@ Last updated: 2026-08-17
 - [x] Add external lyrics cache table with TTL and failure backoff behavior — 2026-03-05 (evidence: `external_lyrics_cache` schema + DAO methods in `lib/src/database/tables/external_lyrics_cache_table.dart` and `lib/src/database/daos/library_dao.dart`; backoff logic in `app_providers.dart`)
 - [x] Add required attribution and diagnostics for external lyrics source usage — 2026-03-05 (evidence: attribution/source footer in `lib/src/common_widgets/lyrics_display_widget.dart`; diagnostics log in `app_providers.dart`)
 - [x] Add settings toggle: "Use LRCLIB when server lyrics are unavailable" (default off) — 2026-03-05 (evidence: toggle implemented in Playback settings + persisted in DB via `useLrclib`; product decision keeps default ON)
-- [ ] Add tests for source-priority behavior, confidence thresholds, offline/cache paths, and synced/unsynced rendering integrity — partial: 2026-03-05 (remaining: add dedicated lyrics-provider and matcher regression tests)
+- [ ] Add tests for source-priority behavior, confidence thresholds,
+  offline/cache paths, and synced/unsynced rendering integrity — partial:
+  2026-08-20 (completed: provider coverage exercises external lookup priority,
+  server fallback after external failure, disabled-provider behavior, cached
+  synced lyrics, and non-blocking queue prewarm; download coverage exercises
+  persisted offline lyrics. Remaining: direct matcher threshold/ambiguity
+  regressions and synced-versus-unsynced rendering-integrity widget tests;
+  evidence: `test/src/providers/app_providers_test.dart`,
+  `test/src/features/downloads/download_service_test.dart`)
 
 ## Phase 26: In-Car & Desktop Platforms
 
@@ -1647,7 +1670,11 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - [x] Update `go_router` shell wiring to use `AdaptiveShell` without breaking existing branch navigation — 2026-03-07 (evidence: `lib/src/routing/app_router.dart` `StatefulShellRoute.indexedStack` builder routes through adaptive `AppShell`; validated by `test/src/routing/app_router_test.dart` and `test/src/routing/app_shell_navigation_test.dart`)
 - [x] Add window size/position persistence with `window_manager`; enforce minimum `480 x 600` — 2026-03-07 (evidence: desktop window init + minimum-size enforcement + persisted bounds restore/save listener in `lib/main.dart`)
 - [ ] Add macOS native system media integration (`MPRemoteCommandCenter` / `MPNowPlayingInfoCenter`) and audit iOS media-session parity — partial: 2026-03-27 (evidence: `DEVELOPMENT_PLAN.md`, `README.md`, `docs/multi-os-release-implementation-progress.md`; remaining: implement native bridge and validate behavior on macOS/iOS hardware)
-- [ ] Dependency/module upgrade sweep for desktop/audio/tooling stack — partial: 2026-03-27 (evidence: `flutter pub outdated` shows direct backlog in `drift`, `drift_flutter`, `drift_dev`, and `json_serializable`; remaining: land upgrades, regenerate code, and rerun targeted gates)
+- [x] Dependency/module upgrade sweep for desktop/audio/tooling stack —
+  2026-03-28 (the direct Drift/serialization backlog was upgraded and generated
+  code plus targeted gates were rerun; later safe refreshes retained the
+  current Drift 2.32.1 / drift_flutter 0.3.0 / json_serializable 6.13.1 stack;
+  evidence: `6c0d2b2`, ACP-M5-05 below, `pubspec.yaml`)
 - [ ] Packaging path: Linux `.deb` first (then optional `.AppImage`/Flatpak if low effort), macOS Apple Silicon-first signed/notarized build path, Windows installable `.exe` target for Windows 10/11 — partial: 2026-03-07 (evidence: `tool/release.sh` supports channel-aware multi-target artifact generation (`--targets`, `--all-platforms`, `--channel`), Linux packaging mode selection (`--linux-package=bundle|deb`), and uploads all built assets with channel-specific naming; `tool/dev_app.sh` plus `docs/dev-testing-builds.md` document sidecar dev run/build workflow with `NAVIS_UPDATE_CHANNEL=dev`; remaining: finalize production signing/notarization and installable Windows packaging path)
 
 ## Phase 27: Platform Surface Extensions
@@ -1670,25 +1697,64 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - [ ] Implement confidence-based match rules and avoid auto-opening ambiguous candidates
 - [ ] Add malformed-payload hardening and resolver outcome diagnostics counters
 
-## Phase 29: ListenBrainz Scrobbling (Future)
+## Phase 29: ListenBrainz Scrobbling
 
-> Eighth-priority future functionality focused on optional dual-destination scrobbling.
+> Implemented optional Subsonic/OpenSubsonic + ListenBrainz scrobbling. The
+> settings surface lives in Configuration with the other external-service
+> credentials; the final dedicated ListenBrainz dispatcher-test gap remains
+> tracked below.
 
-- [ ] Add ListenBrainz enable/disable toggle and credential fields to Playback settings
-- [ ] Add "Test ListenBrainz connection" action with user-facing success/failure feedback
-- [ ] Implement ListenBrainz now-playing submission path in playback pipeline
-- [ ] Implement ListenBrainz listened-track submission path with threshold parity to existing scrobble logic
-- [ ] Extend offline scrobble queue/dispatcher for optional multi-destination replay semantics
-- [ ] Preserve existing Subsonic/Navidrome scrobbling while allowing one-or-both destination modes
-- [ ] Add tests for settings persistence, dispatch retries, offline replay, and dual-destination conflict handling
+- [x] Add ListenBrainz enable/disable control and secure token field to
+  Configuration — 2026-05-28 (validated tokens are stored through secure
+  storage; Drift retains only enabled/valid/user-name state; evidence:
+  `lib/src/features/settings/presentation/server_settings_screen.dart`,
+  `lib/src/features/settings/data/external_scrobble_credentials.dart`)
+- [x] Add ListenBrainz connection validation with user-facing success/failure
+  feedback — 2026-05-28 (evidence: `ListenBrainzApiClient.validateTokenDetails`,
+  `test/src/features/settings/presentation/server_settings_screen_test.dart`)
+- [x] Implement ListenBrainz now-playing submission path in playback pipeline
+  — 2026-05-28 (handler enqueues provider-specific now-playing events and the
+  dispatcher calls `sendPlayingNow`; evidence:
+  `lib/src/features/player/data/navis_audio_handler.dart`,
+  `lib/src/features/player/data/scrobble_service.dart`)
+- [x] Implement ListenBrainz listened-track submission with the existing
+  playback threshold — 2026-05-28 (the handler's single threshold queues each
+  active destination and ListenBrainz dispatch preserves the original listen
+  timestamp; evidence: `lib/src/features/player/data/navis_audio_handler.dart`,
+  `ListenBrainzApiClient.submitSingleListen`)
+- [x] Extend the offline scrobble queue for multi-destination replay —
+  2026-05-28 (queue rows carry provider plus resolved track metadata;
+  provider deliveries retry independently with bounded backoff; evidence:
+  `lib/src/database/tables/scrobble_queue_table.dart`,
+  `lib/src/features/player/data/scrobble_service.dart`)
+- [x] Preserve Subsonic/OpenSubsonic scrobbling while allowing either or both
+  Subsonic and ListenBrainz destinations — 2026-05-28 (active providers create
+  independent queue rows; evidence:
+  `test/src/features/player/data/scrobble_service_test.dart`)
+- [ ] Add tests for settings persistence, dispatch retries, offline replay,
+  and dual-destination conflict handling — partial: 2026-08-20 (completed:
+  secure credential persistence, token-validation UI, provider-independent
+  queue rows, generic retry/backoff, expiry, and legacy-provider cleanup.
+  Remaining: direct ListenBrainz playing-now/single-listen dispatch payloads,
+  invalid-token disablement, offline reconnect replay, and partial-success
+  dual-destination tests; evidence:
+  `test/src/features/settings/data/external_scrobble_credentials_test.dart`,
+  `test/src/features/settings/presentation/server_settings_screen_test.dart`,
+  `test/src/features/player/data/scrobble_service_test.dart`,
+  `test/src/database/daos/scrobble_dao_test.dart`)
 
 ## Phase 30: Discovery System (Idea Backlog)
 
 > Ninth-priority idea backlog. Explicitly deferred and outside the main execution path for core releases.
 
-- [ ] Evaluate external discovery providers and shortlist viable recommendation sources
+- [x] Adopt ListenBrainz weekly recommendation playlists as the first external
+  discovery source — 2026-06-19 (evidence: `4b8be6b0`,
+  `lib/src/features/home/presentation/home_providers.dart`)
 - [ ] Define a pluggable discovery service boundary with feature-flag control
-- [ ] Prototype discovery entry points (home module or dedicated page) without coupling core playback flows
+- [x] Prototype and ship discovery entry points in Home — 2026-06-20
+  (weekly playlist cards/detail, matching, caching, and playback are covered by
+  the Home provider/widget suites; evidence: `79867c37`, `db2dd988`,
+  `test/src/features/home/presentation/home_random_showcase_provider_test.dart`)
 - [ ] Validate licensing and maintenance constraints before reusing/cloning external implementation pieces
 - [ ] Define privacy and telemetry constraints before any production rollout
 
