@@ -91,6 +91,7 @@ void main() {
     expect(settings.autoDownloadStarredOnWifi, isFalse);
     expect(settings.customDownloadFolderEnabled, isFalse);
     expect(settings.customDownloadFolderPath, isNull);
+    expect(settings.customDownloadFolderStorageKind, 'filesystem');
     expect(settings.useLrclib, isTrue);
     expect(settings.updateCheckEnabled, isTrue);
     expect(settings.updateChannel, 'stable');
@@ -115,6 +116,7 @@ void main() {
         'match_flow_enabled',
         'custom_download_folder_enabled',
         'custom_download_folder_path',
+        'custom_download_folder_storage_kind',
         'cached_playback_first',
         'listen_brainz_user_name',
         'desktop_playback_volume',
