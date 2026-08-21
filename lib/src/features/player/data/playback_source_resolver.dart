@@ -168,8 +168,7 @@ class PlaybackSourceResolver {
     // disappear while Navis is running (manual cleanup, storage pressure, or
     // filesystem damage). Repair that single stale record immediately before
     // choosing a source so it cannot keep presenting as downloaded/cached.
-    if (cachedTrack != null &&
-        !await _cachedLocatorExists(cachedTrack.filePath)) {
+    if (cachedTrack != null && !await _cachedLocatorExists(cachedTrack)) {
       await _cacheDao.removeCachedTrack(song.id);
       AppLogger.info(
         'Removed missing ${cachedTrack.cacheType.name} cache entry for '
@@ -181,11 +180,11 @@ class PlaybackSourceResolver {
       if (cachedTrack != null &&
           cachedTrack.cacheType == CacheType.permanent &&
           cachedTrack.downloadStatus == DownloadStatus.complete) {
-        if (await _cachedLocatorExists(cachedTrack.filePath)) {
+        if (await _cachedLocatorExists(cachedTrack)) {
           await _rollingCacheManager.touchTrack(song.id);
           return ResolvedPlaybackSource.file(
             songId: song.id,
-            uri: _cachedLocatorUri(cachedTrack.filePath),
+            uri: _cachedLocatorUri(cachedTrack),
             metadata: _resolveCachedTrackMetadata(
               song: song,
               cachedTrack: cachedTrack,
@@ -213,7 +212,7 @@ class PlaybackSourceResolver {
           quality: quality,
           policy: cachePolicy,
         )) {
-      if (await _cachedLocatorExists(cachedTrack.filePath)) {
+      if (await _cachedLocatorExists(cachedTrack)) {
         AppLogger.debug(
           'Playback source resolved: song=${song.id} '
           'kind=${PlaybackSourceKind.file.name} path=${cachedTrack.filePath} '
@@ -224,7 +223,7 @@ class PlaybackSourceResolver {
         await _rollingCacheManager.touchTrack(song.id);
         return ResolvedPlaybackSource.file(
           songId: song.id,
-          uri: _cachedLocatorUri(cachedTrack.filePath),
+          uri: _cachedLocatorUri(cachedTrack),
           metadata: _resolveCachedTrackMetadata(
             song: song,
             cachedTrack: cachedTrack,
@@ -350,13 +349,18 @@ class PlaybackSourceResolver {
     }
   }
 
-  static bool _isSafLocator(String value) => value.startsWith('content://');
+  static bool _isSafLocator(CachedTracksTableData track) =>
+      track.storageKind == 'androidSaf' ||
+      track.filePath.startsWith('content://');
 
-  Future<bool> _cachedLocatorExists(String value) =>
-      _isSafLocator(value) ? _safStorage.exists(value) : File(value).exists();
+  Future<bool> _cachedLocatorExists(CachedTracksTableData track) =>
+      _isSafLocator(track)
+      ? _safStorage.exists(track.filePath)
+      : File(track.filePath).exists();
 
-  Uri _cachedLocatorUri(String value) =>
-      _isSafLocator(value) ? Uri.parse(value) : File(value).uri;
+  Uri _cachedLocatorUri(CachedTracksTableData track) => _isSafLocator(track)
+      ? Uri.parse(track.filePath)
+      : File(track.filePath).uri;
 
   Uri? resolveArtUri(SongsTableData song) {
     final coverArt = song.coverArt;
