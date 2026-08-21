@@ -4,4 +4,17 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <application>
+        <!-- Profile-only deterministic SAF tree used by authenticated emulator
+             diagnostics. It is not part of stable or debug builds. -->
+        <provider
+            android:name=".NavisDiagnosticsDocumentsProvider"
+            android:authorities="${applicationId}.diagnostics.documents"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+    </application>
 </manifest>

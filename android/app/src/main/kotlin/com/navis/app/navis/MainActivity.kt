@@ -245,6 +245,20 @@ class MainActivity : AudioServiceActivity() {
                 "isSidecar" -> result.success(
                     BuildConfig.APPLICATION_ID != "com.navis.app.navis",
                 )
+                "diagnosticsFixtureTree" -> {
+                    if (BuildConfig.BUILD_TYPE != "profile" ||
+                        BuildConfig.APPLICATION_ID == "com.navis.app.navis"
+                    ) {
+                        result.error("DIAGNOSTICS_UNAVAILABLE", "Profile sidecar required.", null)
+                    } else {
+                        result.success(
+                            DocumentsContract.buildTreeDocumentUri(
+                                "${BuildConfig.APPLICATION_ID}.diagnostics.documents",
+                                "root",
+                            ).toString(),
+                        )
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
