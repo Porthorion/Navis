@@ -97,6 +97,12 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
         require(target.delete()) { "Could not delete document" }
     }
 
+    override fun isChildDocument(parentDocumentId: String, documentId: String): Boolean {
+        val parent = resolveDocument(parentDocumentId).canonicalFile
+        val child = resolveDocument(documentId).canonicalFile
+        return child == parent || child.path.startsWith("${parent.path}${File.separator}")
+    }
+
     override fun getDocumentType(documentId: String): String =
         if (resolveDocument(documentId).isDirectory) DocumentsContract.Document.MIME_TYPE_DIR
         else "application/octet-stream"
