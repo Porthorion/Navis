@@ -20,6 +20,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -1053,6 +1054,56 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.accepted, await _cacheStatusJson());
         return;
       }
+      if (request.method == 'POST' &&
+          path == '/v1/downloads/saf-fixture/preview') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final preview = await _safFixturePreview();
+        await _respond(request, HttpStatus.ok, _safPreviewJson(preview));
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/downloads/saf-fixture/commit') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final service = _container.read(downloadServiceProvider);
+        final preview = await _safFixturePreview();
+        final result = await service.importCustomDownloadFolder(preview);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'importedCount': result.importedCount,
+          'skippedCount': result.skippedCount,
+          'preview': _safPreviewJson(preview),
+          'cache': await _cacheStatusJson(),
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/downloads/saf-fixture/detach') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final songId = (body['songId'] as String? ?? '').trim();
+        if (songId.isEmpty) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'songId is required',
+          });
+          return;
+        }
+        // Test setup only: retain fixture documents but drop local ownership
+        // so preview/commit exercise the production adoption service.
+        await _container
+            .read(navisDatabaseProvider)
+            .cacheDao
+            .removeCachedTrack(songId);
+        await _respond(request, HttpStatus.ok, await _cacheStatusJson());
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/cache/status') {
         await _respond(request, HttpStatus.ok, await _cacheStatusJson());
         return;
@@ -1431,6 +1482,34 @@ class SyncDiagnosticsServer {
       'cache': await _cacheStatusJson(),
     };
   }
+
+  Future<PermanentDownloadImportPreview> _safFixturePreview() async {
+    final treeUri = await const AndroidSafStorage().diagnosticsFixtureTree();
+    return _container
+        .read(downloadServiceProvider)
+        .previewCustomDownloadFolder(
+          treeUri,
+        );
+  }
+
+  Map<String, Object?> _safPreviewJson(
+    PermanentDownloadImportPreview preview,
+  ) => <String, Object?>{
+    'recognizedCount': preview.recognizedCount,
+    'uncertainCount': preview.uncertainCount,
+    'unmatchedCount': preview.unmatchedCount,
+    'profileMismatchCount': preview.profileMismatchCount,
+    'inaccessibleCount': preview.inaccessibleCount,
+    'items': <Map<String, Object?>>[
+      for (final item in preview.items)
+        <String, Object?>{
+          'disposition': item.disposition.name,
+          'format': item.format,
+          'size': item.fileSize,
+          'hasSongId': item.songId != null,
+        },
+    ],
+  };
 
   Future<void> _runCacheMaintenance(HttpRequest request) async {
     final cache = _container.read(rollingCacheManagerProvider);
