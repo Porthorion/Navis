@@ -1,0 +1,220 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
+
+class RequiredLibraryRebuildScreen extends ConsumerStatefulWidget {
+  const RequiredLibraryRebuildScreen({
+    required this.reason,
+    this.allowMeteredBroadOverride = false,
+    super.key,
+  });
+
+  final RequiredLibraryRebuildReason reason;
+  final bool allowMeteredBroadOverride;
+
+  @override
+  ConsumerState<RequiredLibraryRebuildScreen> createState() =>
+      _RequiredLibraryRebuildScreenState();
+}
+
+class _RequiredLibraryRebuildScreenState
+    extends ConsumerState<RequiredLibraryRebuildScreen> {
+  bool _navigatedHome = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.allowMeteredBroadOverride) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(
+          ref
+              .read(
+                requiredLibraryRebuildControllerProvider(
+                  widget.reason,
+                ).notifier,
+              )
+              .startUsingMobileData(),
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final rebuild = ref.watch(
+      requiredLibraryRebuildControllerProvider(widget.reason),
+    );
+    final sync = ref.watch(librarySyncControllerProvider);
+    final controller = ref.read(
+      requiredLibraryRebuildControllerProvider(widget.reason).notifier,
+    );
+    if (rebuild.status == RequiredLibraryRebuildStatus.complete &&
+        !_navigatedHome) {
+      _navigatedHome = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/');
+      });
+    }
+
+    final running = rebuild.status == RequiredLibraryRebuildStatus.syncing;
+    final total = sync.total;
+    final processed = sync.processed;
+    final progress = running && total != null && total > 0 && processed != null
+        ? (processed / total).clamp(0.0, 1.0)
+        : null;
+    final status = _statusText(l10n, rebuild, sync);
+    final isInitial =
+        widget.reason == RequiredLibraryRebuildReason.initialLogin;
+
+    return PopScope<void>(
+      canPop: false,
+      child: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Semantics(
+                    key: const ValueKey<String>(
+                      'requiredSyncProgressSemantics',
+                    ),
+                    liveRegion: true,
+                    label: status,
+                    value: total != null && processed != null
+                        ? '$processed / $total'
+                        : null,
+                    child: SizedBox.square(
+                      dimension: 168,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: <Widget>[
+                          SizedBox.square(
+                            dimension: 152,
+                            child: CircularProgressIndicator(
+                              value: progress,
+                              strokeWidth: 7,
+                            ),
+                          ),
+                          const NavisIcon(size: 96),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
+                    isInitial
+                        ? l10n.requiredSyncInitialTitle
+                        : l10n.requiredSyncRebuildTitle,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    isInitial
+                        ? l10n.requiredSyncInitialBody
+                        : l10n.requiredSyncRebuildBody,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
+                    status,
+                    key: const ValueKey<String>('requiredSyncStatusText'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  if (rebuild.errorMessage case final error?) ...<Widget>[
+                    const SizedBox(height: 12),
+                    Text(
+                      error,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 32),
+                  if (rebuild.status ==
+                      RequiredLibraryRebuildStatus.waitingForMobileConsent)
+                    FilledButton(
+                      key: const ValueKey<String>('requiredSyncUseMobileData'),
+                      onPressed: controller.startUsingMobileData,
+                      child: Text(l10n.initialSyncUseMobileData),
+                    )
+                  else if (rebuild.status ==
+                          RequiredLibraryRebuildStatus.failed ||
+                      rebuild.status ==
+                          RequiredLibraryRebuildStatus.waitingForNetwork)
+                    FilledButton(
+                      key: const ValueKey<String>('requiredSyncRetry'),
+                      onPressed: controller.retry,
+                      child: Text(l10n.commonRetry),
+                    ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    key: const ValueKey<String>('requiredSyncSignOut'),
+                    onPressed:
+                        rebuild.status ==
+                            RequiredLibraryRebuildStatus.cancelling
+                        ? null
+                        : controller.cancelAndSignOut,
+                    child: Text(
+                      isInitial
+                          ? l10n.requiredSyncCancelAndSignOut
+                          : l10n.requiredSyncSignOut,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _statusText(
+    AppLocalizations l10n,
+    RequiredLibraryRebuildState rebuild,
+    LibrarySyncState sync,
+  ) {
+    return switch (rebuild.status) {
+      RequiredLibraryRebuildStatus.waitingForNetwork =>
+        l10n.initialSyncWaitingForNetwork,
+      RequiredLibraryRebuildStatus.waitingForMobileConsent =>
+        l10n.initialSyncMobileDataRequired,
+      RequiredLibraryRebuildStatus.clearingCache =>
+        l10n.requiredSyncClearingCache,
+      RequiredLibraryRebuildStatus.failed => l10n.requiredSyncRebuildFailed,
+      RequiredLibraryRebuildStatus.cancelling => l10n.initialSyncCancelling,
+      RequiredLibraryRebuildStatus.complete => l10n.initialSyncComplete,
+      RequiredLibraryRebuildStatus.idle => l10n.requiredSyncStagePreparing,
+      RequiredLibraryRebuildStatus.syncing => switch (sync.stage) {
+        LibrarySyncStage.fetchingArtists => l10n.requiredSyncStageArtistIndex,
+        LibrarySyncStage.fetchingSongs => l10n.requiredSyncStageSongIndex,
+        LibrarySyncStage.fetchingAlbums ||
+        LibrarySyncStage.persistingMetadata ||
+        LibrarySyncStage.collectingCandidate => l10n.requiredSyncStageAlbums,
+        LibrarySyncStage.validatingCandidate ||
+        LibrarySyncStage.applyingCandidate ||
+        LibrarySyncStage.cleaningCandidate ||
+        LibrarySyncStage.finalizing => l10n.requiredSyncStageFinalizing,
+        LibrarySyncStage.fetchingStarred ||
+        LibrarySyncStage.fetchingGenres ||
+        LibrarySyncStage.fetchingPlaylists => l10n.requiredSyncStageSongs,
+        _ => l10n.requiredSyncStagePreparing,
+      },
+    };
+  }
+}

@@ -543,6 +543,11 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   memberships, prune only IDs absent from the authoritative header list, and
   enqueue new or changed playlist contents as durable targeted hydration.
 - Automatic library sync is **low-data by default** after initial sync.
+- A profile without a committed catalog is held on `/initial-sync` until its
+  initial catalog sync succeeds. First-login setup, Settings cache reset,
+  cache-system upgrade, and playback-recovery resets use the shared required
+  rebuild flow; it clears only recoverable library/rolling-cache data, retains
+  permanent downloads, and routes to Home only after a committed full catalog.
 - Android automatic sync is scheduled through one WorkManager periodic request
   per opaque profile key, not the foreground timer. It uses `UPDATE`, an
   unmetered or connected constraint matching the durable policy, and a

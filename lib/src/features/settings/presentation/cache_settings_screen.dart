@@ -1,15 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
-import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
-import 'package:navis/src/features/library/domain/library_sync_state.dart';
-import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -253,44 +252,13 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       allowMeteredBroadOverride = true;
     }
 
-    setState(() => _clearing = true);
-    try {
-      await ref.read(libraryCacheResetServiceProvider).reset();
-
-      final syncState = await ref
-          .read(librarySyncControllerProvider.notifier)
-          .forceFullSync(
-            allowMeteredBroadOverride: allowMeteredBroadOverride,
-          );
-
-      if (!mounted) return;
-      setState(() => _coverArtStorageBytes = 0);
-
-      AppNoticeMessenger.of(context).clearSnackBars();
-      if (syncState.status == LibrarySyncStatus.succeeded ||
-          syncState.status == LibrarySyncStatus.skipped) {
-        showAppNotice(
-          context,
-          message: l10n.cacheSettingsResetLibraryCacheSuccess,
-          level: AppNoticeLevel.success,
-        );
-      } else {
-        showAppNotice(
-          context,
-          message:
-              syncState.errorMessage == null ||
-                  syncState.errorMessage!.trim().isEmpty
-              ? l10n.cacheSettingsResetLibraryCacheFailure
-              : '${l10n.cacheSettingsResetLibraryCacheFailure} '
-                    '${syncState.errorMessage}',
-          level: AppNoticeLevel.error,
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _clearing = false);
-      }
-    }
+    if (!mounted) return;
+    context.go(
+      requiredLibraryRebuildRoute(
+        RequiredLibraryRebuildReason.manualCacheReset,
+        allowMeteredBroadOverride: allowMeteredBroadOverride,
+      ),
+    );
   }
 
   Future<void> _clearCacheByType(CacheType type) async {

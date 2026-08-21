@@ -19,6 +19,14 @@ Last updated: 2026-08-21
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Required library rebuild / 1.2.7 — 2026-08-21 (first login and every
+  recoverable-library reset now enter one full-screen, navigation-blocking
+  rebuild flow; it retains permanent downloads, exposes live sync stages and
+  determinate/indeterminate progress, and keeps failure, offline, and metered
+  states recoverable in place. Evidence: focused route/controller/cache/recovery
+  widget tests; isolated Linux clone app-API run at `/library-rebuild` with
+  inspected sync and interrupted-restart recovery screenshots; `./tool/check.sh`.)
+
 - [ ] Issue #43 / 1.2.6 release fixes — partial: 2026-08-20 (completed:
   manual offline-refresh intent now survives reconnect and discovers newly
   added albums despite unchanged indexes; Home shares the full liked-playback

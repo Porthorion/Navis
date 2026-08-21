@@ -163,10 +163,7 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
         (config?.lastSynced != null ||
             (persisted?.currentGeneration ?? 0) > 0) &&
         persisted?.candidateStatus != 'applying';
-    final acceptedStatus =
-        result.status == LibrarySyncStatus.succeeded ||
-        (result.status == LibrarySyncStatus.partial && result.metadataReady) ||
-        result.status == LibrarySyncStatus.skipped;
+    final acceptedStatus = result.status == LibrarySyncStatus.succeeded;
     if (safelyPromoted && acceptedStatus) {
       state = InitialServerSyncState(
         status: InitialServerSyncStatus.complete,

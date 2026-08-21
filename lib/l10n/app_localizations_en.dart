@@ -141,6 +141,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get initialSyncCancelAndLogout => 'Cancel and sign out';
 
   @override
+  String get requiredSyncInitialTitle => 'Building your library';
+
+  @override
+  String get requiredSyncRebuildTitle => 'Rebuilding your library';
+
+  @override
+  String get requiredSyncInitialBody =>
+      'Navis is preparing this server for the first time.';
+
+  @override
+  String get requiredSyncRebuildBody =>
+      'Navis is clearing recoverable library data and downloading a fresh library. Your downloads are kept.';
+
+  @override
+  String get requiredSyncClearingCache => 'Clearing library cache';
+
+  @override
+  String get requiredSyncRebuildFailed => 'Library rebuild could not complete.';
+
+  @override
+  String get requiredSyncSignOut => 'Sign out';
+
+  @override
+  String get requiredSyncCancelAndSignOut => 'Cancel and sign out';
+
+  @override
+  String get requiredSyncStagePreparing => 'Preparing library';
+
+  @override
+  String get requiredSyncStageArtistIndex => 'Getting artist index';
+
+  @override
+  String get requiredSyncStageSongIndex => 'Getting song index';
+
+  @override
+  String get requiredSyncStageAlbums => 'Syncing albums';
+
+  @override
+  String get requiredSyncStageSongs => 'Syncing songs';
+
+  @override
+  String get requiredSyncStageFinalizing => 'Finalizing library';
+
+  @override
   String get initialSyncComplete => 'Library ready';
 
   @override

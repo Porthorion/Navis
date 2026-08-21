@@ -340,6 +340,90 @@ abstract class AppLocalizations {
   /// **'Cancel and sign out'**
   String get initialSyncCancelAndLogout;
 
+  /// No description provided for @requiredSyncInitialTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Building your library'**
+  String get requiredSyncInitialTitle;
+
+  /// No description provided for @requiredSyncRebuildTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuilding your library'**
+  String get requiredSyncRebuildTitle;
+
+  /// No description provided for @requiredSyncInitialBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis is preparing this server for the first time.'**
+  String get requiredSyncInitialBody;
+
+  /// No description provided for @requiredSyncRebuildBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis is clearing recoverable library data and downloading a fresh library. Your downloads are kept.'**
+  String get requiredSyncRebuildBody;
+
+  /// No description provided for @requiredSyncClearingCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Clearing library cache'**
+  String get requiredSyncClearingCache;
+
+  /// No description provided for @requiredSyncRebuildFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Library rebuild could not complete.'**
+  String get requiredSyncRebuildFailed;
+
+  /// No description provided for @requiredSyncSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get requiredSyncSignOut;
+
+  /// No description provided for @requiredSyncCancelAndSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel and sign out'**
+  String get requiredSyncCancelAndSignOut;
+
+  /// No description provided for @requiredSyncStagePreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing library'**
+  String get requiredSyncStagePreparing;
+
+  /// No description provided for @requiredSyncStageArtistIndex.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting artist index'**
+  String get requiredSyncStageArtistIndex;
+
+  /// No description provided for @requiredSyncStageSongIndex.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting song index'**
+  String get requiredSyncStageSongIndex;
+
+  /// No description provided for @requiredSyncStageAlbums.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing albums'**
+  String get requiredSyncStageAlbums;
+
+  /// No description provided for @requiredSyncStageSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing songs'**
+  String get requiredSyncStageSongs;
+
+  /// No description provided for @requiredSyncStageFinalizing.
+  ///
+  /// In en, this message translates to:
+  /// **'Finalizing library'**
+  String get requiredSyncStageFinalizing;
+
   /// No description provided for @initialSyncComplete.
   ///
   /// In en, this message translates to:

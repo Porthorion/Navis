@@ -7,12 +7,13 @@ import 'package:navis/src/features/player/presentation/playback_recovery_sheet.d
 
 class _FakeRecoveryService implements PlaybackRecoveryService {
   int retryCalls = 0;
+  int resetCalls = 0;
 
   @override
   void retryPlayback() => retryCalls += 1;
 
   @override
-  Future<void> resetLibraryCacheAndRetry() async {}
+  Future<void> resetLibraryCacheAndRetry() async => resetCalls += 1;
 
   @override
   Future<void> signOut({required bool wipeLocalData}) async {}
@@ -55,6 +56,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(recovery.retryCalls, 1);
       expect(find.text('Playback unavailable'), findsNothing);
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reset library cache and retry'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reset cache'));
+      await tester.pumpAndSettle();
+      expect(recovery.resetCalls, 1);
     },
   );
 }

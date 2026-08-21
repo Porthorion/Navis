@@ -2,22 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
 import 'package:navis/src/features/auth/presentation/initial_server_sync_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
-class _StaticInitialSyncController extends InitialServerSyncController {
-  _StaticInitialSyncController(this.initial);
+class _StaticRequiredRebuildController
+    extends RequiredLibraryRebuildController {
+  _StaticRequiredRebuildController(this.initial)
+    : super(RequiredLibraryRebuildReason.initialLogin);
 
-  final InitialServerSyncState initial;
+  final RequiredLibraryRebuildState initial;
   int retryCalls = 0;
   int mobileCalls = 0;
   int cancelCalls = 0;
 
   @override
-  InitialServerSyncState build() => initial;
+  RequiredLibraryRebuildState build() => initial;
 
   @override
   Future<void> retry() async => retryCalls += 1;
@@ -26,7 +29,7 @@ class _StaticInitialSyncController extends InitialServerSyncController {
   Future<void> startUsingMobileData() async => mobileCalls += 1;
 
   @override
-  Future<void> cancelAndLogOut() async => cancelCalls += 1;
+  Future<void> cancelAndSignOut() async => cancelCalls += 1;
 }
 
 class _StaticLibrarySyncController extends LibrarySyncController {
@@ -39,12 +42,14 @@ class _StaticLibrarySyncController extends LibrarySyncController {
 }
 
 Widget _testApp({
-  required _StaticInitialSyncController setup,
+  required _StaticRequiredRebuildController setup,
   LibrarySyncState sync = const LibrarySyncState.idle(),
 }) {
   return ProviderScope(
     overrides: <Override>[
-      initialServerSyncControllerProvider.overrideWith(() => setup),
+      requiredLibraryRebuildControllerProvider(
+        RequiredLibraryRebuildReason.initialLogin,
+      ).overrideWith(() => setup),
       librarySyncControllerProvider.overrideWith(
         () => _StaticLibrarySyncController(sync),
       ),
@@ -59,61 +64,62 @@ Widget _testApp({
 }
 
 void main() {
-  testWidgets('offline state offers retry and cancel in focus order', (
+  testWidgets('offline required setup offers retry and cancel-and-sign-out', (
     tester,
   ) async {
-    final setup = _StaticInitialSyncController(
-      const InitialServerSyncState(
-        status: InitialServerSyncStatus.waitingForNetwork,
+    final setup = _StaticRequiredRebuildController(
+      const RequiredLibraryRebuildState(
+        status: RequiredLibraryRebuildStatus.waitingForNetwork,
       ),
     );
     await tester.pumpWidget(_testApp(setup: setup));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    expect(find.text('Initial server sync'), findsOneWidget);
+    expect(find.text('Building your library'), findsOneWidget);
     expect(
-      find.text(
-        "Navis is building this server's local library. Do not close the app during setup.",
-      ),
+      find.text('Navis is preparing this server for the first time.'),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('initialSyncRetryButton')), findsOne);
-    expect(find.byKey(const ValueKey('initialSyncCancelButton')), findsOne);
+    expect(find.byKey(const ValueKey('requiredSyncRetry')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('requiredSyncSignOut')),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byKey(const ValueKey('initialSyncRetryButton')));
+    await tester.tap(find.byKey(const ValueKey('requiredSyncRetry')));
     await tester.pump();
     expect(setup.retryCalls, 1);
-    await tester.tap(find.byKey(const ValueKey('initialSyncCancelButton')));
+    await tester.tap(find.byKey(const ValueKey('requiredSyncSignOut')));
     await tester.pump();
     expect(setup.cancelCalls, 1);
   });
 
-  testWidgets('metered state requires explicit mobile-data consent', (
+  testWidgets('metered setup requires explicit mobile-data consent', (
     tester,
   ) async {
-    final setup = _StaticInitialSyncController(
-      const InitialServerSyncState(
-        status: InitialServerSyncStatus.waitingForMobileConsent,
+    final setup = _StaticRequiredRebuildController(
+      const RequiredLibraryRebuildState(
+        status: RequiredLibraryRebuildStatus.waitingForMobileConsent,
       ),
     );
     await tester.pumpWidget(_testApp(setup: setup));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('Sync using mobile data'), findsOneWidget);
-    expect(find.text('Retry'), findsNothing);
-    await tester.tap(
-      find.byKey(const ValueKey('initialSyncUseMobileDataButton')),
-    );
+    expect(find.byKey(const ValueKey('requiredSyncRetry')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('requiredSyncUseMobileData')));
     await tester.pump();
     expect(setup.mobileCalls, 1);
   });
 
-  testWidgets('running state exposes determinate progress semantics', (
+  testWidgets('required setup shows circular determinate progress and stage', (
     tester,
   ) async {
     final semanticsHandle = tester.ensureSemantics();
-    final setup = _StaticInitialSyncController(
-      const InitialServerSyncState(status: InitialServerSyncStatus.running),
+    final setup = _StaticRequiredRebuildController(
+      const RequiredLibraryRebuildState(
+        status: RequiredLibraryRebuildStatus.syncing,
+      ),
     );
     await tester.pumpWidget(
       _testApp(
@@ -128,65 +134,41 @@ void main() {
     );
     await tester.pump();
 
-    final progress = tester.widget<LinearProgressIndicator>(
-      find.byType(LinearProgressIndicator),
+    final progress = tester.widget<CircularProgressIndicator>(
+      find.byType(CircularProgressIndicator),
     );
     expect(progress.value, 0.5);
-    expect(find.text('Scanning songs'), findsOneWidget);
+    expect(find.text('Getting song index'), findsOneWidget);
     final semantics = tester.getSemantics(
-      find.byKey(const ValueKey('initialSyncProgressSemantics')),
+      find.byKey(const ValueKey('requiredSyncProgressSemantics')),
     );
     expect(semantics.value, '2 / 4');
     semanticsHandle.dispose();
   });
 
-  testWidgets('phone waiting state component golden', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(390, 844);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    final setup = _StaticInitialSyncController(
-      const InitialServerSyncState(
-        status: InitialServerSyncStatus.waitingForNetwork,
+  testWidgets('required setup uses indeterminate progress for unknown totals', (
+    tester,
+  ) async {
+    final setup = _StaticRequiredRebuildController(
+      const RequiredLibraryRebuildState(
+        status: RequiredLibraryRebuildStatus.syncing,
       ),
-    );
-    await tester.pumpWidget(_testApp(setup: setup));
-    await tester.pumpAndSettle();
-
-    await expectLater(
-      find.byKey(const ValueKey('initialSyncCard')),
-      matchesGoldenFile('goldens/initial_sync_waiting_phone.png'),
-    );
-  });
-
-  testWidgets('desktop running state component golden', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1280, 800);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    final setup = _StaticInitialSyncController(
-      const InitialServerSyncState(status: InitialServerSyncStatus.running),
     );
     await tester.pumpWidget(
       _testApp(
         setup: setup,
         sync: const LibrarySyncState(
           status: LibrarySyncStatus.running,
-          stage: LibrarySyncStage.validatingCandidate,
-          processed: 3,
-          total: 8,
+          stage: LibrarySyncStage.fetchingAlbums,
         ),
       ),
     );
     await tester.pump();
 
-    await expectLater(
-      find.byKey(const ValueKey('initialSyncCard')),
-      matchesGoldenFile('goldens/initial_sync_running_desktop.png'),
+    final progress = tester.widget<CircularProgressIndicator>(
+      find.byType(CircularProgressIndicator),
     );
+    expect(progress.value, isNull);
+    expect(find.text('Syncing albums'), findsOneWidget);
   });
 }

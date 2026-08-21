@@ -3,10 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
-import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
-import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/routing/app_router.dart';
 
 /// Coordinates the user-visible escape hatches for unavailable playback.
 ///
@@ -27,9 +26,13 @@ final playbackRecoveryServiceProvider = Provider<PlaybackRecoveryService>((
         .abortForSessionTeardown(),
     startBootstrapRetry: () =>
         ref.read(audioBootstrapControllerProvider.notifier).retry(),
-    resetLibraryCache: () => ref.read(libraryCacheResetServiceProvider).reset(),
-    requestFullSync: () =>
-        ref.read(librarySyncControllerProvider.notifier).forceFullSync(),
+    navigateToLibraryRebuild: () => ref
+        .read(appRouterProvider)
+        .go(
+          requiredLibraryRebuildRoute(
+            RequiredLibraryRebuildReason.playbackRecovery,
+          ),
+        ),
     signOut: (wipeLocalData) =>
         ref.read(signOutServiceProvider).signOut(wipeLocalData: wipeLocalData),
     refreshServerConfig: () =>
@@ -41,21 +44,18 @@ class _PlaybackRecoveryService implements PlaybackRecoveryService {
   _PlaybackRecoveryService({
     required Future<void> Function() abortBootstrap,
     required Future<void> Function() startBootstrapRetry,
-    required Future<void> Function() resetLibraryCache,
-    required Future<void> Function() requestFullSync,
+    required void Function() navigateToLibraryRebuild,
     required Future<void> Function(bool wipeLocalData) signOut,
     required Future<void> Function() refreshServerConfig,
   }) : _abortBootstrap = abortBootstrap,
        _startBootstrapRetry = startBootstrapRetry,
-       _resetLibraryCache = resetLibraryCache,
-       _requestFullSync = requestFullSync,
+       _navigateToLibraryRebuild = navigateToLibraryRebuild,
        _signOut = signOut,
        _refreshServerConfig = refreshServerConfig;
 
   final Future<void> Function() _abortBootstrap;
   final Future<void> Function() _startBootstrapRetry;
-  final Future<void> Function() _resetLibraryCache;
-  final Future<void> Function() _requestFullSync;
+  final void Function() _navigateToLibraryRebuild;
   final Future<void> Function(bool wipeLocalData) _signOut;
   final Future<void> Function() _refreshServerConfig;
 
@@ -67,16 +67,7 @@ class _PlaybackRecoveryService implements PlaybackRecoveryService {
   @override
   Future<void> resetLibraryCacheAndRetry() async {
     await _abortBootstrap();
-    await _resetLibraryCache();
-    unawaited(
-      _requestFullSync().catchError((Object error, StackTrace stack) {
-        AppLogger.warning(
-          'Library refresh request after playback recovery failed: '
-          '$error\n$stack',
-        );
-      }),
-    );
-    retryPlayback();
+    _navigateToLibraryRebuild();
   }
 
   @override

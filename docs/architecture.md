@@ -1042,10 +1042,14 @@ OpenSubsonic documents the conditional full-index semantics of
 8. Playback prefers permanent → rolling → stream
 9. A profile migrated before library-cache-system version 2 must clear recoverable
    rolling cache and library metadata once before using the current contract.
-   The app-owned modal can be dismissed, but returns on the next launch until
-   successful reset and full library scan; `LibraryCacheResetService`
-   deliberately preserves permanent downloads and their files. A failed scan
-   leaves the upgrade pending so the app does not acknowledge an empty library.
+   The upgrade prompt can be dismissed, but returns on the next launch until a
+   successful reset and committed full catalog scan. Choosing reset enters the
+   shared full-screen required-library-rebuild route, which is also used for a
+   first login, Settings cache reset, and playback recovery. It blocks ordinary
+   navigation until the catalog is committed, keeps users in place with retry,
+   metered-data, and sign-out recovery options on failure, and only then opens
+   Home. `LibraryCacheResetService` deliberately preserves permanent downloads
+   and their files; the upgrade marker is written only after that full scan.
 
 ## Testing Strategy
 

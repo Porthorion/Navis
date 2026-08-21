@@ -188,7 +188,7 @@ void main() {
   );
 
   test(
-    'safe partial promotion unlocks once and raises warning',
+    'partial promotion remains blocked until a complete catalog sync',
     () async {
       final database = createTestDatabase();
       addTearDown(database.close);
@@ -259,9 +259,9 @@ void main() {
       expect(sync.calls, 1);
       expect(
         container.read(initialServerSyncControllerProvider).status,
-        InitialServerSyncStatus.complete,
+        InitialServerSyncStatus.failed,
       );
-      expect(container.read(initialSyncCompletionWarningProvider), isTrue);
+      expect(container.read(initialSyncCompletionWarningProvider), isFalse);
     },
     skip: !sqliteAvailable,
   );

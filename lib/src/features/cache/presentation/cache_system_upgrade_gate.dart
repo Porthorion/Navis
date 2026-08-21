@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/routing/app_router.dart';
 
 /// Prompts profiles created before the rolling-cache contract to clear their
 /// recoverable cache. Dismissing is allowed, but does not acknowledge the
@@ -24,7 +23,6 @@ class _CacheSystemUpgradeGateState
     extends ConsumerState<CacheSystemUpgradeGate> {
   bool _dialogVisible = false;
   bool _dismissedForSession = false;
-  bool _resetting = false;
 
   @override
   Widget build(BuildContext context) {
@@ -38,8 +36,7 @@ class _CacheSystemUpgradeGateState
         : const AsyncData<bool>(false);
     if (needsUpgrade.asData?.value == true &&
         !_dialogVisible &&
-        !_dismissedForSession &&
-        !_resetting) {
+        !_dismissedForSession) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showUpgradeDialog();
       });
@@ -54,13 +51,12 @@ class _CacheSystemUpgradeGateState
             onDismiss: _dismissForSession,
             onReset: _resetCacheSystem,
           ),
-        if (_resetting) const _CacheSystemUpgradeProgress(),
       ],
     );
   }
 
   void _showUpgradeDialog() {
-    if (_dialogVisible || _dismissedForSession || _resetting) return;
+    if (_dialogVisible || _dismissedForSession) return;
     setState(() => _dialogVisible = true);
   }
 
@@ -71,25 +67,18 @@ class _CacheSystemUpgradeGateState
     });
   }
 
-  Future<void> _resetCacheSystem() async {
+  void _resetCacheSystem() {
     setState(() {
       _dialogVisible = false;
-      _resetting = true;
+      _dismissedForSession = true;
     });
-    try {
-      await ref.read(cacheSystemUpgradeServiceProvider).resetAndMarkCurrent();
-      ref.invalidate(cacheSystemUpgradeNeededProvider);
-    } on Object catch (_) {
-      if (mounted) {
-        showAppNotice(
-          context,
-          message: AppLocalizations.of(context)!.cacheSystemUpgradeFailure,
-          level: AppNoticeLevel.error,
+    ref
+        .read(appRouterProvider)
+        .go(
+          requiredLibraryRebuildRoute(
+            RequiredLibraryRebuildReason.cacheUpgrade,
+          ),
         );
-      }
-    } finally {
-      if (mounted) setState(() => _resetting = false);
-    }
   }
 }
 
@@ -100,7 +89,7 @@ class _CacheSystemUpgradeDialog extends StatelessWidget {
   });
 
   final VoidCallback onDismiss;
-  final Future<void> Function() onReset;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +117,7 @@ class _CacheSystemUpgradeDialog extends StatelessWidget {
                   child: Text(l10n.cacheSystemUpgradeDismiss),
                 ),
                 FilledButton(
-                  onPressed: () => unawaited(onReset()),
+                  onPressed: onReset,
                   child: Text(l10n.cacheSystemUpgradeAction),
                 ),
               ],
@@ -136,24 +125,6 @@ class _CacheSystemUpgradeDialog extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _CacheSystemUpgradeProgress extends StatelessWidget {
-  const _CacheSystemUpgradeProgress();
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Colors.black54,
-      child: Center(
-        child: Semantics(
-          liveRegion: true,
-          label: AppLocalizations.of(context)!.cacheSystemUpgradeResetting,
-          child: const CircularProgressIndicator(),
-        ),
-      ),
     );
   }
 }

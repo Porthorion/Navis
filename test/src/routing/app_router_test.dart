@@ -12,11 +12,12 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
-import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
@@ -85,10 +86,14 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   }
 }
 
-class _StaticInitialServerSyncController extends InitialServerSyncController {
+class _StaticRequiredLibraryRebuildController
+    extends RequiredLibraryRebuildController {
+  _StaticRequiredLibraryRebuildController()
+    : super(RequiredLibraryRebuildReason.initialLogin);
+
   @override
-  InitialServerSyncState build() => const InitialServerSyncState(
-    status: InitialServerSyncStatus.waitingForNetwork,
+  RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState(
+    status: RequiredLibraryRebuildStatus.waitingForNetwork,
   );
 }
 
@@ -239,7 +244,7 @@ void main() {
   });
 
   testWidgets(
-    'fresh authenticated profile reaches Home while initial sync runs',
+    'fresh authenticated profile stays on required library setup',
     (
       tester,
     ) async {
@@ -257,8 +262,10 @@ void main() {
               ),
             ),
           ),
-          initialServerSyncControllerProvider.overrideWith(
-            _StaticInitialServerSyncController.new,
+          requiredLibraryRebuildControllerProvider(
+            RequiredLibraryRebuildReason.initialLogin,
+          ).overrideWith(
+            _StaticRequiredLibraryRebuildController.new,
           ),
           librarySyncControllerProvider.overrideWith(
             _StaticLibrarySyncController.new,
@@ -292,13 +299,13 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: _testApp),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      expect(find.text('Initial server sync'), findsNothing);
-      expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsOne);
+      expect(find.text('Building your library'), findsOneWidget);
+      expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsNothing);
       expect(
-        find.byKey(const ValueKey('initialSyncCancelButton')),
-        findsNothing,
+        find.byKey(const ValueKey('requiredSyncSignOut')),
+        findsOneWidget,
       );
     },
   );
@@ -618,6 +625,8 @@ void main() {
     }
 
     expect(configuredLocations, contains('/login'));
+    expect(configuredLocations, contains('/initial-sync'));
+    expect(configuredLocations, contains('/library-rebuild'));
     expect(configuredLocations, contains('/'));
     expect(configuredLocations, contains('/library'));
     expect(configuredLocations, contains('/library/artists/:id'));

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/auth/presentation/login_screen.dart';
-import 'package:navis/src/features/auth/presentation/initial_server_sync_screen.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
@@ -11,6 +10,8 @@ import 'package:navis/src/features/library/presentation/album_detail_screen.dart
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild_screen.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_screen.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_song_search_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
@@ -118,11 +119,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       return switch (sessionPhase.value) {
         SessionRoutePhase.unauthenticated => isLoginRoute ? null : '/login',
-        // A first catalog sync is resilient background work.  Do not trap a
-        // newly authenticated user behind it: Home can render its normal sync
-        // state and remains useful while the initial candidate is collected.
         SessionRoutePhase.initialSyncRequired =>
-          (isLoginRoute || isInitialSyncRoute) ? '/' : null,
+          isInitialSyncRoute ? null : '/initial-sync',
         SessionRoutePhase.ready =>
           (isLoginRoute || isInitialSyncRoute) ? '/' : null,
         SessionRoutePhase.loading => null,
@@ -132,7 +130,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/initial-sync',
-        builder: (context, state) => const InitialServerSyncScreen(),
+        builder: (context, state) => const RequiredLibraryRebuildScreen(
+          reason: RequiredLibraryRebuildReason.initialLogin,
+        ),
+      ),
+      GoRoute(
+        path: '/library-rebuild',
+        builder: (context, state) {
+          final reason = RequiredLibraryRebuildReason.parse(
+            state.uri.queryParameters['reason'],
+          );
+          if (reason == null ||
+              reason == RequiredLibraryRebuildReason.initialLogin) {
+            return const RequiredLibraryRebuildScreen(
+              reason: RequiredLibraryRebuildReason.manualCacheReset,
+            );
+          }
+          return RequiredLibraryRebuildScreen(
+            reason: reason,
+            allowMeteredBroadOverride:
+                state.uri.queryParameters['metered'] == '1',
+          );
+        },
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
