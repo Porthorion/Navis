@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.DocumentsContract
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
@@ -297,6 +298,14 @@ class MainActivity : AudioServiceActivity() {
                     "exists" -> result.success(
                         DocumentFile.fromSingleUri(this, Uri.parse(requireNotNull(call.argument<String>("uri"))))?.exists() == true,
                     )
+                    "isDescendant" -> {
+                        val tree = requiredTree(call.argument<String>("treeUri"))
+                        val document = DocumentFile.fromSingleUri(
+                            this,
+                            Uri.parse(requireNotNull(call.argument<String>("documentUri"))),
+                        )
+                        result.success(document?.let { isDescendant(tree, it) } == true)
+                    }
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
@@ -344,6 +353,12 @@ class MainActivity : AudioServiceActivity() {
             if (!existing.delete()) throw IllegalStateException("Could not replace existing document")
         }
         return directory.createFile(mimeType, filename) ?: throw IllegalStateException("Could not create document")
+    }
+
+    private fun isDescendant(root: DocumentFile, document: DocumentFile): Boolean {
+        val rootId = DocumentsContract.getTreeDocumentId(root.uri)
+        val documentId = DocumentsContract.getDocumentId(document.uri)
+        return documentId == rootId || documentId.startsWith("$rootId/")
     }
 
     private fun diagnosticsHandshakeFile(): File {

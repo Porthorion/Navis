@@ -644,6 +644,55 @@ class PermanentDownloadImportService {
     }
   }
 
+  /// Adds a sidecar entry for a single Navis-created SAF document without
+  /// scanning or adopting any other file in the selected folder.
+  Future<void> recordDownloadedSaf({
+    required String treeUri,
+    required String relativePath,
+    required int fileSize,
+    required String songId,
+    required String format,
+  }) async {
+    final documents = await _safStorage.listRecursively(treeUri);
+    final existing = documents.where(
+      (document) => document.relativePath == permanentDownloadManifestFileName,
+    );
+    final manifestFile = existing.isEmpty
+        ? File(
+            p.join(
+              (await Directory.systemTemp.createTemp('navis-downloads-')).path,
+              'manifest.sqlite',
+            ),
+          )
+        : await _safStorage.materialize(existing.first.uri);
+    final manifest = _openManifestFile(manifestFile);
+    try {
+      _writeManifestRecord(
+        manifest,
+        _ManifestRecord(
+          relativePath: relativePath,
+          songId: songId,
+          profileFingerprint: _profileFingerprint(),
+          fileSize: fileSize,
+          format: format,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      manifest.close();
+      await _safStorage.writeFromFile(
+        treeUri: treeUri,
+        relativePath: permanentDownloadManifestFileName,
+        source: manifestFile,
+        mimeType: 'application/vnd.sqlite3',
+      );
+    } finally {
+      try {
+        manifest.close();
+      } catch (_) {}
+      await manifestFile.delete().catchError((_) {});
+    }
+  }
+
   bool _isNavisSidecar(String path) {
     final name = p.basename(path);
     return name == permanentDownloadManifestFileName ||

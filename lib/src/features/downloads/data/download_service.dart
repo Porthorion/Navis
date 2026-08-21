@@ -766,21 +766,35 @@ class DownloadService {
 
         if (_isSafRoot(_readCustomDownloadFolderPath())) {
           final treeUri = _readCustomDownloadFolderPath()!;
-          await _safStorage.writeFromFile(
+          final relativePath = _safRelativePathFor(song, format);
+          final locator = await _safStorage.writeFromFile(
             treeUri: treeUri,
-            relativePath: _safRelativePathFor(song, format),
+            relativePath: relativePath,
             source: destFile,
             mimeType: _mimeTypeFor(format),
             replace: false,
           );
           await tryDeleteFile(destFile);
-          // Reuse the production adoption path so the new document receives
-          // the sidecar record and identity tags before it becomes visible as
-          // a completed permanent download.
-          final preview = await _permanentDownloadImportService.preview(
-            Directory(treeUri),
+          await _cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: songId,
+              filePath: locator,
+              storageKind: const Value('androidSaf'),
+              fileSize: stat.size,
+              format: format,
+              bitRate: bitRate == null ? const Value.absent() : Value(bitRate),
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime.now(),
+            ),
           );
-          await _permanentDownloadImportService.commit(preview);
+          await _permanentDownloadImportService.recordDownloadedSaf(
+            treeUri: treeUri,
+            relativePath: relativePath,
+            fileSize: stat.size,
+            songId: songId,
+            format: format,
+          );
         } else {
           await _cacheDao.upsertCachedTrack(
             CachedTracksTableCompanion.insert(
@@ -1154,12 +1168,15 @@ class DownloadService {
     final songsById = <String, SongsTableData>{
       for (final song in songs) song.id: song,
     };
-    final importedItems = <PermanentDownloadImportItem>[];
     final oldLocators = <String>[];
     final newLocators = <String>[];
     try {
       for (final entry in entries) {
-        if (_isSafRoot(entry.filePath) && entry.filePath.startsWith(treeUri)) {
+        if (_isSafRoot(entry.filePath) &&
+            await _safStorage.isDescendant(
+              treeUri: treeUri,
+              documentUri: entry.filePath,
+            )) {
           continue;
         }
         File? temporary;
@@ -1192,27 +1209,31 @@ class DownloadService {
         );
         newLocators.add(target);
         oldLocators.add(entry.filePath);
-        importedItems.add(
-          PermanentDownloadImportItem(
-            relativePath: relativePath,
+        await _cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: entry.songId,
+            filePath: target,
+            storageKind: const Value('androidSaf'),
             fileSize: entry.fileSize,
             format: format,
-            disposition: PermanentDownloadImportDisposition.recognized,
-            songId: entry.songId,
-            sourceUri: target,
+            bitRate: entry.bitRate == null
+                ? const Value.absent()
+                : Value(entry.bitRate),
+            cacheType: CacheType.permanent,
+            downloadStatus: entry.downloadStatus,
+            lastAccessedAt: DateTime.now(),
           ),
+        );
+        await _permanentDownloadImportService.recordDownloadedSaf(
+          treeUri: treeUri,
+          relativePath: relativePath,
+          fileSize: entry.fileSize,
+          songId: entry.songId,
+          format: format,
         );
         if (temporary != null) {
           await temporary.delete().catchError((_) {});
         }
-      }
-      if (importedItems.isNotEmpty) {
-        await _permanentDownloadImportService.commit(
-          PermanentDownloadImportPreview(
-            rootPath: treeUri,
-            items: importedItems,
-          ),
-        );
       }
       for (final locator in oldLocators) {
         await _deletePermanentLocator(locator);

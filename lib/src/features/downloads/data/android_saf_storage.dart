@@ -93,6 +93,21 @@ class AndroidSafStorage {
         ) ??
         false;
   }
+
+  /// Whether [documentUri] belongs to [treeUri]. Tree and document URI text
+  /// is not reliably prefix-related, so Android resolves this natively.
+  Future<bool> isDescendant({
+    required String treeUri,
+    required String documentUri,
+  }) async =>
+      await _channel.invokeMethod<bool>(
+        'isDescendant',
+        <String, Object?>{
+          'treeUri': treeUri,
+          'documentUri': documentUri,
+        },
+      ) ??
+      false;
 }
 
 class AndroidSafTree {
