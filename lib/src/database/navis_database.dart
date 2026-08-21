@@ -145,7 +145,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 66;
+  int get schemaVersion => 67;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -364,6 +364,18 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 66 && to >= 66) {
       await from65To66(migrator);
+    }
+    if (from < 67 && to >= 67) {
+      await from66To67(migrator);
+    }
+  }
+
+  Future<void> from66To67(Migrator migrator) async {
+    if (!await _columnExists('cached_tracks', 'storage_kind')) {
+      await migrator.addColumn(
+        cachedTracksTable,
+        cachedTracksTable.storageKind,
+      );
     }
   }
 

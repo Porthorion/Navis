@@ -10369,6 +10369,18 @@ class $CachedTracksTableTable extends CachedTracksTable
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _storageKindMeta = const VerificationMeta(
+    'storageKind',
+  );
+  @override
+  late final GeneratedColumn<String> storageKind = GeneratedColumn<String>(
+    'storage_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('filesystem'),
+  );
   static const VerificationMeta _fileSizeMeta = const VerificationMeta(
     'fileSize',
   );
@@ -10437,6 +10449,7 @@ class $CachedTracksTableTable extends CachedTracksTable
   List<GeneratedColumn> get $columns => [
     songId,
     filePath,
+    storageKind,
     fileSize,
     format,
     bitRate,
@@ -10471,6 +10484,15 @@ class $CachedTracksTableTable extends CachedTracksTable
       );
     } else if (isInserting) {
       context.missing(_filePathMeta);
+    }
+    if (data.containsKey('storage_kind')) {
+      context.handle(
+        _storageKindMeta,
+        storageKind.isAcceptableOrUnknown(
+          data['storage_kind']!,
+          _storageKindMeta,
+        ),
+      );
     }
     if (data.containsKey('file_size')) {
       context.handle(
@@ -10521,6 +10543,10 @@ class $CachedTracksTableTable extends CachedTracksTable
       filePath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}file_path'],
+      )!,
+      storageKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}storage_kind'],
       )!,
       fileSize: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -10574,6 +10600,10 @@ class CachedTracksTableData extends DataClass
   /// during library sync. The relationship is purely logical.
   final String songId;
   final String filePath;
+
+  /// `filesystem` for ordinary paths and `androidSaf` for persisted Android
+  /// Storage Access Framework document URIs.
+  final String storageKind;
   final int fileSize;
   final String format;
   final int? bitRate;
@@ -10583,6 +10613,7 @@ class CachedTracksTableData extends DataClass
   const CachedTracksTableData({
     required this.songId,
     required this.filePath,
+    required this.storageKind,
     required this.fileSize,
     required this.format,
     this.bitRate,
@@ -10595,6 +10626,7 @@ class CachedTracksTableData extends DataClass
     final map = <String, Expression>{};
     map['song_id'] = Variable<String>(songId);
     map['file_path'] = Variable<String>(filePath);
+    map['storage_kind'] = Variable<String>(storageKind);
     map['file_size'] = Variable<int>(fileSize);
     map['format'] = Variable<String>(format);
     if (!nullToAbsent || bitRate != null) {
@@ -10618,6 +10650,7 @@ class CachedTracksTableData extends DataClass
     return CachedTracksTableCompanion(
       songId: Value(songId),
       filePath: Value(filePath),
+      storageKind: Value(storageKind),
       fileSize: Value(fileSize),
       format: Value(format),
       bitRate: bitRate == null && nullToAbsent
@@ -10637,6 +10670,7 @@ class CachedTracksTableData extends DataClass
     return CachedTracksTableData(
       songId: serializer.fromJson<String>(json['songId']),
       filePath: serializer.fromJson<String>(json['filePath']),
+      storageKind: serializer.fromJson<String>(json['storageKind']),
       fileSize: serializer.fromJson<int>(json['fileSize']),
       format: serializer.fromJson<String>(json['format']),
       bitRate: serializer.fromJson<int?>(json['bitRate']),
@@ -10655,6 +10689,7 @@ class CachedTracksTableData extends DataClass
     return <String, dynamic>{
       'songId': serializer.toJson<String>(songId),
       'filePath': serializer.toJson<String>(filePath),
+      'storageKind': serializer.toJson<String>(storageKind),
       'fileSize': serializer.toJson<int>(fileSize),
       'format': serializer.toJson<String>(format),
       'bitRate': serializer.toJson<int?>(bitRate),
@@ -10671,6 +10706,7 @@ class CachedTracksTableData extends DataClass
   CachedTracksTableData copyWith({
     String? songId,
     String? filePath,
+    String? storageKind,
     int? fileSize,
     String? format,
     Value<int?> bitRate = const Value.absent(),
@@ -10680,6 +10716,7 @@ class CachedTracksTableData extends DataClass
   }) => CachedTracksTableData(
     songId: songId ?? this.songId,
     filePath: filePath ?? this.filePath,
+    storageKind: storageKind ?? this.storageKind,
     fileSize: fileSize ?? this.fileSize,
     format: format ?? this.format,
     bitRate: bitRate.present ? bitRate.value : this.bitRate,
@@ -10691,6 +10728,9 @@ class CachedTracksTableData extends DataClass
     return CachedTracksTableData(
       songId: data.songId.present ? data.songId.value : this.songId,
       filePath: data.filePath.present ? data.filePath.value : this.filePath,
+      storageKind: data.storageKind.present
+          ? data.storageKind.value
+          : this.storageKind,
       fileSize: data.fileSize.present ? data.fileSize.value : this.fileSize,
       format: data.format.present ? data.format.value : this.format,
       bitRate: data.bitRate.present ? data.bitRate.value : this.bitRate,
@@ -10709,6 +10749,7 @@ class CachedTracksTableData extends DataClass
     return (StringBuffer('CachedTracksTableData(')
           ..write('songId: $songId, ')
           ..write('filePath: $filePath, ')
+          ..write('storageKind: $storageKind, ')
           ..write('fileSize: $fileSize, ')
           ..write('format: $format, ')
           ..write('bitRate: $bitRate, ')
@@ -10723,6 +10764,7 @@ class CachedTracksTableData extends DataClass
   int get hashCode => Object.hash(
     songId,
     filePath,
+    storageKind,
     fileSize,
     format,
     bitRate,
@@ -10736,6 +10778,7 @@ class CachedTracksTableData extends DataClass
       (other is CachedTracksTableData &&
           other.songId == this.songId &&
           other.filePath == this.filePath &&
+          other.storageKind == this.storageKind &&
           other.fileSize == this.fileSize &&
           other.format == this.format &&
           other.bitRate == this.bitRate &&
@@ -10748,6 +10791,7 @@ class CachedTracksTableCompanion
     extends UpdateCompanion<CachedTracksTableData> {
   final Value<String> songId;
   final Value<String> filePath;
+  final Value<String> storageKind;
   final Value<int> fileSize;
   final Value<String> format;
   final Value<int?> bitRate;
@@ -10758,6 +10802,7 @@ class CachedTracksTableCompanion
   const CachedTracksTableCompanion({
     this.songId = const Value.absent(),
     this.filePath = const Value.absent(),
+    this.storageKind = const Value.absent(),
     this.fileSize = const Value.absent(),
     this.format = const Value.absent(),
     this.bitRate = const Value.absent(),
@@ -10769,6 +10814,7 @@ class CachedTracksTableCompanion
   CachedTracksTableCompanion.insert({
     required String songId,
     required String filePath,
+    this.storageKind = const Value.absent(),
     required int fileSize,
     required String format,
     this.bitRate = const Value.absent(),
@@ -10786,6 +10832,7 @@ class CachedTracksTableCompanion
   static Insertable<CachedTracksTableData> custom({
     Expression<String>? songId,
     Expression<String>? filePath,
+    Expression<String>? storageKind,
     Expression<int>? fileSize,
     Expression<String>? format,
     Expression<int>? bitRate,
@@ -10797,6 +10844,7 @@ class CachedTracksTableCompanion
     return RawValuesInsertable({
       if (songId != null) 'song_id': songId,
       if (filePath != null) 'file_path': filePath,
+      if (storageKind != null) 'storage_kind': storageKind,
       if (fileSize != null) 'file_size': fileSize,
       if (format != null) 'format': format,
       if (bitRate != null) 'bit_rate': bitRate,
@@ -10810,6 +10858,7 @@ class CachedTracksTableCompanion
   CachedTracksTableCompanion copyWith({
     Value<String>? songId,
     Value<String>? filePath,
+    Value<String>? storageKind,
     Value<int>? fileSize,
     Value<String>? format,
     Value<int?>? bitRate,
@@ -10821,6 +10870,7 @@ class CachedTracksTableCompanion
     return CachedTracksTableCompanion(
       songId: songId ?? this.songId,
       filePath: filePath ?? this.filePath,
+      storageKind: storageKind ?? this.storageKind,
       fileSize: fileSize ?? this.fileSize,
       format: format ?? this.format,
       bitRate: bitRate ?? this.bitRate,
@@ -10839,6 +10889,9 @@ class CachedTracksTableCompanion
     }
     if (filePath.present) {
       map['file_path'] = Variable<String>(filePath.value);
+    }
+    if (storageKind.present) {
+      map['storage_kind'] = Variable<String>(storageKind.value);
     }
     if (fileSize.present) {
       map['file_size'] = Variable<int>(fileSize.value);
@@ -10875,6 +10928,7 @@ class CachedTracksTableCompanion
     return (StringBuffer('CachedTracksTableCompanion(')
           ..write('songId: $songId, ')
           ..write('filePath: $filePath, ')
+          ..write('storageKind: $storageKind, ')
           ..write('fileSize: $fileSize, ')
           ..write('format: $format, ')
           ..write('bitRate: $bitRate, ')
@@ -32129,6 +32183,7 @@ typedef $$CachedTracksTableTableCreateCompanionBuilder =
     CachedTracksTableCompanion Function({
       required String songId,
       required String filePath,
+      Value<String> storageKind,
       required int fileSize,
       required String format,
       Value<int?> bitRate,
@@ -32141,6 +32196,7 @@ typedef $$CachedTracksTableTableUpdateCompanionBuilder =
     CachedTracksTableCompanion Function({
       Value<String> songId,
       Value<String> filePath,
+      Value<String> storageKind,
       Value<int> fileSize,
       Value<String> format,
       Value<int?> bitRate,
@@ -32166,6 +32222,11 @@ class $$CachedTracksTableTableFilterComposer
 
   ColumnFilters<String> get filePath => $composableBuilder(
     column: $table.filePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get storageKind => $composableBuilder(
+    column: $table.storageKind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -32221,6 +32282,11 @@ class $$CachedTracksTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get storageKind => $composableBuilder(
+    column: $table.storageKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get fileSize => $composableBuilder(
     column: $table.fileSize,
     builder: (column) => ColumnOrderings(column),
@@ -32266,6 +32332,11 @@ class $$CachedTracksTableTableAnnotationComposer
 
   GeneratedColumn<String> get filePath =>
       $composableBuilder(column: $table.filePath, builder: (column) => column);
+
+  GeneratedColumn<String> get storageKind => $composableBuilder(
+    column: $table.storageKind,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get fileSize =>
       $composableBuilder(column: $table.fileSize, builder: (column) => column);
@@ -32333,6 +32404,7 @@ class $$CachedTracksTableTableTableManager
               ({
                 Value<String> songId = const Value.absent(),
                 Value<String> filePath = const Value.absent(),
+                Value<String> storageKind = const Value.absent(),
                 Value<int> fileSize = const Value.absent(),
                 Value<String> format = const Value.absent(),
                 Value<int?> bitRate = const Value.absent(),
@@ -32343,6 +32415,7 @@ class $$CachedTracksTableTableTableManager
               }) => CachedTracksTableCompanion(
                 songId: songId,
                 filePath: filePath,
+                storageKind: storageKind,
                 fileSize: fileSize,
                 format: format,
                 bitRate: bitRate,
@@ -32355,6 +32428,7 @@ class $$CachedTracksTableTableTableManager
               ({
                 required String songId,
                 required String filePath,
+                Value<String> storageKind = const Value.absent(),
                 required int fileSize,
                 required String format,
                 Value<int?> bitRate = const Value.absent(),
@@ -32365,6 +32439,7 @@ class $$CachedTracksTableTableTableManager
               }) => CachedTracksTableCompanion.insert(
                 songId: songId,
                 filePath: filePath,
+                storageKind: storageKind,
                 fileSize: fileSize,
                 format: format,
                 bitRate: bitRate,

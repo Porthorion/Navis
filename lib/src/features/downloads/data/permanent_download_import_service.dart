@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -557,6 +558,7 @@ class PermanentDownloadImportService {
           CachedTracksTableCompanion.insert(
             songId: songId,
             filePath: locator,
+            storageKind: const Value('androidSaf'),
             fileSize: item.fileSize,
             format: item.format,
             cacheType: CacheType.permanent,

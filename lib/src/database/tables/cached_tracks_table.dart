@@ -13,6 +13,11 @@ class CachedTracksTable extends Table {
 
   TextColumn get filePath => text()();
 
+  /// `filesystem` for ordinary paths and `androidSaf` for persisted Android
+  /// Storage Access Framework document URIs.
+  TextColumn get storageKind =>
+      text().withDefault(const Constant('filesystem'))();
+
   IntColumn get fileSize => integer()();
 
   TextColumn get format => text()();
