@@ -1124,6 +1124,14 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
                     '${preview.uncertainCount} need review and '
                     '${preview.skippedCount} will be left untouched.',
                   ),
+                  if (preview.profileMismatchCount > 0)
+                    Text(
+                      '${preview.profileMismatchCount} track(s) belong to a different Navis profile and cannot be imported here.',
+                    ),
+                  if (preview.unmatchedCount > 0)
+                    Text(
+                      '${preview.unmatchedCount} track(s) could not be matched to the synced local library.',
+                    ),
                   const SizedBox(height: 8),
                   const Text(
                     'Navis will never remove files it cannot identify in this folder.',

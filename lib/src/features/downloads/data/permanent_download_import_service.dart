@@ -76,6 +76,21 @@ class PermanentDownloadImportPreview {
                 PermanentDownloadImportDisposition.profileMismatch,
       )
       .length;
+
+  int get profileMismatchCount => items
+      .where(
+        (item) =>
+            item.disposition ==
+            PermanentDownloadImportDisposition.profileMismatch,
+      )
+      .length;
+
+  int get unmatchedCount => items
+      .where(
+        (item) =>
+            item.disposition == PermanentDownloadImportDisposition.unmatched,
+      )
+      .length;
 }
 
 class PermanentDownloadImportResult {

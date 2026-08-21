@@ -68,6 +68,7 @@ void main() {
       final result = await service('profile').commit(preview);
 
       expect(preview.skippedCount, 1);
+      expect(preview.unmatchedCount, 1);
       expect(result.importedCount, 0);
       expect(file.existsSync(), isTrue);
       expect(await database.cacheDao.getPermanentEntries(), isEmpty);
@@ -90,6 +91,7 @@ void main() {
         preview.items.single.disposition,
         PermanentDownloadImportDisposition.profileMismatch,
       );
+      expect(preview.profileMismatchCount, 1);
       expect(file.existsSync(), isTrue);
     });
   });
