@@ -1037,6 +1037,20 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'POST' &&
+          path == '/v1/downloads/saf-fixture/use-default') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _container
+            .read(downloadServiceProvider)
+            .configureCustomDownloadFolder(
+              enabled: false,
+            );
+        await _respond(request, HttpStatus.ok, await _cacheStatusJson());
+        return;
+      }
+      if (request.method == 'POST' &&
           path == '/v1/downloads/saf-fixture/download') {
         if (!allowsMutations) {
           await _forbidden(request);
