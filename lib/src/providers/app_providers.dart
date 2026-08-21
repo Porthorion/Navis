@@ -27,6 +27,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -1489,9 +1490,13 @@ final rollingCacheBudgetBytesProvider = Provider<int>((ref) {
 
 final rollingCacheManagerProvider = Provider<RollingCacheManager>((ref) {
   final database = ref.watch(navisDatabaseProvider);
+  const safStorage = AndroidSafStorage();
   return DriftRollingCacheManager(
     cacheDao: database.cacheDao,
     songIdentityDao: database.songIdentityDao,
+    entryExists: (entry) => entry.storageKind == 'androidSaf'
+        ? safStorage.exists(entry.filePath)
+        : Future<bool>.value(File(entry.filePath).existsSync()),
   );
 });
 

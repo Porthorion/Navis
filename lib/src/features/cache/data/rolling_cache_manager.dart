@@ -59,14 +59,20 @@ class DriftRollingCacheManager implements RollingCacheManager {
   DriftRollingCacheManager({
     required CacheDao cacheDao,
     SongIdentityDao? songIdentityDao,
+    Future<bool> Function(CachedTracksTableData entry)? entryExists,
     DateTime Function()? now,
   }) : _cacheDao = cacheDao,
        _songIdentityDao = songIdentityDao,
+       _entryExists = entryExists ?? _defaultEntryExists,
        _now = now ?? DateTime.now;
 
   final CacheDao _cacheDao;
   final SongIdentityDao? _songIdentityDao;
+  final Future<bool> Function(CachedTracksTableData entry) _entryExists;
   final DateTime Function() _now;
+
+  static Future<bool> _defaultEntryExists(CachedTracksTableData entry) async =>
+      File(entry.filePath).existsSync();
 
   @override
   Future<void> registerTrack({
@@ -153,8 +159,7 @@ class DriftRollingCacheManager implements RollingCacheManager {
     final staleIds = <String>[];
 
     for (final entry in entries) {
-      final file = File(entry.filePath);
-      if (!file.existsSync()) {
+      if (!await _entryExists(entry)) {
         staleIds.add(entry.songId);
       }
     }
