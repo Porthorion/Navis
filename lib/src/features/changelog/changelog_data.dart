@@ -30,7 +30,7 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.8',
     entries: [
       ChangelogEntry(
-        'Android custom download folders now use the system-selected folder access safely, including importing existing downloads',
+        'Android custom download folders now work through the system folder picker, with safe import, offline playback, rescans, and preservation of unrelated files',
         type: ChangelogEntryType.fix,
       ),
     ],

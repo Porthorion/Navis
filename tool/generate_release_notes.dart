@@ -57,7 +57,7 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.8', [
     _Entry(
-      'Android custom download folders now use the system-selected folder access safely, including importing existing downloads',
+      'Android custom download folders now work through the system folder picker, with safe import, offline playback, rescans, and preservation of unrelated files',
       type: _EntryType.fix,
     ),
   ]),
