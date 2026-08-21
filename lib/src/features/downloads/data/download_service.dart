@@ -773,7 +773,7 @@ class DownloadService {
         if (_isSafRoot(_readCustomDownloadFolderPath())) {
           final treeUri = _readCustomDownloadFolderPath()!;
           final relativePath = _safRelativePathFor(song, format);
-          final locator = await _safStorage.writeFromFile(
+          final pendingLocator = await _safStorage.writeFromFile(
             treeUri: treeUri,
             relativePath: relativePath,
             source: destFile,
@@ -781,6 +781,15 @@ class DownloadService {
             replace: false,
           );
           await tryDeleteFile(destFile);
+          final locator = await _permanentDownloadImportService
+              .recordDownloadedSaf(
+                treeUri: treeUri,
+                documentUri: pendingLocator,
+                relativePath: relativePath,
+                fileSize: stat.size,
+                songId: songId,
+                format: format,
+              );
           await _cacheDao.upsertCachedTrack(
             CachedTracksTableCompanion.insert(
               songId: songId,
@@ -793,13 +802,6 @@ class DownloadService {
               downloadStatus: DownloadStatus.complete,
               lastAccessedAt: DateTime.now(),
             ),
-          );
-          await _permanentDownloadImportService.recordDownloadedSaf(
-            treeUri: treeUri,
-            relativePath: relativePath,
-            fileSize: stat.size,
-            songId: songId,
-            format: format,
           );
         } else {
           await _cacheDao.upsertCachedTrack(
@@ -1216,14 +1218,19 @@ class DownloadService {
         );
         newLocators.add(target);
         oldLocators.add(entry.filePath);
-        await _permanentDownloadImportService.recordDownloadedSaf(
-          treeUri: treeUri,
-          relativePath: relativePath,
-          fileSize: entry.fileSize,
-          songId: entry.songId,
-          format: format,
+        final taggedTarget = await _permanentDownloadImportService
+            .recordDownloadedSaf(
+              treeUri: treeUri,
+              documentUri: target,
+              relativePath: relativePath,
+              fileSize: entry.fileSize,
+              songId: entry.songId,
+              format: format,
+            );
+        newLocators.add(taggedTarget);
+        movedEntries.add(
+          (entry: entry, locator: taggedTarget, format: format),
         );
-        movedEntries.add((entry: entry, locator: target, format: format));
         if (temporary != null) {
           await temporary.delete().catchError((_) {});
         }

@@ -646,8 +646,9 @@ class PermanentDownloadImportService {
 
   /// Adds a sidecar entry for a single Navis-created SAF document without
   /// scanning or adopting any other file in the selected folder.
-  Future<void> recordDownloadedSaf({
+  Future<String> recordDownloadedSaf({
     required String treeUri,
+    required String documentUri,
     required String relativePath,
     required int fileSize,
     required String songId,
@@ -666,7 +667,16 @@ class PermanentDownloadImportService {
           )
         : await _safStorage.materialize(existing.first.uri);
     final manifest = _openManifestFile(manifestFile);
+    File? localMedia;
     try {
+      localMedia = await _safStorage.materialize(documentUri);
+      await _writeIdentityTags(localMedia, songId);
+      final locator = await _safStorage.writeFromFile(
+        treeUri: treeUri,
+        relativePath: relativePath,
+        source: localMedia,
+        mimeType: _mimeTypeFor(format),
+      );
       _writeManifestRecord(
         manifest,
         _ManifestRecord(
@@ -685,10 +695,12 @@ class PermanentDownloadImportService {
         source: manifestFile,
         mimeType: 'application/vnd.sqlite3',
       );
+      return locator;
     } finally {
       try {
         manifest.close();
       } catch (_) {}
+      if (localMedia != null) await localMedia.delete().catchError((_) {});
       await manifestFile.delete().catchError((_) {});
     }
   }
