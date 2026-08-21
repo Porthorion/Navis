@@ -1043,8 +1043,9 @@ OpenSubsonic documents the conditional full-index semantics of
 9. A profile migrated before library-cache-system version 2 must clear recoverable
    rolling cache and library metadata once before using the current contract.
    The app-owned modal can be dismissed, but returns on the next launch until
-   successful reset; `LibraryCacheResetService` deliberately preserves
-   permanent downloads and their files.
+   successful reset and full library scan; `LibraryCacheResetService`
+   deliberately preserves permanent downloads and their files. A failed scan
+   leaves the upgrade pending so the app does not acknowledge an empty library.
 
 ## Testing Strategy
 

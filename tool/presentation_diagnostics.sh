@@ -67,7 +67,7 @@ if [[ ! -f "$SOURCE_DB" ]]; then
   exit 66
 fi
 
-python3 - "$SOURCE_DB" "$CLONE_DB" "$CACHE_ROOT" <<'PY'
+python3 - "$SOURCE_DB" "$CLONE_DB" "$CACHE_ROOT" "$LABEL" <<'PY'
 import hashlib, os, sqlite3, sys
 source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 target = sqlite3.connect(sys.argv[2])
@@ -88,6 +88,10 @@ for song_id, source_path in target.execute(
         "UPDATE cached_tracks SET file_path = ? WHERE song_id = ?",
         (destination, song_id),
     )
+if sys.argv[4] == "cache-upgrade":
+    # Provision a pre-v2 profile in the isolated copy so the app-owned modal
+    # and reset path are exercised without touching the primary profile.
+    target.execute("DELETE FROM cache_system_state")
 target.commit()
 integrity = target.execute("PRAGMA integrity_check").fetchone()[0]
 foreign_keys = target.execute("PRAGMA foreign_key_check").fetchall()
@@ -369,6 +373,18 @@ with open(path_output, "w", encoding="utf-8") as output:
 PY
 }
 
+validate_cache_upgrade() {
+  python3 - "$1" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+if value.get("status") != "succeeded" or value.get("needsReset") is not False:
+    raise SystemExit(f"cache upgrade was not acknowledged after a completed scan: {value}")
+sync = value.get("sync")
+if not isinstance(sync, dict) or sync.get("status") != "succeeded":
+    raise SystemExit(f"cache upgrade did not complete a full library scan: {value}")
+PY
+}
+
 validate_window_response() {
   python3 - "$1" "$2" "$3" "$4" "$5" <<'PY'
 import json, math, sys
@@ -626,6 +642,10 @@ run_capture() {
   validate_screenshot \
     "$OUTPUT_ROOT/$prefix-screenshot.json" \
     "$OUTPUT_ROOT/$prefix-screenshot-path.txt"
+  if [[ "$LABEL" == "cache-upgrade" && "$prefix" == "initial" ]]; then
+    api POST /v1/library/cache-upgrade > "$OUTPUT_ROOT/$prefix-cache-upgrade.json"
+    validate_cache_upgrade "$OUTPUT_ROOT/$prefix-cache-upgrade.json"
+  fi
 }
 
 shutdown_app() {
@@ -664,7 +684,8 @@ python3 - \
   "$([[ -n "$RADIO_FILTER_QUERY" ]] && echo 1 || echo 0)" \
   "$ARTIST_TOP_TRACKS_FIXTURE" \
   "$ERROR_NOTICE" \
-  "$BOOTSTRAP_RECOVERY" <<'PY'
+  "$BOOTSTRAP_RECOVERY" \
+  "$LABEL" <<'PY'
 import json, sys
 screenshots = []
 for path in sys.argv[4:6]:
@@ -701,6 +722,8 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
              if sys.argv[14] == "1" else [])
           + (["POST /v1/presentation/playback-recovery"]
              if sys.argv[15] == "1" else [])
+          + (["POST /v1/library/cache-upgrade"]
+             if sys.argv[16] == "cache-upgrade" else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([
               "POST /v1/presentation/search/play",

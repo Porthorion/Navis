@@ -17,6 +17,7 @@ void main() {
     final service = CacheSystemUpgradeService(
       database: database,
       cacheResetService: LibraryCacheResetService(database: database),
+      triggerFullLibraryScan: () async => true,
     );
 
     expect(await service.needsReset(), isFalse);
@@ -29,12 +30,36 @@ void main() {
     final service = CacheSystemUpgradeService(
       database: database,
       cacheResetService: LibraryCacheResetService(database: database),
+      triggerFullLibraryScan: () async => true,
     );
 
     expect(await service.needsReset(), isTrue);
     await service.resetAndMarkCurrent();
     expect(await service.needsReset(), isFalse);
   }, skip: !sqliteAvailable);
+
+  test(
+    'legacy profiles stay pending when the post-reset full scan fails',
+    () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await database.customStatement('DELETE FROM cache_system_state;');
+      var scanCalls = 0;
+      final service = CacheSystemUpgradeService(
+        database: database,
+        cacheResetService: LibraryCacheResetService(database: database),
+        triggerFullLibraryScan: () async {
+          scanCalls += 1;
+          return false;
+        },
+      );
+
+      await expectLater(service.resetAndMarkCurrent(), throwsStateError);
+      expect(scanCalls, 1);
+      expect(await service.needsReset(), isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     'reset removes recoverable cache and metadata but keeps downloads',

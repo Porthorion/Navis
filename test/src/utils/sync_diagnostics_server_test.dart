@@ -14,10 +14,12 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -52,6 +54,32 @@ void main() {
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
     expect(authorized.body['schemaVersion'], 66);
+  });
+
+  test('cache upgrade clears then completes a full library scan', () async {
+    final engine = _SuccessfulFullSyncEngine();
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      librarySyncEngine: engine,
+    );
+    addTearDown(fixture.close);
+    await fixture.database.customStatement('DELETE FROM cache_system_state;');
+
+    final response = await _request(
+      fixture.port,
+      '/v1/library/cache-upgrade',
+      method: 'POST',
+      token: fixture.token,
+    );
+
+    expect(response.statusCode, HttpStatus.ok);
+    expect(response.body['status'], 'succeeded');
+    expect(response.body['needsReset'], isFalse);
+    expect(
+      (response.body['sync'] as Map<String, dynamic>)['status'],
+      'succeeded',
+    );
+    expect(engine.forceFullCalls, 1);
   });
 
   test(
@@ -1351,6 +1379,9 @@ Future<_DiagnosticsFixture> _startFixture(
   final container = ProviderContainer(
     overrides: [
       navisDatabaseProvider.overrideWith((ref) => database),
+      libraryCacheResetServiceProvider.overrideWith(
+        (ref) => LibraryCacheResetService(database: database),
+      ),
       audioHandlerProvider.overrideWith((ref) => handler),
       if (playbackSnapshot != null)
         playerStateProvider.overrideWithValue(playbackSnapshot),
@@ -1448,6 +1479,55 @@ class _TargetProgressSyncEngine extends LibrarySyncEngine {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) => _completion.future;
+}
+
+class _SuccessfulFullSyncEngine extends LibrarySyncEngine {
+  int forceFullCalls = 0;
+
+  static const LibrarySyncState _succeeded = LibrarySyncState(
+    status: LibrarySyncStatus.succeeded,
+    stage: LibrarySyncStage.completed,
+  );
+
+  @override
+  Future<LibrarySyncState> forceFullSync({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    forceFullCalls += 1;
+    onProgress?.call(
+      const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingArtists,
+      ),
+    );
+    return _succeeded;
+  }
+
+  @override
+  Future<LibrarySyncState> continueVerification({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) async => _succeeded;
+
+  @override
+  Future<LibrarySyncState> probeCatalog({
+    LibrarySyncProgressCallback? onProgress,
+  }) async => _succeeded;
+
+  @override
+  Future<LibrarySyncState> syncIfStale({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) async => _succeeded;
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+    bool allowMeteredBroadOverride = false,
+  }) async => _succeeded;
 }
 
 class _SourceAuditApiClient extends SubsonicApiClient {

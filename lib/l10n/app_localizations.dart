@@ -6458,7 +6458,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSystemUpgradeBody.
   ///
   /// In en, this message translates to:
-  /// **'This installation uses an older library cache system. Navis needs to clear its recoverable library cache once to use the newer cache system. Your downloaded music will be kept.'**
+  /// **'This installation uses an older library cache system. Navis needs to clear its recoverable library cache and rebuild your library once to use the newer cache system. Your downloaded music will be kept.'**
   String get cacheSystemUpgradeBody;
 
   /// No description provided for @cacheSystemUpgradeAction.

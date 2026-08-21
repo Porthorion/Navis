@@ -3688,7 +3688,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cacheSystemUpgradeBody =>
-      'This installation uses an older library cache system. Navis needs to clear its recoverable library cache once to use the newer cache system. Your downloaded music will be kept.';
+      'This installation uses an older library cache system. Navis needs to clear its recoverable library cache and rebuild your library once to use the newer cache system. Your downloaded music will be kept.';
 
   @override
   String get cacheSystemUpgradeAction => 'Clear library cache';

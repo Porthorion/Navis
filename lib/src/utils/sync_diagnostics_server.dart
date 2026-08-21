@@ -18,6 +18,7 @@ import 'package:navis/src/features/auth/presentation/initial_server_sync_provide
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -918,6 +919,32 @@ class SyncDiagnosticsServer {
               .read(librarySyncControllerProvider.notifier)
               .syncIfStale(),
         );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/library/cache-upgrade') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        try {
+          await _container
+              .read(cacheSystemUpgradeServiceProvider)
+              .resetAndMarkCurrent();
+          await _respond(request, HttpStatus.ok, <String, Object?>{
+            'status': 'succeeded',
+            'needsReset': await _container
+                .read(cacheSystemUpgradeServiceProvider)
+                .needsReset(),
+            'sync': await _syncStateJson(
+              _container.read(librarySyncControllerProvider),
+            ),
+          });
+        } on Object catch (error) {
+          await _respond(request, HttpStatus.conflict, <String, Object?>{
+            'status': 'failed',
+            'error': error.runtimeType.toString(),
+          });
+        }
         return;
       }
       if (request.method == 'POST' && path == '/v1/sync/check') {

@@ -89,7 +89,7 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
-      'Older installations now request a one-time library-cache refresh while keeping downloaded music',
+      'Older installations now refresh their library cache and rebuild the library once while keeping downloaded music',
       type: _EntryType.improvement,
     ),
   ]),

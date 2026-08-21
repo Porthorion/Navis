@@ -853,8 +853,9 @@ DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyn
 - `cache_system_state` records a one-time library-cache contract migration.
   Fresh profiles are marked current during database creation; a migrated
   profile has no marker and must show the dismissible upgrade modal until
-  `LibraryCacheResetService` clears recoverable cache/library state and marks
-  the migration complete. Permanent downloads are never removed.
+  `LibraryCacheResetService` clears recoverable cache/library state, completes
+  a full library scan, and marks the migration complete. Permanent downloads
+  are never removed; a failed scan leaves the prompt pending for retry.
 - `library_sync_state.next_automatic_check_at` is the per-server automatic
   schedule deadline. It is distinct from `next_eligible_at` (retry/circuit
   cooldown); automatic lifecycle events may only run catalog work when this

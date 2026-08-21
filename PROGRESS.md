@@ -55,7 +55,11 @@ Last updated: 2026-08-21
   initial and restart layout images were inspected and rendered correctly.
   Existing profiles now receive a dismissible, one-time library-cache reset
   prompt; the reset clears recoverable library and rolling-cache data while
-  preserving permanent downloads and repeats on later launches until completed.
+  preserving permanent downloads, completes a full library scan before
+  acknowledgement, and repeats on later launches until completed.
+  The cache-upgrade clone diagnostic now provisions a pre-v2 marker, captures
+  the modal, drives the authenticated reset action through a completed full
+  repair, and verifies a populated library after clean restart.
   The final isolated Linux cache-upgrade diagnostic passed authenticated app-API
   health/presentation/screenshot/shutdown checks and a clean restart; both
   app-owned modal captures were inspected. `./tool/check.sh` passed.
