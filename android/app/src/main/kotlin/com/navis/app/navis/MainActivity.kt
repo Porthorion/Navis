@@ -387,13 +387,16 @@ class MainActivity : AudioServiceActivity() {
     private fun treeDetails(tree: DocumentFile, canReplace: Boolean): Map<String, Any> = mapOf(
         "uri" to tree.uri.toString(),
         "displayName" to (tree.name ?: "Selected folder"),
-        "canRead" to tree.canRead(),
-        "canWrite" to tree.canWrite(),
+        // DocumentFile.canRead/canWrite only consult URI grants. That is not
+        // sufficient for Navis's profile-only provider, which is accessed by
+        // the same UID and therefore has no grant record. Probe the actual
+        // provider operation as the authoritative capability instead.
+        "canRead" to canReadTree(tree),
+        "canWrite" to (tree.canWrite() || canReplace),
         "canReplace" to canReplace,
     )
 
     private fun probeWritableTree(tree: DocumentFile): Boolean {
-        if (!tree.canRead() || !tree.canWrite()) return false
         val name = ".navis-saf-probe-${System.nanoTime()}"
         val probe = tree.createFile("application/octet-stream", name) ?: return false
         return try {
@@ -406,6 +409,13 @@ class MainActivity : AudioServiceActivity() {
         } finally {
             if (probe.exists()) probe.delete()
         }
+    }
+
+    private fun canReadTree(tree: DocumentFile): Boolean = try {
+        tree.listFiles()
+        true
+    } catch (_: Exception) {
+        false
     }
 
     private fun isDescendant(root: DocumentFile, document: DocumentFile): Boolean {
