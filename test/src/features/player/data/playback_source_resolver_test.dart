@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -17,6 +18,7 @@ import '../../../../helpers/test_database.dart';
 bool get lockCachingAvailable => sqliteAvailable;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('PlaybackSourceResolver', () {
     late NavisDatabase database;
     late SubsonicApiClient apiClient;
@@ -96,6 +98,59 @@ void main() {
           ),
           isTrue,
         );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'resolves a permanent SAF document through its content URI',
+      () async {
+        const channel = MethodChannel(
+          'com.navis.app/permanent_download_storage',
+        );
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method == 'exists') return true;
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, null);
+        });
+        final song = await _insertSong(
+          database,
+          id: 'saf-song',
+          title: 'SAF song',
+          suffix: 'flac',
+        );
+        const locator = 'content://navis.test/document/root%3Asaf-song.flac';
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: song.id,
+            filePath: locator,
+            storageKind: const Value('androidSaf'),
+            fileSize: 3,
+            format: 'flac',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(label: 'original'),
+          readRollingCacheDirectory: () async => rollingDir,
+        );
+
+        final resolved = await resolver.resolveForSong(song);
+
+        expect(resolved.kind, PlaybackSourceKind.file);
+        expect(resolved.uri, Uri.parse(locator));
+        expect(resolved.cachedFilePath, locator);
       },
       skip: !sqliteAvailable,
     );
