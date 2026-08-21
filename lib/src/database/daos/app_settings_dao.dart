@@ -466,6 +466,17 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  Future<void> updateCustomDownloadFolderStorageKind(String kind) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        customDownloadFolderStorageKind: Value(kind),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   /// Stream the Wi-Fi-only downloads setting.
   Stream<bool> watchWifiOnlyDownloads() {
     return watchSettings().map((s) => s?.wifiOnlyDownloads ?? true);

@@ -145,7 +145,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 67;
+  int get schemaVersion => 68;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -367,6 +367,21 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 67 && to >= 67) {
       await from66To67(migrator);
+    }
+    if (from < 68 && to >= 68) {
+      await from67To68(migrator);
+    }
+  }
+
+  Future<void> from67To68(Migrator migrator) async {
+    if (!await _columnExists(
+      'app_settings',
+      'custom_download_folder_storage_kind',
+    )) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.customDownloadFolderStorageKind,
+      );
     }
   }
 

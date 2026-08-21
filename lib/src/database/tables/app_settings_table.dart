@@ -71,6 +71,10 @@ class AppSettingsTable extends Table {
   /// Absolute path to the user-selected permanent-download folder.
   TextColumn get customDownloadFolderPath => text().nullable()();
 
+  /// `filesystem` for paths and `androidSaf` for persisted document-tree URIs.
+  TextColumn get customDownloadFolderStorageKind =>
+      text().withDefault(const Constant('filesystem'))();
+
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   TextColumn get themeMode => text().withDefault(const Constant('dark'))();
 

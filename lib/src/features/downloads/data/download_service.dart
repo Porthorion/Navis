@@ -162,6 +162,7 @@ class DownloadService {
     }
     await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: false);
     await _appSettingsDao.updateCustomDownloadFolderPath(null);
+    await _appSettingsDao.updateCustomDownloadFolderStorageKind('filesystem');
     AppLogger.info(
       'Disabled legacy Android custom download folder without modifying files; '
       'a persisted SAF folder must be selected again.',
@@ -240,6 +241,9 @@ class DownloadService {
       await _runWithQueuePaused(() async {
         await _relocatePermanentDownloadsToSaf(normalizedPath!);
         await _appSettingsDao.updateCustomDownloadFolderPath(normalizedPath);
+        await _appSettingsDao.updateCustomDownloadFolderStorageKind(
+          'androidSaf',
+        );
         await _appSettingsDao.updateCustomDownloadFolderEnabled(
           enabled: enabled,
         );
@@ -260,6 +264,7 @@ class DownloadService {
       await _appSettingsDao.updateCustomDownloadFolderPath(
         enabled ? normalizedPath : null,
       );
+      await _appSettingsDao.updateCustomDownloadFolderStorageKind('filesystem');
       await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: enabled);
     });
   }
