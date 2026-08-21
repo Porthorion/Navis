@@ -450,6 +450,11 @@ non-secret profile fingerprint and server song IDs. The sidecar is authoritative
 across installations; format-specific media tags are best-effort compatibility
 metadata. Folder selection previews and confirms import, adopts only unique
 local-catalog matches, and leaves profile-mismatched or unknown files untouched.
+On Android, custom folders are persisted Storage Access Framework tree URIs,
+not filesystem paths. Cached permanent entries record a storage kind; read,
+write, playback, relocation, and deletion must use the SAF bridge for Android
+SAF entries. New or relocated Navis files must use non-overwriting document
+creation so unmanaged content is preserved.
 
 When `PlaybackSnapshot.hasActivePlayback` becomes false, `AppShell` must clear
 its logical player overlay stack immediately so Back targets the underlying

@@ -1040,6 +1040,11 @@ OpenSubsonic documents the conditional full-index semantics of
    paths to a profile fingerprint and song ID; supported media tags are a
    best-effort additional identity source. Unknown, ambiguous, and
    profile-mismatched files remain untouched.
+   Android uses a persisted Storage Access Framework tree URI rather than a
+   filesystem path. The cached-track storage kind distinguishes Android SAF
+   document locators from ordinary filesystem entries; SAF reads, writes,
+   relocation, deletion, and offline playback go through the Android
+   ContentResolver bridge and never overwrite unmanaged documents.
 7. Identity aliases transfer valid rolling/permanent ownership to a proven
    canonical server song ID; ambiguous permanent downloads remain local-only
 8. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
