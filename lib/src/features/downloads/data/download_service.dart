@@ -237,8 +237,13 @@ class DownloadService {
     }
 
     if (_isSafRoot(normalizedPath)) {
-      await _appSettingsDao.updateCustomDownloadFolderPath(normalizedPath);
-      await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: enabled);
+      await _runWithQueuePaused(() async {
+        await _relocatePermanentDownloadsToSaf(normalizedPath!);
+        await _appSettingsDao.updateCustomDownloadFolderPath(normalizedPath);
+        await _appSettingsDao.updateCustomDownloadFolderEnabled(
+          enabled: enabled,
+        );
+      });
       return;
     }
     await _runWithQueuePaused(() async {
@@ -1131,6 +1136,85 @@ class DownloadService {
         'DownloadService: Permanent download normalization failed: '
         '$error\n$stackTrace',
       );
+    }
+  }
+
+  Future<void> _relocatePermanentDownloadsToSaf(String treeUri) async {
+    final entries = await _cacheDao.getPermanentEntries();
+    if (entries.isEmpty) return;
+    final songs = await _libraryDao.getSongsByIds(
+      entries.map((entry) => entry.songId).toSet(),
+    );
+    final songsById = <String, SongsTableData>{
+      for (final song in songs) song.id: song,
+    };
+    final importedItems = <PermanentDownloadImportItem>[];
+    final oldLocators = <String>[];
+    final newLocators = <String>[];
+    try {
+      for (final entry in entries) {
+        if (_isSafRoot(entry.filePath) && entry.filePath.startsWith(treeUri)) {
+          continue;
+        }
+        File? temporary;
+        final source = _isSafRoot(entry.filePath)
+            ? (temporary = await _safStorage.materialize(entry.filePath))
+            : File(entry.filePath);
+        if (!await source.exists()) {
+          continue;
+        }
+        final format = _resolveStoredFormat(
+          entry,
+          song: songsById[entry.songId],
+        );
+        final relativePath = _safRelativePathFor(
+          songsById[entry.songId] ??
+              SongsTableData(
+                id: entry.songId,
+                title: entry.songId,
+                isExternal: false,
+                isProvisional: false,
+              ),
+          format,
+        );
+        final target = await _safStorage.writeFromFile(
+          treeUri: treeUri,
+          relativePath: relativePath,
+          source: source,
+          mimeType: _mimeTypeFor(format),
+        );
+        newLocators.add(target);
+        oldLocators.add(entry.filePath);
+        importedItems.add(
+          PermanentDownloadImportItem(
+            relativePath: relativePath,
+            fileSize: entry.fileSize,
+            format: format,
+            disposition: PermanentDownloadImportDisposition.recognized,
+            songId: entry.songId,
+            sourceUri: target,
+          ),
+        );
+        if (temporary != null) {
+          await temporary.delete().catchError((_) {});
+        }
+      }
+      if (importedItems.isNotEmpty) {
+        await _permanentDownloadImportService.commit(
+          PermanentDownloadImportPreview(
+            rootPath: treeUri,
+            items: importedItems,
+          ),
+        );
+      }
+      for (final locator in oldLocators) {
+        await _deletePermanentLocator(locator);
+      }
+    } on Object {
+      for (final locator in newLocators) {
+        await _safStorage.delete(locator).catchError((_) {});
+      }
+      rethrow;
     }
   }
 
