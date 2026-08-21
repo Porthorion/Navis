@@ -19,6 +19,7 @@ import 'package:navis/src/features/auth/presentation/server_connection_provider.
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -1008,6 +1009,50 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'GET' &&
+          path == '/v1/downloads/saf-fixture/status') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _respond(request, HttpStatus.ok, await _safFixtureStatusJson());
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/downloads/saf-fixture/configure') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final fixtureTree = await const AndroidSafStorage()
+            .diagnosticsFixtureTree();
+        await _container
+            .read(downloadServiceProvider)
+            .configureCustomDownloadFolder(
+              enabled: true,
+              path: fixtureTree,
+            );
+        await _respond(request, HttpStatus.ok, await _safFixtureStatusJson());
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/downloads/saf-fixture/download') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final songId = (body['songId'] as String? ?? '').trim();
+        if (songId.isEmpty) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'songId is required',
+          });
+          return;
+        }
+        await _container.read(downloadServiceProvider).enqueueSong(songId);
+        await _respond(request, HttpStatus.accepted, await _cacheStatusJson());
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/cache/status') {
         await _respond(request, HttpStatus.ok, await _cacheStatusJson());
         return;
@@ -1343,8 +1388,12 @@ class SyncDiagnosticsServer {
     var missingFiles = 0;
     var rolling = 0;
     var permanent = 0;
+    const safStorage = AndroidSafStorage();
     for (final entry in entries) {
-      if (!File(entry.filePath).existsSync()) {
+      final exists = entry.storageKind == 'androidSaf'
+          ? Platform.isAndroid && await safStorage.exists(entry.filePath)
+          : File(entry.filePath).existsSync();
+      if (!exists) {
         missingFiles += 1;
       }
       if (entry.cacheType.name == 'rolling') {
@@ -1358,6 +1407,28 @@ class SyncDiagnosticsServer {
       'rollingEntries': rolling,
       'permanentEntries': permanent,
       'missingFiles': missingFiles,
+    };
+  }
+
+  Future<Map<String, Object?>> _safFixtureStatusJson() async {
+    const storage = AndroidSafStorage();
+    final treeUri = await storage.diagnosticsFixtureTree();
+    final tree = await storage.inspectTree(treeUri);
+    final documents = await storage.listRecursively(treeUri);
+    final settings = await _container
+        .read(navisDatabaseProvider)
+        .appSettingsDao
+        .getSettings();
+    return <String, Object?>{
+      'displayName': tree.displayName,
+      'canRead': tree.canRead,
+      'canWrite': tree.canWrite,
+      'canReplace': tree.canReplace,
+      'documentCount': documents.length,
+      'configured':
+          settings?.customDownloadFolderEnabled == true &&
+          settings?.customDownloadFolderStorageKind == 'androidSaf',
+      'cache': await _cacheStatusJson(),
     };
   }
 

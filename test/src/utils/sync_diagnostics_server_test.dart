@@ -53,7 +53,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 66);
+    expect(authorized.body['schemaVersion'], 68);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
