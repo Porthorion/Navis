@@ -13,6 +13,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -255,21 +256,29 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 anchor: details.globalPosition,
                               ),
                             ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                SongDownloadStatusIcon(
-                                  songId: song.id,
-                                  onDownload: () =>
-                                      unawaited(_downloadSong(song)),
-                                ),
-                                _AlbumSongMoreButton(
-                                  onPressed: (anchor) => unawaited(
-                                    _showSongActions(song, anchor: anchor),
+                            trailing: desktopMode
+                                ? DesktopSongActions(
+                                    song: song,
+                                    keyPrefix: 'album-song',
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      SongDownloadStatusIcon(
+                                        songId: song.id,
+                                        onDownload: () =>
+                                            unawaited(_downloadSong(song)),
+                                      ),
+                                      _AlbumSongMoreButton(
+                                        onPressed: (anchor) => unawaited(
+                                          _showSongActions(
+                                            song,
+                                            anchor: anchor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
                           ),
                         };
                       }, childCount: renderItems.length),

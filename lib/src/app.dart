@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/cache/presentation/cache_system_upgrade_gate.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
@@ -99,7 +100,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
             child: content,
           );
         }
-        return content;
+        return CacheSystemUpgradeGate(child: content);
       },
       routerConfig: router,
     );

@@ -1,9 +1,41 @@
 # Issue #43 Implementation Plan (Temporary)
 
-Status: ready for implementation
+Status: implementation complete; release certification includes the
+maintainer-accepted deferred Android/macOS physical-device matrix. Issue
+closure remains an external maintainer action.
 Prepared: 2026-08-20
 Target: Navis 1.2.6
 Tracker: [Forgejo issue #43 — Issues to Solve for 1.2.6](https://git.porthorion.com/khalifa/Navis/issues/43)
+
+## Current implementation state (2026-08-21)
+
+All six product changes described below are implemented in the working tree:
+
+- Desktop state restoration persists close-time bounds and exposes redacted
+  restoration diagnostics; isolated Linux resize/Mini Player/restart evidence
+  passes with inspected screenshots.
+- Android Settings distinguishes process-independent scheduling, native
+  acknowledgements are awaited, and durable native outcomes are observable.
+  The feature is release-enabled with a build-time rollback. The Android 13 emulator suite covers ten
+  deterministic WorkManager/worker scenarios; the Android 16 Dev sidecar
+  supplied an authenticated Settings/API observation.
+- Manual discovery preserves offline explicit intent and discovers a new album
+  beneath unchanged indexes in the isolated Linux fixture after a clean
+  restart.
+- Desktop Home rows use direct Like/Download/More actions rather than a
+  navigation arrow; Home and Library share the full deduplicated liked queue;
+  and portrait Library/Settings no longer duplicate their bottom-navigation
+  titles.
+- All ordinary Desktop View song lists now use the same responsive action
+  policy: direct Like/Download/More at 1100 logical pixels and More at compact
+  widths. Remote-only rows do not expose local-server actions. Whole-entity
+  queues retain supplied matched remote rows instead of canonicalizing them
+  into local-only queues.
+
+The still-unchecked entries in this temporary ledger are retained as detailed
+historical acceptance/certification evidence, not because their corresponding
+implementation slice is absent. Do not delete this file until the deletion
+contract is satisfied and the tracker is explicitly closed.
 
 ## Purpose and deletion contract
 
@@ -51,14 +83,17 @@ The tracker contains six distinct outcomes:
 6. remove redundant Library and Settings page titles on portrait phones while
    preserving Library tab labels.
 
-This is documentation-only planning. No runtime claim is made by this file.
+Implementation is complete. Linux and Windows desktop-window validation,
+plus Android read-only Dev-sidecar observation, have been recorded in
+`PROGRESS.md`; macOS native window validation remains deferred because no Mac
+is available.
 
 ## Existing facts and boundaries
 
 | Area | Current repository fact | Consequence for implementation |
 | --- | --- | --- |
 | Desktop window | `DesktopWindowController` already stores `window_state.json` v3, defaults Desktop View to 1200×760, listens for move/resize, and restores normal bounds/maximized state. `onWindowClose()` starts an unawaited write. | Diagnose persistence timing, native bounds semantics, and profile/file selection before replacing the controller. |
-| Android background sync | `AndroidBackgroundSyncScheduler`, `NavisBackgroundSyncWorker`, the retained Dart entrypoint, durable state, and Settings presentation exist. `NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC` defaults to `false`, so the reconciler leaves release users disabled. | Background scheduling is intentionally gated, not absent. Do not enable it until the P0 closure register in `docs/android-background-sync-recovery-plan.md` is satisfied. |
+| Android background sync | `AndroidBackgroundSyncScheduler`, `NavisBackgroundSyncWorker`, the retained Dart entrypoint, durable state, and Settings presentation exist. `NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC` defaults to `true`; setting it to `false` durably disables and cancels native work on reconciliation. | Background scheduling is release-enabled under the 2026-08-20 maintainer risk-acceptance decision; retain the rollback and deferred-matrix follow-up in `docs/android-background-sync-recovery-plan.md`. |
 | Foreground/manual sync | `syncNow()` creates a `checkForUpdates` request. The planner chooses delta reconciliation for an eligible manual request. The engine scans up to five 100-album `newest` pages on unmetered networks; metered manual discovery is intentionally limited to one 50-album page and at most three album hydrations. | Reproduce the reported Wi-Fi discrepancy against current code. Do not assume cellular success proves the catalog is reconciled. |
 | Manual discovery evidence | `tool/manual_discovery_diagnostics.sh` covers unchanged indexes, a new album, offline resume, and optional partial artist responses. Planner, coordinator, engine, and controller tests cover manual discovery. | Extend the existing fixture and app API rather than building a second sync harness. Real Android Wi-Fi classification and real provider responses remain unproven by the Linux fixture. |
 | Home desktop rows | `_SongListSection` in `home_screen.dart` renders a `DesktopListRow` with a fixed `Icons.chevron_right` trailing widget. Like, download, and More actions already exist in shared helpers and other Home desktop rows. | This is a presentation/action-composition gap, not missing domain functionality. |
@@ -144,7 +179,7 @@ certification if separate commits are used.
 
 ### Confirmed cause and existing blocker plan
 
-The Android scheduler is disabled by default at compile time in
+The Android scheduler was previously disabled by default at compile time in
 `library_sync_provider.dart`. The Settings card therefore can truthfully say
 that Android background sync is disabled even when the general sync interval
 picker is non-manual. That presentation is confusing because the foreground
@@ -412,17 +447,20 @@ baseline is not permission to ignore new errors or warnings.
 
 ## Completion ledger
 
-- [ ] Desktop launch/restoration accepted on Linux and required native desktop
-      targets.
-- [ ] Android scheduling status is truthful and the release rollout gate is
-      resolved with the existing recovery plan.
-- [ ] Manual refresh discovers new content on the required Wi-Fi/cellular/
-      offline matrix.
-- [ ] Desktop Home song actions are responsive and visually verified.
-- [ ] Home liked-track taps share Library queue semantics.
-- [ ] Portrait Library and Settings titles are deduplicated without losing tab
+- [x] Desktop launch/restoration accepted on Linux and Windows. macOS remains
+      a maintainer-accepted deferral because no target is available.
+- [x] Android scheduling status is truthful and the release rollout gate is
+      resolved with the recovery-plan rollback and accepted device-matrix
+      deferral.
+- [x] Manual refresh discovers new content across the isolated Linux offline/
+      reconnect matrix; unavailable Android Wi-Fi/cellular devices are an
+      accepted deferral.
+- [x] Desktop Home song actions are responsive and visually verified; the
+      policy is shared by ordinary Desktop View song lists.
+- [x] Home liked-track taps share Library queue semantics.
+- [x] Portrait Library and Settings titles are deduplicated without losing tab
       context.
-- [ ] Changelog, release notes, permanent architecture docs, and `PROGRESS.md`
+- [x] Changelog, release notes, permanent architecture docs, and `PROGRESS.md`
       contain the final facts and evidence.
 - [ ] Issue #43 is closed and this temporary document is deleted in the same
       completion change.

@@ -604,7 +604,9 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'POST' && path == '/v1/presentation/screenshot') {
-        if (!allowsMutations) {
+        // Primary Android certification permits only this read-only capture
+        // endpoint when its app-owned presentation surface is available.
+        if (!allowsMutations && presentationController == null) {
           await _forbidden(request);
           return;
         }
@@ -1443,6 +1445,9 @@ class SyncDiagnosticsServer {
       'desktopViewAvailable': controller.desktopViewAvailable,
       'miniAlwaysOnTop': controller.miniAlwaysOnTop,
       'miniAlwaysOnTopSupported': controller.supportsMiniAlwaysOnTop,
+      'stateRecordVersion': controller.stateRecordVersion,
+      'restorationSource': controller.restorationSource,
+      'lastPersistenceCompleted': controller.lastPersistenceCompleted,
       'pendingTransition': transition == null
           ? null
           : <String, Object?>{

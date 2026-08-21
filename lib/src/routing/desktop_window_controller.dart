@@ -150,6 +150,8 @@ abstract class WindowManagerAdapter {
   Future<void> setAspectRatio(double aspectRatio);
   Future<void> setResizable(bool resizable);
   Future<void> setAlwaysOnTop(bool alwaysOnTop);
+  Future<void> setPreventClose(bool preventClose);
+  Future<void> close();
   Future<void> setBounds(Rect bounds);
   Future<Rect> getBounds();
   Future<bool> isMaximized();
@@ -197,6 +199,13 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   @override
   Future<void> setAlwaysOnTop(bool alwaysOnTop) =>
       windowManager.setAlwaysOnTop(alwaysOnTop);
+
+  @override
+  Future<void> setPreventClose(bool preventClose) =>
+      windowManager.setPreventClose(preventClose);
+
+  @override
+  Future<void> close() => windowManager.close();
 
   @override
   Future<void> setBounds(Rect bounds) => windowManager.setBounds(bounds);
@@ -293,13 +302,19 @@ class DesktopWindowController extends ChangeNotifier
   Rect? _currentWorkArea;
   bool _isInitialized = false;
   bool _isApplyingMode = false;
+  bool _isClosing = false;
   bool _miniAlwaysOnTop = false;
+  String _restorationSource = 'fallback';
+  bool _lastPersistenceCompleted = false;
 
   bool get desktopRuntime => _desktopRuntime;
   bool get isInitialized => _isInitialized;
   bool get isApplyingMode => _isApplyingMode;
   DesktopWindowMode get mode => _mode;
   bool get isMiniPlayerMode => _mode == DesktopWindowMode.miniPlayer;
+  int get stateRecordVersion => _stateRecord.version;
+  String get restorationSource => _restorationSource;
+  bool get lastPersistenceCompleted => _lastPersistenceCompleted;
 
   /// Whether the platform can honour an always-on-top request.
   ///
@@ -356,6 +371,7 @@ class DesktopWindowController extends ChangeNotifier
     }
 
     await adapter.ensureInitialized();
+    await adapter.setPreventClose(true);
     adapter.addListener(this);
     _screenAdapter?.addListener(this);
     _stateRecord = await _readStateRecord();
@@ -381,9 +397,13 @@ class DesktopWindowController extends ChangeNotifier
     );
 
     final savedBounds = _stateRecord.normalBounds?.bounds;
-    final startupBounds = await _clampToVisibleWorkArea(
-      _normalizeDesktopBounds(savedBounds),
-    );
+    final normalizedBounds = _normalizeDesktopBounds(savedBounds);
+    final startupBounds = await _clampToVisibleWorkArea(normalizedBounds);
+    _restorationSource = savedBounds == null
+        ? 'fallback'
+        : startupBounds == normalizedBounds
+        ? 'saved'
+        : 'clamped';
     final options = WindowOptions(
       minimumSize: normalMinSize,
       size: startupBounds.size,
@@ -564,8 +584,18 @@ class DesktopWindowController extends ChangeNotifier
 
   @override
   void onWindowClose() {
+    if (_isClosing) return;
+    _isClosing = true;
     _persistDebounce?.cancel();
-    unawaited(_persistCurrentState(reason: 'close'));
+    unawaited(_persistThenClose());
+  }
+
+  Future<void> _persistThenClose() async {
+    final adapter = _adapter;
+    if (adapter == null) return;
+    await _persistCurrentState(reason: 'close');
+    await adapter.setPreventClose(false);
+    await adapter.close();
   }
 
   @override
@@ -688,10 +718,12 @@ class DesktopWindowController extends ChangeNotifier
       }
       await _stateFile.parent.create(recursive: true);
       await _stateFile.writeAsString(jsonEncode(_stateRecord.toJson()));
+      _lastPersistenceCompleted = true;
       AppLogger.debug(
         '[DESKTOP_WINDOW] persisted mode=${_mode.name} reason=$reason',
       );
     } on Object catch (error, stackTrace) {
+      _lastPersistenceCompleted = false;
       AppLogger.warning(
         'Failed to persist desktop window state. $error\n$stackTrace',
       );

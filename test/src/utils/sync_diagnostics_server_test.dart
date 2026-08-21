@@ -51,7 +51,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 65);
+    expect(authorized.body['schemaVersion'], 66);
   });
 
   test(
@@ -576,7 +576,6 @@ void main() {
         ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),
         ('POST', '/v1/presentation/search/play'),
-        ('POST', '/v1/presentation/screenshot'),
       ]) {
         final response = await _request(
           fixture.port,
@@ -794,6 +793,14 @@ void main() {
         );
         expect(forbidden.statusCode, HttpStatus.forbidden);
       }
+      final unavailablePrimaryCapture = await _request(
+        primary.port,
+        '/v1/presentation/screenshot',
+        method: 'POST',
+        token: primary.token,
+        body: const <String, Object?>{'label': 'settings'},
+      );
+      expect(unavailablePrimaryCapture.statusCode, HttpStatus.forbidden);
       await primary.close();
 
       final clone = await _startFixture(SyncDiagnosticsMode.clone);
@@ -817,6 +824,40 @@ void main() {
       }
     },
   );
+
+  test('primary mode permits only app-owned screenshot capture', () async {
+    final presentation = _MockPresentationController();
+    when(() => presentation.capture(label: 'settings')).thenAnswer(
+      (_) async => const DiagnosticsScreenshot(
+        artifact: 'screenshots/settings.png',
+        logicalWidth: 400,
+        logicalHeight: 800,
+        pixelWidth: 400,
+        pixelHeight: 800,
+        pixelRatio: 1,
+        byteCount: 42,
+        sha256Digest:
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      ),
+    );
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+      presentationController: presentation,
+    );
+    addTearDown(primary.close);
+
+    final screenshot = await _request(
+      primary.port,
+      '/v1/presentation/screenshot',
+      method: 'POST',
+      token: primary.token,
+      body: const <String, Object?>{'label': 'settings'},
+    );
+
+    expect(screenshot.statusCode, HttpStatus.created);
+    expect(screenshot.body['artifact'], 'screenshots/settings.png');
+    verify(() => presentation.capture(label: 'settings')).called(1);
+  });
 
   test(
     'window presentation endpoint reports and selects desktop modes',

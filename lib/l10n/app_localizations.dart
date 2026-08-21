@@ -991,7 +991,7 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsAndroidBackgroundDisabled.
   ///
   /// In en, this message translates to:
-  /// **'Disabled for this app build.'**
+  /// **'Foreground checks remain available. Android background scheduling is disabled for this app build while its reliability certification is incomplete.'**
   String get syncSettingsAndroidBackgroundDisabled;
 
   /// No description provided for @syncSettingsAndroidBackgroundManual.
@@ -6448,6 +6448,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This display cannot fit Desktop View. Mini Player is available until Navis moves to a larger display.'**
   String get desktopViewUnavailableOnDisplay;
+
+  /// No description provided for @cacheSystemUpgradeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update library cache'**
+  String get cacheSystemUpgradeTitle;
+
+  /// No description provided for @cacheSystemUpgradeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This installation uses an older library cache system. Navis needs to clear its recoverable library cache once to use the newer cache system. Your downloaded music will be kept.'**
+  String get cacheSystemUpgradeBody;
+
+  /// No description provided for @cacheSystemUpgradeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear library cache'**
+  String get cacheSystemUpgradeAction;
+
+  /// No description provided for @cacheSystemUpgradeDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get cacheSystemUpgradeDismiss;
+
+  /// No description provided for @cacheSystemUpgradeResetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating library cache…'**
+  String get cacheSystemUpgradeResetting;
+
+  /// No description provided for @cacheSystemUpgradeFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update the library cache. Please try again.'**
+  String get cacheSystemUpgradeFailure;
 }
 
 class _AppLocalizationsDelegate

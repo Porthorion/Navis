@@ -115,24 +115,32 @@ class AndroidBackgroundScheduleObservation {
     required this.state,
     this.workId,
     this.attemptCount = 0,
+    this.workerResult,
+    this.workerStopReason,
   });
 
   const AndroidBackgroundScheduleObservation.unsupported()
     : available = false,
       state = 'unsupported',
       workId = null,
-      attemptCount = 0;
+      attemptCount = 0,
+      workerResult = null,
+      workerStopReason = null;
 
   const AndroidBackgroundScheduleObservation.platformFailure()
     : available = true,
       state = 'platformFailure',
       workId = null,
-      attemptCount = 0;
+      attemptCount = 0,
+      workerResult = null,
+      workerStopReason = null;
 
   final bool available;
   final String state;
   final String? workId;
   final int attemptCount;
+  final String? workerResult;
+  final String? workerStopReason;
 
   static const _allowedStates = <String>{
     'scheduled',
@@ -143,6 +151,7 @@ class AndroidBackgroundScheduleObservation {
     'none',
     'unsupported',
     'platformFailure',
+    'statusUnavailable',
   };
 
   factory AndroidBackgroundScheduleObservation.fromPlatform(Object? value) {
@@ -162,12 +171,30 @@ class AndroidBackgroundScheduleObservation {
       final int count => count.clamp(0, 100),
       _ => 0,
     };
+    final workerResult = _boundedWorkerCategory(value['workerResult']);
+    final workerStopReason = _boundedWorkerCategory(value['workerStopReason']);
     return AndroidBackgroundScheduleObservation(
       available: value['available'] == true,
       state: state,
       workId: workId,
       attemptCount: attemptCount,
+      workerResult: workerResult,
+      workerStopReason: workerStopReason,
     );
+  }
+
+  static String? _boundedWorkerCategory(Object? value) {
+    const allowed = <String>{
+      'engineTimeout',
+      'stoppedBySystem',
+      'transientFailure',
+      'bootstrapFailure',
+      'bootstrapRetryExhausted',
+      'retryCapReached',
+      'alreadyDispatching',
+    };
+    final category = value?.toString();
+    return allowed.contains(category) ? category : null;
   }
 }
 
@@ -196,14 +223,16 @@ class AndroidBackgroundSyncReconciler {
     }
     final state = await _database.librarySyncDao.getOrCreateState(serverId);
     final key = AndroidBackgroundSyncScheduler.profileKeyFor(config);
+    await _importNativeWorkerOutcome(serverId, key);
     if (!state.androidBackgroundSyncEnabled || intervalMinutes <= 0) {
       final observation = await _scheduler.cancel(profileKey: key);
+      final failed = observation.state == 'platformFailure';
       await _writeObservation(
         serverId: serverId,
         observation: observation,
         intervalMinutes: null,
-        clearRequestedIntervalMinutes: true,
-        clearWorkId: true,
+        clearRequestedIntervalMinutes: !failed,
+        clearWorkId: !failed,
       );
       return;
     }
@@ -215,7 +244,9 @@ class AndroidBackgroundSyncReconciler {
     await _writeObservation(
       serverId: serverId,
       observation: observation,
-      intervalMinutes: intervalMinutes,
+      intervalMinutes: observation.state == 'platformFailure'
+          ? null
+          : intervalMinutes,
     );
     if (enqueueCatchup) {
       await this.enqueueCatchup(
@@ -223,6 +254,19 @@ class AndroidBackgroundSyncReconciler {
         unmeteredOnly: unmeteredOnly,
       );
     }
+  }
+
+  Future<void> _importNativeWorkerOutcome(
+    int serverId,
+    String profileKey,
+  ) async {
+    final observation = await _scheduler.status(profileKey: profileKey);
+    if (observation.workerResult == null) return;
+    await _database.librarySyncDao.writeAndroidBackgroundStatus(
+      serverId: serverId,
+      workerResult: observation.workerResult,
+      workerStopReason: observation.workerStopReason,
+    );
   }
 
   Future<void> enqueueCatchup({
@@ -256,12 +300,13 @@ class AndroidBackgroundSyncReconciler {
     final observation = await _scheduler.cancel(
       profileKey: AndroidBackgroundSyncScheduler.profileKeyFor(config),
     );
+    final failed = observation.state == 'platformFailure';
     await _writeObservation(
       serverId: serverId,
       observation: observation,
       intervalMinutes: null,
-      clearRequestedIntervalMinutes: true,
-      clearWorkId: true,
+      clearRequestedIntervalMinutes: !failed,
+      clearWorkId: !failed,
     );
   }
 

@@ -214,8 +214,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Show menu'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.more_vert));
+    expect(find.byTooltip('More'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(BottomSheet), findsNothing);
     expect(find.text('Play now'), findsOneWidget);

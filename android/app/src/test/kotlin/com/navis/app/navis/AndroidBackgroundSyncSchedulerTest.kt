@@ -60,4 +60,28 @@ class AndroidBackgroundSyncSchedulerTest {
             BackgroundSyncWorkerResultMapper.directiveFor(null),
         )
     }
+
+    @Test
+    fun `native fallback categories stay bounded and distinct`() {
+        assertEquals(
+            BackgroundSyncNativeOutcome("engineTimeout", "engineTimeout"),
+            BackgroundSyncNativeFailure.TIMEOUT.outcome,
+        )
+        assertEquals(
+            BackgroundSyncNativeOutcome("stoppedBySystem", "stoppedBySystem"),
+            BackgroundSyncNativeFailure.CANCELLED.outcome,
+        )
+        assertEquals(
+            BackgroundSyncNativeOutcome("transientFailure", "bootstrapFailure"),
+            BackgroundSyncNativeFailure.BOOTSTRAP_FAILURE.outcome,
+        )
+        assertEquals(
+            BackgroundSyncNativeOutcome(
+                "bootstrapRetryExhausted",
+                "retryCapReached",
+            ),
+            BackgroundSyncNativeFailure.RETRY_EXHAUSTED.outcome,
+        )
+    }
+
 }

@@ -27,6 +27,47 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.6',
+    entries: [
+      ChangelogEntry(
+        'Manual library refresh now reliably resumes its new-album discovery after reconnecting',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Tapping a liked track on Home now follows the same full liked-queue preference as the Library',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Desktop View now saves its size before the app closes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Desktop Home song rows now offer direct actions instead of misleading navigation arrows',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Desktop song lists now share responsive Like, Download, and More controls, while remote-only songs remain read-only',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Album, artist, and playlist playback now keeps matched remote songs in the requested queue',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library and Settings remove redundant page titles on portrait phones while keeping their context visible',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Sync Settings now clearly distinguishes foreground checks from Android background scheduling',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Older installations now request a one-time library-cache refresh while keeping downloaded music',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.5',
     entries: [
       ChangelogEntry(

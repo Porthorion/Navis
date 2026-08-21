@@ -16,6 +16,7 @@ import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
@@ -140,7 +141,9 @@ class MainActivity : AudioServiceActivity() {
                             intervalMinutes = intervalMinutes,
                             unmeteredOnly = unmeteredOnly,
                         )
-                        result.success(backgroundScheduler.configurePeriodic(spec).toMap())
+                        respondWithBackgroundSchedule(result) {
+                            backgroundScheduler.configurePeriodic(spec)
+                        }
                     }
                     "enqueueCatchup" -> {
                         val unmeteredOnly = call.argument<Boolean>("unmeteredOnly")
@@ -153,15 +156,21 @@ class MainActivity : AudioServiceActivity() {
                             intervalMinutes = 15,
                             unmeteredOnly = unmeteredOnly,
                         )
-                        result.success(backgroundScheduler.enqueueCatchup(spec).toMap())
+                        respondWithBackgroundSchedule(result) {
+                            backgroundScheduler.enqueueCatchup(spec)
+                        }
                     }
                     "cancel" -> {
-                        result.success(backgroundScheduler.cancel(profileKey).toMap())
+                        respondWithBackgroundSchedule(result) {
+                            backgroundScheduler.cancel(profileKey)
+                        }
                     }
                     "status" -> {
                         Thread {
                             val observation = runCatching {
-                                backgroundScheduler.status(profileKey)
+                                kotlinx.coroutines.runBlocking {
+                                    backgroundScheduler.status(profileKey)
+                                }
                             }.getOrElse {
                                 BackgroundSyncScheduleObservation(state = "platformFailure")
                             }
@@ -219,15 +228,34 @@ class MainActivity : AudioServiceActivity() {
                         )
                     }
                 }
+                "artifactRoot" -> {
+                    try {
+                        result.success(diagnosticsArtifactDirectory().absolutePath)
+                    } catch (_: Exception) {
+                        result.error(
+                            "DIAGNOSTICS_DIRECTORY_UNAVAILABLE",
+                            "Could not resolve diagnostics artifact directory.",
+                            null,
+                        )
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
     }
 
     private fun diagnosticsHandshakeFile(): File {
+        return File(diagnosticsArtifactDirectory(), "handshake.json")
+    }
+
+    private fun diagnosticsArtifactDirectory(): File {
         val externalFiles = getExternalFilesDir(null)
             ?: throw IllegalStateException("External app files directory is unavailable")
-        return File(File(externalFiles, "navis-diagnostics"), "handshake.json")
+        val directory = File(externalFiles, "navis-diagnostics")
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw IllegalStateException("Could not create diagnostics artifact directory")
+        }
+        return directory
     }
 
     private fun writeDiagnosticsHandshake(port: Int, token: String, pid: Int, mode: String) {
@@ -270,6 +298,20 @@ class MainActivity : AudioServiceActivity() {
         val connectivityManager =
             getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         return connectivityManager.isActiveNetworkMetered
+    }
+
+    private fun respondWithBackgroundSchedule(
+        result: MethodChannel.Result,
+        operation: suspend () -> BackgroundSyncScheduleObservation,
+    ) {
+        Thread {
+            val observation = runCatching {
+                runBlocking { operation() }
+            }.getOrElse {
+                BackgroundSyncScheduleObservation(state = "platformFailure")
+            }
+            runOnUiThread { result.success(observation.toMap()) }
+        }.start()
     }
 
     private fun resolveInstallSource(): Map<String, String?> {

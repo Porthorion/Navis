@@ -208,9 +208,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             request.intent != LibrarySyncIntent.repair
         ? _firstAllowedWork(runnableBeforePlanning, policy, request)
         : null;
+    final resumedRequest = resumedWork == null
+        ? request
+        : _requestFromWork(resumedWork, fallback: request);
     final resumedPlan = resumedWork == null
         ? null
-        : _planFromWork(resumedWork, policy, request);
+        : _planFromWork(resumedWork, policy, resumedRequest);
     final plan =
         resumedPlan ??
         _planner.plan(
@@ -245,11 +248,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final effectiveRequest = resumedWork == null
         ? request
         : LibrarySyncRequest(
-            trigger: request.trigger,
-            intent: request.intent,
+            trigger: resumedRequest.trigger,
+            intent: resumedRequest.intent,
             target: effectiveTarget,
-            allowMeteredBroadOverride: request.allowMeteredBroadOverride,
-            allowMeteredLimitedDiscovery: request.allowMeteredLimitedDiscovery,
+            allowMeteredBroadOverride: resumedRequest.allowMeteredBroadOverride,
+            allowMeteredLimitedDiscovery:
+                resumedRequest.allowMeteredLimitedDiscovery,
           );
     final targetId = effectiveTarget.entityId?.trim() ?? '';
     final targetWorkKey = librarySyncTargetWorkKey(effectiveTarget);
@@ -261,11 +265,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         entityId: targetWorkKey,
         priority: _priorityFor(request),
         workClass: workClass,
-        checkpointJson: request.target.kind == LibrarySyncTargetKind.catalog
-            ? null
-            : jsonEncode(<String, String>{
-                'targetKind': request.target.kind.name,
-              }),
+        checkpointJson: _workCheckpoint(request),
         releaseCooldown: canProbeCircuitEarly,
         reactivateTerminal: request.intent != LibrarySyncIntent.automatic,
         now: timestamp,
@@ -1039,6 +1039,35 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       shouldExecute: !mustDefer,
       deferred: mustDefer,
     );
+  }
+
+  String? _workCheckpoint(LibrarySyncRequest request) {
+    if (request.target.kind == LibrarySyncTargetKind.catalog &&
+        request.intent != LibrarySyncIntent.checkForUpdates) {
+      return null;
+    }
+    return jsonEncode(<String, String>{
+      if (request.target.kind != LibrarySyncTargetKind.catalog)
+        'targetKind': request.target.kind.name,
+      if (request.intent == LibrarySyncIntent.checkForUpdates)
+        'intent': LibrarySyncIntent.checkForUpdates.name,
+    });
+  }
+
+  LibrarySyncRequest _requestFromWork(
+    LibrarySyncWorkTableData work, {
+    required LibrarySyncRequest fallback,
+  }) {
+    try {
+      final decoded = jsonDecode(work.checkpointJson ?? '');
+      if (decoded is Map &&
+          decoded['intent'] == LibrarySyncIntent.checkForUpdates.name) {
+        return const LibrarySyncRequest.checkForUpdates();
+      }
+    } on FormatException {
+      // Legacy work has no request provenance and retains the caller policy.
+    }
+    return fallback;
   }
 
   LibrarySyncTarget _targetFromWork(LibrarySyncWorkTableData work) {

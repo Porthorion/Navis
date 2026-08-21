@@ -106,19 +106,26 @@ class SettingsScreen extends ConsumerWidget {
     }
 
     if (!adaptiveContext.useDesktopShell && !tabletMode) {
+      final portraitPhone =
+          MediaQuery.orientationOf(context) == Orientation.portrait;
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.settingsTitle)),
-        body: ListView(
-          children: <Widget>[
-            for (final entry in entries)
-              ListTile(
-                leading: Icon(entry.icon),
-                title: Text(entry.title),
-                subtitle: entry.subtitle == null ? null : Text(entry.subtitle!),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push(entry.route),
-              ),
-          ],
+        appBar: portraitPhone ? null : AppBar(title: Text(l10n.settingsTitle)),
+        body: SafeArea(
+          top: portraitPhone,
+          child: ListView(
+            children: <Widget>[
+              for (final entry in entries)
+                ListTile(
+                  leading: Icon(entry.icon),
+                  title: Text(entry.title),
+                  subtitle: entry.subtitle == null
+                      ? null
+                      : Text(entry.subtitle!),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(entry.route),
+                ),
+            ],
+          ),
         ),
       );
     }

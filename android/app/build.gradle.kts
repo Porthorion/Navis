@@ -66,6 +66,7 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     flavorDimensions += "distribution"
@@ -143,7 +144,12 @@ dependencies {
     val workManagerVersion = "2.11.2"
     implementation("androidx.media:media:1.7.0")
     implementation("androidx.work:work-runtime-ktx:$workManagerVersion")
+    implementation("androidx.concurrent:concurrent-futures-ktx:1.2.0")
+    implementation("com.google.guava:guava:33.0.0-android")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.work:work-testing:$workManagerVersion")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.work:work-testing:$workManagerVersion")
 }

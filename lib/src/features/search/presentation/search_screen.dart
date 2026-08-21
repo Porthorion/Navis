@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
@@ -1024,7 +1025,19 @@ class _SongResultsSection extends ConsumerWidget {
                   text: metadata,
                   isRemote: isRemote,
                 ),
-                trailing: Text(formatSeconds(song.duration, fallback: '')),
+                trailing: DesktopSongActions.forSongId(
+                  songId: song.id,
+                  isExternal: isRemote,
+                  duration: song.duration,
+                  includeDuration: true,
+                  keyPrefix: 'search-song',
+                  onMore: (anchor) => _showSongContextMenu(
+                    context,
+                    ref,
+                    song,
+                    anchor: anchor,
+                  ),
+                ),
                 onTap: () {
                   unawaited(
                     ref.read(queueProvider.notifier).replaceWithSongs(<Song>[

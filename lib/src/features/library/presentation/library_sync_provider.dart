@@ -118,9 +118,11 @@ final androidBackgroundSyncStatusProvider =
           .watchState(serverId);
     });
 
-const bool _enableAndroidBackgroundSyncForInternalBuild = bool.fromEnvironment(
+/// Enabled by default for release. A build can still set this to false for an
+/// immediate rollback; reconciliation then cancels native work durably.
+const bool _enableAndroidBackgroundSync = bool.fromEnvironment(
   'NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC',
-  defaultValue: false,
+  defaultValue: true,
 );
 
 class LibrarySyncForegroundController extends Notifier<bool> {
@@ -614,12 +616,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final dao = ref.read(navisDatabaseProvider).librarySyncDao;
     final persisted = await dao.getOrCreateState(serverId);
     final becameEnabled =
-        _enableAndroidBackgroundSyncForInternalBuild &&
-        !persisted.androidBackgroundSyncEnabled;
-    if (becameEnabled) {
+        _enableAndroidBackgroundSync && !persisted.androidBackgroundSyncEnabled;
+    if (persisted.androidBackgroundSyncEnabled !=
+        _enableAndroidBackgroundSync) {
       await dao.setAndroidBackgroundSyncEnabled(
         serverId: serverId,
-        enabled: true,
+        enabled: _enableAndroidBackgroundSync,
       );
     }
     if (!ref.mounted || _sessionFingerprint != _toSessionFingerprint(active)) {

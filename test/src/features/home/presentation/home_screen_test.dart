@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
@@ -499,6 +500,9 @@ Future<void> _pumpRandomSectionHome(
       homeMostPlayedSongsProvider.overrideWithValue(
         const AsyncData(<SongsTableData>[]),
       ),
+      songDownloadStateProvider.overrideWith(
+        (ref, songId) => SongDownloadState.none,
+      ),
       likedAlbumsRecentProvider.overrideWithValue(
         const AsyncData(<AlbumsTableData>[]),
       ),
@@ -652,6 +656,21 @@ Future<void> _pumpHomeWithAppSettings(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+void _testWidgetsWithCleanup(
+  String description,
+  WidgetTesterCallback callback,
+) {
+  testWidgets(description, (tester) async {
+    try {
+      await callback(tester);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await tester.pumpAndSettle();
+    }
+  });
 }
 
 void main() {
@@ -1224,6 +1243,103 @@ void main() {
         find.byKey(const ValueKey<String>('homeSongListSingleColumn')),
         findsOneWidget,
       );
+    },
+  );
+
+  _testWidgetsWithCleanup(
+    'desktop Home song rows use actions instead of navigation arrows',
+    (
+      tester,
+    ) async {
+      final settings = const AppSettingsModel.defaults().copyWith(
+        homeSectionOrder: <String>[HomeSectionIds.likedTracks],
+        homeSectionsHidden: <String>[],
+      );
+      final song = _songRow(
+        id: 'desktop-home-song',
+        title: 'Desktop Home Song',
+        albumId: 'desktop-home-album',
+      );
+      setAdaptiveTestViewport(tester, const Size(1200, 900));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: settings,
+        homeLikedSongs: <SongsTableData>[song],
+        likedSongs: <SongsTableData>[song],
+        overrides: <Override>[
+          songStarredProvider.overrideWith(
+            (ref, songId) => Stream.value(false),
+          ),
+        ],
+      );
+
+      expect(
+        find.byKey(const ValueKey<String>('home-song-heart-desktop-home-song')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('home-song-menu-desktop-home-song')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.chevron_right), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'liked track tap queues the full deduplicated liked playback list',
+    (tester) async {
+      final directSongs = <SongsTableData>[
+        _songRow(id: 'liked-direct', title: 'Direct song', albumId: 'liked'),
+        _songRow(id: 'liked-shared', title: 'Shared song', albumId: 'liked'),
+      ];
+      final settings = const AppSettingsModel.defaults().copyWith(
+        homeSectionOrder: <String>[HomeSectionIds.likedTracks],
+        homeSectionsHidden: <String>[],
+      );
+
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: settings,
+        homeLikedSongs: directSongs,
+        likedSongs: directSongs,
+        overrides: <Override>[
+          albumQueueEnabledProvider.overrideWithValue(true),
+          likedQueueEnabledProvider.overrideWithValue(true),
+          queueProvider.overrideWith(_QueueSpyController.new),
+          likedAlbumSongsProvider.overrideWithValue(
+            AsyncData(<SongsTableData>[
+              _songRow(
+                id: 'liked-shared',
+                title: 'Shared song',
+                albumId: 'liked',
+              ),
+              _songRow(
+                id: 'liked-album-only',
+                title: 'Album-only song',
+                albumId: 'liked',
+              ),
+            ]),
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('Shared song'));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomeScreen)),
+      );
+      final queueSpy =
+          container.read(queueProvider.notifier) as _QueueSpyController;
+      expect(queueSpy.lastReplaceIds, <String>[
+        'liked-direct',
+        'liked-shared',
+        'liked-album-only',
+      ]);
+      expect(queueSpy.lastStartIndex, 1);
+      expect(queueSpy.lastAutoPlay, isTrue);
     },
   );
 

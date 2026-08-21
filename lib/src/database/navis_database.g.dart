@@ -10887,6 +10887,220 @@ class CachedTracksTableCompanion
   }
 }
 
+class $CacheSystemStateTableTable extends CacheSystemStateTable
+    with TableInfo<$CacheSystemStateTableTable, CacheSystemStateTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CacheSystemStateTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cacheSystemVersionMeta =
+      const VerificationMeta('cacheSystemVersion');
+  @override
+  late final GeneratedColumn<int> cacheSystemVersion = GeneratedColumn<int>(
+    'cache_system_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, cacheSystemVersion];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cache_system_state';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CacheSystemStateTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('cache_system_version')) {
+      context.handle(
+        _cacheSystemVersionMeta,
+        cacheSystemVersion.isAcceptableOrUnknown(
+          data['cache_system_version']!,
+          _cacheSystemVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cacheSystemVersionMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CacheSystemStateTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CacheSystemStateTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      cacheSystemVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cache_system_version'],
+      )!,
+    );
+  }
+
+  @override
+  $CacheSystemStateTableTable createAlias(String alias) {
+    return $CacheSystemStateTableTable(attachedDatabase, alias);
+  }
+}
+
+class CacheSystemStateTableData extends DataClass
+    implements Insertable<CacheSystemStateTableData> {
+  final int id;
+  final int cacheSystemVersion;
+  const CacheSystemStateTableData({
+    required this.id,
+    required this.cacheSystemVersion,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['cache_system_version'] = Variable<int>(cacheSystemVersion);
+    return map;
+  }
+
+  CacheSystemStateTableCompanion toCompanion(bool nullToAbsent) {
+    return CacheSystemStateTableCompanion(
+      id: Value(id),
+      cacheSystemVersion: Value(cacheSystemVersion),
+    );
+  }
+
+  factory CacheSystemStateTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CacheSystemStateTableData(
+      id: serializer.fromJson<int>(json['id']),
+      cacheSystemVersion: serializer.fromJson<int>(json['cacheSystemVersion']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'cacheSystemVersion': serializer.toJson<int>(cacheSystemVersion),
+    };
+  }
+
+  CacheSystemStateTableData copyWith({int? id, int? cacheSystemVersion}) =>
+      CacheSystemStateTableData(
+        id: id ?? this.id,
+        cacheSystemVersion: cacheSystemVersion ?? this.cacheSystemVersion,
+      );
+  CacheSystemStateTableData copyWithCompanion(
+    CacheSystemStateTableCompanion data,
+  ) {
+    return CacheSystemStateTableData(
+      id: data.id.present ? data.id.value : this.id,
+      cacheSystemVersion: data.cacheSystemVersion.present
+          ? data.cacheSystemVersion.value
+          : this.cacheSystemVersion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CacheSystemStateTableData(')
+          ..write('id: $id, ')
+          ..write('cacheSystemVersion: $cacheSystemVersion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, cacheSystemVersion);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CacheSystemStateTableData &&
+          other.id == this.id &&
+          other.cacheSystemVersion == this.cacheSystemVersion);
+}
+
+class CacheSystemStateTableCompanion
+    extends UpdateCompanion<CacheSystemStateTableData> {
+  final Value<int> id;
+  final Value<int> cacheSystemVersion;
+  const CacheSystemStateTableCompanion({
+    this.id = const Value.absent(),
+    this.cacheSystemVersion = const Value.absent(),
+  });
+  CacheSystemStateTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int cacheSystemVersion,
+  }) : cacheSystemVersion = Value(cacheSystemVersion);
+  static Insertable<CacheSystemStateTableData> custom({
+    Expression<int>? id,
+    Expression<int>? cacheSystemVersion,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cacheSystemVersion != null)
+        'cache_system_version': cacheSystemVersion,
+    });
+  }
+
+  CacheSystemStateTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? cacheSystemVersion,
+  }) {
+    return CacheSystemStateTableCompanion(
+      id: id ?? this.id,
+      cacheSystemVersion: cacheSystemVersion ?? this.cacheSystemVersion,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (cacheSystemVersion.present) {
+      map['cache_system_version'] = Variable<int>(cacheSystemVersion.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CacheSystemStateTableCompanion(')
+          ..write('id: $id, ')
+          ..write('cacheSystemVersion: $cacheSystemVersion')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $DownloadQueueTableTable extends DownloadQueueTable
     with TableInfo<$DownloadQueueTableTable, DownloadQueueTableData> {
   @override
@@ -25157,6 +25371,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $PlaylistSongsTableTable(this);
   late final $CachedTracksTableTable cachedTracksTable =
       $CachedTracksTableTable(this);
+  late final $CacheSystemStateTableTable cacheSystemStateTable =
+      $CacheSystemStateTableTable(this);
   late final $DownloadQueueTableTable downloadQueueTable =
       $DownloadQueueTableTable(this);
   late final $PlayHistoryTableTable playHistoryTable = $PlayHistoryTableTable(
@@ -25211,6 +25427,9 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final LibraryDao libraryDao = LibraryDao(this as NavisDatabase);
   late final PlaylistDao playlistDao = PlaylistDao(this as NavisDatabase);
   late final CacheDao cacheDao = CacheDao(this as NavisDatabase);
+  late final CacheSystemStateDao cacheSystemStateDao = CacheSystemStateDao(
+    this as NavisDatabase,
+  );
   late final DownloadQueueDao downloadQueueDao = DownloadQueueDao(
     this as NavisDatabase,
   );
@@ -25248,6 +25467,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     playlistsTable,
     playlistSongsTable,
     cachedTracksTable,
+    cacheSystemStateTable,
     downloadQueueTable,
     playHistoryTable,
     recentSearchesTable,
@@ -32180,6 +32400,164 @@ typedef $$CachedTracksTableTableProcessedTableManager =
         >,
       ),
       CachedTracksTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$CacheSystemStateTableTableCreateCompanionBuilder =
+    CacheSystemStateTableCompanion Function({
+      Value<int> id,
+      required int cacheSystemVersion,
+    });
+typedef $$CacheSystemStateTableTableUpdateCompanionBuilder =
+    CacheSystemStateTableCompanion Function({
+      Value<int> id,
+      Value<int> cacheSystemVersion,
+    });
+
+class $$CacheSystemStateTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $CacheSystemStateTableTable> {
+  $$CacheSystemStateTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cacheSystemVersion => $composableBuilder(
+    column: $table.cacheSystemVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CacheSystemStateTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $CacheSystemStateTableTable> {
+  $$CacheSystemStateTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cacheSystemVersion => $composableBuilder(
+    column: $table.cacheSystemVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CacheSystemStateTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $CacheSystemStateTableTable> {
+  $$CacheSystemStateTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get cacheSystemVersion => $composableBuilder(
+    column: $table.cacheSystemVersion,
+    builder: (column) => column,
+  );
+}
+
+class $$CacheSystemStateTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $CacheSystemStateTableTable,
+          CacheSystemStateTableData,
+          $$CacheSystemStateTableTableFilterComposer,
+          $$CacheSystemStateTableTableOrderingComposer,
+          $$CacheSystemStateTableTableAnnotationComposer,
+          $$CacheSystemStateTableTableCreateCompanionBuilder,
+          $$CacheSystemStateTableTableUpdateCompanionBuilder,
+          (
+            CacheSystemStateTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $CacheSystemStateTableTable,
+              CacheSystemStateTableData
+            >,
+          ),
+          CacheSystemStateTableData,
+          PrefetchHooks Function()
+        > {
+  $$CacheSystemStateTableTableTableManager(
+    _$NavisDatabase db,
+    $CacheSystemStateTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CacheSystemStateTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$CacheSystemStateTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CacheSystemStateTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> cacheSystemVersion = const Value.absent(),
+              }) => CacheSystemStateTableCompanion(
+                id: id,
+                cacheSystemVersion: cacheSystemVersion,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int cacheSystemVersion,
+              }) => CacheSystemStateTableCompanion.insert(
+                id: id,
+                cacheSystemVersion: cacheSystemVersion,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CacheSystemStateTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $CacheSystemStateTableTable,
+      CacheSystemStateTableData,
+      $$CacheSystemStateTableTableFilterComposer,
+      $$CacheSystemStateTableTableOrderingComposer,
+      $$CacheSystemStateTableTableAnnotationComposer,
+      $$CacheSystemStateTableTableCreateCompanionBuilder,
+      $$CacheSystemStateTableTableUpdateCompanionBuilder,
+      (
+        CacheSystemStateTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $CacheSystemStateTableTable,
+          CacheSystemStateTableData
+        >,
+      ),
+      CacheSystemStateTableData,
       PrefetchHooks Function()
     >;
 typedef $$DownloadQueueTableTableCreateCompanionBuilder =
@@ -40780,6 +41158,8 @@ class $NavisDatabaseManager {
       $$PlaylistSongsTableTableTableManager(_db, _db.playlistSongsTable);
   $$CachedTracksTableTableTableManager get cachedTracksTable =>
       $$CachedTracksTableTableTableManager(_db, _db.cachedTracksTable);
+  $$CacheSystemStateTableTableTableManager get cacheSystemStateTable =>
+      $$CacheSystemStateTableTableTableManager(_db, _db.cacheSystemStateTable);
   $$DownloadQueueTableTableTableManager get downloadQueueTable =>
       $$DownloadQueueTableTableTableManager(_db, _db.downloadQueueTable);
   $$PlayHistoryTableTableTableManager get playHistoryTable =>

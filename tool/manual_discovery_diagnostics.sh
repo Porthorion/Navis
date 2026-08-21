@@ -246,7 +246,7 @@ existing = json.load(open(sys.argv[3]))
 assert existing.get("exists") and existing.get("songsHydrated"), existing
 events = json.load(open(sys.argv[4]))["events"]
 terminal = next(event for event in reversed(events) if event.get("cause") == resume_cause and event.get("phase") == "terminal")
-assert terminal["planKind"] == "deltaReconcile" and terminal["planReason"] == "resumedeltaReconcile", terminal
+assert terminal["planKind"] == "deltaReconcile" and terminal["planReason"] == "resumeDeltaReconcile", terminal
 for endpoint in ("getIndexes", "getNewestAlbumList2", "getArtist", "getAlbum"):
     assert terminal["endpointRequests"].get(endpoint, 0) >= 1, terminal
 PY

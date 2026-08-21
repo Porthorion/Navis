@@ -1,20 +1,21 @@
 package com.navis.app.navis
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
-import androidx.lifecycle.Observer
+import androidx.concurrent.futures.await
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ListenableWorker
 import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 internal data class BackgroundSyncScheduleSpec(
     val profileKey: String,
@@ -45,21 +46,67 @@ internal data class BackgroundSyncScheduleObservation(
     val state: String,
     val workId: String? = null,
     val attemptCount: Int = 0,
+    val workerResult: String? = null,
+    val workerStopReason: String? = null,
 ) {
     fun toMap(): Map<String, Any?> = mapOf(
         "available" to available,
         "state" to state,
         "workId" to workId,
         "attemptCount" to attemptCount,
+        "workerResult" to workerResult,
+        "workerStopReason" to workerStopReason,
     )
+}
+
+/** Narrow seam for deterministic native WorkManager failure coverage. */
+internal interface BackgroundSyncWorkManagerClient {
+    suspend fun enqueueUniquePeriodicWork(
+        name: String,
+        request: androidx.work.PeriodicWorkRequest,
+    )
+
+    suspend fun enqueueUniqueWork(name: String, request: OneTimeWorkRequest)
+
+    suspend fun cancelUniqueWork(name: String)
+
+    suspend fun workInfosForUniqueWork(name: String): List<WorkInfo>
+}
+
+internal class WorkManagerBackgroundSyncClient(
+    private val workManager: WorkManager,
+) : BackgroundSyncWorkManagerClient {
+    override suspend fun enqueueUniquePeriodicWork(
+        name: String,
+        request: androidx.work.PeriodicWorkRequest,
+    ) {
+        workManager.enqueueUniquePeriodicWork(name, ExistingPeriodicWorkPolicy.UPDATE, request)
+            .awaitAcknowledgement()
+    }
+
+    override suspend fun enqueueUniqueWork(name: String, request: OneTimeWorkRequest) {
+        workManager.enqueueUniqueWork(name, ExistingWorkPolicy.KEEP, request)
+            .awaitAcknowledgement()
+    }
+
+    override suspend fun cancelUniqueWork(name: String) {
+        workManager.cancelUniqueWork(name).awaitAcknowledgement()
+    }
+
+    override suspend fun workInfosForUniqueWork(name: String): List<WorkInfo> =
+        workManager.getWorkInfosForUniqueWork(name).await()
 }
 
 internal class AndroidBackgroundSyncScheduler(
     context: Context,
-    private val workManager: WorkManager = WorkManager.getInstance(context.applicationContext),
+    private val workManagerClient: BackgroundSyncWorkManagerClient =
+        WorkManagerBackgroundSyncClient(WorkManager.getInstance(context.applicationContext)),
+    private val outcomeStore: BackgroundSyncOutcomeStore = BackgroundSyncOutcomeStore(context),
+    private val workerClass: Class<out ListenableWorker> = NavisBackgroundSyncWorker::class.java,
 ) {
-    fun configurePeriodic(spec: BackgroundSyncScheduleSpec): BackgroundSyncScheduleObservation {
-        val request = PeriodicWorkRequestBuilder<NavisBackgroundSyncWorker>(
+    suspend fun configurePeriodic(spec: BackgroundSyncScheduleSpec): BackgroundSyncScheduleObservation {
+        val request = androidx.work.PeriodicWorkRequest.Builder(
+            workerClass,
             spec.intervalMinutes,
             TimeUnit.MINUTES,
         ).setConstraints(constraintsFor(spec))
@@ -70,19 +117,19 @@ internal class AndroidBackgroundSyncScheduler(
                 TimeUnit.MILLISECONDS,
             ).addTag(spec.periodicWorkName)
             .build()
-        workManager.enqueueUniquePeriodicWork(
-            spec.periodicWorkName,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            request,
-        )
-        return BackgroundSyncScheduleObservation(
-            state = "scheduled",
-            workId = request.id.toString(),
-        )
+        return try {
+            workManagerClient.enqueueUniquePeriodicWork(spec.periodicWorkName, request)
+            BackgroundSyncScheduleObservation(
+                state = "scheduled",
+                workId = request.id.toString(),
+            )
+        } catch (_: Throwable) {
+            BackgroundSyncScheduleObservation(state = "platformFailure")
+        }
     }
 
-    fun enqueueCatchup(spec: BackgroundSyncScheduleSpec): BackgroundSyncScheduleObservation {
-        val request = OneTimeWorkRequestBuilder<NavisBackgroundSyncWorker>()
+    suspend fun enqueueCatchup(spec: BackgroundSyncScheduleSpec): BackgroundSyncScheduleObservation {
+        val request = OneTimeWorkRequest.Builder(workerClass)
             .setConstraints(constraintsFor(spec))
             .setInputData(NavisBackgroundSyncWorker.inputData(spec.profileKey))
             .setBackoffCriteria(
@@ -91,71 +138,116 @@ internal class AndroidBackgroundSyncScheduler(
                 TimeUnit.MILLISECONDS,
             ).addTag(spec.catchupWorkName)
             .build()
-        workManager.enqueueUniqueWork(
-            spec.catchupWorkName,
-            ExistingWorkPolicy.KEEP,
-            request,
-        )
-        return BackgroundSyncScheduleObservation(
-            state = "enqueued",
-            workId = request.id.toString(),
-        )
+        return try {
+            workManagerClient.enqueueUniqueWork(spec.catchupWorkName, request)
+            BackgroundSyncScheduleObservation(
+                state = "enqueued",
+                workId = request.id.toString(),
+            )
+        } catch (_: Throwable) {
+            BackgroundSyncScheduleObservation(state = "platformFailure")
+        }
     }
 
-    fun cancel(profileKey: String): BackgroundSyncScheduleObservation {
+    suspend fun cancel(profileKey: String): BackgroundSyncScheduleObservation {
         val spec = BackgroundSyncScheduleSpec(profileKey, 15, true)
-        workManager.cancelUniqueWork(spec.periodicWorkName)
-        workManager.cancelUniqueWork(spec.catchupWorkName)
-        return BackgroundSyncScheduleObservation(state = "cancelled")
+        return try {
+            workManagerClient.cancelUniqueWork(spec.periodicWorkName)
+            workManagerClient.cancelUniqueWork(spec.catchupWorkName)
+            BackgroundSyncScheduleObservation(state = "cancelled")
+        } catch (_: Throwable) {
+            BackgroundSyncScheduleObservation(state = "platformFailure")
+        }
     }
 
-    fun status(profileKey: String): BackgroundSyncScheduleObservation {
+    suspend fun status(profileKey: String): BackgroundSyncScheduleObservation {
         val spec = BackgroundSyncScheduleSpec(profileKey, 15, true)
-        // MainActivity invokes this from a background thread. LiveData.value
-        // is often null until observed, so observe on the main thread and wait
-        // briefly for one snapshot instead of falsely reporting no work.
-        val info = listOf(spec.periodicWorkName, spec.catchupWorkName)
-            .flatMap(::workInfosForUniqueName)
+        // Status is an observation surface. It must not consume the terminal
+        // outcome: Settings, the foreground reconciler, and authenticated
+        // diagnostics may all read it independently after a worker finishes.
+        val outcome = outcomeStore.read(profileKey)
+        val workInfos = try {
+            listOf(spec.periodicWorkName, spec.catchupWorkName)
+                .flatMap { name -> workManagerClient.workInfosForUniqueWork(name) }
+        } catch (_: Throwable) {
+            return BackgroundSyncScheduleObservation(
+                state = "statusUnavailable",
+                workerResult = outcome?.result,
+                workerStopReason = outcome?.stopReason,
+            )
+        }
+        val info = workInfos
             .maxWithOrNull(
                 compareBy<WorkInfo> { it.state.observationPriority }
                     .thenBy { it.runAttemptCount }
             )
-            ?: return BackgroundSyncScheduleObservation(state = "none")
+            ?: return BackgroundSyncScheduleObservation(
+                state = "none",
+                workerResult = outcome?.result,
+                workerStopReason = outcome?.stopReason,
+            )
         return BackgroundSyncScheduleObservation(
             state = info.state.toChannelState(),
             workId = info.id.toString(),
             attemptCount = info.runAttemptCount.coerceIn(0, 100),
+            workerResult = outcome?.result,
+            workerStopReason = outcome?.stopReason,
         )
     }
 
     private fun constraintsFor(spec: BackgroundSyncScheduleSpec): Constraints =
         Constraints.Builder().setRequiredNetworkType(spec.networkType).build()
 
-    private fun workInfosForUniqueName(name: String): List<WorkInfo> {
-        check(Looper.myLooper() != Looper.getMainLooper()) {
-            "WorkManager status must be queried away from the main thread."
-        }
-        val liveData = workManager.getWorkInfosForUniqueWorkLiveData(name)
-        val latch = CountDownLatch(1)
-        var snapshot: List<WorkInfo> = emptyList()
-        val observer = Observer<List<WorkInfo>> { values ->
-            snapshot = values ?: emptyList()
-            latch.countDown()
-        }
-        val mainHandler = Handler(Looper.getMainLooper())
-        mainHandler.post { liveData.observeForever(observer) }
-        try {
-            latch.await(statusQueryTimeoutMillis, TimeUnit.MILLISECONDS)
-        } finally {
-            mainHandler.post { liveData.removeObserver(observer) }
-        }
-        return snapshot
+}
+
+internal class BackgroundSyncOutcomeStore(context: Context) {
+    private val preferences = context.applicationContext.getSharedPreferences(
+        "navis.background_sync.outcomes", Context.MODE_PRIVATE,
+    )
+
+    data class Outcome(val result: String, val stopReason: String?)
+
+    fun record(profileKey: String, result: String, stopReason: String? = null) {
+        preferences.edit()
+            .putString("$profileKey.result", result)
+            .putString("$profileKey.stop_reason", stopReason)
+            .apply()
     }
 
-    private companion object {
-        const val statusQueryTimeoutMillis = 2_000L
+    fun read(profileKey: String): Outcome? {
+        val result = preferences.getString("$profileKey.result", null) ?: return null
+        return Outcome(result, preferences.getString("$profileKey.stop_reason", null))
+    }
+
+    fun clear(profileKey: String) {
+        preferences.edit()
+            .remove("$profileKey.result")
+            .remove("$profileKey.stop_reason")
+            .apply()
     }
 }
+
+private suspend fun androidx.work.Operation.awaitAcknowledgement() {
+    suspendCancellableCoroutine { continuation ->
+        result.addListener(
+            {
+                try {
+                    result.get()
+                    if (continuation.isActive) {
+                        continuation.resume(Unit)
+                    }
+                } catch (error: Throwable) {
+                    if (continuation.isActive) {
+                        continuation.resumeWithException(error)
+                    }
+                }
+            },
+            directExecutor,
+        )
+    }
+}
+
+private val directExecutor = Executor { runnable -> runnable.run() }
 
 private fun WorkInfo.State.toChannelState(): String = when (this) {
     WorkInfo.State.RUNNING -> "running"

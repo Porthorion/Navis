@@ -551,13 +551,23 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   bootstrap UI, audio, playback, notifications, or diagnostics. The
   `library_sync_execution_lease` serializes the headless engine with the
   foreground controller, while redacted WorkManager observations remain on
-  `library_sync_state`. The durable Android-only capability flag defaults off
-  and is enabled for internal builds only with
-  `NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC=true`. A worker validates its opaque
+  `library_sync_state`. Schedule, catch-up, and cancellation operations wait
+  for their native WorkManager acknowledgement before writing a successful
+  observation; an acknowledgement failure records `platformFailure` without
+  discarding the last known cadence or opaque work ID. The durable Android-only capability flag defaults on;
+  set `NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC=false` for an immediate build-time
+  rollback, which durably disables and cancels native work on reconciliation. A worker validates its opaque
   profile key against the active profile before any request, so a late
   cancelled/replaced schedule cannot run the new account. Manual-only and
   logout reconciliation clear the persisted requested cadence; relevant
   enable/network/interval changes use the separate `KEEP` catch-up request.
+  The headless entrypoint tracks connectivity changes and refreshes native
+  metering while work is active; coordinator and engine eligibility gates must
+  consume this live policy rather than a startup snapshot.
+  If native bootstrap fails before Dart owns the pass, it records only a
+  bounded outcome under the opaque profile key. Foreground reconciliation
+  consumes that outcome once into `library_sync_state`; never persist a raw
+  exception, server identity, or credentials in native storage.
 - Automatic broad catalog work defers while Navis is backgrounded or playing;
   an explicit user refresh may resume queued broad work in the foreground so a
   requested refresh is not silently postponed behind it.
@@ -666,10 +676,19 @@ actions use a short directional snapback with replay/end-of-queue feedback.
   do not wrap Remote indicators in Material `Tooltip`/`RawTooltip` because
   Flutter 3.44 `OverlayPortal` semantics reparenting can retain stale attached
   children during repeated show/hide cycles.
+- Desktop song rows use `DesktopSongActions`: at 1100 logical pixels and up,
+  local songs expose Like and Download directly alongside More; compact
+  Desktop View keeps More so the complete action set remains reachable. Remote
+  (`isExternal`) songs expose none of those local-server actions. Reuse this
+  widget for ordinary desktop song lists rather than creating page-specific
+  variants.
 - Apply proven song-ID aliases to the audio handler before deleting the
   provisional row. Preserve an active losing cache file, resolve late cache
   completions through persisted aliases, and replay aliases during audio
   bootstrap so synchronization cannot invalidate the active remote source.
+  A whole-entity queue containing an external row must preserve every supplied
+  row, order, and source choice; do not canonicalize it into a local-only
+  database reload or perform ID-based Match Flow expansion.
 - A detail 404 or an album omitted by one artist-detail response is only a
   deletion candidate. Incremental artist reconciliation may add/update but
   must never delete catalog rows; a complete catalog snapshot must confirm
@@ -792,6 +811,14 @@ Desktop View with those bounds (including after a Mini Player shutdown),
 restores maximized Desktop state, keeps Mini position separately, and uses `screen_retriever` work areas
 to keep windows visible. Bounds reported after Desktop has already crossed its
 minimum must never replace the last valid Desktop restoration target.
+Window diagnostics expose only the record version, restoration source
+(`saved`, `fallback`, or `clamped`), and whether the latest persistence write
+completed; never expose support paths or display identifiers. A fresh record
+uses the 1200×760 useful Desktop candidate clamped to the selected visible work
+area, preserving 800×600 whenever that work area supports Desktop View.
+Normal native close is intercepted until the current window-state record has
+been written, then released through `window_manager`; do not reintroduce an
+unawaited close-time persistence path.
 `desktop_layout_diagnostics.sh` closes one pass in Mini Player and asserts the
 clean restart returns to the preceding 800×600 Desktop View.
 Resize-transition gates must remain height-aware and keep both decisions
@@ -814,15 +841,20 @@ Desktop shortcuts: `DesktopCommands` (`lib/src/routing/desktop_commands.dart`) w
 
 | | |
 |---|---|
-| **Schema version** | 65 |
-| **Tables** | 31 |
-| **DAOs** | 16 |
+| **Schema version** | 66 |
+| **Tables** | 32 |
+| **DAOs** | 17 |
 
-DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyncCandidateDao`, `SongIdentityDao`, `PlaylistDao`, `CacheDao`, `DownloadQueueDao`, `HistoryDao`, `PlayQueueDao`, `MatchFlowDao`, `ScrobbleDao`, `StarSyncDao`, `ListenBrainzFeedbackDao`, `NetworkUsageDao`.
+DAOs: `AppSettingsDao`, `ServerDao`, `LibraryDao`, `LibrarySyncDao`, `LibrarySyncCandidateDao`, `SongIdentityDao`, `PlaylistDao`, `CacheDao`, `CacheSystemStateDao`, `DownloadQueueDao`, `HistoryDao`, `PlayQueueDao`, `MatchFlowDao`, `ScrobbleDao`, `StarSyncDao`, `ListenBrainzFeedbackDao`, `NetworkUsageDao`.
 
 - Stepwise migrations in `navis_database.dart`.
 - **Always** update `test/src/database/migrations/navis_migration_test.dart` when changing schema.
 - Access only through DAOs — no raw SQL in feature code.
+- `cache_system_state` records a one-time library-cache contract migration.
+  Fresh profiles are marked current during database creation; a migrated
+  profile has no marker and must show the dismissible upgrade modal until
+  `LibraryCacheResetService` clears recoverable cache/library state and marks
+  the migration complete. Permanent downloads are never removed.
 - `library_sync_state.next_automatic_check_at` is the per-server automatic
   schedule deadline. It is distinct from `next_eligible_at` (retry/circuit
   cooldown); automatic lifecycle events may only run catalog work when this

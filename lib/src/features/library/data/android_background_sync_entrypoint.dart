@@ -77,6 +77,7 @@ class _HeadlessBackgroundSyncRunner {
     final container = ProviderContainer();
     final database = container.read(navisDatabaseProvider);
     SubsonicApiClient? client;
+    BackgroundNetworkPolicyTracker? policyTracker;
     int? activeServerId;
     try {
       final repository = ServerConfigRepository(
@@ -121,17 +122,6 @@ class _HeadlessBackgroundSyncRunner {
         workerStopReason: 'none',
       );
 
-      if (command.hasActivePlayback) {
-        final completedAt = DateTime.now();
-        await database.librarySyncDao.writeAndroidBackgroundStatus(
-          serverId: config.id!,
-          workerCompletedAt: completedAt,
-          workerDurationMs: completedAt.difference(startedAt).inMilliseconds,
-          workerResult: 'deferredPolicy',
-        );
-        return _result('deferredPolicy');
-      }
-
       final persisted = await database.librarySyncDao.getOrCreateState(
         config.id!,
       );
@@ -148,16 +138,16 @@ class _HeadlessBackgroundSyncRunner {
       }
 
       final settings = await database.appSettingsDao.getSettings();
-      final connectivity = await Connectivity().checkConnectivity();
-      final networkType = resolveNetworkType(connectivity);
-      final metered = await NetworkCostBridge().isActiveNetworkMetered();
-      final policy = resolveSyncNetworkPolicy(
-        networkType: networkType,
-        nativeMetered: metered,
-        backgroundSyncUnmeteredOnly:
-            settings?.backgroundSyncUnmeteredOnly ?? true,
+      final unmeteredOnly = settings?.backgroundSyncUnmeteredOnly ?? true;
+      final tracker = await BackgroundNetworkPolicyTracker.create(
+        readConnectivity: Connectivity().checkConnectivity,
+        connectivityChanges: Connectivity().onConnectivityChanged,
+        readNativeMetered: () async =>
+            await NetworkCostBridge().isActiveNetworkMetered() ?? true,
+        backgroundSyncUnmeteredOnly: unmeteredOnly,
       );
-      if (!policy.allowsBackgroundSync) {
+      policyTracker = tracker;
+      if (!tracker.current.allowsBackgroundSync) {
         final completedAt = DateTime.now();
         await database.librarySyncDao.writeAndroidBackgroundStatus(
           serverId: config.id!,
@@ -170,7 +160,7 @@ class _HeadlessBackgroundSyncRunner {
 
       final meter = NetworkUsageMeter(
         dao: database.networkUsageDao,
-        readNetworkType: () => policy.networkType,
+        readNetworkType: () => tracker.current.networkType,
       );
       client = SubsonicApiClient(
         baseUrl: config.url,
@@ -196,8 +186,8 @@ class _HeadlessBackgroundSyncRunner {
         client: client,
         database: database,
         serverConfigRepository: repository,
-        initialNetworkType: policy.networkType,
-        readSyncNetworkPolicy: () => policy,
+        initialNetworkType: tracker.current.networkType,
+        readSyncNetworkPolicy: () => tracker.current,
         staleAfter: Duration(
           minutes: settings?.syncIntervalMinutes ?? 60,
         ),
@@ -243,6 +233,7 @@ class _HeadlessBackgroundSyncRunner {
       return _result('transientFailure', retry: true);
     } finally {
       _coordinator = null;
+      await policyTracker?.dispose();
       client?.close(force: true);
       container.dispose();
     }
@@ -277,6 +268,99 @@ class _HeadlessBackgroundSyncRunner {
   }
 }
 
+/// Keeps a headless worker's policy current without retaining a UI provider.
+///
+/// The coordinator and engine invoke their supplied policy reader at their
+/// existing execution gates. This tracker makes those reads reflect both a
+/// connectivity transition and a native metering change that occurs after the
+/// worker has started.
+class BackgroundNetworkPolicyTracker {
+  BackgroundNetworkPolicyTracker._({
+    required SyncNetworkPolicy initialPolicy,
+    required Future<List<ConnectivityResult>> Function() readConnectivity,
+    required Stream<List<ConnectivityResult>> connectivityChanges,
+    required Future<bool> Function() readNativeMetered,
+    required bool backgroundSyncUnmeteredOnly,
+    required Duration refreshInterval,
+  }) : _current = initialPolicy,
+       _readConnectivity = readConnectivity,
+       _connectivityChanges = connectivityChanges,
+       _readNativeMetered = readNativeMetered,
+       _backgroundSyncUnmeteredOnly = backgroundSyncUnmeteredOnly,
+       _refreshInterval = refreshInterval;
+
+  static Future<BackgroundNetworkPolicyTracker> create({
+    required Future<List<ConnectivityResult>> Function() readConnectivity,
+    required Stream<List<ConnectivityResult>> connectivityChanges,
+    required Future<bool> Function() readNativeMetered,
+    required bool backgroundSyncUnmeteredOnly,
+    Duration refreshInterval = const Duration(seconds: 2),
+  }) async {
+    final tracker = BackgroundNetworkPolicyTracker._(
+      initialPolicy: await _resolve(
+        readConnectivity: readConnectivity,
+        readNativeMetered: readNativeMetered,
+        backgroundSyncUnmeteredOnly: backgroundSyncUnmeteredOnly,
+      ),
+      readConnectivity: readConnectivity,
+      connectivityChanges: connectivityChanges,
+      readNativeMetered: readNativeMetered,
+      backgroundSyncUnmeteredOnly: backgroundSyncUnmeteredOnly,
+      refreshInterval: refreshInterval,
+    );
+    tracker._start();
+    return tracker;
+  }
+
+  final Future<List<ConnectivityResult>> Function() _readConnectivity;
+  final Stream<List<ConnectivityResult>> _connectivityChanges;
+  final Future<bool> Function() _readNativeMetered;
+  final bool _backgroundSyncUnmeteredOnly;
+  final Duration _refreshInterval;
+  SyncNetworkPolicy _current;
+  StreamSubscription<List<ConnectivityResult>>? _subscription;
+  Timer? _refreshTimer;
+  Future<void> _pendingRefresh = Future<void>.value();
+
+  SyncNetworkPolicy get current => _current;
+
+  void _start() {
+    _subscription = _connectivityChanges.listen((_) => _queueRefresh());
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) => _queueRefresh());
+  }
+
+  Future<void> refresh() async {
+    _current = await _resolve(
+      readConnectivity: _readConnectivity,
+      readNativeMetered: _readNativeMetered,
+      backgroundSyncUnmeteredOnly: _backgroundSyncUnmeteredOnly,
+    );
+  }
+
+  void _queueRefresh() {
+    _pendingRefresh = _pendingRefresh.then((_) => refresh());
+  }
+
+  Future<void> dispose() async {
+    _refreshTimer?.cancel();
+    await _subscription?.cancel();
+    await _pendingRefresh;
+  }
+
+  static Future<SyncNetworkPolicy> _resolve({
+    required Future<List<ConnectivityResult>> Function() readConnectivity,
+    required Future<bool> Function() readNativeMetered,
+    required bool backgroundSyncUnmeteredOnly,
+  }) async {
+    final connectivity = await readConnectivity();
+    return resolveSyncNetworkPolicy(
+      networkType: resolveNetworkType(connectivity),
+      nativeMetered: await readNativeMetered(),
+      backgroundSyncUnmeteredOnly: backgroundSyncUnmeteredOnly,
+    );
+  }
+}
+
 /// Strictly validates the small Kotlin-to-Dart work protocol. No profile
 /// identity or credential can cross this boundary.
 class _BackgroundWorkerCommand {
@@ -284,13 +368,11 @@ class _BackgroundWorkerCommand {
     required this.profileKey,
     required this.workId,
     required this.attemptCount,
-    required this.hasActivePlayback,
   });
 
   final String profileKey;
   final String workId;
   final int attemptCount;
-  final bool hasActivePlayback;
 
   static _BackgroundWorkerCommand? tryParse(Object? value) {
     if (value is! Map) {
@@ -310,7 +392,6 @@ class _BackgroundWorkerCommand {
       profileKey: profileKey,
       workId: workId,
       attemptCount: attempts.clamp(0, 100),
-      hasActivePlayback: value['hasActivePlayback'] == true,
     );
   }
 }

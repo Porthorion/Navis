@@ -614,8 +614,13 @@ run_capture() {
     capture_window_screenshot \
       "$prefix-mini-screenshot" "$prefix-mini-player"
   fi
-  api GET /v1/presentation/status \
-    > "$OUTPUT_ROOT/$prefix-presentation-after.json"
+  # Window transitions are asynchronous at the desktop compositor boundary.
+  # Re-observe the settled Flutter surface before the acceptance capture so a
+  # restart cannot record an intermediate artwork-only frame as visual proof.
+  if [[ "${NAVIS_DESKTOP_LAYOUT_DIAGNOSTICS:-0}" == "1" ]]; then
+    sleep 2
+  fi
+  wait_for_presentation "$OUTPUT_ROOT/$prefix-presentation-after.json"
   api POST /v1/presentation/screenshot "$(screenshot_body "$capture_label")" \
     > "$OUTPUT_ROOT/$prefix-screenshot.json"
   validate_screenshot \

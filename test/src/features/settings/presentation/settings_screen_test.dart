@@ -39,8 +39,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(DesktopFrame), findsNothing);
-    expect(find.byType(AppBar), findsOneWidget);
-    expect(find.text('Connection'), findsNothing);
+    expect(find.byType(AppBar), findsNothing);
+    expect(find.text('Settings'), findsNothing);
     expect(tester.takeException(), isNull);
 
     final transitions = <({Size size, bool desktopWorkspace})>[
@@ -59,7 +59,9 @@ void main() {
       );
       expect(
         find.byType(AppBar),
-        step.desktopWorkspace ? findsNothing : findsOneWidget,
+        step.desktopWorkspace || step.size == const Size(599, 1000)
+            ? findsNothing
+            : findsOneWidget,
       );
       expect(find.text('Listen Together Configuration'), findsNothing);
       if (step.size.width >= 1200) {

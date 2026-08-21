@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,7 +20,10 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   double aspectRatio = 0;
   bool resizable = true;
   bool alwaysOnTop = false;
+  bool preventClose = false;
+  int closeCalls = 0;
   WindowListener? listener;
+  final Completer<void> _closed = Completer<void>();
 
   _FakeWindowManagerAdapter({
     required this.bounds,
@@ -33,6 +37,16 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
 
   @override
   Future<void> center() async {}
+
+  @override
+  Future<void> close() async {
+    closeCalls++;
+    if (!_closed.isCompleted) {
+      _closed.complete();
+    }
+  }
+
+  Future<void> get closed => _closed.future;
 
   @override
   Future<void> ensureInitialized() async {}
@@ -59,6 +73,11 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   @override
   Future<void> setAlwaysOnTop(bool alwaysOnTop) async {
     this.alwaysOnTop = alwaysOnTop;
+  }
+
+  @override
+  Future<void> setPreventClose(bool preventClose) async {
+    this.preventClose = preventClose;
   }
 
   @override
@@ -257,13 +276,18 @@ void main() {
           adapter: firstAdapter,
         );
         await firstController.initialize();
+        expect(firstController.restorationSource, 'fallback');
+        expect(firstController.stateRecordVersion, 3);
+        expect(firstController.lastPersistenceCompleted, isTrue);
         await firstController.setBoundsForDiagnostics(
           const Rect.fromLTWH(70, 90, 1440, 880),
         );
         await firstController.setMiniPlayerMode(true);
         firstAdapter.bounds = const Rect.fromLTWH(120, 150, 700, 400);
         firstController.onWindowClose();
-        await Future<void>.delayed(Duration.zero);
+        await firstAdapter.closed;
+        expect(firstAdapter.closeCalls, 1);
+        expect(firstAdapter.preventClose, isFalse);
 
         final restartedAdapter = _FakeWindowManagerAdapter(
           bounds: const Rect.fromLTWH(120, 150, 700, 400),
@@ -277,6 +301,9 @@ void main() {
         await restartedController.initialize();
 
         expect(restartedController.mode, DesktopWindowMode.desktop);
+        expect(restartedController.restorationSource, 'saved');
+        expect(restartedController.stateRecordVersion, 3);
+        expect(restartedController.lastPersistenceCompleted, isTrue);
         expect(
           restartedAdapter.bounds,
           const Rect.fromLTWH(70, 90, 1440, 880),

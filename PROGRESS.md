@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-08-20
+Last updated: 2026-08-21
 
 ---
 
@@ -18,6 +18,79 @@ Last updated: 2026-08-20
 > precedent. Current agent policy requires the authenticated Navis API and
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
+
+- [ ] Issue #43 / 1.2.6 release fixes — partial: 2026-08-20 (completed:
+  manual offline-refresh intent now survives reconnect and discovers newly
+  added albums despite unchanged indexes; Home shares the full liked-playback
+  queue; portrait Library and Settings omit redundant titles; ordinary desktop
+  song lists share responsive Like, Download, and More actions, while remote
+  rows remain read-only; whole-entity queues retain matched remote sources;
+  and native desktop close
+  waits for its window-state write, while redacted desktop diagnostics now
+  report state-record version, restoration source, and persistence completion.
+  Android schedule, catch-up, and
+  cancellation reconciliation now await the native WorkManager acknowledgement
+  and preserve known-good cadence/work IDs on `platformFailure`. The scheduler
+  includes live connectivity/metering policy refresh during headless work. The
+  worker now records bounded native fallback outcomes for pre-Dart bootstrap
+  failures and foreground reconciliation imports them without consuming their
+  native status record. The scheduler is release-enabled by the 2026-08-20
+  maintainer decision; `NAVIS_ENABLE_ANDROID_BACKGROUND_SYNC=false` remains a
+  build-time rollback that durably disables and cancels native work. The expanded
+  ten-test injected-worker WorkManager suite now passes on the Android 13
+  emulator (constraint release, dispatch admission, durable outcome, enqueue
+  failure, unavailable status, periodic `UPDATE`, cancellation, and real-worker
+  timeout/bootstrap/Dart/cancellation fallback), while its
+  original TestDriver check passed on Android 16. An authenticated
+  Android app API observation reported one enabled 60-minute Wi-Fi schedule,
+  a safe `noWorkDue` completion, and matching native JobScheduler work. The
+  native status query now awaits WorkManager futures and emits bounded
+  `statusUnavailable` rather than relying on a LiveData timing latch. A
+  profile-keyed native file lock now prevents periodic/catch-up workers from
+  booting duplicate Flutter engines before the durable database lease applies;
+  global device audio is no longer misclassified as Navis playback. The latest
+  isolated Linux desktop-layout suite passed app-API assertions and a clean
+  restart with the new redacted restoration fields. Its final capture now
+  re-observes the settled Flutter surface after desktop transitions; both the
+  initial and restart layout images were inspected and rendered correctly.
+  Existing profiles now receive a dismissible, one-time library-cache reset
+  prompt; the reset clears recoverable library and rolling-cache data while
+  preserving permanent downloads and repeats on later launches until completed.
+  The final isolated Linux cache-upgrade diagnostic passed authenticated app-API
+  health/presentation/screenshot/shutdown checks and a clean restart; both
+  app-owned modal captures were inspected. `./tool/check.sh` passed.
+  Evidence: `./tool/manual_discovery_diagnostics.sh`,
+  `./tool/desktop_layout_diagnostics.sh`, inspected app-owned Linux screenshots
+  (standard desktop local rows show Like/Download/More; compact rows retain
+  More), clean restarts, focused desktop action/queue and Android scheduler
+  Flutter/JVM tests, and
+  `./tool/check.sh` passed.)
+
+## Deferred validation
+
+- [ ] Issue #43 Android WorkManager physical certification — accepted deferral:
+  2026-08-20.
+  The connected Android 16 target-SDK phone completed the original
+  injected-worker WorkManager TestDriver test; an expanded ten-test suite
+  passed on the Android 13 emulator. The phone's authenticated read-only Navis API reported
+  an enabled 60-minute Wi-Fi schedule and `deferredPolicy` terminal outcome.
+  Remaining: Android 12 and 14 device
+  matrix plus process-death/reboot/constraint/overlap/stop scenarios. Primary
+  certification now permits only authenticated, app-owned screenshot capture;
+  the inspected Home and Sync Settings captures passed in the Dev sidecar.
+
+- [ ] Issue #43 Windows desktop-window runtime validation — partial:
+  2026-08-20. An interactive Windows 11 console session ran the isolated
+  unauthenticated Dev diagnostics profile built from the current worktree.
+  Authenticated health and Desktop View↔Mini Player window API transitions
+  passed; the inspected 1424×861 Desktop View and 704×366 Mini Player
+  screenshots showed the expected login layouts without clipping. After a
+  clean shutdown/relaunch, the app correctly restored Desktop View because
+  Mini Player is intentionally temporary; focused Windows controller and
+  diagnostics tests passed 42 tests and the profile build succeeded. Remaining:
+  macOS resize/DPI validation is deferred because no Mac is available. The
+  separate Windows SMTC two-song GMTC scenario remains pending its required
+  isolated credential-backed profile.
 
 - [x] Mobile Now Playing transport-motion polish — completed: 2026-08-17
   (handler-owned visual outcomes now keep every manual transport source

@@ -499,7 +499,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncSettingsAndroidBackgroundDisabled =>
-      'Disabled for this app build.';
+      'Foreground checks remain available. Android background scheduling is disabled for this app build while its reliability certification is incomplete.';
 
   @override
   String get syncSettingsAndroidBackgroundManual =>
@@ -3682,4 +3682,24 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get desktopViewUnavailableOnDisplay =>
       'This display cannot fit Desktop View. Mini Player is available until Navis moves to a larger display.';
+
+  @override
+  String get cacheSystemUpgradeTitle => 'Update library cache';
+
+  @override
+  String get cacheSystemUpgradeBody =>
+      'This installation uses an older library cache system. Navis needs to clear its recoverable library cache once to use the newer cache system. Your downloaded music will be kept.';
+
+  @override
+  String get cacheSystemUpgradeAction => 'Clear library cache';
+
+  @override
+  String get cacheSystemUpgradeDismiss => 'Not now';
+
+  @override
+  String get cacheSystemUpgradeResetting => 'Updating library cache…';
+
+  @override
+  String get cacheSystemUpgradeFailure =>
+      'Could not update the library cache. Please try again.';
 }

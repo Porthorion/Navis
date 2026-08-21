@@ -7,6 +7,7 @@ import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
+import 'package:navis/src/database/daos/cache_system_state_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/listenbrainz_feedback_dao.dart';
@@ -26,6 +27,7 @@ import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
 import 'package:navis/src/database/tables/album_info_cache_table.dart';
 import 'package:navis/src/database/tables/cached_tracks_table.dart';
+import 'package:navis/src/database/tables/cache_system_state_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
@@ -74,6 +76,7 @@ part 'navis_database.g.dart';
     PlaylistsTable,
     PlaylistSongsTable,
     CachedTracksTable,
+    CacheSystemStateTable,
     DownloadQueueTable,
     PlayHistoryTable,
     RecentSearchesTable,
@@ -103,6 +106,7 @@ part 'navis_database.g.dart';
     LibraryDao,
     PlaylistDao,
     CacheDao,
+    CacheSystemStateDao,
     DownloadQueueDao,
     HistoryDao,
     PlayQueueDao,
@@ -141,7 +145,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 65;
+  int get schemaVersion => 66;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -150,6 +154,7 @@ class NavisDatabase extends _$NavisDatabase {
       await _ensureGroupListeningColumns();
       await _createIndexes();
       await _ensureAppSettingsDefaults();
+      await cacheSystemStateDao.markVersion(2);
     },
     onUpgrade: (m, from, to) async {
       await _runMigrations(m, from, to);
@@ -356,6 +361,17 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 65 && to >= 65) {
       await from64To65(migrator);
+    }
+    if (from < 66 && to >= 66) {
+      await from65To66(migrator);
+    }
+  }
+
+  /// Adds the durable marker without marking an upgraded profile as current.
+  /// A missing row is therefore the explicit legacy-cache upgrade signal.
+  Future<void> from65To66(Migrator migrator) async {
+    if (!await _tableExists('cache_system_state')) {
+      await migrator.createTable(cacheSystemStateTable);
     }
   }
 

@@ -41,6 +41,18 @@ part 'navis_audio_handler_bootstrap.dart';
 part 'navis_playback_lanes.dart';
 part 'navis_audio_handler_support.dart';
 
+/// Produces queue identities without replacing an explicitly supplied remote
+/// source with a locally reconciled match.
+@visibleForTesting
+List<String> navisQueueSourceIds(
+  Iterable<SongsTableData> songs, {
+  required String Function(String songId) canonicalize,
+}) {
+  return <String>[
+    for (final song in songs) song.isExternal ? song.id : canonicalize(song.id),
+  ];
+}
+
 class NavisAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler
     implements NavisPlaybackHandler {
@@ -3518,9 +3530,14 @@ class NavisAudioHandler extends BaseAudioHandler
     bool expandMatchFlows = true,
   }) async {
     _supersedeTransportIntent();
-    final canonicalIds = songs
-        .map((song) => _canonicalSongId(song.id))
-        .toList(growable: false);
+    // A remote row can be identity-matched to a local catalog row after it
+    // was rendered in a playlist/artist/album list.  Whole-entity playback
+    // must retain that supplied remote source rather than canonicalizing it
+    // away and re-reading only the local row.
+    final canonicalIds = navisQueueSourceIds(
+      songs,
+      canonicalize: _canonicalSongId,
+    );
     final requestedStartIndex = canonicalIds.isEmpty
         ? 0
         : startIndex.clamp(0, canonicalIds.length - 1);
@@ -3531,9 +3548,17 @@ class NavisAudioHandler extends BaseAudioHandler
           : canonicalIds[requestedStartIndex],
       pendingLogicalQueueSongIds: canonicalIds.length > 1 ? canonicalIds : null,
     );
-    final hasRetiredIdentity = Iterable<int>.generate(
-      songs.length,
-    ).any((index) => canonicalIds[index] != songs[index].id);
+    // In a mixed-source entity queue, preserve every supplied row as-is.  In
+    // particular, an external row may be matched to a local identity and its
+    // ID therefore cannot safely be used to re-read the queue from the local
+    // catalog.  This also keeps the order and source choice intact when a
+    // separate local row happens to have a retired identity.
+    final hasExternalSource = songs.any((song) => song.isExternal);
+    final hasRetiredIdentity =
+        !hasExternalSource &&
+        Iterable<int>.generate(
+          songs.length,
+        ).any((index) => canonicalIds[index] != songs[index].id);
     if (hasRetiredIdentity) {
       final canonicalSongs = await _libraryDao.getSongsByIds(canonicalIds);
       return replaceQueueWithData(
@@ -3543,7 +3568,9 @@ class NavisAudioHandler extends BaseAudioHandler
         expandMatchFlows: expandMatchFlows,
       );
     }
-    if (expandMatchFlows && songs.isNotEmpty) {
+    // Match Flow expansion is ID based and would likewise re-fetch a matched
+    // remote row. Preserve the caller's exact mixed-source entity queue.
+    if (expandMatchFlows && songs.isNotEmpty && !hasExternalSource) {
       final expansion = await _expandMatchFlowIds(
         songs.map((song) => song.id).toList(growable: false),
         startIndex: startIndex,

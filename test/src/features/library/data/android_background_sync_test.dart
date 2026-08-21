@@ -69,6 +69,21 @@ void main() {
     expect(observation.workId, isNotNull);
   });
 
+  test('native status unavailability remains a bounded observation', () {
+    final observation = AndroidBackgroundScheduleObservation.fromPlatform(
+      <String, Object>{
+        'available': true,
+        'state': 'statusUnavailable',
+        'workerResult': 'engineTimeout',
+        'workerStopReason': 'engineTimeout',
+      },
+    );
+
+    expect(observation.state, 'statusUnavailable');
+    expect(observation.workerResult, 'engineTimeout');
+    expect(observation.workerStopReason, 'engineTimeout');
+  });
+
   test(
     'reconciler persists bounded Android schedule observation',
     () async {
@@ -184,4 +199,175 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test(
+    'native schedule acknowledgement failure preserves a known-good cadence',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://music.example.test',
+          username: 'listener',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await database.librarySyncDao.setAndroidBackgroundSyncEnabled(
+        serverId: 1,
+        enabled: true,
+      );
+      await database.librarySyncDao.writeAndroidBackgroundStatus(
+        serverId: 1,
+        requestedIntervalMinutes: 60,
+        workId: '76bceb9a-6e54-4f78-a07c-f5c33c2b591c',
+        workState: 'scheduled',
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            expect(call.method, 'configurePeriodic');
+            return <String, Object>{
+              'available': true,
+              'state': 'platformFailure',
+            };
+          });
+      final reconciler = AndroidBackgroundSyncReconciler(
+        database: database,
+        scheduler: AndroidBackgroundSyncScheduler(
+          channel: channel,
+          supported: true,
+        ),
+      );
+      final config = ServerConfigModel(
+        id: 1,
+        url: 'https://music.example.test',
+        username: 'listener',
+        password: 'unused',
+        apiVersion: '1.16.1',
+      );
+
+      await reconciler.reconcile(
+        config: config,
+        intervalMinutes: 120,
+        unmeteredOnly: true,
+      );
+
+      final state = await database.librarySyncDao.getOrCreateState(1);
+      expect(state.androidRequestedIntervalMinutes, 60);
+      expect(state.androidWorkId, '76bceb9a-6e54-4f78-a07c-f5c33c2b591c');
+      expect(state.androidWorkState, 'platformFailure');
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'native cancellation acknowledgement failure preserves a known-good cadence',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://music.example.test',
+          username: 'listener',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await database.librarySyncDao.setAndroidBackgroundSyncEnabled(
+        serverId: 1,
+        enabled: true,
+      );
+      await database.librarySyncDao.writeAndroidBackgroundStatus(
+        serverId: 1,
+        requestedIntervalMinutes: 60,
+        workId: '76bceb9a-6e54-4f78-a07c-f5c33c2b591c',
+        workState: 'scheduled',
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            expect(call.method, 'cancel');
+            return <String, Object>{
+              'available': true,
+              'state': 'platformFailure',
+            };
+          });
+      final reconciler = AndroidBackgroundSyncReconciler(
+        database: database,
+        scheduler: AndroidBackgroundSyncScheduler(
+          channel: channel,
+          supported: true,
+        ),
+      );
+      final config = ServerConfigModel(
+        id: 1,
+        url: 'https://music.example.test',
+        username: 'listener',
+        password: 'unused',
+        apiVersion: '1.16.1',
+      );
+
+      await reconciler.reconcile(
+        config: config,
+        intervalMinutes: 0,
+        unmeteredOnly: true,
+      );
+
+      final state = await database.librarySyncDao.getOrCreateState(1);
+      expect(state.androidRequestedIntervalMinutes, 60);
+      expect(state.androidWorkId, '76bceb9a-6e54-4f78-a07c-f5c33c2b591c');
+      expect(state.androidWorkState, 'platformFailure');
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('reconciler imports a redacted native worker outcome', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await database.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'https://music.example.test',
+        username: 'listener',
+        apiVersion: '1.16.1',
+      ),
+    );
+    await database.librarySyncDao.setAndroidBackgroundSyncEnabled(
+      serverId: 1,
+      enabled: true,
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'status') {
+            return <String, Object>{
+              'available': true,
+              'state': 'none',
+              'workerResult': 'engineTimeout',
+              'workerStopReason': 'engineTimeout',
+            };
+          }
+          expect(call.method, 'configurePeriodic');
+          return <String, Object>{'available': true, 'state': 'scheduled'};
+        });
+    final reconciler = AndroidBackgroundSyncReconciler(
+      database: database,
+      scheduler: AndroidBackgroundSyncScheduler(
+        channel: channel,
+        supported: true,
+      ),
+    );
+    final config = ServerConfigModel(
+      id: 1,
+      url: 'https://music.example.test',
+      username: 'listener',
+      password: 'unused',
+      apiVersion: '1.16.1',
+    );
+
+    await reconciler.reconcile(
+      config: config,
+      intervalMinutes: 60,
+      unmeteredOnly: true,
+    );
+
+    final state = await database.librarySyncDao.getOrCreateState(1);
+    expect(state.androidWorkerResult, 'engineTimeout');
+    expect(state.androidWorkerStopReason, 'engineTimeout');
+  }, skip: !sqliteAvailable);
 }

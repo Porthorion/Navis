@@ -55,6 +55,44 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.6', [
+    _Entry(
+      'Manual library refresh now reliably resumes its new-album discovery after reconnecting',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Tapping a liked track on Home now follows the same full liked-queue preference as the Library',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Desktop View now saves its size before the app closes',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Desktop Home song rows now offer direct actions instead of misleading navigation arrows',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Desktop song lists now share responsive Like, Download, and More controls, while remote-only songs remain read-only',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Album, artist, and playlist playback now keeps matched remote songs in the requested queue',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Library and Settings remove redundant page titles on portrait phones while keeping their context visible',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Sync Settings now clearly distinguishes foreground checks from Android background scheduling',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Older installations now request a one-time library-cache refresh while keeping downloaded music',
+      type: _EntryType.improvement,
+    ),
+  ]),
   _Version('1.2.5', [
     _Entry(
       'Playback startup now offers cache reset and sign-out recovery controls instead of trapping you on a loading screen',

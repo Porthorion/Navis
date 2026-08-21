@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
@@ -21,6 +22,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 class GenreDetailScreen extends ConsumerWidget {
   const GenreDetailScreen({required this.encodedGenre, super.key});
@@ -139,40 +141,47 @@ class GenreDetailScreen extends ConsumerWidget {
                         },
                         onLongPress: () =>
                             showSongContextMenu(context, ref, song),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            SongDownloadStatusIcon(
-                              songId: song.id,
-                              onDownload: () => unawaited(() async {
-                                final choice = await showDownloadQualitySheet(
-                                  context,
-                                );
-                                if (choice == null || !context.mounted) return;
-                                unawaited(
-                                  ref
-                                      .read(downloadServiceProvider)
-                                      .enqueueSong(
-                                        song.id,
-                                        quality: choice.quality,
-                                        format: choice.format,
-                                      ),
-                                );
-                                if (!context.mounted) return;
-                                showAppNotice(
-                                  context,
-                                  message: l10n.downloadSongQueued,
-                                  level: AppNoticeLevel.success,
-                                );
-                              }()),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.more_vert),
-                              onPressed: () =>
-                                  showSongContextMenu(context, ref, song),
-                            ),
-                          ],
-                        ),
+                        trailing: isDesktopRuntime
+                            ? DesktopSongActions(
+                                song: song,
+                                keyPrefix: 'genre-song',
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  SongDownloadStatusIcon(
+                                    songId: song.id,
+                                    onDownload: () => unawaited(() async {
+                                      final choice =
+                                          await showDownloadQualitySheet(
+                                            context,
+                                          );
+                                      if (choice == null || !context.mounted)
+                                        return;
+                                      unawaited(
+                                        ref
+                                            .read(downloadServiceProvider)
+                                            .enqueueSong(
+                                              song.id,
+                                              quality: choice.quality,
+                                              format: choice.format,
+                                            ),
+                                      );
+                                      if (!context.mounted) return;
+                                      showAppNotice(
+                                        context,
+                                        message: l10n.downloadSongQueued,
+                                        level: AppNoticeLevel.success,
+                                      );
+                                    }()),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.more_vert),
+                                    onPressed: () =>
+                                        showSongContextMenu(context, ref, song),
+                                  ),
+                                ],
+                              ),
                       );
                     },
                   );

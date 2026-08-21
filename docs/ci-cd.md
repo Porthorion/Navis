@@ -224,7 +224,10 @@ It also captures the canonical 720×405 Mini Player, its manually resized
 and a clean Linux profile restart. Desktop captures must retain Favorite,
 Lyrics, Queue, Mini Player, and the full volume control without overflow; Mini
 captures must keep volume below transport/actions and centered tight metadata,
-and every transition choice must remain fully visible.
+and every transition choice must remain fully visible. The diagnostic
+re-observes the settled Flutter surface after desktop resize or restart
+transitions before final capture, so an intermediate compositor frame cannot
+count as visual evidence.
 
 ### Branding Regeneration
 

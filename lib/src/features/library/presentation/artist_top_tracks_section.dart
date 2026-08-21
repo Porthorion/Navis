@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
@@ -404,44 +405,52 @@ class _TopTrackTile extends ConsumerWidget {
     // ── Trailing: download status + 3-dot menu (resolved tracks only) ───
     Widget? trailing;
     if (resolvedId != null) {
-      trailing = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          SongDownloadStatusIcon(
-            songId: resolvedId,
-            onDownload: () => _downloadSong(context, ref, resolvedId),
-            size: 20,
-          ),
-          Builder(
-            builder: (buttonContext) => IconButton(
-              tooltip: MaterialLocalizations.of(buttonContext).showMenuTooltip,
-              icon: const Icon(Icons.more_vert),
-              iconSize: 20,
-              constraints: const BoxConstraints(),
-              padding: const EdgeInsets.all(8),
-              onPressed: dbSong == null
-                  ? null
-                  : () {
-                      final renderObject = buttonContext.findRenderObject();
-                      final anchor =
-                          !isDesktopRuntime || renderObject is! RenderBox
-                          ? null
-                          : renderObject.localToGlobal(
-                              renderObject.size.center(Offset.zero),
+      trailing = isDesktopRuntime && dbSong != null
+          ? DesktopSongActions(
+              song: dbSong,
+              keyPrefix: 'artist-top-track',
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                SongDownloadStatusIcon(
+                  songId: resolvedId,
+                  onDownload: () => _downloadSong(context, ref, resolvedId),
+                  size: 20,
+                ),
+                Builder(
+                  builder: (buttonContext) => IconButton(
+                    tooltip: MaterialLocalizations.of(
+                      buttonContext,
+                    ).showMenuTooltip,
+                    icon: const Icon(Icons.more_vert),
+                    iconSize: 20,
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(8),
+                    onPressed: dbSong == null
+                        ? null
+                        : () {
+                            final renderObject = buttonContext
+                                .findRenderObject();
+                            final anchor =
+                                !isDesktopRuntime || renderObject is! RenderBox
+                                ? null
+                                : renderObject.localToGlobal(
+                                    renderObject.size.center(Offset.zero),
+                                  );
+                            unawaited(
+                              showSongContextMenu(
+                                context,
+                                ref,
+                                dbSong,
+                                anchor: anchor,
+                              ),
                             );
-                      unawaited(
-                        showSongContextMenu(
-                          context,
-                          ref,
-                          dbSong,
-                          anchor: anchor,
-                        ),
-                      );
-                    },
-            ),
-          ),
-        ],
-      );
+                          },
+                  ),
+                ),
+              ],
+            );
     }
 
     // ── Tile ────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
@@ -34,8 +35,8 @@ import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
-import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -1353,6 +1354,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
               onTap: (song) {
+                final allLikedSongs = ref.read(likedPlaybackSongsProvider);
+                final eligibleSongs = downloadedOnly
+                    ? filterLikedPlaybackToDownloads(
+                        allLikedSongs,
+                        ref.read(downloadedSongIdsProvider).asData?.value ??
+                            const <String>{},
+                      )
+                    : allLikedSongs;
+                if (shouldQueueLikedPlayback(
+                  albumQueueEnabled: ref.read(albumQueueEnabledProvider),
+                  likedQueueEnabled: ref.read(likedQueueEnabledProvider),
+                  eligibleSongCount: eligibleSongs.length,
+                )) {
+                  final startIndex = eligibleSongs.indexWhere(
+                    (candidate) => candidate.id == song.id,
+                  );
+                  ref
+                      .read(queueProvider.notifier)
+                      .replaceWithTableData(
+                        eligibleSongs,
+                        startIndex: startIndex < 0 ? 0 : startIndex,
+                        autoPlay: true,
+                      )
+                      .ignore();
+                  return;
+                }
                 ref.read(queueProvider.notifier).replaceWithTableData(
                   <SongsTableData>[song],
                   autoPlay: true,
@@ -3151,25 +3178,11 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
     final playbackState = ref.watch(
       songPlaybackIndicatorStateProvider(song.id),
     );
     final isSelected = playbackState.isSelected;
-    final isLiked =
-        ref.watch(songStarredProvider(song.id)).asData?.value ??
-        song.starred != null;
-
-    Future<void> openMenuWithAnchor(Offset anchor) {
-      return showSongContextMenu(
-        context,
-        ref,
-        song,
-        anchor: anchor,
-      );
-    }
-
     final row = SizedBox(
       key: ValueKey<String>('home-random-desktop-song-row-${song.id}'),
       height: rowHeight,
@@ -3195,7 +3208,14 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
             );
           },
           onSecondaryTapDown: (details) {
-            unawaited(openMenuWithAnchor(details.globalPosition));
+            unawaited(
+              showSongContextMenu(
+                context,
+                ref,
+                song,
+                anchor: details.globalPosition,
+              ),
+            );
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -3223,41 +3243,6 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
                         ),
                 ),
                 const SizedBox(width: 6),
-                SizedBox(
-                  width: 30,
-                  child: IconButton(
-                    key: ValueKey<String>(
-                      'home-random-desktop-heart-${song.id}',
-                    ),
-                    visualDensity: const VisualDensity(
-                      horizontal: -4,
-                      vertical: -4,
-                    ),
-                    padding: EdgeInsets.zero,
-                    iconSize: 18,
-                    icon: Icon(
-                      isLiked ? Icons.favorite : Icons.favorite_border,
-                      color: isLiked
-                          ? colors.primary
-                          : colors.onSurfaceVariant.withValues(alpha: 0.88),
-                    ),
-                    tooltip: isLiked ? l10n.actionLiked : l10n.actionLike,
-                    onPressed: () {
-                      unawaited(
-                        toggleSongStar(song.id, ref).catchError((_) {
-                          if (context.mounted) {
-                            showAppNotice(
-                              context,
-                              message: l10n.albumDetailStarFailure,
-                              level: AppNoticeLevel.error,
-                            );
-                          }
-                        }),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -3292,56 +3277,10 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                SizedBox(
-                  width: 32,
-                  child: Builder(
-                    builder: (buttonContext) => IconButton(
-                      key: ValueKey<String>(
-                        'home-random-desktop-menu-${song.id}',
-                      ),
-                      visualDensity: const VisualDensity(
-                        horizontal: -4,
-                        vertical: -4,
-                      ),
-                      padding: EdgeInsets.zero,
-                      iconSize: 18,
-                      tooltip: l10n.actionMore,
-                      color: colors.primary.withValues(alpha: 0.9),
-                      icon: const Icon(Icons.more_horiz_rounded),
-                      onPressed: () {
-                        final renderBox =
-                            buttonContext.findRenderObject() as RenderBox?;
-                        Offset? anchor;
-                        if (renderBox != null) {
-                          anchor = renderBox.localToGlobal(
-                            Offset(
-                              renderBox.size.width / 2,
-                              renderBox.size.height / 2,
-                            ),
-                          );
-                        }
-                        if (anchor != null) {
-                          unawaited(openMenuWithAnchor(anchor));
-                        } else {
-                          unawaited(showSongContextMenu(context, ref, song));
-                        }
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                SizedBox(
-                  width: 48,
-                  child: Text(
-                    formatSeconds(song.duration),
-                    textAlign: TextAlign.right,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant.withValues(alpha: 0.86),
-                      fontFeatures: const <FontFeature>[
-                        FontFeature.tabularFigures(),
-                      ],
-                    ),
-                  ),
+                DesktopSongActions(
+                  song: song,
+                  includeDuration: true,
+                  keyPrefix: 'home-random-desktop',
                 ),
               ],
             ),
@@ -4326,7 +4265,10 @@ class _SongListSection extends ConsumerWidget {
                 isRemote: song.isExternal,
                 spacing: (song.artistName?.isEmpty ?? true) ? 0 : 6,
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: DesktopSongActions(
+                song: song,
+                keyPrefix: 'home-song',
+              ),
               onTap: () => onTap(song),
               onSecondaryTapDown: (details) => showSongContextMenu(
                 context,

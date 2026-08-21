@@ -15,6 +15,7 @@ import 'package:navis/src/common_widgets/artist_card.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/artist_grid_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -41,8 +42,8 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/utils/format_utils.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 
 part 'library_support_widgets.dart';
 part 'library_tabs.dart';
@@ -69,21 +70,6 @@ int computeArtistGridCrossAxisCount(double availableWidth) {
   final usableWidth = availableWidth - 52; // matches grid horizontal padding
   return (usableWidth / 150).floor().clamp(2, 6);
 }
-
-final _likedPlaybackSongsProvider = Provider<List<SongsTableData>>((ref) {
-  final likedSongs =
-      ref.watch(likedSongsProvider).asData?.value ?? const <SongsTableData>[];
-  final likedAlbumSongs =
-      ref.watch(likedAlbumSongsProvider).asData?.value ??
-      const <SongsTableData>[];
-  final dedupedSongs = <String, SongsTableData>{};
-
-  for (final song in <SongsTableData>[...likedSongs, ...likedAlbumSongs]) {
-    dedupedSongs.putIfAbsent(song.id, () => song);
-  }
-
-  return List<SongsTableData>.unmodifiable(dedupedSongs.values);
-});
 
 bool _likedSongMatchesTypeFilter(SongsTableData song, String queryLower) {
   return song.title.toLowerCase().contains(queryLower) ||
@@ -849,9 +835,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
     }
 
+    final portraitPhone =
+        MediaQuery.orientationOf(context) == Orientation.portrait;
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.libraryTitle),
+        toolbarHeight: portraitPhone ? 0 : null,
+        automaticallyImplyLeading: !portraitPhone,
+        title: portraitPhone ? null : Text(l10n.libraryTitle),
         bottom: tabBar,
       ),
       body: bodyContent,
@@ -1724,7 +1714,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final likedAlbumSongsAsync = ref.watch(likedAlbumSongsProvider);
     final likedArtistsAsync = ref.watch(likedArtistsProvider);
     final likedSongsAsync = ref.watch(likedSongsProvider);
-    final likedPlaybackSongs = ref.watch(_likedPlaybackSongsProvider);
+    final likedPlaybackSongs = ref.watch(likedPlaybackSongsProvider);
     final downloadedContentIds = _downloadedOnly
         ? ref.watch(downloadedContentIdsProvider).asData?.value
         : null;
@@ -2094,46 +2084,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               isRemote: song.isExternal,
                               spacing: subtitleParts.isEmpty ? 0 : 6,
                             ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                SongDownloadStatusIcon(
-                                  songId: song.id,
-                                  onDownload: () =>
-                                      unawaited(_downloadLikedSong(song)),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  formatSeconds(song.duration),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                                const SizedBox(width: 2),
-                                Builder(
-                                  builder: (buttonContext) => IconButton(
-                                    tooltip: MaterialLocalizations.of(
-                                      buttonContext,
-                                    ).showMenuTooltip,
-                                    icon: const Icon(Icons.more_horiz),
-                                    onPressed: () {
-                                      final renderObject = buttonContext
-                                          .findRenderObject();
-                                      final anchor = renderObject is RenderBox
-                                          ? renderObject.localToGlobal(
-                                              renderObject.size.center(
-                                                Offset.zero,
-                                              ),
-                                            )
-                                          : null;
-                                      showSongContextMenu(
-                                        this.context,
-                                        ref,
-                                        song,
-                                        anchor: anchor,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
+                            trailing: DesktopSongActions(
+                              song: song,
+                              includeDuration: true,
+                              keyPrefix: 'liked-song',
                             ),
                             onTap: () {
                               _handleLikedSongTap(
@@ -2200,10 +2154,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     SongsTableData song, {
     required List<SongsTableData> playbackSongs,
   }) {
-    final queueLiked =
-        ref.read(albumQueueEnabledProvider) &&
-        ref.read(likedQueueEnabledProvider);
-    if (queueLiked && playbackSongs.length > 1) {
+    if (shouldQueueLikedPlayback(
+      albumQueueEnabled: ref.read(albumQueueEnabledProvider),
+      likedQueueEnabled: ref.read(likedQueueEnabledProvider),
+      eligibleSongCount: playbackSongs.length,
+    )) {
       final startIndex = playbackSongs.indexWhere(
         (candidate) => candidate.id == song.id,
       );

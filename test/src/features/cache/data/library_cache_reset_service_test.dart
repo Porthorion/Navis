@@ -5,10 +5,37 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/cache/data/cache_system_upgrade_service.dart';
 import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
 import '../../../../helpers/test_database.dart';
 
 void main() {
+  test('new profiles are already on the current cache system', () async {
+    final database = NavisDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+
+    final service = CacheSystemUpgradeService(
+      database: database,
+      cacheResetService: LibraryCacheResetService(database: database),
+    );
+
+    expect(await service.needsReset(), isFalse);
+  }, skip: !sqliteAvailable);
+
+  test('legacy profiles remain pending until reset completes', () async {
+    final database = NavisDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.customStatement('DELETE FROM cache_system_state;');
+    final service = CacheSystemUpgradeService(
+      database: database,
+      cacheResetService: LibraryCacheResetService(database: database),
+    );
+
+    expect(await service.needsReset(), isTrue);
+    await service.resetAndMarkCurrent();
+    expect(await service.needsReset(), isFalse);
+  }, skip: !sqliteAvailable);
+
   test(
     'reset removes recoverable cache and metadata but keeps downloads',
     () async {

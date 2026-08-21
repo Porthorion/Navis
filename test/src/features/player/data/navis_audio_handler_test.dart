@@ -909,6 +909,31 @@ void main() {
       expect(extras['transcodingApplied'], isTrue);
     });
 
+    test(
+      'whole-entity queues retain supplied remote rows after identity match',
+      () {
+        final local = SongsTableData(
+          isProvisional: false,
+          isExternal: false,
+          id: 'local-song',
+          title: 'Local song',
+        );
+        final remote = SongsTableData(
+          isProvisional: true,
+          isExternal: true,
+          id: 'remote-song',
+          title: 'Matched remote song',
+        );
+
+        final ids = navisQueueSourceIds(
+          <SongsTableData>[local, remote],
+          canonicalize: (id) => id == 'remote-song' ? 'local-song' : id,
+        );
+
+        expect(ids, <String>['local-song', 'remote-song']);
+      },
+    );
+
     test('persist helper swallows failures and logs warning', () async {
       final logs = <String>[];
 

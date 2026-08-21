@@ -263,7 +263,10 @@ control-plane contract. Android is observation-only:
   `POST /v1/presentation/screenshot`. Navigation accepts local app routes;
   status distinguishes render-boundary readiness from the post-bootstrap app
   frame, while screenshots capture the Flutter surface at a deterministic 1.0
-  pixel ratio and return only protected artifact metadata.
+  pixel ratio and return only protected artifact metadata. Desktop-layout
+  captures re-observe that ready surface after resize or restart transitions
+  before recording final visual evidence, so an intermediate compositor frame
+  cannot count as a clean-restart screenshot.
 - Clone-only `POST /v1/presentation/search` submits a real query through the
   production Search providers, navigates to `/search`, waits for the final
   cached/API merge, and returns sanitized ordered IDs, relevance tiers, and
@@ -789,9 +792,11 @@ the sidecar; do not pass credentials as Dart defines or through ADB. The app
 publishes the loopback handshake through `getExternalFilesDir()`; retrieve it
 from `/sdcard/Android/data/<sidecar-package>/files/navis-diagnostics/handshake.json`
 without printing its bearer token, then forward its port with `adb forward`.
-Use the token only for authenticated `GET /v1/sync/status` and `GET /v1/health`
-requests. Android diagnostics supports only `primary-certification`: it is
-observation-only and must not schedule, cancel, or mutate work.
+Use the token only for authenticated `GET /v1/sync/status`, `GET /v1/health`,
+and the read-only `POST /v1/presentation/screenshot` request. Screenshots are
+written below that same sidecar-scoped diagnostics directory and must be pulled
+and visually inspected; primary Android certification permits no navigation,
+scheduling, cancellation, or other mutation.
 
 ## MacBook Testing Guide
 

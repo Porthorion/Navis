@@ -447,6 +447,7 @@ void main() {
         );
 
         expect(find.byType(TabBar), findsOneWidget);
+        expect(find.text('Library'), findsNothing);
         expect(find.text('Albums'), findsOneWidget);
         expect(find.text('Downloaded'), findsOneWidget);
         expect(find.text('Recently Added'), findsOneWidget);
@@ -462,6 +463,32 @@ void main() {
           greaterThan(tester.getRect(downloadedFilter).bottom),
         );
         expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'phone landscape retains the Library title above its tabs',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(844, 390));
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(find.byType(AppBar), findsOneWidget);
+        expect(find.text('Library'), findsOneWidget);
+        expect(find.byType(TabBar), findsOneWidget);
       },
     );
 
@@ -1719,15 +1746,13 @@ void main() {
         final desktopMoreButton = find.ancestor(
           of: find.descendant(
             of: find.byType(DesktopListRow),
-            matching: find.byIcon(Icons.more_horiz),
+            matching: find.byIcon(Icons.more_horiz_rounded),
           ),
           matching: find.byType(IconButton),
         );
         expect(
           tester.widget<IconButton>(desktopMoreButton).tooltip,
-          MaterialLocalizations.of(
-            tester.element(desktopMoreButton),
-          ).showMenuTooltip,
+          'More',
         );
         await tester.tap(desktopMoreButton);
         await tester.pump(const Duration(milliseconds: 300));

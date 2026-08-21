@@ -31,12 +31,24 @@ Located in `lib/src/providers/app_providers.dart`:
     opaque native profile key before any request and holds the same durable
     execution lease as foreground catalog work, so a late worker cannot run a
     replaced account or overlap a visible sync.
+  - Its `BackgroundNetworkPolicyTracker` observes connectivity changes and
+    refreshes native metering during the pass. The coordinator and engine
+    consume that current policy at their existing eligibility gates, so a
+    metered transition defers later broad work instead of retaining startup
+    Wi-Fi policy.
+  - If engine bootstrap fails before Dart can update the database, the worker
+    writes a bounded native fallback outcome under its opaque profile key. The
+    next foreground reconciliation imports it once into `library_sync_state`;
+    raw errors and profile identities never cross that boundary.
   - Android scheduler state is durable and redacted: opaque work identifiers,
     state, attempts, timing, and bounded terminal categories only. Sync
     Settings presents this as requested eventual cadence, never a guaranteed
-    next OS execution time. Manual-only cancellation clears its persisted
-    cadence, while relevant enablement/policy changes enqueue one `KEEP`
-    catch-up request.
+    next OS execution time. Native schedule, catch-up, and cancellation calls
+    resolve only after their WorkManager `Operation` is acknowledged; an
+    acknowledgement failure records `platformFailure` without replacing a
+    known-good cadence or work ID. Manual-only cancellation clears its
+    persisted cadence only after that acknowledgement, while relevant
+    enablement/policy changes enqueue one `KEEP` catch-up request.
   - `subsonicApiProvider` - Configured Subsonic API client
 
 - **Audio System**
@@ -297,7 +309,10 @@ and Android profile builds:
    provider container and diagnostics database, and exits the process.
 
 Clone diagnostics wrap the root Flutter application in a diagnostics-owned
-`RepaintBoundary`. `GET /v1/presentation/status` reports the live route and
+`RepaintBoundary`. Android primary certification uses that same boundary only
+for authenticated, read-only screenshot capture; its artifacts stay below the
+sidecar's scoped external diagnostics directory, while all route and feature
+controls remain disabled. `GET /v1/presentation/status` reports the live route and
 viewport plus post-bootstrap app readiness,
 `POST /v1/presentation/navigate` drives the real `GoRouter`, and
 `POST /v1/presentation/screenshot` waits for a completed, animation-settled
@@ -634,6 +649,17 @@ always-on-top preference are stored in `window_state.json` v3. Navis always
 starts in Desktop View, restoring those Desktop bounds even when the previous
 shutdown occurred in Mini Player. Invalid Desktop
 bounds and prompt-triggering expanded Mini sizes are never restoration targets.
+When no valid Desktop record exists, Navis begins from the useful 1200×760
+Desktop candidate and clamps it to the selected display's visible work area
+(which already excludes system chrome); on a smaller work area this uses the
+available area while retaining the 800×600 Desktop View minimum whenever the
+area permits it. Diagnostics expose only the state-record version, restoration
+source (`saved`, `fallback`, or `clamped`), and persistence completion—not file
+paths or monitor identifiers.
+Normal native close is intercepted until the controller has finished writing
+the current state record, then released through `window_manager`; a resize
+immediately followed by close must therefore retain the latest valid Desktop
+bounds rather than relying on an unawaited callback.
 The isolated Desktop-layout diagnostics deliberately shuts down from Mini
 Player and verifies the following launch starts in Desktop View at the last
 validated Desktop bounds.
@@ -959,6 +985,13 @@ states without starting audio or modifying a queue.
    visual-only `OverlayEntry` with inherited themes and no semantic children;
    it intentionally avoids Material `Tooltip`/`RawTooltip` and their
    `OverlayPortal` semantics reparenting on Flutter 3.44.
+   Ordinary Desktop View song lists share `DesktopSongActions`: local songs
+   receive direct Like and Download controls beside More at widths of at least
+   1100 logical pixels, while compact widths retain More and remote-only songs
+   receive no local-server controls. Whole-entity playback preserves a mixed
+   supplied local/remote list without identity-canonicalizing it into local
+   rows or applying ID-based Match Flow expansion, so a matched remote source
+   remains in the requested queue.
 9. Metered automation is a true hard probe: one conditional `getIndexes`
    request with retries disabled. Interactive artist/album/playlist hydration
    remains allowed with 16 MiB/response and 32 MiB/interaction budgets.
@@ -1007,6 +1040,11 @@ OpenSubsonic documents the conditional full-index semantics of
    provisional metadata while preserving active partial files and recent
    unowned audio files
 8. Playback prefers permanent → rolling → stream
+9. A profile migrated before library-cache-system version 2 must clear recoverable
+   rolling cache and library metadata once before using the current contract.
+   The app-owned modal can be dismissed, but returns on the next launch until
+   successful reset; `LibraryCacheResetService` deliberately preserves
+   permanent downloads and their files.
 
 ## Testing Strategy
 

@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -391,16 +392,27 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         entry.playlistIndex,
                         anchor: details.globalPosition,
                       ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          SongDownloadStatusIcon(
-                            songId: song.id,
-                            onDownload: () => unawaited(_downloadSong(song)),
-                          ),
-                          _songActionsButton(song, entry.playlistIndex),
-                        ],
-                      ),
+                      trailing: desktopMode
+                          ? DesktopSongActions(
+                              song: song,
+                              keyPrefix: 'playlist-song',
+                              onMore: (anchor) => _showSongActions(
+                                song,
+                                entry.playlistIndex,
+                                anchor: anchor,
+                              ),
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                SongDownloadStatusIcon(
+                                  songId: song.id,
+                                  onDownload: () =>
+                                      unawaited(_downloadSong(song)),
+                                ),
+                                _songActionsButton(song, entry.playlistIndex),
+                              ],
+                            ),
                     ),
                   );
                 }, childCount: visibleEntries.length),
@@ -427,20 +439,31 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         index,
                         anchor: details.globalPosition,
                       ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          SongDownloadStatusIcon(
-                            songId: song.id,
-                            onDownload: () => unawaited(_downloadSong(song)),
-                          ),
-                          _songActionsButton(song, index),
-                          ReorderableDragStartListener(
-                            index: index,
-                            child: const Icon(Icons.drag_handle),
-                          ),
-                        ],
-                      ),
+                      trailing: desktopMode
+                          ? DesktopSongActions(
+                              song: song,
+                              keyPrefix: 'playlist-song',
+                              onMore: (anchor) => _showSongActions(
+                                song,
+                                index,
+                                anchor: anchor,
+                              ),
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                SongDownloadStatusIcon(
+                                  songId: song.id,
+                                  onDownload: () =>
+                                      unawaited(_downloadSong(song)),
+                                ),
+                                _songActionsButton(song, index),
+                                ReorderableDragStartListener(
+                                  index: index,
+                                  child: const Icon(Icons.drag_handle),
+                                ),
+                              ],
+                            ),
                     ),
                   );
                 },

@@ -577,7 +577,8 @@ void main() {
         serverConfigRepository: repository,
         networkType: NetworkType.wifi,
         staleAfter: const Duration(hours: 1),
-        readHasActivePlayback: () => false,
+        readHasActivePlayback: () => true,
+        readIsForeground: () => true,
         now: () => DateTime.utc(2026, 8, 4),
       );
       final resumed = await onlineCoordinator.syncIfStale();

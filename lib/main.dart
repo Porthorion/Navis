@@ -45,7 +45,8 @@ Future<void> main() async {
     desktopBootstrap: desktopBootstrap,
     databaseOverride: diagnosticsDatabase,
   );
-  final diagnosticsPresentation = _createDiagnosticsPresentationController();
+  final diagnosticsPresentation =
+      await _createDiagnosticsPresentationController();
   rootContainer
       .read(audioBootstrapControllerProvider.notifier)
       .ensureInitialized();
@@ -283,14 +284,31 @@ Future<void> _publishAndroidDiagnosticsHandshake(
 Future<void> _clearAndroidDiagnosticsHandshake() =>
     _androidDiagnosticsHandshakeChannel.invokeMethod<void>('clear');
 
-DiagnosticsPresentationController? _createDiagnosticsPresentationController() {
-  if (!_syncDiagnosticsRuntimeEnabled ||
-      _syncDiagnosticsMode != SyncDiagnosticsMode.clone) {
+Future<DiagnosticsPresentationController?>
+_createDiagnosticsPresentationController() async {
+  if (!_syncDiagnosticsRuntimeEnabled) {
     return null;
   }
-  return DiagnosticsPresentationController(
-    artifactRoot: Directory(_syncDiagnosticsRoot),
-  );
+  if (_syncDiagnosticsMode == SyncDiagnosticsMode.clone) {
+    return DiagnosticsPresentationController(
+      artifactRoot: Directory(_syncDiagnosticsRoot),
+    );
+  }
+  // Primary Android certification cannot mutate navigation or application
+  // state, but app-owned screenshot capture is a required read-only evidence
+  // surface. Keep artifacts in the sidecar's scoped external files directory.
+  if (_isAndroidRuntime &&
+      _syncDiagnosticsMode == SyncDiagnosticsMode.primaryCertification) {
+    final artifactRoot = await _androidDiagnosticsHandshakeChannel
+        .invokeMethod<String>('artifactRoot');
+    if (artifactRoot == null || artifactRoot.isEmpty) {
+      return null;
+    }
+    return DiagnosticsPresentationController(
+      artifactRoot: Directory(artifactRoot),
+    );
+  }
+  return null;
 }
 
 class _DesktopBootstrap {

@@ -1358,7 +1358,10 @@ void main() {
         matching: find.byType(TrackListTile),
       );
       await tester.tap(
-        find.descendant(of: track, matching: find.byIcon(Icons.more_vert)),
+        find.descendant(
+          of: track,
+          matching: find.byIcon(Icons.more_horiz_rounded),
+        ),
       );
       await tester.pump(const Duration(milliseconds: 300));
 
