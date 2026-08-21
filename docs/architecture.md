@@ -1044,7 +1044,10 @@ OpenSubsonic documents the conditional full-index semantics of
    filesystem path. The cached-track storage kind distinguishes Android SAF
    document locators from ordinary filesystem entries; SAF reads, writes,
    relocation, deletion, and offline playback go through the Android
-   ContentResolver bridge and never overwrite unmanaged documents.
+   ContentResolver bridge and never overwrite unmanaged documents. Before a
+   tree is activated Navis proves it can create, write, and remove a temporary
+   Navis-owned probe document; a provider that fails that check remains
+   unselected.
 7. Identity aliases transfer valid rolling/permanent ownership to a proven
    canonical server song ID; ambiguous permanent downloads remain local-only
 8. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
