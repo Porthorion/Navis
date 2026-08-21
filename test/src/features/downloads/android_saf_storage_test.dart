@@ -31,6 +31,8 @@ void main() {
               ];
             case 'isDescendant':
               return call.arguments['documentUri'].toString().contains('root');
+            case 'diagnosticsFixtureTree':
+              return 'content://test.diagnostics.documents/tree/root';
           }
           return null;
         });
@@ -59,6 +61,10 @@ void main() {
         documentUri: documents.single.uri,
       ),
       isTrue,
+    );
+    expect(
+      await storage.diagnosticsFixtureTree(),
+      'content://test.diagnostics.documents/tree/root',
     );
   });
 }

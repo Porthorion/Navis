@@ -122,6 +122,18 @@ class AndroidSafStorage {
         },
       ) ??
       false;
+
+  /// Returns the profile-sidecar-only deterministic tree used by Android
+  /// diagnostics. Stable/debug builds reject this call natively.
+  Future<String> diagnosticsFixtureTree() async {
+    final uri = await _channel.invokeMethod<String>('diagnosticsFixtureTree');
+    if (uri == null || !uri.startsWith('content://')) {
+      throw const FileSystemException(
+        'Android diagnostics fixture is unavailable.',
+      );
+    }
+    return uri;
+  }
 }
 
 class AndroidSafTree {
