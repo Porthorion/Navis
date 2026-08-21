@@ -771,6 +771,7 @@ class DownloadService {
             relativePath: _safRelativePathFor(song, format),
             source: destFile,
             mimeType: _mimeTypeFor(format),
+            replace: false,
           );
           await tryDeleteFile(destFile);
           // Reuse the production adoption path so the new document receives
@@ -1187,6 +1188,7 @@ class DownloadService {
           relativePath: relativePath,
           source: source,
           mimeType: _mimeTypeFor(format),
+          replace: false,
         );
         newLocators.add(target);
         oldLocators.add(entry.filePath);
@@ -1546,7 +1548,11 @@ class DownloadService {
       song.title,
       fallback: song.id,
     );
-    return '$artist/$title.${format.replaceFirst('.', '')}';
+    final identity = sha1
+        .convert(utf8.encode(song.id))
+        .toString()
+        .substring(0, 8);
+    return '${artist}/${title} [${identity}].${format.replaceFirst('.', '')}';
   }
 
   String _mimeTypeFor(String format) => switch (format.toLowerCase()) {

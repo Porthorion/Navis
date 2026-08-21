@@ -338,7 +338,9 @@ class MainActivity : AudioServiceActivity() {
         val filename = parts.last()
         val existing = directory.findFile(filename)
         if (existing != null) {
-            if (!replace) return existing
+            if (!replace) {
+                throw IllegalStateException("A document with this name already exists")
+            }
             if (!existing.delete()) throw IllegalStateException("Could not replace existing document")
         }
         return directory.createFile(mimeType, filename) ?: throw IllegalStateException("Could not create document")
