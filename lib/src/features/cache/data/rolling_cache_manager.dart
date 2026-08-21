@@ -176,8 +176,7 @@ class DriftRollingCacheManager implements RollingCacheManager {
     final staleIds = <String>[];
 
     for (final entry in entries) {
-      final file = File(entry.filePath);
-      if (!file.existsSync()) {
+      if (!await _entryExists(entry)) {
         staleIds.add(entry.songId);
         AppLogger.info(
           'Pruning stale permanent cache entry for ${entry.songId} — '

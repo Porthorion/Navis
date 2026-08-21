@@ -91,6 +91,35 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    test(
+      'pruneMissingPermanentFiles preserves a reachable SAF document',
+      () async {
+        await _insertSong(database, 'saf-song');
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'saf-song',
+            filePath: 'content://navis.test/document/root%3Asaf-song.flac',
+            storageKind: const Value('androidSaf'),
+            fileSize: 64,
+            format: 'flac',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        manager = DriftRollingCacheManager(
+          cacheDao: database.cacheDao,
+          songIdentityDao: database.songIdentityDao,
+          entryExists: (entry) async => entry.storageKind == 'androidSaf',
+        );
+
+        await manager.pruneMissingPermanentFiles();
+
+        expect(await database.cacheDao.getCachedTrack('saf-song'), isNotNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('enforceBudget evicts oldest rolling items only', () async {
       await _insertSong(database, 'song-1');
       await _insertSong(database, 'song-2');
