@@ -1133,6 +1133,10 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
                     Text(
                       '${preview.unmatchedCount} track(s) could not be matched to the synced local library.',
                     ),
+                  if (preview.inaccessibleCount > 0)
+                    Text(
+                      '${preview.inaccessibleCount} track(s) could not be read and will be left untouched.',
+                    ),
                   const SizedBox(height: 8),
                   const Text(
                     'Navis will never remove files it cannot identify in this folder.',

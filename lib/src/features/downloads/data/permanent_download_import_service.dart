@@ -20,6 +20,7 @@ enum PermanentDownloadImportDisposition {
   ambiguous,
   unmatched,
   profileMismatch,
+  inaccessible,
   alreadyRegistered,
 }
 
@@ -73,7 +74,8 @@ class PermanentDownloadImportPreview {
         (item) =>
             item.disposition == PermanentDownloadImportDisposition.unmatched ||
             item.disposition ==
-                PermanentDownloadImportDisposition.profileMismatch,
+                PermanentDownloadImportDisposition.profileMismatch ||
+            item.disposition == PermanentDownloadImportDisposition.inaccessible,
       )
       .length;
 
@@ -89,6 +91,13 @@ class PermanentDownloadImportPreview {
       .where(
         (item) =>
             item.disposition == PermanentDownloadImportDisposition.unmatched,
+      )
+      .length;
+
+  int get inaccessibleCount => items
+      .where(
+        (item) =>
+            item.disposition == PermanentDownloadImportDisposition.inaccessible,
       )
       .length;
 }
@@ -399,6 +408,19 @@ class PermanentDownloadImportService {
                   : PermanentDownloadImportDisposition.ambiguous,
               songId: candidates.length == 1 ? candidates.single.id : null,
               candidates: candidates,
+              sourceUri: document.uri,
+            ),
+          );
+        } on Object {
+          // Providers may revoke a single document while a tree remains
+          // usable. Preserve it and explain the exclusion instead of failing
+          // the complete review.
+          items.add(
+            PermanentDownloadImportItem(
+              relativePath: document.relativePath,
+              fileSize: document.size,
+              format: format,
+              disposition: PermanentDownloadImportDisposition.inaccessible,
               sourceUri: document.uri,
             ),
           );

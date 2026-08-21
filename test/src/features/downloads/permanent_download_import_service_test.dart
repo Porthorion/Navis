@@ -39,6 +39,30 @@ void main() {
       );
     }
 
+    test('reports inaccessible files separately from local-library misses', () {
+      const preview = PermanentDownloadImportPreview(
+        rootPath: 'content://example/tree/root',
+        items: <PermanentDownloadImportItem>[
+          PermanentDownloadImportItem(
+            relativePath: 'missing.mp3',
+            fileSize: 1,
+            format: 'mp3',
+            disposition: PermanentDownloadImportDisposition.unmatched,
+          ),
+          PermanentDownloadImportItem(
+            relativePath: 'revoked.flac',
+            fileSize: 1,
+            format: 'flac',
+            disposition: PermanentDownloadImportDisposition.inaccessible,
+          ),
+        ],
+      );
+
+      expect(preview.unmatchedCount, 1);
+      expect(preview.inaccessibleCount, 1);
+      expect(preview.skippedCount, 2);
+    });
+
     test('adopts a uniquely matched legacy artist/title file', () async {
       final artist = Directory('${root.path}/Jack Harlow')..createSync();
       final file = File('${artist.path}/Hello Miss Johnson.flac')
