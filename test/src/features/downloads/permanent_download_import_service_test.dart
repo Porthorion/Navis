@@ -99,6 +99,30 @@ void main() {
       expect(await database.cacheDao.getPermanentEntries(), isEmpty);
     });
 
+    test(
+      'adopts an unmatched legacy file after an explicit local mapping',
+      () async {
+        final file = File('${root.path}/Unknown/Elsewhere.flac')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+
+        final preview = await service('profile').preview(root);
+        final result = await service('profile').commit(
+          preview,
+          manualSongIds: const <String, String>{
+            'Unknown/Elsewhere.flac': 'song-1',
+          },
+        );
+
+        expect(result.importedCount, 1);
+        expect(file.existsSync(), isTrue);
+        expect(
+          (await database.cacheDao.getCachedTrack('song-1'))?.cacheType,
+          CacheType.permanent,
+        );
+      },
+    );
+
     test('rejects a sidecar record from another profile', () async {
       final artist = Directory('${root.path}/Jack Harlow')..createSync();
       final file = File('${artist.path}/Hello Miss Johnson.flac')
