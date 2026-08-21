@@ -243,6 +243,15 @@ Future<void> _startSyncDiagnostics({
       (!_isAndroidRuntime && _syncDiagnosticsHandshakePath.isEmpty)) {
     throw StateError('Sync diagnostics mode and handshake path are required.');
   }
+  if (_isAndroidRuntime && mode == SyncDiagnosticsMode.clone) {
+    final isSidecar = await _androidDiagnosticsHandshakeChannel
+        .invokeMethod<bool>('isSidecar');
+    if (isSidecar != true) {
+      throw StateError(
+        'Android clone diagnostics require a non-empty sidecar app-id suffix.',
+      );
+    }
+  }
   late final SyncDiagnosticsServer server;
   server = SyncDiagnosticsServer(
     container: container,

@@ -242,6 +242,9 @@ class MainActivity : AudioServiceActivity() {
                         )
                     }
                 }
+                "isSidecar" -> result.success(
+                    BuildConfig.APPLICATION_ID != "com.navis.app.navis",
+                )
                 else -> result.notImplemented()
             }
         }
