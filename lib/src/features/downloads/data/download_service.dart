@@ -33,6 +33,7 @@ typedef _RelocatedPermanentDownload = ({
   CachedTracksTableData entry,
   String storedFormat,
   String targetPath,
+  bool sourceWasSaf,
 });
 
 typedef _SafRelocatedPermanentDownload = ({
@@ -1275,10 +1276,13 @@ class DownloadService {
     required String? customDownloadFolderPath,
     bool rollbackOnFailure = false,
   }) async {
-    final currentRootDirectory = await _permanentDirectory(
-      customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
-      customDownloadFolderPath: _readCustomDownloadFolderPath(),
-    );
+    final currentRootIsSaf = _isSafRoot(_readCustomDownloadFolderPath());
+    final currentRootDirectory = currentRootIsSaf
+        ? null
+        : await _permanentDirectory(
+            customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
+            customDownloadFolderPath: _readCustomDownloadFolderPath(),
+          );
     final entries = await _cacheDao.getPermanentEntries();
     if (entries.isEmpty) {
       return;
@@ -1292,11 +1296,25 @@ class DownloadService {
     };
     final reservedTargetPaths = <String>{};
     final movedEntries = <_RelocatedPermanentDownload>[];
+    final safSourcesToDelete = <String>[];
 
     try {
       for (final entry in entries) {
-        final sourceFile = File(entry.filePath);
+        final sourceWasSaf = _isSafRoot(entry.filePath);
+        File? materializedSource;
+        final sourceFile = sourceWasSaf
+            ? (materializedSource = await _safStorage.materialize(
+                entry.filePath,
+              ))
+            : File(entry.filePath);
         if (!await sourceFile.exists()) {
+          if (materializedSource != null) {
+            try {
+              await materializedSource.delete();
+            } on FileSystemException {
+              // The temporary copy may already have been cleaned up.
+            }
+          }
           AppLogger.warning(
             'DownloadService: Skipping permanent relocation for ${entry.songId} '
             'because the file is missing: ${entry.filePath}',
@@ -1320,8 +1338,15 @@ class DownloadService {
           continue;
         }
 
-        final previousParent = File(entry.filePath).parent;
-        await _movePermanentFileSet(entry.filePath, targetPath);
+        final previousParent = sourceWasSaf
+            ? null
+            : File(entry.filePath).parent;
+        if (sourceWasSaf) {
+          await Directory(p.dirname(targetPath)).create(recursive: true);
+          await sourceFile.copy(targetPath);
+        } else {
+          await _movePermanentFileSet(entry.filePath, targetPath);
+        }
         await _cacheDao.upsertCachedTrack(
           CachedTracksTableCompanion.insert(
             songId: entry.songId,
@@ -1346,17 +1371,32 @@ class DownloadService {
           entry: entry,
           storedFormat: storedFormat,
           targetPath: targetPath,
+          sourceWasSaf: sourceWasSaf,
         ));
-        await _deleteEmptyDirectoriesUpwards(
-          startDirectory: previousParent,
-          stopAtDirectory: currentRootDirectory.path,
-        );
+        if (sourceWasSaf) {
+          safSourcesToDelete.add(entry.filePath);
+        } else if (previousParent != null && currentRootDirectory != null) {
+          await _deleteEmptyDirectoriesUpwards(
+            startDirectory: previousParent,
+            stopAtDirectory: currentRootDirectory.path,
+          );
+        }
+        if (materializedSource != null) {
+          try {
+            await materializedSource.delete();
+          } on FileSystemException {
+            // The temporary copy may already have been cleaned up.
+          }
+        }
+      }
+      for (final locator in safSourcesToDelete) {
+        await _deletePermanentLocator(locator);
       }
     } on Object {
       if (rollbackOnFailure) {
         await _rollbackRelocatedPermanentDownloads(
           movedEntries,
-          currentRootDirectoryPath: currentRootDirectory.path,
+          currentRootDirectoryPath: currentRootDirectory?.path,
           targetRootDirectoryPath: targetDirectory.path,
         );
       }
@@ -1366,11 +1406,15 @@ class DownloadService {
 
   Future<void> _rollbackRelocatedPermanentDownloads(
     List<_RelocatedPermanentDownload> movedEntries, {
-    required String currentRootDirectoryPath,
+    required String? currentRootDirectoryPath,
     required String targetRootDirectoryPath,
   }) async {
     for (final moved in movedEntries.reversed) {
-      await _movePermanentFileSet(moved.targetPath, moved.entry.filePath);
+      if (moved.sourceWasSaf) {
+        await deleteFileWithSuffixes(moved.targetPath);
+      } else {
+        await _movePermanentFileSet(moved.targetPath, moved.entry.filePath);
+      }
       await _cacheDao.upsertCachedTrack(
         CachedTracksTableCompanion.insert(
           songId: moved.entry.songId,
@@ -1389,10 +1433,12 @@ class DownloadService {
         startDirectory: File(moved.targetPath).parent,
         stopAtDirectory: targetRootDirectoryPath,
       );
-      await _deleteEmptyDirectoriesUpwards(
-        startDirectory: File(moved.entry.filePath).parent,
-        stopAtDirectory: currentRootDirectoryPath,
-      );
+      if (currentRootDirectoryPath != null) {
+        await _deleteEmptyDirectoriesUpwards(
+          startDirectory: File(moved.entry.filePath).parent,
+          stopAtDirectory: currentRootDirectoryPath,
+        );
+      }
     }
   }
 
