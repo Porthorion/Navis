@@ -226,11 +226,15 @@ metadata.
 
 ### Desktop app API
 
-Linux, Windows, and Android profile diagnostics share the same authenticated
-control-plane contract. Android is observation-only:
+Linux and Windows profile diagnostics share the authenticated control-plane
+contract. Android production builds remain observation-only; a sidecar build
+with a non-empty package suffix may expose narrowly scoped SAF download-folder
+diagnostics for an emulator fixture tree only. Those endpoints must reject
+arbitrary paths and may never be enabled by the stable package.
 
 - `SyncDiagnosticsServer` is enabled only for a supported profile build with
-  valid diagnostics defines. Android supports only `primary-certification`.
+  valid diagnostics defines. Android mutation diagnostics require a sidecar
+  package suffix as an additional guard.
 - `tool/sync_diagnostics.sh clone` demonstrates the supported isolated launch,
   while `tool/sync_diagnostics.sh throughput` measures one isolated Repair
   Library run without cancellation/restart scenarios affecting its result.

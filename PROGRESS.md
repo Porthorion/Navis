@@ -1909,3 +1909,7 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 ---
 
 *Tags are noted inline as phases complete. See [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) for versioning and tagging conventions.*
+
+## 1.2.8 — Android SAF Download Folders
+
+- [~] Replace Android custom-folder path handling with persisted SAF tree URIs — 2026-08-21 (implemented: storage-kind migration, `DocumentFile` bridge, custom-tree scan/import, download writes, relocation, deletion, and content-URI playback; focused Dart tests and Kotlin compile pass; remaining: profile-only emulator document-provider diagnostics, full Android end-to-end import/relocation validation, screenshots, and final `./tool/check.sh`).
