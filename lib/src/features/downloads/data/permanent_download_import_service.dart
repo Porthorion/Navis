@@ -7,6 +7,7 @@ import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_media_identity.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -29,6 +30,7 @@ class PermanentDownloadImportItem {
     required this.disposition,
     this.songId,
     this.candidates = const <SongsTableData>[],
+    this.sourceUri,
   });
 
   final String relativePath;
@@ -37,6 +39,9 @@ class PermanentDownloadImportItem {
   final PermanentDownloadImportDisposition disposition;
   final String? songId;
   final List<SongsTableData> candidates;
+
+  /// Set for Android SAF documents. File-system imports use [relativePath].
+  final String? sourceUri;
 }
 
 class PermanentDownloadImportPreview {
@@ -99,8 +104,12 @@ class PermanentDownloadImportService {
   final LibraryDao _libraryDao;
   final String? Function() _readProfileIdentity;
   final PermanentDownloadMediaIdentity _mediaIdentity;
+  final AndroidSafStorage _safStorage = const AndroidSafStorage();
 
   Future<PermanentDownloadImportPreview> preview(Directory root) async {
+    if (_isSafTreeUri(root.path)) {
+      return _previewSaf(root.path);
+    }
     final canonicalRoot = await root.resolveSymbolicLinks();
     final profileFingerprint = _profileFingerprint();
     final manifestFile = File(
@@ -245,10 +254,158 @@ class PermanentDownloadImportService {
     }
   }
 
+  Future<PermanentDownloadImportPreview> _previewSaf(String treeUri) async {
+    final tree = await _safStorage.inspectTree(treeUri);
+    if (!tree.canRead || !tree.canWrite || !tree.canReplace) {
+      throw const FileSystemException(
+        'This Android folder does not allow Navis to read and replace its download index.',
+      );
+    }
+    final profileFingerprint = _profileFingerprint();
+    final songs = await _libraryDao.watchAllSongs().first;
+    final registered = await _cacheDao.getPermanentEntries();
+    final registeredPaths = registered.map((track) => track.filePath).toSet();
+    final registeredSongIds = registered.map((track) => track.songId).toSet();
+    final documents = await _safStorage.listRecursively(treeUri);
+    final sidecar = documents.where(
+      (document) => document.relativePath == permanentDownloadManifestFileName,
+    );
+    Database? manifest;
+    File? manifestFile;
+    try {
+      if (sidecar.isNotEmpty) {
+        manifestFile = await _safStorage.materialize(sidecar.first.uri);
+        manifest = sqlite3.open(manifestFile.path);
+      }
+      final manifestRecords = manifest == null
+          ? const <String, _ManifestRecord>{}
+          : _readManifestRecords(manifest);
+      final items = <PermanentDownloadImportItem>[];
+      for (final document in documents) {
+        if (_isNavisSidecar(document.relativePath)) continue;
+        final format = p
+            .extension(document.relativePath)
+            .replaceFirst('.', '')
+            .toLowerCase();
+        if (format.isEmpty) continue;
+        if (registeredPaths.contains(document.uri)) {
+          items.add(
+            PermanentDownloadImportItem(
+              relativePath: document.relativePath,
+              fileSize: document.size,
+              format: format,
+              disposition: PermanentDownloadImportDisposition.alreadyRegistered,
+              songId: registered
+                  .firstWhere((track) => track.filePath == document.uri)
+                  .songId,
+              sourceUri: document.uri,
+            ),
+          );
+          continue;
+        }
+        final manifestRecord = manifestRecords[document.relativePath];
+        if (manifestRecord != null &&
+            manifestRecord.profileFingerprint != profileFingerprint) {
+          items.add(
+            PermanentDownloadImportItem(
+              relativePath: document.relativePath,
+              fileSize: document.size,
+              format: format,
+              disposition: PermanentDownloadImportDisposition.profileMismatch,
+              sourceUri: document.uri,
+            ),
+          );
+          continue;
+        }
+        if (manifestRecord != null &&
+            manifestRecord.fileSize == document.size &&
+            songs.any((song) => song.id == manifestRecord.songId)) {
+          items.add(
+            PermanentDownloadImportItem(
+              relativePath: document.relativePath,
+              fileSize: document.size,
+              format: format,
+              disposition: registeredSongIds.contains(manifestRecord.songId)
+                  ? PermanentDownloadImportDisposition.alreadyRegistered
+                  : PermanentDownloadImportDisposition.recognized,
+              songId: manifestRecord.songId,
+              sourceUri: document.uri,
+            ),
+          );
+          continue;
+        }
+        File? materialized;
+        try {
+          materialized = await _safStorage.materialize(document.uri);
+          final tags = await _mediaIdentity.read(materialized);
+          final taggedSongId = tags[PermanentDownloadMediaIdentity.songIdKey];
+          final taggedProfile =
+              tags[PermanentDownloadMediaIdentity.profileFingerprintKey];
+          if (taggedSongId != null &&
+              taggedSongId.isNotEmpty &&
+              taggedProfile != null &&
+              taggedProfile != profileFingerprint) {
+            items.add(
+              PermanentDownloadImportItem(
+                relativePath: document.relativePath,
+                fileSize: document.size,
+                format: format,
+                disposition: PermanentDownloadImportDisposition.profileMismatch,
+                sourceUri: document.uri,
+              ),
+            );
+            continue;
+          }
+          final candidates =
+              taggedSongId != null &&
+                  songs.any((song) => song.id == taggedSongId)
+              ? songs
+                    .where((song) => song.id == taggedSongId)
+                    .toList(growable: false)
+              : _legacyCandidates(
+                  rootPath: '',
+                  filePath: document.relativePath,
+                  format: format,
+                  songs: songs,
+                  tags: tags,
+                );
+          items.add(
+            PermanentDownloadImportItem(
+              relativePath: document.relativePath,
+              fileSize: document.size,
+              format: format,
+              disposition: candidates.length == 1
+                  ? (registeredSongIds.contains(candidates.single.id)
+                        ? PermanentDownloadImportDisposition.alreadyRegistered
+                        : PermanentDownloadImportDisposition.recognized)
+                  : candidates.isEmpty
+                  ? PermanentDownloadImportDisposition.unmatched
+                  : PermanentDownloadImportDisposition.ambiguous,
+              songId: candidates.length == 1 ? candidates.single.id : null,
+              candidates: candidates,
+              sourceUri: document.uri,
+            ),
+          );
+        } finally {
+          if (materialized != null)
+            await materialized.delete().catchError((_) {});
+        }
+      }
+      items.sort((a, b) => a.relativePath.compareTo(b.relativePath));
+      return PermanentDownloadImportPreview(rootPath: treeUri, items: items);
+    } finally {
+      manifest?.close();
+      if (manifestFile != null) await manifestFile.delete().catchError((_) {});
+    }
+  }
+
   Future<PermanentDownloadImportResult> commit(
     PermanentDownloadImportPreview preview, {
     Map<String, String> manualSongIds = const <String, String>{},
   }) async {
+    if (_isSafTreeUri(preview.rootPath)) {
+      return _commitSaf(preview, manualSongIds: manualSongIds);
+    }
     final root = Directory(preview.rootPath);
     final manifest = _openManifest(root);
     var imported = 0;
@@ -325,6 +482,118 @@ class PermanentDownloadImportService {
       );
     } finally {
       manifest.close();
+    }
+  }
+
+  Future<PermanentDownloadImportResult> _commitSaf(
+    PermanentDownloadImportPreview preview, {
+    required Map<String, String> manualSongIds,
+  }) async {
+    final documents = await _safStorage.listRecursively(preview.rootPath);
+    final existingSidecar = documents.where(
+      (document) => document.relativePath == permanentDownloadManifestFileName,
+    );
+    File manifestFile;
+    if (existingSidecar.isEmpty) {
+      final temporaryDirectory = await Directory.systemTemp.createTemp(
+        'navis-downloads-',
+      );
+      manifestFile = File(p.join(temporaryDirectory.path, 'manifest.sqlite'));
+    } else {
+      manifestFile = await _safStorage.materialize(existingSidecar.first.uri);
+    }
+    final manifest = _openManifestFile(manifestFile);
+    var imported = 0;
+    var skipped = 0;
+    try {
+      for (final item in preview.items) {
+        final songId = item.songId ?? manualSongIds[item.relativePath];
+        if (item.disposition ==
+            PermanentDownloadImportDisposition.alreadyRegistered) {
+          if (songId != null) {
+            _writeManifestRecord(
+              manifest,
+              _ManifestRecord(
+                relativePath: item.relativePath,
+                songId: songId,
+                profileFingerprint: _profileFingerprint(),
+                fileSize: item.fileSize,
+                format: item.format,
+                updatedAt: DateTime.now(),
+              ),
+            );
+          }
+          continue;
+        }
+        if (songId == null ||
+            item.sourceUri == null ||
+            (item.disposition !=
+                    PermanentDownloadImportDisposition.recognized &&
+                item.disposition !=
+                    PermanentDownloadImportDisposition.ambiguous &&
+                item.disposition !=
+                    PermanentDownloadImportDisposition.unmatched)) {
+          skipped++;
+          continue;
+        }
+        var locator = item.sourceUri!;
+        File? local;
+        try {
+          local = await _safStorage.materialize(locator);
+          await _writeIdentityTags(local, songId);
+          // Replacing the document is intentional: SAF does not expose a
+          // filesystem handle for an atomic in-place tag edit. The cache row is
+          // updated to the returned document URI before becoming visible.
+          locator = await _safStorage.writeFromFile(
+            treeUri: preview.rootPath,
+            relativePath: item.relativePath,
+            source: local,
+            mimeType: _mimeTypeFor(item.format),
+          );
+        } finally {
+          if (local != null) await local.delete().catchError((_) {});
+        }
+        await _cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: songId,
+            filePath: locator,
+            fileSize: item.fileSize,
+            format: item.format,
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        _writeManifestRecord(
+          manifest,
+          _ManifestRecord(
+            relativePath: item.relativePath,
+            songId: songId,
+            profileFingerprint: _profileFingerprint(),
+            fileSize: item.fileSize,
+            format: item.format,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        imported++;
+      }
+      manifest.close();
+      await _safStorage.writeFromFile(
+        treeUri: preview.rootPath,
+        relativePath: permanentDownloadManifestFileName,
+        source: manifestFile,
+        mimeType: 'application/vnd.sqlite3',
+      );
+      return PermanentDownloadImportResult(
+        importedCount: imported,
+        skippedCount: skipped,
+      );
+    } finally {
+      // sqlite accepts repeated close poorly, so only close when still open.
+      try {
+        manifest.close();
+      } catch (_) {}
+      await manifestFile.delete().catchError((_) {});
     }
   }
 
@@ -427,6 +696,29 @@ class PermanentDownloadImportService {
     );
     return db;
   }
+
+  Database _openManifestFile(File file) {
+    final db = sqlite3.open(file.path);
+    db.execute('PRAGMA journal_mode=DELETE;');
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS download_records ('
+      'relative_path TEXT PRIMARY KEY, song_id TEXT NOT NULL, '
+      'profile_fingerprint TEXT NOT NULL, file_size INTEGER NOT NULL, '
+      'format TEXT NOT NULL, updated_at INTEGER NOT NULL)',
+    );
+    return db;
+  }
+
+  bool _isSafTreeUri(String value) => value.startsWith('content://');
+
+  String _mimeTypeFor(String format) => switch (format.toLowerCase()) {
+    'flac' => 'audio/flac',
+    'mp3' => 'audio/mpeg',
+    'm4a' => 'audio/mp4',
+    'ogg' => 'audio/ogg',
+    'opus' => 'audio/ogg',
+    _ => 'application/octet-stream',
+  };
 
   Map<String, _ManifestRecord> _readManifestRecords(Database db) {
     final rows = db.select(

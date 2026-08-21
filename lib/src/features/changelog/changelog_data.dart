@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.8',
+    entries: [
+      ChangelogEntry(
+        'Android custom download folders now use the system-selected folder access safely, including importing existing downloads',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.7',
     entries: [
       ChangelogEntry(

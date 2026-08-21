@@ -10,6 +10,7 @@ import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:path/path.dart' as p;
@@ -151,6 +152,7 @@ class PlaybackSourceResolver {
   final bool Function() _readCanStream;
   final bool Function() _readSupportsLockCaching;
   final bool Function() _readUsesSidecarRollingCache;
+  static const AndroidSafStorage _safStorage = AndroidSafStorage();
 
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
@@ -166,7 +168,8 @@ class PlaybackSourceResolver {
     // disappear while Navis is running (manual cleanup, storage pressure, or
     // filesystem damage). Repair that single stale record immediately before
     // choosing a source so it cannot keep presenting as downloaded/cached.
-    if (cachedTrack != null && !File(cachedTrack.filePath).existsSync()) {
+    if (cachedTrack != null &&
+        !await _cachedLocatorExists(cachedTrack.filePath)) {
       await _cacheDao.removeCachedTrack(song.id);
       AppLogger.info(
         'Removed missing ${cachedTrack.cacheType.name} cache entry for '
@@ -178,12 +181,11 @@ class PlaybackSourceResolver {
       if (cachedTrack != null &&
           cachedTrack.cacheType == CacheType.permanent &&
           cachedTrack.downloadStatus == DownloadStatus.complete) {
-        final file = File(cachedTrack.filePath);
-        if (file.existsSync()) {
+        if (await _cachedLocatorExists(cachedTrack.filePath)) {
           await _rollingCacheManager.touchTrack(song.id);
           return ResolvedPlaybackSource.file(
             songId: song.id,
-            uri: file.uri,
+            uri: _cachedLocatorUri(cachedTrack.filePath),
             metadata: _resolveCachedTrackMetadata(
               song: song,
               cachedTrack: cachedTrack,
@@ -211,8 +213,7 @@ class PlaybackSourceResolver {
           quality: quality,
           policy: cachePolicy,
         )) {
-      final file = File(cachedTrack.filePath);
-      if (file.existsSync()) {
+      if (await _cachedLocatorExists(cachedTrack.filePath)) {
         AppLogger.debug(
           'Playback source resolved: song=${song.id} '
           'kind=${PlaybackSourceKind.file.name} path=${cachedTrack.filePath} '
@@ -223,7 +224,7 @@ class PlaybackSourceResolver {
         await _rollingCacheManager.touchTrack(song.id);
         return ResolvedPlaybackSource.file(
           songId: song.id,
-          uri: file.uri,
+          uri: _cachedLocatorUri(cachedTrack.filePath),
           metadata: _resolveCachedTrackMetadata(
             song: song,
             cachedTrack: cachedTrack,
@@ -348,6 +349,14 @@ class PlaybackSourceResolver {
       );
     }
   }
+
+  static bool _isSafLocator(String value) => value.startsWith('content://');
+
+  Future<bool> _cachedLocatorExists(String value) =>
+      _isSafLocator(value) ? _safStorage.exists(value) : File(value).exists();
+
+  Uri _cachedLocatorUri(String value) =>
+      _isSafLocator(value) ? Uri.parse(value) : File(value).uri;
 
   Uri? resolveArtUri(SongsTableData song) {
     final coverArt = song.coverArt;

@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.8', [
+    _Entry(
+      'Android custom download folders now use the system-selected folder access safely, including importing existing downloads',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.2.7', [
     _Entry(
       'Navis can now safely import existing permanent downloads from a custom folder, preserving files it cannot identify and remembering imported tracks for future installs',

@@ -13,6 +13,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import androidx.documentfile.provider.DocumentFile
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -31,6 +32,7 @@ class MainActivity : AudioServiceActivity() {
     private val networkCostChannelName = "com.navis.app/network_cost"
     private val backgroundSyncChannelName = "com.navis.app/background_sync"
     private val diagnosticsHandshakeChannelName = "com.navis.app/diagnostics_handshake"
+    private val permanentDownloadStorageChannelName = "com.navis.app/permanent_download_storage"
     @Volatile
     private var pendingCloseAfterInstallerHandoff = false
 
@@ -242,6 +244,104 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            permanentDownloadStorageChannelName,
+        ).setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "inspectTree" -> {
+                        val tree = requiredTree(call.argument<String>("treeUri"))
+                        result.success(mapOf(
+                            "uri" to tree.uri.toString(),
+                            "displayName" to (tree.name ?: "Selected folder"),
+                            "canRead" to tree.canRead(),
+                            "canWrite" to tree.canWrite(),
+                            "canReplace" to (tree.canRead() && tree.canWrite()),
+                        ))
+                    }
+                    "listRecursively" -> {
+                        val documents = mutableListOf<Map<String, Any?>>()
+                        listDocuments(requiredTree(call.argument<String>("treeUri")), "", documents)
+                        result.success(documents)
+                    }
+                    "materialize" -> {
+                        val output = File.createTempFile("navis-saf-", ".tmp", cacheDir)
+                        contentResolver.openInputStream(Uri.parse(requireNotNull(call.argument<String>("uri"))))?.use { input ->
+                            FileOutputStream(output).use { destination -> input.copyTo(destination) }
+                        } ?: throw IllegalStateException("Document is unreadable")
+                        result.success(output.absolutePath)
+                    }
+                    "writeFromFile" -> {
+                        val tree = requiredTree(call.argument<String>("treeUri"))
+                        val source = File(requireNotNull(call.argument<String>("sourcePath")))
+                        if (!source.isFile) throw IllegalArgumentException("Source file is unavailable")
+                        val target = createDocument(
+                            tree,
+                            requireNotNull(call.argument<String>("relativePath")),
+                            call.argument<String>("mimeType") ?: "application/octet-stream",
+                            call.argument<Boolean>("replace") ?: true,
+                        )
+                        contentResolver.openOutputStream(target.uri, "wt")?.use { output ->
+                            source.inputStream().use { input -> input.copyTo(output) }
+                        } ?: throw IllegalStateException("Document is unwritable")
+                        result.success(target.uri.toString())
+                    }
+                    "delete" -> {
+                        val document = DocumentFile.fromSingleUri(this, Uri.parse(requireNotNull(call.argument<String>("uri"))))
+                            ?: throw IllegalArgumentException("Invalid document URI")
+                        if (!document.delete()) throw IllegalStateException("Could not delete document")
+                        result.success(null)
+                    }
+                    "exists" -> result.success(
+                        DocumentFile.fromSingleUri(this, Uri.parse(requireNotNull(call.argument<String>("uri"))))?.exists() == true,
+                    )
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                result.error("SAF_STORAGE_ERROR", e.message ?: "Android folder operation failed", null)
+            }
+        }
+    }
+
+    private fun requiredTree(rawUri: String?): DocumentFile {
+        val uri = rawUri?.let(Uri::parse) ?: throw IllegalArgumentException("Folder URI is required")
+        return DocumentFile.fromTreeUri(this, uri)?.takeIf { it.exists() && it.isDirectory }
+            ?: throw IllegalArgumentException("Selected folder is unavailable")
+    }
+
+    private fun listDocuments(directory: DocumentFile, prefix: String, output: MutableList<Map<String, Any?>>) {
+        directory.listFiles().forEach { child ->
+            val name = child.name ?: return@forEach
+            val relativePath = if (prefix.isEmpty()) name else "$prefix/$name"
+            if (child.isDirectory) {
+                listDocuments(child, relativePath, output)
+            } else if (child.isFile) {
+                output += mapOf(
+                    "uri" to child.uri.toString(), "relativePath" to relativePath,
+                    "displayName" to name, "size" to child.length(), "mimeType" to child.type,
+                )
+            }
+        }
+    }
+
+    private fun createDocument(root: DocumentFile, relativePath: String, mimeType: String, replace: Boolean): DocumentFile {
+        val parts = relativePath.split('/').filter { it.isNotBlank() }
+        require(parts.isNotEmpty() && parts.none { it == "." || it == ".." }) { "Invalid relative path" }
+        var directory = root
+        for (name in parts.dropLast(1)) {
+            directory = directory.findFile(name) ?: directory.createDirectory(name)
+                ?: throw IllegalStateException("Could not create folder")
+            if (!directory.isDirectory) throw IllegalStateException("Path component is not a folder")
+        }
+        val filename = parts.last()
+        val existing = directory.findFile(filename)
+        if (existing != null) {
+            if (!replace) return existing
+            if (!existing.delete()) throw IllegalStateException("Could not replace existing document")
+        }
+        return directory.createFile(mimeType, filename) ?: throw IllegalStateException("Could not create document")
     }
 
     private fun diagnosticsHandshakeFile(): File {

@@ -18,6 +18,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     show BaseCacheManager;
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
@@ -106,6 +107,7 @@ class DownloadService {
   final Dio _dio;
   final PermanentDownloadPathResolver _permanentPathResolver;
   final PermanentDownloadImportService _permanentDownloadImportService;
+  final AndroidSafStorage _safStorage = const AndroidSafStorage();
 
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
   bool _processing = false;
@@ -127,6 +129,7 @@ class DownloadService {
 
   Future<void> _start() async {
     _stopped = false;
+    await _migrateUnsafeAndroidCustomFolder();
     // Recover items left in 'downloading' from a previous app kill.
     await _downloadQueueDao.requeueStuckDownloads();
 
@@ -145,6 +148,24 @@ class DownloadService {
     if (!_stopped) {
       await _startQueueSubscription();
     }
+  }
+
+  /// Versions before 1.2.8 stored Android picker fallbacks as ordinary paths.
+  /// Scoped storage never granted Navis reliable access to those paths. Disable
+  /// the setting instead of touching user files; the settings UI will ask for a
+  /// new persisted tree grant on the next selection.
+  Future<void> _migrateUnsafeAndroidCustomFolder() async {
+    if (!Platform.isAndroid ||
+        !_readCustomDownloadFolderEnabled() ||
+        _isSafRoot(_readCustomDownloadFolderPath())) {
+      return;
+    }
+    await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: false);
+    await _appSettingsDao.updateCustomDownloadFolderPath(null);
+    AppLogger.info(
+      'Disabled legacy Android custom download folder without modifying files; '
+      'a persisted SAF folder must be selected again.',
+    );
   }
 
   /// Stop the service and cancel any active download.
@@ -215,6 +236,11 @@ class DownloadService {
       );
     }
 
+    if (_isSafRoot(normalizedPath)) {
+      await _appSettingsDao.updateCustomDownloadFolderPath(normalizedPath);
+      await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: enabled);
+      return;
+    }
     await _runWithQueuePaused(() async {
       final targetDirectory = await _permanentDirectory(
         customDownloadFolderEnabled: enabled,
@@ -252,6 +278,8 @@ class DownloadService {
   }
 
   Future<String> resolveActivePermanentDownloadPath() async {
+    final selected = _readCustomDownloadFolderPath();
+    if (_isSafRoot(selected)) return selected!;
     final directory = await _permanentDirectory();
     return directory.path;
   }
@@ -262,28 +290,18 @@ class DownloadService {
       await _cacheDao.removeCachedTrack(songId);
       return;
     }
-    final rootPath = await resolveActivePermanentDownloadPath();
-    await deleteFileWithSuffixes(track.filePath);
-    await pruneEmptyParentDirectories(
-      startDirectoryPath: File(track.filePath).parent.path,
-      stopAtDirectoryPath: rootPath,
-    );
+    await _deletePermanentLocator(track.filePath);
     await _cacheDao.removeCachedTrack(songId);
   }
 
   Future<void> removeDownloadedTracks(Iterable<String> songIds) async {
-    final rootPath = await resolveActivePermanentDownloadPath();
     for (final songId in songIds) {
       final track = await _cacheDao.getCachedTrack(songId);
       if (track == null || track.cacheType != CacheType.permanent) {
         await _cacheDao.removeCachedTrack(songId);
         continue;
       }
-      await deleteFileWithSuffixes(track.filePath);
-      await pruneEmptyParentDirectories(
-        startDirectoryPath: File(track.filePath).parent.path,
-        stopAtDirectoryPath: rootPath,
-      );
+      await _deletePermanentLocator(track.filePath);
       await _cacheDao.removeCachedTrack(songId);
     }
   }
@@ -736,24 +754,42 @@ class DownloadService {
         final format = _resolveFormat(song, item);
         final bitRate = _resolveBitRate(song, item);
 
-        await _cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
+        if (_isSafRoot(_readCustomDownloadFolderPath())) {
+          final treeUri = _readCustomDownloadFolderPath()!;
+          await _safStorage.writeFromFile(
+            treeUri: treeUri,
+            relativePath: _safRelativePathFor(song, format),
+            source: destFile,
+            mimeType: _mimeTypeFor(format),
+          );
+          await tryDeleteFile(destFile);
+          // Reuse the production adoption path so the new document receives
+          // the sidecar record and identity tags before it becomes visible as
+          // a completed permanent download.
+          final preview = await _permanentDownloadImportService.preview(
+            Directory(treeUri),
+          );
+          await _permanentDownloadImportService.commit(preview);
+        } else {
+          await _cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: songId,
+              filePath: destFile.path,
+              fileSize: stat.size,
+              format: format,
+              bitRate: bitRate == null ? const Value.absent() : Value(bitRate),
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime.now(),
+            ),
+          );
+          await _permanentDownloadImportService.recordDownloaded(
+            root: await _permanentDirectory(),
+            file: destFile,
             songId: songId,
-            filePath: destFile.path,
-            fileSize: stat.size,
             format: format,
-            bitRate: bitRate == null ? const Value.absent() : Value(bitRate),
-            cacheType: CacheType.permanent,
-            downloadStatus: DownloadStatus.complete,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
-        await _permanentDownloadImportService.recordDownloaded(
-          root: await _permanentDirectory(),
-          file: destFile,
-          songId: songId,
-          format: format,
-        );
+          );
+        }
 
         // Remove from queue.
         await _downloadQueueDao.remove(item.id);
@@ -824,8 +860,9 @@ class DownloadService {
       return false;
     }
 
-    final cachedFile = File(cached.filePath);
-    if (!await cachedFile.exists()) {
+    if (_isSafRoot(cached.filePath)
+        ? !await _safStorage.exists(cached.filePath)
+        : !await File(cached.filePath).exists()) {
       await _cacheDao.removeCachedTrack(songId);
       return false;
     }
@@ -1079,6 +1116,9 @@ class DownloadService {
   }
 
   Future<void> _normalizePermanentDownloads() async {
+    if (_isSafRoot(_readCustomDownloadFolderPath())) {
+      return;
+    }
     try {
       final targetDirectory = await _permanentDirectory();
       await _relocatePermanentDownloads(
@@ -1373,6 +1413,17 @@ class DownloadService {
     SongsTableData song,
     DownloadQueueTableData item,
   ) async {
+    if (_isSafRoot(_readCustomDownloadFolderPath())) {
+      final temporaryRoot = await _permanentPathResolver.resolveDefaultRoot();
+      final temporary = File(
+        p.join(
+          temporaryRoot.path,
+          '.navis-saf-transfer-${song.id}.${_resolveFormat(song, item)}',
+        ),
+      );
+      await temporary.parent.create(recursive: true);
+      return temporary;
+    }
     final ext = _resolveFormat(song, item);
     final targetPath = await _permanentPathResolver.resolveSongPath(
       song: song,
@@ -1380,6 +1431,42 @@ class DownloadService {
     );
     return File(targetPath);
   }
+
+  bool _isSafRoot(String? value) =>
+      Platform.isAndroid && (value?.startsWith('content://') ?? false);
+
+  Future<void> _deletePermanentLocator(String locator) async {
+    if (_isSafRoot(locator)) {
+      await _safStorage.delete(locator);
+      return;
+    }
+    await deleteFileWithSuffixes(locator);
+    final rootPath = await resolveActivePermanentDownloadPath();
+    await pruneEmptyParentDirectories(
+      startDirectoryPath: File(locator).parent.path,
+      stopAtDirectoryPath: rootPath,
+    );
+  }
+
+  String _safRelativePathFor(SongsTableData song, String format) {
+    final artist = PermanentDownloadPathResolver.sanitizePathComponent(
+      song.artistName,
+      fallback: PermanentDownloadPathResolver.unknownArtistDirectory,
+    );
+    final title = PermanentDownloadPathResolver.sanitizePathComponent(
+      song.title,
+      fallback: song.id,
+    );
+    return '$artist/$title.${format.replaceFirst('.', '')}';
+  }
+
+  String _mimeTypeFor(String format) => switch (format.toLowerCase()) {
+    'flac' => 'audio/flac',
+    'mp3' => 'audio/mpeg',
+    'm4a' => 'audio/mp4',
+    'ogg' || 'opus' => 'audio/ogg',
+    _ => 'application/octet-stream',
+  };
 
   Uri _resolveDownloadUri({
     required SubsonicApiClient api,

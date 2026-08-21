@@ -1033,6 +1033,13 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     final l10n = AppLocalizations.of(context)!;
     final selectedPath = await FilePicker.getDirectoryPath(
       dialogTitle: l10n.downloadsCustomFolderChooseAction,
+      androidSafOptions: Platform.isAndroid
+          ? const AndroidSAFOptions(
+              grant: AndroidSAFGrant.lifetime,
+              accessMode: AndroidSAFAccessMode.readWrite,
+              persistGrant: true,
+            )
+          : null,
     );
     if (!mounted || selectedPath == null) {
       return;
