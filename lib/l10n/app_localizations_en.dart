@@ -147,12 +147,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get requiredSyncRebuildTitle => 'Rebuilding your library';
 
   @override
+  String get requiredSyncRepairTitle => 'Repairing your library';
+
+  @override
   String get requiredSyncInitialBody =>
       'Navis is preparing this server for the first time.';
 
   @override
   String get requiredSyncRebuildBody =>
       'Navis is clearing recoverable library data and downloading a fresh library. Your downloads are kept.';
+
+  @override
+  String get requiredSyncRepairBody =>
+      'Navis is checking every album and song to rebuild a complete, up-to-date library.';
 
   @override
   String get requiredSyncClearingCache => 'Clearing library cache';

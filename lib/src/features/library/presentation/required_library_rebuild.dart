@@ -1,12 +1,14 @@
 enum RequiredLibraryRebuildReason {
   initialLogin,
   manualCacheReset,
+  repairLibrary,
   cacheUpgrade,
   playbackRecovery;
 
   String get routeValue => switch (this) {
     RequiredLibraryRebuildReason.initialLogin => 'initial-login',
     RequiredLibraryRebuildReason.manualCacheReset => 'manual-cache-reset',
+    RequiredLibraryRebuildReason.repairLibrary => 'repair-library',
     RequiredLibraryRebuildReason.cacheUpgrade => 'cache-upgrade',
     RequiredLibraryRebuildReason.playbackRecovery => 'playback-recovery',
   };
@@ -14,6 +16,7 @@ enum RequiredLibraryRebuildReason {
   static RequiredLibraryRebuildReason? parse(String? value) => switch (value) {
     'initial-login' => RequiredLibraryRebuildReason.initialLogin,
     'manual-cache-reset' => RequiredLibraryRebuildReason.manualCacheReset,
+    'repair-library' => RequiredLibraryRebuildReason.repairLibrary,
     'cache-upgrade' => RequiredLibraryRebuildReason.cacheUpgrade,
     'playback-recovery' => RequiredLibraryRebuildReason.playbackRecovery,
     _ => null,

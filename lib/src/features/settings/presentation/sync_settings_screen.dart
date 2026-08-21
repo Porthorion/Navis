@@ -2,12 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -652,9 +654,13 @@ class SyncSettingsScreen extends ConsumerWidget {
       }
       allowMeteredBroadOverride = true;
     }
-    await ref
-        .read(librarySyncControllerProvider.notifier)
-        .forceFullSync(allowMeteredBroadOverride: allowMeteredBroadOverride);
+    if (!context.mounted) return;
+    context.go(
+      requiredLibraryRebuildRoute(
+        RequiredLibraryRebuildReason.repairLibrary,
+        allowMeteredBroadOverride: allowMeteredBroadOverride,
+      ),
+    );
   }
 
   Future<void> _discardRepairCandidate(

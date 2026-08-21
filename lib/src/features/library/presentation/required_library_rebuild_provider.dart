@@ -92,6 +92,7 @@ class RequiredLibraryRebuildController
   Future<void> _run({required bool allowMeteredBroadOverride}) async {
     final runEpoch = _epoch;
     if (_reason != RequiredLibraryRebuildReason.initialLogin &&
+        _reason != RequiredLibraryRebuildReason.repairLibrary &&
         !_resetPrepared) {
       state = const RequiredLibraryRebuildState(
         status: RequiredLibraryRebuildStatus.clearingCache,
@@ -136,6 +137,9 @@ class RequiredLibraryRebuildController
         ),
         RequiredLibraryRebuildReason.manualCacheReset ||
         RequiredLibraryRebuildReason.playbackRecovery => await _runManualReset(
+          allowMeteredBroadOverride,
+        ),
+        RequiredLibraryRebuildReason.repairLibrary => await _runRepair(
           allowMeteredBroadOverride,
         ),
       };
@@ -202,6 +206,15 @@ class RequiredLibraryRebuildController
         .forceFullSync(allowMeteredBroadOverride: allowMetered);
   }
 
+  Future<LibrarySyncState> _runRepair(bool allowMetered) {
+    state = const RequiredLibraryRebuildState(
+      status: RequiredLibraryRebuildStatus.syncing,
+    );
+    return ref
+        .read(librarySyncControllerProvider.notifier)
+        .forceFullSync(allowMeteredBroadOverride: allowMetered);
+  }
+
   Future<void> _clearRecoverableCache() {
     return switch (_reason) {
       RequiredLibraryRebuildReason.cacheUpgrade =>
@@ -209,6 +222,7 @@ class RequiredLibraryRebuildController
       RequiredLibraryRebuildReason.manualCacheReset ||
       RequiredLibraryRebuildReason.playbackRecovery =>
         ref.read(libraryCacheResetServiceProvider).reset(),
+      RequiredLibraryRebuildReason.repairLibrary => Future<void>.value(),
       RequiredLibraryRebuildReason.initialLogin => Future<void>.value(),
     };
   }

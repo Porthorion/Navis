@@ -19,7 +19,7 @@ Last updated: 2026-08-21
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
-- [x] Required library rebuild / 1.2.7 — 2026-08-21 (first login and every
+- [x] Required library rebuild / 1.2.6 — 2026-08-21 (first login and every
   recoverable-library reset now enter one full-screen, navigation-blocking
   rebuild flow; it retains permanent downloads, exposes live sync stages and
   determinate/indeterminate progress, and keeps failure, offline, and metered

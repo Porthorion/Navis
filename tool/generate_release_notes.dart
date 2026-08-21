@@ -55,17 +55,15 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
-  _Version('1.2.7', [
-    _Entry(
-      'First-time setup and library cache rebuilds now use a dedicated full-screen progress experience and open Home only after the rebuilt catalog is ready',
-      type: _EntryType.improvement,
-    ),
-    _Entry(
-      'Resetting the library cache from Settings, playback recovery, or a cache upgrade keeps downloaded music and provides retry, mobile-data, and sign-out recovery options when rebuilding cannot finish',
-      type: _EntryType.improvement,
-    ),
-  ]),
   _Version('1.2.6', [
+    _Entry(
+      'First-time setup, Repair Library, and library cache rebuilds now use a dedicated full-screen progress experience and open Home only after the rebuilt catalog is ready',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Resetting or repairing the library keeps downloaded music and provides retry, mobile-data, and sign-out recovery options when rebuilding cannot finish',
+      type: _EntryType.improvement,
+    ),
     _Entry(
       'Manual library refresh now reliably resumes its new-album discovery after reconnecting',
       type: _EntryType.fix,

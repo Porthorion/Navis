@@ -75,6 +75,8 @@ class _RequiredLibraryRebuildScreenState
     final status = _statusText(l10n, rebuild, sync);
     final isInitial =
         widget.reason == RequiredLibraryRebuildReason.initialLogin;
+    final isRepair =
+        widget.reason == RequiredLibraryRebuildReason.repairLibrary;
 
     return PopScope<void>(
       canPop: false,
@@ -116,6 +118,8 @@ class _RequiredLibraryRebuildScreenState
                   Text(
                     isInitial
                         ? l10n.requiredSyncInitialTitle
+                        : isRepair
+                        ? l10n.requiredSyncRepairTitle
                         : l10n.requiredSyncRebuildTitle,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall,
@@ -124,6 +128,8 @@ class _RequiredLibraryRebuildScreenState
                   Text(
                     isInitial
                         ? l10n.requiredSyncInitialBody
+                        : isRepair
+                        ? l10n.requiredSyncRepairBody
                         : l10n.requiredSyncRebuildBody,
                     textAlign: TextAlign.center,
                   ),

@@ -27,21 +27,16 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
-    version: '1.2.7',
-    entries: [
-      ChangelogEntry(
-        'First-time setup and library cache rebuilds now use a dedicated full-screen progress experience and open Home only after the rebuilt catalog is ready',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Resetting the library cache from Settings, playback recovery, or a cache upgrade keeps downloaded music and provides retry, mobile-data, and sign-out recovery options when rebuilding cannot finish',
-        type: ChangelogEntryType.improvement,
-      ),
-    ],
-  ),
-  ChangelogVersion(
     version: '1.2.6',
     entries: [
+      ChangelogEntry(
+        'First-time setup, Repair Library, and library cache rebuilds now use a dedicated full-screen progress experience and open Home only after the rebuilt catalog is ready',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Resetting or repairing the library keeps downloaded music and provides retry, mobile-data, and sign-out recovery options when rebuilding cannot finish',
+        type: ChangelogEntryType.improvement,
+      ),
       ChangelogEntry(
         'Manual library refresh now reliably resumes its new-album discovery after reconnecting',
         type: ChangelogEntryType.fix,

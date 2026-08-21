@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -19,14 +20,11 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   _FakeLibrarySyncController({
     required this.stateValue,
     this.onSyncNow,
-    this.onForceFullSync,
     this.onDiscardRepairCandidate,
   });
 
   final LibrarySyncState stateValue;
   final void Function({required bool allowMeteredBroadOverride})? onSyncNow;
-  final void Function({required bool allowMeteredBroadOverride})?
-  onForceFullSync;
   final Future<bool> Function()? onDiscardRepairCandidate;
 
   @override
@@ -46,10 +44,7 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   @override
   Future<LibrarySyncState> forceFullSync({
     bool allowMeteredBroadOverride = false,
-  }) async {
-    onForceFullSync?.call(allowMeteredBroadOverride: allowMeteredBroadOverride);
-    return stateValue;
-  }
+  }) async => stateValue;
 
   @override
   Future<LibrarySyncState> syncUsingMobileData() {
@@ -368,13 +363,27 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('renders last synced and triggers force full sync', (
+  testWidgets('Repair Library enters the required full-screen rebuild flow', (
     tester,
   ) async {
-    var forceFullTriggered = false;
     final lastSynced = DateTime(2026, 2, 20);
     final database = createTestDatabase();
     addTearDown(database.close);
+    final router = GoRouter(
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const SyncSettingsScreen(),
+        ),
+        GoRoute(
+          path: '/library-rebuild',
+          builder: (context, state) => const Scaffold(
+            body: Text('Required library rebuild'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -399,10 +408,6 @@ void main() {
                 lastSyncedAt: lastSynced,
                 nextRetryAt: DateTime(2026, 2, 20, 12),
               ),
-              onForceFullSync: ({required allowMeteredBroadOverride}) {
-                forceFullTriggered = true;
-                expect(allowMeteredBroadOverride, isFalse);
-              },
             ),
           ),
           syncNetworkPolicyProvider.overrideWith(
@@ -416,11 +421,11 @@ void main() {
           ),
           backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
         ],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
+          routerConfig: router,
         ),
       ),
     );
@@ -449,7 +454,11 @@ void main() {
     await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
 
-    expect(forceFullTriggered, isTrue);
+    expect(find.text('Required library rebuild'), findsOneWidget);
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['reason'],
+      'repair-library',
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -611,9 +620,23 @@ void main() {
   testWidgets('repair on metered network requires confirmation', (
     tester,
   ) async {
-    bool? allowOverride;
     final database = createTestDatabase();
     addTearDown(database.close);
+    final router = GoRouter(
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const SyncSettingsScreen(),
+        ),
+        GoRoute(
+          path: '/library-rebuild',
+          builder: (context, state) => const Scaffold(
+            body: Text('Required library rebuild'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -632,9 +655,6 @@ void main() {
           librarySyncControllerProvider.overrideWith(
             () => _FakeLibrarySyncController(
               stateValue: LibrarySyncState.idle(),
-              onForceFullSync: ({required allowMeteredBroadOverride}) {
-                allowOverride = allowMeteredBroadOverride;
-              },
             ),
           ),
           syncNetworkPolicyProvider.overrideWith(
@@ -648,11 +668,11 @@ void main() {
           ),
           backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
         ],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
+          routerConfig: router,
         ),
       ),
     );
@@ -669,13 +689,17 @@ void main() {
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(allowOverride, isNull);
+    expect(router.routeInformationProvider.value.uri.path, '/');
 
     await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Repair on mobile data'));
     await tester.pumpAndSettle();
-    expect(allowOverride, isTrue);
+    expect(find.text('Required library rebuild'), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.queryParameters, {
+      'reason': 'repair-library',
+      'metered': '1',
+    });
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -684,10 +708,24 @@ void main() {
   testWidgets('repair requires confirmation before applying server deletions', (
     tester,
   ) async {
-    var forceFullTriggered = false;
     var candidateDiscarded = false;
     final database = createTestDatabase();
     addTearDown(database.close);
+    final router = GoRouter(
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const SyncSettingsScreen(),
+        ),
+        GoRoute(
+          path: '/library-rebuild',
+          builder: (context, state) => const Scaffold(
+            body: Text('Required library rebuild'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -712,10 +750,6 @@ void main() {
                 candidateStatus: 'awaitingDeletionConfirmation',
                 deletionCandidateCount: 531,
               ),
-              onForceFullSync: ({required allowMeteredBroadOverride}) {
-                forceFullTriggered = true;
-                expect(allowMeteredBroadOverride, isFalse);
-              },
               onDiscardRepairCandidate: () async {
                 candidateDiscarded = true;
                 return true;
@@ -733,11 +767,11 @@ void main() {
           ),
           backgroundSyncUnmeteredOnlyProvider.overrideWith((_) => true),
         ],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme: testTheme(),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const SyncSettingsScreen(),
+          routerConfig: router,
         ),
       ),
     );
@@ -766,17 +800,21 @@ void main() {
       find.textContaining('server no longer reports 531 item(s)'),
       findsOneWidget,
     );
-    expect(forceFullTriggered, isFalse);
+    expect(router.routeInformationProvider.value.uri.path, '/');
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(forceFullTriggered, isFalse);
+    expect(router.routeInformationProvider.value.uri.path, '/');
 
     await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Apply library repair'));
     await tester.pumpAndSettle();
-    expect(forceFullTriggered, isTrue);
+    expect(find.text('Required library rebuild'), findsOneWidget);
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['reason'],
+      'repair-library',
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

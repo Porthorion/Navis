@@ -1045,7 +1045,7 @@ OpenSubsonic documents the conditional full-index semantics of
    The upgrade prompt can be dismissed, but returns on the next launch until a
    successful reset and committed full catalog scan. Choosing reset enters the
    shared full-screen required-library-rebuild route, which is also used for a
-   first login, Settings cache reset, and playback recovery. It blocks ordinary
+   first login, Repair Library, Settings cache reset, and playback recovery. It blocks ordinary
    navigation until the catalog is committed, keeps users in place with retry,
    metered-data, and sign-out recovery options on failure, and only then opens
    Home. `LibraryCacheResetService` deliberately preserves permanent downloads
