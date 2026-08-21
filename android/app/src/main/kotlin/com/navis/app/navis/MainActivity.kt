@@ -269,6 +269,20 @@ class MainActivity : AudioServiceActivity() {
         ).setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "diagnosticsFixtureTree" -> {
+                        if (BuildConfig.BUILD_TYPE != "profile" ||
+                            BuildConfig.APPLICATION_ID == "com.navis.app.navis"
+                        ) {
+                            result.error("DIAGNOSTICS_UNAVAILABLE", "Profile sidecar required.", null)
+                        } else {
+                            result.success(
+                                DocumentsContract.buildTreeDocumentUri(
+                                    "${BuildConfig.APPLICATION_ID}.diagnostics.documents",
+                                    "root",
+                                ).toString(),
+                            )
+                        }
+                    }
                     "inspectTree" -> {
                         val tree = requiredTree(call.argument<String>("treeUri"))
                         result.success(treeDetails(tree, canReplace = false))
