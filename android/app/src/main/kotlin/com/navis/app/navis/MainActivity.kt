@@ -269,6 +269,22 @@ class MainActivity : AudioServiceActivity() {
         ).setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "diagnosticsFixtureSetReadDenied" -> {
+                        if (BuildConfig.BUILD_TYPE != "profile" ||
+                            BuildConfig.APPLICATION_ID == "com.navis.app.navis"
+                        ) {
+                            result.error("DIAGNOSTICS_UNAVAILABLE", "Profile sidecar required.", null)
+                        } else {
+                            val denied = call.argument<Boolean>("denied") == true
+                            val fixtureRoot = File(filesDir, "navis-saf-fixture")
+                            if (!fixtureRoot.exists() && !fixtureRoot.mkdirs()) {
+                                throw IllegalStateException("Fixture root is unavailable")
+                            }
+                            val marker = File(fixtureRoot, ".navis-diagnostics-deny-reads")
+                            if (denied) marker.writeText("1") else marker.delete()
+                            result.success(null)
+                        }
+                    }
                     "diagnosticsFixtureTree" -> {
                         if (BuildConfig.BUILD_TYPE != "profile" ||
                             BuildConfig.APPLICATION_ID == "com.navis.app.navis"

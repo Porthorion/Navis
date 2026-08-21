@@ -1079,6 +1079,21 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'POST' &&
+          path == '/v1/downloads/saf-fixture/read-denied') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        await const AndroidSafStorage().diagnosticsFixtureSetReadDenied(
+          body['denied'] == true,
+        );
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'denied': body['denied'] == true,
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
           path == '/v1/downloads/saf-fixture/commit') {
         if (!allowsMutations) {
           await _forbidden(request);

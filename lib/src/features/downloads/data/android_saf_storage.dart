@@ -134,6 +134,12 @@ class AndroidSafStorage {
     }
     return uri;
   }
+
+  Future<void> diagnosticsFixtureSetReadDenied(bool denied) =>
+      _channel.invokeMethod<void>(
+        'diagnosticsFixtureSetReadDenied',
+        <String, Object?>{'denied': denied},
+      );
 }
 
 class AndroidSafTree {

@@ -24,6 +24,9 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
     private val fixtureRoot: File
         get() = File(requireNotNull(context).filesDir, "navis-saf-fixture")
 
+    private val denyReadsMarker: File
+        get() = File(fixtureRoot, ".navis-diagnostics-deny-reads")
+
     override fun onCreate(): Boolean {
         return fixtureRoot.exists() || fixtureRoot.mkdirs()
     }
@@ -71,6 +74,9 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
         mode: String,
         signal: android.os.CancellationSignal?,
     ): ParcelFileDescriptor {
+        if (denyReadsMarker.exists()) {
+            throw SecurityException("Fixture read access is revoked")
+        }
         val document = resolveDocument(documentId)
         require(document.isFile) { "Not a file" }
         return ParcelFileDescriptor.open(document, ParcelFileDescriptor.parseMode(mode))
