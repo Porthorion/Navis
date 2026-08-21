@@ -10,7 +10,7 @@
         <provider
             android:name=".NavisDiagnosticsDocumentsProvider"
             android:authorities="${applicationId}.diagnostics.documents"
-            android:exported="false"
+            android:exported="true"
             android:grantUriPermissions="true">
             <intent-filter>
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />

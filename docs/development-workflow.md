@@ -232,10 +232,11 @@ download-folder diagnostics must be sidecar-only, restricted to an emulator
 fixture tree, reject arbitrary paths, and never be enabled by the stable
 package.
 
-The profile source set contains the app-private
+The profile source set contains the profile-only
 `NavisDiagnosticsDocumentsProvider`. Its fixture tree lives under the profile
 app's scoped files directory and is intentionally absent from debug and
-release packages; use it only through the profile-sidecar diagnostics flow.
+release packages; Android requires document providers to be exported, so use
+it only through the profile-sidecar diagnostics flow.
 
 - `SyncDiagnosticsServer` is enabled only for a supported profile build with
   valid diagnostics defines. Any future Android mutation diagnostics require a
