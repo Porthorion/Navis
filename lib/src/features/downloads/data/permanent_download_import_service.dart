@@ -271,7 +271,7 @@ class PermanentDownloadImportService {
   }
 
   Future<PermanentDownloadImportPreview> _previewSaf(String treeUri) async {
-    final tree = await _safStorage.inspectTree(treeUri);
+    final tree = await _safStorage.validateWritableTree(treeUri);
     if (!tree.canRead || !tree.canWrite || !tree.canReplace) {
       throw const FileSystemException(
         'This Android folder does not allow Navis to read and replace its download index.',

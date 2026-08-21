@@ -254,13 +254,11 @@ class MainActivity : AudioServiceActivity() {
                 when (call.method) {
                     "inspectTree" -> {
                         val tree = requiredTree(call.argument<String>("treeUri"))
-                        result.success(mapOf(
-                            "uri" to tree.uri.toString(),
-                            "displayName" to (tree.name ?: "Selected folder"),
-                            "canRead" to tree.canRead(),
-                            "canWrite" to tree.canWrite(),
-                            "canReplace" to (tree.canRead() && tree.canWrite()),
-                        ))
+                        result.success(treeDetails(tree, canReplace = false))
+                    }
+                    "validateWritableTree" -> {
+                        val tree = requiredTree(call.argument<String>("treeUri"))
+                        result.success(treeDetails(tree, canReplace = probeWritableTree(tree)))
                     }
                     "listRecursively" -> {
                         val documents = mutableListOf<Map<String, Any?>>()
@@ -353,6 +351,30 @@ class MainActivity : AudioServiceActivity() {
             if (!existing.delete()) throw IllegalStateException("Could not replace existing document")
         }
         return directory.createFile(mimeType, filename) ?: throw IllegalStateException("Could not create document")
+    }
+
+    private fun treeDetails(tree: DocumentFile, canReplace: Boolean): Map<String, Any> = mapOf(
+        "uri" to tree.uri.toString(),
+        "displayName" to (tree.name ?: "Selected folder"),
+        "canRead" to tree.canRead(),
+        "canWrite" to tree.canWrite(),
+        "canReplace" to canReplace,
+    )
+
+    private fun probeWritableTree(tree: DocumentFile): Boolean {
+        if (!tree.canRead() || !tree.canWrite()) return false
+        val name = ".navis-saf-probe-${System.nanoTime()}"
+        val probe = tree.createFile("application/octet-stream", name) ?: return false
+        return try {
+            contentResolver.openOutputStream(probe.uri, "wt")?.use { output ->
+                output.write(byteArrayOf(0x4e, 0x56))
+            } ?: return false
+            probe.delete()
+        } catch (_: Exception) {
+            false
+        } finally {
+            if (probe.exists()) probe.delete()
+        }
     }
 
     private fun isDescendant(root: DocumentFile, document: DocumentFile): Boolean {

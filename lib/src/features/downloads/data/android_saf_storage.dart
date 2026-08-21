@@ -27,6 +27,20 @@ class AndroidSafStorage {
     return AndroidSafTree.fromMap(result);
   }
 
+  /// Confirms that a provider can create, write, and remove a Navis-owned
+  /// probe document. This is intentionally separate from [inspectTree] so
+  /// rendering a selected folder name never mutates the tree.
+  Future<AndroidSafTree> validateWritableTree(String treeUri) async {
+    final result = await _channel.invokeMapMethod<String, dynamic>(
+      'validateWritableTree',
+      <String, Object?>{'treeUri': treeUri},
+    );
+    if (result == null) {
+      throw const FileSystemException('Android did not validate the folder.');
+    }
+    return AndroidSafTree.fromMap(result);
+  }
+
   Future<List<AndroidSafDocument>> listRecursively(String treeUri) async {
     final result = await _channel.invokeListMethod<dynamic>(
       'listRecursively',

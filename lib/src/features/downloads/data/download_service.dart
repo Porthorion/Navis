@@ -245,6 +245,12 @@ class DownloadService {
 
     if (_isSafRoot(normalizedPath)) {
       await _runWithQueuePaused(() async {
+        final tree = await _safStorage.validateWritableTree(normalizedPath!);
+        if (!tree.canRead || !tree.canWrite || !tree.canReplace) {
+          throw const FileSystemException(
+            'This Android folder cannot safely store Navis downloads.',
+          );
+        }
         await _relocatePermanentDownloadsToSaf(normalizedPath!);
         await _appSettingsDao.updateCustomDownloadFolderPath(normalizedPath);
         await _appSettingsDao.updateCustomDownloadFolderStorageKind(

@@ -11,12 +11,13 @@ void main() {
         .setMockMethodCallHandler(channel, (call) async {
           switch (call.method) {
             case 'inspectTree':
+            case 'validateWritableTree':
               return <String, Object?>{
                 'uri': call.arguments['treeUri'],
                 'displayName': 'Downloads',
                 'canRead': true,
                 'canWrite': true,
-                'canReplace': true,
+                'canReplace': call.method == 'validateWritableTree',
               };
             case 'listRecursively':
               return <Map<String, Object?>>[
@@ -43,10 +44,13 @@ void main() {
   test('decodes a writable SAF tree and recursive documents', () async {
     const storage = AndroidSafStorage();
     final tree = await storage.inspectTree('content://test/tree/root');
+    final writableTree = await storage.validateWritableTree(tree.uri);
     final documents = await storage.listRecursively(tree.uri);
 
     expect(tree.displayName, 'Downloads');
-    expect(tree.canRead && tree.canWrite && tree.canReplace, isTrue);
+    expect(tree.canRead && tree.canWrite, isTrue);
+    expect(tree.canReplace, isFalse);
+    expect(writableTree.canReplace, isTrue);
     expect(documents.single.relativePath, 'Artist/song.flac');
     expect(documents.single.size, 42);
     expect(
