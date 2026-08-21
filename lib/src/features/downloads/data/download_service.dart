@@ -35,6 +35,12 @@ typedef _RelocatedPermanentDownload = ({
   String targetPath,
 });
 
+typedef _SafRelocatedPermanentDownload = ({
+  CachedTracksTableData entry,
+  String locator,
+  String format,
+});
+
 /// Orchestrates permanent downloads of tracks from a Subsonic server.
 ///
 /// The service processes one download at a time, pulling the next pending item
@@ -1170,6 +1176,7 @@ class DownloadService {
     };
     final oldLocators = <String>[];
     final newLocators = <String>[];
+    final movedEntries = <_SafRelocatedPermanentDownload>[];
     try {
       for (final entry in entries) {
         if (_isSafRoot(entry.filePath) &&
@@ -1209,21 +1216,6 @@ class DownloadService {
         );
         newLocators.add(target);
         oldLocators.add(entry.filePath);
-        await _cacheDao.upsertCachedTrack(
-          CachedTracksTableCompanion.insert(
-            songId: entry.songId,
-            filePath: target,
-            storageKind: const Value('androidSaf'),
-            fileSize: entry.fileSize,
-            format: format,
-            bitRate: entry.bitRate == null
-                ? const Value.absent()
-                : Value(entry.bitRate),
-            cacheType: CacheType.permanent,
-            downloadStatus: entry.downloadStatus,
-            lastAccessedAt: DateTime.now(),
-          ),
-        );
         await _permanentDownloadImportService.recordDownloadedSaf(
           treeUri: treeUri,
           relativePath: relativePath,
@@ -1231,9 +1223,27 @@ class DownloadService {
           songId: entry.songId,
           format: format,
         );
+        movedEntries.add((entry: entry, locator: target, format: format));
         if (temporary != null) {
           await temporary.delete().catchError((_) {});
         }
+      }
+      for (final moved in movedEntries) {
+        await _cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: moved.entry.songId,
+            filePath: moved.locator,
+            storageKind: const Value('androidSaf'),
+            fileSize: moved.entry.fileSize,
+            format: moved.format,
+            bitRate: moved.entry.bitRate == null
+                ? const Value.absent()
+                : Value(moved.entry.bitRate),
+            cacheType: CacheType.permanent,
+            downloadStatus: moved.entry.downloadStatus,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
       }
       for (final locator in oldLocators) {
         await _deletePermanentLocator(locator);
