@@ -1351,6 +1351,7 @@ class DownloadService {
           CachedTracksTableCompanion.insert(
             songId: entry.songId,
             filePath: targetPath,
+            storageKind: const Value('filesystem'),
             fileSize: entry.fileSize,
             format: storedFormat,
             bitRate: entry.bitRate == null
@@ -1419,6 +1420,7 @@ class DownloadService {
         CachedTracksTableCompanion.insert(
           songId: moved.entry.songId,
           filePath: moved.entry.filePath,
+          storageKind: Value(moved.entry.storageKind),
           fileSize: moved.entry.fileSize,
           format: moved.storedFormat,
           bitRate: moved.entry.bitRate == null
