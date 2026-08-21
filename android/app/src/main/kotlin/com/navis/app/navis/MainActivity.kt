@@ -285,6 +285,27 @@ class MainActivity : AudioServiceActivity() {
                             result.success(null)
                         }
                     }
+                    "diagnosticsFixtureStageUnindexedCopy" -> {
+                        if (BuildConfig.BUILD_TYPE != "profile" ||
+                            BuildConfig.APPLICATION_ID == "com.navis.app.navis"
+                        ) {
+                            result.error("DIAGNOSTICS_UNAVAILABLE", "Profile sidecar required.", null)
+                        } else {
+                            val fixtureRoot = File(filesDir, "navis-saf-fixture")
+                            val source = fixtureRoot.walkTopDown().firstOrNull { candidate ->
+                                candidate.isFile &&
+                                    candidate.name != ".navis-downloads.sqlite" &&
+                                    !candidate.name.startsWith(".navis-diagnostics-")
+                            } ?: throw IllegalStateException("No fixture media is available to stage")
+                            val stagedDirectory = File(fixtureRoot, "diagnostics-unindexed")
+                            if (!stagedDirectory.exists() && !stagedDirectory.mkdirs()) {
+                                throw IllegalStateException("Could not create the fixture staging directory")
+                            }
+                            val staged = File(stagedDirectory, "unindexed-${source.name}")
+                            source.copyTo(staged, overwrite = true)
+                            result.success(null)
+                        }
+                    }
                     "diagnosticsFixtureTree" -> {
                         if (BuildConfig.BUILD_TYPE != "profile" ||
                             BuildConfig.APPLICATION_ID == "com.navis.app.navis"

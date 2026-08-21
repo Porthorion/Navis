@@ -1094,6 +1094,20 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'POST' &&
+          path == '/v1/downloads/saf-fixture/stage-unindexed-copy') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await const AndroidSafStorage().diagnosticsFixtureStageUnindexedCopy();
+        await _respond(
+          request,
+          HttpStatus.created,
+          await _safFixtureStatusJson(),
+        );
+        return;
+      }
+      if (request.method == 'POST' &&
           path == '/v1/downloads/saf-fixture/commit') {
         if (!allowsMutations) {
           await _forbidden(request);

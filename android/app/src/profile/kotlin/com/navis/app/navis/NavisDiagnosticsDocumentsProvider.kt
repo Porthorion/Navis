@@ -80,7 +80,11 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
         // verify that the review preserves and reports that file. A revoked
         // tree grant is still surfaced by the production bridge as a
         // recoverable FileSystemException.
-        if (denyReadsMarker.exists() && document.name != ".navis-downloads.sqlite") {
+        if (
+            denyReadsMarker.exists() &&
+            mode.contains("r") &&
+            documentId != "$documentPrefix.navis-downloads.sqlite"
+        ) {
             throw SecurityException("Fixture read access is revoked")
         }
         require(document.isFile) { "Not a file" }

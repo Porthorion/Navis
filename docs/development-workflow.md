@@ -238,6 +238,13 @@ app's scoped files directory and is intentionally absent from debug and
 release packages; Android requires document providers to be exported, so use
 it only through the profile-sidecar diagnostics flow.
 
+SAF fixture mutation is deliberately bounded: diagnostics can configure that
+single tree, download a fixture-library track, detach/re-import known cache
+ownership, and stage an unindexed copy for inaccessible-document review. The
+unindexed copy never becomes a stable-package feature or arbitrary-path file
+writer; it exists only to exercise a real `ContentResolver` read failure while
+the tree remains otherwise usable.
+
 - `SyncDiagnosticsServer` is enabled only for a supported profile build with
   valid diagnostics defines. Any future Android mutation diagnostics require a
   sidecar package suffix as an additional guard.

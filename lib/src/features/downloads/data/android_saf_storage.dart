@@ -170,6 +170,11 @@ class AndroidSafStorage {
         'diagnosticsFixtureSetReadDenied',
         <String, Object?>{'denied': denied},
       );
+
+  /// Stages a copy without a sidecar entry in the profile-only diagnostics
+  /// tree. It is intentionally unavailable to ordinary builds.
+  Future<void> diagnosticsFixtureStageUnindexedCopy() =>
+      _channel.invokeMethod<void>('diagnosticsFixtureStageUnindexedCopy');
 }
 
 class AndroidSafTree {

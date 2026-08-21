@@ -35,6 +35,8 @@ void main() {
               return call.arguments['documentUri'].toString().contains('root');
             case 'diagnosticsFixtureTree':
               return 'content://test.diagnostics.documents/tree/root';
+            case 'diagnosticsFixtureStageUnindexedCopy':
+              return null;
           }
           return null;
         });
@@ -68,6 +70,7 @@ void main() {
       await storage.diagnosticsFixtureTree(),
       'content://test.diagnostics.documents/tree/root',
     );
+    await storage.diagnosticsFixtureStageUnindexedCopy();
   });
 
   test(
