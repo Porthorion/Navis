@@ -163,6 +163,7 @@ void main() {
       final track = CachedTracksTableData(
         songId: song.id,
         filePath: '/tmp/downloaded-song.mp3',
+        storageKind: 'filesystem',
         fileSize: 1000000,
         format: 'mp3',
         bitRate: 320,

@@ -20,6 +20,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
@@ -1326,13 +1327,16 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
         ),
         SwitchListTile(
           title: Text(l10n.downloadsCustomFolderTitle),
-          subtitle: Text(
-            _supportsCustomDownloadFolderSelection
-                ? customFolderEnabled && customFolderPath != null
-                      ? customFolderPath
-                      : l10n.downloadsCustomFolderSubtitle
-                : l10n.downloadsCustomFolderUnsupported,
-          ),
+          subtitle:
+              _supportsCustomDownloadFolderSelection &&
+                  customFolderEnabled &&
+                  customFolderPath != null
+              ? _CustomFolderLabel(path: customFolderPath)
+              : Text(
+                  _supportsCustomDownloadFolderSelection
+                      ? l10n.downloadsCustomFolderSubtitle
+                      : l10n.downloadsCustomFolderUnsupported,
+                ),
           value: customFolderEnabled,
           onChanged: _supportsCustomDownloadFolderSelection
               ? _toggleCustomDownloadFolder
@@ -1342,7 +1346,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           ListTile(
             leading: const Icon(Icons.folder_open_outlined),
             title: Text(l10n.downloadsCustomFolderChooseAction),
-            subtitle: Text(customFolderPath ?? ''),
+            subtitle: _CustomFolderLabel(path: customFolderPath),
             onTap: _pickCustomDownloadFolder,
           ),
         if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
@@ -1380,6 +1384,32 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           onTap: _clearDownloads,
         ),
       ],
+    );
+  }
+}
+
+/// A tree URI is intentionally opaque. Android users see the provider's
+/// folder name, while desktop platforms retain the useful filesystem path.
+class _CustomFolderLabel extends StatelessWidget {
+  const _CustomFolderLabel({required this.path});
+
+  final String? path;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = path;
+    if (!Platform.isAndroid ||
+        value == null ||
+        !value.startsWith('content://')) {
+      return Text(value ?? '');
+    }
+    return FutureBuilder<AndroidSafTree>(
+      future: const AndroidSafStorage().inspectTree(value),
+      builder: (context, snapshot) => Text(
+        snapshot.data?.displayName ?? 'Selected folder',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }

@@ -53,6 +53,7 @@ void main() {
       final track = await database.cacheDao.getCachedTrack('song-1');
       expect(track?.cacheType, CacheType.permanent);
       expect(track?.filePath, file.path);
+      expect(track?.storageKind, 'filesystem');
       expect(
         File('${root.path}/$permanentDownloadManifestFileName').existsSync(),
         isTrue,
