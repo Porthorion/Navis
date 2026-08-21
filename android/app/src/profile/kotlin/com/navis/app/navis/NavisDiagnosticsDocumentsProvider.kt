@@ -74,10 +74,15 @@ class NavisDiagnosticsDocumentsProvider : DocumentsProvider() {
         mode: String,
         signal: android.os.CancellationSignal?,
     ): ParcelFileDescriptor {
-        if (denyReadsMarker.exists()) {
+        val document = resolveDocument(documentId)
+        // Keep Navis's index available while denying media reads. This models a
+        // provider losing access to one child document and lets diagnostics
+        // verify that the review preserves and reports that file. A revoked
+        // tree grant is still surfaced by the production bridge as a
+        // recoverable FileSystemException.
+        if (denyReadsMarker.exists() && document.name != ".navis-downloads.sqlite") {
             throw SecurityException("Fixture read access is revoked")
         }
-        val document = resolveDocument(documentId)
         require(document.isFile) { "Not a file" }
         return ParcelFileDescriptor.open(document, ParcelFileDescriptor.parseMode(mode))
     }

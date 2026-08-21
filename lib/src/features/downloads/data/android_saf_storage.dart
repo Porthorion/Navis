@@ -17,9 +17,12 @@ class AndroidSafStorage {
   static bool get isSafLocator => Platform.isAndroid;
 
   Future<AndroidSafTree> inspectTree(String treeUri) async {
-    final result = await _channel.invokeMapMethod<String, dynamic>(
-      'inspectTree',
-      <String, Object?>{'treeUri': treeUri},
+    final result = await _invoke(
+      () => _channel.invokeMapMethod<String, dynamic>(
+        'inspectTree',
+        <String, Object?>{'treeUri': treeUri},
+      ),
+      'Could not inspect the selected Android folder.',
     );
     if (result == null) {
       throw const FileSystemException('Android did not return folder details.');
@@ -31,9 +34,12 @@ class AndroidSafStorage {
   /// probe document. This is intentionally separate from [inspectTree] so
   /// rendering a selected folder name never mutates the tree.
   Future<AndroidSafTree> validateWritableTree(String treeUri) async {
-    final result = await _channel.invokeMapMethod<String, dynamic>(
-      'validateWritableTree',
-      <String, Object?>{'treeUri': treeUri},
+    final result = await _invoke(
+      () => _channel.invokeMapMethod<String, dynamic>(
+        'validateWritableTree',
+        <String, Object?>{'treeUri': treeUri},
+      ),
+      'Navis can no longer access the selected Android folder.',
     );
     if (result == null) {
       throw const FileSystemException('Android did not validate the folder.');
@@ -42,9 +48,12 @@ class AndroidSafStorage {
   }
 
   Future<List<AndroidSafDocument>> listRecursively(String treeUri) async {
-    final result = await _channel.invokeListMethod<dynamic>(
-      'listRecursively',
-      <String, Object?>{'treeUri': treeUri},
+    final result = await _invoke(
+      () => _channel.invokeListMethod<dynamic>(
+        'listRecursively',
+        <String, Object?>{'treeUri': treeUri},
+      ),
+      'Navis can no longer list the selected Android folder.',
     );
     return (result ?? const <dynamic>[])
         .whereType<Map<Object?, Object?>>()
@@ -61,9 +70,12 @@ class AndroidSafStorage {
   /// Copies a document into app-private temporary storage and returns that
   /// filesystem path. This keeps parser/SQLite libraries off `content://`.
   Future<File> materialize(String uri) async {
-    final path = await _channel.invokeMethod<String>(
-      'materialize',
-      <String, Object?>{'uri': uri},
+    final path = await _invoke(
+      () => _channel.invokeMethod<String>(
+        'materialize',
+        <String, Object?>{'uri': uri},
+      ),
+      'Could not read the selected document.',
     );
     if (path == null || path.isEmpty) {
       throw const FileSystemException('Could not read the selected document.');
@@ -78,15 +90,18 @@ class AndroidSafStorage {
     String? mimeType,
     bool replace = true,
   }) async {
-    final uri = await _channel.invokeMethod<String>(
-      'writeFromFile',
-      <String, Object?>{
-        'treeUri': treeUri,
-        'relativePath': relativePath,
-        'sourcePath': source.path,
-        'mimeType': mimeType,
-        'replace': replace,
-      },
+    final uri = await _invoke(
+      () => _channel.invokeMethod<String>(
+        'writeFromFile',
+        <String, Object?>{
+          'treeUri': treeUri,
+          'relativePath': relativePath,
+          'sourcePath': source.path,
+          'mimeType': mimeType,
+          'replace': replace,
+        },
+      ),
+      'Could not write into the selected folder.',
     );
     if (uri == null || uri.isEmpty) {
       throw const FileSystemException(
@@ -97,15 +112,30 @@ class AndroidSafStorage {
   }
 
   Future<void> delete(String uri) async {
-    await _channel.invokeMethod<void>('delete', <String, Object?>{'uri': uri});
+    await _invoke(
+      () =>
+          _channel.invokeMethod<void>('delete', <String, Object?>{'uri': uri}),
+      'Could not remove the selected document.',
+    );
   }
 
   Future<bool> exists(String uri) async {
-    return await _channel.invokeMethod<bool>(
-          'exists',
-          <String, Object?>{'uri': uri},
+    return await _invoke<bool?>(
+          () => _channel.invokeMethod<bool>(
+            'exists',
+            <String, Object?>{'uri': uri},
+          ),
+          'Could not check the selected document.',
         ) ??
         false;
+  }
+
+  Future<T> _invoke<T>(Future<T> Function() call, String message) async {
+    try {
+      return await call();
+    } on PlatformException catch (error) {
+      throw FileSystemException(error.message ?? message);
+    }
   }
 
   /// Whether [documentUri] belongs to [treeUri]. Tree and document URI text
