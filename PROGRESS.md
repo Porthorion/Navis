@@ -1912,4 +1912,4 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 
 ## 1.2.8 — Android SAF Download Folders
 
-- [~] Replace Android custom-folder path handling with persisted SAF tree URIs — 2026-08-21 (implemented: storage-kind migration, `DocumentFile` bridge, custom-tree scan/import, download writes, relocation, deletion, and content-URI playback; focused Dart tests and Kotlin compile pass; remaining: profile-only emulator document-provider diagnostics, full Android end-to-end import/relocation validation, screenshots, and final `./tool/check.sh`).
+- [~] Replace Android custom-folder path handling with persisted SAF tree URIs — 2026-08-21 (implemented: storage-kind migration, `DocumentFile` bridge, custom-tree scan/import, download writes, relocation, deletion, and content-URI playback; focused Dart tests, Kotlin compilation, and `./tool/check.sh` pass; installed and started isolated `com.navis.app.navis.safdev` 1.2.8-sidecar on the Pixel emulator without replacing stable/dev. Remaining: profile-only emulator document-provider diagnostics, full Android end-to-end import/relocation validation, and app-owned screenshots.)
