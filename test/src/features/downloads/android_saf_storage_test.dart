@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -67,4 +69,33 @@ void main() {
       'content://test.diagnostics.documents/tree/root',
     );
   });
+
+  test(
+    'normalizes Android provider failures to recoverable filesystem errors',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'materialize') {
+              throw PlatformException(
+                code: 'access-denied',
+                message: 'Fixture read access is revoked',
+              );
+            }
+            return null;
+          });
+
+      await expectLater(
+        const AndroidSafStorage().materialize(
+          'content://test/document/root%3Atrack.flac',
+        ),
+        throwsA(
+          isA<FileSystemException>().having(
+            (error) => error.message,
+            'message',
+            'Fixture read access is revoked',
+          ),
+        ),
+      );
+    },
+  );
 }
