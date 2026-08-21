@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.7', [
+    _Entry(
+      'Navis can now safely import existing permanent downloads from a custom folder, preserving files it cannot identify and remembering imported tracks for future installs',
+      type: _EntryType.newFeature,
+    ),
+  ]),
   _Version('1.2.6', [
     _Entry(
       'First-time setup, Repair Library, and library cache rebuilds now use a dedicated full-screen progress experience and open Home only after the rebuilt catalog is ready',

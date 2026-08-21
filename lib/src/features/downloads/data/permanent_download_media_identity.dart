@@ -1,0 +1,192 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'dart:convert';
+
+/// Best-effort audio metadata support used by permanent-download adoption.
+/// FLAC/Vorbis comments are implemented without a platform plugin so Navis can
+/// recover identity on every supported desktop and mobile runtime. Other
+/// formats continue to use the root manifest as their authoritative identity.
+class PermanentDownloadMediaIdentity {
+  static const songIdKey = 'NAVIS_SONG_ID';
+  static const profileFingerprintKey = 'NAVIS_PROFILE_FINGERPRINT';
+
+  Future<Map<String, String>> read(File file) async {
+    if (file.path.toLowerCase().endsWith('.flac')) {
+      return _readFlac(await file.readAsBytes());
+    }
+    return const <String, String>{};
+  }
+
+  Future<void> write({
+    required File file,
+    required String songId,
+    required String profileFingerprint,
+  }) async {
+    if (!file.path.toLowerCase().endsWith('.flac')) return;
+    final bytes = await file.readAsBytes();
+    final replacement = _writeFlac(
+      bytes,
+      <String, String>{
+        songIdKey: songId,
+        profileFingerprintKey: profileFingerprint,
+      },
+    );
+    if (replacement == null) return;
+    final temporary = File('${file.path}.navis-writing');
+    await temporary.writeAsBytes(replacement, flush: true);
+    await temporary.rename(file.path);
+  }
+
+  Map<String, String> _readFlac(Uint8List bytes) {
+    if (bytes.length < 8 ||
+        String.fromCharCodes(bytes.sublist(0, 4)) != 'fLaC') {
+      return const <String, String>{};
+    }
+    var offset = 4;
+    while (offset + 4 <= bytes.length) {
+      final header = bytes[offset];
+      final type = header & 0x7f;
+      final length =
+          (bytes[offset + 1] << 16) |
+          (bytes[offset + 2] << 8) |
+          bytes[offset + 3];
+      final dataStart = offset + 4;
+      final dataEnd = dataStart + length;
+      if (dataEnd > bytes.length) return const <String, String>{};
+      if (type == 4)
+        return _readVorbisComment(bytes.sublist(dataStart, dataEnd));
+      if ((header & 0x80) != 0) break;
+      offset = dataEnd;
+    }
+    return const <String, String>{};
+  }
+
+  Uint8List? _writeFlac(Uint8List bytes, Map<String, String> additions) {
+    if (bytes.length < 8 ||
+        String.fromCharCodes(bytes.sublist(0, 4)) != 'fLaC') {
+      return null;
+    }
+    var offset = 4;
+    while (offset + 4 <= bytes.length) {
+      final header = bytes[offset];
+      final type = header & 0x7f;
+      final length =
+          (bytes[offset + 1] << 16) |
+          (bytes[offset + 2] << 8) |
+          bytes[offset + 3];
+      final dataStart = offset + 4;
+      final dataEnd = dataStart + length;
+      if (dataEnd > bytes.length) return null;
+      if (type == 4) {
+        final comment = _replaceVorbisComment(
+          bytes.sublist(dataStart, dataEnd),
+          additions,
+        );
+        if (comment.length > 0xFFFFFF) return null;
+        final output = BytesBuilder(copy: false)
+          ..add(bytes.sublist(0, offset))
+          ..add(<int>[
+            header,
+            (comment.length >> 16) & 0xff,
+            (comment.length >> 8) & 0xff,
+            comment.length & 0xff,
+          ])
+          ..add(comment)
+          ..add(bytes.sublist(dataEnd));
+        return output.toBytes();
+      }
+      if ((header & 0x80) != 0) break;
+      offset = dataEnd;
+    }
+    return null;
+  }
+
+  Map<String, String> _readVorbisComment(Uint8List bytes) {
+    if (bytes.length < 8) return const <String, String>{};
+    var offset = 0;
+    final vendorLength = _readUint32Le(bytes, offset);
+    offset += 4 + vendorLength;
+    if (offset + 4 > bytes.length) return const <String, String>{};
+    final count = _readUint32Le(bytes, offset);
+    offset += 4;
+    final result = <String, String>{};
+    for (var index = 0; index < count; index++) {
+      if (offset + 4 > bytes.length) return result;
+      final length = _readUint32Le(bytes, offset);
+      offset += 4;
+      if (offset + length > bytes.length) return result;
+      final value = utf8.decode(
+        bytes.sublist(offset, offset + length),
+        allowMalformed: true,
+      );
+      offset += length;
+      final equals = value.indexOf('=');
+      if (equals > 0) {
+        result[value.substring(0, equals).toUpperCase()] = value.substring(
+          equals + 1,
+        );
+      }
+    }
+    return result;
+  }
+
+  Uint8List _replaceVorbisComment(
+    Uint8List bytes,
+    Map<String, String> additions,
+  ) {
+    var offset = 0;
+    if (bytes.length < 8) return bytes;
+    final vendorLength = _readUint32Le(bytes, offset);
+    offset += 4;
+    if (offset + vendorLength + 4 > bytes.length) return bytes;
+    final vendor = bytes.sublist(offset, offset + vendorLength);
+    offset += vendorLength;
+    final count = _readUint32Le(bytes, offset);
+    offset += 4;
+    final comments = <String, String>{};
+    for (var index = 0; index < count; index++) {
+      if (offset + 4 > bytes.length) return bytes;
+      final length = _readUint32Le(bytes, offset);
+      offset += 4;
+      if (offset + length > bytes.length) return bytes;
+      final value = utf8.decode(
+        bytes.sublist(offset, offset + length),
+        allowMalformed: true,
+      );
+      offset += length;
+      final equals = value.indexOf('=');
+      if (equals > 0) {
+        comments[value.substring(0, equals).toUpperCase()] = value.substring(
+          equals + 1,
+        );
+      }
+    }
+    comments.addAll(additions);
+    final output = BytesBuilder(copy: false);
+    _writeUint32Le(output, vendor.length);
+    output.add(vendor);
+    _writeUint32Le(output, comments.length);
+    for (final entry in comments.entries) {
+      final encoded = utf8.encode('${entry.key}=${entry.value}');
+      _writeUint32Le(output, encoded.length);
+      output.add(encoded);
+    }
+    return output.toBytes();
+  }
+
+  int _readUint32Le(Uint8List bytes, int offset) =>
+      bytes[offset] |
+      (bytes[offset + 1] << 8) |
+      (bytes[offset + 2] << 16) |
+      (bytes[offset + 3] << 24);
+
+  void _writeUint32Le(BytesBuilder target, int value) {
+    target.add(<int>[
+      value & 0xff,
+      (value >> 8) & 0xff,
+      (value >> 16) & 0xff,
+      (value >> 24) & 0xff,
+    ]);
+  }
+}

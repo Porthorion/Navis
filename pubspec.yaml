@@ -2,7 +2,7 @@ name: navis
 description: "Navis — a Subsonic/OpenSubsonic music player for Android, iOS, macOS, Linux, and Windows."
 publish_to: 'none'
 
-version: 1.2.6+10206
+version: 1.2.7+10207
 
 environment:
   sdk: ^3.12.0
@@ -40,6 +40,7 @@ dependencies:
   path_provider: ^2.1.5
   rxdart: ^0.28.0
   scrollable_positioned_list: ^0.3.8
+  sqlite3: ^3.5.0
   url_launcher: ^6.3.2
   uuid: ^4.5.3
   visibility_detector: ^0.4.0+2
@@ -65,7 +66,6 @@ dev_dependencies:
   json_serializable: ^6.13.1
   mocktail: ^1.0.4
   riverpod: ^3.3.2
-  sqlite3: ^3.5.0
   url_launcher_platform_interface: ^2.3.2
   very_good_analysis: ^10.3.0
   flutter_launcher_icons: ^0.14.4

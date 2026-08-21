@@ -1034,13 +1034,19 @@ OpenSubsonic documents the conditional full-index semantics of
 4. User pins content → Download to permanent cache
 5. Permanent download completion and rolling→permanent promotion pre-cache
    cover art using `kCoverArtStandardSize`
-6. Identity aliases transfer valid rolling/permanent ownership to a proven
+6. A custom permanent-download root is user-owned: Navis records known files
+   in its root `.navis-downloads.sqlite` sidecar and can adopt existing files
+   only after an explicit preview/confirmation. The sidecar maps relative file
+   paths to a profile fingerprint and song ID; supported media tags are a
+   best-effort additional identity source. Unknown, ambiguous, and
+   profile-mismatched files remain untouched.
+7. Identity aliases transfer valid rolling/permanent ownership to a proven
    canonical server song ID; ambiguous permanent downloads remain local-only
-7. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
+8. Eviction removes orphan MIME sidecars and garbage-collects unreferenced
    provisional metadata while preserving active partial files and recent
    unowned audio files
-8. Playback prefers permanent → rolling → stream
-9. A profile migrated before library-cache-system version 2 must clear recoverable
+9. Playback prefers permanent → rolling → stream
+10. A profile migrated before library-cache-system version 2 must clear recoverable
    rolling cache and library metadata once before using the current contract.
    The upgrade prompt can be dismissed, but returns on the next launch until a
    successful reset and committed full catalog scan. Choosing reset enters the

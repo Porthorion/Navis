@@ -19,6 +19,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
@@ -1046,12 +1047,27 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _updatingFolder = true);
     try {
-      await ref
-          .read(downloadServiceProvider)
-          .configureCustomDownloadFolder(
-            enabled: enabled,
-            path: path,
-          );
+      final service = ref.read(downloadServiceProvider);
+      PermanentDownloadImportPreview? preview;
+      if (enabled && path != null) {
+        preview = await service.previewCustomDownloadFolder(path);
+        if (!mounted) return;
+        final manualSongIds = await _reviewFolderImport(preview);
+        if (manualSongIds == null || !mounted) return;
+        await service.configureCustomDownloadFolder(
+          enabled: enabled,
+          path: path,
+        );
+        await service.importCustomDownloadFolder(
+          preview,
+          manualSongIds: manualSongIds,
+        );
+      } else {
+        await service.configureCustomDownloadFolder(
+          enabled: enabled,
+          path: path,
+        );
+      }
       if (!mounted) {
         return;
       }
@@ -1077,6 +1093,180 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       if (mounted) {
         setState(() => _updatingFolder = false);
       }
+    }
+  }
+
+  Future<Map<String, String>?> _reviewFolderImport(
+    PermanentDownloadImportPreview preview,
+  ) async {
+    final manualSongIds = <String, String>{};
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Import existing downloads?'),
+          content: SizedBox(
+            width: 460,
+            child: Semantics(
+              liveRegion: true,
+              child: ListView(
+                shrinkWrap: true,
+                children: <Widget>[
+                  Text(
+                    '${preview.recognizedCount} track(s) can be imported. '
+                    '${preview.uncertainCount} need review and '
+                    '${preview.skippedCount} will be left untouched.',
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Navis will never remove files it cannot identify in this folder.',
+                  ),
+                  for (final item in preview.items.where(
+                    (item) =>
+                        item.disposition ==
+                            PermanentDownloadImportDisposition.ambiguous ||
+                        item.disposition ==
+                            PermanentDownloadImportDisposition.unmatched,
+                  ))
+                    ListTile(
+                      dense: true,
+                      title: Text(item.relativePath),
+                      subtitle: Text(
+                        manualSongIds.containsKey(item.relativePath)
+                            ? 'Song selected'
+                            : 'Choose a local library song',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        final song = await _pickLocalSong(item);
+                        if (song == null || !context.mounted) return;
+                        setDialogState(
+                          () => manualSongIds[item.relativePath] = song.id,
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, manualSongIds),
+              child: const Text('Import & use folder'),
+            ),
+          ],
+        ),
+      ),
+    );
+    return result;
+  }
+
+  Future<SongsTableData?> _pickLocalSong(
+    PermanentDownloadImportItem item,
+  ) async {
+    final controller = TextEditingController(
+      text: item.relativePath.split('/').last.split('.').first,
+    );
+    var query = controller.text;
+    return showDialog<SongsTableData>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Choose library song'),
+          content: SizedBox(
+            width: 460,
+            height: 360,
+            child: Column(
+              children: <Widget>[
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    labelText: 'Search your local library',
+                  ),
+                  onChanged: (value) => setDialogState(() => query = value),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: FutureBuilder<List<SongsTableData>>(
+                    future: ref
+                        .read(navisDatabaseProvider)
+                        .libraryDao
+                        .searchSongsLocal(query),
+                    builder: (context, snapshot) {
+                      final songs = snapshot.data ?? const <SongsTableData>[];
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (songs.isEmpty)
+                        return const Center(
+                          child: Text('No local library songs found.'),
+                        );
+                      return ListView.builder(
+                        itemCount: songs.length,
+                        itemBuilder: (context, index) {
+                          final song = songs[index];
+                          return ListTile(
+                            title: Text(song.title),
+                            subtitle: Text(
+                              song.artistName ?? song.albumName ?? '',
+                            ),
+                            onTap: () => Navigator.pop(dialogContext, song),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(controller.dispose);
+  }
+
+  Future<void> _rescanCustomDownloadFolder() async {
+    final path = ref.read(customDownloadFolderPathProvider);
+    if (path == null || path.trim().isEmpty) return;
+    setState(() => _updatingFolder = true);
+    try {
+      final service = ref.read(downloadServiceProvider);
+      final preview = await service.previewCustomDownloadFolder(path);
+      final manualSongIds = await _reviewFolderImport(preview);
+      if (!mounted || manualSongIds == null) return;
+      final result = await service.importCustomDownloadFolder(
+        preview,
+        manualSongIds: manualSongIds,
+      );
+      if (mounted) {
+        showAppNotice(
+          context,
+          message: '${result.importedCount} existing download(s) imported.',
+          level: AppNoticeLevel.success,
+        );
+      }
+    } on FileSystemException catch (error) {
+      if (mounted) {
+        showAppNotice(
+          context,
+          message: 'Could not scan downloads: ${error.message}',
+          level: AppNoticeLevel.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updatingFolder = false);
     }
   }
 
@@ -1139,6 +1329,13 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             title: Text(l10n.downloadsCustomFolderChooseAction),
             subtitle: Text(customFolderPath ?? ''),
             onTap: _pickCustomDownloadFolder,
+          ),
+        if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
+          ListTile(
+            leading: const Icon(Icons.manage_search_outlined),
+            title: const Text('Rescan existing downloads'),
+            subtitle: const Text('Import tracks already in this folder'),
+            onTap: _rescanCustomDownloadFolder,
           ),
         const Divider(),
         permanentStats.when(

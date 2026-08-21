@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.7',
+    entries: [
+      ChangelogEntry(
+        'Navis can now safely import existing permanent downloads from a custom folder, preserving files it cannot identify and remembering imported tracks for future installs',
+        type: ChangelogEntryType.newFeature,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.6',
     entries: [
       ChangelogEntry(

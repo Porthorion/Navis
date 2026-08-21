@@ -19,6 +19,15 @@ Last updated: 2026-08-21
 > app-owned screenshots and prohibits external accessibility traversal unless
 > the accessibility bridge is explicitly in scope with user authorization.
 
+- [x] Permanent download import / 1.2.7 — 2026-08-21 (custom download roots
+  now preserve unmanaged files, preview and confirm imports, and use a
+  root-level `.navis-downloads.sqlite` identity store; uniquely matched legacy
+  files and explicit local-library selections become permanent downloads.
+  FLAC imports retain decoded audio while gaining Navis identity tags. Evidence:
+  focused sidecar/tag tests, Linux Navis Dev live-server import against the
+  approved `Navis_Downloads` folder, clean restart retaining two registered
+  tracks and two sidecar records, and `./tool/check.sh`.)
+
 - [x] Required library rebuild / 1.2.6 — 2026-08-21 (first login and every
   recoverable-library reset now enter one full-screen, navigation-blocking
   rebuild flow; it retains permanent downloads, exposes live sync stages and

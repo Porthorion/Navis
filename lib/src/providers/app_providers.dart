@@ -2032,6 +2032,10 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
         ref.read(customDownloadFolderPathProvider),
     lrclibClient: ref.read(lrclibClientProvider),
     readCoverArtCacheManager: () => ref.read(coverArtCacheManagerProvider),
+    readProfileIdentity: () {
+      final config = ref.read(serverConfigProvider).asData?.value;
+      return config == null ? null : '${config.url}|${config.username}';
+    },
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
   );
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {

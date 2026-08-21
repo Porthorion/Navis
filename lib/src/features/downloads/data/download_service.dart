@@ -17,6 +17,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     show BaseCacheManager;
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
+import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
@@ -62,6 +63,7 @@ class DownloadService {
     required String? Function() readCustomDownloadFolderPath,
     required LrclibClient lrclibClient,
     required BaseCacheManager Function() readCoverArtCacheManager,
+    String? Function()? readProfileIdentity,
     NetworkUsageReporter? reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
     Dio? dio,
@@ -82,6 +84,11 @@ class DownloadService {
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
          readCustomDownloadFolderPath: readCustomDownloadFolderPath,
          readApplicationSupportDirectory: readApplicationSupportDirectory,
+       ),
+       _permanentDownloadImportService = PermanentDownloadImportService(
+         cacheDao: cacheDao,
+         libraryDao: libraryDao,
+         readProfileIdentity: readProfileIdentity ?? (() => null),
        );
 
   final AppSettingsDao _appSettingsDao;
@@ -98,6 +105,7 @@ class DownloadService {
   final NetworkUsageReporter? _reportNetworkUsage;
   final Dio _dio;
   final PermanentDownloadPathResolver _permanentPathResolver;
+  final PermanentDownloadImportService _permanentDownloadImportService;
 
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
   bool _processing = false;
@@ -122,8 +130,11 @@ class DownloadService {
     // Recover items left in 'downloading' from a previous app kill.
     await _downloadQueueDao.requeueStuckDownloads();
 
-    // Best-effort cleanup of orphaned permanent files on startup.
-    await _cleanupOrphanedFiles();
+    // A custom root belongs to the user. Files not present in Navis's local
+    // database may be import candidates and must never be deleted implicitly.
+    if (!_readCustomDownloadFolderEnabled()) {
+      await _cleanupOrphanedFiles();
+    }
 
     // Normalize older hashed permanent downloads into the current folder layout.
     await _normalizePermanentDownloads();
@@ -220,6 +231,24 @@ class DownloadService {
       );
       await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: enabled);
     });
+  }
+
+  Future<PermanentDownloadImportPreview> previewCustomDownloadFolder(
+    String path,
+  ) {
+    return _permanentDownloadImportService.preview(Directory(path));
+  }
+
+  Future<PermanentDownloadImportResult> importCustomDownloadFolder(
+    PermanentDownloadImportPreview preview, {
+    Map<String, String> manualSongIds = const <String, String>{},
+  }) {
+    return _runWithQueuePaused(
+      () => _permanentDownloadImportService.commit(
+        preview,
+        manualSongIds: manualSongIds,
+      ),
+    );
   }
 
   Future<String> resolveActivePermanentDownloadPath() async {
@@ -719,6 +748,12 @@ class DownloadService {
             lastAccessedAt: DateTime.now(),
           ),
         );
+        await _permanentDownloadImportService.recordDownloaded(
+          root: await _permanentDirectory(),
+          file: destFile,
+          songId: songId,
+          format: format,
+        );
 
         // Remove from queue.
         await _downloadQueueDao.remove(item.id);
@@ -905,6 +940,12 @@ class DownloadService {
           continue;
         }
         final path = entity.path;
+        final name = p.basename(path);
+        if (name == permanentDownloadManifestFileName ||
+            name == '$permanentDownloadManifestFileName-wal' ||
+            name == '$permanentDownloadManifestFileName-shm') {
+          continue;
+        }
         final basePath = path.endsWith('.mime')
             ? path.substring(0, path.length - '.mime'.length)
             : path;
@@ -1119,6 +1160,12 @@ class DownloadService {
             downloadStatus: entry.downloadStatus,
             lastAccessedAt: DateTime.now(),
           ),
+        );
+        await _permanentDownloadImportService.recordDownloaded(
+          root: targetDirectory,
+          file: File(targetPath),
+          songId: entry.songId,
+          format: storedFormat,
         );
         movedEntries.add((
           entry: entry,

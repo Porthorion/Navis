@@ -443,6 +443,14 @@ Permanent downloads and rolling→permanent promotion must pre-cache cover art
 with `kCoverArtStandardSize`; smaller ad hoc sizes create different cache keys
 and can leave offline artwork blank.
 
+Custom permanent-download folders are user-owned. Never remove an unregistered
+file from one during startup maintenance: it may be an import candidate. Navis
+keeps `.navis-downloads.sqlite` at the folder root to map relative paths to the
+non-secret profile fingerprint and server song IDs. The sidecar is authoritative
+across installations; format-specific media tags are best-effort compatibility
+metadata. Folder selection previews and confirms import, adopts only unique
+local-catalog matches, and leaves profile-mismatched or unknown files untouched.
+
 When `PlaybackSnapshot.hasActivePlayback` becomes false, `AppShell` must clear
 its logical player overlay stack immediately so Back targets the underlying
 route. Phone/tablet player chrome may retain the last active presentation only
