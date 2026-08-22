@@ -49,7 +49,7 @@ class _SongMenuPreview extends StatelessWidget {
       const _ActionTile(icon: Icons.play_arrow_outlined, label: 'Play now'),
       const _ActionTile(
         icon: Icons.queue_music_outlined,
-        label: 'Add to queue',
+        label: 'Add to Queue',
       ),
       const _ActionTile(
         icon: Icons.playlist_add_outlined,

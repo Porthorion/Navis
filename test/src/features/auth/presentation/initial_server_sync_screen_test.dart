@@ -75,7 +75,7 @@ void main() {
     await tester.pumpWidget(_testApp(setup: setup));
     await tester.pump();
 
-    expect(find.text('Building your library'), findsOneWidget);
+    expect(find.text('Building Your Library'), findsOneWidget);
     expect(
       find.text('Navis is preparing this server for the first time.'),
       findsOneWidget,

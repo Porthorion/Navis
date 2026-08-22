@@ -301,7 +301,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Building your library'), findsOneWidget);
+      expect(find.text('Building Your Library'), findsOneWidget);
       expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsNothing);
       expect(
         find.byKey(const ValueKey('requiredSyncSignOut')),

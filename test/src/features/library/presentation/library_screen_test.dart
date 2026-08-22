@@ -410,10 +410,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('No library pages enabled'), findsOneWidget);
+      expect(find.text('No Library Pages Enabled'), findsOneWidget);
       final recovery = find.widgetWithText(
         FilledButton,
-        'Open Appearance settings',
+        'Open Appearance Settings',
       );
       expect(recovery, findsOneWidget);
 
@@ -630,11 +630,11 @@ void main() {
       );
 
       expect(find.byType(EmptyState), findsOneWidget);
-      expect(find.text('No albums found'), findsOneWidget);
+      expect(find.text('No Albums Found'), findsOneWidget);
 
       await tester.tap(find.text('Artists'));
       await tester.pumpAndSettle();
-      expect(find.text('No artists found'), findsOneWidget);
+      expect(find.text('No Artists Found'), findsOneWidget);
     });
 
     _testWidgetsWithCleanup(
@@ -659,7 +659,7 @@ void main() {
           ],
         );
 
-        expect(find.text('No downloaded content'), findsOneWidget);
+        expect(find.text('No Downloaded Content'), findsOneWidget);
         expect(
           find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
           findsOneWidget,
@@ -670,7 +670,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('No albums found'), findsOneWidget);
+        expect(find.text('No Albums Found'), findsOneWidget);
         expect(
           find.byKey(const ValueKey<String>('libraryClearFiltersAction')),
           findsNothing,
@@ -711,7 +711,7 @@ void main() {
 
         await _switchToArtistsTab(tester);
         expect(find.byType(ErrorState), findsOneWidget);
-        expect(find.text('Could not load artists'), findsOneWidget);
+        expect(find.text('Could Not Load Artists'), findsOneWidget);
 
         await tester.tap(find.text('Retry'));
         await tester.pumpAndSettle();
@@ -1327,7 +1327,7 @@ void main() {
             .setQuery('lofi');
         await tester.pumpAndSettle();
 
-        expect(find.text('No stations match \u201clofi\u201d'), findsOneWidget);
+        expect(find.text('No Stations Match \u201clofi\u201d'), findsOneWidget);
         await tester.tap(
           find.byKey(const ValueKey<String>('radioClearTypeFilterAction')),
         );
@@ -1506,7 +1506,7 @@ void main() {
         await tester.tap(find.byIcon(Icons.more_vert));
         await tester.pumpAndSettle();
 
-        expect(find.text('Rename playlist'), findsOneWidget);
+        expect(find.text('Rename Playlist'), findsOneWidget);
         expect(find.byType(BottomSheet), findsNothing);
       },
     );

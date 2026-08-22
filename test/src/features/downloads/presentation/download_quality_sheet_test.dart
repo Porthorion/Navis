@@ -23,7 +23,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsOneWidget);
-    expect(find.text('Download quality'), findsOneWidget);
+    expect(find.text('Download Quality'), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
   });
 }

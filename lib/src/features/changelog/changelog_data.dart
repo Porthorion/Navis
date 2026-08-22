@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.9',
+    entries: [
+      ChangelogEntry(
+        'Titles, labels, menus, and empty states now use consistent title case throughout the app',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.8',
     entries: [
       ChangelogEntry(

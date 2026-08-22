@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.9', [
+    _Entry(
+      'Titles, labels, menus, and empty states now use consistent title case throughout the app',
+      type: _EntryType.improvement,
+    ),
+  ]),
   _Version('1.2.8', [
     _Entry(
       'Android custom download folders now work through the system folder picker, with safe import, offline playback, rescans, and preservation of unrelated files',

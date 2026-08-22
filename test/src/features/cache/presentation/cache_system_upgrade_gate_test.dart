@@ -40,19 +40,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Update library cache'), findsOneWidget);
+    expect(find.text('Update Library Cache'), findsOneWidget);
     expect(
       find.textContaining('Your downloaded music will be kept.'),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('Clear library cache'), findsOneWidget);
+    expect(find.bySemanticsLabel('Clear Library Cache'), findsOneWidget);
 
     await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
-    expect(find.text('Update library cache'), findsNothing);
+    expect(find.text('Update Library Cache'), findsNothing);
 
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Update library cache'), findsNothing);
+    expect(find.text('Update Library Cache'), findsNothing);
   });
 
   testWidgets('clearing the legacy prompt enters the required rebuild route', (
@@ -105,7 +105,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    await tester.tap(find.text('Clear library cache'));
+    await tester.tap(find.text('Clear Library Cache'));
     await tester.pumpAndSettle();
     expect(find.text('Required rebuild'), findsOneWidget);
     expect(

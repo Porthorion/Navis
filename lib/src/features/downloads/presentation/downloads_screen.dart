@@ -1112,7 +1112,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Import existing downloads?'),
+          title: const Text('Import Existing Downloads?'),
           content: SizedBox(
             width: 460,
             child: Semantics(
@@ -1176,7 +1176,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, manualSongIds),
-              child: const Text('Import & use folder'),
+              child: const Text('Import & Use Folder'),
             ),
           ],
         ),
@@ -1196,7 +1196,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Choose library song'),
+          title: const Text('Choose Library Song'),
           content: SizedBox(
             width: 460,
             height: 360,
@@ -1207,7 +1207,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
                   autofocus: true,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
-                    labelText: 'Search your local library',
+                    labelText: 'Search Your Local Library',
                   ),
                   onChanged: (value) => setDialogState(() => query = value),
                 ),
@@ -1225,7 +1225,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
                       }
                       if (songs.isEmpty)
                         return const Center(
-                          child: Text('No local library songs found.'),
+                          child: Text('No Local Library Songs Found.'),
                         );
                       return ListView.builder(
                         itemCount: songs.length,
@@ -1356,7 +1356,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
         if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
           ListTile(
             leading: const Icon(Icons.manage_search_outlined),
-            title: const Text('Rescan existing downloads'),
+            title: const Text('Rescan Existing Downloads'),
             subtitle: const Text('Import tracks already in this folder'),
             onTap: _rescanCustomDownloadFolder,
           ),

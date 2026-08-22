@@ -19,7 +19,7 @@ void main() {
                       anchor: const Offset(450, 180),
                       items: const <PopupMenuEntry<void>>[
                         PopupMenuItem<void>(child: Text('Play now')),
-                        PopupMenuItem<void>(child: Text('Add to queue')),
+                        PopupMenuItem<void>(child: Text('Add to Queue')),
                         PopupMenuItem<void>(child: Text('Play next')),
                         PopupMenuDivider(),
                         PopupMenuItem<void>(child: Text('Like')),
@@ -40,7 +40,7 @@ void main() {
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 ListTile(title: Text('Play now')),
-                                ListTile(title: Text('Add to queue')),
+                                ListTile(title: Text('Add to Queue')),
                                 ListTile(title: Text('Play next')),
                                 ListTile(title: Text('Like')),
                                 ListTile(title: Text('Rate')),

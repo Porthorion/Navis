@@ -709,7 +709,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('No weekly playlist available'), findsOneWidget);
+    expect(find.text('No Weekly Playlist Available'), findsOneWidget);
     expect(find.text('Refresh to check for a new playlist.'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
 
@@ -721,7 +721,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Could not load weekly playlist'), findsOneWidget);
+    expect(find.text('Could Not Load Weekly Playlist'), findsOneWidget);
     expect(find.text('Check your connection and try again.'), findsOneWidget);
     expect(find.textContaining('private implementation detail'), findsNothing);
     expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
@@ -1408,12 +1408,12 @@ void main() {
       expect(find.byType(FilterChip), findsNothing);
       expect(find.byType(FilledButton), findsOneWidget); // Instant Radio
       await tester.scrollUntilVisible(
-        find.text('Recently liked albums'),
+        find.text('Recently Liked Albums'),
         220,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(find.text('Recently liked albums'), findsOneWidget);
-      expect(find.text('Recently played tracks'), findsNothing);
+      expect(find.text('Recently Liked Albums'), findsOneWidget);
+      expect(find.text('Recently Played Tracks'), findsNothing);
     },
   );
 

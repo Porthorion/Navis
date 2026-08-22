@@ -70,7 +70,7 @@ class _AlbumMenuPreview extends StatelessWidget {
                 ),
                 const _ActionTile(
                   icon: Icons.queue_music_outlined,
-                  label: 'Add to queue',
+                  label: 'Add to Queue',
                 ),
                 const _ActionTile(icon: Icons.favorite_border, label: 'Like'),
                 if (grouped) const Divider(height: 1),

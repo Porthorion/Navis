@@ -91,16 +91,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Wi-Fi streaming'), findsOneWidget);
-      expect(find.text('Cellular streaming'), findsOneWidget);
+      expect(find.text('Wi-Fi Streaming'), findsOneWidget);
+      expect(find.text('Cellular Streaming'), findsOneWidget);
       expect(find.text('Cached First'), findsOneWidget);
-      expect(find.text('Enable scrobbling'), findsOneWidget);
+      expect(find.text('Enable Scrobbling'), findsOneWidget);
       expect(find.text('Enable gapless playback'), findsOneWidget);
       expect(find.text('Experimental'), findsOneWidget);
       expect(find.text('Show Radio page'), findsNothing);
       expect(find.text('Skip silence when possible'), findsNothing);
       expect(find.text('Changes save automatically'), findsOneWidget);
-      expect(find.text('Reset defaults'), findsOneWidget);
+      expect(find.text('Reset Defaults'), findsOneWidget);
     });
 
     testWidgets('desktop playback settings keep a Settings return path', (
@@ -121,7 +121,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Back to Settings'), findsOneWidget);
-      expect(find.text('Wi-Fi streaming'), findsOneWidget);
+      expect(find.text('Wi-Fi Streaming'), findsOneWidget);
     });
 
     testWidgets('autosave persists values and reset triggers defaults', (
@@ -157,7 +157,7 @@ void main() {
 
       final scrobbleToggle = find.widgetWithText(
         SwitchListTile,
-        'Enable scrobbling',
+        'Enable Scrobbling',
       );
       final cachedFirstToggle = find.widgetWithText(
         SwitchListTile,
@@ -165,7 +165,7 @@ void main() {
       );
       final gaplessToggle = find.widgetWithText(
         SwitchListTile,
-        'Enable gapless playback',
+        'Enable Gapless Playback',
       );
 
       await tester.ensureVisible(cachedFirstToggle);
@@ -197,7 +197,7 @@ void main() {
       // their respective providers (managed in Appearance settings).
       expect(savedModel!.showRadioPage, isTrue);
 
-      final resetDefaults = find.text('Reset defaults');
+      final resetDefaults = find.text('Reset Defaults');
       await tester.ensureVisible(resetDefaults);
       await tester.pumpAndSettle();
       await tester.tap(resetDefaults);
@@ -232,7 +232,7 @@ void main() {
         SwitchListTile,
         'Enable gapless playback',
       );
-      const crossfadeText = 'Enable cross-fade';
+      const crossfadeText = 'Enable Cross-Fade';
       final fullscreenToggle = find.widgetWithText(
         SwitchListTile,
         'Fullscreen Mode Lyrics',

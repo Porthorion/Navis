@@ -157,7 +157,7 @@ void main() {
     expect(find.text('Open artist'), findsOneWidget);
     expect(find.text('Play'), findsOneWidget);
     expect(find.text('Shuffle'), findsOneWidget);
-    expect(find.text('Add to queue'), findsOneWidget);
+    expect(find.text('Add to Queue'), findsOneWidget);
     expect(find.text('Like'), findsOneWidget);
     expect(
       tester.widget<ListTile>(find.widgetWithText(ListTile, 'Play')).enabled,

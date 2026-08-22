@@ -50,7 +50,7 @@ class _PlaylistTrackMenuPreview extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     const transportActions = <Widget>[
       _ActionTile(icon: Icons.play_arrow_outlined, label: 'Play now'),
-      _ActionTile(icon: Icons.queue_music_outlined, label: 'Add to queue'),
+      _ActionTile(icon: Icons.queue_music_outlined, label: 'Add to Queue'),
       _ActionTile(icon: Icons.playlist_add_outlined, label: 'Play next'),
     ];
     const utilityActions = <Widget>[

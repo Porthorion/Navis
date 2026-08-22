@@ -141,7 +141,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Preparing playback'), findsOneWidget);
+    expect(find.text('Preparing Playback'), findsOneWidget);
     expect(find.text('Restoring your listening session…'), findsOneWidget);
     expect(find.text('Playback initialization failed'), findsNothing);
     expect(find.text('Retry playback startup'), findsNothing);

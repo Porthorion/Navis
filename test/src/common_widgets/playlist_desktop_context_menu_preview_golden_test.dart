@@ -133,7 +133,7 @@ class _ActionMenu extends StatelessWidget {
       ),
       _ActionRow(
         icon: Icons.queue_music_outlined,
-        label: 'Add to queue',
+        label: 'Add to Queue',
         showIcon: !desktopMenu,
       ),
       _ActionRow(

@@ -33,7 +33,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navigationBackToExitPrompt => 'Press back again to exit';
 
   @override
-  String get loginTitle => 'Sign in';
+  String get loginTitle => 'Sign In';
 
   @override
   String get loginSubtitle => 'Connect to your Subsonic or Navidrome server.';
@@ -104,17 +104,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get loginReplaceServerTitle => 'Replace local server data?';
+  String get loginReplaceServerTitle => 'Replace Local Server Data?';
 
   @override
   String get loginReplaceServerMessage =>
       'This device keeps one local server catalog. Continuing will remove the retained library, downloads, caches, history, playlists, and Match Flows from the previous server account.';
 
   @override
-  String get loginReplaceServerAction => 'Replace local data';
+  String get loginReplaceServerAction => 'Replace Local Data';
 
   @override
-  String get initialSyncTitle => 'Initial server sync';
+  String get initialSyncTitle => 'Initial Server Sync';
 
   @override
   String get initialSyncDoNotClose =>
@@ -141,13 +141,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get initialSyncCancelAndLogout => 'Cancel and sign out';
 
   @override
-  String get requiredSyncInitialTitle => 'Building your library';
+  String get requiredSyncInitialTitle => 'Building Your Library';
 
   @override
-  String get requiredSyncRebuildTitle => 'Rebuilding your library';
+  String get requiredSyncRebuildTitle => 'Rebuilding Your Library';
 
   @override
-  String get requiredSyncRepairTitle => 'Repairing your library';
+  String get requiredSyncRepairTitle => 'Repairing Your Library';
 
   @override
   String get requiredSyncInitialBody =>
@@ -205,7 +205,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverOfflineQuietBanner => 'Offline mode';
 
   @override
-  String get batteryOptimizationPromptTitle => 'Keep background sync alive';
+  String get batteryOptimizationPromptTitle => 'Keep Background Sync Alive';
 
   @override
   String get batteryOptimizationPromptBody =>
@@ -219,7 +219,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get batteryOptimizationPromptLaterAction => 'Later';
 
   @override
-  String get batteryOptimizationPromptOpenSettingsAction => 'Open settings';
+  String get batteryOptimizationPromptOpenSettingsAction => 'Open Settings';
 
   @override
   String get settingsTitle => 'Settings';
@@ -425,21 +425,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Desktop workspace controls and app preferences';
 
   @override
-  String get privacyAccountsTitle => 'Accounts and credentials';
+  String get privacyAccountsTitle => 'Accounts and Credentials';
 
   @override
   String get privacyAccountsBody =>
       'Navis connects directly to the Subsonic or OpenSubsonic servers you configure. Server addresses and usernames are stored in the app database. Passwords and external service tokens are stored through the platform secure credential store when available.';
 
   @override
-  String get privacyScrobblingTitle => 'External scrobbling';
+  String get privacyScrobblingTitle => 'External Scrobbling';
 
   @override
   String get privacyScrobblingBody =>
       'If you enable ListenBrainz, Navis sends listening activity for played tracks to those services. This can include track title, artist, album, duration, play time, and now-playing status. ListenBrainz user tokens remain on your device.';
 
   @override
-  String get privacyDownloadsTitle => 'Downloads and cache';
+  String get privacyDownloadsTitle => 'Downloads and Cache';
 
   @override
   String get privacyDownloadsBody =>
@@ -460,10 +460,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsTitle => 'Sync Settings';
 
   @override
-  String get syncSettingsStatusLabel => 'Current sync status';
+  String get syncSettingsStatusLabel => 'Current Sync Status';
 
   @override
-  String get syncSettingsLastSyncedLabel => 'Server last synced';
+  String get syncSettingsLastSyncedLabel => 'Server Last Synced';
 
   @override
   String get syncSettingsNeverSynced => 'Never synced';
@@ -491,10 +491,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not refresh your library. Check your connection and try again.';
 
   @override
-  String get syncSettingsPlanLabel => 'Sync plan';
+  String get syncSettingsPlanLabel => 'Sync Plan';
 
   @override
-  String get syncSettingsPendingWorkLabel => 'Pending work';
+  String get syncSettingsPendingWorkLabel => 'Pending Work';
 
   @override
   String syncSettingsPendingWorkValue(Object count) {
@@ -502,7 +502,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncSettingsCatalogUpdateLabel => 'Catalog update';
+  String get syncSettingsCatalogUpdateLabel => 'Catalog Update';
 
   @override
   String syncSettingsCatalogUpdateValue(Object milliseconds) {
@@ -510,7 +510,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncSettingsLastRunLabel => 'Last run';
+  String get syncSettingsLastRunLabel => 'Last Run';
 
   @override
   String syncSettingsLastRunValue(Object requests, Object bytes) {
@@ -518,32 +518,32 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncSettingsLastCheckedLabel => 'Last checked';
+  String get syncSettingsLastCheckedLabel => 'Last Checked';
 
   @override
-  String get syncSettingsNextAutomaticCheckLabel => 'Next automatic check';
+  String get syncSettingsNextAutomaticCheckLabel => 'Next Automatic Check';
 
   @override
   String get syncSettingsNextAutomaticCheckScheduling => 'Scheduling…';
 
   @override
-  String get syncSettingsNextRetryLabel => 'Automatic retry after failure';
+  String get syncSettingsNextRetryLabel => 'Automatic Retry After Failure';
 
   @override
-  String get syncSettingsLastCatalogUpdateLabel => 'Last catalog update';
+  String get syncSettingsLastCatalogUpdateLabel => 'Last Catalog Update';
 
   @override
   String get syncSettingsLastAuxiliaryUpdateLabel =>
-      'Starred and playlist headers';
+      'Starred and Playlist Headers';
 
   @override
   String get syncSettingsLastGenresUpdateLabel => 'Genres';
 
   @override
-  String get syncSettingsLastLibraryChangeLabel => 'Last library change';
+  String get syncSettingsLastLibraryChangeLabel => 'Last Library Change';
 
   @override
-  String get syncSettingsAndroidBackgroundTitle => 'Android background sync';
+  String get syncSettingsAndroidBackgroundTitle => 'Android Background Sync';
 
   @override
   String get syncSettingsBackToSettings => 'Back to Settings';
@@ -653,7 +653,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncSettingsIntervalLabel => 'Auto-sync interval';
+  String get syncSettingsIntervalLabel => 'Auto-Sync Interval';
 
   @override
   String get syncSettingsIntervalManual => 'Manual only';
@@ -674,7 +674,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncSettingsBackgroundUnmeteredOnlyLabel =>
-      'Background sync only on unmetered networks';
+      'Background Sync Only on Unmetered Networks';
 
   @override
   String get syncSettingsBackgroundUnmeteredOnlyDescription =>
@@ -709,7 +709,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncSettingsRepairDeletionConfirmationTitle =>
-      'Confirm library repair';
+      'Confirm Library Repair';
 
   @override
   String syncSettingsRepairDeletionConfirmationBody(Object count) {
@@ -718,14 +718,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncSettingsRepairDeletionConfirmationAction =>
-      'Apply library repair';
+      'Apply Library Repair';
 
   @override
-  String get syncSettingsRepairDiscardCandidate => 'Discard repair candidate';
+  String get syncSettingsRepairDiscardCandidate => 'Discard Repair Candidate';
 
   @override
   String get syncSettingsRepairDiscardCandidateTitle =>
-      'Discard pending library repair?';
+      'Discard Pending Library Repair?';
 
   @override
   String get syncSettingsRepairDiscardCandidateBody =>
@@ -733,14 +733,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncSettingsRepairMeteredConfirmTitle =>
-      'Repair library metadata on mobile data?';
+      'Repair Library Metadata on Mobile Data?';
 
   @override
   String get syncSettingsRepairMeteredConfirmBody =>
       'Repairing library metadata can download a large amount of metadata over your current connection.';
 
   @override
-  String get syncSettingsRepairMeteredConfirmAction => 'Repair on mobile data';
+  String get syncSettingsRepairMeteredConfirmAction => 'Repair on Mobile Data';
 
   @override
   String get cacheSettingsResetLibraryCache => 'Reset Library Cache';
@@ -758,7 +758,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music will be kept. Navis will then fully resync your library.';
 
   @override
-  String get cacheSettingsResetLibraryCacheConfirmAction => 'Reset cache';
+  String get cacheSettingsResetLibraryCacheConfirmAction => 'Reset Cache';
 
   @override
   String get cacheSettingsResetLibraryCacheSuccess =>
@@ -769,25 +769,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Cache was reset, but full metadata resync failed.';
 
   @override
-  String get playbackSettingsLoadError => 'Could not load playback settings';
+  String get playbackSettingsLoadError => 'Could Not Load Playback Settings';
 
   @override
-  String get playbackSettingsWifiSectionTitle => 'Wi-Fi streaming';
+  String get playbackSettingsWifiSectionTitle => 'Wi-Fi Streaming';
 
   @override
-  String get playbackSettingsWifiQualityLabel => 'Max bitrate';
+  String get playbackSettingsWifiQualityLabel => 'Max Bitrate';
 
   @override
-  String get playbackSettingsWifiFormatLabel => 'Preferred format';
+  String get playbackSettingsWifiFormatLabel => 'Preferred Format';
 
   @override
-  String get playbackSettingsCellularSectionTitle => 'Cellular streaming';
+  String get playbackSettingsCellularSectionTitle => 'Cellular Streaming';
 
   @override
-  String get playbackSettingsCellularQualityLabel => 'Max bitrate';
+  String get playbackSettingsCellularQualityLabel => 'Max Bitrate';
 
   @override
-  String get playbackSettingsCellularFormatLabel => 'Preferred format';
+  String get playbackSettingsCellularFormatLabel => 'Preferred Format';
 
   @override
   String get playbackSettingsCachedFirstTitle => 'Cached First';
@@ -797,21 +797,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Prefer any complete cached file before requesting the active streaming profile.';
 
   @override
-  String get playbackSettingsScrobbleTitle => 'Enable scrobbling';
+  String get playbackSettingsScrobbleTitle => 'Enable Scrobbling';
 
   @override
   String get playbackSettingsScrobbleSubtitle =>
       'Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.';
 
   @override
-  String get playbackSettingsLrclibTitle => 'Use LRCLIB fallback';
+  String get playbackSettingsLrclibTitle => 'Use LRCLIB Fallback';
 
   @override
   String get playbackSettingsLrclibSubtitle =>
       'When server lyrics are unavailable, try LRCLIB and cache per song.';
 
   @override
-  String get playbackSettingsGaplessTitle => 'Enable gapless playback';
+  String get playbackSettingsGaplessTitle => 'Enable Gapless Playback';
 
   @override
   String get playbackSettingsGaplessSubtitle =>
@@ -829,7 +829,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'This build has no Last.fm API key, so Legacy Instant Mix is required.';
 
   @override
-  String get playbackSettingsShowRadioPageTitle => 'Show Radio page';
+  String get playbackSettingsShowRadioPageTitle => 'Show Radio Page';
 
   @override
   String get playbackSettingsShowRadioPageSubtitle =>
@@ -839,7 +839,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsAndroidDspSectionTitle => 'Android Audio Effects';
 
   @override
-  String get playbackSettingsEqualizerTitle => 'Enable equalizer';
+  String get playbackSettingsEqualizerTitle => 'Enable Equalizer';
 
   @override
   String get playbackSettingsEqualizerSubtitle =>
@@ -851,7 +851,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get playbackSettingsLoudnessTitle => 'Enable loudness enhancer';
+  String get playbackSettingsLoudnessTitle => 'Enable Loudness Enhancer';
 
   @override
   String get playbackSettingsLoudnessSubtitle =>
@@ -861,7 +861,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsSaveAction => 'Save';
 
   @override
-  String get playbackSettingsResetAction => 'Reset defaults';
+  String get playbackSettingsResetAction => 'Reset Defaults';
 
   @override
   String get playbackSettingsQualityOriginal => 'Original quality';
@@ -893,7 +893,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsCrossfadeSectionTitle => 'Cross-fade';
 
   @override
-  String get playbackSettingsCrossfadeEnableTitle => 'Enable cross-fade';
+  String get playbackSettingsCrossfadeEnableTitle => 'Enable Cross-Fade';
 
   @override
   String get playbackSettingsCrossfadeEnableSubtitle =>
@@ -905,7 +905,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get playbackSettingsCrossfadeTypeLabel => 'Cross-fade mode';
+  String get playbackSettingsCrossfadeTypeLabel => 'Cross-Fade Mode';
 
   @override
   String get playbackSettingsCrossfadeTypeNormal => 'Normal';
@@ -939,7 +939,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackUnmuteTooltip => 'Unmute playback';
 
   @override
-  String get playbackSettingsReplayGainModeLabel => 'ReplayGain mode';
+  String get playbackSettingsReplayGainModeLabel => 'ReplayGain Mode';
 
   @override
   String get playbackSettingsReplayGainModeOff => 'Off';
@@ -970,7 +970,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Additional gain adjustment. Range: −6 to +6 dB.';
 
   @override
-  String get playbackSettingsPlaybackSpeedLabel => 'Playback speed';
+  String get playbackSettingsPlaybackSpeedLabel => 'Playback Speed';
 
   @override
   String get playbackSettingsCloseAction => 'Close';
@@ -1007,7 +1007,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeTitle => 'Home';
 
   @override
-  String get homeLoadErrorTitle => 'Could not load section';
+  String get homeLoadErrorTitle => 'Could Not Load Section';
 
   @override
   String get weeklyPlaylistTitle => 'ListenBrainz Weekly';
@@ -1022,10 +1022,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get weeklyPlaylistServiceName => 'ListenBrainz';
 
   @override
-  String get weeklyPlaylistLoadError => 'Could not load weekly playlist';
+  String get weeklyPlaylistLoadError => 'Could Not Load Weekly Playlist';
 
   @override
-  String get weeklyPlaylistUnavailableTitle => 'No weekly playlist available';
+  String get weeklyPlaylistUnavailableTitle => 'No Weekly Playlist Available';
 
   @override
   String get weeklyPlaylistUnavailableSubtitle =>
@@ -1097,7 +1097,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get weeklyPlaylistTrackUnavailable => 'Not available on your server';
 
   @override
-  String get homeContinueListeningTitle => 'Continue listening';
+  String get homeContinueListeningTitle => 'Continue Listening';
 
   @override
   String get homeContinueListeningResume => 'Resume';
@@ -1106,40 +1106,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeContinueListeningOpenNowPlaying => 'Open player';
 
   @override
-  String get homeRecentlyLikedAlbumsTitle => 'Recently liked albums';
+  String get homeRecentlyLikedAlbumsTitle => 'Recently Liked Albums';
 
   @override
-  String get homeRecentlyLikedAlbumsEmptyTitle => 'No liked albums yet';
+  String get homeRecentlyLikedAlbumsEmptyTitle => 'No Liked Albums Yet';
 
   @override
   String get homeRecentlyLikedAlbumsEmptySubtitle =>
       'Like albums to pin your favorites here.';
 
   @override
-  String get homeRecentlyPlayedTitle => 'Recently played';
+  String get homeRecentlyPlayedTitle => 'Recently Played';
 
   @override
-  String get homeRecentlyPlayedEmptyTitle => 'No recent plays yet';
+  String get homeRecentlyPlayedEmptyTitle => 'No Recent Plays Yet';
 
   @override
   String get homeRecentlyPlayedEmptySubtitle =>
       'Start playback to populate this section.';
 
   @override
-  String get homeRecentlyAddedTitle => 'Recently added';
+  String get homeRecentlyAddedTitle => 'Recently Added';
 
   @override
-  String get homeRecentlyAddedEmptyTitle => 'No recently added albums';
+  String get homeRecentlyAddedEmptyTitle => 'No Recently Added Albums';
 
   @override
   String get homeRecentlyAddedEmptySubtitle =>
       'Pull to refresh to fetch newly added albums.';
 
   @override
-  String get homeFrequentTitle => 'Frequent albums';
+  String get homeFrequentTitle => 'Frequent Albums';
 
   @override
-  String get homeFrequentEmptyTitle => 'No frequent albums yet';
+  String get homeFrequentEmptyTitle => 'No Frequent Albums Yet';
 
   @override
   String get homeFrequentEmptySubtitle =>
@@ -1149,17 +1149,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeRandomTitle => 'You Might Like';
 
   @override
-  String get homeRandomEmptyTitle => 'No recommendations available';
+  String get homeRandomEmptyTitle => 'No Recommendations Available';
 
   @override
   String get homeRandomEmptySubtitle =>
       'Like more songs or pull to refresh to discover new picks.';
 
   @override
-  String get homeStarredTitle => 'Liked tracks';
+  String get homeStarredTitle => 'Liked Tracks';
 
   @override
-  String get homeStarredEmptyTitle => 'No liked tracks';
+  String get homeStarredEmptyTitle => 'No Liked Tracks';
 
   @override
   String get homeStarredEmptySubtitle =>
@@ -1169,37 +1169,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeSeeAll => 'See all';
 
   @override
-  String get homeMostPlayedTracksTitle => 'Most played tracks';
+  String get homeMostPlayedTracksTitle => 'Most Played Tracks';
 
   @override
-  String get homeMostPlayedTracksEmptyTitle => 'No play data yet';
+  String get homeMostPlayedTracksEmptyTitle => 'No Play Data Yet';
 
   @override
   String get homeMostPlayedTracksEmptySubtitle =>
       'Play more music to populate this section.';
 
   @override
-  String get homeRecentlyPlayedTracksTitle => 'Recently played tracks';
+  String get homeRecentlyPlayedTracksTitle => 'Recently Played Tracks';
 
   @override
-  String get homeRecentlyPlayedTracksEmptyTitle => 'No recently played tracks';
+  String get homeRecentlyPlayedTracksEmptyTitle => 'No Recently Played Tracks';
 
   @override
   String get homeRecentlyPlayedTracksEmptySubtitle =>
       'Start listening to populate this section.';
 
   @override
-  String get homeRecentlyPlayedAlbumsTitle => 'Recently played albums';
+  String get homeRecentlyPlayedAlbumsTitle => 'Recently Played Albums';
 
   @override
-  String get homeRecentlyPlayedAlbumsEmptyTitle => 'No recently played albums';
+  String get homeRecentlyPlayedAlbumsEmptyTitle => 'No Recently Played Albums';
 
   @override
   String get homeRecentlyPlayedAlbumsEmptySubtitle =>
       'Start listening to populate this section.';
 
   @override
-  String get homeQuickActionsTitle => 'Quick actions';
+  String get homeQuickActionsTitle => 'Quick Actions';
 
   @override
   String get homeQuickActionShuffleLiked => 'Shuffle liked';
@@ -1208,7 +1208,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioTitle => 'Radio';
 
   @override
-  String get radioEmptyTitle => 'No radio stations found';
+  String get radioEmptyTitle => 'No Radio Stations Found';
 
   @override
   String get radioEmptySubtitle =>
@@ -1216,7 +1216,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String radioFilteredEmptyTitle(String query) {
-    return 'No stations match “$query”';
+    return 'No Stations Match “$query”';
   }
 
   @override
@@ -1224,10 +1224,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Try a different filter, or show all stations.';
 
   @override
-  String get radioFilteredEmptyAction => 'Show all stations';
+  String get radioFilteredEmptyAction => 'Show All Stations';
 
   @override
-  String get radioLoadErrorTitle => 'Could not load radio stations';
+  String get radioLoadErrorTitle => 'Could Not Load Radio Stations';
 
   @override
   String get radioUnsupportedMessage =>
@@ -1252,7 +1252,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverSettingsTitle => 'Configuration';
 
   @override
-  String get serverSettingsLoadError => 'Could not load server settings.';
+  String get serverSettingsLoadError => 'Could Not Load Server Settings.';
 
   @override
   String get serverSettingsSaveError => 'Failed to save. Please try again.';
@@ -1274,10 +1274,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverSettingsUsernameLabel => 'Username';
 
   @override
-  String get serverSettingsApiVersionLabel => 'API version';
+  String get serverSettingsApiVersionLabel => 'API Version';
 
   @override
-  String get serverSettingsAuthModeLabel => 'Auth mode';
+  String get serverSettingsAuthModeLabel => 'Auth Mode';
 
   @override
   String get serverSettingsAuthModeToken => 'Token';
@@ -1358,7 +1358,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configurationServerSection => 'Server';
 
   @override
-  String get configurationExternalServicesSection => 'External services';
+  String get configurationExternalServicesSection => 'External Services';
 
   @override
   String get configurationLastFmSection => 'Last.fm';
@@ -1407,7 +1407,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configurationClearSecret => 'Clear';
 
   @override
-  String get configurationListenBrainzTokenLabel => 'User token';
+  String get configurationListenBrainzTokenLabel => 'User Token';
 
   @override
   String get configurationListenBrainzTokenRequired =>
@@ -1553,7 +1553,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get libraryArtistsEmptyTitle => 'No artists found';
+  String get libraryArtistsEmptyTitle => 'No Artists Found';
 
   @override
   String get libraryArtistsEmptySubtitle =>
@@ -1563,7 +1563,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryArtistsIndexAll => 'All';
 
   @override
-  String get libraryArtistsErrorTitle => 'Could not load artists';
+  String get libraryArtistsErrorTitle => 'Could Not Load Artists';
 
   @override
   String get libraryLikedAlbumsSectionTitle => 'Liked Albums';
@@ -1578,7 +1578,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryLikedSongsSectionTitle => 'Liked Songs';
 
   @override
-  String get libraryLikedEmptyTitle => 'Nothing liked yet';
+  String get libraryLikedEmptyTitle => 'Nothing Liked Yet';
 
   @override
   String get libraryLikedEmptySubtitle =>
@@ -1588,41 +1588,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryLikedOnlyFilter => 'Liked';
 
   @override
-  String get libraryLikedOnlyEmptyTitle => 'No liked matches';
+  String get libraryLikedOnlyEmptyTitle => 'No Liked Matches';
 
   @override
-  String get libraryNoPagesEnabledTitle => 'No library pages enabled';
+  String get libraryNoPagesEnabledTitle => 'No Library Pages Enabled';
 
   @override
   String get libraryNoPagesEnabledSubtitle =>
       'Enable a page in Appearance settings to browse your library.';
 
   @override
-  String get libraryNoPagesEnabledAction => 'Open Appearance settings';
+  String get libraryNoPagesEnabledAction => 'Open Appearance Settings';
 
   @override
   String get libraryLikedOnlyEmptySubtitle =>
       'Try turning off the liked filter or like more content.';
 
   @override
-  String get libraryAlbumsEmptyTitle => 'No albums found';
+  String get libraryAlbumsEmptyTitle => 'No Albums Found';
 
   @override
   String get libraryAlbumsEmptySubtitle =>
       'Run a sync to populate your library.';
 
   @override
-  String get libraryAlbumsErrorTitle => 'Could not load albums';
+  String get libraryAlbumsErrorTitle => 'Could Not Load Albums';
 
   @override
-  String get libraryAlbumsByYearEmptyTitle => 'No albums with year data';
+  String get libraryAlbumsByYearEmptyTitle => 'No Albums with Year Data';
 
   @override
   String get libraryAlbumsByYearEmptySubtitle =>
       'Sync more metadata or change filters to browse by year.';
 
   @override
-  String get libraryAlbumsSortLabel => 'Sort albums by';
+  String get libraryAlbumsSortLabel => 'Sort Albums By';
 
   @override
   String libraryAlbumsPagingProgress(int loaded, int total) {
@@ -1630,27 +1630,27 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get librarySongsEmptyTitle => 'No songs found';
+  String get librarySongsEmptyTitle => 'No Songs Found';
 
   @override
   String get librarySongsEmptySubtitle =>
       'Run a sync to populate your library.';
 
   @override
-  String get librarySongsErrorTitle => 'Could not load songs';
+  String get librarySongsErrorTitle => 'Could Not Load Songs';
 
   @override
-  String get librarySongsSortLabel => 'Sort songs by';
+  String get librarySongsSortLabel => 'Sort Songs By';
 
   @override
-  String get libraryGenresEmptyTitle => 'No genres found';
+  String get libraryGenresEmptyTitle => 'No Genres Found';
 
   @override
   String get libraryGenresEmptySubtitle =>
       'Run a sync to populate your library.';
 
   @override
-  String get libraryGenresErrorTitle => 'Could not load genres';
+  String get libraryGenresErrorTitle => 'Could Not Load Genres';
 
   @override
   String libraryGenresCount(int albums, int songs) {
@@ -1697,7 +1697,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySongMenuPlayNow => 'Play now';
 
   @override
-  String get librarySongMenuAddToQueue => 'Add to queue';
+  String get librarySongMenuAddToQueue => 'Add to Queue';
 
   @override
   String get librarySongMenuPlayNext => 'Play next';
@@ -1735,19 +1735,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryGenreSongsTab => 'Songs';
 
   @override
-  String get libraryGenreAlbumsEmptyTitle => 'No albums in this genre';
+  String get libraryGenreAlbumsEmptyTitle => 'No Albums in This Genre';
 
   @override
   String get libraryGenreAlbumsEmptySubtitle => 'Sync to refresh genre albums.';
 
   @override
-  String get libraryGenreSongsEmptyTitle => 'No songs in this genre';
+  String get libraryGenreSongsEmptyTitle => 'No Songs in This Genre';
 
   @override
   String get libraryGenreSongsEmptySubtitle => 'Sync to refresh genre songs.';
 
   @override
-  String get libraryGenreLoadErrorTitle => 'Could not load genre';
+  String get libraryGenreLoadErrorTitle => 'Could Not Load Genre';
 
   @override
   String artistCardAlbumCount(int count) {
@@ -1758,7 +1758,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistDetailTitle => 'Artist';
 
   @override
-  String get artistDetailNotFoundTitle => 'Artist not found';
+  String get artistDetailNotFoundTitle => 'Artist Not Found';
 
   @override
   String get artistDetailNotFoundSubtitle =>
@@ -1770,7 +1770,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get artistDetailAlbumsEmptyTitle => 'No albums for this artist';
+  String get artistDetailAlbumsEmptyTitle => 'No Albums for This Artist';
 
   @override
   String get artistDetailAlbumsEmptySubtitle =>
@@ -1789,16 +1789,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistDetailBioSection => 'Biography';
 
   @override
-  String get artistDetailSimilarSection => 'Similar artists';
+  String get artistDetailSimilarSection => 'Similar Artists';
 
   @override
-  String get artistDetailAlbumsErrorTitle => 'Could not load artist albums';
+  String get artistDetailAlbumsErrorTitle => 'Could Not Load Artist Albums';
 
   @override
-  String get artistDetailLoadErrorTitle => 'Could not load artist details';
+  String get artistDetailLoadErrorTitle => 'Could Not Load Artist Details';
 
   @override
-  String get artistDetailLoadingLabel => 'Loading artist details';
+  String get artistDetailLoadingLabel => 'Loading Artist Details';
 
   @override
   String get artistTopTracksSection => 'Top Tracks';
@@ -1823,7 +1823,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String artistTopTracksPlaylistTitle(String artist) {
-    return 'This is $artist';
+    return 'This Is $artist';
   }
 
   @override
@@ -1834,20 +1834,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistTopTracksPlaylistSearchAction => 'Search';
 
   @override
-  String get artistTopTracksPlaylistEmptyTitle => 'No top tracks';
+  String get artistTopTracksPlaylistEmptyTitle => 'No Top Tracks';
 
   @override
   String get artistTopTracksPlaylistEmptySubtitle =>
       'Last.fm did not return tracks for this artist.';
 
   @override
-  String get artistTopTracksPlaylistErrorTitle => 'Failed to load top tracks';
+  String get artistTopTracksPlaylistErrorTitle => 'Failed to Load Top Tracks';
 
   @override
   String get albumDetailTitle => 'Album';
 
   @override
-  String get albumDetailNotFoundTitle => 'Album not found';
+  String get albumDetailNotFoundTitle => 'Album Not Found';
 
   @override
   String get albumDetailNotFoundSubtitle =>
@@ -1862,7 +1862,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get albumDetailTracksEmptyTitle => 'No tracks for this album';
+  String get albumDetailTracksEmptyTitle => 'No Tracks for This Album';
 
   @override
   String get albumDetailTracksEmptySubtitle =>
@@ -1870,20 +1870,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get albumDetailLikedTracksEmptyTitle =>
-      'No liked tracks in this album';
+      'No Liked Tracks in This Album';
 
   @override
   String get albumDetailLikedTracksEmptySubtitle =>
       'None of the tracks in this album have been liked yet.';
 
   @override
-  String get albumDetailShowAllTracksAction => 'Show all tracks';
+  String get albumDetailShowAllTracksAction => 'Show All Tracks';
 
   @override
   String get albumDetailFilterLabel => 'Filters';
 
   @override
-  String get albumDetailLoadErrorTitle => 'Could not load album details';
+  String get albumDetailLoadErrorTitle => 'Could Not Load Album Details';
 
   @override
   String get albumDetailRefreshError =>
@@ -1914,7 +1914,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailStarFailure => 'Could not update like status.';
 
   @override
-  String get albumDetailAboutSection => 'About this album';
+  String get albumDetailAboutSection => 'About This Album';
 
   @override
   String get albumDetailMenuShowAlbumArt => 'Show album art';
@@ -1949,7 +1949,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get miniPlayerSkipNext => 'Skip to next';
 
   @override
-  String get playbackBootstrapLoadingTitle => 'Preparing playback';
+  String get playbackBootstrapLoadingTitle => 'Preparing Playback';
 
   @override
   String get playbackBootstrapLoadingSubtitle =>
@@ -1957,7 +1957,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackBootstrapRecoveryTitle =>
-      'Playback is taking longer than usual';
+      'Playback Is Taking Longer Than Usual';
 
   @override
   String get playbackBootstrapRecoverySubtitle =>
@@ -1980,25 +1980,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music and your sign-in will be kept.';
 
   @override
-  String get playbackRecoveryResetConfirmAction => 'Reset cache';
+  String get playbackRecoveryResetConfirmAction => 'Reset Cache';
 
   @override
   String get playbackRecoveryWipeConfirmTitle =>
-      'Sign out and clear local data?';
+      'Sign Out and Clear Local Data?';
 
   @override
   String get playbackRecoveryWipeConfirmBody =>
       'This permanently deletes your sign-in, downloaded music, caches, library metadata, and history from this device.';
 
   @override
-  String get playbackRecoveryWipeConfirmAction => 'Clear local data';
+  String get playbackRecoveryWipeConfirmAction => 'Clear Local Data';
 
   @override
   String get playbackRecoveryActionFailed =>
       'Could not complete playback recovery. Try again.';
 
   @override
-  String get playbackRecoverySheetTitle => 'Playback unavailable';
+  String get playbackRecoverySheetTitle => 'Playback Unavailable';
 
   @override
   String get playbackRecoverySheetSubtitle =>
@@ -2047,17 +2047,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'This track couldn\'t be loaded. You can remove it from the queue or try again later.';
 
   @override
-  String get queueClearAction => 'Clear queue';
+  String get queueClearAction => 'Clear Queue';
 
   @override
-  String get queueClearConfirmTitle => 'Clear queue?';
+  String get queueClearConfirmTitle => 'Clear Queue?';
 
   @override
   String get queueClearConfirmMessage =>
       'This will remove all tracks from the queue.';
 
   @override
-  String get queueEmptyTitle => 'Queue is empty';
+  String get queueEmptyTitle => 'Queue Is Empty';
 
   @override
   String get queueEmptySubtitle => 'Add tracks to start playing.';
@@ -2187,7 +2187,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingSameVibesStopped => 'Same Vibes stopped.';
 
   @override
-  String get nowPlayingMixTitle => 'Queue modes';
+  String get nowPlayingMixTitle => 'Queue Modes';
 
   @override
   String get nowPlayingMixSubtitle =>
@@ -2212,7 +2212,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lyricsTitle => 'Lyrics';
 
   @override
-  String get lyricsNoneAvailable => 'No lyrics available';
+  String get lyricsNoneAvailable => 'No Lyrics Available';
 
   @override
   String get lyricsError => 'Could not load lyrics. Check your connection.';
@@ -2242,7 +2242,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ratingHint => 'Tap a star to set or clear';
 
   @override
-  String get ratingNoValue => 'No rating';
+  String get ratingNoValue => 'No Rating';
 
   @override
   String get ratingNotLiked => 'Not liked';
@@ -2280,13 +2280,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instantRadioAction => 'Instant Radio';
 
   @override
-  String get searchRecentTitle => 'Recent searches';
+  String get searchRecentTitle => 'Recent Searches';
 
   @override
   String get searchClearRecent => 'Clear';
 
   @override
-  String get searchNoResults => 'No results found';
+  String get searchNoResults => 'No Results Found';
 
   @override
   String searchNoResultsForQuery(String query) {
@@ -2297,7 +2297,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchNoResultsSubtitle => 'Try a different search term.';
 
   @override
-  String get searchLoadError => 'Could not load search results';
+  String get searchLoadError => 'Could Not Load Search Results';
 
   @override
   String get searchArtistsSection => 'Artists';
@@ -2323,7 +2323,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchPlayNext => 'Play next';
 
   @override
-  String get searchAddToQueue => 'Add to queue';
+  String get searchAddToQueue => 'Add to Queue';
 
   @override
   String get searchFilterAll => 'All';
@@ -2335,7 +2335,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistsTitle => 'Playlists';
 
   @override
-  String get playlistsEmpty => 'No playlists yet';
+  String get playlistsEmpty => 'No Playlists Yet';
 
   @override
   String get playlistsEmptySubtitle => 'Create a playlist to get started.';
@@ -2356,13 +2356,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get playlistsCreateAction => 'New playlist';
+  String get playlistsCreateAction => 'New Playlist';
 
   @override
-  String get playlistsCreateTitle => 'Create playlist';
+  String get playlistsCreateTitle => 'Create Playlist';
 
   @override
-  String get playlistsCreateNameLabel => 'Playlist name';
+  String get playlistsCreateNameLabel => 'Playlist Name';
 
   @override
   String get playlistsCreateSuccess => 'Playlist created';
@@ -2371,7 +2371,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistsCreateFailed => 'Failed to create playlist';
 
   @override
-  String get playlistsDeleteConfirmTitle => 'Delete playlist?';
+  String get playlistsDeleteConfirmTitle => 'Delete Playlist?';
 
   @override
   String playlistsDeleteConfirmMessage(String name) {
@@ -2385,10 +2385,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistsDeleteFailed => 'Failed to delete playlist';
 
   @override
-  String get playlistsRenameTitle => 'Rename playlist';
+  String get playlistsRenameTitle => 'Rename Playlist';
 
   @override
-  String get playlistsRenameLabel => 'New name';
+  String get playlistsRenameLabel => 'New Name';
 
   @override
   String get playlistsRenameSuccess => 'Playlist renamed';
@@ -2427,7 +2427,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistDetailLoadError => 'Failed to load playlist';
 
   @override
-  String get playlistDetailEmptyTitle => 'No tracks';
+  String get playlistDetailEmptyTitle => 'No Tracks';
 
   @override
   String get playlistDetailEmptySubtitle => 'Add songs from the library.';
@@ -2442,7 +2442,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playlistDetailTrackRemoveFailed => 'Failed to remove track';
 
   @override
-  String get addToPlaylistTitle => 'Add to playlist';
+  String get addToPlaylistTitle => 'Add to Playlist';
 
   @override
   String addToPlaylistSuccess(String name) {
@@ -2462,14 +2462,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cacheSettingsTitle => 'Cache & Storage';
 
   @override
-  String get cacheSettingsRollingSection => 'Streaming cache';
+  String get cacheSettingsRollingSection => 'Streaming Cache';
 
   @override
   String get cacheSettingsRollingDescription =>
       'Recently streamed tracks are cached automatically. Oldest tracks are evicted when the budget is exceeded.';
 
   @override
-  String get cacheSettingsRollingBudgetLabel => 'Cache budget';
+  String get cacheSettingsRollingBudgetLabel => 'Cache Budget';
 
   @override
   String cacheSettingsRollingCurrentSize(String used, String budget) {
@@ -2504,7 +2504,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Clear all cached streaming audio? This cannot be undone.';
 
   @override
-  String get cacheSettingsPermanentSection => 'Downloaded tracks';
+  String get cacheSettingsPermanentSection => 'Downloaded Tracks';
 
   @override
   String cacheSettingsPermanentTrackCount(int count) {
@@ -2547,7 +2547,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cacheSettingsUnlimited => 'Unlimited';
 
   @override
-  String get downloadQualityTitle => 'Download quality';
+  String get downloadQualityTitle => 'Download Quality';
 
   @override
   String get downloadQualityOriginal => 'Original quality';
@@ -2607,24 +2607,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsTabDownloaded => 'Downloaded';
 
   @override
-  String get downloadsQueueEmpty => 'No pending downloads';
+  String get downloadsQueueEmpty => 'No Pending Downloads';
 
   @override
   String get downloadsQueueEmptySubtitle =>
       'Download tracks from albums or playlists for offline listening.';
 
   @override
-  String get downloadsDownloadedEmpty => 'No downloaded tracks';
+  String get downloadsDownloadedEmpty => 'No Downloaded Tracks';
 
   @override
   String get downloadsDownloadedEmptySubtitle =>
       'Downloaded tracks will appear here.';
 
   @override
-  String get downloadsRemoveAction => 'Remove download';
+  String get downloadsRemoveAction => 'Remove Download';
 
   @override
-  String get downloadsOpenFolderAction => 'Open downloaded folder';
+  String get downloadsOpenFolderAction => 'Open Downloaded Folder';
 
   @override
   String get downloadsOpenFolderError =>
@@ -2649,7 +2649,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get downloadsCancelAction => 'Cancel download';
+  String get downloadsCancelAction => 'Cancel Download';
 
   @override
   String get downloadsClearCompleted => 'Clear completed';
@@ -2664,10 +2664,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsRetryAllFailed => 'Retry all failed';
 
   @override
-  String get downloadsErrorLoadingQueue => 'Could not load download queue.';
+  String get downloadsErrorLoadingQueue => 'Could Not Load Download Queue.';
 
   @override
-  String get downloadsClearQueue => 'Clear queue';
+  String get downloadsClearQueue => 'Clear Queue';
 
   @override
   String get downloadsClearQueueConfirm =>
@@ -2691,7 +2691,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Custom download folders are not available on this platform.';
 
   @override
-  String get downloadsCustomFolderChooseAction => 'Choose folder';
+  String get downloadsCustomFolderChooseAction => 'Choose Folder';
 
   @override
   String get downloadsCustomFolderSaved => 'Download folder updated.';
@@ -2717,14 +2717,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryDownloadedOnlyFilter => 'Downloaded';
 
   @override
-  String get libraryDownloadedOnlyEmpty => 'No downloaded content';
+  String get libraryDownloadedOnlyEmpty => 'No Downloaded Content';
 
   @override
   String get libraryDownloadedOnlyEmptySubtitle =>
       'Download albums or tracks to see them here.';
 
   @override
-  String get libraryClearFiltersAction => 'Show all';
+  String get libraryClearFiltersAction => 'Show All';
 
   @override
   String get libraryUnknownYear => 'Unknown year';
@@ -2745,7 +2745,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cacheSettingsAutoDownloadCellularWarningTitle =>
-      'Allow liked downloads on mobile data?';
+      'Allow Liked Downloads on Mobile Data?';
 
   @override
   String get cacheSettingsAutoDownloadCellularWarning =>
@@ -2821,7 +2821,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get appearanceColorPickerTitle => 'Pick a custom color';
+  String get appearanceColorPickerTitle => 'Pick a Custom Color';
 
   @override
   String get appearanceColorPickerHexLabel => 'Hex';
@@ -2869,14 +2869,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use the currently playing album art to theme app accent colors.';
 
   @override
-  String get cacheSettingsCoverArtSection => 'Cover art cache';
+  String get cacheSettingsCoverArtSection => 'Cover Art Cache';
 
   @override
   String get cacheSettingsCoverArtDescription =>
       'Cached album artwork images. Larger limits reduce network requests but use more storage.';
 
   @override
-  String get cacheSettingsCoverArtMaxLabel => 'Maximum images';
+  String get cacheSettingsCoverArtMaxLabel => 'Maximum Images';
 
   @override
   String cacheSettingsCoverArtMaxValue(int count) {
@@ -2891,7 +2891,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Changes take effect after restarting the app.';
 
   @override
-  String get cacheSettingsCoverArtUnlimitedLabel => 'No limit';
+  String get cacheSettingsCoverArtUnlimitedLabel => 'No Limit';
 
   @override
   String get cacheSettingsCoverArtUnlimitedSubtitle =>
@@ -2913,7 +2913,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get whatsNewTitle => 'What\'s New';
 
   @override
-  String get changelogDialogBugFixesTitle => 'Bug fixes';
+  String get changelogDialogBugFixesTitle => 'Bug Fixes';
 
   @override
   String get changelogDialogOtherBugFixes => 'Other bug fixes';
@@ -2925,7 +2925,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changelogDialogGotIt => 'Got it';
 
   @override
-  String get changelogDiscoveryTitle => 'What’s new';
+  String get changelogDiscoveryTitle => 'What’s New';
 
   @override
   String changelogDiscoveryVersion(String version) {
@@ -2937,7 +2937,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'This update includes reliability and polish improvements.';
 
   @override
-  String get changelogDiscoveryAction => 'View updates';
+  String get changelogDiscoveryAction => 'View Updates';
 
   @override
   String get changelogDiscoveryDismiss => 'Dismiss update notes';
@@ -2948,7 +2948,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get changelogEmpty => 'No changelog entries yet.';
+  String get changelogEmpty => 'No Changelog Entries Yet.';
 
   @override
   String get aboutLicenses => 'Open-source licenses';
@@ -2986,7 +2986,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutDataUsageBreakdown => 'Last 7 days by feature';
 
   @override
-  String get aboutDataUsageEmpty => 'No usage recorded yet.';
+  String get aboutDataUsageEmpty => 'No Usage Recorded Yet.';
 
   @override
   String get aboutDataUsageLoading => 'Loading usage stats...';
@@ -3010,7 +3010,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutDataUsageReset => 'Reset usage stats';
 
   @override
-  String get aboutDataUsageResetConfirmTitle => 'Reset usage stats?';
+  String get aboutDataUsageResetConfirmTitle => 'Reset Usage Stats?';
 
   @override
   String get aboutDataUsageResetConfirmMessage =>
@@ -3068,7 +3068,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutDataUsageCategoryOtherApi => 'Other API';
 
   @override
-  String get updateCheckTitle => 'Check for updates';
+  String get updateCheckTitle => 'Check for Updates';
 
   @override
   String updateCheckSub(String version) {
@@ -3076,7 +3076,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get updateAvailableTitle => 'Update available';
+  String get updateAvailableTitle => 'Update Available';
 
   @override
   String updateAvailableBody(String version) {
@@ -3152,7 +3152,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not open Google Play. Opening the release page instead.';
 
   @override
-  String get updateAutoCheckTitle => 'Automatically check for updates';
+  String get updateAutoCheckTitle => 'Automatically Check for Updates';
 
   @override
   String get updateAutoCheckSubtitle =>
@@ -3162,7 +3162,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updatesSettingsSectionLabel => 'Updates';
 
   @override
-  String get updateChannelTitle => 'Update channel';
+  String get updateChannelTitle => 'Update Channel';
 
   @override
   String get updateChannelStable => 'Stable';
@@ -3174,7 +3174,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateChannelBetaDescription => 'Includes pre-release builds';
 
   @override
-  String get updateChannelDialogTitle => 'Select update channel';
+  String get updateChannelDialogTitle => 'Select Update Channel';
 
   @override
   String get appearancePagesSectionLabel => 'Page Visibility';
@@ -3299,10 +3299,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'When inactive, the sidebar collapses to icons. Hover it to expand.';
 
   @override
-  String get desktopNavbarLockTooltip => 'Keep sidebar expanded';
+  String get desktopNavbarLockTooltip => 'Keep Sidebar Expanded';
 
   @override
-  String get desktopNavbarUnlockTooltip => 'Collapse sidebar when inactive';
+  String get desktopNavbarUnlockTooltip => 'Collapse Sidebar When Inactive';
 
   @override
   String get homeSectionContinueListening => 'Continue Listening';
@@ -3340,7 +3340,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get cacheSettingsPrecacheTitle => 'Pre-cache all album art';
+  String get cacheSettingsPrecacheTitle => 'Pre-Cache All Album Art';
 
   @override
   String get cacheSettingsPrecacheSubtitle =>
@@ -3357,14 +3357,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get serverSettingsSignOutConfirmTitle => 'Sign out';
+  String get serverSettingsSignOutConfirmTitle => 'Sign Out';
 
   @override
   String get serverSettingsSignOutConfirmMessage =>
       'How would you like to handle your local library data?';
 
   @override
-  String get serverSettingsConnectionInfoTitle => 'Connection info';
+  String get serverSettingsConnectionInfoTitle => 'Connection Info';
 
   @override
   String get audioMuseSimilarArtists => 'AI Similar Artists';
@@ -3477,20 +3477,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Temporarily cached — will be removed when cache fills up or when the track is downloaded';
 
   @override
-  String get downloadsRemoveConfirmTitle => 'Remove download?';
+  String get downloadsRemoveConfirmTitle => 'Remove Download?';
 
   @override
   String get downloadsRemoveConfirmContent =>
       'The downloaded file will be permanently deleted.';
 
   @override
-  String get deleteDownloadAction => 'Delete download';
+  String get deleteDownloadAction => 'Delete Download';
 
   @override
   String get libraryAlbumMenuPlay => 'Play album';
 
   @override
-  String get libraryAlbumMenuAddToQueue => 'Add to queue';
+  String get libraryAlbumMenuAddToQueue => 'Add to Queue';
 
   @override
   String get libraryAlbumMenuDownload => 'Download album';
@@ -3547,14 +3547,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchFlowCreateAction => 'New Flow';
 
   @override
-  String get matchFlowEmptyTitle => 'No Match Flows yet';
+  String get matchFlowEmptyTitle => 'No Match Flows Yet';
 
   @override
   String get matchFlowEmptySubtitle =>
       'Create a flow, choose a master song, then add the songs that should follow it.';
 
   @override
-  String get matchFlowLoadError => 'Could not load Match Flow';
+  String get matchFlowLoadError => 'Could Not Load Match Flow';
 
   @override
   String get matchFlowSaveError => 'Could not save Match Flow. Try again.';
@@ -3594,25 +3594,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchFlowNoSongs => 'Add a song to set the master.';
 
   @override
-  String get matchFlowAddSongAction => 'Add song';
+  String get matchFlowAddSongAction => 'Add Song';
 
   @override
-  String get matchFlowAddSongTitle => 'Add song';
+  String get matchFlowAddSongTitle => 'Add Song';
 
   @override
   String get matchFlowSearchHint => 'Search songs';
 
   @override
-  String get matchFlowNoSearchResults => 'No songs found';
+  String get matchFlowNoSearchResults => 'No Songs Found';
 
   @override
-  String get matchFlowRenameTitle => 'Rename flow';
+  String get matchFlowRenameTitle => 'Rename Flow';
 
   @override
-  String get matchFlowNameLabel => 'Flow name';
+  String get matchFlowNameLabel => 'Flow Name';
 
   @override
-  String get matchFlowDeleteTitle => 'Delete flow?';
+  String get matchFlowDeleteTitle => 'Delete Flow?';
 
   @override
   String matchFlowDeleteMessage(String name) {
@@ -3674,7 +3674,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Always-on-top is unavailable in this Linux Wayland session. Your desktop compositor controls window stacking.';
 
   @override
-  String get desktopMiniPlayerTooSmallTitle => 'Mini Player is too small';
+  String get desktopMiniPlayerTooSmallTitle => 'Mini Player Is Too Small';
 
   @override
   String get desktopMiniPlayerTooSmallDescription =>
@@ -3692,7 +3692,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get desktopPlaybackUnavailableTooltip =>
-      'Unavailable until something is playing';
+      'Unavailable Until Something Is Playing';
 
   @override
   String get desktopFavoriteUnavailableForRadio =>
@@ -3708,7 +3708,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get desktopWindowTooSmallTitle =>
-      'This window is too small for Desktop View';
+      'This Window Is Too Small for Desktop View';
 
   @override
   String get desktopWindowMinimumDescription =>
@@ -3735,14 +3735,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'This display cannot fit Desktop View. Mini Player is available until Navis moves to a larger display.';
 
   @override
-  String get cacheSystemUpgradeTitle => 'Update library cache';
+  String get cacheSystemUpgradeTitle => 'Update Library Cache';
 
   @override
   String get cacheSystemUpgradeBody =>
       'This installation uses an older library cache system. Navis needs to clear its recoverable library cache and rebuild your library once to use the newer cache system. Your downloaded music will be kept.';
 
   @override
-  String get cacheSystemUpgradeAction => 'Clear library cache';
+  String get cacheSystemUpgradeAction => 'Clear Library Cache';
 
   @override
   String get cacheSystemUpgradeDismiss => 'Not now';

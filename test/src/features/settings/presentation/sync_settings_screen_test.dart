@@ -141,7 +141,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Back to Settings'), findsOneWidget);
-    expect(find.text('Last library change'), findsOneWidget);
+    expect(find.text('Last Library Change'), findsOneWidget);
     expect(
       find.text(
         'Catalog promotion removed 3 artist(s), 4 album(s), and 5 song(s).',
@@ -280,10 +280,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('HTTP 502 from a private server'), findsNothing);
-    expect(find.text('Sync plan'), findsOneWidget);
-    expect(find.text('Pending work'), findsOneWidget);
-    expect(find.text('Catalog update'), findsOneWidget);
-    expect(find.text('Last run'), findsOneWidget);
+    expect(find.text('Sync Plan'), findsOneWidget);
+    expect(find.text('Pending Work'), findsOneWidget);
+    expect(find.text('Catalog Update'), findsOneWidget);
+    expect(find.text('Last Run'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -357,7 +357,7 @@ void main() {
     expect(find.text('49 resumable task(s) pending'), findsOneWidget);
     expect(find.text('Catalog applied in 235 ms'), findsOneWidget);
     expect(find.text('Last run: 2 request(s) • 29.0 KB'), findsOneWidget);
-    expect(find.text('Sync plan'), findsNothing);
+    expect(find.text('Sync Plan'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -432,14 +432,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sync Settings'), findsOneWidget);
-    expect(find.text('Next automatic check'), findsOneWidget);
+    expect(find.text('Next Automatic Check'), findsOneWidget);
     expect(find.text('Scheduling…'), findsOneWidget);
-    expect(find.text('Automatic retry after failure'), findsOneWidget);
-    expect(find.text('Last catalog update'), findsOneWidget);
+    expect(find.text('Automatic Retry After Failure'), findsOneWidget);
+    expect(find.text('Last Catalog Update'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
     expect(
-      find.text('Background sync only on unmetered networks'),
+      find.text('Background Sync Only on Unmetered Networks'),
       findsOneWidget,
     );
     expect(find.text('Check for updates'), findsOneWidget);
@@ -532,7 +532,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Android background sync'), findsOneWidget);
+    expect(find.text('Android Background Sync'), findsOneWidget);
     expect(
       find.textContaining('Requested cadence: every 60 minutes'),
       findsOneWidget,
@@ -683,7 +683,7 @@ void main() {
     await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
     expect(
-      find.text('Repair library metadata on mobile data?'),
+      find.text('Repair Library Metadata on Mobile Data?'),
       findsOneWidget,
     );
 
@@ -783,19 +783,19 @@ void main() {
     );
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
-    expect(find.text('Discard repair candidate'), findsOneWidget);
-    await tester.tap(find.text('Discard repair candidate'));
+    expect(find.text('Discard Repair Candidate'), findsOneWidget);
+    await tester.tap(find.text('Discard Repair Candidate'));
     await tester.pumpAndSettle();
-    expect(find.text('Discard pending library repair?'), findsOneWidget);
+    expect(find.text('Discard Pending Library Repair?'), findsOneWidget);
     expect(candidateDiscarded, isFalse);
-    await tester.tap(find.text('Discard repair candidate').last);
+    await tester.tap(find.text('Discard Repair Candidate').last);
     await tester.pumpAndSettle();
     expect(candidateDiscarded, isTrue);
 
     await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Confirm library repair'), findsOneWidget);
+    expect(find.text('Confirm Library Repair'), findsOneWidget);
     expect(
       find.textContaining('server no longer reports 531 item(s)'),
       findsOneWidget,
@@ -808,7 +808,7 @@ void main() {
 
     await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Apply library repair'));
+    await tester.tap(find.text('Apply Library Repair'));
     await tester.pumpAndSettle();
     expect(find.text('Required library rebuild'), findsOneWidget);
     expect(

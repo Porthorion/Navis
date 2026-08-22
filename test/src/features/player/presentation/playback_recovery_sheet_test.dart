@@ -61,7 +61,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Reset library cache and retry'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Reset cache'));
+      await tester.tap(find.text('Reset Cache'));
       await tester.pumpAndSettle();
       expect(recovery.resetCalls, 1);
     },

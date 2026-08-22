@@ -18,7 +18,7 @@ void main() {
                   items: <PopupMenuEntry<void>>[
                     const PopupMenuItem<void>(child: Text('Play now')),
                     const PopupMenuItem<void>(child: Text('Change quality')),
-                    const PopupMenuItem<void>(child: Text('Add to queue')),
+                    const PopupMenuItem<void>(child: Text('Add to Queue')),
                     const PopupMenuItem<void>(child: Text('Open folder')),
                     if (improved) const PopupMenuDivider(),
                     PopupMenuItem<void>(

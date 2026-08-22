@@ -25,7 +25,7 @@ void main() {
                     ),
                     PopupMenuItem<String>(
                       value: 'queue',
-                      child: Text('Add to queue'),
+                      child: Text('Add to Queue'),
                     ),
                     PopupMenuItem<String>(
                       value: 'next',
@@ -65,7 +65,7 @@ void main() {
                           ),
                           ListTile(
                             leading: Icon(Icons.queue_music_outlined),
-                            title: Text('Add to queue'),
+                            title: Text('Add to Queue'),
                           ),
                           ListTile(
                             leading: Icon(Icons.playlist_add_outlined),

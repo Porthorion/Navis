@@ -6,7 +6,7 @@ void main() {
   Widget content() => const Column(
     mainAxisSize: MainAxisSize.min,
     children: [
-      ListTile(title: Text('Download quality')),
+      ListTile(title: Text('Download Quality')),
       ListTile(title: Text('Original')),
       ListTile(title: Text('320 kbps')),
       ListTile(title: Text('192 kbps')),

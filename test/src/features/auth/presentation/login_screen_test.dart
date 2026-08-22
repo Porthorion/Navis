@@ -385,8 +385,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Replace local server data?'), findsOneWidget);
-    expect(find.text('Replace local data'), findsOneWidget);
+    expect(find.text('Replace Local Server Data?'), findsOneWidget);
+    expect(find.text('Replace Local Data'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(notifier.savedConfigSnapshot(), isNull);

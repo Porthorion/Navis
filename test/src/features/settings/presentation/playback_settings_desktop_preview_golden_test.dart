@@ -46,7 +46,7 @@ class _PlaybackSettingsPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final settings = <Widget>[
-      Text('Wi-Fi streaming', style: text.titleMedium),
+      Text('Wi-Fi Streaming', style: text.titleMedium),
       const SizedBox(height: 12),
       const _Field(label: 'Max bitrate', value: 'Original quality'),
       const SizedBox(height: 12),
