@@ -450,6 +450,14 @@ non-secret profile fingerprint and server song IDs. The sidecar is authoritative
 across installations; format-specific media tags are best-effort compatibility
 metadata. Folder selection previews and confirms import, adopts only unique
 local-catalog matches, and leaves profile-mismatched or unknown files untouched.
+Clear matches import before a transient manual-review screen; its local-song
+picker prioritizes exact title matches from liked songs and liked albums and
+shows cover art plus library metadata. Legacy matching indexes local metadata
+once, and FLAC identity lookup must read bounded metadata only—not whole audio
+files or Android SAF materializations.
+Downloads Settings retains the latest in-process unresolved scan in its Manual
+Matching entry beneath Rescan Existing Downloads; it is disabled at zero and
+must not persist or auto-adopt unresolved user-owned files.
 On Android, custom folders are persisted Storage Access Framework tree URIs,
 not filesystem paths. Cached permanent entries record a storage kind; read,
 write, playback, relocation, and deletion must use the SAF bridge for Android

@@ -340,6 +340,13 @@ class MainActivity : AudioServiceActivity() {
                         } ?: throw IllegalStateException("Document is unreadable")
                         result.success(output.absolutePath)
                     }
+                    "readFlacIdentity" -> {
+                        val uri = Uri.parse(requireNotNull(call.argument<String>("uri")))
+                        val values = contentResolver.openInputStream(uri)?.use { input ->
+                            readNavisFlacIdentity(input)
+                        } ?: throw IllegalStateException("Document is unreadable")
+                        result.success(values)
+                    }
                     "writeFromFile" -> {
                         val tree = requiredTree(call.argument<String>("treeUri"))
                         val source = File(requireNotNull(call.argument<String>("sourcePath")))
@@ -399,6 +406,58 @@ class MainActivity : AudioServiceActivity() {
                 )
             }
         }
+    }
+
+    private fun readNavisFlacIdentity(input: java.io.InputStream): Map<String, String> {
+        val magic = input.readNBytes(4)
+        if (!magic.contentEquals(byteArrayOf('f'.code.toByte(), 'L'.code.toByte(), 'a'.code.toByte(), 'C'.code.toByte()))) {
+            return emptyMap()
+        }
+        while (true) {
+            val header = input.readNBytes(4)
+            if (header.size != 4) return emptyMap()
+            val last = header[0].toInt() and 0x80 != 0
+            val type = header[0].toInt() and 0x7f
+            val length = ((header[1].toInt() and 0xff) shl 16) or
+                ((header[2].toInt() and 0xff) shl 8) or (header[3].toInt() and 0xff)
+            if (type == 4) {
+                if (length > 1024 * 1024) return emptyMap()
+                return parseNavisVorbisComments(input.readNBytes(length))
+            }
+            var remaining = length.toLong()
+            while (remaining > 0) {
+                val skipped = input.skip(remaining)
+                if (skipped <= 0) return emptyMap()
+                remaining -= skipped
+            }
+            if (last) return emptyMap()
+        }
+    }
+
+    private fun parseNavisVorbisComments(bytes: ByteArray): Map<String, String> {
+        fun u32(offset: Int): Int = (bytes[offset].toInt() and 0xff) or
+            ((bytes[offset + 1].toInt() and 0xff) shl 8) or
+            ((bytes[offset + 2].toInt() and 0xff) shl 16) or
+            ((bytes[offset + 3].toInt() and 0xff) shl 24)
+        if (bytes.size < 8) return emptyMap()
+        var offset = 0
+        val vendorLength = u32(offset)
+        offset += 4 + vendorLength
+        if (offset + 4 > bytes.size) return emptyMap()
+        val count = u32(offset)
+        offset += 4
+        val result = mutableMapOf<String, String>()
+        repeat(count) {
+            if (offset + 4 > bytes.size) return result
+            val length = u32(offset)
+            offset += 4
+            if (length < 0 || offset + length > bytes.size) return result
+            val value = bytes.copyOfRange(offset, offset + length).toString(Charsets.UTF_8)
+            offset += length
+            val equals = value.indexOf('=')
+            if (equals > 0) result[value.substring(0, equals).uppercase()] = value.substring(equals + 1)
+        }
+        return result
     }
 
     private fun createDocument(root: DocumentFile, relativePath: String, mimeType: String, replace: Boolean): DocumentFile {

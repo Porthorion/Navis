@@ -83,6 +83,21 @@ class AndroidSafStorage {
     return File(path);
   }
 
+  /// Reads Navis identity comments from a FLAC document without staging its
+  /// audio payload in app-private storage.
+  Future<Map<String, String>> readFlacIdentity(String uri) async {
+    final result = await _invoke(
+      () => _channel.invokeMapMethod<String, dynamic>(
+        'readFlacIdentity',
+        <String, Object?>{'uri': uri},
+      ),
+      'Could not read download identity metadata.',
+    );
+    return result == null
+        ? const <String, String>{}
+        : result.map((key, value) => MapEntry(key, '$value'));
+  }
+
   Future<String> writeFromFile({
     required String treeUri,
     required String relativePath,

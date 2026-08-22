@@ -291,11 +291,13 @@ class DownloadService {
   Future<PermanentDownloadImportResult> importCustomDownloadFolder(
     PermanentDownloadImportPreview preview, {
     Map<String, String> manualSongIds = const <String, String>{},
+    bool includeRecognized = true,
   }) {
     return _runWithQueuePaused(
       () => _permanentDownloadImportService.commit(
         preview,
         manualSongIds: manualSongIds,
+        includeRecognized: includeRecognized,
       ),
     );
   }

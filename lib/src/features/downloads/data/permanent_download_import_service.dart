@@ -24,6 +24,18 @@ enum PermanentDownloadImportDisposition {
   alreadyRegistered,
 }
 
+enum PermanentDownloadMatchOrigin {
+  manifest,
+  embeddedIdentity,
+  filenameArtist,
+  filenameOnly,
+  ambiguous,
+  unmatched,
+  profileMismatch,
+  inaccessible,
+  alreadyRegistered,
+}
+
 class PermanentDownloadImportItem {
   const PermanentDownloadImportItem({
     required this.relativePath,
@@ -33,6 +45,9 @@ class PermanentDownloadImportItem {
     this.songId,
     this.candidates = const <SongsTableData>[],
     this.sourceUri,
+    this.matchOrigin,
+    this.sourceTitle,
+    this.sourceArtist,
   });
 
   final String relativePath;
@@ -44,6 +59,9 @@ class PermanentDownloadImportItem {
 
   /// Set for Android SAF documents. File-system imports use [relativePath].
   final String? sourceUri;
+  final PermanentDownloadMatchOrigin? matchOrigin;
+  final String? sourceTitle;
+  final String? sourceArtist;
 }
 
 class PermanentDownloadImportPreview {
@@ -144,7 +162,8 @@ class PermanentDownloadImportService {
         ? sqlite3.open(manifestFile.path)
         : null;
     try {
-      final songs = await _libraryDao.watchAllSongs().first;
+      final songs = await _libraryDao.getDownloadReconciliationSongs();
+      final songIndex = _DownloadMatchIndex(songs);
       final registered = await _cacheDao.getPermanentEntries();
       final registeredPaths = registered
           .map((track) => p.normalize(track.filePath))
@@ -179,6 +198,7 @@ class PermanentDownloadImportService {
               format: format,
               disposition: PermanentDownloadImportDisposition.alreadyRegistered,
               songId: registeredSongsByPath[normalizedPath],
+              matchOrigin: PermanentDownloadMatchOrigin.alreadyRegistered,
             ),
           );
           continue;
@@ -198,7 +218,7 @@ class PermanentDownloadImportService {
             continue;
           }
           if (manifestRecord.fileSize == stat.size &&
-              songs.any((song) => song.id == manifestRecord.songId)) {
+              songIndex.containsId(manifestRecord.songId)) {
             items.add(
               PermanentDownloadImportItem(
                 relativePath: relativePath,
@@ -208,6 +228,7 @@ class PermanentDownloadImportService {
                     ? PermanentDownloadImportDisposition.alreadyRegistered
                     : PermanentDownloadImportDisposition.recognized,
                 songId: manifestRecord.songId,
+                matchOrigin: PermanentDownloadMatchOrigin.manifest,
               ),
             );
             continue;
@@ -230,7 +251,7 @@ class PermanentDownloadImportService {
             );
             continue;
           }
-          if (songs.any((song) => song.id == taggedSongId)) {
+          if (songIndex.containsId(taggedSongId)) {
             items.add(
               PermanentDownloadImportItem(
                 relativePath: relativePath,
@@ -240,16 +261,16 @@ class PermanentDownloadImportService {
                     ? PermanentDownloadImportDisposition.alreadyRegistered
                     : PermanentDownloadImportDisposition.recognized,
                 songId: taggedSongId,
+                matchOrigin: PermanentDownloadMatchOrigin.embeddedIdentity,
               ),
             );
             continue;
           }
         }
-        final candidates = _legacyCandidates(
+        final match = songIndex.match(
           rootPath: canonicalRoot,
           filePath: normalizedPath,
           format: format,
-          songs: songs,
           tags: tags,
         );
         items.add(
@@ -257,15 +278,25 @@ class PermanentDownloadImportService {
             relativePath: relativePath,
             fileSize: stat.size,
             format: format,
-            disposition: candidates.length == 1
-                ? registeredSongIds.contains(candidates.single.id)
+            disposition: match.candidates.length == 1
+                ? registeredSongIds.contains(match.candidates.single.id)
                       ? PermanentDownloadImportDisposition.alreadyRegistered
                       : PermanentDownloadImportDisposition.recognized
-                : candidates.isEmpty
+                : match.candidates.isEmpty
                 ? PermanentDownloadImportDisposition.unmatched
                 : PermanentDownloadImportDisposition.ambiguous,
-            songId: candidates.length == 1 ? candidates.single.id : null,
-            candidates: candidates,
+            songId: match.candidates.length == 1
+                ? match.candidates.single.id
+                : null,
+            matchOrigin: match.candidates.length == 1
+                ? match.usedArtist
+                      ? PermanentDownloadMatchOrigin.filenameArtist
+                      : PermanentDownloadMatchOrigin.filenameOnly
+                : match.candidates.isEmpty
+                ? PermanentDownloadMatchOrigin.unmatched
+                : PermanentDownloadMatchOrigin.ambiguous,
+            sourceTitle: match.title,
+            sourceArtist: match.artist,
           ),
         );
       }
@@ -287,9 +318,13 @@ class PermanentDownloadImportService {
       );
     }
     final profileFingerprint = _profileFingerprint();
-    final songs = await _libraryDao.watchAllSongs().first;
+    final songs = await _libraryDao.getDownloadReconciliationSongs();
+    final songIndex = _DownloadMatchIndex(songs);
     final registered = await _cacheDao.getPermanentEntries();
     final registeredPaths = registered.map((track) => track.filePath).toSet();
+    final registeredSongsByPath = <String, String>{
+      for (final track in registered) track.filePath: track.songId,
+    };
     final registeredSongIds = registered.map((track) => track.songId).toSet();
     final documents = await _safStorage.listRecursively(treeUri);
     final sidecar = documents.where(
@@ -320,10 +355,9 @@ class PermanentDownloadImportService {
               fileSize: document.size,
               format: format,
               disposition: PermanentDownloadImportDisposition.alreadyRegistered,
-              songId: registered
-                  .firstWhere((track) => track.filePath == document.uri)
-                  .songId,
+              songId: registeredSongsByPath[document.uri],
               sourceUri: document.uri,
+              matchOrigin: PermanentDownloadMatchOrigin.alreadyRegistered,
             ),
           );
           continue;
@@ -344,7 +378,7 @@ class PermanentDownloadImportService {
         }
         if (manifestRecord != null &&
             manifestRecord.fileSize == document.size &&
-            songs.any((song) => song.id == manifestRecord.songId)) {
+            songIndex.containsId(manifestRecord.songId)) {
           items.add(
             PermanentDownloadImportItem(
               relativePath: document.relativePath,
@@ -355,14 +389,15 @@ class PermanentDownloadImportService {
                   : PermanentDownloadImportDisposition.recognized,
               songId: manifestRecord.songId,
               sourceUri: document.uri,
+              matchOrigin: PermanentDownloadMatchOrigin.manifest,
             ),
           );
           continue;
         }
-        File? materialized;
         try {
-          materialized = await _safStorage.materialize(document.uri);
-          final tags = await _mediaIdentity.read(materialized);
+          final tags = format == 'flac'
+              ? await _safStorage.readFlacIdentity(document.uri)
+              : const <String, String>{};
           final taggedSongId = tags[PermanentDownloadMediaIdentity.songIdKey];
           final taggedProfile =
               tags[PermanentDownloadMediaIdentity.profileFingerprintKey];
@@ -381,34 +416,47 @@ class PermanentDownloadImportService {
             );
             continue;
           }
-          final candidates =
+          final match = songIndex.match(
+            rootPath: '',
+            filePath: document.relativePath,
+            format: format,
+            tags: tags,
+          );
+          final recognizedTag =
               taggedSongId != null &&
-                  songs.any((song) => song.id == taggedSongId)
-              ? songs
-                    .where((song) => song.id == taggedSongId)
-                    .toList(growable: false)
-              : _legacyCandidates(
-                  rootPath: '',
-                  filePath: document.relativePath,
-                  format: format,
-                  songs: songs,
-                  tags: tags,
-                );
+              taggedSongId.isNotEmpty &&
+              songIndex.containsId(taggedSongId);
           items.add(
             PermanentDownloadImportItem(
               relativePath: document.relativePath,
               fileSize: document.size,
               format: format,
-              disposition: candidates.length == 1
-                  ? (registeredSongIds.contains(candidates.single.id)
+              disposition: recognizedTag || match.candidates.length == 1
+                  ? (registeredSongIds.contains(
+                          taggedSongId ?? match.candidates.single.id,
+                        )
                         ? PermanentDownloadImportDisposition.alreadyRegistered
                         : PermanentDownloadImportDisposition.recognized)
-                  : candidates.isEmpty
+                  : match.candidates.isEmpty
                   ? PermanentDownloadImportDisposition.unmatched
                   : PermanentDownloadImportDisposition.ambiguous,
-              songId: candidates.length == 1 ? candidates.single.id : null,
-              candidates: candidates,
+              songId: recognizedTag
+                  ? taggedSongId
+                  : match.candidates.length == 1
+                  ? match.candidates.single.id
+                  : null,
               sourceUri: document.uri,
+              matchOrigin: recognizedTag
+                  ? PermanentDownloadMatchOrigin.embeddedIdentity
+                  : match.candidates.length == 1
+                  ? match.usedArtist
+                        ? PermanentDownloadMatchOrigin.filenameArtist
+                        : PermanentDownloadMatchOrigin.filenameOnly
+                  : match.candidates.isEmpty
+                  ? PermanentDownloadMatchOrigin.unmatched
+                  : PermanentDownloadMatchOrigin.ambiguous,
+              sourceTitle: match.title,
+              sourceArtist: match.artist,
             ),
           );
         } on Object {
@@ -424,9 +472,6 @@ class PermanentDownloadImportService {
               sourceUri: document.uri,
             ),
           );
-        } finally {
-          if (materialized != null)
-            await materialized.delete().catchError((_) {});
         }
       }
       items.sort((a, b) => a.relativePath.compareTo(b.relativePath));
@@ -440,9 +485,14 @@ class PermanentDownloadImportService {
   Future<PermanentDownloadImportResult> commit(
     PermanentDownloadImportPreview preview, {
     Map<String, String> manualSongIds = const <String, String>{},
+    bool includeRecognized = true,
   }) async {
     if (_isSafTreeUri(preview.rootPath)) {
-      return _commitSaf(preview, manualSongIds: manualSongIds);
+      return _commitSaf(
+        preview,
+        manualSongIds: manualSongIds,
+        includeRecognized: includeRecognized,
+      );
     }
     final root = Directory(preview.rootPath);
     final manifest = _openManifest(root);
@@ -450,6 +500,10 @@ class PermanentDownloadImportService {
     var skipped = 0;
     try {
       for (final item in preview.items) {
+        if (!includeRecognized &&
+            item.disposition == PermanentDownloadImportDisposition.recognized) {
+          continue;
+        }
         final songId = item.songId ?? manualSongIds[item.relativePath];
         if (item.disposition ==
             PermanentDownloadImportDisposition.alreadyRegistered) {
@@ -526,6 +580,7 @@ class PermanentDownloadImportService {
   Future<PermanentDownloadImportResult> _commitSaf(
     PermanentDownloadImportPreview preview, {
     required Map<String, String> manualSongIds,
+    required bool includeRecognized,
   }) async {
     final documents = await _safStorage.listRecursively(preview.rootPath);
     final existingSidecar = documents.where(
@@ -545,6 +600,10 @@ class PermanentDownloadImportService {
     var skipped = 0;
     try {
       for (final item in preview.items) {
+        if (!includeRecognized &&
+            item.disposition == PermanentDownloadImportDisposition.recognized) {
+          continue;
+        }
         final songId = item.songId ?? manualSongIds[item.relativePath];
         if (item.disposition ==
             PermanentDownloadImportDisposition.alreadyRegistered) {
@@ -734,36 +793,6 @@ class PermanentDownloadImportService {
         name == '$permanentDownloadManifestFileName-shm';
   }
 
-  List<SongsTableData> _legacyCandidates({
-    required String rootPath,
-    required String filePath,
-    required String format,
-    required List<SongsTableData> songs,
-    required Map<String, String> tags,
-  }) {
-    final relative = p.relative(filePath, from: rootPath);
-    final segments = p.split(relative);
-    final title = _normalize(
-      tags['TITLE'] ?? p.basenameWithoutExtension(filePath),
-    );
-    final artist = _normalize(
-      tags['ARTIST'] ??
-          (segments.length > 1 ? segments[segments.length - 2] : ''),
-    );
-    return songs
-        .where((song) {
-          if (_normalize(song.title) != title) return false;
-          if (artist.isNotEmpty && _normalize(song.artistName ?? '') != artist)
-            return false;
-          final suffix = song.suffix?.trim().toLowerCase();
-          return suffix == null || suffix.isEmpty || suffix == format;
-        })
-        .toList(growable: false);
-  }
-
-  String _normalize(String input) =>
-      input.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
-
   String _profileFingerprint() {
     final identity = _readProfileIdentity()?.trim();
     if (identity == null || identity.isEmpty) return '';
@@ -873,4 +902,111 @@ class _ManifestRecord {
   final int fileSize;
   final String format;
   final DateTime updatedAt;
+}
+
+class _DownloadMatchResult {
+  const _DownloadMatchResult({
+    required this.candidates,
+    required this.title,
+    required this.artist,
+    required this.usedArtist,
+  });
+
+  final List<DownloadReconciliationSong> candidates;
+  final String title;
+  final String artist;
+  final bool usedArtist;
+}
+
+/// Precomputed metadata index for legacy folders. It deliberately retains all
+/// duplicate candidates: uniqueness is a safety requirement, not a ranking
+/// decision.
+class _DownloadMatchIndex {
+  _DownloadMatchIndex(List<DownloadReconciliationSong> songs)
+    : _songIds = songs.map((song) => song.id).toSet() {
+    for (final song in songs) {
+      final title = _normalize(song.title);
+      if (title.isEmpty) continue;
+      final artist = _normalize(song.artistName ?? '');
+      final suffix = song.suffix?.trim().toLowerCase() ?? '';
+      (_byTitle.putIfAbsent(
+        title,
+        () => <DownloadReconciliationSong>[],
+      )).add(song);
+      (_byTitleFormat.putIfAbsent(
+        '$title\u0000$suffix',
+        () => <DownloadReconciliationSong>[],
+      )).add(song);
+      if (artist.isNotEmpty) {
+        (_byTitleArtist.putIfAbsent(
+          '$title\u0000$artist',
+          () => <DownloadReconciliationSong>[],
+        )).add(song);
+        (_byTitleArtistFormat.putIfAbsent(
+          '$title\u0000$artist\u0000$suffix',
+          () => <DownloadReconciliationSong>[],
+        )).add(song);
+      }
+    }
+  }
+
+  final Set<String> _songIds;
+  final Map<String, List<DownloadReconciliationSong>> _byTitle = {};
+  final Map<String, List<DownloadReconciliationSong>> _byTitleArtist = {};
+  final Map<String, List<DownloadReconciliationSong>> _byTitleFormat = {};
+  final Map<String, List<DownloadReconciliationSong>> _byTitleArtistFormat = {};
+
+  bool containsId(String id) => _songIds.contains(id);
+
+  _DownloadMatchResult match({
+    required String rootPath,
+    required String filePath,
+    required String format,
+    required Map<String, String> tags,
+  }) {
+    final relative = p.relative(filePath, from: rootPath);
+    final segments = p.split(relative);
+    final title = _normalize(
+      tags['TITLE'] ?? p.basenameWithoutExtension(filePath),
+    );
+    final artist = _normalize(
+      tags['ARTIST'] ??
+          (segments.length > 1 ? segments[segments.length - 2] : ''),
+    );
+    final candidates = _candidates(
+      title: title,
+      artist: artist,
+      format: format,
+    );
+    return _DownloadMatchResult(
+      candidates: candidates,
+      title: title,
+      artist: artist,
+      usedArtist: artist.isNotEmpty,
+    );
+  }
+
+  List<DownloadReconciliationSong> _candidates({
+    required String title,
+    required String artist,
+    required String format,
+  }) {
+    if (title.isEmpty) return const <DownloadReconciliationSong>[];
+    final source = artist.isEmpty
+        ? <DownloadReconciliationSong>[
+            ...?_byTitleFormat['$title\u0000$format'],
+            ...?_byTitleFormat['$title\u0000'],
+          ]
+        : <DownloadReconciliationSong>[
+            ...?_byTitleArtistFormat['$title\u0000$artist\u0000$format'],
+            ...?_byTitleArtistFormat['$title\u0000$artist\u0000'],
+          ];
+    // A song with no declared suffix is compatible with every source format.
+    return source.isEmpty
+        ? const <DownloadReconciliationSong>[]
+        : source.toList(growable: false);
+  }
+
+  static String _normalize(String input) =>
+      input.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 }

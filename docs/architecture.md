@@ -1048,6 +1048,19 @@ OpenSubsonic documents the conditional full-index semantics of
    tree is activated Navis proves it can create, write, and remove a temporary
    Navis-owned probe document; a provider that fails that check remains
    unselected.
+   Folder reconciliation first imports only unique manifest, embedded-identity,
+   or indexed filename matches. Ambiguous and unknown files enter a transient
+   manual-review screen; its local-song picker shows cover art and ranks exact
+   title matches with liked songs (including liked-album tracks) first. Closing
+   that review leaves unresolved user files untouched. Legacy matching indexes
+   the local song snapshot once, and FLAC identity reads are bounded to metadata
+   rather than loading complete audio files; Android SAF reads identity metadata
+   directly through `ContentResolver` without staging audio files.
+   The Downloads settings page retains the latest in-process scan's unresolved
+   paths behind a disabled-or-enabled **Manual Matching** entry beneath Rescan.
+   Its count badge and description expose how many files still need an explicit
+   mapping; completing mappings reduces that count, while a new rescan replaces
+   the transient queue.
 7. Identity aliases transfer valid rolling/permanent ownership to a proven
    canonical server song ID; ambiguous permanent downloads remain local-only
 8. Eviction removes orphan MIME sidecars and garbage-collects unreferenced

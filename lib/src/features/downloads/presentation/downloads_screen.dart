@@ -21,6 +21,8 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/downloads/presentation/download_reconciliation_screen.dart';
+import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
@@ -1060,21 +1062,26 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       if (enabled && path != null) {
         preview = await service.previewCustomDownloadFolder(path);
         if (!mounted) return;
-        final manualSongIds = await _reviewFolderImport(preview);
-        if (manualSongIds == null || !mounted) return;
         await service.configureCustomDownloadFolder(
           enabled: enabled,
           path: path,
         );
-        await service.importCustomDownloadFolder(
-          preview,
-          manualSongIds: manualSongIds,
-        );
+        final automatic = await service.importCustomDownloadFolder(preview);
+        if (!mounted) return;
+        ref
+            .read(manualDownloadMatchingProvider.notifier)
+            .recordScan(
+              preview,
+              automaticallyImported: automatic.importedCount,
+            );
       } else {
         await service.configureCustomDownloadFolder(
           enabled: enabled,
           path: path,
         );
+        if (!enabled) {
+          ref.read(manualDownloadMatchingProvider.notifier).clear();
+        }
       }
       if (!mounted) {
         return;
@@ -1104,159 +1111,6 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     }
   }
 
-  Future<Map<String, String>?> _reviewFolderImport(
-    PermanentDownloadImportPreview preview,
-  ) async {
-    final manualSongIds = <String, String>{};
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Import Existing Downloads?'),
-          content: SizedBox(
-            width: 460,
-            child: Semantics(
-              liveRegion: true,
-              child: ListView(
-                shrinkWrap: true,
-                children: <Widget>[
-                  Text(
-                    '${preview.recognizedCount} track(s) can be imported. '
-                    '${preview.uncertainCount} need review and '
-                    '${preview.skippedCount} will be left untouched.',
-                  ),
-                  if (preview.profileMismatchCount > 0)
-                    Text(
-                      '${preview.profileMismatchCount} track(s) belong to a different Navis profile and cannot be imported here.',
-                    ),
-                  if (preview.unmatchedCount > 0)
-                    Text(
-                      '${preview.unmatchedCount} track(s) could not be matched to the synced local library.',
-                    ),
-                  if (preview.inaccessibleCount > 0)
-                    Text(
-                      '${preview.inaccessibleCount} track(s) could not be read and will be left untouched.',
-                    ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Navis will never remove files it cannot identify in this folder.',
-                  ),
-                  for (final item in preview.items.where(
-                    (item) =>
-                        item.disposition ==
-                            PermanentDownloadImportDisposition.ambiguous ||
-                        item.disposition ==
-                            PermanentDownloadImportDisposition.unmatched,
-                  ))
-                    ListTile(
-                      dense: true,
-                      title: Text(item.relativePath),
-                      subtitle: Text(
-                        manualSongIds.containsKey(item.relativePath)
-                            ? 'Song selected'
-                            : 'Choose a local library song',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () async {
-                        final song = await _pickLocalSong(item);
-                        if (song == null || !context.mounted) return;
-                        setDialogState(
-                          () => manualSongIds[item.relativePath] = song.id,
-                        );
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, manualSongIds),
-              child: const Text('Import & Use Folder'),
-            ),
-          ],
-        ),
-      ),
-    );
-    return result;
-  }
-
-  Future<SongsTableData?> _pickLocalSong(
-    PermanentDownloadImportItem item,
-  ) async {
-    final controller = TextEditingController(
-      text: item.relativePath.split('/').last.split('.').first,
-    );
-    var query = controller.text;
-    return showDialog<SongsTableData>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Choose Library Song'),
-          content: SizedBox(
-            width: 460,
-            height: 360,
-            child: Column(
-              children: <Widget>[
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
-                    labelText: 'Search Your Local Library',
-                  ),
-                  onChanged: (value) => setDialogState(() => query = value),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: FutureBuilder<List<SongsTableData>>(
-                    future: ref
-                        .read(navisDatabaseProvider)
-                        .libraryDao
-                        .searchSongsLocal(query),
-                    builder: (context, snapshot) {
-                      final songs = snapshot.data ?? const <SongsTableData>[];
-                      if (snapshot.connectionState != ConnectionState.done) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (songs.isEmpty)
-                        return const Center(
-                          child: Text('No Local Library Songs Found.'),
-                        );
-                      return ListView.builder(
-                        itemCount: songs.length,
-                        itemBuilder: (context, index) {
-                          final song = songs[index];
-                          return ListTile(
-                            title: Text(song.title),
-                            subtitle: Text(
-                              song.artistName ?? song.albumName ?? '',
-                            ),
-                            onTap: () => Navigator.pop(dialogContext, song),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      ),
-    ).whenComplete(controller.dispose);
-  }
-
   Future<void> _rescanCustomDownloadFolder() async {
     final path = ref.read(customDownloadFolderPathProvider);
     if (path == null || path.trim().isEmpty) return;
@@ -1264,12 +1118,12 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     try {
       final service = ref.read(downloadServiceProvider);
       final preview = await service.previewCustomDownloadFolder(path);
-      final manualSongIds = await _reviewFolderImport(preview);
-      if (!mounted || manualSongIds == null) return;
-      final result = await service.importCustomDownloadFolder(
-        preview,
-        manualSongIds: manualSongIds,
-      );
+      final automatic = await service.importCustomDownloadFolder(preview);
+      ref
+          .read(manualDownloadMatchingProvider.notifier)
+          .recordScan(preview, automaticallyImported: automatic.importedCount);
+      if (!mounted) return;
+      final result = automatic;
       if (mounted) {
         showAppNotice(
           context,
@@ -1290,12 +1144,47 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     }
   }
 
+  Future<void> _openManualMatching() async {
+    final matching = ref.read(manualDownloadMatchingProvider);
+    final preview = matching.preview;
+    if (preview == null || !matching.needsManualMatching) return;
+    final manualSongIds = await Navigator.of(context).push<Map<String, String>>(
+      MaterialPageRoute<Map<String, String>>(
+        builder: (_) => DownloadReconciliationScreen(
+          preview: preview,
+          automaticallyImported: matching.automaticallyImported,
+          pendingPaths: matching.pendingPaths,
+        ),
+      ),
+    );
+    if (manualSongIds == null || manualSongIds.isEmpty || !mounted) return;
+    final result = await ref
+        .read(downloadServiceProvider)
+        .importCustomDownloadFolder(
+          preview,
+          manualSongIds: manualSongIds,
+          includeRecognized: false,
+        );
+    ref
+        .read(manualDownloadMatchingProvider.notifier)
+        .markImported(
+          manualSongIds.keys,
+        );
+    if (!mounted) return;
+    showAppNotice(
+      context,
+      message: '${result.importedCount} manually matched download(s) imported.',
+      level: AppNoticeLevel.success,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final permanentStats = ref.watch(permanentCacheStatsProvider);
     final customFolderEnabled = ref.watch(customDownloadFolderEnabledProvider);
     final customFolderPath = ref.watch(customDownloadFolderPathProvider);
+    final manualMatching = ref.watch(manualDownloadMatchingProvider);
 
     if (_clearing || _updatingFolder) {
       return Center(
@@ -1360,6 +1249,24 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             subtitle: const Text('Import tracks already in this folder'),
             onTap: _rescanCustomDownloadFolder,
           ),
+        if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
+          ListTile(
+            enabled: manualMatching.needsManualMatching,
+            leading: const Icon(Icons.rule_folder_outlined),
+            title: const Text('Manual Matching'),
+            subtitle: Text(
+              manualMatching.needsManualMatching
+                  ? 'You have ${manualMatching.pendingCount} amount of songs that need to be manually matched.'
+                  : 'No songs need manual matching from the most recent scan.',
+            ),
+            trailing: _ManualMatchingCount(
+              count: manualMatching.pendingCount,
+              enabled: manualMatching.needsManualMatching,
+            ),
+            onTap: manualMatching.needsManualMatching
+                ? _openManualMatching
+                : null,
+          ),
         const Divider(),
         permanentStats.when(
           data: (stats) => Padding(
@@ -1413,6 +1320,38 @@ class _CustomFolderLabel extends StatelessWidget {
         snapshot.data?.displayName ?? 'Selected folder',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+class _ManualMatchingCount extends StatelessWidget {
+  const _ManualMatchingCount({required this.count, required this.enabled});
+
+  final int count;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: enabled
+            ? colors.secondaryContainer
+            : colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Text(
+          '$count',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: enabled
+                ? colors.onSecondaryContainer
+                : colors.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

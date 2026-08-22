@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -97,6 +97,48 @@ void main() {
       expect(result.importedCount, 0);
       expect(file.existsSync(), isTrue);
       expect(await database.cacheDao.getPermanentEntries(), isEmpty);
+    });
+
+    test('keeps duplicate legacy title and artist matches ambiguous', () async {
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'song-2',
+          title: 'Hello Miss Johnson',
+          artistName: const Value('Jack Harlow'),
+          suffix: const Value('flac'),
+        ),
+      ]);
+      final file = File('${root.path}/Jack Harlow/Hello Miss Johnson.flac')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+
+      final preview = await service('profile').preview(root);
+
+      expect(
+        preview.items.single.disposition,
+        PermanentDownloadImportDisposition.ambiguous,
+      );
+      expect(
+        preview.items.single.matchOrigin,
+        PermanentDownloadMatchOrigin.ambiguous,
+      );
+      expect(file.existsSync(), isTrue);
+    });
+
+    test('manual-only commit does not re-import recognized items', () async {
+      final file = File('${root.path}/Jack Harlow/Hello Miss Johnson.flac')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      final preview = await service('profile').preview(root);
+
+      final result = await service('profile').commit(
+        preview,
+        includeRecognized: false,
+      );
+
+      expect(result.importedCount, 0);
+      expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+      expect(file.existsSync(), isTrue);
     });
 
     test(

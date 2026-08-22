@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.9',
     entries: [
       ChangelogEntry(
+        'Existing downloads now reconcile faster, import clear matches automatically, and offer a cover-art review screen for files needing a manual match',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Titles, labels, menus, and empty states now use consistent title case throughout the app',
         type: ChangelogEntryType.improvement,
       ),

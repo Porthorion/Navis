@@ -57,6 +57,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.9', [
     _Entry(
+      'Existing downloads now reconcile faster, import clear matches automatically, and offer a cover-art review screen for files needing a manual match',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Titles, labels, menus, and empty states now use consistent title case throughout the app',
       type: _EntryType.improvement,
     ),

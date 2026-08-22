@@ -60,6 +60,24 @@ class LibraryCatalogCounts {
   final int songs;
 }
 
+/// Minimal metadata used while reconciling a user-owned download folder.
+///
+/// Keeping this separate from [SongsTableData] prevents a folder scan from
+/// hydrating every column of a large library just to compare file names.
+class DownloadReconciliationSong {
+  const DownloadReconciliationSong({
+    required this.id,
+    required this.title,
+    required this.artistName,
+    required this.suffix,
+  });
+
+  final String id;
+  final String title;
+  final String? artistName;
+  final String? suffix;
+}
+
 @DriftAccessor(
   tables: [
     ArtistsTable,
@@ -432,6 +450,87 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<SongsTableData>> watchAllSongs() {
     return watchSongsSorted(SongSortOrder.newest);
+  }
+
+  /// Returns just the fields required to identify legacy download files.
+  /// This is intentionally a one-shot query: a reconciliation scan needs a
+  /// stable snapshot, not a long-lived watcher and sort subscription.
+  Future<List<DownloadReconciliationSong>>
+  getDownloadReconciliationSongs() async {
+    final rows = await customSelect(
+      '''
+      SELECT id, title, artist_name, suffix
+      FROM songs
+      WHERE server_deleted_at IS NULL AND is_provisional = 0
+      ''',
+      readsFrom: {songsTable},
+    ).get();
+    return rows
+        .map(
+          (row) => DownloadReconciliationSong(
+            id: row.read<String>('id'),
+            title: row.read<String>('title'),
+            artistName: row.read<String?>('artist_name'),
+            suffix: row.read<String?>('suffix'),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// Candidate results for a manual download-file mapping. Exact title matches
+  /// are returned before related matches; liked songs and liked-album tracks
+  /// are ranked first within each group.
+  Future<List<SongsTableData>> searchDownloadReconciliationCandidates(
+    String query, {
+    int limit = 60,
+  }) async {
+    final normalized = _normalizeSearchText(query);
+    if (normalized.isEmpty || limit < 1) return const <SongsTableData>[];
+    final pattern = '%$normalized%';
+    final rows = await customSelect(
+      '''
+      SELECT s.*,
+        CASE WHEN s.starred IS NOT NULL OR al.starred IS NOT NULL THEN 0 ELSE 1 END AS liked_rank,
+        CASE
+          WHEN LOWER(s.title) = ?1 THEN 0
+          WHEN LOWER(s.title) LIKE ?2 || '%' THEN 1
+          WHEN LOWER(s.title) LIKE ?3 THEN 2
+          ELSE 3
+        END AS title_rank
+      FROM songs s
+      LEFT JOIN albums al ON al.id = s.album_id
+      WHERE s.server_deleted_at IS NULL
+        AND s.is_provisional = 0
+        AND (
+          LOWER(s.title) LIKE ?3 OR LOWER(COALESCE(s.artist_name, '')) LIKE ?3
+          OR LOWER(COALESCE(s.album_name, '')) LIKE ?3
+        )
+      ORDER BY title_rank ASC, liked_rank ASC, LOWER(s.title) ASC, s.id ASC
+      LIMIT ?4
+      ''',
+      variables: <Variable<Object>>[
+        Variable<String>(normalized),
+        Variable<String>(normalized),
+        Variable<String>(pattern),
+        Variable<int>(limit),
+      ],
+      readsFrom: {songsTable, albumsTable},
+    ).get();
+    return rows.map((row) => songsTable.map(row.data)).toList(growable: false);
+  }
+
+  Future<Set<String>> getLikedSongIdsForDownloadReconciliation() async {
+    final rows = await customSelect(
+      '''
+      SELECT s.id
+      FROM songs s
+      LEFT JOIN albums al ON al.id = s.album_id
+      WHERE s.server_deleted_at IS NULL AND s.is_provisional = 0
+        AND (s.starred IS NOT NULL OR al.starred IS NOT NULL)
+      ''',
+      readsFrom: {songsTable, albumsTable},
+    ).get();
+    return rows.map((row) => row.read<String>('id')).toSet();
   }
 
   Stream<List<SongsTableData>> watchSongsSorted(SongSortOrder sort) {

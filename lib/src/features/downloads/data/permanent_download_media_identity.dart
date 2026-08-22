@@ -10,12 +10,44 @@ import 'dart:convert';
 class PermanentDownloadMediaIdentity {
   static const songIdKey = 'NAVIS_SONG_ID';
   static const profileFingerprintKey = 'NAVIS_PROFILE_FINGERPRINT';
+  static const int _maxCommentBytes = 1024 * 1024;
 
   Future<Map<String, String>> read(File file) async {
-    if (file.path.toLowerCase().endsWith('.flac')) {
-      return _readFlac(await file.readAsBytes());
-    }
+    if (file.path.toLowerCase().endsWith('.flac'))
+      return _readFlacMetadata(file);
     return const <String, String>{};
+  }
+
+  /// Reads FLAC metadata only. The former implementation copied the entire
+  /// audio payload into memory merely to inspect two Vorbis comments.
+  Future<Map<String, String>> _readFlacMetadata(File file) async {
+    RandomAccessFile? handle;
+    try {
+      handle = await file.open();
+      if (String.fromCharCodes(await handle.read(4)) != 'fLaC') {
+        return const <String, String>{};
+      }
+      while (true) {
+        final header = await handle.read(4);
+        if (header.length != 4) return const <String, String>{};
+        final isLast = (header[0] & 0x80) != 0;
+        final type = header[0] & 0x7f;
+        final length = (header[1] << 16) | (header[2] << 8) | header[3];
+        if (type == 4) {
+          if (length > _maxCommentBytes) return const <String, String>{};
+          final bytes = await handle.read(length);
+          return bytes.length == length
+              ? _readVorbisComment(Uint8List.fromList(bytes))
+              : const <String, String>{};
+        }
+        await handle.setPosition(await handle.position() + length);
+        if (isLast) return const <String, String>{};
+      }
+    } on FileSystemException {
+      return const <String, String>{};
+    } finally {
+      await handle?.close();
+    }
   }
 
   Future<void> write({
@@ -36,30 +68,6 @@ class PermanentDownloadMediaIdentity {
     final temporary = File('${file.path}.navis-writing');
     await temporary.writeAsBytes(replacement, flush: true);
     await temporary.rename(file.path);
-  }
-
-  Map<String, String> _readFlac(Uint8List bytes) {
-    if (bytes.length < 8 ||
-        String.fromCharCodes(bytes.sublist(0, 4)) != 'fLaC') {
-      return const <String, String>{};
-    }
-    var offset = 4;
-    while (offset + 4 <= bytes.length) {
-      final header = bytes[offset];
-      final type = header & 0x7f;
-      final length =
-          (bytes[offset + 1] << 16) |
-          (bytes[offset + 2] << 8) |
-          bytes[offset + 3];
-      final dataStart = offset + 4;
-      final dataEnd = dataStart + length;
-      if (dataEnd > bytes.length) return const <String, String>{};
-      if (type == 4)
-        return _readVorbisComment(bytes.sublist(dataStart, dataEnd));
-      if ((header & 0x80) != 0) break;
-      offset = dataEnd;
-    }
-    return const <String, String>{};
   }
 
   Uint8List? _writeFlac(Uint8List bytes, Map<String, String> additions) {
