@@ -113,6 +113,7 @@ class SettingsScreen extends ConsumerWidget {
         body: SafeArea(
           top: portraitPhone,
           child: ListView(
+            padding: const EdgeInsets.only(top: 12),
             children: <Widget>[
               for (final entry in entries)
                 ListTile(

@@ -33,6 +33,10 @@ const List<ChangelogVersion> changelogs = [
         'Titles, labels, menus, and empty states now use consistent title case throughout the app',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Library and Settings now leave a little more breathing room at the top on portrait phones',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

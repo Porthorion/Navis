@@ -60,6 +60,10 @@ const List<_Version> _changelogs = [
       'Titles, labels, menus, and empty states now use consistent title case throughout the app',
       type: _EntryType.improvement,
     ),
+    _Entry(
+      'Library and Settings now leave a little more breathing room at the top on portrait phones',
+      type: _EntryType.improvement,
+    ),
   ]),
   _Version('1.2.8', [
     _Entry(

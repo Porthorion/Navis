@@ -839,7 +839,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         MediaQuery.orientationOf(context) == Orientation.portrait;
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: portraitPhone ? 0 : null,
+        toolbarHeight: portraitPhone ? 12 : null,
         automaticallyImplyLeading: !portraitPhone,
         title: portraitPhone ? null : Text(l10n.libraryTitle),
         bottom: tabBar,

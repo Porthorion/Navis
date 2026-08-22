@@ -23,6 +23,25 @@ void main() {
     expect(find.text('Desktop UI V1'), findsNothing);
   });
 
+  testWidgets('portrait phone settings keep space above the first row', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final list = tester.widget<ListView>(find.byType(ListView));
+    expect(list.padding, const EdgeInsets.only(top: 12));
+  });
+
   testWidgets('settings layout follows adaptive width parity matrix', (
     tester,
   ) async {

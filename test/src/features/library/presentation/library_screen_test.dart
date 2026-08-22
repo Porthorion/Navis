@@ -425,6 +425,32 @@ void main() {
 
   group('LibraryScreen', () {
     _testWidgetsWithCleanup(
+      'portrait phone Library keeps space above its tabs',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        );
+
+        final appBar = tester.widget<AppBar>(find.byType(AppBar));
+        expect(appBar.toolbarHeight, 12);
+        expect(
+          tester.getRect(find.byType(TabBar)),
+          const Rect.fromLTWH(0, 12, 390, 48),
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
       'phone Library tabs and filters remain usable at 200 percent text scale',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(390, 844));
