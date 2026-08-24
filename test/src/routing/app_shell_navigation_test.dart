@@ -216,8 +216,7 @@ const PlaybackSnapshot _activePlayback = PlaybackSnapshot(
 
 const SongsTableData _longMetadataSong = SongsTableData(
   id: 'song-1',
-  title:
-      'A Long Track Title That Must Stay Legible Without Taking Over the Desktop Player',
+  title: 'A Long Track Title That Must Stay Legible Without Taking Over the Desktop Player',
   artistName: 'An Artist With A Deliberately Long Name For Metadata Coverage',
   albumName:
       'A Representative Album With Enough Metadata To Exercise The Layout',
@@ -389,48 +388,54 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
   });
 
-  testWidgets('desktop-wide shell uses unified desktop sidebar and player bar', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1280, 1000);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
+  testWidgets(
+    'desktop-wide shell uses unified desktop sidebar and player bar',
+    (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-    final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(desktopRuntime: true),
-    );
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(desktopRuntime: true),
+      );
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: testNavisApp),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsOneWidget);
-    expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
-    expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
-    expect(find.byType(ExpandablePlayerSheet), findsNothing);
-    expect(find.byIcon(Icons.open_in_full), findsNothing);
-    expect(container.read(playerSheetExpandedProvider), isFalse);
+      expect(
+        find.byKey(const ValueKey('desktopSidebarRegion')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
+      expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+      expect(find.byType(ExpandablePlayerSheet), findsNothing);
+      expect(find.byIcon(Icons.open_in_full), findsNothing);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
 
-    await tester.tap(find.byKey(const ValueKey('desktopQueueButton')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('desktopQueueButton')));
+      await tester.pumpAndSettle();
 
-    expect(container.read(queueOverlayVisibleProvider), isTrue);
-    expect(container.read(playerSheetExpandedProvider), isFalse);
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
 
-    await tester.tapAt(const Offset(360, 40));
-    await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(360, 40));
+      await tester.pumpAndSettle();
 
-    expect(container.read(queueOverlayVisibleProvider), isFalse);
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
 
-    // Clicking the desktop player bar no longer opens the expanded player;
-    // the whole-bar InkWell was removed. Verify the bar itself is still present.
-    expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      // Clicking the desktop player bar no longer opens the expanded player;
+      // the whole-bar InkWell was removed. Verify the bar itself is still present.
+      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('desktop sidebar autohide retains an icon-only navigation rail', (
     tester,
@@ -539,7 +544,7 @@ void main() {
       expect(desktopActionButton(tester, key).onPressed, isNull);
       expect(tester.getSize(finder), const Size(44, 44));
       final semantics = tester.getSemantics(finder);
-      expect(semantics.label, 'Unavailable until something is playing');
+      expect(semantics.label, 'Unavailable Until Something Is Playing');
       expect(
         semantics.getSemanticsData().hasAction(SemanticsAction.tap),
         isFalse,

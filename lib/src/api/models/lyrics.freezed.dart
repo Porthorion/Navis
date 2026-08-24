@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'lyrics.dart';
@@ -9,6 +9,7 @@ part of 'lyrics.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -66,7 +67,7 @@ class _$LyricLineCopyWithImpl<$Res>
 /// Create a copy of LyricLine
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? start = freezed,Object? duration = freezed,Object? value = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(LyricLine(
 start: freezed == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
 as int?,duration: freezed == duration ? _self.duration : duration // ignore: cast_nullable_to_non_nullable
 as int?,value: freezed == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
@@ -335,7 +336,7 @@ class _$StructuredLyricsCopyWithImpl<$Res>
 /// Create a copy of StructuredLyrics
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? lang = freezed,Object? synced = freezed,Object? line = null,}) {
-  return _then(_self.copyWith(
+  return _then(StructuredLyrics(
 lang: freezed == lang ? _self.lang : lang // ignore: cast_nullable_to_non_nullable
 as String?,synced: freezed == synced ? _self.synced : synced // ignore: cast_nullable_to_non_nullable
 as bool?,line: null == line ? _self.line : line // ignore: cast_nullable_to_non_nullable
@@ -480,7 +481,7 @@ return $default(_that.lang,_that.synced,_that.line);case _:
 @JsonSerializable()
 
 class _StructuredLyrics implements StructuredLyrics {
-  const _StructuredLyrics({this.lang, this.synced, final  List<LyricLine> line = const <LyricLine>[]}): _line = line;
+  const _StructuredLyrics({this.lang, this.synced,  List<LyricLine> line = const <LyricLine>[]}): _line = line;
   factory _StructuredLyrics.fromJson(Map<String, dynamic> json) => _$StructuredLyricsFromJson(json);
 
 @override final  String? lang;
@@ -610,7 +611,7 @@ class _$LyricsListCopyWithImpl<$Res>
 /// Create a copy of LyricsList
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? structuredLyrics = null,Object? value = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(LyricsList(
 structuredLyrics: null == structuredLyrics ? _self.structuredLyrics : structuredLyrics // ignore: cast_nullable_to_non_nullable
 as List<StructuredLyrics>,value: freezed == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
 as String?,
@@ -754,7 +755,7 @@ return $default(_that.structuredLyrics,_that.value);case _:
 @JsonSerializable()
 
 class _LyricsList implements LyricsList {
-  const _LyricsList({final  List<StructuredLyrics> structuredLyrics = const <StructuredLyrics>[], this.value}): _structuredLyrics = structuredLyrics;
+  const _LyricsList({ List<StructuredLyrics> structuredLyrics = const <StructuredLyrics>[], this.value}): _structuredLyrics = structuredLyrics;
   factory _LyricsList.fromJson(Map<String, dynamic> json) => _$LyricsListFromJson(json);
 
  final  List<StructuredLyrics> _structuredLyrics;

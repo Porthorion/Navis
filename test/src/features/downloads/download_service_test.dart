@@ -16,6 +16,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
+
 import '../../../helpers/test_database.dart';
 
 class _MockCacheManager extends Mock implements BaseCacheManager {}

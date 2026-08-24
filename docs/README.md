@@ -13,6 +13,7 @@ product contracts.
 | Agent workflow and documentation rules | [agentic-engineering.md](agentic-engineering.md) and [../AGENTS.md](../AGENTS.md) |
 | Architecture, providers, data flows, routing, platform integration | [architecture.md](architecture.md) |
 | Bootstrap, local validation, diagnostics API, runtime evidence | [development-workflow.md](development-workflow.md) |
+| Dependency audits, upgrade batches, replacement decisions, and regression gates | [dependency-upgrades.md](dependency-upgrades.md) |
 | Quality gates, releases, signing, CI-equivalent workflow | [ci-cd.md](ci-cd.md) and [release-secrets.md](release-secrets.md) |
 | Side-by-side/dev builds | [dev-testing-builds.md](dev-testing-builds.md) |
 | Android Auto | [android-auto-testing.md](android-auto-testing.md) and [android_auto_real_car_testing.md](android_auto_real_car_testing.md) |

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'indexes.dart';
@@ -9,6 +9,7 @@ part of 'indexes.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -66,7 +67,7 @@ class _$IndexesCopyWithImpl<$Res>
 /// Create a copy of Indexes
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? lastModified = freezed,Object? indexes = null,Object? shortcut = null,Object? child = null,}) {
-  return _then(_self.copyWith(
+  return _then(Indexes(
 lastModified: freezed == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime?,indexes: null == indexes ? _self.indexes : indexes // ignore: cast_nullable_to_non_nullable
 as List<IndexesIndex>,shortcut: null == shortcut ? _self.shortcut : shortcut // ignore: cast_nullable_to_non_nullable
@@ -212,7 +213,7 @@ return $default(_that.lastModified,_that.indexes,_that.shortcut,_that.child);cas
 @JsonSerializable()
 
 class _Indexes implements Indexes {
-  const _Indexes({@JsonKey(fromJson: _lastModifiedFromJson, toJson: _lastModifiedToJson) this.lastModified, @JsonKey(name: 'index') final  List<IndexesIndex> indexes = const <IndexesIndex>[], final  List<Artist> shortcut = const <Artist>[], final  List<Artist> child = const <Artist>[]}): _indexes = indexes,_shortcut = shortcut,_child = child;
+  const _Indexes({@JsonKey(fromJson: _lastModifiedFromJson, toJson: _lastModifiedToJson) this.lastModified, @JsonKey(name: 'index')  List<IndexesIndex> indexes = const <IndexesIndex>[],  List<Artist> shortcut = const <Artist>[],  List<Artist> child = const <Artist>[]}): _indexes = indexes,_shortcut = shortcut,_child = child;
   factory _Indexes.fromJson(Map<String, dynamic> json) => _$IndexesFromJson(json);
 
 @override@JsonKey(fromJson: _lastModifiedFromJson, toJson: _lastModifiedToJson) final  DateTime? lastModified;
@@ -356,7 +357,7 @@ class _$IndexesIndexCopyWithImpl<$Res>
 /// Create a copy of IndexesIndex
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? name = freezed,Object? artists = null,}) {
-  return _then(_self.copyWith(
+  return _then(IndexesIndex(
 name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String?,artists: null == artists ? _self.artists : artists // ignore: cast_nullable_to_non_nullable
 as List<Artist>,
@@ -500,7 +501,7 @@ return $default(_that.name,_that.artists);case _:
 @JsonSerializable()
 
 class _IndexesIndex implements IndexesIndex {
-  const _IndexesIndex({this.name, @JsonKey(name: 'artist') final  List<Artist> artists = const <Artist>[]}): _artists = artists;
+  const _IndexesIndex({this.name, @JsonKey(name: 'artist')  List<Artist> artists = const <Artist>[]}): _artists = artists;
   factory _IndexesIndex.fromJson(Map<String, dynamic> json) => _$IndexesIndexFromJson(json);
 
 @override final  String? name;

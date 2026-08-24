@@ -1083,15 +1083,13 @@ class _CandidatePreferenceContext {
 /// Only apply availability preference when textual match quality is close.
 const _kAvailabilityTieWindow = 0.03;
 
-typedef _AlbumSongCountLookup =
-    Future<Map<String, int?>> Function(
-      Set<String> albumIds,
-    );
+typedef _AlbumSongCountLookup = Future<Map<String, int?>> Function(
+  Set<String> albumIds,
+);
 
-typedef _QueueSongKeyLookup =
-    Future<Set<String>> Function(
-      Iterable<String> songIds,
-    );
+typedef _QueueSongKeyLookup = Future<Set<String>> Function(
+  Iterable<String> songIds,
+);
 
 final sameVibesAlbumSongCountLookupProvider = Provider<_AlbumSongCountLookup>((
   ref,

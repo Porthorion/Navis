@@ -26,6 +26,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+
 import '../../helpers/test_database.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}

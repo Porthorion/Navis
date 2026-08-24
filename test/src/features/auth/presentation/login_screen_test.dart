@@ -20,6 +20,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 

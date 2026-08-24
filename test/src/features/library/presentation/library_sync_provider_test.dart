@@ -642,9 +642,9 @@ void main() {
           ),
         );
         await cancellation;
-        final reachability =
-            container.read(serverReachabilityControllerProvider.notifier)
-                as _MutableReachabilityController;
+        final reachability = container.read(
+          serverReachabilityControllerProvider.notifier,
+        ) as _MutableReachabilityController;
         reachability.setStatus(ServerReachabilityStatus.offline);
         reachability.setStatus(ServerReachabilityStatus.online);
         await Future<void>.delayed(const Duration(milliseconds: 10));

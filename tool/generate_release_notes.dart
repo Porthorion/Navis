@@ -1,4 +1,5 @@
 #!/usr/bin/env dart
+
 // Reads changelog_data.dart and outputs markdown release notes for a given
 // version. Used by release.sh to populate the Forgejo release body.
 //

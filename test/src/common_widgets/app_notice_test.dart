@@ -300,8 +300,7 @@ void main() {
     );
 
     controller.show(
-      message:
-          'This is a long notice intended to verify text clamping and overflow behavior for the compact top notification pill.',
+      message: 'This is a long notice intended to verify text clamping and overflow behavior for the compact top notification pill.',
       duration: const Duration(milliseconds: 60),
     );
     await tester.pump();

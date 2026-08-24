@@ -104,7 +104,7 @@ Future<bool> openDirectoryInFileManager(String directoryPath) async {
     if (!await canLaunchUrl(uri)) {
       return false;
     }
-    return launchUrl(uri, mode: LaunchMode.externalApplication);
+    return await launchUrl(uri, mode: LaunchMode.externalApplication);
   } on Object {
     return false;
   }

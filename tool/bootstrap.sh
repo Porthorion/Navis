@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-required_flutter_min="3.44.0"
-required_flutter_baseline_prefix="3.44"
+required_flutter_min="3.47.1"
+required_flutter_baseline_prefix="3.47"
 
 check_cmd() {
   local cmd="$1"

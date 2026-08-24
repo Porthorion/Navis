@@ -332,7 +332,12 @@ void main() {
         findsOneWidget,
       );
       expect(_textFieldWithLabel('API Key'), findsOneWidget);
-      expect(_textFieldWithLabel('User token'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        _textFieldWithLabel('User Token'),
+        240,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(_textFieldWithLabel('User Token'), findsOneWidget);
       expect(find.text('Validate and save'), findsOneWidget);
       expect(find.text('Get Token'), findsOneWidget);
       await tester.scrollUntilVisible(
@@ -360,7 +365,7 @@ void main() {
 
     expect(_textFieldWithLabel('API Key'), findsOneWidget);
     expect(_textFieldWithLabel('Shared secret'), findsNothing);
-    expect(_textFieldWithLabel('User token'), findsOneWidget);
+    expect(_textFieldWithLabel('User Token'), findsOneWidget);
     expect(find.text('Last.fm scrobbling'), findsNothing);
     expect(find.text('Last.fm'), findsOneWidget);
     expect(find.text('ListenBrainz'), findsOneWidget);
@@ -466,7 +471,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(_textFieldWithLabel('User token'), 'valid-token');
+    await tester.scrollUntilVisible(
+      _textFieldWithLabel('User Token'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(_textFieldWithLabel('User Token'), 'valid-token');
     final validateButton = find.widgetWithText(
       FilledButton,
       'Validate and save',

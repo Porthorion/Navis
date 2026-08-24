@@ -1309,13 +1309,12 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 ),
               ),
               maxLength: 6,
-              buildCounter:
-                  (
-                    _, {
-                    required currentLength,
-                    required isFocused,
-                    maxLength,
-                  }) => null,
+              buildCounter: (
+                _, {
+                required currentLength,
+                required isFocused,
+                maxLength,
+              }) => null,
               autocorrect: false,
               textCapitalization: TextCapitalization.characters,
               inputFormatters: [

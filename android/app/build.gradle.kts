@@ -30,7 +30,7 @@ val selfUpdateEnabled =
 
 android {
     namespace = "com.navis.app.navis"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     buildFeatures {

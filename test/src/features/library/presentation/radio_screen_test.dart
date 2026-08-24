@@ -71,7 +71,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('No stations match \u201clofi\u201d'), findsOneWidget);
+      expect(find.text('No Stations Match \u201clofi\u201d'), findsOneWidget);
       expect(
         find.text('Try a different filter, or show all stations.'),
         findsOneWidget,
@@ -87,7 +87,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Ambient Radio'), findsOneWidget);
-      expect(find.text('No stations match \u201clofi\u201d'), findsNothing);
+      expect(find.text('No Stations Match \u201clofi\u201d'), findsNothing);
     },
   );
 
@@ -102,7 +102,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('No radio stations found'), findsOneWidget);
+    expect(find.text('No Radio Stations Found'), findsOneWidget);
     expect(
       find.text('Add internet radio stations on your server to see them here.'),
       findsOneWidget,

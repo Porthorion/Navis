@@ -64,8 +64,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final accounts = find.text('Accounts and credentials');
-    final scrobbling = find.text('External scrobbling');
+    final accounts = find.text('Accounts and Credentials');
+    final scrobbling = find.text('External Scrobbling');
     expect(tester.getTopLeft(accounts).dx, tester.getTopLeft(scrobbling).dx);
     expect(
       tester.getTopLeft(accounts).dy,

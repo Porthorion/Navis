@@ -96,9 +96,8 @@ Future<_QueueSpyController> _pumpTopTracksSection(
 
   final context = tester.element(find.byType(ArtistTopTracksSection));
   return ProviderScope.containerOf(
-        context,
-      ).read(queueProvider.notifier)
-      as _QueueSpyController;
+    context,
+  ).read(queueProvider.notifier) as _QueueSpyController;
 }
 
 void main() {

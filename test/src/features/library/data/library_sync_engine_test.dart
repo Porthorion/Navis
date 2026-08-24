@@ -15,6 +15,7 @@ import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/utils/connectivity.dart';
+
 import '../../../../helpers/test_database.dart';
 
 class _FakeCredentialStore implements SecureCredentialStore {
@@ -2808,9 +2809,9 @@ void main() {
         final navis =
             jsonDecode(config!.capabilitiesJson!)['navis']
                 as Map<String, dynamic>;
-        final diagnostics =
-            jsonDecode(navis['librarySyncFailureDiagnostics'] as String)
-                as List<dynamic>;
+        final diagnostics = jsonDecode(
+          navis['librarySyncFailureDiagnostics'] as String,
+        ) as List<dynamic>;
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(state.freshness, LibrarySyncFreshness.verificationPending);

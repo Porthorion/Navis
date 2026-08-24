@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+
 import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:navis/src/api/lrclib_client.dart';
@@ -244,16 +246,16 @@ class DownloadService {
       );
     }
 
-    if (_isSafRoot(normalizedPath)) {
+    if (normalizedPath case final safPath? when _isSafRoot(safPath)) {
       await _runWithQueuePaused(() async {
-        final tree = await _safStorage.validateWritableTree(normalizedPath!);
+        final tree = await _safStorage.validateWritableTree(safPath);
         if (!tree.canRead || !tree.canWrite || !tree.canReplace) {
           throw const FileSystemException(
             'This Android folder cannot safely store Navis downloads.',
           );
         }
-        await _relocatePermanentDownloadsToSaf(normalizedPath!);
-        await _appSettingsDao.updateCustomDownloadFolderPath(normalizedPath);
+        await _relocatePermanentDownloadsToSaf(safPath);
+        await _appSettingsDao.updateCustomDownloadFolderPath(safPath);
         await _appSettingsDao.updateCustomDownloadFolderStorageKind(
           'androidSaf',
         );
@@ -1241,7 +1243,8 @@ class DownloadService {
           (entry: entry, locator: taggedTarget, format: format),
         );
         if (temporary != null) {
-          await temporary.delete().catchError((_) {});
+          final temporaryFile = temporary;
+          await temporaryFile.delete().catchError((_) => temporaryFile);
         }
       }
       for (final moved in movedEntries) {

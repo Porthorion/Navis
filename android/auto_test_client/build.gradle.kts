@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace = "com.navis.app.autotestclient"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.navis.app.autotestclient"

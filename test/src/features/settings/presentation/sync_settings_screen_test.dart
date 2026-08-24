@@ -693,7 +693,7 @@ void main() {
 
     await tester.tap(find.text('Repair Library Metadata'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Repair on mobile data'));
+    await tester.tap(find.text('Repair on Mobile Data'));
     await tester.pumpAndSettle();
     expect(find.text('Required library rebuild'), findsOneWidget);
     expect(router.routeInformationProvider.value.uri.queryParameters, {

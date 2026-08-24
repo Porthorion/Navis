@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'search_result3.dart';
@@ -9,6 +9,7 @@ part of 'search_result3.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -66,7 +67,7 @@ class _$SearchResult3CopyWithImpl<$Res>
 /// Create a copy of SearchResult3
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? artists = null,Object? albums = null,Object? songs = null,}) {
-  return _then(_self.copyWith(
+  return _then(SearchResult3(
 artists: null == artists ? _self.artists : artists // ignore: cast_nullable_to_non_nullable
 as List<Artist>,albums: null == albums ? _self.albums : albums // ignore: cast_nullable_to_non_nullable
 as List<Album>,songs: null == songs ? _self.songs : songs // ignore: cast_nullable_to_non_nullable
@@ -211,7 +212,7 @@ return $default(_that.artists,_that.albums,_that.songs);case _:
 @JsonSerializable()
 
 class _SearchResult3 implements SearchResult3 {
-  const _SearchResult3({final  List<Artist> artists = const <Artist>[], final  List<Album> albums = const <Album>[], final  List<Song> songs = const <Song>[]}): _artists = artists,_albums = albums,_songs = songs;
+  const _SearchResult3({ List<Artist> artists = const <Artist>[],  List<Album> albums = const <Album>[],  List<Song> songs = const <Song>[]}): _artists = artists,_albums = albums,_songs = songs;
   factory _SearchResult3.fromJson(Map<String, dynamic> json) => _$SearchResult3FromJson(json);
 
  final  List<Artist> _artists;

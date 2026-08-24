@@ -7,6 +7,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+
 import '../../../../helpers/test_database.dart';
 
 class _FakeCredentialStore implements SecureCredentialStore {

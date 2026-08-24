@@ -1370,7 +1370,7 @@ void main() {
 
         expect(find.text('No results for "guest"'), findsOneWidget);
         expect(find.text('Filtering: "guest"'), findsOneWidget);
-        expect(find.byTooltip('Show all'), findsOneWidget);
+        expect(find.byIcon(Icons.close_rounded), findsOneWidget);
       },
     );
 

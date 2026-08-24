@@ -3,6 +3,13 @@ include: package:very_good_analysis/analysis_options.yaml
 analyzer:
   exclude:
     - third_party/navis_windows_smtc/cargokit/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     invalid_annotation_target: ignore
 

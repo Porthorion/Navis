@@ -130,44 +130,52 @@ void main() {
     expect(playlists.single.title, 'Weekly Jams');
   });
 
-  test('getUserPlaylists sends auth and parses array-shaped playlists', () async {
-    final dio = _MockDio();
-    when(
-      () => dio.get<Map<String, dynamic>>(
-        '/user/alice%20smith/playlists',
-        queryParameters: any(named: 'queryParameters'),
-        options: any(named: 'options'),
-      ),
-    ).thenAnswer(
-      (invocation) async {
-        final options = invocation.namedArguments[#options] as Options;
-        expect(options.headers?['Authorization'], 'Token token');
-        return Response<Map<String, dynamic>>(
-          requestOptions: RequestOptions(path: '/user/alice%20smith/playlists'),
-          data: <String, dynamic>{
-            'playlists': <Map<String, dynamic>>[
-              <String, dynamic>{
-                'identifier': <String>[
-                  'https://musicbrainz.org/playlist/44444444-4444-4444-4444-444444444444',
-                ],
-                'title': 'Weekly Exploration',
-                'creator': 'ListenBrainz',
-              },
-            ],
-          },
-        );
-      },
-    );
+  test(
+    'getUserPlaylists sends auth and parses array-shaped playlists',
+    () async {
+      final dio = _MockDio();
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/user/alice%20smith/playlists',
+          queryParameters: any(named: 'queryParameters'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (invocation) async {
+          final options = invocation.namedArguments[#options] as Options;
+          expect(options.headers?['Authorization'], 'Token token');
+          return Response<Map<String, dynamic>>(
+            requestOptions: RequestOptions(
+              path: '/user/alice%20smith/playlists',
+            ),
+            data: <String, dynamic>{
+              'playlists': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'identifier': <String>[
+                    'https://musicbrainz.org/playlist/44444444-4444-4444-4444-444444444444',
+                  ],
+                  'title': 'Weekly Exploration',
+                  'creator': 'ListenBrainz',
+                },
+              ],
+            },
+          );
+        },
+      );
 
-    final playlists = await ListenBrainzApiClient(dio: dio).getUserPlaylists(
-      userName: 'alice smith',
-      userToken: 'token',
-    );
+      final playlists = await ListenBrainzApiClient(dio: dio).getUserPlaylists(
+        userName: 'alice smith',
+        userToken: 'token',
+      );
 
-    expect(playlists, hasLength(1));
-    expect(playlists.single.identifier, '44444444-4444-4444-4444-444444444444');
-    expect(playlists.single.title, 'Weekly Exploration');
-  });
+      expect(playlists, hasLength(1));
+      expect(
+        playlists.single.identifier,
+        '44444444-4444-4444-4444-444444444444',
+      );
+      expect(playlists.single.title, 'Weekly Exploration');
+    },
+  );
 
   test('getPlaylist preserves JSPF track metadata', () async {
     final dio = _MockDio();
@@ -188,8 +196,7 @@ void main() {
           ),
           data: <String, dynamic>{
             'playlist': <String, dynamic>{
-              'identifier':
-                  'https://musicbrainz.org/playlist/11111111-1111-1111-1111-111111111111',
+              'identifier': 'https://musicbrainz.org/playlist/11111111-1111-1111-1111-111111111111',
               'title': 'Weekly Exploration',
               'track': <String, dynamic>{
                 'track': <Map<String, dynamic>>[
@@ -248,8 +255,7 @@ void main() {
           ),
           data: <String, dynamic>{
             'playlist': <String, dynamic>{
-              'identifier':
-                  'https://musicbrainz.org/playlist/55555555-5555-5555-5555-555555555555',
+              'identifier': 'https://musicbrainz.org/playlist/55555555-5555-5555-5555-555555555555',
               'title': 'Weekly Jams',
               'track': <Map<String, dynamic>>[
                 <String, dynamic>{

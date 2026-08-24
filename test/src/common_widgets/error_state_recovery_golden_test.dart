@@ -69,8 +69,7 @@ void main() {
           child: Scaffold(
             body: ErrorState(
               title: 'Could not load the current playlist details',
-              message:
-                  'Check your connection, then try again. Your saved music remains available on this device.',
+              message: 'Check your connection, then try again. Your saved music remains available on this device.',
               onRetry: () {},
             ),
           ),

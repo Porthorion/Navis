@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'server_capabilities.dart';
@@ -9,6 +9,7 @@ part of 'server_capabilities.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -66,7 +67,7 @@ class _$OpenSubsonicExtensionCopyWithImpl<$Res>
 /// Create a copy of OpenSubsonicExtension
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? versions = null,}) {
-  return _then(_self.copyWith(
+  return _then(OpenSubsonicExtension(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,versions: null == versions ? _self.versions : versions // ignore: cast_nullable_to_non_nullable
 as List<String>,
@@ -210,7 +211,7 @@ return $default(_that.name,_that.versions);case _:
 @JsonSerializable()
 
 class _OpenSubsonicExtension implements OpenSubsonicExtension {
-  const _OpenSubsonicExtension({required this.name, final  List<String> versions = const <String>[]}): _versions = versions;
+  const _OpenSubsonicExtension({required this.name,  List<String> versions = const <String>[]}): _versions = versions;
   factory _OpenSubsonicExtension.fromJson(Map<String, dynamic> json) => _$OpenSubsonicExtensionFromJson(json);
 
 @override final  String name;
@@ -338,7 +339,7 @@ class _$ServerCapabilitiesCopyWithImpl<$Res>
 /// Create a copy of ServerCapabilities
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? extensions = null,}) {
-  return _then(_self.copyWith(
+  return _then(ServerCapabilities(
 extensions: null == extensions ? _self.extensions : extensions // ignore: cast_nullable_to_non_nullable
 as List<OpenSubsonicExtension>,
   ));
@@ -481,7 +482,7 @@ return $default(_that.extensions);case _:
 @JsonSerializable()
 
 class _ServerCapabilities implements ServerCapabilities {
-  const _ServerCapabilities({final  List<OpenSubsonicExtension> extensions = const <OpenSubsonicExtension>[]}): _extensions = extensions;
+  const _ServerCapabilities({ List<OpenSubsonicExtension> extensions = const <OpenSubsonicExtension>[]}): _extensions = extensions;
   factory _ServerCapabilities.fromJson(Map<String, dynamic> json) => _$ServerCapabilitiesFromJson(json);
 
  final  List<OpenSubsonicExtension> _extensions;

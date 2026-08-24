@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'artist_info.dart';
@@ -9,6 +9,7 @@ part of 'artist_info.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -66,7 +67,7 @@ class _$ArtistInfoCopyWithImpl<$Res>
 /// Create a copy of ArtistInfo
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? biography = freezed,Object? musicBrainzId = freezed,Object? lastFmUrl = freezed,Object? smallImageUrl = freezed,Object? mediumImageUrl = freezed,Object? largeImageUrl = freezed,Object? similarArtists = null,}) {
-  return _then(_self.copyWith(
+  return _then(ArtistInfo(
 biography: freezed == biography ? _self.biography : biography // ignore: cast_nullable_to_non_nullable
 as String?,musicBrainzId: freezed == musicBrainzId ? _self.musicBrainzId : musicBrainzId // ignore: cast_nullable_to_non_nullable
 as String?,lastFmUrl: freezed == lastFmUrl ? _self.lastFmUrl : lastFmUrl // ignore: cast_nullable_to_non_nullable
@@ -215,7 +216,7 @@ return $default(_that.biography,_that.musicBrainzId,_that.lastFmUrl,_that.smallI
 @JsonSerializable()
 
 class _ArtistInfo implements ArtistInfo {
-  const _ArtistInfo({this.biography, this.musicBrainzId, this.lastFmUrl, this.smallImageUrl, this.mediumImageUrl, this.largeImageUrl, final  List<Artist> similarArtists = const <Artist>[]}): _similarArtists = similarArtists;
+  const _ArtistInfo({this.biography, this.musicBrainzId, this.lastFmUrl, this.smallImageUrl, this.mediumImageUrl, this.largeImageUrl,  List<Artist> similarArtists = const <Artist>[]}): _similarArtists = similarArtists;
   factory _ArtistInfo.fromJson(Map<String, dynamic> json) => _$ArtistInfoFromJson(json);
 
 @override final  String? biography;

@@ -6,3 +6,10 @@ analyzer:
   exclude:
     - cargokit/**
     - lib/src/rust/frb_generated.web.dart
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**

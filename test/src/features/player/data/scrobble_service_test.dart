@@ -5,6 +5,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
+
 import '../../../../helpers/test_database.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {

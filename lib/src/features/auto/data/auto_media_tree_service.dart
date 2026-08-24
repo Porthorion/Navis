@@ -624,7 +624,7 @@ class AutoMediaTreeService {
           result.albums.isEmpty &&
           result.songs.isEmpty &&
           playlists.isEmpty) {
-        return _searchLocalDb(query, focus);
+        return await _searchLocalDb(query, focus);
       }
       final downloadedSongIds = await _readDownloadedSongIdsSafe();
       return _mapSearchResults(

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'playlist.dart';
@@ -9,6 +9,7 @@ part of 'playlist.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -66,7 +67,7 @@ class _$PlaylistCopyWithImpl<$Res>
 /// Create a copy of Playlist
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? songCount = freezed,Object? duration = freezed,Object? owner = freezed,Object? isPublic = freezed,Object? coverArt = freezed,Object? comment = freezed,Object? entries = null,}) {
-  return _then(_self.copyWith(
+  return _then(Playlist(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,songCount: freezed == songCount ? _self.songCount : songCount // ignore: cast_nullable_to_non_nullable
@@ -217,7 +218,7 @@ return $default(_that.id,_that.name,_that.songCount,_that.duration,_that.owner,_
 @JsonSerializable()
 
 class _Playlist implements Playlist {
-  const _Playlist({required this.id, required this.name, this.songCount, this.duration, this.owner, @JsonKey(name: 'public') this.isPublic, this.coverArt, this.comment, final  List<Song> entries = const <Song>[]}): _entries = entries;
+  const _Playlist({required this.id, required this.name, this.songCount, this.duration, this.owner, @JsonKey(name: 'public') this.isPublic, this.coverArt, this.comment,  List<Song> entries = const <Song>[]}): _entries = entries;
   factory _Playlist.fromJson(Map<String, dynamic> json) => _$PlaylistFromJson(json);
 
 @override final  String id;

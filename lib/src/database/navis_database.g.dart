@@ -29340,17 +29340,15 @@ class $$AlbumsTableTableTableManager
                     >
                   >(state) {
                     if (artistId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.artistId,
-                                referencedTable: $$AlbumsTableTableReferences
-                                    ._artistIdTable(db),
-                                referencedColumn: $$AlbumsTableTableReferences
-                                    ._artistIdTable(db)
-                                    .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.artistId,
+                        referencedTable: $$AlbumsTableTableReferences
+                            ._artistIdTable(db),
+                        referencedColumn: $$AlbumsTableTableReferences
+                            ._artistIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -29398,70 +29396,68 @@ typedef $$AlbumsTableTableProcessedTableManager =
       AlbumsTableData,
       PrefetchHooks Function({bool artistId, bool songsTableRefs})
     >;
-typedef $$SongsTableTableCreateCompanionBuilder =
-    SongsTableCompanion Function({
-      required String id,
-      required String title,
-      Value<String?> albumId,
-      Value<String?> artistId,
-      Value<String?> artistName,
-      Value<String?> albumName,
-      Value<int?> track,
-      Value<int?> discNumber,
-      Value<int?> duration,
-      Value<int?> bitRate,
-      Value<int?> sampleRate,
-      Value<String?> contentType,
-      Value<String?> suffix,
-      Value<int?> size,
-      Value<String?> coverArt,
-      Value<DateTime?> starred,
-      Value<String?> recordingMbid,
-      Value<int?> userRating,
-      Value<int?> playCount,
-      Value<DateTime?> createdAt,
-      Value<DateTime?> serverDeletedAt,
-      Value<bool> isProvisional,
-      Value<bool> isExternal,
-      Value<int?> catalogGeneration,
-      Value<double?> replayGainTrackGain,
-      Value<double?> replayGainAlbumGain,
-      Value<double?> replayGainTrackPeak,
-      Value<double?> replayGainAlbumPeak,
-      Value<int> rowid,
-    });
-typedef $$SongsTableTableUpdateCompanionBuilder =
-    SongsTableCompanion Function({
-      Value<String> id,
-      Value<String> title,
-      Value<String?> albumId,
-      Value<String?> artistId,
-      Value<String?> artistName,
-      Value<String?> albumName,
-      Value<int?> track,
-      Value<int?> discNumber,
-      Value<int?> duration,
-      Value<int?> bitRate,
-      Value<int?> sampleRate,
-      Value<String?> contentType,
-      Value<String?> suffix,
-      Value<int?> size,
-      Value<String?> coverArt,
-      Value<DateTime?> starred,
-      Value<String?> recordingMbid,
-      Value<int?> userRating,
-      Value<int?> playCount,
-      Value<DateTime?> createdAt,
-      Value<DateTime?> serverDeletedAt,
-      Value<bool> isProvisional,
-      Value<bool> isExternal,
-      Value<int?> catalogGeneration,
-      Value<double?> replayGainTrackGain,
-      Value<double?> replayGainAlbumGain,
-      Value<double?> replayGainTrackPeak,
-      Value<double?> replayGainAlbumPeak,
-      Value<int> rowid,
-    });
+typedef $$SongsTableTableCreateCompanionBuilder = SongsTableCompanion Function({
+  required String id,
+  required String title,
+  Value<String?> albumId,
+  Value<String?> artistId,
+  Value<String?> artistName,
+  Value<String?> albumName,
+  Value<int?> track,
+  Value<int?> discNumber,
+  Value<int?> duration,
+  Value<int?> bitRate,
+  Value<int?> sampleRate,
+  Value<String?> contentType,
+  Value<String?> suffix,
+  Value<int?> size,
+  Value<String?> coverArt,
+  Value<DateTime?> starred,
+  Value<String?> recordingMbid,
+  Value<int?> userRating,
+  Value<int?> playCount,
+  Value<DateTime?> createdAt,
+  Value<DateTime?> serverDeletedAt,
+  Value<bool> isProvisional,
+  Value<bool> isExternal,
+  Value<int?> catalogGeneration,
+  Value<double?> replayGainTrackGain,
+  Value<double?> replayGainAlbumGain,
+  Value<double?> replayGainTrackPeak,
+  Value<double?> replayGainAlbumPeak,
+  Value<int> rowid,
+});
+typedef $$SongsTableTableUpdateCompanionBuilder = SongsTableCompanion Function({
+  Value<String> id,
+  Value<String> title,
+  Value<String?> albumId,
+  Value<String?> artistId,
+  Value<String?> artistName,
+  Value<String?> albumName,
+  Value<int?> track,
+  Value<int?> discNumber,
+  Value<int?> duration,
+  Value<int?> bitRate,
+  Value<int?> sampleRate,
+  Value<String?> contentType,
+  Value<String?> suffix,
+  Value<int?> size,
+  Value<String?> coverArt,
+  Value<DateTime?> starred,
+  Value<String?> recordingMbid,
+  Value<int?> userRating,
+  Value<int?> playCount,
+  Value<DateTime?> createdAt,
+  Value<DateTime?> serverDeletedAt,
+  Value<bool> isProvisional,
+  Value<bool> isExternal,
+  Value<int?> catalogGeneration,
+  Value<double?> replayGainTrackGain,
+  Value<double?> replayGainAlbumGain,
+  Value<double?> replayGainTrackPeak,
+  Value<double?> replayGainAlbumPeak,
+  Value<int> rowid,
+});
 
 final class $$SongsTableTableReferences
     extends BaseReferences<_$NavisDatabase, $SongsTableTable, SongsTableData> {
@@ -30618,32 +30614,26 @@ class $$SongsTableTableTableManager
                         >
                       >(state) {
                         if (albumId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.albumId,
-                                    referencedTable: $$SongsTableTableReferences
-                                        ._albumIdTable(db),
-                                    referencedColumn:
-                                        $$SongsTableTableReferences
-                                            ._albumIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.albumId,
+                            referencedTable: $$SongsTableTableReferences
+                                ._albumIdTable(db),
+                            referencedColumn: $$SongsTableTableReferences
+                                ._albumIdTable(db)
+                                .id,
+                          ) as T;
                         }
                         if (artistId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.artistId,
-                                    referencedTable: $$SongsTableTableReferences
-                                        ._artistIdTable(db),
-                                    referencedColumn:
-                                        $$SongsTableTableReferences
-                                            ._artistIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.artistId,
+                            referencedTable: $$SongsTableTableReferences
+                                ._artistIdTable(db),
+                            referencedColumn: $$SongsTableTableReferences
+                                ._artistIdTable(db)
+                                .id,
+                          ) as T;
                         }
 
                         return state;
@@ -32223,34 +32213,26 @@ class $$PlaylistSongsTableTableTableManager
                     >
                   >(state) {
                     if (playlistId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.playlistId,
-                                referencedTable:
-                                    $$PlaylistSongsTableTableReferences
-                                        ._playlistIdTable(db),
-                                referencedColumn:
-                                    $$PlaylistSongsTableTableReferences
-                                        ._playlistIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.playlistId,
+                        referencedTable: $$PlaylistSongsTableTableReferences
+                            ._playlistIdTable(db),
+                        referencedColumn: $$PlaylistSongsTableTableReferences
+                            ._playlistIdTable(db)
+                            .id,
+                      ) as T;
                     }
                     if (songId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.songId,
-                                referencedTable:
-                                    $$PlaylistSongsTableTableReferences
-                                        ._songIdTable(db),
-                                referencedColumn:
-                                    $$PlaylistSongsTableTableReferences
-                                        ._songIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.songId,
+                        referencedTable: $$PlaylistSongsTableTableReferences
+                            ._songIdTable(db),
+                        referencedColumn: $$PlaylistSongsTableTableReferences
+                            ._songIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -33293,19 +33275,15 @@ class $$PlayHistoryTableTableTableManager
                     >
                   >(state) {
                     if (songId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.songId,
-                                referencedTable:
-                                    $$PlayHistoryTableTableReferences
-                                        ._songIdTable(db),
-                                referencedColumn:
-                                    $$PlayHistoryTableTableReferences
-                                        ._songIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.songId,
+                        referencedTable: $$PlayHistoryTableTableReferences
+                            ._songIdTable(db),
+                        referencedColumn: $$PlayHistoryTableTableReferences
+                            ._songIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -34172,34 +34150,26 @@ class $$PlayQueueItemsTableTableTableManager
                     >
                   >(state) {
                     if (queueId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.queueId,
-                                referencedTable:
-                                    $$PlayQueueItemsTableTableReferences
-                                        ._queueIdTable(db),
-                                referencedColumn:
-                                    $$PlayQueueItemsTableTableReferences
-                                        ._queueIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.queueId,
+                        referencedTable: $$PlayQueueItemsTableTableReferences
+                            ._queueIdTable(db),
+                        referencedColumn: $$PlayQueueItemsTableTableReferences
+                            ._queueIdTable(db)
+                            .id,
+                      ) as T;
                     }
                     if (songId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.songId,
-                                referencedTable:
-                                    $$PlayQueueItemsTableTableReferences
-                                        ._songIdTable(db),
-                                referencedColumn:
-                                    $$PlayQueueItemsTableTableReferences
-                                        ._songIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.songId,
+                        referencedTable: $$PlayQueueItemsTableTableReferences
+                            ._songIdTable(db),
+                        referencedColumn: $$PlayQueueItemsTableTableReferences
+                            ._songIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -34826,19 +34796,15 @@ class $$MatchFlowSongsTableTableTableManager
                     >
                   >(state) {
                     if (flowId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.flowId,
-                                referencedTable:
-                                    $$MatchFlowSongsTableTableReferences
-                                        ._flowIdTable(db),
-                                referencedColumn:
-                                    $$MatchFlowSongsTableTableReferences
-                                        ._flowIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.flowId,
+                        referencedTable: $$MatchFlowSongsTableTableReferences
+                            ._flowIdTable(db),
+                        referencedColumn: $$MatchFlowSongsTableTableReferences
+                            ._flowIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -35336,19 +35302,15 @@ class $$ScrobbleQueueTableTableTableManager
                     >
                   >(state) {
                     if (songId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.songId,
-                                referencedTable:
-                                    $$ScrobbleQueueTableTableReferences
-                                        ._songIdTable(db),
-                                referencedColumn:
-                                    $$ScrobbleQueueTableTableReferences
-                                        ._songIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.songId,
+                        referencedTable: $$ScrobbleQueueTableTableReferences
+                            ._songIdTable(db),
+                        referencedColumn: $$ScrobbleQueueTableTableReferences
+                            ._songIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -35997,19 +35959,17 @@ class $$ListenBrainzFeedbackQueueTableTableTableManager
                     >
                   >(state) {
                     if (songId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.songId,
-                                referencedTable:
-                                    $$ListenBrainzFeedbackQueueTableTableReferences
-                                        ._songIdTable(db),
-                                referencedColumn:
-                                    $$ListenBrainzFeedbackQueueTableTableReferences
-                                        ._songIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.songId,
+                        referencedTable:
+                            $$ListenBrainzFeedbackQueueTableTableReferences
+                                ._songIdTable(db),
+                        referencedColumn:
+                            $$ListenBrainzFeedbackQueueTableTableReferences
+                                ._songIdTable(db)
+                                .id,
+                      ) as T;
                     }
 
                     return state;
@@ -37988,19 +37948,15 @@ class $$LibrarySyncStateTableTableTableManager
                     >
                   >(state) {
                     if (serverId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.serverId,
-                                referencedTable:
-                                    $$LibrarySyncStateTableTableReferences
-                                        ._serverIdTable(db),
-                                referencedColumn:
-                                    $$LibrarySyncStateTableTableReferences
-                                        ._serverIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable: $$LibrarySyncStateTableTableReferences
+                            ._serverIdTable(db),
+                        referencedColumn: $$LibrarySyncStateTableTableReferences
+                            ._serverIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -38478,19 +38434,15 @@ class $$LibrarySyncWorkTableTableTableManager
                     >
                   >(state) {
                     if (serverId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.serverId,
-                                referencedTable:
-                                    $$LibrarySyncWorkTableTableReferences
-                                        ._serverIdTable(db),
-                                referencedColumn:
-                                    $$LibrarySyncWorkTableTableReferences
-                                        ._serverIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable: $$LibrarySyncWorkTableTableReferences
+                            ._serverIdTable(db),
+                        referencedColumn: $$LibrarySyncWorkTableTableReferences
+                            ._serverIdTable(db)
+                            .id,
+                      ) as T;
                     }
 
                     return state;
@@ -40526,19 +40478,17 @@ class $$StarredAbsenceCandidatesTableTableTableManager
                     >
                   >(state) {
                     if (serverId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.serverId,
-                                referencedTable:
-                                    $$StarredAbsenceCandidatesTableTableReferences
-                                        ._serverIdTable(db),
-                                referencedColumn:
-                                    $$StarredAbsenceCandidatesTableTableReferences
-                                        ._serverIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable:
+                            $$StarredAbsenceCandidatesTableTableReferences
+                                ._serverIdTable(db),
+                        referencedColumn:
+                            $$StarredAbsenceCandidatesTableTableReferences
+                                ._serverIdTable(db)
+                                .id,
+                      ) as T;
                     }
 
                     return state;
@@ -40895,19 +40845,17 @@ class $$LibrarySyncOperationLedgerTableTableTableManager
                     >
                   >(state) {
                     if (serverId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.serverId,
-                                referencedTable:
-                                    $$LibrarySyncOperationLedgerTableTableReferences
-                                        ._serverIdTable(db),
-                                referencedColumn:
-                                    $$LibrarySyncOperationLedgerTableTableReferences
-                                        ._serverIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable:
+                            $$LibrarySyncOperationLedgerTableTableReferences
+                                ._serverIdTable(db),
+                        referencedColumn:
+                            $$LibrarySyncOperationLedgerTableTableReferences
+                                ._serverIdTable(db)
+                                .id,
+                      ) as T;
                     }
 
                     return state;
@@ -41260,19 +41208,17 @@ class $$LibrarySyncExecutionLeaseTableTableTableManager
                     >
                   >(state) {
                     if (serverId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.serverId,
-                                referencedTable:
-                                    $$LibrarySyncExecutionLeaseTableTableReferences
-                                        ._serverIdTable(db),
-                                referencedColumn:
-                                    $$LibrarySyncExecutionLeaseTableTableReferences
-                                        ._serverIdTable(db)
-                                        .id,
-                              )
-                              as T;
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable:
+                            $$LibrarySyncExecutionLeaseTableTableReferences
+                                ._serverIdTable(db),
+                        referencedColumn:
+                            $$LibrarySyncExecutionLeaseTableTableReferences
+                                ._serverIdTable(db)
+                                .id,
+                      ) as T;
                     }
 
                     return state;

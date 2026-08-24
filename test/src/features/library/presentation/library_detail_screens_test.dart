@@ -26,6 +26,7 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
+
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
@@ -528,9 +529,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('This is Test Artist'), findsOneWidget);
+        expect(find.text('This Is Test Artist'), findsOneWidget);
         expect(find.text('Playlist'), findsNothing);
-        expect(find.text('No top tracks'), findsOneWidget);
+        expect(find.text('No Top Tracks'), findsOneWidget);
         await _disposeApp(tester);
       },
     );
@@ -591,7 +592,7 @@ void main() {
         );
         expect(artwork.size, 260);
         expect(artwork.borderRadius, 16);
-        expect(find.text('This is Test Artist'), findsAtLeastNWidgets(1));
+        expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
         expect(find.text('Test Artist · 1 song'), findsOneWidget);
         expect(find.text('North Star'), findsOneWidget);
         expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
@@ -638,7 +639,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('This is Test Artist'), findsAtLeastNWidgets(1));
+        expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
         expect(find.text('Test Artist · 1 song'), findsOneWidget);
         expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
         await _disposeApp(tester);
@@ -688,7 +689,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          find.text('This is Test Artist With A Long Name'),
+          find.text('This Is Test Artist With A Long Name'),
           findsAtLeastNWidgets(1),
         );
         expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
@@ -781,7 +782,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.bySemanticsLabel('Loading artist details'), findsOneWidget);
+      expect(find.bySemanticsLabel('Loading Artist Details'), findsOneWidget);
       expect(find.text('Artist'), findsOneWidget);
       await expectLater(
         find.byType(ArtistDetailScreen),
@@ -820,7 +821,10 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.bySemanticsLabel('Loading artist details'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('Loading Artist Details'),
+          findsOneWidget,
+        );
         await expectLater(
           find.byType(ArtistDetailScreen),
           matchesGoldenFile('goldens/artist_detail_desktop_loading_after.png'),
@@ -1570,7 +1574,7 @@ void main() {
 
         expect(find.text('Liked Track'), findsNothing);
         expect(find.text('Downloaded Track'), findsNothing);
-        expect(find.text('No downloaded content'), findsOneWidget);
+        expect(find.text('No Downloaded Content'), findsOneWidget);
         await _disposeApp(tester);
       },
     );
@@ -1691,8 +1695,7 @@ void main() {
 
         await _disposeApp(tester);
       },
-      skip:
-          true /* Pre-existing pumpAndSettle timeout in AlbumDetailScreen test harness */,
+      skip: true /* Pre-existing pumpAndSettle timeout in AlbumDetailScreen test harness */,
     );
 
     testWidgets('artist detail shows star button that reflects starred state', (

@@ -1022,8 +1022,7 @@ void main() {
     test('detects Android DSP initialization failure signatures', () {
       final dspError = PlatformException(
         code: 'error',
-        message:
-            'Cannot initialize effect engine for type: 0bed4300-ddd6-11db-8f34-0002a5d5c51b Error: -3',
+        message: 'Cannot initialize effect engine for type: 0bed4300-ddd6-11db-8f34-0002a5d5c51b Error: -3',
       );
 
       expect(

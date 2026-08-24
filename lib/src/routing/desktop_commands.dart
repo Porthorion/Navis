@@ -387,10 +387,9 @@ class DesktopCommandIntent extends Intent {
   final DesktopCommandAction action;
 }
 
-typedef DesktopCommandExecutor =
-    FutureOr<void> Function(
-      DesktopCommandAction action,
-    );
+typedef DesktopCommandExecutor = FutureOr<void> Function(
+  DesktopCommandAction action,
+);
 
 bool desktopCommandBlockedByTextInput() {
   final focusNode = FocusManager.instance.primaryFocus;

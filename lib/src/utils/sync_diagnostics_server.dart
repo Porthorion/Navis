@@ -377,8 +377,7 @@ class SyncDiagnosticsServer {
         }
         if (message.isEmpty || message.length > 240 || level == null) {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
-            'error':
-                'message must be a non-empty string up to 240 characters and level must be info, success, or error',
+            'error': 'message must be a non-empty string up to 240 characters and level must be info, success, or error',
           });
           return;
         }
@@ -412,8 +411,7 @@ class SyncDiagnosticsServer {
             await recovery.signOut(wipeLocalData: true);
           default:
             await _respond(request, HttpStatus.badRequest, <String, Object?>{
-              'error':
-                  'action must be retry, resetCache, signOutKeepData, or signOutWipeData',
+              'error': 'action must be retry, resetCache, signOutKeepData, or signOutWipeData',
             });
             return;
         }
@@ -443,8 +441,7 @@ class SyncDiagnosticsServer {
         if ((surface != 'queue' && surface != 'nowPlaying') ||
             visible is! bool) {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
-            'error':
-                'surface must be queue or nowPlaying and visible must be boolean',
+            'error': 'surface must be queue or nowPlaying and visible must be boolean',
           });
           return;
         }

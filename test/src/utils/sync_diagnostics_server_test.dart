@@ -584,8 +584,7 @@ void main() {
           pixelHeight: 720,
           pixelRatio: 1,
           byteCount: 42,
-          sha256Digest:
-              '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          sha256Digest: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
         ),
       );
       final fixture = await _startFixture(

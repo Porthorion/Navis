@@ -916,8 +916,7 @@ void main() {
                   id: 'song-1',
                   title:
                       'A very long song title that should ellipsize correctly',
-                  artistName:
-                      'An artist with a very long display name for overflow testing',
+                  artistName: 'An artist with a very long display name for overflow testing',
                   coverArt: 'cover-song-1',
                 ),
               ]),
@@ -929,10 +928,8 @@ void main() {
               const AsyncData(<Album>[
                 Album(
                   id: 'album-1',
-                  name:
-                      'A very long album title that should not overflow the card',
-                  artist:
-                      'An artist with a very long display name for overflow testing',
+                  name: 'A very long album title that should not overflow the card',
+                  artist: 'An artist with a very long display name for overflow testing',
                   coverArt: 'cover-album-1',
                 ),
               ]),
@@ -2395,8 +2392,7 @@ void main() {
     const randomAlbums = <HomeRandomShowcaseItem>[
       HomeRandomShowcaseAlbum(
         id: 'desk-overflow',
-        name:
-            'A very long desktop album title that should still fit without overflow',
+        name: 'A very long desktop album title that should still fit without overflow',
         artist: 'Overflow Artist',
         coverArtId: 'cover-desk-overflow',
         source: HomeRandomShowcaseSource.serverRandom,
@@ -2424,8 +2420,7 @@ void main() {
                         albumId: 'desk-overflow',
                         discNumber: 1,
                         track: index + 1,
-                        artist:
-                            'An artist name with extended text to stress desktop layout spacing',
+                        artist: 'An artist name with extended text to stress desktop layout spacing',
                       ),
                     ),
                   )

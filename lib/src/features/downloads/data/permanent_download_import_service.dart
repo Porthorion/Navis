@@ -478,7 +478,10 @@ class PermanentDownloadImportService {
       return PermanentDownloadImportPreview(rootPath: treeUri, items: items);
     } finally {
       manifest?.close();
-      if (manifestFile != null) await manifestFile.delete().catchError((_) {});
+      if (manifestFile != null) {
+        final file = manifestFile;
+        await file.delete().catchError((_) => file);
+      }
     }
   }
 
@@ -648,7 +651,10 @@ class PermanentDownloadImportService {
             mimeType: _mimeTypeFor(item.format),
           );
         } finally {
-          if (local != null) await local.delete().catchError((_) {});
+          if (local != null) {
+            final localFile = local;
+            await localFile.delete().catchError((_) => localFile);
+          }
         }
         await _cacheDao.upsertCachedTrack(
           CachedTracksTableCompanion.insert(
@@ -691,7 +697,7 @@ class PermanentDownloadImportService {
       try {
         manifest.close();
       } catch (_) {}
-      await manifestFile.delete().catchError((_) {});
+      await manifestFile.delete().catchError((_) => manifestFile);
     }
   }
 
@@ -781,8 +787,11 @@ class PermanentDownloadImportService {
       try {
         manifest.close();
       } catch (_) {}
-      if (localMedia != null) await localMedia.delete().catchError((_) {});
-      await manifestFile.delete().catchError((_) {});
+      if (localMedia != null) {
+        final localFile = localMedia;
+        await localFile.delete().catchError((_) => localFile);
+      }
+      await manifestFile.delete().catchError((_) => manifestFile);
     }
   }
 

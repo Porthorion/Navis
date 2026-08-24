@@ -95,7 +95,7 @@ void main() {
       expect(find.text('Cellular Streaming'), findsOneWidget);
       expect(find.text('Cached First'), findsOneWidget);
       expect(find.text('Enable Scrobbling'), findsOneWidget);
-      expect(find.text('Enable gapless playback'), findsOneWidget);
+      expect(find.text('Enable Gapless Playback'), findsOneWidget);
       expect(find.text('Experimental'), findsOneWidget);
       expect(find.text('Show Radio page'), findsNothing);
       expect(find.text('Skip silence when possible'), findsNothing);
@@ -230,7 +230,7 @@ void main() {
 
       final gaplessToggle = find.widgetWithText(
         SwitchListTile,
-        'Enable gapless playback',
+        'Enable Gapless Playback',
       );
       const crossfadeText = 'Enable Cross-Fade';
       final fullscreenToggle = find.widgetWithText(

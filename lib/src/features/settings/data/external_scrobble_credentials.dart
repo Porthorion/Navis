@@ -67,7 +67,7 @@ class FlutterExternalScrobbleCredentialStore
 
   Future<String?> _read(String key) async {
     try {
-      return _storage.read(key: key);
+      return await _storage.read(key: key);
     } on Object catch (error) {
       AppLogger.warning(
         'External credential read failed: ${error.runtimeType}',

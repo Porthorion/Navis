@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'song.dart';
@@ -9,6 +9,7 @@ part of 'song.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 
@@ -66,7 +67,7 @@ class _$SongCopyWithImpl<$Res>
 /// Create a copy of Song
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? album = freezed,Object? albumId = freezed,Object? artist = freezed,Object? artistId = freezed,Object? track = freezed,Object? discNumber = freezed,Object? year = freezed,Object? duration = freezed,Object? bitRate = freezed,Object? sampleRate = freezed,Object? contentType = freezed,Object? suffix = freezed,Object? size = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? musicBrainzId = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? created = freezed,Object? isExternal = freezed,Object? replayGain = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(Song(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,album: freezed == album ? _self.album : album // ignore: cast_nullable_to_non_nullable
@@ -419,7 +420,7 @@ class _$ReplayGainCopyWithImpl<$Res>
 /// Create a copy of ReplayGain
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? trackGain = freezed,Object? albumGain = freezed,Object? trackPeak = freezed,Object? albumPeak = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ReplayGain(
 trackGain: freezed == trackGain ? _self.trackGain : trackGain // ignore: cast_nullable_to_non_nullable
 as double?,albumGain: freezed == albumGain ? _self.albumGain : albumGain // ignore: cast_nullable_to_non_nullable
 as double?,trackPeak: freezed == trackPeak ? _self.trackPeak : trackPeak // ignore: cast_nullable_to_non_nullable

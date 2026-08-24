@@ -10,6 +10,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+
 import '../../../../helpers/test_database.dart';
 
 class _RecordingPlaybackHandler implements NavisPlaybackHandler {

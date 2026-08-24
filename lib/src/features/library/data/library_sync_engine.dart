@@ -900,8 +900,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             completedAt: DateTime.now(),
             isHydrating: false,
             pendingHydrationCount: 1,
-            errorMessage:
-                'Album details were incomplete; existing tracks were preserved.',
+            errorMessage: 'Album details were incomplete; existing tracks were preserved.',
           ),
           metrics,
         );
@@ -1085,8 +1084,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
             isHydrating: false,
-            errorMessage:
-                'Artist details were incomplete; existing albums were preserved.',
+            errorMessage: 'Artist details were incomplete; existing albums were preserved.',
           ),
           metrics,
         );
@@ -1225,8 +1223,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             stage: LibrarySyncStage.completed,
             completedAt: DateTime.now(),
             isHydrating: false,
-            errorMessage:
-                'Playlist details were incomplete; existing tracks were preserved.',
+            errorMessage: 'Playlist details were incomplete; existing tracks were preserved.',
           ),
           metrics,
         );

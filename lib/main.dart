@@ -11,6 +11,7 @@ import 'package:navis/src/bootstrap/android_ui_bootstrap_gate.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart'
     as android_background_sync;
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -266,6 +267,13 @@ Future<void> _startSyncDiagnostics({
         : null,
     onShutdown: () async {
       await server.close();
+      // A diagnostics shutdown must drain the startup/automatic sync before
+      // closing Drift. Container disposal is synchronous, so without
+      // this explicit barrier an in-flight planner can issue a final database
+      // request after the isolate channel has already closed.
+      await container
+          .read(librarySyncControllerProvider.notifier)
+          .cancelAndWait();
       runApp(const SizedBox.shrink());
       await WidgetsBinding.instance.endOfFrame;
       container.dispose();

@@ -4,12 +4,11 @@ import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
-typedef NetworkUsageReporter =
-    void Function({
-      required NetworkUsageCategory category,
-      required int bytes,
-      String? operation,
-    });
+typedef NetworkUsageReporter = void Function({
+  required NetworkUsageCategory category,
+  required int bytes,
+  String? operation,
+});
 
 enum NetworkUsageCategory {
   audioStream('audio_stream'),
