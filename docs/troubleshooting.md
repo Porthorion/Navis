@@ -1,5 +1,27 @@
 # Troubleshooting
 
+## Linux desktop entry does nothing / "Could not find the program 'navis'"
+
+Symptom:
+- Clicking Navis in the application menu does not start the app
+- KDE logs `Could not find the program 'navis'`
+- `gio launch ~/.local/share/applications/com.navis.app.navis.desktop` fails to
+  load the desktop file
+
+Cause:
+- A user-level desktop file with `Exec=navis` was installed for Wayland icon
+  matching, but no `navis` binary was on `PATH`. GLib 2.88+ rejects that file.
+
+Fix:
+
+```bash
+./tool/dev_app.sh linux-icon
+```
+
+This installs `~/.local/bin/navis` and rewrites the desktop `Exec` to that
+absolute path. Build a Linux bundle first (`./tool/dev_app.sh linux` or
+`flutter build linux`) so the launcher has something to exec.
+
 ## Tests appear to hang or fail unexpectedly
 
 Check temp space first:

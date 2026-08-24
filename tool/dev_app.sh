@@ -65,26 +65,116 @@ fi
 # (wrong package id + old version) instead of app-sideload-*.apk.
 ANDROID_FLAVOR_ARGS=("--flavor" "sideload")
 
+# Quote a path for a desktop-file Exec key only when the spec requires it.
+# Unconditional quotes make GLib 2.88 treat the quote characters as part of
+# the executable path, so the launcher cannot be resolved.
+desktop_exec_quote() {
+  local value="$1"
+  if [[ "${value}" =~ ^[A-Za-z0-9._/=+-]+$ ]]; then
+    printf '%s' "${value}"
+    return
+  fi
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "${value}"
+}
+
+write_linux_desktop_launcher() {
+  local launcher="$1"
+  local project_root="$2"
+
+  mkdir -p "$(dirname "${launcher}")"
+  {
+    echo '#!/usr/bin/env bash'
+    echo 'set -euo pipefail'
+    printf 'PROJECT_ROOT=%q\n' "${project_root}"
+    cat <<'BODY'
+if [[ -d /home/linuxbrew/.linuxbrew/lib ]]; then
+  export LD_LIBRARY_PATH="/home/linuxbrew/.linuxbrew/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+fi
+
+candidates=(
+  "${PROJECT_ROOT}/build/linux/x64/release/bundle/navis"
+  "${PROJECT_ROOT}/build/linux/x64/profile/bundle/navis"
+  "${PROJECT_ROOT}/build/linux/x64/debug/bundle/navis"
+)
+
+newest=""
+newest_mtime=-1
+for candidate in "${candidates[@]}"; do
+  if [[ -x "${candidate}" ]]; then
+    mtime="$(stat -c %Y "${candidate}" 2>/dev/null || stat -f %m "${candidate}")"
+    if ((mtime > newest_mtime)); then
+      newest="${candidate}"
+      newest_mtime="${mtime}"
+    fi
+  fi
+done
+
+if [[ -z "${newest}" ]]; then
+  echo "Navis Linux bundle not found under:" >&2
+  echo "  ${PROJECT_ROOT}/build/linux/x64/{release,profile,debug}/bundle/navis" >&2
+  echo "Build it with: ./tool/dev_app.sh linux" >&2
+  echo "or: flutter build linux" >&2
+  exit 127
+fi
+
+exec "${newest}" "$@"
+BODY
+  } >"${launcher}"
+  chmod 0755 "${launcher}"
+}
+
 install_linux_desktop_icon() {
   local icon_source="linux/packaging/icons/hicolor/256x256/apps/navis.png"
   local icon_dir="${HOME}/.local/share/icons/hicolor/256x256/apps"
   local app_dir="${HOME}/.local/share/applications"
+  local launcher="${HOME}/.local/bin/navis"
+  local desktop_template="linux/packaging/com.navis.app.navis.desktop"
+  local project_root
   local icon_digest
   local icon_name
+  local exec_quoted
+  local line
 
   if [[ ! -f "${icon_source}" ]]; then
     echo "ERROR: Generated Linux app icon not found: ${icon_source}" >&2
     echo "Run ./tool/generate_platform_icons.sh first." >&2
     exit 66
   fi
+  if [[ ! -f "${desktop_template}" ]]; then
+    echo "ERROR: Linux desktop template not found: ${desktop_template}" >&2
+    exit 66
+  fi
 
+  project_root="$(pwd)"
   icon_digest="$(sha256sum "${icon_source}" | cut -c1-12)"
   icon_name="navis-${icon_digest}"
+  exec_quoted="$(desktop_exec_quote "${launcher}")"
+
   mkdir -p "${icon_dir}" "${app_dir}"
   cp -f "${icon_source}" "${icon_dir}/${icon_name}.png"
-  sed "s/^Icon=.*/Icon=${icon_name}/" \
-    "linux/packaging/com.navis.app.navis.desktop" \
-    >"${app_dir}/com.navis.app.navis.desktop"
+  write_linux_desktop_launcher "${launcher}" "${project_root}"
+
+  # Packaging template uses Exec=navis for .deb installs that ship /usr/bin/navis.
+  # The user-level copy must use an absolute Exec: GLib 2.88+ refuses to load a
+  # desktop file whose first Exec word is not found in PATH.
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    case "${line}" in
+      Icon=*)
+        printf 'Icon=%s\n' "${icon_name}"
+        ;;
+      Exec=*)
+        printf 'Exec=%s %%U\n' "${exec_quoted}"
+        printf 'TryExec=%s\n' "${launcher}"
+        ;;
+      TryExec=*)
+        ;;
+      *)
+        printf '%s\n' "${line}"
+        ;;
+    esac
+  done <"${desktop_template}" >"${app_dir}/com.navis.app.navis.desktop"
 
   if command -v update-desktop-database &>/dev/null; then
     update-desktop-database "${app_dir}" >/dev/null 2>&1 || true
@@ -93,6 +183,7 @@ install_linux_desktop_icon() {
     --force --ignore-theme-index --quiet 2>/dev/null || true
 
   echo "    Installed Linux desktop icon: ${icon_name}"
+  echo "    Installed Linux desktop launcher: ${launcher}"
 }
 
 case "${MODE}" in
@@ -284,7 +375,7 @@ case "${MODE}" in
     ;;
   *)
     echo "Unknown mode: ${MODE}"
-    echo "Usage: ./tool/dev_app.sh <run|linux|apk|auto|dhu> [flutter args...]"
+    echo "Usage: ./tool/dev_app.sh <run|linux|linux-icon|apk|auto|dhu> [flutter args...]"
     exit 1
     ;;
 esac

@@ -17,13 +17,14 @@ Run before every commit (automatically enforced if the pre-commit hook is enable
 
 Checks performed (in order, fail-fast):
 1. `/tmp` disk-space preflight
-2. `dart format --set-exit-if-changed .`
-3. `dart run build_runner build`
-4. `flutter analyze --no-fatal-infos`
-5. Drift migration tests
-6. Critical routing/provider/playback/library sync test suite
-7. Full `flutter test`
-8. Coverage when `CI=true`
+2. Linux desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
+3. `dart format --set-exit-if-changed .`
+4. `dart run build_runner build`
+5. `flutter analyze --no-fatal-infos`
+6. Drift migration tests
+7. Critical routing/provider/playback/library sync test suite
+8. Full `flutter test`
+9. Coverage when `CI=true`
 
 The script also checks `/tmp` disk space before starting to prevent misleading test hangs.
 
@@ -246,9 +247,10 @@ canvas. Inspect representative platform outputs over light and dark
 backgrounds, including the smallest notification/desktop sizes, before running
 `./tool/check.sh`.
 
-On Linux, `./tool/dev_app.sh linux` installs a content-addressed user icon and
-refreshes the desktop/icon caches before launch. Use
-`./tool/dev_app.sh linux-icon` to perform only that cache-safe icon refresh.
+On Linux, `./tool/dev_app.sh linux` installs a content-addressed user icon, a
+`~/.local/bin/navis` launcher, and a desktop file whose `Exec` is that
+absolute launcher path, then refreshes the desktop/icon caches before launch.
+Use `./tool/dev_app.sh linux-icon` to perform only that cache-safe refresh.
 
 ### Core Gate
 

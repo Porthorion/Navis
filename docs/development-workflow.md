@@ -37,15 +37,20 @@ smallest/largest assets for each affected platform over both light and dark
 backgrounds; non-empty files or successful generation alone do not prove the
 artwork is legible, centred, or free of a baked square canvas.
 
-For a Linux dev sidecar, refresh the user-level desktop entry and its
-content-addressed icon without launching the app:
+For a Linux dev sidecar, refresh the user-level desktop entry, a
+`~/.local/bin/navis` launcher, and the content-addressed icon without
+launching the app:
 
 ```bash
 ./tool/dev_app.sh linux-icon
 ```
 
 `./tool/dev_app.sh linux` performs the same refresh automatically. The
-content-derived icon name prevents Wayland compositor caches from retaining a
+installed desktop file uses an absolute `Exec` path to that launcher so GLib
+2.88+ and KDE/GNOME can resolve it even when `navis` is not on `PATH`. The
+launcher execs the newest built
+`build/linux/x64/{release,profile,debug}/bundle/navis`.
+The content-derived icon name prevents Wayland compositor caches from retaining a
 previous brand asset under the generic `navis` name.
 
 Android uses the cache-busting `ic_launcher_navis` resource ID for both stable
@@ -78,6 +83,7 @@ Run before each commit/PR:
 ```
 
 Checks performed:
+- Linux desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
 - Dart formatting (`dart format --set-exit-if-changed .`)
 - code generation (`build_runner`)
 - static analysis (`flutter analyze --no-fatal-infos`)

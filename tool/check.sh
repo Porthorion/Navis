@@ -58,6 +58,7 @@ assert_no_blocking_warnings() {
   done
 }
 
+run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
 run_step "format check" dart format --set-exit-if-changed .
 run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze --no-fatal-infos
