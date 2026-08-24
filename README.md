@@ -165,16 +165,11 @@ rollouts use `--play-status=inProgress --play-user-fraction=<fraction>`.
 
 ## Documentation Index
 
-- [`AGENTS.md`](AGENTS.md) — canonical guide for AI coding agents
-- [`docs/architecture.md`](docs/architecture.md)
-- [`docs/development-workflow.md`](docs/development-workflow.md)
-- [`docs/ci-cd.md`](docs/ci-cd.md)
-- [`docs/dev-testing-builds.md`](docs/dev-testing-builds.md)
-- [`docs/macos-testing-playbook.md`](docs/macos-testing-playbook.md)
-- [`docs/multi-os-build-from-mac.md`](docs/multi-os-build-from-mac.md)
-- [`docs/release-secrets.md`](docs/release-secrets.md)
-- [`docs/troubleshooting.md`](docs/troubleshooting.md)
+Start with [`docs/README.md`](docs/README.md) for a task-oriented map of
+current reference documents, plans/evidence, and historical records. Agentic
+contributors should read [`AGENTS.md`](AGENTS.md) and the canonical
+[`docs/agentic-engineering.md`](docs/agentic-engineering.md) before editing.
 
 ## License
 
-[MIT](LICENSE)
+[GPL-3.0](LICENSE)

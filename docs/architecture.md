@@ -185,10 +185,12 @@ Located in `lib/src/providers/app_providers.dart`:
   long-lived network usage meter directly. It must not read through a disposed
   provider `Ref` when connectivity rebuilds the Subsonic client mid-request.
 
-**library_providers.dart** (planned):
-- Artist, album, song providers
-- Genre providers
-- Album list providers
+**library_providers.dart**:
+- Artist, album, song, genre, and album-list providers shared by Library
+  presentation screens.
+- Route-local state and scroll/section coordination remain in the dedicated
+  presentation providers beside their owning screens; do not recreate this
+  former planned-file boundary in `app_providers.dart`.
 
 #### Auth Feature (`lib/src/features/auth/presentation/`)
 

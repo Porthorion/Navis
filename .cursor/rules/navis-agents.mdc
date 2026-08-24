@@ -1,18 +1,22 @@
 ---
-description: Navis agent contract — read AGENTS.md and keep docs current
+description: Navis engineering workflow and safety contract
 alwaysApply: true
 ---
 
 # Navis agent contract
 
-1. **Read `AGENTS.md` at the start of every session** before editing this repo.
-2. **Treat `AGENTS.md` as the source of truth** for architecture, commands, and conventions. Verify claims in `DEVELOPMENT_PLAN.md`, `CLAUDE.md`, and `.github/copilot-instructions.md` against code — they may be stale.
-3. **Update documentation in the same change** when you modify:
-   - Architecture, providers, routing, playback, or adaptive layout → `AGENTS.md` + `docs/architecture.md`
-   - Database schema or migrations → `AGENTS.md` + `test/src/database/migrations/navis_migration_test.dart`
-   - Quality gates or `tool/*` scripts → `AGENTS.md` + `docs/ci-cd.md` + `docs/development-workflow.md`
-   - User-visible behavior → `changelog_data.dart` + `tool/generate_release_notes.dart`
-   - New capabilities → `README.md` (brief) + relevant `docs/` file
-4. **Run `./tool/check.sh`** before marking work complete.
-5. **Never** instantiate `NavisDatabase` outside Riverpod; **never** mutate providers during widget build.
-6. **Minimize scope** — match existing code style; no drive-by refactors or extra markdown files.
+Read `AGENTS.md` first. Then use `docs/README.md` to locate subsystem docs and
+read `docs/agentic-engineering.md` before changing code, tooling, or docs.
+
+Inspect implementation, callers, configuration, and tests before editing. Make
+the smallest complete change, update relevant documentation in the same change,
+and record material removals in `docs/history/removed-features.md`. Use scoped
+rules if present. Run proportionate validation; implementation work requires
+`./tool/check.sh`, while runtime-affecting work also requires the app-API and
+app-owned screenshot loop in `docs/development-workflow.md`.
+
+Never instantiate `NavisDatabase` outside Riverpod, mutate providers during
+widget build, break permanent-download → rolling-cache → stream playback
+priority, expose credentials, or restore retired Listen Together/Voyage without
+an explicit product decision. Review the whole diff and report only validation
+actually run.
