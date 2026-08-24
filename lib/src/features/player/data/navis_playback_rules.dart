@@ -580,6 +580,40 @@ bool navisShouldWatchRemotePlaybackForStall({
 }
 
 @visibleForTesting
+bool navisShouldRecoverBufferedSeek({
+  required String? sourceKind,
+  required AudioProcessingState processingState,
+  required Duration requestedPosition,
+  required Duration actualPosition,
+  required bool isCurrentTransportIntent,
+  required bool isCurrentSong,
+}) {
+  return isCurrentTransportIntent &&
+      isCurrentSong &&
+      navisShouldWatchRemotePlaybackForStall(
+        sourceKind: sourceKind,
+        processingState: processingState,
+      ) &&
+      (requestedPosition - actualPosition).abs() < const Duration(seconds: 2);
+}
+
+@visibleForTesting
+bool navisShouldRetryRemotePlayback({required bool alreadyRetried}) =>
+    !alreadyRetried;
+
+@visibleForTesting
+bool navisShouldRestartCompletedQueue({
+  required int queueLength,
+  required int? currentIndex,
+  required bool hasPendingLogicalQueue,
+}) {
+  if (queueLength <= 0 || hasPendingLogicalQueue) {
+    return false;
+  }
+  return currentIndex == null || currentIndex >= queueLength - 1;
+}
+
+@visibleForTesting
 bool navisShouldSeekCrossfadeHandoff({
   required int? handoffTargetIndex,
   required int? currentIndex,

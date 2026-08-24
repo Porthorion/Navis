@@ -527,6 +527,77 @@ void main() {
       );
     });
 
+    test(
+      'buffered seek recovery keeps a correctly landed remote seek safe',
+      () {
+        expect(
+          navisShouldRecoverBufferedSeek(
+            sourceKind: PlaybackSourceKind.directStream.name,
+            processingState: AudioProcessingState.buffering,
+            requestedPosition: const Duration(seconds: 120),
+            actualPosition: const Duration(seconds: 120),
+            isCurrentTransportIntent: true,
+            isCurrentSong: true,
+          ),
+          isTrue,
+        );
+        expect(
+          navisShouldRecoverBufferedSeek(
+            sourceKind: PlaybackSourceKind.directStream.name,
+            processingState: AudioProcessingState.ready,
+            requestedPosition: const Duration(seconds: 120),
+            actualPosition: const Duration(seconds: 120),
+            isCurrentTransportIntent: true,
+            isCurrentSong: true,
+          ),
+          isFalse,
+        );
+        expect(
+          navisShouldRecoverBufferedSeek(
+            sourceKind: PlaybackSourceKind.directStream.name,
+            processingState: AudioProcessingState.buffering,
+            requestedPosition: const Duration(seconds: 120),
+            actualPosition: const Duration(seconds: 120),
+            isCurrentTransportIntent: false,
+            isCurrentSong: true,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test('remote playback retries exactly once before skipping', () {
+      expect(navisShouldRetryRemotePlayback(alreadyRetried: false), isTrue);
+      expect(navisShouldRetryRemotePlayback(alreadyRetried: true), isFalse);
+    });
+
+    test('completed queue restart waits for pending queue fill', () {
+      expect(
+        navisShouldRestartCompletedQueue(
+          queueLength: 1,
+          currentIndex: 0,
+          hasPendingLogicalQueue: true,
+        ),
+        isFalse,
+      );
+      expect(
+        navisShouldRestartCompletedQueue(
+          queueLength: 2,
+          currentIndex: 0,
+          hasPendingLogicalQueue: false,
+        ),
+        isFalse,
+      );
+      expect(
+        navisShouldRestartCompletedQueue(
+          queueLength: 2,
+          currentIndex: 1,
+          hasPendingLogicalQueue: false,
+        ),
+        isTrue,
+      );
+    });
+
     test('crossfade handoff seek helper seeks on index mismatch', () {
       expect(
         navisShouldSeekCrossfadeHandoff(

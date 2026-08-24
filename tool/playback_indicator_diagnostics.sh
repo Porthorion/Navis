@@ -92,6 +92,7 @@ launch_app() {
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Indicator Diagnostics' \
     --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
+    --dart-define=NAVIS_SYNC_DIAGNOSTICS_MUTED=true \
     --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
@@ -233,6 +234,17 @@ show_queue() {
     '{"surface":"queue","visible":true}' > "$output_file"
 }
 
+mute_and_verify() {
+  local response
+  response="$(api POST /v1/playback/volume '{"value":0}')"
+  python3 - "$response" <<'PY'
+import json, sys
+value = json.loads(sys.argv[1])
+assert value.get("volume") == 0, value
+assert value.get("effectivePlayerVolume") == 0, value
+PY
+}
+
 run_acceptance() {
   local prefix="$1"
   api GET /v1/health > "$OUTPUT_ROOT/$prefix-health.json"
@@ -288,12 +300,14 @@ PY
 }
 
 launch_app
+mute_and_verify
 run_acceptance initial
 api POST /v1/shutdown > "$OUTPUT_ROOT/initial-shutdown.json" || true
 wait "$FLUTTER_PID" || true
 FLUTTER_PID=0
 
 launch_app
+mute_and_verify
 run_acceptance restart
 api POST /v1/shutdown > "$OUTPUT_ROOT/restart-shutdown.json" || true
 wait "$FLUTTER_PID" || true

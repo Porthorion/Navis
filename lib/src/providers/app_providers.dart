@@ -64,6 +64,10 @@ const bool _syncDiagnosticsEnabled = bool.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS',
   defaultValue: false,
 );
+const bool _syncDiagnosticsMuted = bool.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_MUTED',
+  defaultValue: false,
+);
 
 Future<Directory> _readRollingCacheDirectory() async {
   if (_syncDiagnosticsRoot.isEmpty) {
@@ -642,13 +646,15 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     }
 
     final volumeController = ref.read(playbackVolumeProvider.notifier);
-    if (hydratedSettings != null) {
+    if (hydratedSettings != null && !_syncDiagnosticsMuted) {
       volumeController.hydrate(
         volume: hydratedSettings.desktopPlaybackVolume,
         lastAudibleVolume: hydratedSettings.desktopLastAudibleVolume,
       );
     }
-    final initialVolume = ref.read(playbackVolumeProvider);
+    final initialVolume = _syncDiagnosticsMuted
+        ? 0.0
+        : ref.read(playbackVolumeProvider);
 
     final database = ref.read(navisDatabaseProvider);
     final networkUsageMeter = ref.read(networkUsageMeterProvider);
@@ -742,7 +748,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       );
     }
 
-    if (ref.read(appSettingsProvider).asData?.value == null) {
+    if (!_syncDiagnosticsMuted &&
+        ref.read(appSettingsProvider).asData?.value == null) {
       unawaited(() async {
         try {
           final settings = await ref.read(appSettingsProvider.future);

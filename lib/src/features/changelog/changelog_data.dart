@@ -27,6 +27,27 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.2.10',
+    entries: [
+      ChangelogEntry(
+        'Remote playback now retries safely at the current position before advancing, so failed seeks, interruptions, and queue loading do not restart songs unexpectedly',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Updated Navis to the current Flutter dependency release train across its supported platforms',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Linux desktop development builds now install a resolvable application launcher',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Updated the cross-platform development, diagnostics, and release workflow documentation',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.2.9',
     entries: [
       ChangelogEntry(

@@ -790,12 +790,13 @@ sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
 Cache & Storage does not look idle before registration.
 
-Remote stream recovery is layered. If a lock-cached remote source stalls or
-fails at runtime, the audio handler rebuilds playback with a one-shot direct
-stream at the current index/position (without permanently bypassing later
-lock-cache plays). If a direct stream fails, the song is marked as failed and
-playback advances to the next playable queue item when available. Background
-phase-2 queue fill failures must not clear the active start item.
+Remote stream recovery is generation- and song-scoped. A failed remote source
+receives one retry at its current (or user-requested seek) position: a
+lock-cached source rebuilds as a direct stream, while a direct stream reloads
+at that position. A second failure marks the song failed and advances to the
+next playable queue item when available. Seek recovery also detects a remote
+seek that landed correctly but remains buffering. Background phase-2 queue
+fill failures never reload or clear the active start item.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. While phase 2
@@ -810,7 +811,9 @@ pauses invalidate stale recovery so it cannot resume playback afterward.
 Transport persistence is coalesced in the background. Lock-cache seek recovery
 uses the same two-phase queue model: load the active song as a direct stream at
 the requested position, then restore the remaining logical queue in cancellable
-batches. `loadingSongId` acknowledges a selection before network startup ends.
+batches. Completed-state Play restarts the queue only after the final prepared
+item; it cannot restart a queue that is still filling. `loadingSongId`
+acknowledges a selection before network startup ends.
 
 The snapshot stored on the handler still receives every timeline update, but
 the broadcast snapshot stream emits only structural changes. Linux MPRIS reads

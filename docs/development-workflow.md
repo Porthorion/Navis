@@ -472,6 +472,19 @@ hard-fail log patterns, opens the queue through its narrow app API, captures
 current, paused, and switched states, and repeats after a clean restart. Its
 app-owned screenshots and widget semantics are the canonical visual evidence;
 do not attempt native desktop automation.
+
+For desktop seek and remote-recovery changes, run:
+
+```bash
+python3 tool/seek_cache_diag.py
+```
+
+The clone-only scenario sets the application volume to zero and verifies the
+effective player volume before it starts media. It records seeks past the
+current buffer, recovery events, and the post-seek transport state under
+`build/sync-diagnostics/`; do not use it as evidence if mute verification
+fails.
+
 After `./tool/check.sh` passes, set `NAVIS_QUALITY_GATE_RESULT=passed` on the
 final invocation so the sanitized runtime-validation record captures the gate.
 

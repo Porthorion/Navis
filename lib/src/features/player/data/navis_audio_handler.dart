@@ -214,10 +214,12 @@ class NavisAudioHandler extends BaseAudioHandler
       <String, SongsTableData>{};
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
+  Timer? _seekBufferingRecoveryTimer;
   String? _remotePlaybackStallSongId;
   Duration? _remotePlaybackStallPosition;
   Duration? _remotePlaybackStallBufferedPosition;
   bool _remotePlaybackRecoveryInProgress = false;
+  final Set<String> _remotePlaybackRecoveryAttempts = <String>{};
   bool _isDucked = false;
   // The most-recently requested user volume (0–1). Used as the reference level
   // for ducking and crossfade restoration so track changes never override the
@@ -265,6 +267,7 @@ class NavisAudioHandler extends BaseAudioHandler
   bool _disposeHandlerCompleted = false;
   static const Duration _playerLoadTimeout = Duration(seconds: 12);
   static const Duration _remotePlaybackStallTimeout = Duration(seconds: 12);
+  static const Duration _seekBufferingRecoveryTimeout = Duration(seconds: 3);
   static const Duration _playerResetTimeout = Duration(seconds: 4);
   static const Duration _playerControlTimeout = Duration(seconds: 4);
   int _loadGeneration = 0;
@@ -1065,6 +1068,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
   int _supersedeTransportIntent({bool? shouldPlay}) {
     _seekLane.cancelCurrent();
+    _cancelSeekBufferingRecovery();
+    _remotePlaybackRecoveryAttempts.clear();
     _latestExplicitTransportPlaying = shouldPlay;
     return ++_transportGeneration;
   }
@@ -1189,7 +1194,6 @@ class NavisAudioHandler extends BaseAudioHandler
 
     final previousPlayer = _player;
     final previousInactiveDeck = _crossfadePlayer;
-    final previousVolume = previousPlayer.volume;
     final previousSpeed = previousPlayer.speed;
     final previousLoopMode = previousPlayer.loopMode;
     final previousShuffleModeEnabled = previousPlayer.shuffleModeEnabled;
@@ -1199,7 +1203,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _rebindRadioMetadataServiceToActivePlayer();
 
     try {
-      await _player.setVolume(previousVolume).timeout(_playerResetTimeout);
+      await _restoreActivePlayerVolume().timeout(_playerResetTimeout);
       await _player.setSpeed(previousSpeed).timeout(_playerResetTimeout);
       await _player.setLoopMode(previousLoopMode).timeout(_playerResetTimeout);
       await _player
@@ -1246,6 +1250,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required Future<T> Function() action,
     String? songId,
     Duration timeout = _playerLoadTimeout,
+    bool recoverPlayerOnTimeout = true,
   }) async {
     _lastFailedSongId = null;
     var timedOut = false;
@@ -1286,11 +1291,13 @@ class NavisAudioHandler extends BaseAudioHandler
         songId: songId,
         isTimeout: true,
       );
-      await _recoverPlayersFromTimeout(
-        generation: generation,
-        operation: operation,
-        songId: songId,
-      );
+      if (recoverPlayerOnTimeout) {
+        await _recoverPlayersFromTimeout(
+          generation: generation,
+          operation: operation,
+          songId: songId,
+        );
+      }
       throw PlaybackLoadTimeoutException(
         operation: operation,
         songId: songId,
@@ -2960,6 +2967,7 @@ class NavisAudioHandler extends BaseAudioHandler
       final batchEnd = math.min(i + batchSize, beforeStart.length);
       final batch = beforeStart.sublist(i, batchEnd);
       final prepared = <_PreparedQueueItem>[];
+      final preparedIndexes = <int>[];
       for (var j = 0; j < batch.length; j++) {
         final originalIndex = i + j;
         final item = await _prepareSingleItemForQueueFill(batch[j]);
@@ -2969,12 +2977,11 @@ class NavisAudioHandler extends BaseAudioHandler
         }
         preparedByIndex[originalIndex] = item;
         prepared.add(item);
+        preparedIndexes.add(originalIndex);
       }
 
       _checkQueueWorkCurrent(token, generation);
       for (var j = 0; j < prepared.length; j++) {
-        final positionBeforeMutation = _player.position;
-        final wasPlayingBeforeMutation = _player.playing;
         try {
           await _runTimedPlayerOperation(
             generation: generation,
@@ -2984,19 +2991,20 @@ class NavisAudioHandler extends BaseAudioHandler
               prepared[j].audioSource,
             ),
             songId: prepared[j].song.id,
+            recoverPlayerOnTimeout: false,
           );
         } on PlaybackLoadTimeoutException catch (error) {
           skippedSongIds.add(prepared[j].song.id);
-          await _restoreStartItemAfterQueueFillTimeout(
-            startItem: startItem,
-            position: positionBeforeMutation,
-            autoPlay: wasPlayingBeforeMutation,
-            generation: generation,
-            failedSongId: error.songId ?? prepared[j].song.id,
+          preparedByIndex.remove(preparedIndexes[j]);
+          _lastFailedSongId = error.songId ?? prepared[j].song.id;
+          AppLogger.warning(
+            'Queue fill insert timed out for song=${prepared[j].song.id}; '
+            'keeping active playback unchanged.',
           );
-          return;
+          continue;
         } on Object catch (error, stackTrace) {
           skippedSongIds.add(prepared[j].song.id);
+          preparedByIndex.remove(preparedIndexes[j]);
           _markSongLockCachingBypassed(
             prepared[j].song.id,
             reason: 'queue fill insert failed',
@@ -3019,6 +3027,7 @@ class NavisAudioHandler extends BaseAudioHandler
       final batchEnd = math.min(i + batchSize, afterStart.length);
       final batch = afterStart.sublist(i, batchEnd);
       final prepared = <_PreparedQueueItem>[];
+      final preparedIndexes = <int>[];
       for (var j = 0; j < batch.length; j++) {
         final originalIndex = clampedIndex + 1 + i + j;
         final item = await _prepareSingleItemForQueueFill(batch[j]);
@@ -3028,31 +3037,31 @@ class NavisAudioHandler extends BaseAudioHandler
         }
         preparedByIndex[originalIndex] = item;
         prepared.add(item);
+        preparedIndexes.add(originalIndex);
       }
 
       _checkQueueWorkCurrent(token, generation);
       for (var j = 0; j < prepared.length; j++) {
-        final positionBeforeMutation = _player.position;
-        final wasPlayingBeforeMutation = _player.playing;
         try {
           await _runTimedPlayerOperation(
             generation: generation,
             operation: 'replace queue append after',
             action: () => _player.addAudioSource(prepared[j].audioSource),
             songId: prepared[j].song.id,
+            recoverPlayerOnTimeout: false,
           );
         } on PlaybackLoadTimeoutException catch (error) {
           skippedSongIds.add(prepared[j].song.id);
-          await _restoreStartItemAfterQueueFillTimeout(
-            startItem: startItem,
-            position: positionBeforeMutation,
-            autoPlay: wasPlayingBeforeMutation,
-            generation: generation,
-            failedSongId: error.songId ?? prepared[j].song.id,
+          preparedByIndex.remove(preparedIndexes[j]);
+          _lastFailedSongId = error.songId ?? prepared[j].song.id;
+          AppLogger.warning(
+            'Queue fill append timed out for song=${prepared[j].song.id}; '
+            'keeping active playback unchanged.',
           );
-          return;
+          continue;
         } on Object catch (error, stackTrace) {
           skippedSongIds.add(prepared[j].song.id);
+          preparedByIndex.remove(preparedIndexes[j]);
           _markSongLockCachingBypassed(
             prepared[j].song.id,
             reason: 'queue fill append failed',
@@ -3139,48 +3148,6 @@ class NavisAudioHandler extends BaseAudioHandler
         );
       }
     }
-  }
-
-  Future<void> _restoreStartItemAfterQueueFillTimeout({
-    required _PreparedQueueItem startItem,
-    required Duration position,
-    required bool autoPlay,
-    required int generation,
-    required String failedSongId,
-  }) async {
-    _lastFailedSongId = failedSongId;
-    _clearPendingLogicalQueue();
-    _clearQueueReplacementMetadataAnchor();
-    _queueItems
-      ..clear()
-      ..add(startItem.mediaItem);
-    await _setAudioSourcesWithFallback(
-      audioSources: <AudioSource>[
-        startItem.source.asClonedAudioSource(tag: startItem.mediaItem),
-      ],
-      preload: true,
-      initialIndex: 0,
-      initialPosition: position,
-      generation: generation,
-      songId: startItem.song.id,
-    );
-    queue.add(List<MediaItem>.unmodifiable(_queueItems));
-    _setCurrentMediaItem(startItem.mediaItem);
-    if (autoPlay) {
-      unawaited(_player.play());
-    } else {
-      await _player.pause();
-    }
-    _broadcastPlaybackState();
-    _emitSnapshot();
-    await _persistSafely(
-      () => _persistQueueState(includeQueueItems: true),
-      context: 'queue fill timeout restore',
-    );
-    AppLogger.warning(
-      'Queue fill timed out for song=$failedSongId. Restored active start '
-      'song=${startItem.song.id} so playback does not remain stuck.',
-    );
   }
 
   Future<void> _applyPreparedQueue(
@@ -3353,6 +3320,12 @@ class NavisAudioHandler extends BaseAudioHandler
         }
       }
     }
+    await _restoreActivePlayerVolume();
+  }
+
+  Future<void> _restoreActivePlayerVolume() {
+    final target = _isDucked ? _userVolume * 2 / 5 : _userVolume;
+    return _player.setVolume(target.clamp(0.0, 1.0));
   }
 
   bool _isAndroidDspInitializationFailure(Object error) {
@@ -3368,7 +3341,6 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final previousPlayer = _player;
-    final previousVolume = previousPlayer.volume;
     final previousSpeed = previousPlayer.speed;
     final previousLoopMode = previousPlayer.loopMode;
     final previousShuffleModeEnabled = previousPlayer.shuffleModeEnabled;
@@ -3379,7 +3351,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _wirePlayerListeners();
     _rebindRadioMetadataServiceToActivePlayer();
 
-    await _player.setVolume(previousVolume);
+    await _restoreActivePlayerVolume();
     await _player.setSpeed(previousSpeed);
     await _player.setLoopMode(previousLoopMode);
     await _player.setShuffleModeEnabled(previousShuffleModeEnabled);
@@ -4262,7 +4234,11 @@ class NavisAudioHandler extends BaseAudioHandler
     // rather than restarting.  Seek back to the beginning of the queue first
     // so playback actually resumes from the start.
     if (_player.processingState == ProcessingState.completed &&
-        _queueItems.isNotEmpty) {
+        navisShouldRestartCompletedQueue(
+          queueLength: _queueItems.length,
+          currentIndex: _resolveCurrentQueueMetadata().currentIndex,
+          hasPendingLogicalQueue: _pendingLogicalQueueSongIds != null,
+        )) {
       await _player.seek(Duration.zero, index: 0);
       final inactiveDeck = _crossfadePlayer;
       if (inactiveDeck != null) {
@@ -4458,6 +4434,10 @@ class NavisAudioHandler extends BaseAudioHandler
       );
       token.checkCancelled();
       if (_isCurrentTransportIntent(generation)) {
+        _scheduleSeekBufferingRecovery(
+          requestedPosition: sanitizedPosition,
+          transportGeneration: generation,
+        );
         _scheduleTransportPersistence(context: 'seek');
       }
     });
@@ -5528,10 +5508,55 @@ class NavisAudioHandler extends BaseAudioHandler
     _remotePlaybackStallBufferedPosition = null;
   }
 
+  void _scheduleSeekBufferingRecovery({
+    required Duration requestedPosition,
+    required int transportGeneration,
+  }) {
+    _cancelSeekBufferingRecovery();
+    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    if (songId == null ||
+        !navisShouldWatchRemotePlaybackForStall(
+          sourceKind: _currentSourceKind,
+          processingState: _mapProcessingState(_player.processingState),
+        )) {
+      return;
+    }
+    _seekBufferingRecoveryTimer = Timer(_seekBufferingRecoveryTimeout, () {
+      if (!navisShouldRecoverBufferedSeek(
+        sourceKind: _currentSourceKind,
+        processingState: _mapProcessingState(_player.processingState),
+        requestedPosition: requestedPosition,
+        actualPosition: _player.position,
+        isCurrentTransportIntent: _isCurrentTransportIntent(
+          transportGeneration,
+        ),
+        isCurrentSong: _resolveCurrentQueueMetadata().mediaItem?.id == songId,
+      )) {
+        return;
+      }
+      unawaited(
+        _recoverCurrentSongFromRemotePlaybackFailure(
+          reason: 'seek remained buffering',
+          intendedPosition: requestedPosition,
+          expectedSongId: songId,
+          expectedTransportGeneration: transportGeneration,
+        ),
+      );
+    });
+  }
+
+  void _cancelSeekBufferingRecovery() {
+    _seekBufferingRecoveryTimer?.cancel();
+    _seekBufferingRecoveryTimer = null;
+  }
+
   Future<void> _recoverCurrentSongFromRemotePlaybackFailure({
     required String reason,
     Object? error,
     StackTrace? stackTrace,
+    Duration? intendedPosition,
+    String? expectedSongId,
+    int? expectedTransportGeneration,
   }) async {
     if (_remotePlaybackRecoveryInProgress || _radioStation != null) {
       return;
@@ -5546,11 +5571,29 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
+    if (expectedTransportGeneration != null &&
+        !_isCurrentTransportIntent(expectedTransportGeneration)) {
+      return;
+    }
+
     _remotePlaybackRecoveryInProgress = true;
     _cancelRemotePlaybackStallWatchdog();
+    _cancelSeekBufferingRecovery();
     final songId = _queueItems[currentIndex].id;
+    if (expectedSongId != null && songId != expectedSongId) {
+      _remotePlaybackRecoveryInProgress = false;
+      return;
+    }
     final autoPlay = _player.playing;
-    final position = _player.position;
+    final position = intendedPosition ?? _player.position;
+    final transportGeneration = _transportGeneration;
+    final attemptKey = '$transportGeneration:$songId';
+    final isRetry = navisShouldRetryRemotePlayback(
+      alreadyRetried: _remotePlaybackRecoveryAttempts.contains(attemptKey),
+    );
+    if (isRetry) {
+      _remotePlaybackRecoveryAttempts.add(attemptKey);
+    }
     _lastFailedSongId = songId;
     _emitLoadFailure(
       operation: reason,
@@ -5571,27 +5614,42 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     try {
-      if (sourceKind == PlaybackSourceKind.lockCachedStream.name) {
+      if (isRetry) {
         try {
           final recoveryToken = OperationToken();
-          final recoveryTransportGeneration = _transportGeneration;
           await _rebuildQueueForSeekRecovery(
             position,
             autoPlay: autoPlay,
             token: recoveryToken,
-            transportGeneration: recoveryTransportGeneration,
+            transportGeneration: transportGeneration,
             reason: '$reason — switched to direct stream',
           );
+          _recordSeekDiagnosticsEvent(<String, Object?>{
+            'at': DateTime.now().toUtc().toIso8601String(),
+            'path': 'remote_retry',
+            'requestedPositionMs': position.inMilliseconds,
+            'songId': songId,
+            'reason': reason,
+            'outcome': 'reloaded',
+          });
           return;
         } on Object catch (rebuildError, rebuildStackTrace) {
           AppLogger.warning(
-            'Remote playback direct-stream rebuild failed for song=$songId. '
+            'Remote playback retry failed for song=$songId. '
             '$rebuildError\n$rebuildStackTrace',
           );
         }
       }
 
       await _skipPastFailedRemoteSong(currentIndex, autoPlay: autoPlay);
+      _recordSeekDiagnosticsEvent(<String, Object?>{
+        'at': DateTime.now().toUtc().toIso8601String(),
+        'path': 'remote_retry',
+        'requestedPositionMs': position.inMilliseconds,
+        'songId': songId,
+        'reason': reason,
+        'outcome': 'skipped',
+      });
     } finally {
       _remotePlaybackRecoveryInProgress = false;
       _emitSnapshot();
@@ -5952,6 +6010,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _artCache?.dispose();
     _cancelCrossfade();
     _cancelRemotePlaybackStallWatchdog();
+    _cancelSeekBufferingRecovery();
     await _disposeInactiveCrossfadeDeck();
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();
@@ -5993,6 +6052,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _disposeHandlerStarted = true;
     _cancelCrossfade();
     _cancelRemotePlaybackStallWatchdog();
+    _cancelSeekBufferingRecovery();
     unawaited(_disposeInactiveCrossfadeDeck());
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();

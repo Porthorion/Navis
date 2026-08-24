@@ -122,6 +122,7 @@ launch_app() {
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Auth Diagnostics' \
     --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
+    --dart-define=NAVIS_SYNC_DIAGNOSTICS_MUTED=true \
     --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
@@ -175,6 +176,17 @@ api() {
     curl --fail-with-body --silent --show-error \
       -X "$method" -H "Authorization: Bearer $TOKEN" "$BASE_URL$route"
   fi
+}
+
+mute_and_verify() {
+  local response
+  response="$(api POST /v1/playback/volume '{"value":0}')"
+  python3 - "$response" <<'PY'
+import json, sys
+value = json.loads(sys.argv[1])
+assert value.get("volume") == 0, value
+assert value.get("effectivePlayerVolume") == 0, value
+PY
 }
 
 wait_for_session() {
@@ -314,6 +326,7 @@ import json, sys
 print(json.dumps({"songId": sys.argv[1]}))
 PY
 )"
+mute_and_verify
 api POST /v1/playback/start "$PLAY_BODY" >/dev/null
 local_deadline=$((SECONDS + 90))
 while (( SECONDS < local_deadline )); do

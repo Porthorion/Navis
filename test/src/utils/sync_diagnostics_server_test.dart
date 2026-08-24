@@ -1092,6 +1092,7 @@ void main() {
       expect(muted.body['volume'], 0);
       expect(muted.body['lastAudibleVolume'], 0.37);
       expect(muted.body['persistedLastAudibleVolume'], 0.37);
+      expect(muted.body['effectivePlayerVolume'], 0);
 
       final observed = await _request(
         fixture.port,

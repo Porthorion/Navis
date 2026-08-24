@@ -60,6 +60,13 @@ def summarize(status: dict) -> dict:
     return {k: status.get(k) for k in keys}
 
 
+def mute_and_verify(port: int, token: str) -> None:
+    _, volume = api(port, token, "POST", "/v1/playback/volume", {"value": 0})
+    if volume.get("volume") != 0 or volume.get("effectivePlayerVolume") != 0:
+        raise RuntimeError("diagnostics mute could not be confirmed")
+    print("MUTED", {"effectivePlayerVolume": volume["effectivePlayerVolume"]})
+
+
 def main() -> int:
     project = Path(__file__).resolve().parents[1]
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -116,6 +123,7 @@ def main() -> int:
             "--dart-define=NAVIS_APP_ID_SUFFIX=.dev",
             "--dart-define=NAVIS_APP_NAME=Navis Diagnostics",
             "--dart-define=NAVIS_SYNC_DIAGNOSTICS=true",
+            "--dart-define=NAVIS_SYNC_DIAGNOSTICS_MUTED=true",
             "--dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone",
             f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE={handshake}",
             f"--dart-define=NAVIS_SYNC_DIAGNOSTICS_ROOT={root}",
@@ -133,9 +141,12 @@ def main() -> int:
         port = int(hs["port"])
         token = str(hs["token"])
         print(f"PORT={port}")
-        time.sleep(2)
+        # The handler's seek-specific buffering recovery has a short deadline.
+        # Wait past it before asserting the transport state.
+        time.sleep(5)
         status_code, health = api(port, token, "GET", "/v1/health")
         print("health", status_code, {k: health.get(k) for k in ("mode", "schemaVersion")})
+        mute_and_verify(port, token)
 
         _, start = api(
             port, token, "POST", "/v1/playback/start", {"songId": song_id}
@@ -214,6 +225,7 @@ def main() -> int:
             json.dumps(
                 {
                     "past": past,
+                    "settle": settle,
                     "back": back,
                     "final": final,
                     "logTail": app_log.read_text(encoding="utf-8")[-4000:],

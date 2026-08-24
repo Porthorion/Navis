@@ -56,6 +56,24 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.2.10', [
+    _Entry(
+      'Remote playback now retries safely at the current position before advancing, so failed seeks, interruptions, and queue loading do not restart songs unexpectedly',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Updated Navis to the current Flutter dependency release train across its supported platforms',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Linux desktop development builds now install a resolvable application launcher',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Updated the cross-platform development, diagnostics, and release workflow documentation',
+      type: _EntryType.improvement,
+    ),
+  ]),
   _Version('1.2.9', [
     _Entry(
       'Existing downloads now reconcile faster, import clear matches automatically, and offer a cover-art review screen for files needing a manual match',
