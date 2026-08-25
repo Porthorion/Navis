@@ -221,6 +221,24 @@ assert terminal["planKind"] == "deltaReconcile", terminal
 assert terminal["planReason"] == "manualCatalogDiscoveryOffline", terminal
 assert json.load(open(sys.argv[3])) == {"id": "fixture-new-album", "exists": False}
 PY
+if [[ "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" == "1" ]]; then
+  # Queue a higher-priority album detail without dispatching it. The following
+  # Wi-Fi manual check must still resume its catalog delta, not display this
+  # target's misleading 0 / 1 hydration progress as a completed refresh.
+  api POST /v1/sync/fixture/queue-target \
+    '{"targetKind":"album","entityId":"fixture-existing-album"}' \
+    > "$OUTPUT_ROOT/queued-target.json"
+  python3 - "$OUTPUT_ROOT/queued-target.json" <<'PY'
+import json, sys
+queued = json.load(open(sys.argv[1]))
+assert queued["status"] == "queued", queued
+assert queued["targetKind"] == "album", queued
+# The preceding offline manual check is itself durable catalog work. The
+# fixture must add the targeted hydration alongside it, rather than replacing
+# it or dispatching either job.
+assert queued["pendingWork"] >= 2, queued
+PY
+fi
 api POST /v1/diagnostics/overrides \
   '{"networkType":"wifi","nativeMetered":false,"requestReporting":true}' \
   > "$OUTPUT_ROOT/online-overrides.json"
@@ -237,19 +255,38 @@ wait_for_idle "$OUTPUT_ROOT/status-after.json"
 api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/album-after.json"
 api GET '/v1/library/album?id=fixture-existing-album' > "$OUTPUT_ROOT/existing-album-after.json"
 api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
-python3 - "$resume_cause" "$OUTPUT_ROOT/album-after.json" "$OUTPUT_ROOT/existing-album-after.json" "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
+python3 - "$resume_cause" "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" "$OUTPUT_ROOT/status-after.json" "$OUTPUT_ROOT/album-after.json" "$OUTPUT_ROOT/existing-album-after.json" "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
 import json, sys
 resume_cause = sys.argv[1]
-album = json.load(open(sys.argv[2]))
+queued_target = sys.argv[2] == "1"
+status = json.load(open(sys.argv[3]))
+album = json.load(open(sys.argv[4]))
 assert album == {"id": "fixture-new-album", "exists": True, "songsHydrated": True, "songCount": 1}, album
-existing = json.load(open(sys.argv[3]))
+existing = json.load(open(sys.argv[5]))
 assert existing.get("exists") and existing.get("songsHydrated"), existing
-events = json.load(open(sys.argv[4]))["events"]
+events = json.load(open(sys.argv[6]))["events"]
 terminal = next(event for event in reversed(events) if event.get("cause") == resume_cause and event.get("phase") == "terminal")
 assert terminal["planKind"] == "deltaReconcile" and terminal["planReason"] == "resumeDeltaReconcile", terminal
 for endpoint in ("getIndexes", "getNewestAlbumList2", "getArtist", "getAlbum"):
     assert terminal["endpointRequests"].get(endpoint, 0) >= 1, terminal
+if queued_target:
+    assert status["pendingWork"] == 1, status
 PY
+if [[ "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" == "1" ]]; then
+  api POST /v1/sync/target \
+    '{"targetKind":"album","entityId":"fixture-existing-album"}' \
+    > "$OUTPUT_ROOT/queued-target-drain-start.json"
+  wait_for_idle "$OUTPUT_ROOT/queued-target-drain-status.json"
+  api GET /v1/sync/ledger > "$OUTPUT_ROOT/queued-target-drain-ledger.json"
+  python3 - "$OUTPUT_ROOT/queued-target-drain-status.json" "$OUTPUT_ROOT/queued-target-drain-ledger.json" <<'PY'
+import json, sys
+status = json.load(open(sys.argv[1]))
+assert status["pendingWork"] == 0, status
+events = json.load(open(sys.argv[2]))["events"]
+terminal = next(event for event in reversed(events) if event.get("cause") == "targetHydration" and event.get("phase") == "terminal")
+assert terminal["targetKind"] == "album" and terminal["result"] in ("succeeded", "partial"), terminal
+PY
+fi
 api POST /v1/presentation/navigate '{"location":"/library/albums/fixture-new-album"}' > "$OUTPUT_ROOT/navigation.json"
 sleep 5
 capture manual-discovery "$OUTPUT_ROOT/screenshot.json" > "$OUTPUT_ROOT/screenshot-path.txt"

@@ -206,7 +206,17 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final resumedWork =
         request.target.kind == LibrarySyncTargetKind.catalog &&
             request.intent != LibrarySyncIntent.repair
-        ? _firstAllowedWork(runnableBeforePlanning, policy, request)
+        ? _firstAllowedWork(
+            runnableBeforePlanning,
+            policy,
+            request,
+            // A manual catalog refresh is an explicit discovery request. It
+            // must not be consumed by a queued page/detail hydration merely
+            // because that interaction work has a higher durable priority.
+            // Target work stays queued for its own interaction path.
+            catalogWorkOnly:
+                request.intent == LibrarySyncIntent.checkForUpdates,
+          )
         : null;
     final resumedRequest = resumedWork == null
         ? request
@@ -954,8 +964,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   LibrarySyncWorkTableData? _firstAllowedWork(
     List<LibrarySyncWorkTableData> runnable,
     SyncNetworkPolicy policy,
-    LibrarySyncRequest request,
-  ) {
+    LibrarySyncRequest request, {
+    bool catalogWorkOnly = false,
+  }) {
     for (final work in runnable) {
       final kind = LibrarySyncPlanKind.values.where(
         (candidate) => candidate.name == work.kind,
@@ -964,6 +975,10 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         continue;
       }
       final planKind = kind.first;
+      if (catalogWorkOnly &&
+          planKind == LibrarySyncPlanKind.targetedHydration) {
+        continue;
+      }
       if (planKind == LibrarySyncPlanKind.fullRepair &&
           request.intent == LibrarySyncIntent.automatic) {
         // Repair is an explicit, potentially expensive and destructive

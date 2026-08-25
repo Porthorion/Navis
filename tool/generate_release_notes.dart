@@ -58,9 +58,14 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.10', [
     _Entry(
+      'Manual library refresh now always runs catalog discovery instead of being mistaken for a queued album-detail update',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Remote playback now retries safely at the current position before advancing, so failed seeks, interruptions, and queue loading do not restart songs unexpectedly',
       type: _EntryType.fix,
     ),
+    _Entry('AJ owes me livers in a cooler.'),
     _Entry(
       'Updated Navis to the current Flutter dependency release train across its supported platforms',
       type: _EntryType.improvement,

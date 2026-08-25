@@ -158,6 +158,11 @@ For the narrower partial-detail disappearance regression, run it with
 `NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME=1`. That fixture omits an existing
 sibling from `getArtist`, then the running app must add the newest-feed album
 without deleting the retained sibling before or after restart.
+The forced-manual variant also queues an isolated higher-priority album target
+before Wi-Fi reconnect. Its explicit `POST /v1/sync/check` must still record a
+`deltaReconcile` terminal event with catalog endpoint evidence, retain the
+target as durable pending work, and drain that target only through its later
+explicit target request.
 
 `tool/repair_confirmation_diagnostics.sh` is the bounded deletion-safety gate.
 It uses an isolated fixture to require the production repair confirmation

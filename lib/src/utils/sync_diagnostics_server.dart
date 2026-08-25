@@ -996,6 +996,54 @@ class SyncDiagnosticsServer {
         );
         return;
       }
+      if (request.method == 'POST' && path == '/v1/sync/fixture/queue-target') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final target = _targetFromJson(body);
+        if (target == null || target.kind != LibrarySyncTargetKind.album) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'an album targetKind and entityId are required',
+          });
+          return;
+        }
+        final serverId = await _container
+            .read(serverConfigRepositoryProvider)
+            .getActiveServer()
+            .then((config) => config?.id);
+        if (serverId == null) {
+          await _respond(request, HttpStatus.conflict, <String, Object?>{
+            'error': 'no authenticated server session',
+          });
+          return;
+        }
+        // This clone-only fixture deliberately creates durable work without
+        // dispatching it. It reproduces the priority collision between a
+        // queued detail hydration and a subsequent manual catalog refresh.
+        await _container
+            .read(navisDatabaseProvider)
+            .librarySyncDao
+            .enqueueWork(
+              serverId: serverId,
+              kind: LibrarySyncPlanKind.targetedHydration.name,
+              entityId: librarySyncTargetWorkKey(target),
+              priority: 100,
+              workClass: 'interactive',
+              reactivateTerminal: true,
+              now: DateTime.now(),
+            );
+        await _respond(request, HttpStatus.accepted, <String, Object?>{
+          'status': 'queued',
+          'targetKind': target.kind.name,
+          'pendingWork': await _container
+              .read(navisDatabaseProvider)
+              .librarySyncDao
+              .countPendingWork(serverId),
+        });
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/sync/cancel') {
         if (!allowsMutations) {
           await _forbidden(request);

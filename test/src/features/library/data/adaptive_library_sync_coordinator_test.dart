@@ -31,6 +31,7 @@ class _ProbeLibrarySyncEngine
   int forceFullSyncCalls = 0;
   int syncIfStaleCalls = 0;
   int syncNowCalls = 0;
+  int hydrateAlbumCalls = 0;
   bool probeIndexChanged = false;
   bool probeIndexesUnsupported = false;
   LibrarySyncState? forcedResult;
@@ -105,7 +106,10 @@ class _ProbeLibrarySyncEngine
   Future<LibrarySyncState> hydrateAlbum(
     String albumId, {
     LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
+  }) async {
+    hydrateAlbumCalls++;
+    return _idle();
+  }
 
   @override
   Future<LibrarySyncState> hydrateArtist(
@@ -531,6 +535,51 @@ void main() {
           kind: LibrarySyncPlanKind.deltaReconcile.name,
         ),
         isNotNull,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'manual refresh does not let queued album hydration replace catalog discovery',
+    () async {
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          currentGeneration: Value(1),
+        ),
+      );
+      final probeEngine = _ProbeLibrarySyncEngine();
+      final manualCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      const target = LibrarySyncTarget.album('album-pending');
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.targetedHydration.name,
+        entityId: librarySyncTargetWorkKey(target),
+        priority: 100,
+        workClass: 'interactive',
+      );
+
+      final result = await manualCoordinator.syncNow();
+
+      expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(probeEngine.syncNowCalls, 1);
+      expect(probeEngine.hydrateAlbumCalls, 0);
+      expect(
+        (await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(target),
+        ))?.status,
+        'queued',
       );
     },
     skip: !sqliteAvailable,

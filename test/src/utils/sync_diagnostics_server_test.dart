@@ -13,6 +13,8 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -258,6 +260,66 @@ void main() {
     expect(terminal['result'], 'succeeded');
     expect(terminal.containsKey('endpointRequests'), isTrue);
     expect(ledger.body['durableOperations'], isEmpty);
+  });
+
+  test(
+    'clone diagnostics can queue but not dispatch an album target fixture',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      await fixture.container
+          .read(serverConfigRepositoryProvider)
+          .save(
+            const ServerConfigModel(
+              url: 'https://music.example.test',
+              username: 'listener',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          );
+
+      final response = await _request(
+        fixture.port,
+        '/v1/sync/fixture/queue-target',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{
+          'targetKind': 'album',
+          'entityId': 'album-queued',
+        },
+      );
+
+      expect(response.statusCode, HttpStatus.accepted);
+      expect(response.body['status'], 'queued');
+      expect(response.body['targetKind'], 'album');
+      expect(response.body['pendingWork'], 1);
+      final work = await fixture.database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.targetedHydration.name,
+        entityId: 'album:album-queued',
+      );
+      expect(work?.status, 'queued');
+    },
+  );
+
+  test('primary diagnostics cannot queue a target fixture', () async {
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+    );
+    addTearDown(fixture.close);
+
+    final response = await _request(
+      fixture.port,
+      '/v1/sync/fixture/queue-target',
+      method: 'POST',
+      token: fixture.token,
+      body: const <String, Object?>{
+        'targetKind': 'album',
+        'entityId': 'album-queued',
+      },
+    );
+
+    expect(response.statusCode, HttpStatus.forbidden);
   });
 
   test(
