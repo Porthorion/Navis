@@ -362,6 +362,7 @@ Optional variables:
 | `NAVIS_WINDOWS_SSH` | Default SSH target for remote Windows builder |
 | `NAVIS_LINUX_REMOTE_DIR` | Remote Linux working dir relative to remote HOME |
 | `NAVIS_WINDOWS_REMOTE_DIR` | Remote Windows working dir relative to remote HOME |
+| `NAVIS_WINDOWS_FLUTTER_DIR` | Optional Windows-host Flutter SDK directory for remote builds |
 
 Set these in `tool/release.env` or export them in your shell.
 

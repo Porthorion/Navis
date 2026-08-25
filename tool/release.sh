@@ -50,6 +50,7 @@ LINUX_SSH_TARGET=""
 WINDOWS_SSH_TARGET=""
 LINUX_REMOTE_DIR=""
 WINDOWS_REMOTE_DIR=""
+WINDOWS_FLUTTER_DIR=""
 MACOS_NOTARIZE=false
 UPDATE_CHANNEL="stable"
 FORCE_PRERELEASE=false
@@ -149,6 +150,7 @@ LINUX_SSH_TARGET="${LINUX_SSH_TARGET:-${NAVIS_LINUX_SSH:-}}"
 WINDOWS_SSH_TARGET="${WINDOWS_SSH_TARGET:-${NAVIS_WINDOWS_SSH:-}}"
 LINUX_REMOTE_DIR="${LINUX_REMOTE_DIR:-${NAVIS_LINUX_REMOTE_DIR:-.navis/remote-linux-build}}"
 WINDOWS_REMOTE_DIR="${WINDOWS_REMOTE_DIR:-${NAVIS_WINDOWS_REMOTE_DIR:-.navis/remote-windows-build}}"
+WINDOWS_FLUTTER_DIR="${NAVIS_WINDOWS_FLUTTER_DIR:-}"
 
 # ─── Validate env ───────────────────────────────────────────────────────────
 : "${FORGEJO_URL:?Set FORGEJO_URL in tool/release.env}"
@@ -744,6 +746,7 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       --channel="${UPDATE_CHANNEL}" \
       --lastfm-key="${NAVIS_LASTFM_API_KEY:-}" \
       --remote-dir="${WINDOWS_REMOTE_DIR}" \
+      --flutter-dir="${WINDOWS_FLUTTER_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."
     if [[ ! -f "${WINDOWS_ASSET}" ]]; then
       echo "Error: Remote Windows artifact was not fetched (${WINDOWS_ASSET_NAME})."

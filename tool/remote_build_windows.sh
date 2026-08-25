@@ -17,6 +17,7 @@ Options:
   --lastfm-key=<key>       Optional Last.fm API key dart-define
   --remote-dir=<path>      Remote working dir relative to remote HOME
                            (default: .navis/remote-windows-build)
+  --flutter-dir=<path>     Optional Flutter SDK directory on the Windows host
   --repo-root=<path>       Local repo root (default: script/..)
 USAGE
 }
@@ -28,6 +29,7 @@ PACKAGE_MODE="zip"
 UPDATE_CHANNEL="stable"
 LASTFM_API_KEY=""
 REMOTE_DIR=".navis/remote-windows-build"
+FLUTTER_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -40,6 +42,7 @@ for arg in "$@"; do
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}" ;;
     --lastfm-key=*) LASTFM_API_KEY="${arg#--lastfm-key=}" ;;
     --remote-dir=*) REMOTE_DIR="${arg#--remote-dir=}" ;;
+    --flutter-dir=*) FLUTTER_DIR="${arg#--flutter-dir=}" ;;
     --repo-root=*) REPO_ROOT="${arg#--repo-root=}" ;;
     -h|--help)
       usage
@@ -152,10 +155,21 @@ param(
   [Parameter(Mandatory = $true)][ValidateSet('stable', 'dev')][string]$UpdateChannel,
   [string]$LastFmApiKey = '',
   [string]$PubCacheArchiveName = '',
-  [string]$Sqlite3DllName = ''
+  [string]$Sqlite3DllName = '',
+  [string]$FlutterDir = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($FlutterDir -ne '') {
+    $flutterBin = Join-Path $FlutterDir 'bin'
+    $flutterCommand = Join-Path $flutterBin 'flutter.bat'
+    if (-not (Test-Path $flutterCommand)) {
+        throw "Flutter SDK not found at $FlutterDir"
+    }
+    $env:PATH = "$flutterBin;$env:PATH"
+    Write-Host "[remote-windows] Using Flutter SDK at $FlutterDir"
+}
 
 # Add Rust toolchain binaries to PATH for non-interactive SSH sessions.
 # rustup installs zero-byte symlinks in .cargo/bin which don't work in SSH;
@@ -500,8 +514,12 @@ _sqlite3_dll_arg=""
 if [[ -n "${_sqlite3_dll_name}" ]]; then
   _sqlite3_dll_arg="-Sqlite3DllName ${_sqlite3_dll_name}"
 fi
+_flutter_arg=""
+if [[ -n "${FLUTTER_DIR}" ]]; then
+  _flutter_arg="-FlutterDir ${FLUTTER_DIR}"
+fi
 ssh "${SSH_TARGET}" \
-  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PubCacheArchiveName pub_cache.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_lastfm_arg} ${_sqlite3_dll_arg}"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PubCacheArchiveName pub_cache.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_flutter_arg} ${_lastfm_arg} ${_sqlite3_dll_arg}"
 
 asset_name="$(ssh "${SSH_TARGET}" "powershell -NoProfile -Command \"Get-Content -Raw -Path (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'asset_name.txt')\"")"
 asset_name="${asset_name//$'\r'/}"
