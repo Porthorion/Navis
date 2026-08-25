@@ -515,6 +515,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     unawaited(_requestArtistHydrationIfNeeded(artistId));
   }
 
+  Future<LibrarySyncState> refreshArtist(String artistId) {
+    final normalizedId = artistId.trim();
+    if (normalizedId.isEmpty) {
+      return Future<LibrarySyncState>.value(state);
+    }
+    return requestTarget(LibrarySyncTarget.artist(normalizedId));
+  }
+
   Future<void> _requestAlbumHydrationIfNeeded(String albumId) async {
     final normalizedId = albumId.trim();
     if (normalizedId.isEmpty) {
@@ -537,8 +545,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     final dao = ref.read(navisDatabaseProvider).libraryDao;
     final artist = await dao.getArtistById(normalizedId);
-    final albums = await dao.getAlbumsByArtist(normalizedId);
-    if (!ref.mounted || (artist != null && albums.isNotEmpty)) {
+    final albums = await dao.watchAlbumsByArtist(normalizedId).first;
+    final needsHydration =
+        artist == null ||
+        artist.albumCount == null ||
+        albums.length < artist.albumCount!;
+    if (!ref.mounted || !needsHydration) {
       return;
     }
     await requestTarget(LibrarySyncTarget.artist(normalizedId));

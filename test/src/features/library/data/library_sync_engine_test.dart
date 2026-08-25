@@ -1044,6 +1044,11 @@ void main() {
               name: 'Remote Album',
               artistId: 'ext-deezer-artist-1',
             ),
+            Album(
+              id: 'provider-album-2',
+              name: 'Remote Album',
+              artistId: 'ext-deezer-artist-1',
+            ),
           ],
         );
         api.albumDetails['provider-album-1'] = const Album(
@@ -1062,8 +1067,23 @@ void main() {
           ],
         );
 
-        final artistState = await engine.hydrateArtist(
-          'ext-deezer-artist-1',
+        final artistState = await engine.hydrateArtist('ext-deezer-artist-1');
+        expect(api.calls, <String>['getArtist:ext-deezer-artist-1']);
+        expect(
+          await database.libraryDao
+              .watchAlbumsByArtist(
+                'ext-deezer-artist-1',
+              )
+              .first,
+          hasLength(2),
+        );
+        expect(
+          await database.libraryDao
+              .watchSongsByArtist(
+                'ext-deezer-artist-1',
+              )
+              .first,
+          isEmpty,
         );
         final albumState = await engine.hydrateAlbum('provider-album-1');
 
@@ -1091,7 +1111,7 @@ void main() {
         );
         expect(
           await database.libraryDao.watchAlbumsByArtist(artist!.id).first,
-          hasLength(1),
+          hasLength(2),
         );
         expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
       },

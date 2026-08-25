@@ -58,6 +58,10 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.2.10', [
     _Entry(
+      'Artist pages now load missing releases from your server and remote catalogues, while album tracks load when you open each release',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
       'Manual library refresh now always runs catalog discovery instead of being mistaken for a queued album-detail update',
       type: _EntryType.fix,
     ),

@@ -925,6 +925,110 @@ void main() {
     );
 
     test(
+      'artist interaction hydrates missing, incomplete, and countless artists',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(
+            id: 'complete',
+            name: 'Complete Artist',
+            albumCount: const Value(1),
+          ),
+          ArtistsTableCompanion.insert(
+            id: 'incomplete',
+            name: 'Incomplete Artist',
+            albumCount: const Value(2),
+          ),
+          ArtistsTableCompanion.insert(id: 'countless', name: 'Countless'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'complete-album',
+            name: 'Complete Album',
+            artistId: const Value('complete'),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'incomplete-album',
+            name: 'Incomplete Album',
+            artistId: const Value('incomplete'),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'countless-album',
+            name: 'Countless Album',
+            artistId: const Value('countless'),
+          ),
+        ]);
+        final requestedArtistIds = <String>[];
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          requestHandler: (request, {onProgress}) async {
+            expect(request.target.kind, LibrarySyncTargetKind.artist);
+            requestedArtistIds.add(request.target.entityId!);
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+            );
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            navisDatabaseProvider.overrideWithValue(database),
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.checking,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        controller.registerArtistInteraction('missing');
+        controller.registerArtistInteraction('incomplete');
+        controller.registerArtistInteraction('countless');
+        controller.registerArtistInteraction('complete');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(
+          requestedArtistIds,
+          unorderedEquals(<String>[
+            'missing',
+            'incomplete',
+            'countless',
+          ]),
+        );
+
+        await controller.refreshArtist('complete');
+
+        expect(
+          requestedArtistIds,
+          unorderedEquals(<String>[
+            'missing',
+            'incomplete',
+            'countless',
+            'complete',
+          ]),
+        );
+      },
+    );
+
+    test(
       'forceFullSync becomes visibly preparing before engine planning',
       () async {
         final completer = Completer<LibrarySyncState>();

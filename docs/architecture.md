@@ -916,8 +916,14 @@ states without starting audio or modifying a queue.
    If `getArtists` is unsupported, the collector falls back to the compatible
    `getIndexes` artist index before treating the catalog as unavailable.
 5. Unhydrated artist, album, and playlist interactions upgrade matching work to
-   interactive priority instead of starting parallel hydrators. Album hydration
-   normally performs one `getAlbum` request plus one song transaction.
+   interactive priority instead of starting parallel hydrators. Artist detail
+   compares its visible album count with the server-advertised count and fetches
+   `getArtist` when the artist is absent, incomplete, or has no advertised
+   count; its explicit refresh always requests that exact artist rather than a
+   broad catalog run. Artist hydration stores the complete release metadata
+   tree, while album hydration remains lazy and normally performs one
+   `getAlbum` request plus one song transaction. Releases retain their stable
+   provider IDs even when titles match, so distinct editions are never hidden.
    Background detail work adapts from two workers up to eight on Wi-Fi, four on
    other unmetered networks, and one on cellular; active playback caps it at two.
    A foreground full-catalog repair starts its per-album fallback at eight

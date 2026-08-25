@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.2.10',
     entries: [
       ChangelogEntry(
+        'Artist pages now load missing releases from your server and remote catalogues, while album tracks load when you open each release',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Manual library refresh now always runs catalog discovery instead of being mistaken for a queued album-detail update',
         type: ChangelogEntryType.fix,
       ),
