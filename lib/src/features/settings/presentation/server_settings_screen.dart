@@ -13,6 +13,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -958,8 +959,6 @@ class _ListenBrainzCard extends StatelessWidget {
                     style: theme.textTheme.titleMedium,
                   ),
                 ),
-                if (valid)
-                  Icon(Icons.check_circle, color: Colors.green.shade700),
                 Switch(
                   value: enabled,
                   onChanged: valid && !isBusy ? onEnabledChanged : null,
@@ -1007,21 +1006,32 @@ class _ListenBrainzCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
+            if (valid) ...[
+              ListenBrainzConnectionStatus(
+                settings: settings,
+                enabled: !isBusy,
+                onUpdate: onValidate,
+              ),
+              const SizedBox(height: 4),
+            ],
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: <Widget>[
-                FilledButton.icon(
-                  onPressed: isBusy ? null : onValidate,
-                  icon: isBusy
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.verified_outlined),
-                  label: Text(l10n.configurationListenBrainzValidateAndSave),
-                ),
+                if (!valid)
+                  FilledButton.icon(
+                    onPressed: isBusy ? null : onValidate,
+                    icon: isBusy
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.verified_outlined),
+                    label: Text(
+                      l10n.configurationListenBrainzValidateAndSave,
+                    ),
+                  ),
                 TextButton.icon(
                   onPressed: onOpenTokenSettings,
                   icon: const Icon(Icons.open_in_new),

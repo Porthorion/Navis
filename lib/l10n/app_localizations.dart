@@ -586,11 +586,23 @@ abstract class AppLocalizations {
   /// **'Automation'**
   String get settingsGroupAutomation;
 
-  /// No description provided for @settingsGroupAbout.
+  /// No description provided for @settingsGroupOther.
   ///
   /// In en, this message translates to:
-  /// **'About'**
-  String get settingsGroupAbout;
+  /// **'Other'**
+  String get settingsGroupOther;
+
+  /// No description provided for @settingsRunQuickCustomizationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Quick Customization'**
+  String get settingsRunQuickCustomizationTitle;
+
+  /// No description provided for @settingsRunQuickCustomizationSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review your listening and appearance preferences.'**
+  String get settingsRunQuickCustomizationSubtitle;
 
   /// No description provided for @settingsGroupDesktop.
   ///
@@ -5110,6 +5122,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Other bug fixes'**
   String get changelogDialogOtherBugFixes;
+
+  /// No description provided for @changelogSpecialThanks.
+  ///
+  /// In en, this message translates to:
+  /// **'Special Thanks'**
+  String get changelogSpecialThanks;
 
   /// No description provided for @changelogDialogViewAll.
   ///

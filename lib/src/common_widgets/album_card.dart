@@ -21,7 +21,7 @@ enum AlbumCardSize {
 /// A modern square album card.
 ///
 /// Album art fills the entire card.  The title and artist name are overlaid
-/// at the bottom on top of a gradient that fades from transparent to black.
+/// at the bottom where the artwork fades into the active app surface.
 class AlbumCard extends ConsumerWidget {
   const AlbumCard({
     required this.album,
@@ -46,6 +46,13 @@ class AlbumCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isLightTheme = theme.brightness == Brightness.light;
+    final titleColor = isLightTheme ? colorScheme.onSurface : Colors.white;
+    final artistColor = isLightTheme
+        ? colorScheme.onSurfaceVariant
+        : const Color(0xCCFFFFFF);
     final shape = ref.watch(coverArtShapeProvider);
     final cardBorderRadius = coverArtShapeToRadius(shape);
     final cardWidth = size == AlbumCardSize.compact
@@ -103,19 +110,25 @@ class AlbumCard extends ConsumerWidget {
                           right: 8,
                           child: badge!,
                         ),
-                      // Gradient overlay at the bottom
+                      // Fade into the selected app surface so the labels use
+                      // the same readable foreground roles as the rest of Navis.
                       Positioned(
                         left: 0,
                         right: 0,
                         bottom: 0,
                         child: DecoratedBox(
-                          decoration: const BoxDecoration(
+                          key: const ValueKey<String>(
+                            'albumCardTitleSurfaceFade',
+                          ),
+                          decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: <Color>[
-                                Color(0x00000000),
-                                Color(0xCC000000),
+                                theme.scaffoldBackgroundColor.withValues(
+                                  alpha: 0,
+                                ),
+                                theme.scaffoldBackgroundColor,
                               ],
                             ),
                           ),
@@ -129,8 +142,8 @@ class AlbumCard extends ConsumerWidget {
                                   album.name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: titleColor,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -140,8 +153,8 @@ class AlbumCard extends ConsumerWidget {
                                   album.artistName ?? '',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xCCFFFFFF),
+                                  style: TextStyle(
+                                    color: artistColor,
                                     fontSize: 11,
                                   ),
                                 ),

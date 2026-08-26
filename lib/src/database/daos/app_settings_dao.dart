@@ -121,9 +121,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? libraryPageOrder,
     String desktopNavbarStyle = 'comfortable',
     bool desktopNavbarAutohide = false,
-    bool albumQueueEnabled = false,
+    bool albumQueueEnabled = true,
     bool matchFlowEnabled = false,
-    bool likedQueueEnabled = false,
+    bool likedQueueEnabled = true,
     String? lastFmApiKey,
     bool lastFmScrobblingEnabled = false,
     bool lastFmSessionConnected = false,
@@ -300,9 +300,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       libraryPageOrder: null,
       desktopNavbarStyle: 'comfortable',
       desktopNavbarAutohide: false,
-      albumQueueEnabled: false,
+      albumQueueEnabled: true,
       matchFlowEnabled: false,
-      likedQueueEnabled: false,
+      likedQueueEnabled: true,
       lastFmApiKey: null,
       lastFmScrobblingEnabled: false,
       lastFmSessionConnected: false,
@@ -316,6 +316,21 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       voyageDisplayName: null,
       voyageDeviceLabel: null,
       voyageAutoFollowHost: defaultVoyageAutoFollowHost,
+    );
+  }
+
+  Stream<int> watchOnboardingVersion() {
+    return watchSettings().map((settings) => settings?.onboardingVersion ?? 0);
+  }
+
+  Future<void> completeOnboarding(int version) {
+    return (update(
+      appSettingsTable,
+    )..where((table) => table.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        onboardingVersion: Value(version),
+        updatedAt: Value(DateTime.now()),
+      ),
     );
   }
 

@@ -372,7 +372,9 @@ initial-sync controller merely to build its response. The normal Home shell
 therefore owns first-sync scheduling; observing a newly connected session must
 not upgrade it into an interactive Repair Library request.
 
-Cache diagnostics expose sanitized `GET /v1/cache/status`. Clone-only
+Cache diagnostics expose sanitized `GET /v1/cache/status`, including whether a
+mandatory cache renewal remains pending but never a cache-system version or a
+file path. Clone-only
 `POST /v1/diagnostics/cache/corrupt` removes the backing file for a named
 isolated cache entry, while `POST /v1/cache/maintenance` runs the production
 cache-pruning path. Startup performs the same bulk sweep, and playback source
@@ -511,6 +513,8 @@ Routes are defined in `lib/src/routing/app_router.dart`:
 
 - `/login` - Login screen (unauthenticated)
 - `/initial-sync` - legacy recoverable first-catalog route; authenticated profiles redirect to Home
+- `/library-rebuild` - mandatory and user-started recoverable library rebuilds
+- `/onboarding` - full-screen, versioned first-run customization before normal authenticated routing
 - `/` - Home screen (default after login)
 - `/library` - Library tabs (albums, artists, playlists, liked albums)
 - `/library/artists/:id` - Artist detail
@@ -537,6 +541,17 @@ first-sync phase changes refresh its redirects in place rather than rebuilding
 the router: timestamp and catalog-state updates during ordinary sync may
 briefly re-evaluate session readiness, but they must preserve the current
 location.
+
+The cache-renewal gate observes a durable cache-system marker alongside the
+authentication phase. An authenticated profile with an older marker is routed
+to the mandatory full-screen cache rebuild before onboarding or the normal
+shell. It clears only recoverable library and rolling-cache data, preserves
+permanent downloads, performs a full catalog scan, and records the new marker
+only after that scan promotes successfully. A failed or cancelled rebuild, or
+an unreadable marker, keeps the renewal pending until it can be resolved.
+Completion goes directly
+to versioned onboarding when it is required; otherwise it opens Home. Ordinary
+settings updates must not refresh the router.
 
 ### Shell Routes
 

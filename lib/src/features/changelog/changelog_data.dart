@@ -6,6 +6,7 @@ class ChangelogVersion {
   const ChangelogVersion({
     required this.version,
     required this.entries,
+    this.specialThanks = const <String>[],
   });
 
   /// Semver string without the leading 'v' (e.g. '0.2.8').
@@ -13,6 +14,11 @@ class ChangelogVersion {
 
   /// Bullet-point style change descriptions.
   final List<ChangelogEntry> entries;
+
+  /// People to thank for feedback or ideas that shaped this release.
+  ///
+  /// This is displayed in its own section after the release entries.
+  final List<String> specialThanks;
 }
 
 class ChangelogEntry {
@@ -27,12 +33,44 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
-    version: '1.2.10',
+    version: '1.3.0',
     entries: [
+      ChangelogEntry(
+        'Navis now offers a full-screen first-run customization flow for appearance, playback, downloads, queues, and optional ListenBrainz or Last.fm setup',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Album and liked-song queueing are now enabled by default',
+        type: ChangelogEntryType.improvement,
+      ),
       ChangelogEntry(
         'Artist pages now load missing releases from your server and remote catalogues, while album tracks load when you open each release',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Remote releases are now clearly labelled, load their tracks with progress feedback, and stay out of your main Albums library',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        "Recently Added now preserves your server's newest-feed order when album dates are missing or tied during a refresh",
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Existing installations now automatically renew their library cache and rebuild before first-run setup, while keeping downloaded music',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Album titles remain readable on light artwork, and remote playback now shows its loading state consistently in the full-screen player',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+    specialThanks: [
+      'To AJDxB for giving me the on-boarding page idea.',
+    ],
+  ),
+  ChangelogVersion(
+    version: '1.2.10',
+    entries: [
       ChangelogEntry(
         'Manual library refresh now always runs catalog discovery instead of being mistaken for a queued album-detail update',
         type: ChangelogEntryType.fix,

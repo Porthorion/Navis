@@ -378,6 +378,18 @@ artifact paths under `build/presentation-diagnostics/`. The agent must open and
 inspect both PNGs; the script intentionally cannot certify visual correctness
 from file existence alone.
 
+To validate a mandatory cache-contract renewal without modifying the primary
+profile, use `cache-upgrade` as the label. The isolated clone starts with its
+cache marker removed; the script requires the router to hold the initial
+navigation on the rebuild route, waits for the screen's production rebuild to
+clear the read-only renewal state, then requires the clean restart to reach
+onboarding or Home as appropriate:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/presentation_diagnostics.sh clone / cache-upgrade
+```
+
 To validate seamless playback startup recovery, set
 `NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=2` for the same clone-only
 presentation command. The launcher injects two failures before audio-handler

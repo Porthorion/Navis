@@ -89,8 +89,8 @@ for song_id, source_path in target.execute(
         (destination, song_id),
     )
 if sys.argv[4] == "cache-upgrade":
-    # Provision a pre-v2 profile in the isolated copy so the app-owned modal
-    # and reset path are exercised without touching the primary profile.
+    # Provision a pre-v3 profile in the isolated copy so the mandatory router
+    # gate and reset path are exercised without touching the primary profile.
     target.execute("DELETE FROM cache_system_state")
 target.commit()
 integrity = target.execute("PRAGMA integrity_check").fetchone()[0]
@@ -277,11 +277,19 @@ PY
 }
 
 validate_navigation() {
-  python3 - "$1" "$ROUTE" <<'PY'
+  python3 - "$1" "$ROUTE" "$LABEL" "$2" <<'PY'
 import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
-if value.get("actualLocation") != sys.argv[2]:
+requested, label, capture = sys.argv[2:]
+actual = value.get("actualLocation")
+if label != "cache-upgrade" and actual != requested:
     raise SystemExit(f"navigation did not reach requested route: {value}")
+if label == "cache-upgrade" and capture == "initial":
+    if actual != "/library-rebuild?reason=cache-upgrade":
+        raise SystemExit(f"cache renewal did not take priority: {value}")
+if label == "cache-upgrade" and capture == "restart":
+    if actual not in ("/", "/onboarding"):
+        raise SystemExit(f"cache renewal did not release to setup or Home: {value}")
 PY
 }
 
@@ -373,16 +381,23 @@ with open(path_output, "w", encoding="utf-8") as output:
 PY
 }
 
-validate_cache_upgrade() {
-  python3 - "$1" <<'PY'
+wait_for_cache_renewal() {
+  local output_file="$1"
+  local deadline=$((SECONDS + 300))
+  while (( SECONDS < deadline )); do
+    api GET /v1/cache/status > "$output_file"
+    if python3 - "$output_file" <<'PY'
 import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
-if value.get("status") != "succeeded" or value.get("needsReset") is not False:
-    raise SystemExit(f"cache upgrade was not acknowledged after a completed scan: {value}")
-sync = value.get("sync")
-if not isinstance(sync, dict) or sync.get("status") != "succeeded":
-    raise SystemExit(f"cache upgrade did not complete a full library scan: {value}")
+raise SystemExit(0 if value.get("renewalRequired") is False else 1)
 PY
+    then
+      return
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for the mandatory cache renewal." >&2
+  exit 70
 }
 
 validate_window_response() {
@@ -470,7 +485,7 @@ run_capture() {
   fi
   api POST /v1/presentation/navigate "$(navigation_body)" \
     > "$OUTPUT_ROOT/$prefix-navigation.json"
-  validate_navigation "$OUTPUT_ROOT/$prefix-navigation.json"
+  validate_navigation "$OUTPUT_ROOT/$prefix-navigation.json" "$prefix"
   # Router acknowledgement precedes the first fully painted destination frame.
   # Give transient route/changelog transitions time to settle before the
   # presentation endpoint captures visual evidence.
@@ -643,8 +658,7 @@ run_capture() {
     "$OUTPUT_ROOT/$prefix-screenshot.json" \
     "$OUTPUT_ROOT/$prefix-screenshot-path.txt"
   if [[ "$LABEL" == "cache-upgrade" && "$prefix" == "initial" ]]; then
-    api POST /v1/library/cache-upgrade > "$OUTPUT_ROOT/$prefix-cache-upgrade.json"
-    validate_cache_upgrade "$OUTPUT_ROOT/$prefix-cache-upgrade.json"
+    wait_for_cache_renewal "$OUTPUT_ROOT/$prefix-cache-status.json"
   fi
 }
 
@@ -722,7 +736,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
              if sys.argv[14] == "1" else [])
           + (["POST /v1/presentation/playback-recovery"]
              if sys.argv[15] == "1" else [])
-          + (["POST /v1/library/cache-upgrade"]
+          + (["GET /v1/cache/status"]
              if sys.argv[16] == "cache-upgrade" else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([

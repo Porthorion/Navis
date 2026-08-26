@@ -462,7 +462,9 @@ void main() {
       'rollingEntries',
       'permanentEntries',
       'missingFiles',
+      'renewalRequired',
     ]);
+    expect(response.body['renewalRequired'], isFalse);
   });
 
   test('clone local mutation remains pending for sync precedence', () async {

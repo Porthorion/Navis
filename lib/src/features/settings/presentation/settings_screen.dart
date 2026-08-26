@@ -22,7 +22,7 @@ class SettingsScreen extends ConsumerWidget {
     final groupStorage = l10n.settingsGroupStorage;
     final groupPlayback = l10n.settingsGroupPlayback;
     final groupAutomation = l10n.settingsGroupAutomation;
-    final groupAbout = l10n.settingsGroupAbout;
+    final groupOther = l10n.settingsGroupOther;
     final groupDesktop = l10n.settingsGroupDesktop;
     final List<_SettingsEntry> coreEntries = <_SettingsEntry>[
       _SettingsEntry(
@@ -91,12 +91,20 @@ class SettingsScreen extends ConsumerWidget {
       title: l10n.aboutTitle,
       subtitle: null,
       route: '/settings/about',
-      group: groupAbout,
+      group: groupOther,
+    );
+    final _SettingsEntry quickCustomizationEntry = _SettingsEntry(
+      icon: Icons.auto_awesome_outlined,
+      title: l10n.settingsRunQuickCustomizationTitle,
+      subtitle: l10n.settingsRunQuickCustomizationSubtitle,
+      route: '/onboarding?review=1',
+      group: groupOther,
     );
     // Desktop entries come between core and About so About is always last.
     final entries = <_SettingsEntry>[
       ...coreEntries,
       ...desktopEntries,
+      quickCustomizationEntry,
       aboutEntry,
     ];
 

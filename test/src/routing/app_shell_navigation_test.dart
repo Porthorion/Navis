@@ -20,6 +20,7 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
@@ -126,7 +127,15 @@ ProviderContainer _createContainerWithDatabase({
 }) {
   final database = createTestDatabase();
   final container = ProviderContainer(
-    overrides: withTestDatabase(database, overrides: overrides),
+    overrides: withTestDatabase(
+      database,
+      overrides: <Override>[
+        onboardingVersionProvider.overrideWithValue(
+          const AsyncData(currentOnboardingVersion),
+        ),
+        ...overrides,
+      ],
+    ),
   );
   addTearDown(() async {
     container.dispose();

@@ -3,6 +3,7 @@ part of 'now_playing_screen.dart';
 class _TransportControls extends ConsumerWidget {
   const _TransportControls({
     required this.playback,
+    required this.isExternalSource,
     this.isRadio = false,
     this.compact = false,
     this.showVolumeControl = false,
@@ -12,6 +13,7 @@ class _TransportControls extends ConsumerWidget {
   });
 
   final PlaybackSnapshot playback;
+  final bool isExternalSource;
   final bool isRadio;
   final bool compact;
   final bool showVolumeControl;
@@ -23,6 +25,7 @@ class _TransportControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final isPlaying = playback.playing;
+    final showLoading = isExternalSource && playback.isLoading;
 
     if (isRadio) {
       // Simplified radio transport: just play/pause and stop.
@@ -44,8 +47,9 @@ class _TransportControls extends ConsumerWidget {
                   unawaited(handler?.play());
                 }
               },
-              child: Icon(
-                isPlaying ? Icons.pause : Icons.play_arrow,
+              child: _playPauseChild(
+                showLoading: showLoading,
+                isPlaying: isPlaying,
                 size: compact ? 30 : 36,
               ),
             ),
@@ -171,8 +175,9 @@ class _TransportControls extends ConsumerWidget {
                     unawaited(handler?.play());
                   }
                 },
-                child: Icon(
-                  isPlaying ? Icons.pause : Icons.play_arrow,
+                child: _playPauseChild(
+                  showLoading: showLoading,
+                  isPlaying: isPlaying,
                   size: compact ? 30 : 36,
                 ),
               ),
@@ -277,4 +282,18 @@ class _TransportControls extends ConsumerWidget {
     );
     return row;
   }
+}
+
+Widget _playPauseChild({
+  required bool showLoading,
+  required bool isPlaying,
+  required double size,
+}) {
+  if (showLoading) {
+    return SizedBox.square(
+      dimension: size,
+      child: const CircularProgressIndicator(strokeWidth: 2.4),
+    );
+  }
+  return Icon(isPlaying ? Icons.pause : Icons.play_arrow, size: size);
 }

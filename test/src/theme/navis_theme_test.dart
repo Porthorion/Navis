@@ -33,6 +33,20 @@ void main() {
       );
     });
 
+    test('keeps light-theme text and titles readable on the surface', () {
+      final scheme = buildLightTheme(defaultColorSchemeSeedColor).colorScheme;
+
+      expect(
+        _contrastRatio(scheme.onSurface, scheme.surface),
+        greaterThan(4.5),
+      );
+      expect(
+        _contrastRatio(scheme.onSurfaceVariant, scheme.surface),
+        greaterThan(4.5),
+      );
+      expect(_contrastRatio(scheme.primary, scheme.surface), greaterThan(4.5));
+    });
+
     test('keeps white exact in dark and OLED themes when contrast is safe', () {
       final darkAccent = buildDarkTheme(
         defaultColorSchemeSeedColor,

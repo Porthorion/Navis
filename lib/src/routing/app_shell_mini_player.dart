@@ -1,5 +1,24 @@
 part of 'app_shell.dart';
 
+Widget _remoteLoadingPlayPauseIcon({
+  required bool isExternalSource,
+  required bool isLoading,
+  required bool isPlaying,
+  double? size,
+}) {
+  if (isExternalSource && isLoading) {
+    final dimension = size ?? 22.0;
+    return SizedBox.square(
+      dimension: dimension,
+      child: const CircularProgressIndicator(strokeWidth: 2.4),
+    );
+  }
+  return Icon(
+    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+    size: size,
+  );
+}
+
 class _RailMiniPlayer extends ConsumerStatefulWidget {
   const _RailMiniPlayer({
     required this.playback,
@@ -331,10 +350,10 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                         await handler.play();
                                       }
                                     },
-                                    icon: Icon(
-                                      isPlaying
-                                          ? Icons.pause_rounded
-                                          : Icons.play_arrow_rounded,
+                                    icon: _remoteLoadingPlayPauseIcon(
+                                      isExternalSource: widget.isExternalSource,
+                                      isLoading: playback.isLoading,
+                                      isPlaying: isPlaying,
                                     ),
                                   ),
                                   IconButton(
@@ -772,10 +791,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               await handler.play();
                             }
                           },
-                          icon: Icon(
-                            isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
+                          icon: _remoteLoadingPlayPauseIcon(
+                            isExternalSource: widget.isExternalSource,
+                            isLoading: playback.isLoading,
+                            isPlaying: isPlaying,
                             size: 28,
                           ),
                         ),
@@ -949,10 +968,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   await handler.play();
                                 }
                               },
-                              icon: Icon(
-                                isPlaying
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
+                              icon: _remoteLoadingPlayPauseIcon(
+                                isExternalSource: widget.isExternalSource,
+                                isLoading: playback.isLoading,
+                                isPlaying: isPlaying,
                                 size: 22,
                               ),
                             ),

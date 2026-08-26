@@ -25,6 +25,7 @@ import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -386,6 +387,7 @@ Future<void> _pumpAlbumDetail(
   String? openingHeroTag,
   List<dynamic> overrides = const <dynamic>[],
   TextScaler? textScaler,
+  ThemeData? theme,
 }) async {
   await tester.pumpWidget(
     _buildApp(
@@ -396,6 +398,7 @@ Future<void> _pumpAlbumDetail(
       database: database,
       adaptiveContext: adaptiveContext,
       textScaler: textScaler,
+      theme: theme,
       overrides: [
         albumProvider('album-1').overrideWithValue(AsyncData(album)),
         ...overrides.cast(),
@@ -1156,6 +1159,43 @@ void main() {
         await _disposeApp(tester);
       },
     );
+
+    testWidgets('mobile album title follows the selected theme surface', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final themes = <ThemeData>[
+        buildLightTheme(defaultColorSchemeSeedColor),
+        buildDarkTheme(defaultColorSchemeSeedColor),
+        buildOledTheme(defaultColorSchemeSeedColor),
+      ];
+
+      for (final theme in themes) {
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _mobileContext,
+          album: _albumWithSongs(const <SongsTableData>[]),
+          theme: theme,
+        );
+
+        final title = tester.widget<Text>(
+          find.byKey(const ValueKey<String>('albumDetailMobileHeaderTitle')),
+        );
+        expect(
+          title.style!.color,
+          theme.brightness == Brightness.light
+              ? theme.colorScheme.onSurface
+              : Colors.white,
+        );
+        expect(title.style!.backgroundColor, isNull);
+        expect(
+          title.style!.shadows,
+          theme.brightness == Brightness.light ? isNull : isNotNull,
+        );
+        await _disposeApp(tester);
+      }
+    });
 
     testWidgets(
       'mobile album title preserves its display role at 200 percent text scale',

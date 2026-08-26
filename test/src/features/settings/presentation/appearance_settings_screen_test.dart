@@ -78,6 +78,31 @@ void main() {
     return chip(tester, key).decoration! as BoxDecoration;
   }
 
+  testWidgets('theme selector stays horizontal on a phone-width surface', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: ThemeModeSelector(currentMode: 'system', onChanged: (_) {}),
+        ),
+      ),
+    );
+
+    final selector = tester.widget<SegmentedButton<String>>(
+      find.byType(SegmentedButton<String>),
+    );
+    expect(selector.direction, Axis.horizontal);
+    expect(find.text('Light'), findsOneWidget);
+    expect(find.text('Dark'), findsOneWidget);
+    expect(find.text('OLED'), findsOneWidget);
+    expect(find.text('Auto'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('uses white for implicit default', (tester) async {
     await pumpAppearance(tester);
 

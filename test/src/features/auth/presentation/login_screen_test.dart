@@ -17,6 +17,7 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -292,7 +293,7 @@ void main() {
     await _disposeApp(tester);
   });
 
-  testWidgets('successful connect saves config and navigates to home', (
+  testWidgets('successful connect saves config and opens onboarding', (
     tester,
   ) async {
     late _TestServerConfigNotifier notifier;
@@ -341,7 +342,7 @@ void main() {
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(OnboardingScreen), findsOneWidget);
     final savedConfig = notifier.savedConfigSnapshot();
     expect(savedConfig, isNotNull);
     expect(savedConfig?.url, 'https://x.test');

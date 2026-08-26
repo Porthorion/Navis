@@ -276,7 +276,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsGroupAutomation => 'Automation';
 
   @override
-  String get settingsGroupAbout => 'About';
+  String get settingsGroupOther => 'Other';
+
+  @override
+  String get settingsRunQuickCustomizationTitle => 'Run Quick Customization';
+
+  @override
+  String get settingsRunQuickCustomizationSubtitle =>
+      'Review your listening and appearance preferences.';
 
   @override
   String get settingsGroupDesktop => 'Desktop';
@@ -2918,6 +2925,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changelogDialogOtherBugFixes => 'Other bug fixes';
+
+  @override
+  String get changelogSpecialThanks => 'Special Thanks';
 
   @override
   String get changelogDialogViewAll => 'View full changelog';

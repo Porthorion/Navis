@@ -105,7 +105,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              _ThemeModeSelector(
+              ThemeModeSelector(
                 currentMode: currentMode,
                 onChanged: (mode) async {
                   final db = ref.read(navisDatabaseProvider);
@@ -134,7 +134,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   style: theme.textTheme.bodySmall,
                 ),
               ),
-              _ColorSchemeGrid(
+              ColorSchemeGrid(
                 currentSeed: currentSeed,
                 dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 customPresets: customPresets,
@@ -758,8 +758,9 @@ class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
   }
 }
 
-class _ThemeModeSelector extends StatelessWidget {
-  const _ThemeModeSelector({
+/// Shared theme-mode control used by Appearance and first-run customization.
+class ThemeModeSelector extends StatelessWidget {
+  const ThemeModeSelector({
     required this.currentMode,
     required this.onChanged,
   });
@@ -777,30 +778,45 @@ class _ThemeModeSelector extends StatelessWidget {
       ('system', l10n.appearanceThemeSystem, Icons.settings_brightness),
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SegmentedButton<String>(
-        segments: entries
-            .map(
-              (e) => ButtonSegment<String>(
-                value: e.$1,
-                label: Text(e.$2),
-                icon: Icon(e.$3),
-              ),
-            )
-            .toList(),
-        selected: {currentMode},
-        onSelectionChanged: (selection) {
-          if (selection.isNotEmpty) onChanged(selection.first);
-        },
-        showSelectedIcon: false,
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 440;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: SegmentedButton<String>(
+            segments: entries
+                .map(
+                  (e) => ButtonSegment<String>(
+                    value: e.$1,
+                    label: Text(
+                      e.$2,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: compact ? 11 : null),
+                    ),
+                    icon: Icon(e.$3),
+                  ),
+                )
+                .toList(),
+            selected: {currentMode},
+            onSelectionChanged: (selection) {
+              if (selection.isNotEmpty) onChanged(selection.first);
+            },
+            // Keep the familiar horizontal selector at every size. Removing its
+            // default outer expansion leaves enough room for four labelled
+            // segments on phones without turning it into a stacked control.
+            expandedInsets: EdgeInsets.zero,
+            showSelectedIcon: false,
+          ),
+        );
+      },
     );
   }
 }
 
-class _ColorSchemeGrid extends StatelessWidget {
-  const _ColorSchemeGrid({
+/// Shared accent-color control used by Appearance and first-run customization.
+class ColorSchemeGrid extends StatelessWidget {
+  const ColorSchemeGrid({
     required this.currentSeed,
     required this.dynamicAlbumColorEnabled,
     required this.customPresets,

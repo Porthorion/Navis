@@ -1520,10 +1520,8 @@ class SyncDiagnosticsServer {
   }
 
   Future<Map<String, Object?>> _cacheStatusJson() async {
-    final entries = await _container
-        .read(navisDatabaseProvider)
-        .cacheDao
-        .getCachedTracks();
+    final database = _container.read(navisDatabaseProvider);
+    final entries = await database.cacheDao.getCachedTracks();
     var missingFiles = 0;
     var rolling = 0;
     var permanent = 0;
@@ -1546,6 +1544,9 @@ class SyncDiagnosticsServer {
       'rollingEntries': rolling,
       'permanentEntries': permanent,
       'missingFiles': missingFiles,
+      'renewalRequired': await _container
+          .read(cacheSystemUpgradeServiceProvider)
+          .needsReset(),
     };
   }
 

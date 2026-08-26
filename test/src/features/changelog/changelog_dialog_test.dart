@@ -86,6 +86,28 @@ void main() {
 
     expect(tester.getSize(find.text(entryText)).width, greaterThan(300));
   });
+
+  testWidgets('shows Special Thanks after the release entries', (tester) async {
+    const entryText = 'Added a helpful new feature';
+    const thankYou = 'To AJDxB for an excellent idea.';
+    const version = ChangelogVersion(
+      version: '9.9.9',
+      entries: [ChangelogEntry(entryText)],
+      specialThanks: [thankYou],
+    );
+    final router = _createRouter(version);
+
+    await _pumpRouter(tester, router);
+    await tester.tap(find.text('Open dialog'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Special Thanks'), findsOneWidget);
+    expect(find.text(thankYou), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Special Thanks')).dy,
+      greaterThan(tester.getTopLeft(find.text(entryText)).dy),
+    );
+  });
 }
 
 GoRouter _createRouter(ChangelogVersion version) {

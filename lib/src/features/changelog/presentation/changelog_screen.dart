@@ -42,6 +42,24 @@ class ChangelogScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   for (final entry in changelogs[i].entries)
                     ChangelogEntryTile(entry: entry),
+                  if (changelogs[i].specialThanks.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.changelogSpecialThanks,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    for (final thankYou in changelogs[i].specialThanks)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          thankYou,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                  ],
                   if (i != changelogs.length - 1)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),

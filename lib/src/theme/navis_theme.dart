@@ -114,7 +114,10 @@ ThemeMode resolveThemeMode(String mode) {
 ThemeData buildLightTheme(Color seedColor) {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: seedColor,
-    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    brightness: Brightness.light,
+    // Tonal spot retains the selected accent while keeping text, headings,
+    // and interactive roles sufficiently dark against light surfaces.
+    dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
   );
   return ThemeData(
     useMaterial3: true,

@@ -7,6 +7,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -987,6 +988,249 @@ void main() {
         expect(
           await database.libraryDao.getSongById('remote-song'),
           isNull,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'targeted album hydration preserves Recently Added server dates when details omit them',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final existingCreated = DateTime.utc(2026, 8, 10);
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-old',
+            name: 'Old Album',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(false),
+            serverCreatedAt: Value(existingCreated),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-new',
+            name: 'New Album',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(true),
+            serverCreatedAt: Value(DateTime.utc(2026, 8, 11)),
+          ),
+        ]);
+        // Some compatible servers omit the optional `created` field from
+        // getAlbum even after a list response supplied it.
+        api.albumDetails['album-old'] = const Album(
+          id: 'album-old',
+          name: 'Old Album',
+          artistId: 'artist-1',
+          songs: <Song>[
+            Song(
+              id: 'song-old',
+              title: 'Old Song',
+              albumId: 'album-old',
+              artistId: 'artist-1',
+            ),
+          ],
+        );
+
+        final state = await engine.hydrateAlbum('album-old');
+        final albums = await database.libraryDao
+            .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
+            .first;
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          (await database.libraryDao.getAlbumById(
+            'album-old',
+          ))?.serverCreatedAt?.toUtc(),
+          existingCreated,
+        );
+        expect(
+          albums.map((album) => album.id),
+          <String>['album-new', 'album-old'],
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'incremental sync restores a missing Recently Added server date from the newest feed',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final restoredCreated = DateTime.utc(2026, 8, 11);
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-missing-date',
+            name: 'Missing Date Album',
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+            songsHydrated: const Value(true),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-older',
+            name: 'Older Album',
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+            songsHydrated: const Value(true),
+            serverCreatedAt: Value(DateTime.utc(2026, 8, 10)),
+          ),
+        ]);
+        api.fastPathPages[0] = <Album>[
+          Album(
+            id: 'album-missing-date',
+            name: 'Missing Date Album',
+            artistId: 'artist-1',
+            artist: 'Artist 1',
+            created: restoredCreated,
+          ),
+        ];
+
+        final state = await engine.syncNow();
+        final albums = await database.libraryDao
+            .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
+            .first;
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          (await database.libraryDao.getAlbumById(
+            'album-missing-date',
+          ))?.serverCreatedAt?.toUtc(),
+          restoredCreated,
+        );
+        expect(
+          albums.map((album) => album.id),
+          <String>['album-missing-date', 'album-older'],
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'manual 48-album newest probe preserves server order without creation dates',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final meteredEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.cellular,
+          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
+            networkType: NetworkType.cellular,
+            isMetered: true,
+            allowsBackgroundSync: false,
+            allowsHardProbe: true,
+            allowsInteractiveHydration: true,
+          ),
+          fallbackArtistConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          writeChunkSize: 4,
+        )..allowMeteredManualDiscovery = true;
+        final newest = List<Album>.generate(
+          48,
+          (index) => Album(
+            id: 'album-$index',
+            // Intentionally opposite the server's newest order. Without a
+            // persisted feed rank, the current fallback is alphabetical.
+            name: 'Album ${(48 - index).toString().padLeft(2, '0')}',
+            artistId: 'artist-$index',
+            artist: 'Artist ${(48 - index).toString().padLeft(2, '0')}',
+            songCount: 1,
+          ),
+          growable: false,
+        );
+        api.fastPathPages[0] = newest;
+        for (final album in newest.take(3)) {
+          api.albumDetails[album.id] = Album(
+            id: album.id,
+            name: album.name,
+            artistId: album.artistId,
+            artist: album.artist,
+            // Compatible getAlbum responses may omit this optional field.
+            songs: <Song>[
+              Song(
+                id: 'song-${album.id}',
+                title: 'Song ${album.id}',
+                albumId: album.id,
+                artistId: album.artistId,
+              ),
+            ],
+          );
+        }
+
+        final state = await meteredEngine.syncNow();
+        final albums = await database.libraryDao
+            .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
+            .first;
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('getAlbumListPage:0:50'));
+        expect(
+          albums.map((album) => album.id),
+          newest.map((album) => album.id),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'manual newest probe repairs an alphabetical creation-date tie without metadata changes',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final created = DateTime.utc(2026, 8, 20);
+        final newest = <Album>[
+          Album(
+            id: 'album-zulu',
+            name: 'Zulu',
+            artistId: 'artist-zulu',
+            artist: 'Artist Zulu',
+            created: created,
+          ),
+          Album(
+            id: 'album-middle',
+            name: 'Middle',
+            artistId: 'artist-middle',
+            artist: 'Artist Middle',
+            created: created,
+          ),
+          Album(
+            id: 'album-alpha',
+            name: 'Alpha',
+            artistId: 'artist-alpha',
+            artist: 'Artist Alpha',
+            created: created,
+          ),
+        ];
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          for (final album in newest)
+            ArtistsTableCompanion.insert(
+              id: album.artistId!,
+              name: album.artist!,
+            ),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          for (final album in newest)
+            AlbumsTableCompanion.insert(
+              id: album.id,
+              name: album.name,
+              artistId: Value(album.artistId),
+              artistName: Value(album.artist),
+              serverCreatedAt: Value(created),
+            ),
+        ]);
+        api.fastPathPages[0] = newest;
+
+        final state = await engine.syncNow();
+        final albums = await database.libraryDao
+            .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
+            .first;
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          albums.map((album) => album.id),
+          newest.map((album) => album.id),
         );
       },
       skip: !sqliteAvailable,

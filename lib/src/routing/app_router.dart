@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/auth/presentation/login_screen.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
@@ -14,6 +15,8 @@ import 'package:navis/src/features/library/presentation/required_library_rebuild
 import 'package:navis/src/features/library/presentation/required_library_rebuild_screen.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_screen.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_song_search_screen.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
@@ -106,23 +109,72 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     sessionPhase.value = next;
   });
   ref.onDispose(sessionPhase.dispose);
+  final onboardingRequired = ValueNotifier<bool?>(
+    ref.read(onboardingRequiredProvider),
+  );
+  ref.listen<bool?>(onboardingRequiredProvider, (_, next) {
+    onboardingRequired.value = next;
+  });
+  ref.onDispose(onboardingRequired.dispose);
+  final cacheSystemUpgradeRequired = ValueNotifier<bool?>(
+    ref.read(cacheSystemUpgradeRequiredProvider),
+  );
+  ref.listen<bool?>(cacheSystemUpgradeRequiredProvider, (_, next) {
+    cacheSystemUpgradeRequired.value = next;
+  });
+  ref.onDispose(cacheSystemUpgradeRequired.dispose);
 
   return GoRouter(
     initialLocation: '/login',
-    refreshListenable: sessionPhase,
+    refreshListenable: Listenable.merge(<Listenable>[
+      sessionPhase,
+      cacheSystemUpgradeRequired,
+      onboardingRequired,
+    ]),
     redirect: (context, state) {
       final isLoginRoute = state.matchedLocation == '/login';
       final isInitialSyncRoute = state.matchedLocation == '/initial-sync';
+      final isOnboardingRoute = state.matchedLocation == '/onboarding';
+      final isOnboardingReview = state.uri.queryParameters['review'] == '1';
+      final isCacheUpgradeRoute =
+          state.matchedLocation == '/library-rebuild' &&
+          state.uri.queryParameters['reason'] ==
+              RequiredLibraryRebuildReason.cacheUpgrade.routeValue;
       if (sessionPhase.value == SessionRoutePhase.loading) {
         return null; // still loading
       }
 
+      if (sessionPhase.value == SessionRoutePhase.unauthenticated) {
+        return isLoginRoute ? null : '/login';
+      }
+
+      if (cacheSystemUpgradeRequired.value == null) {
+        return null;
+      }
+      if (cacheSystemUpgradeRequired.value == true) {
+        return isCacheUpgradeRoute
+            ? null
+            : requiredLibraryRebuildRoute(
+                RequiredLibraryRebuildReason.cacheUpgrade,
+              );
+      }
+      if (onboardingRequired.value == null) {
+        return null;
+      }
+      if (onboardingRequired.value == true) {
+        return isOnboardingRoute ? null : '/onboarding';
+      }
+
       return switch (sessionPhase.value) {
-        SessionRoutePhase.unauthenticated => isLoginRoute ? null : '/login',
+        SessionRoutePhase.unauthenticated => null,
         SessionRoutePhase.initialSyncRequired =>
           isInitialSyncRoute ? null : '/initial-sync',
         SessionRoutePhase.ready =>
-          (isLoginRoute || isInitialSyncRoute) ? '/' : null,
+          (isLoginRoute ||
+                  isInitialSyncRoute ||
+                  (isOnboardingRoute && !isOnboardingReview))
+              ? '/'
+              : null,
         SessionRoutePhase.loading => null,
       };
     },
@@ -132,6 +184,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/initial-sync',
         builder: (context, state) => const RequiredLibraryRebuildScreen(
           reason: RequiredLibraryRebuildReason.initialLogin,
+        ),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        pageBuilder: (context, state) => buildSlideFadePage(
+          context: context,
+          key: state.pageKey,
+          fadeOnly: true,
+          child: OnboardingScreen(
+            reviewMode: state.uri.queryParameters['review'] == '1',
+          ),
         ),
       ),
       GoRoute(

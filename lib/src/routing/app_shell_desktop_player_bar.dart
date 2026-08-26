@@ -808,10 +808,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             hasPlayback || hasResumableQueue
                                             ? () => unawaited(togglePlayPause())
                                             : null,
-                                        icon: Icon(
-                                          isPlaying
-                                              ? Icons.pause_rounded
-                                              : Icons.play_arrow_rounded,
+                                        icon: _remoteLoadingPlayPauseIcon(
+                                          isExternalSource:
+                                              widget.isExternalSource,
+                                          isLoading: playback.isLoading,
+                                          isPlaying: isPlaying,
                                           size: primaryIconSize,
                                         ),
                                       ),

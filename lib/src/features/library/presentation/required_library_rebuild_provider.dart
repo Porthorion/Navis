@@ -153,6 +153,7 @@ class RequiredLibraryRebuildController
           await ref
               .read(cacheSystemUpgradeServiceProvider)
               .markCurrentVersionAfterSuccessfulScan();
+          await ref.refresh(cacheSystemUpgradeNeededProvider.future);
         }
         if (_reason == RequiredLibraryRebuildReason.initialLogin) {
           ref.invalidate(initialSyncRequiredProvider);

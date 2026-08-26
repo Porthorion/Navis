@@ -31,9 +31,10 @@ class _Entry {
 }
 
 class _Version {
-  const _Version(this.version, this.entries);
+  const _Version(this.version, this.entries, {this.specialThanks = const []});
   final String version;
   final List<_Entry> entries;
+  final List<String> specialThanks;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,11 +57,43 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version(
+    '1.3.0',
+    [
+      _Entry(
+        'Navis now offers a full-screen first-run customization flow for appearance, playback, downloads, queues, and optional ListenBrainz or Last.fm setup',
+        type: _EntryType.newFeature,
+      ),
+      _Entry(
+        'Album and liked-song queueing are now enabled by default',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Artist pages now load missing releases from your server and remote catalogues, while album tracks load when you open each release',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Remote releases are now clearly labelled, load their tracks with progress feedback, and stay out of your main Albums library',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        "Recently Added now preserves your server's newest-feed order when album dates are missing or tied during a refresh",
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Existing installations now automatically renew their library cache and rebuild before first-run setup, while keeping downloaded music',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Album titles remain readable on light artwork, and remote playback now shows its loading state consistently in the full-screen player',
+        type: _EntryType.fix,
+      ),
+    ],
+    specialThanks: [
+      'To AJDxB for giving me the on-boarding page idea.',
+    ],
+  ),
   _Version('1.2.10', [
-    _Entry(
-      'Artist pages now load missing releases from your server and remote catalogues, while album tracks load when you open each release',
-      type: _EntryType.improvement,
-    ),
     _Entry(
       'Manual library refresh now always runs catalog discovery instead of being mistaken for a queued album-detail update',
       type: _EntryType.fix,
@@ -1435,6 +1468,15 @@ void main(List<String> args) {
     buf.writeln(
       '- **${_label(entry.type)}:** ${entry.text}',
     );
+  }
+
+  if (match.specialThanks.isNotEmpty) {
+    buf.writeln();
+    buf.writeln('## Special Thanks');
+    buf.writeln();
+    for (final thankYou in match.specialThanks) {
+      buf.writeln('- $thankYou');
+    }
   }
 
   print(buf.toString().trimRight());

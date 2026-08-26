@@ -679,10 +679,12 @@ class _NewestAlbumHealthProbe {
   const _NewestAlbumHealthProbe({
     required this.artistIds,
     required this.discrepantAlbums,
+    required this.newestRanks,
   });
 
   final Set<String> artistIds;
   final List<Album> discrepantAlbums;
+  final Map<String, int> newestRanks;
 }
 
 class DriftLibrarySyncEngine extends LibrarySyncEngine
@@ -1107,12 +1109,31 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           pendingHydrationAlbumIds: detail.albums.map((album) => album.id),
           inheritExternalWhenMissing: isExternalDetail,
         );
+        final externalAlbumRows = albumRows
+            .where(
+              (album) => album.isExternal.present && album.isExternal.value,
+            )
+            .toList(growable: false);
+        final localAlbumRows = albumRows
+            .where(
+              (album) => !album.isExternal.present || !album.isExternal.value,
+            )
+            .toList(growable: false);
         if (isExternalDetail) {
           await _database.libraryDao.upsertProvisionalArtists(artistRows);
           await _database.libraryDao.upsertProvisionalAlbums(albumRows);
         } else {
           await _database.libraryDao.upsertArtists(artistRows);
-          await _database.libraryDao.upsertAlbums(albumRows);
+          // An otherwise local artist can contain releases from a remote
+          // catalogue. Keep those rows provisional: artist pages deliberately
+          // show them, while the main Albums library remains server-only.
+          await _database.libraryDao.upsertAlbums(localAlbumRows);
+          await _database.libraryDao.markAlbumsExternalAndProvisional(
+            externalAlbumRows
+                .where((album) => album.id.present)
+                .map((album) => album.id.value),
+          );
+          await _database.libraryDao.upsertProvisionalAlbums(externalAlbumRows);
         }
       });
       metrics.addDbWriteBatch();
@@ -2374,9 +2395,18 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       }
     }
 
+    final newestAlbums = _dedupeAlbums(pages);
+    final newestRanks = <String, int>{};
+    for (var index = 0; index < newestAlbums.length; index++) {
+      final id = newestAlbums[index].id.trim();
+      if (id.isNotEmpty) {
+        newestRanks[id] = index;
+      }
+    }
+
     final discrepantAlbums = <Album>[];
     final artistIds = <String>{};
-    for (final album in _dedupeAlbums(pages)) {
+    for (final album in newestAlbums) {
       final existing = localById[album.id];
       if (existing == null || _albumMetadataChanged(existing, album)) {
         discrepantAlbums.add(album);
@@ -2389,6 +2419,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     return _NewestAlbumHealthProbe(
       artistIds: artistIds,
       discrepantAlbums: discrepantAlbums,
+      newestRanks: newestRanks,
     );
   }
 
@@ -3488,6 +3519,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     var healthProbe = const _NewestAlbumHealthProbe(
       artistIds: <String>{},
       discrepantAlbums: <Album>[],
+      newestRanks: <String, int>{},
     );
     if (healthProbeDue) {
       if (limitedMeteredManualDiscovery) {
@@ -3509,6 +3541,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       await _stageNewestAlbumsForHydration(
         healthProbe.discrepantAlbums,
         metrics,
+        newestRanks: healthProbe.newestRanks,
       );
     }
 
@@ -3953,8 +3986,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   /// hydrated through the normal song and identity-reconciliation path.
   Future<void> _stageNewestAlbumsForHydration(
     Iterable<Album> albums,
-    _SyncRunMetrics metrics,
-  ) async {
+    _SyncRunMetrics metrics, {
+    required Map<String, int> newestRanks,
+  }) async {
     final candidates = albums
         .where(
           (album) =>
@@ -3966,6 +4000,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         )
         .toList(growable: false);
     if (candidates.isEmpty) {
+      await _database.libraryDao.updateRecentlyAddedRanksFromNewestFeed(
+        newestRanks,
+      );
       return;
     }
     final knownArtistIds = await _database.libraryDao.getArtistIds();
@@ -3989,6 +4026,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     final albumRows = await _toAlbumCompanions(
       candidates,
       pendingHydrationAlbumIds: candidates.map((album) => album.id),
+      newestRanks: newestRanks,
     );
     await _database.transaction(() async {
       if (missingArtists.isNotEmpty) {
@@ -3997,6 +4035,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       await _database.libraryDao.upsertAlbums(albumRows);
       await _database.libraryDao.markAlbumsPendingHydrationByIds(
         candidates.map((album) => album.id),
+      );
+      await _database.libraryDao.updateRecentlyAddedRanksFromNewestFeed(
+        newestRanks,
       );
     });
     metrics
@@ -5274,6 +5315,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         current.starred != next.starred ||
         current.userRating != next.userRating ||
         current.playCount != next.playCount ||
+        // An omitted `created` value has no authority to clear a date we
+        // already know, but a supplied value can repair a date lost by an
+        // older client during an ordinary newest-feed reconciliation.
+        (next.created != null && current.serverCreatedAt != next.created) ||
         !_artistListsEqual(current.artists, next.artists);
   }
 
@@ -5376,6 +5421,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     Iterable<String> pendingHydrationAlbumIds = const <String>[],
     int? catalogGeneration,
     bool inheritExternalWhenMissing = false,
+    Map<String, int> newestRanks = const <String, int>{},
   }) async {
     final payload = albums
         .map((album) => album.toJson())
@@ -5403,6 +5449,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             userRating: Value(row.userRating),
             playCount: Value(row.playCount),
             serverCreatedAt: Value(row.created),
+            recentlyAddedRank: newestRanks.containsKey(row.id)
+                ? Value(newestRanks[row.id]!)
+                : const Value.absent(),
             isExternal: Value(
               isExternalCatalogSource(
                 id: row.id,

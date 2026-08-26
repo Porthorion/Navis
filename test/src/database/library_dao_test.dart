@@ -229,6 +229,54 @@ void main() {
     );
 
     test(
+      'Recently Added keeps newest-feed order when server creation dates tie',
+      () async {
+        final created = DateTime.utc(2026, 8, 20);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-zulu',
+            name: 'Zulu',
+            serverCreatedAt: Value(created),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-middle',
+            name: 'Middle',
+            serverCreatedAt: Value(created),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-alpha',
+            name: 'Alpha',
+            serverCreatedAt: Value(created),
+          ),
+        ]);
+
+        await database.libraryDao.updateRecentlyAddedRanksFromNewestFeed(
+          const <String, int>{
+            'album-zulu': 0,
+            'album-middle': 1,
+            'album-alpha': 2,
+          },
+        );
+        // Detail hydration has no newest-feed rank of its own and must keep
+        // the one supplied by the authoritative newest response.
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(id: 'album-zulu', name: 'Zulu'),
+        ]);
+
+        final albums = await database.libraryDao
+            .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
+            .first;
+
+        expect(albums.map((album) => album.id), <String>[
+          'album-zulu',
+          'album-middle',
+          'album-alpha',
+        ]);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'watchArtistAlbumBuckets keeps primary albums separate from featured appearances',
       () async {
         await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[

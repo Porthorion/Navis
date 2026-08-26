@@ -287,6 +287,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       '''
       SELECT albums.* FROM albums
       WHERE albums.is_provisional = 0
+        AND albums.is_external = 0
         AND ${_likedAlbumPredicate('albums')}
       ORDER BY
         albums.starred DESC NULLS LAST,
@@ -306,7 +307,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     if (!likedOnly) {
       final countExpression = albumsTable.id.count();
       final query = selectOnly(albumsTable)
-        ..where(albumsTable.isProvisional.equals(false))
+        ..where(
+          albumsTable.isProvisional.equals(false) &
+              albumsTable.isExternal.equals(false),
+        )
         ..addColumns([countExpression]);
       return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
     }
@@ -315,6 +319,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       SELECT COUNT(*) AS count
       FROM albums
       WHERE albums.is_provisional = 0
+        AND albums.is_external = 0
         AND ${_likedAlbumPredicate('albums')}
       ''',
       readsFrom: {albumsTable, songsTable},
@@ -734,6 +739,37 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Saves the order advertised by a server's bounded `newest` feed.
+  ///
+  /// Creation dates remain the primary Recently Added sort key. This rank
+  /// only resolves servers that omit that optional value, or return a shared
+  /// creation timestamp for a batch of albums. Updating every observed row
+  /// lets a regular refresh repair an older cache without requiring a reset.
+  Future<void> updateRecentlyAddedRanksFromNewestFeed(
+    Map<String, int> ranks,
+  ) async {
+    if (ranks.isEmpty) {
+      return;
+    }
+    final normalizedRanks = <String, int>{
+      for (final entry in ranks.entries)
+        if (entry.key.trim().isNotEmpty && entry.value >= 0)
+          entry.key.trim(): entry.value,
+    };
+    if (normalizedRanks.isEmpty) {
+      return;
+    }
+    await batch((batch) {
+      for (final entry in normalizedRanks.entries) {
+        batch.update(
+          albumsTable,
+          AlbumsTableCompanion(recentlyAddedRank: Value(entry.value)),
+          where: (table) => table.id.equals(entry.key),
+        );
+      }
+    });
+  }
+
   Future<void> upsertProvisionalAlbums(
     List<AlbumsTableCompanion> albums,
   ) async {
@@ -758,6 +794,19 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         ),
       );
     }
+  }
+
+  /// Keeps externally sourced releases available from their artist without
+  /// admitting them into the server-backed Albums library.
+  Future<void> markAlbumsExternalAndProvisional(Iterable<String> albumIds) {
+    final ids = albumIds.where((id) => id.trim().isNotEmpty).toList();
+    if (ids.isEmpty) return Future<void>.value();
+    return (update(albumsTable)..where((table) => table.id.isIn(ids))).write(
+      const AlbumsTableCompanion(
+        isExternal: Value(true),
+        isProvisional: Value(true),
+      ),
+    );
   }
 
   Future<void> replaceSongs(List<SongsTableCompanion> songs) async {
@@ -809,6 +858,15 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
               isProvisional: const Value(false),
               isExternal: const Value(false),
             );
+            // getAlbum may omit `created` even when a prior catalog response
+            // supplied it. Keep the known server date so targeted hydration
+            // cannot collapse Recently Added into its alphabetical tie-breaker.
+            if (!canonical.serverCreatedAt.present ||
+                canonical.serverCreatedAt.value == null) {
+              canonical = canonical.copyWith(
+                serverCreatedAt: const Value.absent(),
+              );
+            }
             final id = canonical.id.present ? canonical.id.value : null;
             if (id != null && pendingAlbumStars.containsKey(id)) {
               canonical = canonical.copyWith(
@@ -1446,7 +1504,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<List<AlbumsTableData>> getAllAlbums() {
     final query = select(albumsTable)
-      ..where((table) => table.isProvisional.equals(false));
+      ..where(
+        (table) =>
+            table.isProvisional.equals(false) & table.isExternal.equals(false),
+      );
     return query.get();
   }
 
@@ -2355,6 +2416,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             mode: OrderingMode.desc,
             nulls: NullsOrder.last,
           ),
+          (table) => OrderingTerm(
+            expression: table.recentlyAddedRank,
+            mode: OrderingMode.asc,
+            nulls: NullsOrder.last,
+          ),
           (table) => OrderingTerm.asc(table.name),
           (table) => OrderingTerm.asc(table.id),
         ]);
@@ -2387,7 +2453,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     bool includeUnknownYearsLast = false,
   }) {
     final sql = StringBuffer(
-      'SELECT albums.* FROM albums WHERE albums.is_provisional = 0',
+      'SELECT albums.* FROM albums '
+      'WHERE albums.is_provisional = 0 AND albums.is_external = 0',
     );
     if (likedOnly) {
       sql.write(' AND ${_likedAlbumPredicate('albums')}');
@@ -2464,7 +2531,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   String _albumOrderSql(AlbumSortOrder sort, bool includeUnknownYearsLast) {
     switch (sort) {
       case AlbumSortOrder.recentlyAdded:
-        return 'COALESCE(server_created_at, synced_at) DESC, name ASC, id ASC';
+        return 'COALESCE(server_created_at, synced_at) DESC, '
+            'recently_added_rank IS NULL ASC, recently_added_rank ASC, '
+            'name ASC, id ASC';
       case AlbumSortOrder.newest:
         if (includeUnknownYearsLast) {
           return 'year IS NULL ASC, year DESC, name ASC, id ASC';

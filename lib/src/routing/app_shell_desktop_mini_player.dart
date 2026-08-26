@@ -323,8 +323,10 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
               ? l10n.nowPlayingPause
               : l10n.nowPlayingPlay,
           onPressed: () => unawaited(playPause()),
-          icon: Icon(
-            playback.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          icon: _remoteLoadingPlayPauseIcon(
+            isExternalSource: isExternalSource,
+            isLoading: playback.isLoading,
+            isPlaying: playback.playing,
           ),
         ),
         IconButton(

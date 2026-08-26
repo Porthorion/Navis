@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -79,6 +80,7 @@ Future<void> _pumpNowPlaying(
   bool wideEmbeddedMode = false,
   bool compactWideLandscapeMode = false,
   TextScaler? textScaler,
+  bool settle = true,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -107,7 +109,11 @@ Future<void> _pumpNowPlaying(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 void _noopCollapse() {}
@@ -280,6 +286,37 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('fullscreen transport shows loading for remote playback', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer(
+      overrides: <Override>[
+        songByIdProvider.overrideWith(
+          (ref, id) => Stream<SongsTableData?>.value(
+            const SongsTableData(
+              id: 'song-1',
+              title: 'Remote fixture',
+              isProvisional: false,
+              isExternal: true,
+            ),
+          ),
+        ),
+      ],
+    );
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback
+        .copyWith(isLoading: true, loadingSongId: 'song-1');
+
+    await _pumpNowPlaying(tester, container, settle: false);
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('phone now playing remains usable at 200 percent text scale', (
     tester,

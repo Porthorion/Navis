@@ -127,6 +127,21 @@ class _ChangelogDialog extends StatelessWidget {
                       ],
                     ),
                   ),
+                if (version.specialThanks.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    l10n.changelogSpecialThanks,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  for (final thankYou in version.specialThanks)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(thankYou, style: theme.textTheme.bodyMedium),
+                    ),
+                ],
               ],
             ),
           ),

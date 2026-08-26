@@ -12,7 +12,7 @@ class CacheSystemUpgradeService {
 
   /// Increment when a cache layout cannot safely share state with the prior
   /// implementation. Fresh installs receive this value during DB creation.
-  static const int currentVersion = 2;
+  static const int currentVersion = 3;
 
   final NavisDatabase database;
   final LibraryCacheResetService cacheResetService;

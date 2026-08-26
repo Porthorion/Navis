@@ -145,7 +145,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 68;
+  int get schemaVersion => 70;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -154,7 +154,7 @@ class NavisDatabase extends _$NavisDatabase {
       await _ensureGroupListeningColumns();
       await _createIndexes();
       await _ensureAppSettingsDefaults();
-      await cacheSystemStateDao.markVersion(2);
+      await cacheSystemStateDao.markVersion(3);
     },
     onUpgrade: (m, from, to) async {
       await _runMigrations(m, from, to);
@@ -371,6 +371,33 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 68 && to >= 68) {
       await from67To68(migrator);
     }
+    if (from < 69 && to >= 69) {
+      await from68To69(migrator);
+    }
+    if (from < 70 && to >= 70) {
+      await from69To70(migrator);
+    }
+  }
+
+  Future<void> from69To70(Migrator migrator) async {
+    if (!await _columnExists('albums', 'recently_added_rank')) {
+      await migrator.addColumn(albumsTable, albumsTable.recentlyAddedRank);
+    }
+  }
+
+  Future<void> from68To69(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'onboarding_version')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.onboardingVersion,
+      );
+    }
+    // This release intentionally makes album and liked-page queue expansion
+    // the default for every local profile, not only new installations.
+    await customStatement('''
+      UPDATE app_settings
+      SET album_queue_enabled = 1, liked_queue_enabled = 1;
+    ''');
   }
 
   Future<void> from67To68(Migrator migrator) async {
@@ -1707,6 +1734,9 @@ FROM scrobble_queue;
         useLrclib: const Value(true),
         themeMode: const Value('dark'),
         colorSchemeSeed: const Value(null),
+        onboardingVersion: const Value(0),
+        albumQueueEnabled: const Value(true),
+        likedQueueEnabled: const Value(true),
         matchFlowEnabled: const Value(false),
         updatedAt: DateTime.now(),
       ),

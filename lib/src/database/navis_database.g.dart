@@ -596,6 +596,18 @@ class $AppSettingsTableTable extends AppSettingsTable
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _onboardingVersionMeta = const VerificationMeta(
+    'onboardingVersion',
+  );
+  @override
+  late final GeneratedColumn<int> onboardingVersion = GeneratedColumn<int>(
+    'onboarding_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _wifiMaxBitRateMeta = const VerificationMeta(
     'wifiMaxBitRate',
   );
@@ -1540,6 +1552,7 @@ class $AppSettingsTableTable extends AppSettingsTable
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    onboardingVersion,
     wifiMaxBitRate,
     wifiFormat,
     cellularMaxBitRate,
@@ -1628,6 +1641,15 @@ class $AppSettingsTableTable extends AppSettingsTable
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('onboarding_version')) {
+      context.handle(
+        _onboardingVersionMeta,
+        onboardingVersion.isAcceptableOrUnknown(
+          data['onboarding_version']!,
+          _onboardingVersionMeta,
+        ),
+      );
     }
     if (data.containsKey('wifi_max_bit_rate')) {
       context.handle(
@@ -2286,6 +2308,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
+      onboardingVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}onboarding_version'],
+      )!,
       wifiMaxBitRate: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}wifi_max_bit_rate'],
@@ -2590,6 +2616,10 @@ class $AppSettingsTableTable extends AppSettingsTable
 class AppSettingsTableData extends DataClass
     implements Insertable<AppSettingsTableData> {
   final int id;
+
+  /// Version of the latest first-run customization flow completed locally.
+  /// Zero means the user has not completed a flow yet.
+  final int onboardingVersion;
   final int? wifiMaxBitRate;
   final String? wifiFormat;
   final int? cellularMaxBitRate;
@@ -2793,6 +2823,7 @@ class AppSettingsTableData extends DataClass
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
+    required this.onboardingVersion,
     this.wifiMaxBitRate,
     this.wifiFormat,
     this.cellularMaxBitRate,
@@ -2871,6 +2902,7 @@ class AppSettingsTableData extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    map['onboarding_version'] = Variable<int>(onboardingVersion);
     if (!nullToAbsent || wifiMaxBitRate != null) {
       map['wifi_max_bit_rate'] = Variable<int>(wifiMaxBitRate);
     }
@@ -3010,6 +3042,7 @@ class AppSettingsTableData extends DataClass
   AppSettingsTableCompanion toCompanion(bool nullToAbsent) {
     return AppSettingsTableCompanion(
       id: Value(id),
+      onboardingVersion: Value(onboardingVersion),
       wifiMaxBitRate: wifiMaxBitRate == null && nullToAbsent
           ? const Value.absent()
           : Value(wifiMaxBitRate),
@@ -3133,6 +3166,7 @@ class AppSettingsTableData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return AppSettingsTableData(
       id: serializer.fromJson<int>(json['id']),
+      onboardingVersion: serializer.fromJson<int>(json['onboardingVersion']),
       wifiMaxBitRate: serializer.fromJson<int?>(json['wifiMaxBitRate']),
       wifiFormat: serializer.fromJson<String?>(json['wifiFormat']),
       cellularMaxBitRate: serializer.fromJson<int?>(json['cellularMaxBitRate']),
@@ -3279,6 +3313,7 @@ class AppSettingsTableData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'onboardingVersion': serializer.toJson<int>(onboardingVersion),
       'wifiMaxBitRate': serializer.toJson<int?>(wifiMaxBitRate),
       'wifiFormat': serializer.toJson<String?>(wifiFormat),
       'cellularMaxBitRate': serializer.toJson<int?>(cellularMaxBitRate),
@@ -3385,6 +3420,7 @@ class AppSettingsTableData extends DataClass
 
   AppSettingsTableData copyWith({
     int? id,
+    int? onboardingVersion,
     Value<int?> wifiMaxBitRate = const Value.absent(),
     Value<String?> wifiFormat = const Value.absent(),
     Value<int?> cellularMaxBitRate = const Value.absent(),
@@ -3460,6 +3496,7 @@ class AppSettingsTableData extends DataClass
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
+    onboardingVersion: onboardingVersion ?? this.onboardingVersion,
     wifiMaxBitRate: wifiMaxBitRate.present
         ? wifiMaxBitRate.value
         : this.wifiMaxBitRate,
@@ -3586,6 +3623,9 @@ class AppSettingsTableData extends DataClass
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
     return AppSettingsTableData(
       id: data.id.present ? data.id.value : this.id,
+      onboardingVersion: data.onboardingVersion.present
+          ? data.onboardingVersion.value
+          : this.onboardingVersion,
       wifiMaxBitRate: data.wifiMaxBitRate.present
           ? data.wifiMaxBitRate.value
           : this.wifiMaxBitRate,
@@ -3805,6 +3845,7 @@ class AppSettingsTableData extends DataClass
   String toString() {
     return (StringBuffer('AppSettingsTableData(')
           ..write('id: $id, ')
+          ..write('onboardingVersion: $onboardingVersion, ')
           ..write('wifiMaxBitRate: $wifiMaxBitRate, ')
           ..write('wifiFormat: $wifiFormat, ')
           ..write('cellularMaxBitRate: $cellularMaxBitRate, ')
@@ -3891,6 +3932,7 @@ class AppSettingsTableData extends DataClass
   @override
   int get hashCode => Object.hashAll([
     id,
+    onboardingVersion,
     wifiMaxBitRate,
     wifiFormat,
     cellularMaxBitRate,
@@ -3970,6 +4012,7 @@ class AppSettingsTableData extends DataClass
       identical(this, other) ||
       (other is AppSettingsTableData &&
           other.id == this.id &&
+          other.onboardingVersion == this.onboardingVersion &&
           other.wifiMaxBitRate == this.wifiMaxBitRate &&
           other.wifiFormat == this.wifiFormat &&
           other.cellularMaxBitRate == this.cellularMaxBitRate &&
@@ -4052,6 +4095,7 @@ class AppSettingsTableData extends DataClass
 
 class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> id;
+  final Value<int> onboardingVersion;
   final Value<int?> wifiMaxBitRate;
   final Value<String?> wifiFormat;
   final Value<int?> cellularMaxBitRate;
@@ -4127,6 +4171,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
+    this.onboardingVersion = const Value.absent(),
     this.wifiMaxBitRate = const Value.absent(),
     this.wifiFormat = const Value.absent(),
     this.cellularMaxBitRate = const Value.absent(),
@@ -4203,6 +4248,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   });
   AppSettingsTableCompanion.insert({
     this.id = const Value.absent(),
+    this.onboardingVersion = const Value.absent(),
     this.wifiMaxBitRate = const Value.absent(),
     this.wifiFormat = const Value.absent(),
     this.cellularMaxBitRate = const Value.absent(),
@@ -4279,6 +4325,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
     Expression<int>? id,
+    Expression<int>? onboardingVersion,
     Expression<int>? wifiMaxBitRate,
     Expression<String>? wifiFormat,
     Expression<int>? cellularMaxBitRate,
@@ -4355,6 +4402,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (onboardingVersion != null) 'onboarding_version': onboardingVersion,
       if (wifiMaxBitRate != null) 'wifi_max_bit_rate': wifiMaxBitRate,
       if (wifiFormat != null) 'wifi_format': wifiFormat,
       if (cellularMaxBitRate != null)
@@ -4469,6 +4517,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
 
   AppSettingsTableCompanion copyWith({
     Value<int>? id,
+    Value<int>? onboardingVersion,
     Value<int?>? wifiMaxBitRate,
     Value<String?>? wifiFormat,
     Value<int?>? cellularMaxBitRate,
@@ -4545,6 +4594,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   }) {
     return AppSettingsTableCompanion(
       id: id ?? this.id,
+      onboardingVersion: onboardingVersion ?? this.onboardingVersion,
       wifiMaxBitRate: wifiMaxBitRate ?? this.wifiMaxBitRate,
       wifiFormat: wifiFormat ?? this.wifiFormat,
       cellularMaxBitRate: cellularMaxBitRate ?? this.cellularMaxBitRate,
@@ -4645,6 +4695,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (onboardingVersion.present) {
+      map['onboarding_version'] = Variable<int>(onboardingVersion.value);
     }
     if (wifiMaxBitRate.present) {
       map['wifi_max_bit_rate'] = Variable<int>(wifiMaxBitRate.value);
@@ -4920,6 +4973,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   String toString() {
     return (StringBuffer('AppSettingsTableCompanion(')
           ..write('id: $id, ')
+          ..write('onboardingVersion: $onboardingVersion, ')
           ..write('wifiMaxBitRate: $wifiMaxBitRate, ')
           ..write('wifiFormat: $wifiFormat, ')
           ..write('cellularMaxBitRate: $cellularMaxBitRate, ')
@@ -5727,6 +5781,17 @@ class $AlbumsTableTable extends AlbumsTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _recentlyAddedRankMeta = const VerificationMeta(
+    'recentlyAddedRank',
+  );
+  @override
+  late final GeneratedColumn<int> recentlyAddedRank = GeneratedColumn<int>(
+    'recently_added_rank',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isProvisionalMeta = const VerificationMeta(
     'isProvisional',
   );
@@ -5786,6 +5851,7 @@ class $AlbumsTableTable extends AlbumsTable
     playCount,
     syncedAt,
     serverCreatedAt,
+    recentlyAddedRank,
     isProvisional,
     isExternal,
     catalogGeneration,
@@ -5899,6 +5965,15 @@ class $AlbumsTableTable extends AlbumsTable
         ),
       );
     }
+    if (data.containsKey('recently_added_rank')) {
+      context.handle(
+        _recentlyAddedRankMeta,
+        recentlyAddedRank.isAcceptableOrUnknown(
+          data['recently_added_rank']!,
+          _recentlyAddedRankMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_provisional')) {
       context.handle(
         _isProvisionalMeta,
@@ -5998,6 +6073,10 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}server_created_at'],
       ),
+      recentlyAddedRank: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}recently_added_rank'],
+      ),
       isProvisional: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_provisional'],
@@ -6053,6 +6132,12 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   /// More accurate than [syncedAt] for "Recently Added" ordering.
   final DateTime? serverCreatedAt;
 
+  /// Position in the last server `newest` response, where lower values are
+  /// newer.  Compatible servers can omit [serverCreatedAt] or assign the same
+  /// timestamp to several albums, so this preserves the server's order as a
+  /// stable Recently Added tie-breaker.
+  final int? recentlyAddedRank;
+
   /// True for lightweight parent rows created from online search/playback
   /// results before the authoritative library sync has observed the album.
   final bool isProvisional;
@@ -6080,6 +6165,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.playCount,
     this.syncedAt,
     this.serverCreatedAt,
+    this.recentlyAddedRank,
     required this.isProvisional,
     required this.isExternal,
     this.catalogGeneration,
@@ -6131,6 +6217,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     if (!nullToAbsent || serverCreatedAt != null) {
       map['server_created_at'] = Variable<DateTime>(serverCreatedAt);
     }
+    if (!nullToAbsent || recentlyAddedRank != null) {
+      map['recently_added_rank'] = Variable<int>(recentlyAddedRank);
+    }
     map['is_provisional'] = Variable<bool>(isProvisional);
     map['is_external'] = Variable<bool>(isExternal);
     if (!nullToAbsent || catalogGeneration != null) {
@@ -6179,6 +6268,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       serverCreatedAt: serverCreatedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(serverCreatedAt),
+      recentlyAddedRank: recentlyAddedRank == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recentlyAddedRank),
       isProvisional: Value(isProvisional),
       isExternal: Value(isExternal),
       catalogGeneration: catalogGeneration == null && nullToAbsent
@@ -6209,6 +6301,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       playCount: serializer.fromJson<int?>(json['playCount']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
       serverCreatedAt: serializer.fromJson<DateTime?>(json['serverCreatedAt']),
+      recentlyAddedRank: serializer.fromJson<int?>(json['recentlyAddedRank']),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
       isExternal: serializer.fromJson<bool>(json['isExternal']),
       catalogGeneration: serializer.fromJson<int?>(json['catalogGeneration']),
@@ -6234,6 +6327,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'playCount': serializer.toJson<int?>(playCount),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
       'serverCreatedAt': serializer.toJson<DateTime?>(serverCreatedAt),
+      'recentlyAddedRank': serializer.toJson<int?>(recentlyAddedRank),
       'isProvisional': serializer.toJson<bool>(isProvisional),
       'isExternal': serializer.toJson<bool>(isExternal),
       'catalogGeneration': serializer.toJson<int?>(catalogGeneration),
@@ -6257,6 +6351,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> syncedAt = const Value.absent(),
     Value<DateTime?> serverCreatedAt = const Value.absent(),
+    Value<int?> recentlyAddedRank = const Value.absent(),
     bool? isProvisional,
     bool? isExternal,
     Value<int?> catalogGeneration = const Value.absent(),
@@ -6279,6 +6374,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     serverCreatedAt: serverCreatedAt.present
         ? serverCreatedAt.value
         : this.serverCreatedAt,
+    recentlyAddedRank: recentlyAddedRank.present
+        ? recentlyAddedRank.value
+        : this.recentlyAddedRank,
     isProvisional: isProvisional ?? this.isProvisional,
     isExternal: isExternal ?? this.isExternal,
     catalogGeneration: catalogGeneration.present
@@ -6311,6 +6409,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       serverCreatedAt: data.serverCreatedAt.present
           ? data.serverCreatedAt.value
           : this.serverCreatedAt,
+      recentlyAddedRank: data.recentlyAddedRank.present
+          ? data.recentlyAddedRank.value
+          : this.recentlyAddedRank,
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
           : this.isProvisional,
@@ -6342,6 +6443,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
+          ..write('recentlyAddedRank: $recentlyAddedRank, ')
           ..write('isProvisional: $isProvisional, ')
           ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration')
@@ -6367,6 +6469,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     playCount,
     syncedAt,
     serverCreatedAt,
+    recentlyAddedRank,
     isProvisional,
     isExternal,
     catalogGeneration,
@@ -6391,6 +6494,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.playCount == this.playCount &&
           other.syncedAt == this.syncedAt &&
           other.serverCreatedAt == this.serverCreatedAt &&
+          other.recentlyAddedRank == this.recentlyAddedRank &&
           other.isProvisional == this.isProvisional &&
           other.isExternal == this.isExternal &&
           other.catalogGeneration == this.catalogGeneration);
@@ -6413,6 +6517,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<int?> playCount;
   final Value<DateTime?> syncedAt;
   final Value<DateTime?> serverCreatedAt;
+  final Value<int?> recentlyAddedRank;
   final Value<bool> isProvisional;
   final Value<bool> isExternal;
   final Value<int?> catalogGeneration;
@@ -6434,6 +6539,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
+    this.recentlyAddedRank = const Value.absent(),
     this.isProvisional = const Value.absent(),
     this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
@@ -6456,6 +6562,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
+    this.recentlyAddedRank = const Value.absent(),
     this.isProvisional = const Value.absent(),
     this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
@@ -6479,6 +6586,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<int>? playCount,
     Expression<DateTime>? syncedAt,
     Expression<DateTime>? serverCreatedAt,
+    Expression<int>? recentlyAddedRank,
     Expression<bool>? isProvisional,
     Expression<bool>? isExternal,
     Expression<int>? catalogGeneration,
@@ -6501,6 +6609,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (playCount != null) 'play_count': playCount,
       if (syncedAt != null) 'synced_at': syncedAt,
       if (serverCreatedAt != null) 'server_created_at': serverCreatedAt,
+      if (recentlyAddedRank != null) 'recently_added_rank': recentlyAddedRank,
       if (isProvisional != null) 'is_provisional': isProvisional,
       if (isExternal != null) 'is_external': isExternal,
       if (catalogGeneration != null) 'catalog_generation': catalogGeneration,
@@ -6525,6 +6634,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<int?>? playCount,
     Value<DateTime?>? syncedAt,
     Value<DateTime?>? serverCreatedAt,
+    Value<int?>? recentlyAddedRank,
     Value<bool>? isProvisional,
     Value<bool>? isExternal,
     Value<int?>? catalogGeneration,
@@ -6547,6 +6657,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       playCount: playCount ?? this.playCount,
       syncedAt: syncedAt ?? this.syncedAt,
       serverCreatedAt: serverCreatedAt ?? this.serverCreatedAt,
+      recentlyAddedRank: recentlyAddedRank ?? this.recentlyAddedRank,
       isProvisional: isProvisional ?? this.isProvisional,
       isExternal: isExternal ?? this.isExternal,
       catalogGeneration: catalogGeneration ?? this.catalogGeneration,
@@ -6607,6 +6718,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     if (serverCreatedAt.present) {
       map['server_created_at'] = Variable<DateTime>(serverCreatedAt.value);
     }
+    if (recentlyAddedRank.present) {
+      map['recently_added_rank'] = Variable<int>(recentlyAddedRank.value);
+    }
     if (isProvisional.present) {
       map['is_provisional'] = Variable<bool>(isProvisional.value);
     }
@@ -6641,6 +6755,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
+          ..write('recentlyAddedRank: $recentlyAddedRank, ')
           ..write('isProvisional: $isProvisional, ')
           ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration, ')
@@ -26588,6 +26703,7 @@ typedef $$ServerConfigTableTableProcessedTableManager =
 typedef $$AppSettingsTableTableCreateCompanionBuilder =
     AppSettingsTableCompanion Function({
       Value<int> id,
+      Value<int> onboardingVersion,
       Value<int?> wifiMaxBitRate,
       Value<String?> wifiFormat,
       Value<int?> cellularMaxBitRate,
@@ -26665,6 +26781,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
     AppSettingsTableCompanion Function({
       Value<int> id,
+      Value<int> onboardingVersion,
       Value<int?> wifiMaxBitRate,
       Value<String?> wifiFormat,
       Value<int?> cellularMaxBitRate,
@@ -26751,6 +26868,11 @@ class $$AppSettingsTableTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get onboardingVersion => $composableBuilder(
+    column: $table.onboardingVersion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -27135,6 +27257,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get onboardingVersion => $composableBuilder(
+    column: $table.onboardingVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get wifiMaxBitRate => $composableBuilder(
     column: $table.wifiMaxBitRate,
     builder: (column) => ColumnOrderings(column),
@@ -27513,6 +27640,11 @@ class $$AppSettingsTableTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get onboardingVersion => $composableBuilder(
+    column: $table.onboardingVersion,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get wifiMaxBitRate => $composableBuilder(
     column: $table.wifiMaxBitRate,
@@ -27911,6 +28043,7 @@ class $$AppSettingsTableTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<int> onboardingVersion = const Value.absent(),
                 Value<int?> wifiMaxBitRate = const Value.absent(),
                 Value<String?> wifiFormat = const Value.absent(),
                 Value<int?> cellularMaxBitRate = const Value.absent(),
@@ -27989,6 +28122,7 @@ class $$AppSettingsTableTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
+                onboardingVersion: onboardingVersion,
                 wifiMaxBitRate: wifiMaxBitRate,
                 wifiFormat: wifiFormat,
                 cellularMaxBitRate: cellularMaxBitRate,
@@ -28067,6 +28201,7 @@ class $$AppSettingsTableTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<int> onboardingVersion = const Value.absent(),
                 Value<int?> wifiMaxBitRate = const Value.absent(),
                 Value<String?> wifiFormat = const Value.absent(),
                 Value<int?> cellularMaxBitRate = const Value.absent(),
@@ -28145,6 +28280,7 @@ class $$AppSettingsTableTableTableManager
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
+                onboardingVersion: onboardingVersion,
                 wifiMaxBitRate: wifiMaxBitRate,
                 wifiFormat: wifiFormat,
                 cellularMaxBitRate: cellularMaxBitRate,
@@ -28729,6 +28865,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
+      Value<int?> recentlyAddedRank,
       Value<bool> isProvisional,
       Value<bool> isExternal,
       Value<int?> catalogGeneration,
@@ -28752,6 +28889,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
+      Value<int?> recentlyAddedRank,
       Value<bool> isProvisional,
       Value<bool> isExternal,
       Value<int?> catalogGeneration,
@@ -28881,6 +29019,11 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<DateTime> get serverCreatedAt => $composableBuilder(
     column: $table.serverCreatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get recentlyAddedRank => $composableBuilder(
+    column: $table.recentlyAddedRank,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29032,6 +29175,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get recentlyAddedRank => $composableBuilder(
+    column: $table.recentlyAddedRank,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isProvisional => $composableBuilder(
     column: $table.isProvisional,
     builder: (column) => ColumnOrderings(column),
@@ -29130,6 +29278,11 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get serverCreatedAt => $composableBuilder(
     column: $table.serverCreatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get recentlyAddedRank => $composableBuilder(
+    column: $table.recentlyAddedRank,
     builder: (column) => column,
   );
 
@@ -29241,6 +29394,7 @@ class $$AlbumsTableTableTableManager
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
+                Value<int?> recentlyAddedRank = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
                 Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
@@ -29262,6 +29416,7 @@ class $$AlbumsTableTableTableManager
                 playCount: playCount,
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
+                recentlyAddedRank: recentlyAddedRank,
                 isProvisional: isProvisional,
                 isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
@@ -29285,6 +29440,7 @@ class $$AlbumsTableTableTableManager
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
+                Value<int?> recentlyAddedRank = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
                 Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
@@ -29306,6 +29462,7 @@ class $$AlbumsTableTableTableManager
                 playCount: playCount,
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
+                recentlyAddedRank: recentlyAddedRank,
                 isProvisional: isProvisional,
                 isExternal: isExternal,
                 catalogGeneration: catalogGeneration,

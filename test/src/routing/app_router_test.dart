@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -13,11 +14,14 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
+import 'package:navis/src/features/library/presentation/required_library_rebuild_screen.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
@@ -98,6 +102,28 @@ class _StaticRequiredLibraryRebuildController
   );
 }
 
+class _StaticCacheUpgradeRebuildController
+    extends RequiredLibraryRebuildController {
+  _StaticCacheUpgradeRebuildController()
+    : super(RequiredLibraryRebuildReason.cacheUpgrade);
+
+  @override
+  RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState(
+    status: RequiredLibraryRebuildStatus.waitingForNetwork,
+  );
+}
+
+class _CompletedCacheUpgradeRebuildController
+    extends RequiredLibraryRebuildController {
+  _CompletedCacheUpgradeRebuildController()
+    : super(RequiredLibraryRebuildReason.cacheUpgrade);
+
+  @override
+  RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState(
+    status: RequiredLibraryRebuildStatus.complete,
+  );
+}
+
 class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
   @override
   int build() => 0;
@@ -108,6 +134,7 @@ const _testApp = NavisApp(splashFactory: NoSplash.splashFactory);
 ProviderContainer _createContainerWithDatabase({
   List<Override> overrides = const <Override>[],
   bool initialSyncRequired = false,
+  int onboardingVersion = currentOnboardingVersion,
 }) {
   final database = createTestDatabase();
   final container = ProviderContainer(
@@ -116,6 +143,9 @@ ProviderContainer _createContainerWithDatabase({
       overrides: <Override>[
         initialSyncRequiredProvider.overrideWithValue(
           AsyncData(initialSyncRequired),
+        ),
+        onboardingVersionProvider.overrideWithValue(
+          AsyncData(onboardingVersion),
         ),
         ...overrides,
       ],
@@ -301,6 +331,8 @@ void main() {
         UncontrolledProviderScope(container: container, child: _testApp),
       );
       await tester.pump();
+      await tester.pump();
+      await tester.pump();
 
       expect(find.text('Building Your Library'), findsOneWidget);
       expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsNothing);
@@ -310,6 +342,100 @@ void main() {
       );
     },
   );
+
+  testWidgets('cache renewal has priority over onboarding', (tester) async {
+    final container = _createContainerWithDatabase(
+      onboardingVersion: 0,
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          AsyncData(
+            ServerConfigModel(
+              id: 1,
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+              lastSynced: DateTime(2026, 8, 26),
+            ),
+          ),
+        ),
+        cacheSystemUpgradeRequiredProvider.overrideWithValue(true),
+        requiredLibraryRebuildControllerProvider(
+          RequiredLibraryRebuildReason.cacheUpgrade,
+        ).overrideWith(_StaticCacheUpgradeRebuildController.new),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    final router = container.read(appRouterProvider);
+    expect(router.state.matchedLocation, '/library-rebuild');
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['reason'],
+      'cache-upgrade',
+    );
+    expect(find.byKey(const ValueKey('requiredSyncSignOut')), findsOneWidget);
+  });
+
+  testWidgets('completed cache renewal goes directly to onboarding', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      initialLocation: '/library-rebuild',
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/library-rebuild',
+          builder: (context, state) => const RequiredLibraryRebuildScreen(
+            reason: RequiredLibraryRebuildReason.cacheUpgrade,
+          ),
+        ),
+        GoRoute(
+          path: '/onboarding',
+          builder: (context, state) => const Scaffold(
+            body: Text('Onboarding destination'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          onboardingVersionProvider.overrideWithValue(const AsyncData(0)),
+          requiredLibraryRebuildControllerProvider(
+            RequiredLibraryRebuildReason.cacheUpgrade,
+          ).overrideWith(_CompletedCacheUpgradeRebuildController.new),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+        ],
+        child: MaterialApp.router(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Onboarding destination'), findsOneWidget);
+  });
 
   testWidgets('shows offline banner when reachability is offline', (
     tester,

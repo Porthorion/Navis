@@ -9,6 +9,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 
 class RequiredLibraryRebuildScreen extends ConsumerStatefulWidget {
   const RequiredLibraryRebuildScreen({
@@ -58,11 +59,18 @@ class _RequiredLibraryRebuildScreenState
     final controller = ref.read(
       requiredLibraryRebuildControllerProvider(widget.reason).notifier,
     );
+    final onboardingRequired =
+        widget.reason == RequiredLibraryRebuildReason.cacheUpgrade
+        ? ref.watch(onboardingRequiredProvider)
+        : false;
     if (rebuild.status == RequiredLibraryRebuildStatus.complete &&
+        onboardingRequired != null &&
         !_navigatedHome) {
       _navigatedHome = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) context.go('/');
+        if (mounted) {
+          context.go(onboardingRequired ? '/onboarding' : '/');
+        }
       });
     }
 

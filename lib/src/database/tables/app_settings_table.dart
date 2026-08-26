@@ -6,6 +6,10 @@ class AppSettingsTable extends Table {
 
   IntColumn get id => integer()();
 
+  /// Version of the latest first-run customization flow completed locally.
+  /// Zero means the user has not completed a flow yet.
+  IntColumn get onboardingVersion => integer().withDefault(const Constant(0))();
+
   IntColumn get wifiMaxBitRate => integer().nullable()();
 
   TextColumn get wifiFormat => text().nullable()();

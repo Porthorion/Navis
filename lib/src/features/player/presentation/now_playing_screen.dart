@@ -2106,6 +2106,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   ],
                   _TransportControls(
                     playback: playback,
+                    isExternalSource: !isRadio && (song?.isExternal ?? false),
                     isRadio: isRadio,
                     compact: true,
                     showVolumeControl: false,
@@ -2528,6 +2529,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           children: <Widget>[
             _TransportControls(
               playback: playback,
+              isExternalSource: !isRadio && (song?.isExternal ?? false),
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
@@ -2826,6 +2828,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             ],
             _TransportControls(
               playback: playback,
+              isExternalSource: !isRadio && (song?.isExternal ?? false),
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,

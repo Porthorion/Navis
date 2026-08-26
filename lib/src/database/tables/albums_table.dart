@@ -55,6 +55,12 @@ class AlbumsTable extends Table {
   /// More accurate than [syncedAt] for "Recently Added" ordering.
   DateTimeColumn get serverCreatedAt => dateTime().nullable()();
 
+  /// Position in the last server `newest` response, where lower values are
+  /// newer.  Compatible servers can omit [serverCreatedAt] or assign the same
+  /// timestamp to several albums, so this preserves the server's order as a
+  /// stable Recently Added tie-breaker.
+  IntColumn get recentlyAddedRank => integer().nullable()();
+
   /// True for lightweight parent rows created from online search/playback
   /// results before the authoritative library sync has observed the album.
   BoolColumn get isProvisional =>

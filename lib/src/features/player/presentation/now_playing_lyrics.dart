@@ -101,6 +101,7 @@ class _FullscreenLyricsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final playback = ref.watch(playerStateProvider);
+    final song = ref.watch(songByIdProvider(songId)).asData?.value;
     final backLabel = MaterialLocalizations.of(context).backButtonTooltip;
     return Scaffold(
       appBar: AppBar(
@@ -140,6 +141,7 @@ class _FullscreenLyricsPage extends ConsumerWidget {
               const SizedBox(height: 8),
               _TransportControls(
                 playback: playback,
+                isExternalSource: song?.isExternal ?? false,
                 isRadio: playback.isRadioMode,
                 compact: true,
               ),
@@ -162,6 +164,7 @@ class _EmbeddedFullscreenLyricsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final song = ref.watch(songByIdProvider(songId)).asData?.value;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
       child: Column(
@@ -174,6 +177,7 @@ class _EmbeddedFullscreenLyricsPanel extends ConsumerWidget {
           const SizedBox(height: 8),
           _TransportControls(
             playback: playback,
+            isExternalSource: song?.isExternal ?? false,
             isRadio: playback.isRadioMode,
             compact: true,
           ),

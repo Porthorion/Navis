@@ -192,7 +192,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     );
               // ── Build render items with disc headers for multi-disc ──
               final renderItems = _buildRenderItems(filteredSongs);
-              final tracksSliver = renderItems.isEmpty
+              final loadingRemoteTracks =
+                  details.isExternal && !details.songsHydrated;
+              final tracksSliver = loadingRemoteTracks
+                  ? const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _RemoteAlbumTracksLoading(),
+                    )
+                  : renderItems.isEmpty
                   ? SliverFillRemaining(
                       hasScrollBody: false,
                       child: _showDownloadedOnly
@@ -264,11 +271,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 : Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      SongDownloadStatusIcon(
-                                        songId: song.id,
-                                        onDownload: () =>
-                                            unawaited(_downloadSong(song)),
-                                      ),
+                                      if (!song.isExternal)
+                                        SongDownloadStatusIcon(
+                                          songId: song.id,
+                                          onDownload: () =>
+                                              unawaited(_downloadSong(song)),
+                                        ),
                                       _AlbumSongMoreButton(
                                         onPressed: (anchor) => unawaited(
                                           _showSongActions(
@@ -527,17 +535,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                               l10n.albumDetailShuffleAction,
                                             ),
                                           ),
-                                          StarButton(
-                                            isStarred: isStarred,
-                                            onPressed: _isStarring
-                                                ? null
-                                                : () => _toggleStar(
-                                                    isStarred: isStarred,
-                                                  ),
-                                            label: l10n.actionLike,
-                                            starredLabel: l10n.actionLiked,
-                                          ),
-                                          if (compactDesktop)
+                                          if (!details.isExternal)
+                                            StarButton(
+                                              isStarred: isStarred,
+                                              onPressed: _isStarring
+                                                  ? null
+                                                  : () => _toggleStar(
+                                                      isStarred: isStarred,
+                                                    ),
+                                              label: l10n.actionLike,
+                                              starredLabel: l10n.actionLiked,
+                                            ),
+                                          if (!details.isExternal &&
+                                              compactDesktop)
                                             IconButton.outlined(
                                               tooltip: l10n
                                                   .albumDetailDownloadAction,
@@ -549,7 +559,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                                 size: 18,
                                               ),
                                             )
-                                          else
+                                          else if (!details.isExternal)
                                             OutlinedButton.icon(
                                               onPressed: () => unawaited(
                                                 _downloadAlbumSongs(context),
@@ -1157,8 +1167,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               }
 
               final screenWidth = MediaQuery.of(context).size.width;
-              final mobileColors = Theme.of(context).colorScheme;
-              final mobileTextTheme = Theme.of(context).textTheme;
+              final theme = Theme.of(context);
+              final mobileColors = theme.colorScheme;
+              final mobileTextTheme = theme.textTheme;
+              final isLightTheme = theme.brightness == Brightness.light;
               // Keep _screenWidth in sync so the scroll listener can compute progress.
               _screenWidth = screenWidth;
 
@@ -1269,16 +1281,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   style: mobileTextTheme.displayMedium
                                       ?.copyWith(
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                        shadows: <Shadow>[
-                                          Shadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.55,
-                                            ),
-                                            blurRadius: 12,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
+                                        color: isLightTheme
+                                            ? mobileColors.onSurface
+                                            : Colors.white,
+                                        shadows: isLightTheme
+                                            ? null
+                                            : <Shadow>[
+                                                Shadow(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.55),
+                                                  blurRadius: 12,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
                                       ),
                                 ),
                               ),
@@ -2448,122 +2463,127 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         );
                       },
                     ),
-                  // Add to favorites (toggle star)
-                  Consumer(
-                    builder: (_, favRef, _) {
-                      final currentlyStarred =
-                          favRef
-                              .watch(albumProvider(widget.albumId))
-                              .asData
-                              ?.value
-                              ?.album
-                              .starred !=
-                          null;
-                      return ListTile(
-                        leading: Icon(
-                          currentlyStarred
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                        ),
-                        title: Text(
-                          currentlyStarred ? l10n.actionLiked : l10n.actionLike,
-                        ),
-                        onTap: () {
-                          unawaited(
-                            _toggleStar(isStarred: currentlyStarred),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  // Rating
-                  Consumer(
-                    builder: (_, ratingRef, _) {
-                      final currentRating =
-                          ratingRef
-                              .watch(albumRatingProvider(widget.albumId))
-                              .asData
-                              ?.value ??
-                          albumRating;
-                      return ListTile(
-                        leading: const Icon(Icons.star_outline),
-                        title: Text(l10n.ratingTitle),
-                        subtitle: Text(l10n.ratingHint),
-                        trailing: RatingWidget(
-                          rating: currentRating,
-                          compact: true,
-                          onChanged: (next) {
-                            unawaited(_updateAlbumRating(next));
+                  // Remote catalog records cannot be modified or downloaded.
+                  if (!details.isExternal) ...<Widget>[
+                    // Add to favorites (toggle star)
+                    Consumer(
+                      builder: (_, favRef, _) {
+                        final currentlyStarred =
+                            favRef
+                                .watch(albumProvider(widget.albumId))
+                                .asData
+                                ?.value
+                                ?.album
+                                .starred !=
+                            null;
+                        return ListTile(
+                          leading: Icon(
+                            currentlyStarred
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                          ),
+                          title: Text(
+                            currentlyStarred
+                                ? l10n.actionLiked
+                                : l10n.actionLike,
+                          ),
+                          onTap: () {
+                            unawaited(
+                              _toggleStar(isStarred: currentlyStarred),
+                            );
                           },
-                        ),
-                      );
-                    },
-                  ),
-                  // Add to playlist
-                  ListTile(
-                    leading: const Icon(Icons.playlist_add),
-                    title: Text(l10n.librarySongMenuAddToPlaylist),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        showAddToPlaylistSheet(
-                          context,
-                          ref,
-                          songs.map((s) => s.id).toList(growable: false),
-                        ),
-                      );
-                    },
-                  ),
-                  // Download album
-                  Consumer(
-                    builder: (_, dlRef, _) {
-                      final isFullyDownloaded =
-                          songs.isNotEmpty &&
-                          songs.every(
-                            (s) =>
-                                dlRef
-                                    .watch(songDownloadStateProvider(s.id))
-                                    .status ==
-                                SongDownloadStatus.downloaded,
-                          );
-                      if (isFullyDownloaded) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            const Divider(height: 1),
-                            ListTile(
-                              leading: Icon(
-                                Icons.delete_outlined,
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                              title: Text(
-                                l10n.deleteDownloadAction,
-                                style: TextStyle(
+                        );
+                      },
+                    ),
+                    // Rating
+                    Consumer(
+                      builder: (_, ratingRef, _) {
+                        final currentRating =
+                            ratingRef
+                                .watch(albumRatingProvider(widget.albumId))
+                                .asData
+                                ?.value ??
+                            albumRating;
+                        return ListTile(
+                          leading: const Icon(Icons.star_outline),
+                          title: Text(l10n.ratingTitle),
+                          subtitle: Text(l10n.ratingHint),
+                          trailing: RatingWidget(
+                            rating: currentRating,
+                            compact: true,
+                            onChanged: (next) {
+                              unawaited(_updateAlbumRating(next));
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                    // Add to playlist
+                    ListTile(
+                      leading: const Icon(Icons.playlist_add),
+                      title: Text(l10n.librarySongMenuAddToPlaylist),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        unawaited(
+                          showAddToPlaylistSheet(
+                            context,
+                            ref,
+                            songs.map((s) => s.id).toList(growable: false),
+                          ),
+                        );
+                      },
+                    ),
+                    // Download album
+                    Consumer(
+                      builder: (_, dlRef, _) {
+                        final isFullyDownloaded =
+                            songs.isNotEmpty &&
+                            songs.every(
+                              (s) =>
+                                  dlRef
+                                      .watch(songDownloadStateProvider(s.id))
+                                      .status ==
+                                  SongDownloadStatus.downloaded,
+                            );
+                        if (isFullyDownloaded) {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Divider(height: 1),
+                              ListTile(
+                                leading: Icon(
+                                  Icons.delete_outlined,
                                   color: Theme.of(context).colorScheme.error,
                                 ),
+                                title: Text(
+                                  l10n.deleteDownloadAction,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                                onTap: () {
+                                  Navigator.of(sheetContext).pop();
+                                  unawaited(
+                                    _deleteAllAlbumDownloads(context, songs),
+                                  );
+                                },
                               ),
-                              onTap: () {
-                                Navigator.of(sheetContext).pop();
-                                unawaited(
-                                  _deleteAllAlbumDownloads(context, songs),
-                                );
-                              },
-                            ),
-                          ],
-                        );
-                      }
-                      return ListTile(
-                        leading: const Icon(Icons.download_outlined),
-                        title: Text(l10n.albumDetailDownloadAction),
-                        onTap: () {
-                          Navigator.of(sheetContext).pop();
-                          unawaited(
-                            _downloadAlbumSongs(context),
+                            ],
                           );
-                        },
-                      );
-                    },
-                  ),
+                        }
+                        return ListTile(
+                          leading: const Icon(Icons.download_outlined),
+                          title: Text(l10n.albumDetailDownloadAction),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            unawaited(
+                              _downloadAlbumSongs(context),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -2978,6 +2998,32 @@ class _RatingButtonState extends State<_RatingButton>
 }
 
 // ── Render-item types for disc-grouped track lists ─────────────────────────
+
+class _RemoteAlbumTracksLoading extends StatelessWidget {
+  const _RemoteAlbumTracksLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Loading tracks from the remote catalog…',
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 enum _AlbumSongContextAction {
   playNow,

@@ -119,4 +119,28 @@ void main() {
       expect(find.text('AudioMuse AI'), findsNothing);
     },
   );
+
+  testWidgets('places quick customization in Other before About', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1200, 1000));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Other'), findsOneWidget);
+    expect(find.text('Run Quick Customization'), findsOneWidget);
+    expect(find.text('Customize Navis'), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('Run Quick Customization')).dy,
+      lessThan(tester.getTopLeft(find.text('About')).dy),
+    );
+  });
 }

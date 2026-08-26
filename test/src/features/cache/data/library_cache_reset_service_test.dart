@@ -24,6 +24,21 @@ void main() {
     expect(await service.needsReset(), isFalse);
   }, skip: !sqliteAvailable);
 
+  test('previous cache contract requires a renewal', () async {
+    final database = NavisDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.cacheSystemStateDao.markVersion(
+      CacheSystemUpgradeService.currentVersion - 1,
+    );
+    final service = CacheSystemUpgradeService(
+      database: database,
+      cacheResetService: LibraryCacheResetService(database: database),
+      triggerFullLibraryScan: () async => true,
+    );
+
+    expect(await service.needsReset(), isTrue);
+  }, skip: !sqliteAvailable);
+
   test('legacy profiles remain pending until reset completes', () async {
     final database = NavisDatabase(NativeDatabase.memory());
     addTearDown(database.close);
