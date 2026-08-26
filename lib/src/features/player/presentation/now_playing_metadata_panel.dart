@@ -364,10 +364,9 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                         );
                                       }
                                     : null,
-                                child: Text(
-                                  page.value,
+                                child: _NowPlayingInfoValue(
+                                  page: page,
                                   maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
@@ -394,12 +393,16 @@ class _NowPlayingInfoPage {
     required this.icon,
     required this.semanticLabel,
     required this.value,
+    this.valueLeadingIcon,
+    this.valueLeadingIconSemanticLabel,
     this.isRatingPage = false,
   });
 
   final IconData icon;
   final String semanticLabel;
   final String value;
+  final IconData? valueLeadingIcon;
+  final String? valueLeadingIconSemanticLabel;
   final bool isRatingPage;
 }
 
@@ -411,11 +414,17 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
   required MediaItem? currentMediaItem,
   required double playbackSpeed,
 }) {
+  final transcodingApplied =
+      (currentMediaItem?.extras?['transcodingApplied'] as bool?) ?? false;
   return <_NowPlayingInfoPage>[
     _NowPlayingInfoPage(
       icon: Icons.info_outline,
       semanticLabel: l10n.nowPlayingAudioQuality,
       value: _formatAudioQuality(song: song, mediaItem: currentMediaItem),
+      valueLeadingIcon: transcodingApplied ? Icons.transform : null,
+      valueLeadingIconSemanticLabel: transcodingApplied
+          ? l10n.nowPlayingTranscodedPlayback
+          : null,
     ),
     _NowPlayingInfoPage(
       icon: Icons.queue_music_outlined,
@@ -600,13 +609,67 @@ class _NowPlayingInfoGridCell extends StatelessWidget {
                 style: labelStyle,
               ),
               const SizedBox(height: 2),
-              Text(
-                page.value,
+              _NowPlayingInfoValue(
+                page: page,
                 maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: valueStyle,
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NowPlayingInfoValue extends StatelessWidget {
+  const _NowPlayingInfoValue({
+    required this.page,
+    required this.maxLines,
+    required this.style,
+    this.textAlign,
+  });
+
+  final _NowPlayingInfoPage page;
+  final int maxLines;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    final leadingIcon = page.valueLeadingIcon;
+    if (leadingIcon == null) {
+      return Text(
+        page.value,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        textAlign: textAlign,
+        style: style,
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Semantics(
+          label: page.valueLeadingIconSemanticLabel,
+          child: ExcludeSemantics(
+            child: Icon(
+              leadingIcon,
+              size: 14,
+              color: Theme.of(context).colorScheme.onSurfaceVariant
+                  .withValues(alpha: 0.72),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            page.value,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            textAlign: textAlign,
+            style: style,
           ),
         ),
       ],
@@ -620,20 +683,14 @@ String _formatAudioQuality({
 }) {
   final extras = mediaItem?.extras;
   final resolvedFormat = (extras?['resolvedFormat'] as String?)?.trim();
-  final transcodingApplied = (extras?['transcodingApplied'] as bool?) ?? false;
   final formatLabel =
-      _formatAudioFormatLabel(
-        resolvedFormat,
-        isTranscoded: transcodingApplied,
-      ) ??
+      _formatAudioFormatLabel(resolvedFormat) ??
       song?.suffix?.trim().toUpperCase() ??
       _inferAudioFormat(song?.contentType);
   final bitRate = (extras?['resolvedBitRate'] as int?) ?? song?.bitRate;
   final sampleRate = _readSampleRateFromExtras(extras) ?? song?.sampleRate;
-  final descriptor = transcodingApplied ? 'Transcoded' : null;
 
   final parts = <String>[
-    ?descriptor,
     if (formatLabel != null && formatLabel.isNotEmpty) formatLabel,
     if (bitRate != null && bitRate > 0) _formatBitRate(bitRate),
     if (sampleRate != null && sampleRate > 0) _formatSampleRate(sampleRate),
@@ -688,16 +745,13 @@ int? _readSampleRateFromExtras(Map<String, dynamic>? extras) {
   return null;
 }
 
-String? _formatAudioFormatLabel(String? format, {required bool isTranscoded}) {
+String? _formatAudioFormatLabel(String? format) {
   final normalized = format?.trim();
   if (normalized != null && normalized.isNotEmpty) {
     if (normalized.toLowerCase() == 'transcoded') {
-      return 'Transcoded';
+      return null;
     }
     return normalized.toUpperCase();
-  }
-  if (isTranscoded) {
-    return 'Transcoded';
   }
   return null;
 }

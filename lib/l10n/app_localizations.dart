@@ -3953,6 +3953,12 @@ abstract class AppLocalizations {
   /// **'Audio quality'**
   String get nowPlayingAudioQuality;
 
+  /// No description provided for @nowPlayingTranscodedPlayback.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcoded playback'**
+  String get nowPlayingTranscodedPlayback;
+
   /// No description provided for @nowPlayingReleaseDate.
   ///
   /// In en, this message translates to:

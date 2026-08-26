@@ -984,6 +984,7 @@
   "nowPlayingGoToAlbum": "Go to album",
   "nowPlayingGoToArtist": "Go to artist",
   "nowPlayingAudioQuality": "Audio quality",
+  "nowPlayingTranscodedPlayback": "Transcoded playback",
   "nowPlayingReleaseDate": "Release date",
   "lyricsTitle": "Lyrics",
   "lyricsNoneAvailable": "No Lyrics Available",

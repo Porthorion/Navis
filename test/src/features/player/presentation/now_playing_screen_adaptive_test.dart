@@ -225,6 +225,117 @@ void main() {
     },
   );
 
+  testWidgets(
+    'full player marks transcoded output with an accessible transform icon',
+    (tester) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final container = _createContainer(
+        overrides: <Override>[
+          currentMediaItemProvider.overrideWithValue(
+            const AsyncData(
+              MediaItem(
+                id: 'song-1',
+                title: 'Track',
+                extras: <String, dynamic>{
+                  'resolvedFormat': 'opus',
+                  'resolvedBitRate': 320,
+                  'transcodingApplied': true,
+                },
+              ),
+            ),
+          ),
+        ],
+      );
+      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+
+      await _pumpNowPlaying(tester, container);
+
+      expect(find.byIcon(Icons.transform), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Transcoded playback',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('OPUS • 320 Kb/s'), findsOneWidget);
+      expect(find.text('Transcoded'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('full player keeps original playback quality unmarked', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer(
+      overrides: <Override>[
+        currentMediaItemProvider.overrideWithValue(
+          const AsyncData(
+            MediaItem(
+              id: 'song-1',
+              title: 'Track',
+              extras: <String, dynamic>{
+                'resolvedFormat': 'flac',
+                'resolvedBitRate': 900,
+                'transcodingApplied': false,
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+
+    await _pumpNowPlaying(tester, container);
+
+    expect(find.byIcon(Icons.transform), findsNothing);
+    expect(find.text('FLAC • 900 Kb/s'), findsOneWidget);
+    expect(find.bySemanticsLabel('Transcoded playback'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('full player retains the icon for bitrate-only transcoding', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer(
+      overrides: <Override>[
+        currentMediaItemProvider.overrideWithValue(
+          const AsyncData(
+            MediaItem(
+              id: 'song-1',
+              title: 'Track',
+              extras: <String, dynamic>{
+                'resolvedFormat': 'transcoded',
+                'resolvedBitRate': 192,
+                'transcodingApplied': true,
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+
+    await _pumpNowPlaying(tester, container);
+
+    expect(find.byIcon(Icons.transform), findsOneWidget);
+    expect(find.text('192 Kb/s'), findsOneWidget);
+    expect(find.text('Transcoded'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Now Playing Like feedback retains its normal motion', (
     tester,
   ) async {

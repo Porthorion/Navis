@@ -2235,6 +2235,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingAudioQuality => 'Audio quality';
 
   @override
+  String get nowPlayingTranscodedPlayback => 'Transcoded playback';
+
+  @override
   String get nowPlayingReleaseDate => 'Release date';
 
   @override

@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.3.0',
     entries: [
       ChangelogEntry(
+        'Now Playing shows a compact transcode indicator beside the active audio quality instead of a text prefix',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Streaming quality settings can now request Vorbis transcoding alongside MP3, AAC, and Opus',
         type: ChangelogEntryType.improvement,
       ),
