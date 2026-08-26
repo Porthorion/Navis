@@ -155,10 +155,12 @@ Located in `lib/src/providers/app_providers.dart`:
   counts, and timestamps for 90 days; a target key is cleared on completion,
   so neither diagnostics nor Settings history retains IDs, titles, URLs,
   credentials, or filesystem paths.
-- `requiredLibrarySyncModelVersionProvider` - One-time sync model `56` repair
-  gate for the schema-v56 candidate-catalog contract; app build updates do not
-  force full sync, and a promoted catalog satisfies the gate even when
-  unavailable albums remain queued for targeted hydration
+- `requiredLibrarySyncModelVersionProvider` - One-time sync model `57` repair
+  gate. It rebuilds the complete server newest feed after the v73 external-row
+  repair so persisted libraries receive authoritative Recently Added ranks.
+  The repair waits for an unmetered connection, does not remove downloads, and
+  a promoted catalog satisfies the gate even when unavailable albums remain
+  queued for targeted hydration.
 - Fresh catalog candidates clear abandoned page checkpoints for the reused
   generation. Promotion validates checkpoint-to-row counts and refuses an
   empty album candidate when the artist snapshot reports albums, preserving
@@ -931,7 +933,11 @@ states without starting audio or modifying a queue.
    completes. An explicit refresh is not freshness-gated: it runs bounded
    delta reconciliation and always scans the first five
    `getAlbumList2(type=newest)` pages (500 entries), even when the artist
-   cursor is unchanged. If that explicit request
+   cursor is unchanged. Their server positions are the primary Recently Added
+   order; entries outside the observed feed sort only by server `created`,
+   never a device synchronization timestamp. A full repair pages the complete
+   newest feed into the hidden candidate and rejects repeated pagination before
+   atomically promoting its ranks. If that explicit request
    is made offline, its durable work remains delta reconciliation and resumes
    when an eligible connection returns; it must never be degraded to an
    indexes-only probe. On a metered connection, ordinary Check for updates
@@ -1031,8 +1037,14 @@ states without starting audio or modifying a queue.
    only missing values use the `ext-*`, `remote-*`, and `pl-deezer-*` fallback.
    Broad snapshot candidates discard external rows. Targeted external detail
    trees remain provisional and are visible only through exact artist/album
-   relationships; canonical promotion clears `is_external` when the server
-   later imports the item. Cache and download ownership do not affect source.
+   relationships; an individual album-detail response is content authority
+   only and cannot override already persisted catalog membership or parent
+   artist metadata that it omits or contradicts. Canonical promotion clears
+   `is_external` only when a catalog-authoritative snapshot later observes the
+   item on-server. Cache
+   and download ownership do not affect source. Schema v73 repairs legacy
+   `ext-*`, `remote-*`, and `pl-deezer-*` rows that were stored as local before
+   provenance became reliable, so they no longer leak into Home or Albums.
    Remote status is rendered contextually: a neutral globe-and-Remote pill on
    browsing artwork, an inline label in dense rows and playback metadata, and
    a metadata chip on detail screens. Local/on-server media is intentionally

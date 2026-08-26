@@ -47,6 +47,10 @@ class LibrarySyncCandidateAlbumsTable extends Table {
 
   DateTimeColumn get serverCreatedAt => dateTime().nullable()();
 
+  /// Position in the complete server `newest` snapshot. This is promoted
+  /// atomically with the candidate catalog so repairs cannot lose ordering.
+  IntColumn get recentlyAddedRank => integer().nullable()();
+
   /// Null while the candidate still needs comparison, zero when it matches
   /// the committed row, and one when promotion must insert or update it.
   IntColumn get applyState => integer().nullable()();

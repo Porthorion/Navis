@@ -772,6 +772,7 @@ class SyncDiagnosticsServer {
                 'serverCreatedAt': album.serverCreatedAt
                     ?.toUtc()
                     .toIso8601String(),
+                'recentlyAddedRank': album.recentlyAddedRank,
                 'usesSyncedAtFallback': album.serverCreatedAt == null,
               },
           ],

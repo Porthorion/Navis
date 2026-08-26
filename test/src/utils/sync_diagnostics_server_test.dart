@@ -56,7 +56,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 71);
+    expect(authorized.body['schemaVersion'], 73);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -410,6 +410,10 @@ void main() {
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.body['sort'], 'recentlyAdded');
+      expect(
+        (response.body['albums'] as List<Object?>).first,
+        contains('recentlyAddedRank'),
+      );
       expect(
         (response.body['albums'] as List<Object?>)
             .cast<Map<String, Object?>>()

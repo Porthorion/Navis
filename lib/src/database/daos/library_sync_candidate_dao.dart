@@ -208,6 +208,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
             playCount: album.playCount,
             syncedAt: album.syncedAt,
             serverCreatedAt: album.serverCreatedAt,
+            recentlyAddedRank: album.recentlyAddedRank,
           );
           // A later album-detail response commonly lacks `created`. Keep a
           // creation date already collected from the newest/catalog feed.
@@ -895,6 +896,62 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
               table.generation.equals(generation),
         ))
         .get();
+  }
+
+  Future<void> replaceRecentlyAddedRanks({
+    required int serverId,
+    required int generation,
+    required Map<String, int> ranks,
+  }) async {
+    final normalizedRanks = <String, int>{
+      for (final entry in ranks.entries)
+        if (entry.key.trim().isNotEmpty && entry.value >= 0)
+          entry.key.trim(): entry.value,
+    };
+    await transaction(() async {
+      await (update(librarySyncCandidateAlbumsTable)..where(
+            (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation),
+          ))
+          .write(
+            const LibrarySyncCandidateAlbumsTableCompanion(
+              recentlyAddedRank: Value(null),
+            ),
+          );
+      if (normalizedRanks.isEmpty) return;
+      await batch((batch) {
+        for (final entry in normalizedRanks.entries) {
+          batch.update(
+            librarySyncCandidateAlbumsTable,
+            LibrarySyncCandidateAlbumsTableCompanion(
+              recentlyAddedRank: Value(entry.value),
+            ),
+            where: (table) =>
+                table.serverId.equals(serverId) &
+                table.generation.equals(generation) &
+                table.id.equals(entry.key),
+          );
+        }
+      });
+    });
+  }
+
+  Future<Map<String, int>> getRecentlyAddedRanks({
+    required int serverId,
+    required int generation,
+  }) async {
+    final rows =
+        await (select(librarySyncCandidateAlbumsTable)..where(
+              (table) =>
+                  table.serverId.equals(serverId) &
+                  table.generation.equals(generation) &
+                  table.recentlyAddedRank.isNotNull(),
+            ))
+            .get();
+    return <String, int>{
+      for (final row in rows) row.id: row.recentlyAddedRank!,
+    };
   }
 
   Future<List<LibrarySyncCandidateSongsTableData>> getSongs({

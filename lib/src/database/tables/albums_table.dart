@@ -47,7 +47,7 @@ class AlbumsTable extends Table {
   IntColumn get playCount => integer().nullable()();
 
   /// When this album was first persisted to the local database (synced from
-  /// server).  Used for the "Recently Added" sort order.
+  /// server). Internal synchronization metadata; never an ordering authority.
   DateTimeColumn get syncedAt => dateTime().nullable()();
 
   /// When the album was added to the Subsonic server library.

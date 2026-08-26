@@ -739,34 +739,35 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Saves the order advertised by a server's bounded `newest` feed.
+  /// Atomically replaces Recently Added order with a server `newest` snapshot.
   ///
-  /// Creation dates remain the primary Recently Added sort key. This rank
-  /// only resolves servers that omit that optional value, or return a shared
-  /// creation timestamp for a batch of albums. Updating every observed row
-  /// lets a regular refresh repair an older cache without requiring a reset.
-  Future<void> updateRecentlyAddedRanksFromNewestFeed(
+  /// A rank is the primary ordering authority. Albums outside the observed
+  /// snapshot deliberately remain unranked and sort by their server creation
+  /// date, never by the local synchronization time.
+  Future<void> replaceRecentlyAddedRanksFromNewestFeed(
     Map<String, int> ranks,
   ) async {
-    if (ranks.isEmpty) {
-      return;
-    }
     final normalizedRanks = <String, int>{
       for (final entry in ranks.entries)
         if (entry.key.trim().isNotEmpty && entry.value >= 0)
           entry.key.trim(): entry.value,
     };
-    if (normalizedRanks.isEmpty) {
-      return;
-    }
-    await batch((batch) {
-      for (final entry in normalizedRanks.entries) {
-        batch.update(
-          albumsTable,
-          AlbumsTableCompanion(recentlyAddedRank: Value(entry.value)),
-          where: (table) => table.id.equals(entry.key),
-        );
-      }
+    await transaction(() async {
+      await (update(albumsTable)..where(
+            (table) => table.isExternal.equals(false),
+          ))
+          .write(const AlbumsTableCompanion(recentlyAddedRank: Value(null)));
+      if (normalizedRanks.isEmpty) return;
+      await batch((batch) {
+        for (final entry in normalizedRanks.entries) {
+          batch.update(
+            albumsTable,
+            AlbumsTableCompanion(recentlyAddedRank: Value(entry.value)),
+            where: (table) =>
+                table.id.equals(entry.key) & table.isExternal.equals(false),
+          );
+        }
+      });
     });
   }
 
@@ -2403,22 +2404,23 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     AlbumSortOrder sort,
   ) {
     final query = select(albumsTable)
-      ..where((table) => table.isProvisional.equals(false));
+      ..where(
+        (table) =>
+            table.isProvisional.equals(false) & table.isExternal.equals(false),
+      );
     switch (sort) {
       case AlbumSortOrder.recentlyAdded:
-        // Sort by when the album was added to the server (serverCreatedAt),
-        // falling back to our local sync timestamp so pre-v17 rows still sort.
+        // The server's newest feed is authoritative whenever it supplied a
+        // position. Rows outside that feed use only a server creation date.
         query.orderBy([
-          (table) => OrderingTerm(
-            expression: CustomExpression<DateTime>(
-              'COALESCE(server_created_at, synced_at)',
-            ),
-            mode: OrderingMode.desc,
-            nulls: NullsOrder.last,
-          ),
           (table) => OrderingTerm(
             expression: table.recentlyAddedRank,
             mode: OrderingMode.asc,
+            nulls: NullsOrder.last,
+          ),
+          (table) => OrderingTerm(
+            expression: table.serverCreatedAt,
+            mode: OrderingMode.desc,
             nulls: NullsOrder.last,
           ),
           (table) => OrderingTerm.asc(table.name),
@@ -2531,8 +2533,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   String _albumOrderSql(AlbumSortOrder sort, bool includeUnknownYearsLast) {
     switch (sort) {
       case AlbumSortOrder.recentlyAdded:
-        return 'COALESCE(server_created_at, synced_at) DESC, '
-            'recently_added_rank IS NULL ASC, recently_added_rank ASC, '
+        return 'recently_added_rank IS NULL ASC, recently_added_rank ASC, '
+            'server_created_at IS NULL ASC, server_created_at DESC, '
             'name ASC, id ASC';
       case AlbumSortOrder.newest:
         if (includeUnknownYearsLast) {

@@ -144,7 +144,9 @@ final requiredLibrarySyncModelVersionProvider = Provider<String?>((ref) {
   return currentLibrarySyncModelVersion;
 });
 
-const currentLibrarySyncModelVersion = '56';
+// v57 rebuilds the complete newest feed so every persisted library receives
+// authoritative Recently Added ranks after the v73 repair.
+const currentLibrarySyncModelVersion = '57';
 
 const bool _syncDiagnosticsEnabled = bool.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS',

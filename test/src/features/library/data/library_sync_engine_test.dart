@@ -1391,6 +1391,74 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test(
+      'remote album detail cannot clear persisted provenance or artist metadata',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        await database.libraryDao.upsertProvisionalArtists(
+          <ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(
+              id: 'remote-artist',
+              name: 'Remote Artist',
+              isExternal: const Value(true),
+            ),
+          ],
+        );
+        await database.libraryDao.upsertProvisionalAlbums(
+          <AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'remote-album',
+              name: 'Remote Album',
+              artistId: const Value('remote-artist'),
+              artistName: const Value('Remote Artist'),
+              isExternal: const Value(true),
+            ),
+          ],
+        );
+        // A partial provider response contradicts the already-persisted
+        // remote membership and assigns it to a different artist. Detail is
+        // content authority only, so it must not make the release disappear
+        // from the artist page that originally exposed it.
+        api.albumDetails['remote-album'] = const Album(
+          id: 'remote-album',
+          name: 'Remote Album',
+          artist: 'Incorrect Detail Artist',
+          artistId: 'incorrect-detail-artist',
+          isExternal: false,
+          songs: <Song>[
+            Song(id: 'remote-song', title: 'Remote Song'),
+          ],
+        );
+
+        final state = await engine.hydrateAlbum('remote-album');
+        final album = await database.libraryDao.getAlbumById('remote-album');
+        final song = await database.libraryDao.getSongById('remote-song');
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(album?.artistId, 'remote-artist');
+        expect(album?.artistName, 'Remote Artist');
+        expect(album?.isExternal, isTrue);
+        expect(album?.isProvisional, isTrue);
+        expect(album?.songsHydrated, isTrue);
+        expect(song?.isExternal, isTrue);
+        expect(song?.isProvisional, isTrue);
+        expect(
+          await database.libraryDao.watchSongsByAlbum('remote-album').first,
+          hasLength(1),
+        );
+        expect(
+          await database.libraryDao.watchAlbumsByArtist('remote-artist').first,
+          hasLength(1),
+        );
+        final artistBuckets = await database.libraryDao
+            .watchArtistAlbumBuckets('remote-artist')
+            .firstWhere((buckets) => !buckets.isEmpty);
+        expect(artistBuckets.primaryAlbums, hasLength(1));
+        expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('cancellation interrupts an active targeted request', () async {
       await saveSession(lastSynced: DateTime.now());
       api.albumCompleter = Completer<Album>();

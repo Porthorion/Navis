@@ -33,6 +33,23 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.3.1',
+    entries: [
+      ChangelogEntry(
+        "Recently Added now follows your server's complete newest-feed order through manual refreshes and library rebuilds, never the time Navis synced an album",
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Opening a remote release now preserves its remote status and artist relationship even when the detail response is incomplete or inconsistent, keeps its tracks visible, and keeps it out of Home and Albums until it is on your server',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'This update performs a one-time full library resync on your next unmetered connection, preserving downloads while applying the corrected order across your catalog',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.3.0',
     entries: [
       ChangelogEntry(
@@ -70,10 +87,6 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Remote releases are now clearly labelled, load their tracks with progress feedback, and stay out of your main Albums library',
         type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        "Recently Added now preserves your server's newest-feed order when album dates are missing or tied during a refresh",
-        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Existing installations now automatically renew their library cache and rebuild before first-run setup, while keeping downloaded music',

@@ -6124,7 +6124,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   final int? playCount;
 
   /// When this album was first persisted to the local database (synced from
-  /// server).  Used for the "Recently Added" sort order.
+  /// server). Internal synchronization metadata; never an ordering authority.
   final DateTime? syncedAt;
 
   /// When the album was added to the Subsonic server library.
@@ -21479,6 +21479,17 @@ class $LibrarySyncCandidateAlbumsTableTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _recentlyAddedRankMeta = const VerificationMeta(
+    'recentlyAddedRank',
+  );
+  @override
+  late final GeneratedColumn<int> recentlyAddedRank = GeneratedColumn<int>(
+    'recently_added_rank',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _applyStateMeta = const VerificationMeta(
     'applyState',
   );
@@ -21511,6 +21522,7 @@ class $LibrarySyncCandidateAlbumsTableTable
     playCount,
     syncedAt,
     serverCreatedAt,
+    recentlyAddedRank,
     applyState,
   ];
   @override
@@ -21647,6 +21659,15 @@ class $LibrarySyncCandidateAlbumsTableTable
         ),
       );
     }
+    if (data.containsKey('recently_added_rank')) {
+      context.handle(
+        _recentlyAddedRankMeta,
+        recentlyAddedRank.isAcceptableOrUnknown(
+          data['recently_added_rank']!,
+          _recentlyAddedRankMeta,
+        ),
+      );
+    }
     if (data.containsKey('apply_state')) {
       context.handle(
         _applyStateMeta,
@@ -21743,6 +21764,10 @@ class $LibrarySyncCandidateAlbumsTableTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}server_created_at'],
       ),
+      recentlyAddedRank: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}recently_added_rank'],
+      ),
       applyState: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}apply_state'],
@@ -21781,6 +21806,10 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
   final DateTime? syncedAt;
   final DateTime? serverCreatedAt;
 
+  /// Position in the complete server `newest` snapshot. This is promoted
+  /// atomically with the candidate catalog so repairs cannot lose ordering.
+  final int? recentlyAddedRank;
+
   /// Null while the candidate still needs comparison, zero when it matches
   /// the committed row, and one when promotion must insert or update it.
   final int? applyState;
@@ -21804,6 +21833,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     this.playCount,
     this.syncedAt,
     this.serverCreatedAt,
+    this.recentlyAddedRank,
     this.applyState,
   });
   @override
@@ -21856,6 +21886,9 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     if (!nullToAbsent || serverCreatedAt != null) {
       map['server_created_at'] = Variable<DateTime>(serverCreatedAt);
     }
+    if (!nullToAbsent || recentlyAddedRank != null) {
+      map['recently_added_rank'] = Variable<int>(recentlyAddedRank);
+    }
     if (!nullToAbsent || applyState != null) {
       map['apply_state'] = Variable<int>(applyState);
     }
@@ -21905,6 +21938,9 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       serverCreatedAt: serverCreatedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(serverCreatedAt),
+      recentlyAddedRank: recentlyAddedRank == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recentlyAddedRank),
       applyState: applyState == null && nullToAbsent
           ? const Value.absent()
           : Value(applyState),
@@ -21936,6 +21972,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       playCount: serializer.fromJson<int?>(json['playCount']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
       serverCreatedAt: serializer.fromJson<DateTime?>(json['serverCreatedAt']),
+      recentlyAddedRank: serializer.fromJson<int?>(json['recentlyAddedRank']),
       applyState: serializer.fromJson<int?>(json['applyState']),
     );
   }
@@ -21962,6 +21999,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       'playCount': serializer.toJson<int?>(playCount),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
       'serverCreatedAt': serializer.toJson<DateTime?>(serverCreatedAt),
+      'recentlyAddedRank': serializer.toJson<int?>(recentlyAddedRank),
       'applyState': serializer.toJson<int?>(applyState),
     };
   }
@@ -21986,6 +22024,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> syncedAt = const Value.absent(),
     Value<DateTime?> serverCreatedAt = const Value.absent(),
+    Value<int?> recentlyAddedRank = const Value.absent(),
     Value<int?> applyState = const Value.absent(),
   }) => LibrarySyncCandidateAlbumsTableData(
     serverId: serverId ?? this.serverId,
@@ -22009,6 +22048,9 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     serverCreatedAt: serverCreatedAt.present
         ? serverCreatedAt.value
         : this.serverCreatedAt,
+    recentlyAddedRank: recentlyAddedRank.present
+        ? recentlyAddedRank.value
+        : this.recentlyAddedRank,
     applyState: applyState.present ? applyState.value : this.applyState,
   );
   LibrarySyncCandidateAlbumsTableData copyWithCompanion(
@@ -22046,6 +22088,9 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       serverCreatedAt: data.serverCreatedAt.present
           ? data.serverCreatedAt.value
           : this.serverCreatedAt,
+      recentlyAddedRank: data.recentlyAddedRank.present
+          ? data.recentlyAddedRank.value
+          : this.recentlyAddedRank,
       applyState: data.applyState.present
           ? data.applyState.value
           : this.applyState,
@@ -22074,13 +22119,14 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
+          ..write('recentlyAddedRank: $recentlyAddedRank, ')
           ..write('applyState: $applyState')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     serverId,
     generation,
     id,
@@ -22100,8 +22146,9 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     playCount,
     syncedAt,
     serverCreatedAt,
+    recentlyAddedRank,
     applyState,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -22125,6 +22172,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
           other.playCount == this.playCount &&
           other.syncedAt == this.syncedAt &&
           other.serverCreatedAt == this.serverCreatedAt &&
+          other.recentlyAddedRank == this.recentlyAddedRank &&
           other.applyState == this.applyState);
 }
 
@@ -22149,6 +22197,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
   final Value<int?> playCount;
   final Value<DateTime?> syncedAt;
   final Value<DateTime?> serverCreatedAt;
+  final Value<int?> recentlyAddedRank;
   final Value<int?> applyState;
   final Value<int> rowid;
   const LibrarySyncCandidateAlbumsTableCompanion({
@@ -22171,6 +22220,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
+    this.recentlyAddedRank = const Value.absent(),
     this.applyState = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -22194,6 +22244,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
+    this.recentlyAddedRank = const Value.absent(),
     this.applyState = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : serverId = Value(serverId),
@@ -22220,6 +22271,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
     Expression<int>? playCount,
     Expression<DateTime>? syncedAt,
     Expression<DateTime>? serverCreatedAt,
+    Expression<int>? recentlyAddedRank,
     Expression<int>? applyState,
     Expression<int>? rowid,
   }) {
@@ -22243,6 +22295,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
       if (playCount != null) 'play_count': playCount,
       if (syncedAt != null) 'synced_at': syncedAt,
       if (serverCreatedAt != null) 'server_created_at': serverCreatedAt,
+      if (recentlyAddedRank != null) 'recently_added_rank': recentlyAddedRank,
       if (applyState != null) 'apply_state': applyState,
       if (rowid != null) 'rowid': rowid,
     });
@@ -22268,6 +22321,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
     Value<int?>? playCount,
     Value<DateTime?>? syncedAt,
     Value<DateTime?>? serverCreatedAt,
+    Value<int?>? recentlyAddedRank,
     Value<int?>? applyState,
     Value<int>? rowid,
   }) {
@@ -22291,6 +22345,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
       playCount: playCount ?? this.playCount,
       syncedAt: syncedAt ?? this.syncedAt,
       serverCreatedAt: serverCreatedAt ?? this.serverCreatedAt,
+      recentlyAddedRank: recentlyAddedRank ?? this.recentlyAddedRank,
       applyState: applyState ?? this.applyState,
       rowid: rowid ?? this.rowid,
     );
@@ -22360,6 +22415,9 @@ class LibrarySyncCandidateAlbumsTableCompanion
     if (serverCreatedAt.present) {
       map['server_created_at'] = Variable<DateTime>(serverCreatedAt.value);
     }
+    if (recentlyAddedRank.present) {
+      map['recently_added_rank'] = Variable<int>(recentlyAddedRank.value);
+    }
     if (applyState.present) {
       map['apply_state'] = Variable<int>(applyState.value);
     }
@@ -22391,6 +22449,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
+          ..write('recentlyAddedRank: $recentlyAddedRank, ')
           ..write('applyState: $applyState, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -42099,6 +42158,7 @@ typedef $$LibrarySyncCandidateAlbumsTableTableCreateCompanionBuilder =
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
+      Value<int?> recentlyAddedRank,
       Value<int?> applyState,
       Value<int> rowid,
     });
@@ -42123,6 +42183,7 @@ typedef $$LibrarySyncCandidateAlbumsTableTableUpdateCompanionBuilder =
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
+      Value<int?> recentlyAddedRank,
       Value<int?> applyState,
       Value<int> rowid,
     });
@@ -42229,6 +42290,11 @@ class $$LibrarySyncCandidateAlbumsTableTableFilterComposer
 
   ColumnFilters<DateTime> get serverCreatedAt => $composableBuilder(
     column: $table.serverCreatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get recentlyAddedRank => $composableBuilder(
+    column: $table.recentlyAddedRank,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -42342,6 +42408,11 @@ class $$LibrarySyncCandidateAlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get recentlyAddedRank => $composableBuilder(
+    column: $table.recentlyAddedRank,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get applyState => $composableBuilder(
     column: $table.applyState,
     builder: (column) => ColumnOrderings(column),
@@ -42426,6 +42497,11 @@ class $$LibrarySyncCandidateAlbumsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get recentlyAddedRank => $composableBuilder(
+    column: $table.recentlyAddedRank,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get applyState => $composableBuilder(
     column: $table.applyState,
     builder: (column) => column,
@@ -42497,6 +42573,7 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
+                Value<int?> recentlyAddedRank = const Value.absent(),
                 Value<int?> applyState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LibrarySyncCandidateAlbumsTableCompanion(
@@ -42519,6 +42596,7 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 playCount: playCount,
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
+                recentlyAddedRank: recentlyAddedRank,
                 applyState: applyState,
                 rowid: rowid,
               ),
@@ -42543,6 +42621,7 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
+                Value<int?> recentlyAddedRank = const Value.absent(),
                 Value<int?> applyState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LibrarySyncCandidateAlbumsTableCompanion.insert(
@@ -42565,6 +42644,7 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 playCount: playCount,
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
+                recentlyAddedRank: recentlyAddedRank,
                 applyState: applyState,
                 rowid: rowid,
               ),

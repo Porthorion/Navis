@@ -741,14 +741,23 @@ PY
 import datetime, json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
 assert value.get("sort") == "recentlyAdded", value
-previous = None
+seen_unranked = False
+previous_rank = None
+previous_created = None
 for album in value.get("albums", []):
+    rank = album.get("recentlyAddedRank")
+    if rank is not None:
+        assert not seen_unranked, value
+        assert previous_rank is None or previous_rank < rank, value
+        previous_rank = rank
+        continue
+    seen_unranked = True
     created = album.get("serverCreatedAt")
     assert created is not None, album
     parsed = datetime.datetime.fromisoformat(created.replace("Z", "+00:00"))
-    if previous is not None:
-        assert previous >= parsed, value
-    previous = parsed
+    if previous_created is not None:
+        assert previous_created >= parsed, value
+    previous_created = parsed
 PY
 
   api POST /v1/diagnostics/overrides \

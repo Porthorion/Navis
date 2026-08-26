@@ -155,7 +155,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 71;
+  int get schemaVersion => 73;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -389,6 +389,45 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 71 && to >= 71) {
       await from70To71(migrator);
+    }
+    if (from < 72 && to >= 72) {
+      await from71To72(migrator);
+    }
+    if (from < 73 && to >= 73) {
+      await from72To73(migrator);
+    }
+  }
+
+  /// Repairs legacy remote-prefixed rows that were written before source
+  /// provenance was persisted reliably. Without this pass they look local to
+  /// Home and album-list queries despite being remote-only releases.
+  Future<void> from72To73(Migrator migrator) async {
+    for (final table in <String>['artists', 'albums', 'songs']) {
+      await customStatement('''
+        UPDATE $table
+        SET is_external = 1,
+            is_provisional = 1
+        WHERE is_external = 0
+          AND (
+            lower(id) LIKE 'ext-%'
+            OR lower(id) LIKE 'remote-%'
+            OR lower(id) LIKE 'pl-deezer-%'
+          );
+      ''');
+    }
+  }
+
+  /// Persists server-authoritative Recently Added order through a hidden
+  /// full-catalog candidate before its atomic promotion.
+  Future<void> from71To72(Migrator migrator) async {
+    if (!await _columnExists(
+      'library_sync_candidate_albums',
+      'recently_added_rank',
+    )) {
+      await migrator.addColumn(
+        librarySyncCandidateAlbumsTable,
+        librarySyncCandidateAlbumsTable.recentlyAddedRank,
+      );
     }
   }
 

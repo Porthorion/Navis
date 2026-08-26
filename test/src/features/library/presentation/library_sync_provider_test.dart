@@ -1337,6 +1337,62 @@ void main() {
       },
     );
 
+    test(
+      'upgrading from the previous sync model forces a full catalog repair',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        await database.appSettingsDao.setLastFullSyncAppBuild('56');
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async => LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            mode: LibrarySyncMode.forceFull,
+            completedAt: DateTime.now(),
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            networkTypeProvider.overrideWithValue(NetworkType.wifi),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
+              ),
+            ),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(engine.forceFullCalls, <bool>[true]);
+        expect(
+          await database.appSettingsDao.getLastFullSyncAppBuild(),
+          currentLibrarySyncModelVersion,
+        );
+      },
+    );
+
     test('unauthenticated state does not trigger startup sync', () async {
       final engine = _FakeLibrarySyncEngine(
         ({

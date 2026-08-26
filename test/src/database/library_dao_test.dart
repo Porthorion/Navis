@@ -250,7 +250,7 @@ void main() {
           ),
         ]);
 
-        await database.libraryDao.updateRecentlyAddedRanksFromNewestFeed(
+        await database.libraryDao.replaceRecentlyAddedRanksFromNewestFeed(
           const <String, int>{
             'album-zulu': 0,
             'album-middle': 1,
@@ -272,6 +272,45 @@ void main() {
           'album-middle',
           'album-alpha',
         ]);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'Recently Added replaces stale ranks and never falls back to sync time',
+      () async {
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'ranked',
+            name: 'Ranked',
+            serverCreatedAt: Value(DateTime.utc(2026, 8, 20)),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'dated',
+            name: 'Dated',
+            serverCreatedAt: Value(DateTime.utc(2026, 8, 19)),
+          ),
+          AlbumsTableCompanion.insert(id: 'unknown', name: 'Unknown'),
+        ]);
+        await database.libraryDao.replaceRecentlyAddedRanksFromNewestFeed(
+          const <String, int>{'ranked': 0, 'unknown': 1},
+        );
+        await database.libraryDao.replaceRecentlyAddedRanksFromNewestFeed(
+          const <String, int>{'unknown': 0},
+        );
+
+        final albums = await database.libraryDao
+            .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
+            .first;
+
+        expect(
+          albums.map((album) => album.id),
+          <String>['unknown', 'ranked', 'dated'],
+        );
+        expect(
+          (await database.libraryDao.getAlbumById('ranked'))?.recentlyAddedRank,
+          isNull,
+        );
       },
       skip: !sqliteAvailable,
     );
