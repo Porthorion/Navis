@@ -284,10 +284,26 @@ if (-not (Test-Path $_vswhere)) {
     $_vswhere = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
 }
 if (Test-Path $_vswhere) {
-    $_vsInstall = ((& $_vswhere -latest -prerelease -property installationPath 2>$null) -join '').Trim()
-    if ($_vsInstall -and (Test-Path $_vsInstall)) {
+    $_vsInstalls = @((& $_vswhere -all -prerelease -products * -property installationPath 2>$null) |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and (Test-Path $_) })
+    foreach ($_vsInstall in $_vsInstalls) {
         $_candidate = Join-Path $_vsInstall 'Common7\Tools\VsDevCmd.bat'
-        if (Test-Path $_candidate) { $_devCmd = $_candidate }
+        $_atlHeader = Get-ChildItem (Join-Path $_vsInstall 'VC\Tools\MSVC') -Filter atlbase.h -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ((Test-Path $_candidate) -and $_atlHeader) {
+            $_devCmd = $_candidate
+            Write-Host "[remote-windows] Using Visual Studio toolchain with ATL support at $_vsInstall"
+            break
+        }
+    }
+    if (-not $_devCmd) {
+        foreach ($_vsInstall in $_vsInstalls) {
+            $_candidate = Join-Path $_vsInstall 'Common7\Tools\VsDevCmd.bat'
+            if (Test-Path $_candidate) {
+                $_devCmd = $_candidate
+                break
+            }
+        }
     }
 }
 
