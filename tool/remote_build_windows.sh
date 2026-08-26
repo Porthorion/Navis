@@ -279,6 +279,7 @@ if (-not (Test-Path $_libmpvDest)) {
 # Locate VsDevCmd.bat — used later to run flutter build in a VS developer shell
 # so that all subprocesses (cmake, MSBuild, cargokit, cargo) inherit link.exe.
 $_devCmd = $null
+$_atlIncludeDir = $null
 $_vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path $_vswhere)) {
     $_vswhere = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -292,6 +293,7 @@ if (Test-Path $_vswhere) {
         $_atlHeader = Get-ChildItem (Join-Path $_vsInstall 'VC\Tools\MSVC') -Filter atlbase.h -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
         if ((Test-Path $_candidate) -and $_atlHeader) {
             $_devCmd = $_candidate
+            $_atlIncludeDir = Split-Path $_atlHeader.FullName -Parent
             Write-Host "[remote-windows] Using Visual Studio toolchain with ATL support at $_vsInstall"
             break
         }
@@ -448,6 +450,11 @@ if ($_devCmd) {
     $cmdContent  = '@echo off' + [Environment]::NewLine
     $cmdContent += 'call "' + $_devCmd + '" -arch=x64 -host_arch=x64 -no_logo' + [Environment]::NewLine
     $cmdContent += 'if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%' + [Environment]::NewLine
+    if ($_atlIncludeDir) {
+        # VsDevCmd can omit ATL from INCLUDE even when the selected Visual
+        # Studio installation has it; these plugins require the ATL headers.
+        $cmdContent += 'set "INCLUDE=' + $_atlIncludeDir + ';%INCLUDE%"' + [Environment]::NewLine
+    }
     $cmdContent += 'cd /D "' + $workspaceDir + '"' + [Environment]::NewLine
     $cmdContent += 'flutter ' + $flutterArgs + [Environment]::NewLine
     [System.IO.File]::WriteAllText($_buildCmd, $cmdContent)
