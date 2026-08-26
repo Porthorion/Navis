@@ -443,15 +443,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Check for updates'), findsOneWidget);
-    expect(find.text('Repair Library Metadata'), findsOneWidget);
+    expect(find.text('Repair Library'), findsOneWidget);
     expect(
       find.text(
-        'Rebuild and reconcile library metadata. Keeps downloads, streaming cache, and artwork.',
+        'Reconcile your local library with the server. Keeps downloads, streaming cache, and artwork.',
       ),
       findsOneWidget,
     );
 
-    await tester.tap(find.text('Repair Library Metadata'));
+    await tester.tap(find.text('Repair Library'));
     await tester.pumpAndSettle();
 
     expect(find.text('Required library rebuild'), findsOneWidget);
@@ -680,10 +680,10 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Repair Library Metadata'));
+    await tester.tap(find.text('Repair Library'));
     await tester.pumpAndSettle();
     expect(
-      find.text('Repair Library Metadata on Mobile Data?'),
+      find.text('Repair Library on Mobile Data?'),
       findsOneWidget,
     );
 
@@ -691,7 +691,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.routeInformationProvider.value.uri.path, '/');
 
-    await tester.tap(find.text('Repair Library Metadata'));
+    await tester.tap(find.text('Repair Library'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Repair on Mobile Data'));
     await tester.pumpAndSettle();
@@ -792,7 +792,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(candidateDiscarded, isTrue);
 
-    await tester.tap(find.text('Repair Library Metadata'));
+    await tester.tap(find.text('Repair Library'));
     await tester.pumpAndSettle();
 
     expect(find.text('Confirm Library Repair'), findsOneWidget);
@@ -806,7 +806,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.routeInformationProvider.value.uri.path, '/');
 
-    await tester.tap(find.text('Repair Library Metadata'));
+    await tester.tap(find.text('Repair Library'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Apply Library Repair'));
     await tester.pumpAndSettle();

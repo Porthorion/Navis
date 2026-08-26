@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 import '../../../helpers/test_database.dart';
 
@@ -21,6 +23,179 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  test('persists one typed request, attempt, and redacted outcome', () async {
+    final now = DateTime.utc(2026, 8, 26, 10);
+    const request = SyncRunRequest(
+      contractVersion: SyncRunRequest.currentContractVersion,
+      origin: SyncRunOrigin.libraryPullToRefresh,
+      intent: SyncRunIntent.manualCatalogCheck,
+      target: LibrarySyncTarget.catalog(),
+      networkGrant: SyncNetworkGrant.boundedMeteredDiscovery,
+      priority: 60,
+    );
+    const plan = SyncExecutionPlan(
+      request: request,
+      kind: SyncExecutionPlanKind.manualCatalogDiscovery,
+      reason: SyncSafeReason.none,
+      budget: SyncExecutionBudget(
+        allowedEndpoints: <SyncEndpoint>{
+          SyncEndpoint.indexes,
+          SyncEndpoint.newestAlbums,
+        },
+        maxNewestPages: 5,
+        maxAlbumHydrations: 0,
+        maxResponseBytes: null,
+        maxTotalBytes: null,
+        maxConcurrency: 8,
+      ),
+    );
+
+    final queued = await database.librarySyncDao.enqueueSyncRun(
+      serverId: 1,
+      plan: plan,
+      now: now,
+    );
+    final duplicate = await database.librarySyncDao.enqueueSyncRun(
+      serverId: 1,
+      plan: plan,
+      now: now.add(const Duration(seconds: 1)),
+    );
+    expect(duplicate.id, queued.id);
+
+    final attempt = await database.librarySyncDao.beginSyncRunAttempt(
+      requestId: queued.id,
+      androidWorker: false,
+      now: now,
+    );
+    await database.librarySyncDao.completeSyncRun(
+      requestId: queued.id,
+      attemptId: attempt.id,
+      outcome: const SyncRunOutcome(
+        kind: SyncRunOutcomeKind.completed,
+        reason: SyncSafeReason.none,
+        requestCount: 6,
+        byteCount: 2048,
+      ),
+      now: now.add(const Duration(seconds: 10)),
+    );
+
+    final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
+    expect(history, hasLength(1));
+    expect(history.single.origin, SyncRunOrigin.libraryPullToRefresh);
+    expect(history.single.intent, SyncRunIntent.manualCatalogCheck);
+    expect(history.single.targetKind, LibrarySyncTargetKind.catalog);
+    expect(history.single.outcome, SyncRunOutcomeKind.completed);
+    expect(history.single.requestCount, 6);
+    expect(history.single.byteCount, 2048);
+    final storedRequest = await (database.select(
+      database.librarySyncRunRequestTable,
+    )..where((table) => table.id.equals(queued.id))).getSingle();
+    expect(storedRequest.targetKey, isEmpty);
+  }, skip: !sqliteAvailable);
+
+  test('preserves separate durable origins for repair and cache reset', () {
+    final repair = syncRunRequestFromLegacy(
+      const LibrarySyncRequest.repair(),
+    );
+    final reset = syncRunRequestFromLegacy(
+      const LibrarySyncRequest.cacheReset(),
+    );
+
+    expect(repair.intent, SyncRunIntent.repairLibrary);
+    expect(repair.origin, SyncRunOrigin.settingsRepair);
+    expect(reset.intent, SyncRunIntent.repairLibrary);
+    expect(reset.origin, SyncRunOrigin.cacheReset);
+    expect(repair.coalescingKey, isNot(reset.coalescingKey));
+  });
+
+  test(
+    'restart recovery returns only typed running requests to the queue',
+    () async {
+      final now = DateTime.utc(2026, 8, 26, 10);
+      const request = SyncRunRequest(
+        contractVersion: SyncRunRequest.currentContractVersion,
+        origin: SyncRunOrigin.interaction,
+        intent: SyncRunIntent.targetHydration,
+        target: LibrarySyncTarget.album('album-1'),
+        networkGrant: SyncNetworkGrant.none,
+        priority: 100,
+      );
+      const plan = SyncExecutionPlan(
+        request: request,
+        kind: SyncExecutionPlanKind.targetHydration,
+        reason: SyncSafeReason.none,
+        budget: SyncExecutionBudget(
+          allowedEndpoints: <SyncEndpoint>{SyncEndpoint.album},
+          maxNewestPages: 0,
+          maxAlbumHydrations: 1,
+          maxResponseBytes: 16 * 1024 * 1024,
+          maxTotalBytes: 32 * 1024 * 1024,
+          maxConcurrency: 1,
+        ),
+      );
+      final queued = await database.librarySyncDao.enqueueSyncRun(
+        serverId: 1,
+        plan: plan,
+        now: now,
+      );
+      await database.librarySyncDao.beginSyncRunAttempt(
+        requestId: queued.id,
+        androidWorker: false,
+        now: now,
+      );
+
+      await database.librarySyncDao.recoverInterruptedSyncRuns(1, now: now);
+
+      final row = await (database.select(
+        database.librarySyncRunRequestTable,
+      )..where((table) => table.id.equals(queued.id))).getSingle();
+      expect(row.status, 0);
+      final attempts = await (database.select(
+        database.librarySyncRunAttemptTable,
+      )..where((table) => table.requestId.equals(queued.id))).get();
+      expect(attempts.single.status, 1);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'imports legacy running repair work as a recoverable typed request',
+    () async {
+      final now = DateTime.utc(2026, 8, 26, 10);
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'fullRepair',
+        priority: 80,
+        now: now,
+      );
+      final legacy = (await database.librarySyncDao.getRunnableWork(
+        serverId: 1,
+        now: now,
+      )).single;
+      await database.librarySyncDao.markRunning(legacy.id, now: now);
+
+      await database.librarySyncDao.migrateLegacySyncWork(1, now: now);
+
+      final rows = await database
+          .select(database.librarySyncRunRequestTable)
+          .get();
+      expect(rows, hasLength(1));
+      expect(rows.single.origin, SyncRunOrigin.legacyRecovery.index);
+      expect(rows.single.intent, SyncRunIntent.repairLibrary.index);
+      expect(rows.single.status, 0);
+      final attempts = await database
+          .select(database.librarySyncRunAttemptTable)
+          .get();
+      expect(attempts, hasLength(1));
+      expect(attempts.single.status, 1);
+      expect(
+        (await database.librarySyncDao.getOrCreateState(1)).plannerVersion,
+        3,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
 
   test('deduplicates work and upgrades interactive priority', () async {
     final now = DateTime.utc(2026, 8, 4);

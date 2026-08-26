@@ -21,6 +21,38 @@ Navis must have one committed local catalog that remains browsable offline. Netw
 
 Every operation needs one owner, a durable cause, start and end time, result, and bounded endpoint/request counts. An HTTP response or a visible spinner is not success; a manual check is successful only after required observations have been evaluated and discovered changes committed, deferred, or failed explicitly.
 
+## Sync cohesion migration (schema v71)
+
+Schema v71 begins the reversible typed-lifecycle migration without weakening
+the committed-catalog or candidate-promotion boundary. It adds typed durable
+request, attempt, outcome/history, provider-profile, and repair-session rows.
+The retained `library_sync_work` and `library_sync_state` rows remain a
+one-release compatibility mirror while the dispatcher and executor adapter are
+migrated; no operation is dual-executed.
+
+- A `SyncRunRequest` has a versioned origin, typed intent/target, priority,
+  resumption provenance, and network grant. Scheduling resolves it once into
+  an immutable `SyncExecutionPlan` with endpoint, page, hydration, byte, and
+  concurrency budgets.
+- Legacy queued work is imported into typed requests on first server recovery;
+  running legacy work becomes a recoverable interrupted attempt. Unknown work
+  shapes become a terminal `legacyAmbiguous` outcome rather than guessed work.
+  Existing repair generation and confirmation evidence is represented by the
+  typed repair session.
+- A terminal typed request clears its target key and retains only redacted
+  enums, aggregate counts, and timestamps for 90 days. `GET /v1/sync/ledger`
+  exposes this as `durableRuns`; the former bounded `events` list remains only
+  as an isolated diagnostics compatibility mirror.
+- Repair Library and Reset caches & rebuild library deliberately do not share a
+  durable coalescing key. Repair preserves device caches and local catalog
+  until valid atomic promotion; reset first removes streaming cache, cover art,
+  and local library metadata while preserving permanent downloads.
+
+The schema migration, typed recovery, history redaction, and compatibility
+adapter have focused automated coverage. The unchanged-cursor/manual, repair
+promotion, playback, policy-transition, and isolated-clone runtime gates
+remain required before removing the legacy mirror or adapter.
+
 ## Audit evidence
 
 Reviewed production controller, coordinator, planner, engine, state/work DAOs,

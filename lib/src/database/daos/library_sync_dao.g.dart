@@ -18,6 +18,16 @@ mixin _$LibrarySyncDaoMixin on DatabaseAccessor<NavisDatabase> {
       attachedDatabase.librarySyncOperationLedgerTable;
   $LibrarySyncExecutionLeaseTableTable get librarySyncExecutionLeaseTable =>
       attachedDatabase.librarySyncExecutionLeaseTable;
+  $LibrarySyncRunRequestTableTable get librarySyncRunRequestTable =>
+      attachedDatabase.librarySyncRunRequestTable;
+  $LibrarySyncRunAttemptTableTable get librarySyncRunAttemptTable =>
+      attachedDatabase.librarySyncRunAttemptTable;
+  $LibrarySyncRunOutcomeTableTable get librarySyncRunOutcomeTable =>
+      attachedDatabase.librarySyncRunOutcomeTable;
+  $LibrarySyncProviderProfileTableTable get librarySyncProviderProfileTable =>
+      attachedDatabase.librarySyncProviderProfileTable;
+  $LibrarySyncRepairSessionTableTable get librarySyncRepairSessionTable =>
+      attachedDatabase.librarySyncRepairSessionTable;
   LibrarySyncDaoManager get managers => LibrarySyncDaoManager(this);
 }
 
@@ -62,5 +72,35 @@ class LibrarySyncDaoManager {
       $$LibrarySyncExecutionLeaseTableTableTableManager(
         _db.attachedDatabase,
         _db.librarySyncExecutionLeaseTable,
+      );
+  $$LibrarySyncRunRequestTableTableTableManager
+  get librarySyncRunRequestTable =>
+      $$LibrarySyncRunRequestTableTableTableManager(
+        _db.attachedDatabase,
+        _db.librarySyncRunRequestTable,
+      );
+  $$LibrarySyncRunAttemptTableTableTableManager
+  get librarySyncRunAttemptTable =>
+      $$LibrarySyncRunAttemptTableTableTableManager(
+        _db.attachedDatabase,
+        _db.librarySyncRunAttemptTable,
+      );
+  $$LibrarySyncRunOutcomeTableTableTableManager
+  get librarySyncRunOutcomeTable =>
+      $$LibrarySyncRunOutcomeTableTableTableManager(
+        _db.attachedDatabase,
+        _db.librarySyncRunOutcomeTable,
+      );
+  $$LibrarySyncProviderProfileTableTableTableManager
+  get librarySyncProviderProfileTable =>
+      $$LibrarySyncProviderProfileTableTableTableManager(
+        _db.attachedDatabase,
+        _db.librarySyncProviderProfileTable,
+      );
+  $$LibrarySyncRepairSessionTableTableTableManager
+  get librarySyncRepairSessionTable =>
+      $$LibrarySyncRepairSessionTableTableTableManager(
+        _db.attachedDatabase,
+        _db.librarySyncRepairSessionTable,
       );
 }

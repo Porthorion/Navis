@@ -245,6 +245,7 @@ class _SyncStatusBanner extends StatelessWidget {
       LibrarySyncStage.fetchingAlbums => l10n.librarySyncStageAlbums,
       LibrarySyncStage.persistingMetadata => l10n.librarySyncStagePersisting,
       LibrarySyncStage.fetchingSongs => l10n.librarySyncStageSongs,
+      LibrarySyncStage.fetchingStarred => l10n.librarySyncStageStarred,
       LibrarySyncStage.fetchingGenres => l10n.librarySyncStageGenres,
       LibrarySyncStage.fetchingPlaylists => l10n.librarySyncStagePlaylists,
       LibrarySyncStage.finalizing => l10n.librarySyncStageFinalizing,

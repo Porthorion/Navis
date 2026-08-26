@@ -11,6 +11,19 @@ enum LibrarySyncTrigger {
 
 enum LibrarySyncIntent { automatic, checkForUpdates, repair }
 
+/// The user-facing owner of a legacy request during the compatibility window.
+///
+/// This is intentionally separate from [LibrarySyncIntent]: both a library
+/// repair and a destructive device-cache reset eventually run a catalog
+/// rebuild, but their confirmation, progress, and durable history must remain
+/// distinguishable.
+enum LibrarySyncRequestCaller {
+  unspecified,
+  manualCatalogCheck,
+  repairLibrary,
+  cacheReset,
+}
+
 enum LibrarySyncTargetKind {
   catalog,
   artist,
@@ -89,6 +102,7 @@ class LibrarySyncRequest {
     this.target = const LibrarySyncTarget.catalog(),
     this.allowMeteredBroadOverride = false,
     this.allowMeteredLimitedDiscovery = false,
+    this.caller = LibrarySyncRequestCaller.unspecified,
   });
 
   const LibrarySyncRequest.automatic({
@@ -103,6 +117,7 @@ class LibrarySyncRequest {
          intent: LibrarySyncIntent.checkForUpdates,
          allowMeteredBroadOverride: allowMeteredBroadOverride,
          allowMeteredLimitedDiscovery: allowMeteredLimitedDiscovery,
+         caller: LibrarySyncRequestCaller.manualCatalogCheck,
        );
 
   const LibrarySyncRequest.repair({
@@ -111,6 +126,16 @@ class LibrarySyncRequest {
          trigger: LibrarySyncTrigger.user,
          intent: LibrarySyncIntent.repair,
          allowMeteredBroadOverride: allowMeteredBroadOverride,
+         caller: LibrarySyncRequestCaller.repairLibrary,
+       );
+
+  const LibrarySyncRequest.cacheReset({
+    bool allowMeteredBroadOverride = false,
+  }) : this(
+         trigger: LibrarySyncTrigger.user,
+         intent: LibrarySyncIntent.repair,
+         allowMeteredBroadOverride: allowMeteredBroadOverride,
+         caller: LibrarySyncRequestCaller.cacheReset,
        );
 
   final LibrarySyncTrigger trigger;
@@ -125,6 +150,9 @@ class LibrarySyncRequest {
   /// newest-album page on a metered network. This never permits artist-wide
   /// verification, bulk-song indexing, or a catalog repair.
   final bool allowMeteredLimitedDiscovery;
+
+  /// Preserved only while adapting legacy callers to the typed sync request.
+  final LibrarySyncRequestCaller caller;
 }
 
 enum LibrarySyncPlanKind {

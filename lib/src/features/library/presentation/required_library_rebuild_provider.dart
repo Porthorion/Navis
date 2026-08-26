@@ -204,7 +204,9 @@ class RequiredLibraryRebuildController
     );
     return ref
         .read(librarySyncControllerProvider.notifier)
-        .forceFullSync(allowMeteredBroadOverride: allowMetered);
+        .resetCachesAndRebuildLibrary(
+          allowMeteredBroadOverride: allowMetered,
+        );
   }
 
   Future<LibrarySyncState> _runRepair(bool allowMetered) {
@@ -213,7 +215,7 @@ class RequiredLibraryRebuildController
     );
     return ref
         .read(librarySyncControllerProvider.notifier)
-        .forceFullSync(allowMeteredBroadOverride: allowMetered);
+        .repairLibrary(allowMeteredBroadOverride: allowMetered);
   }
 
   Future<void> _clearRecoverableCache() {

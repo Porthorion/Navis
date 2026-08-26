@@ -9,6 +9,7 @@ import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/data/library_sync_planner.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
@@ -25,6 +26,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     LibrarySyncPlanner planner = const LibrarySyncPlanner(),
     String executionOwnerKind = 'foreground',
     bool isBackgroundExecution = false,
+    Duration? executionLeaseTtl,
+    Duration? executionLeaseHeartbeatInterval,
   }) : _executor = executor,
        _database = database,
        _serverConfigRepository = serverConfigRepository,
@@ -35,7 +38,21 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
        _now = now ?? DateTime.now,
        _planner = planner,
        _executionOwnerKind = _validateOwnerKind(executionOwnerKind),
-       _isBackgroundExecution = isBackgroundExecution;
+       _isBackgroundExecution = isBackgroundExecution,
+       _executionLeaseTtl = executionLeaseTtl ?? _defaultExecutionLeaseTtl,
+       _executionLeaseHeartbeatInterval =
+           executionLeaseHeartbeatInterval ??
+           _defaultExecutionLeaseHeartbeatInterval {
+    if (_executionLeaseTtl <= Duration.zero ||
+        _executionLeaseHeartbeatInterval <= Duration.zero ||
+        _executionLeaseHeartbeatInterval >= _executionLeaseTtl) {
+      throw ArgumentError.value(
+        _executionLeaseHeartbeatInterval,
+        'executionLeaseHeartbeatInterval',
+        'must be positive and shorter than executionLeaseTtl',
+      );
+    }
+  }
 
   static bool _alwaysForeground() => true;
 
@@ -69,8 +86,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   final Set<int> _recoveredServers = <int>{};
   Future<LibrarySyncState>? _inFlight;
 
-  static const Duration _executionLeaseTtl = Duration(minutes: 10);
-  static const Duration _executionLeaseHeartbeatInterval = Duration(minutes: 1);
+  static const Duration _defaultExecutionLeaseTtl = Duration(minutes: 10);
+  static const Duration _defaultExecutionLeaseHeartbeatInterval = Duration(
+    minutes: 1,
+  );
+  final Duration _executionLeaseTtl;
+  final Duration _executionLeaseHeartbeatInterval;
 
   String _newLeaseToken() {
     final random = Random.secure();
@@ -111,7 +132,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
 
     final recoveringServer = _recoveredServers.add(serverId);
     if (recoveringServer) {
+      await _database.librarySyncDao.migrateLegacySyncWork(serverId);
       await _database.librarySyncDao.resetInterruptedWork(serverId);
+      await _database.librarySyncDao.recoverInterruptedSyncRuns(serverId);
     }
     var persisted = await _database.librarySyncDao.getOrCreateState(serverId);
     if (recoveringServer && persisted.currentGeneration > 0) {
@@ -164,6 +187,30 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         persisted.failureStreak >= 3 &&
         persisted.nextEligibleAt?.isAfter(_now()) == true;
     if (circuitOpen && !canProbeCircuitEarly) {
+      final deferredPlan = LibrarySyncPlan(
+        kind: LibrarySyncPlanKind.probe,
+        reason: 'endpointCircuitOpen',
+        shouldExecute: false,
+        deferred: true,
+      );
+      final typedPlan = _typedPlanFor(
+        request: syncRunRequestFromLegacy(request),
+        plan: deferredPlan,
+        policy: _syncPolicy,
+      );
+      final durableRun = await _database.librarySyncDao.enqueueSyncRun(
+        serverId: serverId,
+        plan: typedPlan,
+        now: _now(),
+      );
+      await _database.librarySyncDao.completeSyncRun(
+        requestId: durableRun.id,
+        outcome: const SyncRunOutcome(
+          kind: SyncRunOutcomeKind.deferred,
+          reason: SyncSafeReason.cooldown,
+        ),
+        now: _now(),
+      );
       final state = LibrarySyncState(
         status: LibrarySyncStatus.deferred,
         stage: LibrarySyncStage.completed,
@@ -264,10 +311,20 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             allowMeteredBroadOverride: resumedRequest.allowMeteredBroadOverride,
             allowMeteredLimitedDiscovery:
                 resumedRequest.allowMeteredLimitedDiscovery,
+            caller: resumedRequest.caller,
           );
-    final targetId = effectiveTarget.entityId?.trim() ?? '';
     final targetWorkKey = librarySyncTargetWorkKey(effectiveTarget);
     final workClass = _workClassFor(request, plan);
+    final typedPlan = _typedPlanFor(
+      request: syncRunRequestFromLegacy(effectiveRequest),
+      plan: plan,
+      policy: policy,
+    );
+    final durableRun = await _database.librarySyncDao.enqueueSyncRun(
+      serverId: serverId,
+      plan: typedPlan,
+      now: timestamp,
+    );
     if (resumedWork == null && (plan.shouldExecute || plan.deferred)) {
       await _database.librarySyncDao.enqueueWork(
         serverId: serverId,
@@ -314,6 +371,16 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 plan.kind == LibrarySyncPlanKind.deltaReconcile ||
                 plan.kind == LibrarySyncPlanKind.compatibilityAudit),
       );
+      await _database.librarySyncDao.completeSyncRun(
+        requestId: durableRun.id,
+        outcome: SyncRunOutcome(
+          kind: plan.deferred
+              ? SyncRunOutcomeKind.deferred
+              : SyncRunOutcomeKind.skipped,
+          reason: _safeReasonForPlan(plan, policy),
+        ),
+        now: timestamp,
+      );
       onProgress?.call(state);
       return state;
     }
@@ -334,6 +401,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         ),
         updatesAvailable: true,
       );
+      await _database.librarySyncDao.completeSyncRun(
+        requestId: durableRun.id,
+        outcome: const SyncRunOutcome(
+          kind: SyncRunOutcomeKind.deferred,
+          reason: SyncSafeReason.meteredPolicy,
+        ),
+        now: timestamp,
+      );
       onProgress?.call(state);
       return state;
     }
@@ -351,7 +426,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       serverId: serverId,
       request: effectiveRequest,
       plan: plan,
-      targetId: targetId,
+      typedPlan: typedPlan,
+      durableRunId: durableRun.id,
       targetWorkKey: targetWorkKey,
       workClass: workClass,
       priorityAlbumIds: priorityAlbumIds,
@@ -365,7 +441,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     required int serverId,
     required LibrarySyncRequest request,
     required LibrarySyncPlan plan,
-    required String targetId,
+    required SyncExecutionPlan typedPlan,
+    required int durableRunId,
     required String targetWorkKey,
     required String workClass,
     required Iterable<String> priorityAlbumIds,
@@ -379,6 +456,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       request,
       planKind: plan.kind,
     )) {
+      await _database.librarySyncDao.completeSyncRun(
+        requestId: durableRunId,
+        outcome: const SyncRunOutcome(
+          kind: SyncRunOutcomeKind.deferred,
+          reason: SyncSafeReason.meteredPolicy,
+        ),
+        now: startedAt,
+      );
       return LibrarySyncState(
         status: LibrarySyncStatus.deferred,
         stage: LibrarySyncStage.completed,
@@ -401,6 +486,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         ttl: _executionLeaseTtl,
       );
       if (!acquired) {
+        await _database.librarySyncDao.completeSyncRun(
+          requestId: durableRunId,
+          outcome: const SyncRunOutcome(
+            kind: SyncRunOutcomeKind.deferred,
+            reason: SyncSafeReason.leaseHeld,
+          ),
+          now: _now(),
+        );
         return LibrarySyncState(
           status: LibrarySyncStatus.deferred,
           stage: LibrarySyncStage.completed,
@@ -427,6 +520,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     }
 
     try {
+      final durableAttempt = await _database.librarySyncDao.beginSyncRunAttempt(
+        requestId: durableRunId,
+        androidWorker: _isBackgroundExecution,
+        now: startedAt,
+      );
       final runnable = await _database.librarySyncDao.getRunnableWork(
         serverId: serverId,
         now: startedAt,
@@ -442,26 +540,10 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         );
       }
 
-      final driftExecutor = switch (_executor) {
-        final DriftLibrarySyncEngine engine => engine,
-        _ => null,
-      };
-      final previousOverride = driftExecutor?.allowMeteredBackgroundOverride;
-      final previousLimitedDiscovery =
-          driftExecutor?.allowMeteredManualDiscovery;
-      if (driftExecutor != null) {
-        driftExecutor.allowMeteredBackgroundOverride =
-            request.allowMeteredBroadOverride;
-        driftExecutor.allowMeteredManualDiscovery =
-            request.allowMeteredLimitedDiscovery && _syncPolicy.isMetered;
-      }
-
       LibrarySyncState result;
       try {
         result = await _executeDelegate(
-          request: request,
-          plan: plan,
-          targetId: targetId,
+          typedPlan: typedPlan,
           priorityAlbumIds: priorityAlbumIds,
           onProgress: (progress) {
             onProgress?.call(
@@ -473,14 +555,16 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         if (activeWork != null && !(await _workIsCompleted(activeWork))) {
           await _markWorkFailure(activeWork, error.runtimeType.toString());
         }
+        await _database.librarySyncDao.completeSyncRun(
+          requestId: durableRunId,
+          attemptId: durableAttempt.id,
+          outcome: const SyncRunOutcome(
+            kind: SyncRunOutcomeKind.failed,
+            reason: SyncSafeReason.unknownFailure,
+          ),
+          now: _now(),
+        );
         rethrow;
-      } finally {
-        if (driftExecutor != null) {
-          driftExecutor.allowMeteredBackgroundOverride =
-              previousOverride ?? false;
-          driftExecutor.allowMeteredManualDiscovery =
-              previousLimitedDiscovery ?? false;
-        }
       }
 
       if (plan.kind == LibrarySyncPlanKind.probe &&
@@ -496,9 +580,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         category: 'library_sync',
         since: startedAt,
       );
-      final cancelled =
-          result.errorMessage == 'Sync cancelled.' ||
-          result.errorMessage?.startsWith('Sync cancelled') == true;
+      final cancelled = result.status == LibrarySyncStatus.cancelled;
       final deferred = result.status == LibrarySyncStatus.deferred;
       final hasPending =
           (result.pendingHydrationCount ?? 0) > 0 ||
@@ -510,9 +592,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           : result.status == LibrarySyncStatus.succeeded && hasPending
           ? LibrarySyncStatus.partial
           : result.status;
-      final failed =
-          status == LibrarySyncStatus.failed ||
-          (status == LibrarySyncStatus.skipped && result.errorMessage != null);
+      final failed = status == LibrarySyncStatus.failed;
 
       if (activeWork != null && !(await _workIsCompleted(activeWork))) {
         if (cancelled) {
@@ -606,8 +686,38 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           lastRunRequests: Value(usage.requestCount),
         ),
       );
+      final candidateGeneration =
+          result.candidateGeneration ?? persisted.candidateGeneration;
+      final candidateStatus =
+          result.candidateStatus ?? persisted.candidateStatus;
+      if (candidateGeneration != null && candidateStatus != null) {
+        await _database.librarySyncDao.writeRepairSession(
+          serverId: serverId,
+          generation: candidateGeneration,
+          phase: _repairPhaseFor(candidateStatus),
+          deletionFingerprint: persisted.deletionCandidateFingerprint,
+          deletionCount: persisted.deletionCandidateCount,
+          startedAt: persisted.candidateStartedAt ?? startedAt,
+          now: completedAt,
+        );
+      }
       await _database.librarySyncDao.pruneCompletedBefore(
         completedAt.subtract(const Duration(days: 7)),
+      );
+      await _database.librarySyncDao.completeSyncRun(
+        requestId: durableRunId,
+        attemptId: durableAttempt.id,
+        outcome: _typedOutcomeFor(
+          status: status,
+          result: result,
+          requestCount: usage.requestCount,
+          byteCount: usage.bytes,
+          deferred: deferred,
+        ),
+        now: completedAt,
+      );
+      await _database.librarySyncDao.pruneSyncRunHistoryBefore(
+        completedAt.subtract(const Duration(days: 90)),
       );
       final finalState = result.copyWith(
         status: status,
@@ -659,6 +769,142 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     }
   }
 
+  SyncExecutionPlan _typedPlanFor({
+    required SyncRunRequest request,
+    required LibrarySyncPlan plan,
+    required SyncNetworkPolicy policy,
+  }) {
+    final kind = syncExecutionPlanKindFromLegacy(plan.kind, request);
+    final meteredManual =
+        kind == SyncExecutionPlanKind.manualCatalogDiscovery &&
+        policy.isMetered &&
+        request.networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
+    final endpoints = switch (kind) {
+      SyncExecutionPlanKind.automaticProbe => const <SyncEndpoint>{
+        SyncEndpoint.indexes,
+      },
+      SyncExecutionPlanKind.manualCatalogDiscovery => const <SyncEndpoint>{
+        SyncEndpoint.indexes,
+        SyncEndpoint.newestAlbums,
+        SyncEndpoint.artist,
+        SyncEndpoint.album,
+      },
+      SyncExecutionPlanKind.repairLibrary ||
+      SyncExecutionPlanKind.catalogSnapshot => const <SyncEndpoint>{
+        SyncEndpoint.indexes,
+        SyncEndpoint.newestAlbums,
+        SyncEndpoint.artists,
+        SyncEndpoint.artist,
+        SyncEndpoint.album,
+        SyncEndpoint.bulkSongs,
+      },
+      SyncExecutionPlanKind.compatibilityAudit => const <SyncEndpoint>{
+        SyncEndpoint.indexes,
+        SyncEndpoint.artists,
+        SyncEndpoint.artist,
+        SyncEndpoint.album,
+      },
+      SyncExecutionPlanKind.auxiliaryRefresh => const <SyncEndpoint>{
+        SyncEndpoint.starred,
+        SyncEndpoint.playlists,
+        SyncEndpoint.genres,
+      },
+      SyncExecutionPlanKind.targetHydration => const <SyncEndpoint>{
+        SyncEndpoint.artist,
+        SyncEndpoint.album,
+        SyncEndpoint.playlists,
+      },
+    };
+    return SyncExecutionPlan(
+      request: request,
+      kind: kind,
+      reason: _safeReasonForPlan(plan, policy),
+      budget: SyncExecutionBudget(
+        allowedEndpoints: endpoints,
+        maxNewestPages: meteredManual
+            ? 1
+            : kind == SyncExecutionPlanKind.manualCatalogDiscovery
+            ? 5
+            : 0,
+        maxAlbumHydrations: meteredManual ? 3 : 0,
+        maxResponseBytes: policy.isMetered
+            ? kMeteredSyncMaxResponseBytes
+            : null,
+        maxTotalBytes:
+            policy.isMetered && kind == SyncExecutionPlanKind.targetHydration
+            ? kMeteredSyncMaxInteractionBytes
+            : null,
+        maxConcurrency: policy.isMetered ? 1 : 8,
+      ),
+    );
+  }
+
+  SyncSafeReason _safeReasonForPlan(
+    LibrarySyncPlan plan,
+    SyncNetworkPolicy policy,
+  ) {
+    if (policy.isOffline) {
+      return SyncSafeReason.offline;
+    }
+    if (plan.deferred && policy.isMetered) {
+      return SyncSafeReason.meteredPolicy;
+    }
+    if (plan.deferred && _readHasActivePlayback()) {
+      return SyncSafeReason.activePlayback;
+    }
+    if (plan.deferred && !_readIsForeground()) {
+      return SyncSafeReason.backgrounded;
+    }
+    return SyncSafeReason.none;
+  }
+
+  SyncRunOutcome _typedOutcomeFor({
+    required LibrarySyncStatus status,
+    required LibrarySyncState result,
+    required int requestCount,
+    required int byteCount,
+    required bool deferred,
+  }) {
+    final kind = switch (status) {
+      LibrarySyncStatus.succeeded => SyncRunOutcomeKind.completed,
+      LibrarySyncStatus.skipped => SyncRunOutcomeKind.skipped,
+      LibrarySyncStatus.deferred => SyncRunOutcomeKind.deferred,
+      LibrarySyncStatus.cancelled => SyncRunOutcomeKind.cancelled,
+      LibrarySyncStatus.partial =>
+        result.candidateStatus == 'awaitingDeletionConfirmation'
+            ? SyncRunOutcomeKind.awaitingConfirmation
+            : SyncRunOutcomeKind.partial,
+      LibrarySyncStatus.failed => SyncRunOutcomeKind.failed,
+      LibrarySyncStatus.idle ||
+      LibrarySyncStatus.running => SyncRunOutcomeKind.failed,
+    };
+    final reason = switch (kind) {
+      SyncRunOutcomeKind.deferred when deferred => SyncSafeReason.meteredPolicy,
+      SyncRunOutcomeKind.cancelled => SyncSafeReason.cancellation,
+      SyncRunOutcomeKind.awaitingConfirmation =>
+        SyncSafeReason.confirmationRequired,
+      SyncRunOutcomeKind.failed => SyncSafeReason.unknownFailure,
+      _ => SyncSafeReason.none,
+    };
+    return SyncRunOutcome(
+      kind: kind,
+      reason: reason,
+      requestCount: requestCount,
+      byteCount: byteCount,
+    );
+  }
+
+  int _repairPhaseFor(String status) {
+    return switch (status) {
+      'collecting' => 0,
+      'validating' => 1,
+      'awaitingDeletionConfirmation' => 2,
+      'ready' => 3,
+      'applying' => 4,
+      _ => 0,
+    };
+  }
+
   Future<void> _enqueueProbeFollowUp({
     required int serverId,
     required LibrarySyncState result,
@@ -690,67 +936,21 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   }
 
   Future<LibrarySyncState> _executeDelegate({
-    required LibrarySyncRequest request,
-    required LibrarySyncPlan plan,
-    required String targetId,
+    required SyncExecutionPlan typedPlan,
     required Iterable<String> priorityAlbumIds,
     LibrarySyncProgressCallback? onProgress,
   }) {
     final priorities = <String>{
       ...priorityAlbumIds,
-      if (request.target.kind == LibrarySyncTargetKind.album &&
-          targetId.isNotEmpty)
-        targetId,
+      if (typedPlan.request.target.kind == LibrarySyncTargetKind.album &&
+          typedPlan.request.target.entityId?.isNotEmpty == true)
+        typedPlan.request.target.entityId!,
     };
-    final targetedExecutor = switch (_executor) {
-      final TargetedLibrarySyncExecutor executor => executor,
-      _ => null,
-    };
-    final driftExecutor = switch (_executor) {
-      final DriftLibrarySyncEngine engine => engine,
-      _ => null,
-    };
-    return switch (plan.kind) {
-      LibrarySyncPlanKind.fullRepair ||
-      LibrarySyncPlanKind.catalogSnapshot => _executor.forceFullSync(
-        priorityAlbumIds: priorities,
-        onProgress: onProgress,
-      ),
-      LibrarySyncPlanKind.targetedHydration => switch (request.target.kind) {
-        LibrarySyncTargetKind.album
-            when targetId.isNotEmpty && targetedExecutor != null =>
-          targetedExecutor.hydrateAlbum(targetId, onProgress: onProgress),
-        LibrarySyncTargetKind.artist
-            when targetId.isNotEmpty && targetedExecutor != null =>
-          targetedExecutor.hydrateArtist(targetId, onProgress: onProgress),
-        LibrarySyncTargetKind.playlist
-            when targetId.isNotEmpty && targetedExecutor != null =>
-          targetedExecutor.hydratePlaylist(targetId, onProgress: onProgress),
-        LibrarySyncTargetKind.playlistHeaders when targetedExecutor != null =>
-          targetedExecutor.syncPlaylistHeaders(onProgress: onProgress),
-        LibrarySyncTargetKind.starred when targetedExecutor != null =>
-          targetedExecutor.syncStarredContent(onProgress: onProgress),
-        LibrarySyncTargetKind.genres when targetedExecutor != null =>
-          targetedExecutor.syncGenres(onProgress: onProgress),
-        _ => _executor.continueVerification(
-          priorityAlbumIds: priorities,
-          onProgress: onProgress,
-        ),
-      },
-      LibrarySyncPlanKind.compatibilityAudit when driftExecutor != null =>
-        driftExecutor.runCompatibilityAudit(
-          priorityAlbumIds: priorities,
-          onProgress: onProgress,
-        ),
-      LibrarySyncPlanKind.deltaReconcile ||
-      LibrarySyncPlanKind.compatibilityAudit => _executor.syncNow(
-        priorityAlbumIds: priorities,
-        onProgress: onProgress,
-      ),
-      LibrarySyncPlanKind.probe => _executor.probeCatalog(
-        onProgress: onProgress,
-      ),
-    };
+    return _executor.executeSyncPlan(
+      typedPlan,
+      priorityAlbumIds: priorities,
+      onProgress: onProgress,
+    );
   }
 
   bool _didCommitCatalogCandidate(
@@ -838,6 +1038,20 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             ? const Value(null)
             : const Value.absent(),
       ),
+    );
+    await _database.librarySyncDao.writeSyncProviderProfile(
+      serverId: serverId,
+      providerFingerprint: config == null
+          ? null
+          : '${config.url}|${config.apiVersion}',
+      conditionalIndexesMode: unsupported
+          ? SyncCapabilityMode.unsupported.index
+          : cursor != null
+          ? SyncCapabilityMode.reliable.index
+          : SyncCapabilityMode.unknown.index,
+      bulkSongSearchMode: bulkQuery is String ? 1 : 0,
+      safePageSize: 500,
+      observedAt: _now(),
     );
   }
 

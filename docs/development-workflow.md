@@ -139,9 +139,13 @@ launch. That is test setup only: its acceptance assertions use the running
 app's authenticated `/v1/sync/automatic` and `/v1/sync/status` endpoints,
 including after a clean restart, so they still exercise the production
 controller and persistence path.
-The same gate reads the bounded redacted `GET /v1/sync/ledger` trace to verify
-that diagnostic actions are attributable and reach a terminal transition,
-without exposing server or library data.
+The same gate reads the bounded redacted `GET /v1/sync/ledger` trace. Its
+`durableRuns` field is the cross-restart typed history (origin, intent, target
+kind, plan kind, terminal outcome/reason, aggregate request/byte counts, and
+timestamp only); it must never contain credentials, URLs, IDs, titles, or
+paths. The temporary `events` field is a bounded isolated-fixture compatibility
+mirror and is not a scheduler input. Use `durableOperations` for the separate
+atomic destructive-mutation audit.
 
 `tool/manual_discovery_diagnostics.sh` is the corresponding bounded
 unchanged-cursor discovery gate. It may seed a copied, isolated database and
@@ -356,7 +360,12 @@ production app API and services.
 Session status is deliberately bounded to route/sync phases, queue counts, and
 playback/activity flags; URLs, usernames, credentials, and tokens are forbidden.
 
-The sync diagnostics script runs its own catalog test sequence. For unrelated
+The sync diagnostics script runs its own catalog test sequence. Its isolated
+profile disables the separate destructive cache-layout upgrade route, so the
+restart gate certifies committed-catalog preservation rather than performing a
+cache reset. It also uses a short, heartbeated execution lease only in that
+profile: the script first records the safe `leaseHeld` result after an
+interruption, then retries once expiry permits recovery. For unrelated
 features, add the smallest focused launcher or scenario script that reuses the
 same lifecycle rather than pretending the sync sequence tested that feature.
 Do not document or call an endpoint until its implementation and contract test

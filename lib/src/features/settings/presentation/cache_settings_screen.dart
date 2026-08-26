@@ -234,8 +234,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.syncSettingsRepairMeteredConfirmTitle),
-          content: Text(l10n.syncSettingsRepairMeteredConfirmBody),
+          title: Text(l10n.cacheSettingsResetLibraryCacheMeteredConfirmTitle),
+          content: Text(l10n.cacheSettingsResetLibraryCacheMeteredConfirmBody),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -243,7 +243,9 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(l10n.syncSettingsRepairMeteredConfirmAction),
+              child: Text(
+                l10n.cacheSettingsResetLibraryCacheMeteredConfirmAction,
+              ),
             ),
           ],
         ),

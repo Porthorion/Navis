@@ -55,7 +55,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 68);
+    expect(authorized.body['schemaVersion'], 71);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -259,6 +259,7 @@ void main() {
     expect(terminal['targetKind'], 'album');
     expect(terminal['result'], 'succeeded');
     expect(terminal.containsKey('endpointRequests'), isTrue);
+    expect(ledger.body['durableRuns'], isEmpty);
     expect(ledger.body['durableOperations'], isEmpty);
   });
 

@@ -20,8 +20,10 @@ class SettingsScreen extends ConsumerWidget {
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     final groupConnection = l10n.settingsGroupConnection;
     final groupStorage = l10n.settingsGroupStorage;
+    final groupDeviceStorageCache = l10n.settingsGroupDeviceStorageCache;
     final groupPlayback = l10n.settingsGroupPlayback;
-    final groupAutomation = l10n.settingsGroupAutomation;
+    final groupLibrarySynchronization =
+        l10n.settingsGroupLibrarySynchronization;
     final groupOther = l10n.settingsGroupOther;
     final groupDesktop = l10n.settingsGroupDesktop;
     final List<_SettingsEntry> coreEntries = <_SettingsEntry>[
@@ -37,7 +39,7 @@ class SettingsScreen extends ConsumerWidget {
         title: l10n.settingsCacheTitle,
         subtitle: l10n.settingsCacheSubtitle,
         route: '/settings/cache',
-        group: groupStorage,
+        group: groupDeviceStorageCache,
       ),
       _SettingsEntry(
         icon: Icons.download_outlined,
@@ -51,7 +53,7 @@ class SettingsScreen extends ConsumerWidget {
         title: l10n.settingsSyncTitle,
         subtitle: l10n.settingsSyncSubtitle,
         route: '/settings/sync',
-        group: groupAutomation,
+        group: groupLibrarySynchronization,
       ),
       _SettingsEntry(
         icon: Icons.graphic_eq_outlined,

@@ -30,6 +30,8 @@ class LibrarySyncExecutionBootstrap {
     Set<String> Function()? readProtectedSongIds,
     String executionOwnerKind = 'foreground',
     bool isBackgroundExecution = false,
+    Duration? executionLeaseTtl,
+    Duration? executionLeaseHeartbeatInterval,
   }) {
     final executor = DriftLibrarySyncEngine(
       api: SubsonicLibrarySyncApi(client),
@@ -53,6 +55,8 @@ class LibrarySyncExecutionBootstrap {
       readIsForeground: readIsForeground,
       executionOwnerKind: executionOwnerKind,
       isBackgroundExecution: isBackgroundExecution,
+      executionLeaseTtl: executionLeaseTtl,
+      executionLeaseHeartbeatInterval: executionLeaseHeartbeatInterval,
     );
   }
 }

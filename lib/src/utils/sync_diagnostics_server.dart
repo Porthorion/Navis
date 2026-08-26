@@ -682,7 +682,12 @@ class SyncDiagnosticsServer {
       }
       if (request.method == 'GET' && path == '/v1/sync/ledger') {
         await _respond(request, HttpStatus.ok, <String, Object?>{
-          'events': _syncLedger,
+          // `events` is a one-release compatibility mirror for the isolated
+          // diagnostics fixture. Durable runs are the cross-restart source of
+          // truth; the live mirror is deliberately bounded and never used to
+          // resume or decide sync work.
+          'events': List<Map<String, Object?>>.unmodifiable(_syncLedger),
+          'durableRuns': await _durableRunHistoryJson(),
           'durableOperations': await _durableOperationLedgerJson(),
         });
         return;
@@ -2337,6 +2342,7 @@ class SyncDiagnosticsServer {
         'albums': catalog.albums,
         'songs': catalog.songs,
       },
+      'durableRuns': await _durableRunHistoryJson(),
       'durableOperations': await _durableOperationLedgerJson(),
     };
     if (overrides.requestReporting) {
@@ -2401,6 +2407,36 @@ class SyncDiagnosticsServer {
             'reason': row.reason,
             'occurredAt': row.occurredAt.toUtc().toIso8601String(),
             'details': _decodeSafeJson(row.detailsJson),
+          },
+        )
+        .toList(growable: false);
+  }
+
+  Future<List<Map<String, Object?>>> _durableRunHistoryJson() async {
+    final serverId = _container
+        .read(serverConfigStateProvider)
+        .asData
+        ?.value
+        ?.id;
+    if (serverId == null) {
+      return const <Map<String, Object?>>[];
+    }
+    final entries = await _container
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .getRecentSyncRunHistory(serverId);
+    return entries
+        .map(
+          (entry) => <String, Object?>{
+            'origin': entry.origin.name,
+            'intent': entry.intent.name,
+            'targetKind': entry.targetKind.name,
+            'planKind': entry.planKind.name,
+            'outcome': entry.outcome.name,
+            'reason': entry.reason.name,
+            'requestCount': entry.requestCount,
+            'byteCount': entry.byteCount,
+            'completedAt': entry.completedAt.toUtc().toIso8601String(),
           },
         )
         .toList(growable: false);

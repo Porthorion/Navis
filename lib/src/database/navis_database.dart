@@ -41,6 +41,11 @@ import 'package:navis/src/database/tables/library_sync_candidate_songs_table.dar
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
 import 'package:navis/src/database/tables/library_sync_execution_lease_table.dart';
+import 'package:navis/src/database/tables/library_sync_provider_profile_table.dart';
+import 'package:navis/src/database/tables/library_sync_repair_session_table.dart';
+import 'package:navis/src/database/tables/library_sync_run_attempt_table.dart';
+import 'package:navis/src/database/tables/library_sync_run_outcome_table.dart';
+import 'package:navis/src/database/tables/library_sync_run_request_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/match_flows_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
@@ -99,6 +104,11 @@ part 'navis_database.g.dart';
     StarredAbsenceCandidatesTable,
     LibrarySyncOperationLedgerTable,
     LibrarySyncExecutionLeaseTable,
+    LibrarySyncRunRequestTable,
+    LibrarySyncRunAttemptTable,
+    LibrarySyncRunOutcomeTable,
+    LibrarySyncProviderProfileTable,
+    LibrarySyncRepairSessionTable,
   ],
   daos: [
     AppSettingsDao,
@@ -145,7 +155,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 70;
+  int get schemaVersion => 71;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -376,6 +386,32 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 70 && to >= 70) {
       await from69To70(migrator);
+    }
+    if (from < 71 && to >= 71) {
+      await from70To71(migrator);
+    }
+  }
+
+  /// Adds the typed sync-lifecycle store alongside the legacy work rows.
+  ///
+  /// The current executor continues to mirror legacy work during the first
+  /// compatibility release, so an app rollback never needs to reverse a
+  /// schema migration or reconstruct a catalog from diagnostics.
+  Future<void> from70To71(Migrator migrator) async {
+    if (!await _tableExists('library_sync_run_request')) {
+      await migrator.createTable(librarySyncRunRequestTable);
+    }
+    if (!await _tableExists('library_sync_run_attempt')) {
+      await migrator.createTable(librarySyncRunAttemptTable);
+    }
+    if (!await _tableExists('library_sync_run_outcome')) {
+      await migrator.createTable(librarySyncRunOutcomeTable);
+    }
+    if (!await _tableExists('library_sync_provider_profile')) {
+      await migrator.createTable(librarySyncProviderProfileTable);
+    }
+    if (!await _tableExists('library_sync_repair_session')) {
+      await migrator.createTable(librarySyncRepairSessionTable);
     }
   }
 
@@ -1834,6 +1870,18 @@ FROM scrobble_queue;
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_library_sync_work_due ON library_sync_work(server_id, status, not_before, priority);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_sync_run_request_active '
+      'ON library_sync_run_request(server_id, status, coalescing_key, updated_at);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_sync_run_attempt_request '
+      'ON library_sync_run_attempt(request_id, status, started_at);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_sync_run_outcome_completed '
+      'ON library_sync_run_outcome(completed_at);',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_library_sync_candidate_albums_pending '

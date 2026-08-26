@@ -25590,6 +25590,2780 @@ class LibrarySyncExecutionLeaseTableCompanion
   }
 }
 
+class $LibrarySyncRunRequestTableTable extends LibrarySyncRunRequestTable
+    with
+        TableInfo<
+          $LibrarySyncRunRequestTableTable,
+          LibrarySyncRunRequestTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncRunRequestTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _contractVersionMeta = const VerificationMeta(
+    'contractVersion',
+  );
+  @override
+  late final GeneratedColumn<int> contractVersion = GeneratedColumn<int>(
+    'contract_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _originMeta = const VerificationMeta('origin');
+  @override
+  late final GeneratedColumn<int> origin = GeneratedColumn<int>(
+    'origin',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _intentMeta = const VerificationMeta('intent');
+  @override
+  late final GeneratedColumn<int> intent = GeneratedColumn<int>(
+    'intent',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetKindMeta = const VerificationMeta(
+    'targetKind',
+  );
+  @override
+  late final GeneratedColumn<int> targetKind = GeneratedColumn<int>(
+    'target_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetKeyMeta = const VerificationMeta(
+    'targetKey',
+  );
+  @override
+  late final GeneratedColumn<String> targetKey = GeneratedColumn<String>(
+    'target_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _networkGrantMeta = const VerificationMeta(
+    'networkGrant',
+  );
+  @override
+  late final GeneratedColumn<int> networkGrant = GeneratedColumn<int>(
+    'network_grant',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _planKindMeta = const VerificationMeta(
+    'planKind',
+  );
+  @override
+  late final GeneratedColumn<int> planKind = GeneratedColumn<int>(
+    'plan_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _coalescingKeyMeta = const VerificationMeta(
+    'coalescingKey',
+  );
+  @override
+  late final GeneratedColumn<String> coalescingKey = GeneratedColumn<String>(
+    'coalescing_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<int> status = GeneratedColumn<int>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _resumedFromRequestIdMeta =
+      const VerificationMeta('resumedFromRequestId');
+  @override
+  late final GeneratedColumn<int> resumedFromRequestId = GeneratedColumn<int>(
+    'resumed_from_request_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    serverId,
+    contractVersion,
+    origin,
+    intent,
+    targetKind,
+    targetKey,
+    networkGrant,
+    planKind,
+    priority,
+    coalescingKey,
+    status,
+    resumedFromRequestId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_run_request';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncRunRequestTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('contract_version')) {
+      context.handle(
+        _contractVersionMeta,
+        contractVersion.isAcceptableOrUnknown(
+          data['contract_version']!,
+          _contractVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contractVersionMeta);
+    }
+    if (data.containsKey('origin')) {
+      context.handle(
+        _originMeta,
+        origin.isAcceptableOrUnknown(data['origin']!, _originMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_originMeta);
+    }
+    if (data.containsKey('intent')) {
+      context.handle(
+        _intentMeta,
+        intent.isAcceptableOrUnknown(data['intent']!, _intentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_intentMeta);
+    }
+    if (data.containsKey('target_kind')) {
+      context.handle(
+        _targetKindMeta,
+        targetKind.isAcceptableOrUnknown(data['target_kind']!, _targetKindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetKindMeta);
+    }
+    if (data.containsKey('target_key')) {
+      context.handle(
+        _targetKeyMeta,
+        targetKey.isAcceptableOrUnknown(data['target_key']!, _targetKeyMeta),
+      );
+    }
+    if (data.containsKey('network_grant')) {
+      context.handle(
+        _networkGrantMeta,
+        networkGrant.isAcceptableOrUnknown(
+          data['network_grant']!,
+          _networkGrantMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_networkGrantMeta);
+    }
+    if (data.containsKey('plan_kind')) {
+      context.handle(
+        _planKindMeta,
+        planKind.isAcceptableOrUnknown(data['plan_kind']!, _planKindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_planKindMeta);
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_priorityMeta);
+    }
+    if (data.containsKey('coalescing_key')) {
+      context.handle(
+        _coalescingKeyMeta,
+        coalescingKey.isAcceptableOrUnknown(
+          data['coalescing_key']!,
+          _coalescingKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_coalescingKeyMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('resumed_from_request_id')) {
+      context.handle(
+        _resumedFromRequestIdMeta,
+        resumedFromRequestId.isAcceptableOrUnknown(
+          data['resumed_from_request_id']!,
+          _resumedFromRequestIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LibrarySyncRunRequestTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncRunRequestTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      contractVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}contract_version'],
+      )!,
+      origin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}origin'],
+      )!,
+      intent: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}intent'],
+      )!,
+      targetKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}target_kind'],
+      )!,
+      targetKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_key'],
+      )!,
+      networkGrant: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}network_grant'],
+      )!,
+      planKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}plan_kind'],
+      )!,
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}priority'],
+      )!,
+      coalescingKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}coalescing_key'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}status'],
+      )!,
+      resumedFromRequestId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}resumed_from_request_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LibrarySyncRunRequestTableTable createAlias(String alias) {
+    return $LibrarySyncRunRequestTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncRunRequestTableData extends DataClass
+    implements Insertable<LibrarySyncRunRequestTableData> {
+  final int id;
+  final int serverId;
+  final int contractVersion;
+  final int origin;
+  final int intent;
+  final int targetKind;
+
+  /// Stored only while a request is active; terminal diagnostics never expose
+  /// this value.
+  final String targetKey;
+  final int networkGrant;
+  final int planKind;
+  final int priority;
+  final String coalescingKey;
+  final int status;
+  final int? resumedFromRequestId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const LibrarySyncRunRequestTableData({
+    required this.id,
+    required this.serverId,
+    required this.contractVersion,
+    required this.origin,
+    required this.intent,
+    required this.targetKind,
+    required this.targetKey,
+    required this.networkGrant,
+    required this.planKind,
+    required this.priority,
+    required this.coalescingKey,
+    required this.status,
+    this.resumedFromRequestId,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['server_id'] = Variable<int>(serverId);
+    map['contract_version'] = Variable<int>(contractVersion);
+    map['origin'] = Variable<int>(origin);
+    map['intent'] = Variable<int>(intent);
+    map['target_kind'] = Variable<int>(targetKind);
+    map['target_key'] = Variable<String>(targetKey);
+    map['network_grant'] = Variable<int>(networkGrant);
+    map['plan_kind'] = Variable<int>(planKind);
+    map['priority'] = Variable<int>(priority);
+    map['coalescing_key'] = Variable<String>(coalescingKey);
+    map['status'] = Variable<int>(status);
+    if (!nullToAbsent || resumedFromRequestId != null) {
+      map['resumed_from_request_id'] = Variable<int>(resumedFromRequestId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LibrarySyncRunRequestTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncRunRequestTableCompanion(
+      id: Value(id),
+      serverId: Value(serverId),
+      contractVersion: Value(contractVersion),
+      origin: Value(origin),
+      intent: Value(intent),
+      targetKind: Value(targetKind),
+      targetKey: Value(targetKey),
+      networkGrant: Value(networkGrant),
+      planKind: Value(planKind),
+      priority: Value(priority),
+      coalescingKey: Value(coalescingKey),
+      status: Value(status),
+      resumedFromRequestId: resumedFromRequestId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resumedFromRequestId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LibrarySyncRunRequestTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncRunRequestTableData(
+      id: serializer.fromJson<int>(json['id']),
+      serverId: serializer.fromJson<int>(json['serverId']),
+      contractVersion: serializer.fromJson<int>(json['contractVersion']),
+      origin: serializer.fromJson<int>(json['origin']),
+      intent: serializer.fromJson<int>(json['intent']),
+      targetKind: serializer.fromJson<int>(json['targetKind']),
+      targetKey: serializer.fromJson<String>(json['targetKey']),
+      networkGrant: serializer.fromJson<int>(json['networkGrant']),
+      planKind: serializer.fromJson<int>(json['planKind']),
+      priority: serializer.fromJson<int>(json['priority']),
+      coalescingKey: serializer.fromJson<String>(json['coalescingKey']),
+      status: serializer.fromJson<int>(json['status']),
+      resumedFromRequestId: serializer.fromJson<int?>(
+        json['resumedFromRequestId'],
+      ),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'serverId': serializer.toJson<int>(serverId),
+      'contractVersion': serializer.toJson<int>(contractVersion),
+      'origin': serializer.toJson<int>(origin),
+      'intent': serializer.toJson<int>(intent),
+      'targetKind': serializer.toJson<int>(targetKind),
+      'targetKey': serializer.toJson<String>(targetKey),
+      'networkGrant': serializer.toJson<int>(networkGrant),
+      'planKind': serializer.toJson<int>(planKind),
+      'priority': serializer.toJson<int>(priority),
+      'coalescingKey': serializer.toJson<String>(coalescingKey),
+      'status': serializer.toJson<int>(status),
+      'resumedFromRequestId': serializer.toJson<int?>(resumedFromRequestId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LibrarySyncRunRequestTableData copyWith({
+    int? id,
+    int? serverId,
+    int? contractVersion,
+    int? origin,
+    int? intent,
+    int? targetKind,
+    String? targetKey,
+    int? networkGrant,
+    int? planKind,
+    int? priority,
+    String? coalescingKey,
+    int? status,
+    Value<int?> resumedFromRequestId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => LibrarySyncRunRequestTableData(
+    id: id ?? this.id,
+    serverId: serverId ?? this.serverId,
+    contractVersion: contractVersion ?? this.contractVersion,
+    origin: origin ?? this.origin,
+    intent: intent ?? this.intent,
+    targetKind: targetKind ?? this.targetKind,
+    targetKey: targetKey ?? this.targetKey,
+    networkGrant: networkGrant ?? this.networkGrant,
+    planKind: planKind ?? this.planKind,
+    priority: priority ?? this.priority,
+    coalescingKey: coalescingKey ?? this.coalescingKey,
+    status: status ?? this.status,
+    resumedFromRequestId: resumedFromRequestId.present
+        ? resumedFromRequestId.value
+        : this.resumedFromRequestId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LibrarySyncRunRequestTableData copyWithCompanion(
+    LibrarySyncRunRequestTableCompanion data,
+  ) {
+    return LibrarySyncRunRequestTableData(
+      id: data.id.present ? data.id.value : this.id,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      contractVersion: data.contractVersion.present
+          ? data.contractVersion.value
+          : this.contractVersion,
+      origin: data.origin.present ? data.origin.value : this.origin,
+      intent: data.intent.present ? data.intent.value : this.intent,
+      targetKind: data.targetKind.present
+          ? data.targetKind.value
+          : this.targetKind,
+      targetKey: data.targetKey.present ? data.targetKey.value : this.targetKey,
+      networkGrant: data.networkGrant.present
+          ? data.networkGrant.value
+          : this.networkGrant,
+      planKind: data.planKind.present ? data.planKind.value : this.planKind,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      coalescingKey: data.coalescingKey.present
+          ? data.coalescingKey.value
+          : this.coalescingKey,
+      status: data.status.present ? data.status.value : this.status,
+      resumedFromRequestId: data.resumedFromRequestId.present
+          ? data.resumedFromRequestId.value
+          : this.resumedFromRequestId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncRunRequestTableData(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('contractVersion: $contractVersion, ')
+          ..write('origin: $origin, ')
+          ..write('intent: $intent, ')
+          ..write('targetKind: $targetKind, ')
+          ..write('targetKey: $targetKey, ')
+          ..write('networkGrant: $networkGrant, ')
+          ..write('planKind: $planKind, ')
+          ..write('priority: $priority, ')
+          ..write('coalescingKey: $coalescingKey, ')
+          ..write('status: $status, ')
+          ..write('resumedFromRequestId: $resumedFromRequestId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    serverId,
+    contractVersion,
+    origin,
+    intent,
+    targetKind,
+    targetKey,
+    networkGrant,
+    planKind,
+    priority,
+    coalescingKey,
+    status,
+    resumedFromRequestId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncRunRequestTableData &&
+          other.id == this.id &&
+          other.serverId == this.serverId &&
+          other.contractVersion == this.contractVersion &&
+          other.origin == this.origin &&
+          other.intent == this.intent &&
+          other.targetKind == this.targetKind &&
+          other.targetKey == this.targetKey &&
+          other.networkGrant == this.networkGrant &&
+          other.planKind == this.planKind &&
+          other.priority == this.priority &&
+          other.coalescingKey == this.coalescingKey &&
+          other.status == this.status &&
+          other.resumedFromRequestId == this.resumedFromRequestId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LibrarySyncRunRequestTableCompanion
+    extends UpdateCompanion<LibrarySyncRunRequestTableData> {
+  final Value<int> id;
+  final Value<int> serverId;
+  final Value<int> contractVersion;
+  final Value<int> origin;
+  final Value<int> intent;
+  final Value<int> targetKind;
+  final Value<String> targetKey;
+  final Value<int> networkGrant;
+  final Value<int> planKind;
+  final Value<int> priority;
+  final Value<String> coalescingKey;
+  final Value<int> status;
+  final Value<int?> resumedFromRequestId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const LibrarySyncRunRequestTableCompanion({
+    this.id = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.contractVersion = const Value.absent(),
+    this.origin = const Value.absent(),
+    this.intent = const Value.absent(),
+    this.targetKind = const Value.absent(),
+    this.targetKey = const Value.absent(),
+    this.networkGrant = const Value.absent(),
+    this.planKind = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.coalescingKey = const Value.absent(),
+    this.status = const Value.absent(),
+    this.resumedFromRequestId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  LibrarySyncRunRequestTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int serverId,
+    required int contractVersion,
+    required int origin,
+    required int intent,
+    required int targetKind,
+    this.targetKey = const Value.absent(),
+    required int networkGrant,
+    required int planKind,
+    required int priority,
+    required String coalescingKey,
+    this.status = const Value.absent(),
+    this.resumedFromRequestId = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) : serverId = Value(serverId),
+       contractVersion = Value(contractVersion),
+       origin = Value(origin),
+       intent = Value(intent),
+       targetKind = Value(targetKind),
+       networkGrant = Value(networkGrant),
+       planKind = Value(planKind),
+       priority = Value(priority),
+       coalescingKey = Value(coalescingKey),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<LibrarySyncRunRequestTableData> custom({
+    Expression<int>? id,
+    Expression<int>? serverId,
+    Expression<int>? contractVersion,
+    Expression<int>? origin,
+    Expression<int>? intent,
+    Expression<int>? targetKind,
+    Expression<String>? targetKey,
+    Expression<int>? networkGrant,
+    Expression<int>? planKind,
+    Expression<int>? priority,
+    Expression<String>? coalescingKey,
+    Expression<int>? status,
+    Expression<int>? resumedFromRequestId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (serverId != null) 'server_id': serverId,
+      if (contractVersion != null) 'contract_version': contractVersion,
+      if (origin != null) 'origin': origin,
+      if (intent != null) 'intent': intent,
+      if (targetKind != null) 'target_kind': targetKind,
+      if (targetKey != null) 'target_key': targetKey,
+      if (networkGrant != null) 'network_grant': networkGrant,
+      if (planKind != null) 'plan_kind': planKind,
+      if (priority != null) 'priority': priority,
+      if (coalescingKey != null) 'coalescing_key': coalescingKey,
+      if (status != null) 'status': status,
+      if (resumedFromRequestId != null)
+        'resumed_from_request_id': resumedFromRequestId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  LibrarySyncRunRequestTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? serverId,
+    Value<int>? contractVersion,
+    Value<int>? origin,
+    Value<int>? intent,
+    Value<int>? targetKind,
+    Value<String>? targetKey,
+    Value<int>? networkGrant,
+    Value<int>? planKind,
+    Value<int>? priority,
+    Value<String>? coalescingKey,
+    Value<int>? status,
+    Value<int?>? resumedFromRequestId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return LibrarySyncRunRequestTableCompanion(
+      id: id ?? this.id,
+      serverId: serverId ?? this.serverId,
+      contractVersion: contractVersion ?? this.contractVersion,
+      origin: origin ?? this.origin,
+      intent: intent ?? this.intent,
+      targetKind: targetKind ?? this.targetKind,
+      targetKey: targetKey ?? this.targetKey,
+      networkGrant: networkGrant ?? this.networkGrant,
+      planKind: planKind ?? this.planKind,
+      priority: priority ?? this.priority,
+      coalescingKey: coalescingKey ?? this.coalescingKey,
+      status: status ?? this.status,
+      resumedFromRequestId: resumedFromRequestId ?? this.resumedFromRequestId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (contractVersion.present) {
+      map['contract_version'] = Variable<int>(contractVersion.value);
+    }
+    if (origin.present) {
+      map['origin'] = Variable<int>(origin.value);
+    }
+    if (intent.present) {
+      map['intent'] = Variable<int>(intent.value);
+    }
+    if (targetKind.present) {
+      map['target_kind'] = Variable<int>(targetKind.value);
+    }
+    if (targetKey.present) {
+      map['target_key'] = Variable<String>(targetKey.value);
+    }
+    if (networkGrant.present) {
+      map['network_grant'] = Variable<int>(networkGrant.value);
+    }
+    if (planKind.present) {
+      map['plan_kind'] = Variable<int>(planKind.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
+    }
+    if (coalescingKey.present) {
+      map['coalescing_key'] = Variable<String>(coalescingKey.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<int>(status.value);
+    }
+    if (resumedFromRequestId.present) {
+      map['resumed_from_request_id'] = Variable<int>(
+        resumedFromRequestId.value,
+      );
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncRunRequestTableCompanion(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('contractVersion: $contractVersion, ')
+          ..write('origin: $origin, ')
+          ..write('intent: $intent, ')
+          ..write('targetKind: $targetKind, ')
+          ..write('targetKey: $targetKey, ')
+          ..write('networkGrant: $networkGrant, ')
+          ..write('planKind: $planKind, ')
+          ..write('priority: $priority, ')
+          ..write('coalescingKey: $coalescingKey, ')
+          ..write('status: $status, ')
+          ..write('resumedFromRequestId: $resumedFromRequestId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncRunAttemptTableTable extends LibrarySyncRunAttemptTable
+    with
+        TableInfo<
+          $LibrarySyncRunAttemptTableTable,
+          LibrarySyncRunAttemptTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncRunAttemptTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _requestIdMeta = const VerificationMeta(
+    'requestId',
+  );
+  @override
+  late final GeneratedColumn<int> requestId = GeneratedColumn<int>(
+    'request_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES library_sync_run_request (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<int> status = GeneratedColumn<int>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _ownerKindMeta = const VerificationMeta(
+    'ownerKind',
+  );
+  @override
+  late final GeneratedColumn<int> ownerKind = GeneratedColumn<int>(
+    'owner_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    requestId,
+    status,
+    ownerKind,
+    startedAt,
+    completedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_run_attempt';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncRunAttemptTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('request_id')) {
+      context.handle(
+        _requestIdMeta,
+        requestId.isAcceptableOrUnknown(data['request_id']!, _requestIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_requestIdMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('owner_kind')) {
+      context.handle(
+        _ownerKindMeta,
+        ownerKind.isAcceptableOrUnknown(data['owner_kind']!, _ownerKindMeta),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LibrarySyncRunAttemptTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncRunAttemptTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      requestId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}request_id'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}status'],
+      )!,
+      ownerKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}owner_kind'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      ),
+    );
+  }
+
+  @override
+  $LibrarySyncRunAttemptTableTable createAlias(String alias) {
+    return $LibrarySyncRunAttemptTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncRunAttemptTableData extends DataClass
+    implements Insertable<LibrarySyncRunAttemptTableData> {
+  final int id;
+  final int requestId;
+
+  /// 0 running, 1 recovered after interruption, 2 terminal.
+  final int status;
+  final int ownerKind;
+  final DateTime startedAt;
+  final DateTime? completedAt;
+  const LibrarySyncRunAttemptTableData({
+    required this.id,
+    required this.requestId,
+    required this.status,
+    required this.ownerKind,
+    required this.startedAt,
+    this.completedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['request_id'] = Variable<int>(requestId);
+    map['status'] = Variable<int>(status);
+    map['owner_kind'] = Variable<int>(ownerKind);
+    map['started_at'] = Variable<DateTime>(startedAt);
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    return map;
+  }
+
+  LibrarySyncRunAttemptTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncRunAttemptTableCompanion(
+      id: Value(id),
+      requestId: Value(requestId),
+      status: Value(status),
+      ownerKind: Value(ownerKind),
+      startedAt: Value(startedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+    );
+  }
+
+  factory LibrarySyncRunAttemptTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncRunAttemptTableData(
+      id: serializer.fromJson<int>(json['id']),
+      requestId: serializer.fromJson<int>(json['requestId']),
+      status: serializer.fromJson<int>(json['status']),
+      ownerKind: serializer.fromJson<int>(json['ownerKind']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'requestId': serializer.toJson<int>(requestId),
+      'status': serializer.toJson<int>(status),
+      'ownerKind': serializer.toJson<int>(ownerKind),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'completedAt': serializer.toJson<DateTime?>(completedAt),
+    };
+  }
+
+  LibrarySyncRunAttemptTableData copyWith({
+    int? id,
+    int? requestId,
+    int? status,
+    int? ownerKind,
+    DateTime? startedAt,
+    Value<DateTime?> completedAt = const Value.absent(),
+  }) => LibrarySyncRunAttemptTableData(
+    id: id ?? this.id,
+    requestId: requestId ?? this.requestId,
+    status: status ?? this.status,
+    ownerKind: ownerKind ?? this.ownerKind,
+    startedAt: startedAt ?? this.startedAt,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+  );
+  LibrarySyncRunAttemptTableData copyWithCompanion(
+    LibrarySyncRunAttemptTableCompanion data,
+  ) {
+    return LibrarySyncRunAttemptTableData(
+      id: data.id.present ? data.id.value : this.id,
+      requestId: data.requestId.present ? data.requestId.value : this.requestId,
+      status: data.status.present ? data.status.value : this.status,
+      ownerKind: data.ownerKind.present ? data.ownerKind.value : this.ownerKind,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncRunAttemptTableData(')
+          ..write('id: $id, ')
+          ..write('requestId: $requestId, ')
+          ..write('status: $status, ')
+          ..write('ownerKind: $ownerKind, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, requestId, status, ownerKind, startedAt, completedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncRunAttemptTableData &&
+          other.id == this.id &&
+          other.requestId == this.requestId &&
+          other.status == this.status &&
+          other.ownerKind == this.ownerKind &&
+          other.startedAt == this.startedAt &&
+          other.completedAt == this.completedAt);
+}
+
+class LibrarySyncRunAttemptTableCompanion
+    extends UpdateCompanion<LibrarySyncRunAttemptTableData> {
+  final Value<int> id;
+  final Value<int> requestId;
+  final Value<int> status;
+  final Value<int> ownerKind;
+  final Value<DateTime> startedAt;
+  final Value<DateTime?> completedAt;
+  const LibrarySyncRunAttemptTableCompanion({
+    this.id = const Value.absent(),
+    this.requestId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.ownerKind = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+  });
+  LibrarySyncRunAttemptTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int requestId,
+    this.status = const Value.absent(),
+    this.ownerKind = const Value.absent(),
+    required DateTime startedAt,
+    this.completedAt = const Value.absent(),
+  }) : requestId = Value(requestId),
+       startedAt = Value(startedAt);
+  static Insertable<LibrarySyncRunAttemptTableData> custom({
+    Expression<int>? id,
+    Expression<int>? requestId,
+    Expression<int>? status,
+    Expression<int>? ownerKind,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? completedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (requestId != null) 'request_id': requestId,
+      if (status != null) 'status': status,
+      if (ownerKind != null) 'owner_kind': ownerKind,
+      if (startedAt != null) 'started_at': startedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+    });
+  }
+
+  LibrarySyncRunAttemptTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? requestId,
+    Value<int>? status,
+    Value<int>? ownerKind,
+    Value<DateTime>? startedAt,
+    Value<DateTime?>? completedAt,
+  }) {
+    return LibrarySyncRunAttemptTableCompanion(
+      id: id ?? this.id,
+      requestId: requestId ?? this.requestId,
+      status: status ?? this.status,
+      ownerKind: ownerKind ?? this.ownerKind,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (requestId.present) {
+      map['request_id'] = Variable<int>(requestId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<int>(status.value);
+    }
+    if (ownerKind.present) {
+      map['owner_kind'] = Variable<int>(ownerKind.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncRunAttemptTableCompanion(')
+          ..write('id: $id, ')
+          ..write('requestId: $requestId, ')
+          ..write('status: $status, ')
+          ..write('ownerKind: $ownerKind, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncRunOutcomeTableTable extends LibrarySyncRunOutcomeTable
+    with
+        TableInfo<
+          $LibrarySyncRunOutcomeTableTable,
+          LibrarySyncRunOutcomeTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncRunOutcomeTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _requestIdMeta = const VerificationMeta(
+    'requestId',
+  );
+  @override
+  late final GeneratedColumn<int> requestId = GeneratedColumn<int>(
+    'request_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES library_sync_run_request (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _attemptIdMeta = const VerificationMeta(
+    'attemptId',
+  );
+  @override
+  late final GeneratedColumn<int> attemptId = GeneratedColumn<int>(
+    'attempt_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES library_sync_run_attempt (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _outcomeKindMeta = const VerificationMeta(
+    'outcomeKind',
+  );
+  @override
+  late final GeneratedColumn<int> outcomeKind = GeneratedColumn<int>(
+    'outcome_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _safeReasonMeta = const VerificationMeta(
+    'safeReason',
+  );
+  @override
+  late final GeneratedColumn<int> safeReason = GeneratedColumn<int>(
+    'safe_reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _requestCountMeta = const VerificationMeta(
+    'requestCount',
+  );
+  @override
+  late final GeneratedColumn<int> requestCount = GeneratedColumn<int>(
+    'request_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _byteCountMeta = const VerificationMeta(
+    'byteCount',
+  );
+  @override
+  late final GeneratedColumn<int> byteCount = GeneratedColumn<int>(
+    'byte_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    requestId,
+    attemptId,
+    outcomeKind,
+    safeReason,
+    requestCount,
+    byteCount,
+    completedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_run_outcome';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncRunOutcomeTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('request_id')) {
+      context.handle(
+        _requestIdMeta,
+        requestId.isAcceptableOrUnknown(data['request_id']!, _requestIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_requestIdMeta);
+    }
+    if (data.containsKey('attempt_id')) {
+      context.handle(
+        _attemptIdMeta,
+        attemptId.isAcceptableOrUnknown(data['attempt_id']!, _attemptIdMeta),
+      );
+    }
+    if (data.containsKey('outcome_kind')) {
+      context.handle(
+        _outcomeKindMeta,
+        outcomeKind.isAcceptableOrUnknown(
+          data['outcome_kind']!,
+          _outcomeKindMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_outcomeKindMeta);
+    }
+    if (data.containsKey('safe_reason')) {
+      context.handle(
+        _safeReasonMeta,
+        safeReason.isAcceptableOrUnknown(data['safe_reason']!, _safeReasonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_safeReasonMeta);
+    }
+    if (data.containsKey('request_count')) {
+      context.handle(
+        _requestCountMeta,
+        requestCount.isAcceptableOrUnknown(
+          data['request_count']!,
+          _requestCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('byte_count')) {
+      context.handle(
+        _byteCountMeta,
+        byteCount.isAcceptableOrUnknown(data['byte_count']!, _byteCountMeta),
+      );
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_completedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LibrarySyncRunOutcomeTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncRunOutcomeTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      requestId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}request_id'],
+      )!,
+      attemptId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempt_id'],
+      ),
+      outcomeKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}outcome_kind'],
+      )!,
+      safeReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}safe_reason'],
+      )!,
+      requestCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}request_count'],
+      )!,
+      byteCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}byte_count'],
+      )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LibrarySyncRunOutcomeTableTable createAlias(String alias) {
+    return $LibrarySyncRunOutcomeTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncRunOutcomeTableData extends DataClass
+    implements Insertable<LibrarySyncRunOutcomeTableData> {
+  final int id;
+  final int requestId;
+  final int? attemptId;
+  final int outcomeKind;
+  final int safeReason;
+  final int requestCount;
+  final int byteCount;
+  final DateTime completedAt;
+  const LibrarySyncRunOutcomeTableData({
+    required this.id,
+    required this.requestId,
+    this.attemptId,
+    required this.outcomeKind,
+    required this.safeReason,
+    required this.requestCount,
+    required this.byteCount,
+    required this.completedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['request_id'] = Variable<int>(requestId);
+    if (!nullToAbsent || attemptId != null) {
+      map['attempt_id'] = Variable<int>(attemptId);
+    }
+    map['outcome_kind'] = Variable<int>(outcomeKind);
+    map['safe_reason'] = Variable<int>(safeReason);
+    map['request_count'] = Variable<int>(requestCount);
+    map['byte_count'] = Variable<int>(byteCount);
+    map['completed_at'] = Variable<DateTime>(completedAt);
+    return map;
+  }
+
+  LibrarySyncRunOutcomeTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncRunOutcomeTableCompanion(
+      id: Value(id),
+      requestId: Value(requestId),
+      attemptId: attemptId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attemptId),
+      outcomeKind: Value(outcomeKind),
+      safeReason: Value(safeReason),
+      requestCount: Value(requestCount),
+      byteCount: Value(byteCount),
+      completedAt: Value(completedAt),
+    );
+  }
+
+  factory LibrarySyncRunOutcomeTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncRunOutcomeTableData(
+      id: serializer.fromJson<int>(json['id']),
+      requestId: serializer.fromJson<int>(json['requestId']),
+      attemptId: serializer.fromJson<int?>(json['attemptId']),
+      outcomeKind: serializer.fromJson<int>(json['outcomeKind']),
+      safeReason: serializer.fromJson<int>(json['safeReason']),
+      requestCount: serializer.fromJson<int>(json['requestCount']),
+      byteCount: serializer.fromJson<int>(json['byteCount']),
+      completedAt: serializer.fromJson<DateTime>(json['completedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'requestId': serializer.toJson<int>(requestId),
+      'attemptId': serializer.toJson<int?>(attemptId),
+      'outcomeKind': serializer.toJson<int>(outcomeKind),
+      'safeReason': serializer.toJson<int>(safeReason),
+      'requestCount': serializer.toJson<int>(requestCount),
+      'byteCount': serializer.toJson<int>(byteCount),
+      'completedAt': serializer.toJson<DateTime>(completedAt),
+    };
+  }
+
+  LibrarySyncRunOutcomeTableData copyWith({
+    int? id,
+    int? requestId,
+    Value<int?> attemptId = const Value.absent(),
+    int? outcomeKind,
+    int? safeReason,
+    int? requestCount,
+    int? byteCount,
+    DateTime? completedAt,
+  }) => LibrarySyncRunOutcomeTableData(
+    id: id ?? this.id,
+    requestId: requestId ?? this.requestId,
+    attemptId: attemptId.present ? attemptId.value : this.attemptId,
+    outcomeKind: outcomeKind ?? this.outcomeKind,
+    safeReason: safeReason ?? this.safeReason,
+    requestCount: requestCount ?? this.requestCount,
+    byteCount: byteCount ?? this.byteCount,
+    completedAt: completedAt ?? this.completedAt,
+  );
+  LibrarySyncRunOutcomeTableData copyWithCompanion(
+    LibrarySyncRunOutcomeTableCompanion data,
+  ) {
+    return LibrarySyncRunOutcomeTableData(
+      id: data.id.present ? data.id.value : this.id,
+      requestId: data.requestId.present ? data.requestId.value : this.requestId,
+      attemptId: data.attemptId.present ? data.attemptId.value : this.attemptId,
+      outcomeKind: data.outcomeKind.present
+          ? data.outcomeKind.value
+          : this.outcomeKind,
+      safeReason: data.safeReason.present
+          ? data.safeReason.value
+          : this.safeReason,
+      requestCount: data.requestCount.present
+          ? data.requestCount.value
+          : this.requestCount,
+      byteCount: data.byteCount.present ? data.byteCount.value : this.byteCount,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncRunOutcomeTableData(')
+          ..write('id: $id, ')
+          ..write('requestId: $requestId, ')
+          ..write('attemptId: $attemptId, ')
+          ..write('outcomeKind: $outcomeKind, ')
+          ..write('safeReason: $safeReason, ')
+          ..write('requestCount: $requestCount, ')
+          ..write('byteCount: $byteCount, ')
+          ..write('completedAt: $completedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    requestId,
+    attemptId,
+    outcomeKind,
+    safeReason,
+    requestCount,
+    byteCount,
+    completedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncRunOutcomeTableData &&
+          other.id == this.id &&
+          other.requestId == this.requestId &&
+          other.attemptId == this.attemptId &&
+          other.outcomeKind == this.outcomeKind &&
+          other.safeReason == this.safeReason &&
+          other.requestCount == this.requestCount &&
+          other.byteCount == this.byteCount &&
+          other.completedAt == this.completedAt);
+}
+
+class LibrarySyncRunOutcomeTableCompanion
+    extends UpdateCompanion<LibrarySyncRunOutcomeTableData> {
+  final Value<int> id;
+  final Value<int> requestId;
+  final Value<int?> attemptId;
+  final Value<int> outcomeKind;
+  final Value<int> safeReason;
+  final Value<int> requestCount;
+  final Value<int> byteCount;
+  final Value<DateTime> completedAt;
+  const LibrarySyncRunOutcomeTableCompanion({
+    this.id = const Value.absent(),
+    this.requestId = const Value.absent(),
+    this.attemptId = const Value.absent(),
+    this.outcomeKind = const Value.absent(),
+    this.safeReason = const Value.absent(),
+    this.requestCount = const Value.absent(),
+    this.byteCount = const Value.absent(),
+    this.completedAt = const Value.absent(),
+  });
+  LibrarySyncRunOutcomeTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int requestId,
+    this.attemptId = const Value.absent(),
+    required int outcomeKind,
+    required int safeReason,
+    this.requestCount = const Value.absent(),
+    this.byteCount = const Value.absent(),
+    required DateTime completedAt,
+  }) : requestId = Value(requestId),
+       outcomeKind = Value(outcomeKind),
+       safeReason = Value(safeReason),
+       completedAt = Value(completedAt);
+  static Insertable<LibrarySyncRunOutcomeTableData> custom({
+    Expression<int>? id,
+    Expression<int>? requestId,
+    Expression<int>? attemptId,
+    Expression<int>? outcomeKind,
+    Expression<int>? safeReason,
+    Expression<int>? requestCount,
+    Expression<int>? byteCount,
+    Expression<DateTime>? completedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (requestId != null) 'request_id': requestId,
+      if (attemptId != null) 'attempt_id': attemptId,
+      if (outcomeKind != null) 'outcome_kind': outcomeKind,
+      if (safeReason != null) 'safe_reason': safeReason,
+      if (requestCount != null) 'request_count': requestCount,
+      if (byteCount != null) 'byte_count': byteCount,
+      if (completedAt != null) 'completed_at': completedAt,
+    });
+  }
+
+  LibrarySyncRunOutcomeTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? requestId,
+    Value<int?>? attemptId,
+    Value<int>? outcomeKind,
+    Value<int>? safeReason,
+    Value<int>? requestCount,
+    Value<int>? byteCount,
+    Value<DateTime>? completedAt,
+  }) {
+    return LibrarySyncRunOutcomeTableCompanion(
+      id: id ?? this.id,
+      requestId: requestId ?? this.requestId,
+      attemptId: attemptId ?? this.attemptId,
+      outcomeKind: outcomeKind ?? this.outcomeKind,
+      safeReason: safeReason ?? this.safeReason,
+      requestCount: requestCount ?? this.requestCount,
+      byteCount: byteCount ?? this.byteCount,
+      completedAt: completedAt ?? this.completedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (requestId.present) {
+      map['request_id'] = Variable<int>(requestId.value);
+    }
+    if (attemptId.present) {
+      map['attempt_id'] = Variable<int>(attemptId.value);
+    }
+    if (outcomeKind.present) {
+      map['outcome_kind'] = Variable<int>(outcomeKind.value);
+    }
+    if (safeReason.present) {
+      map['safe_reason'] = Variable<int>(safeReason.value);
+    }
+    if (requestCount.present) {
+      map['request_count'] = Variable<int>(requestCount.value);
+    }
+    if (byteCount.present) {
+      map['byte_count'] = Variable<int>(byteCount.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncRunOutcomeTableCompanion(')
+          ..write('id: $id, ')
+          ..write('requestId: $requestId, ')
+          ..write('attemptId: $attemptId, ')
+          ..write('outcomeKind: $outcomeKind, ')
+          ..write('safeReason: $safeReason, ')
+          ..write('requestCount: $requestCount, ')
+          ..write('byteCount: $byteCount, ')
+          ..write('completedAt: $completedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncProviderProfileTableTable
+    extends LibrarySyncProviderProfileTable
+    with
+        TableInfo<
+          $LibrarySyncProviderProfileTableTable,
+          LibrarySyncProviderProfileTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncProviderProfileTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _providerFingerprintMeta =
+      const VerificationMeta('providerFingerprint');
+  @override
+  late final GeneratedColumn<String> providerFingerprint =
+      GeneratedColumn<String>(
+        'provider_fingerprint',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _conditionalIndexesModeMeta =
+      const VerificationMeta('conditionalIndexesMode');
+  @override
+  late final GeneratedColumn<int> conditionalIndexesMode = GeneratedColumn<int>(
+    'conditional_indexes_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bulkSongSearchModeMeta =
+      const VerificationMeta('bulkSongSearchMode');
+  @override
+  late final GeneratedColumn<int> bulkSongSearchMode = GeneratedColumn<int>(
+    'bulk_song_search_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _safePageSizeMeta = const VerificationMeta(
+    'safePageSize',
+  );
+  @override
+  late final GeneratedColumn<int> safePageSize = GeneratedColumn<int>(
+    'safe_page_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(500),
+  );
+  static const VerificationMeta _observedAtMeta = const VerificationMeta(
+    'observedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> observedAt = GeneratedColumn<DateTime>(
+    'observed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    providerFingerprint,
+    conditionalIndexesMode,
+    bulkSongSearchMode,
+    safePageSize,
+    observedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_provider_profile';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncProviderProfileTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('provider_fingerprint')) {
+      context.handle(
+        _providerFingerprintMeta,
+        providerFingerprint.isAcceptableOrUnknown(
+          data['provider_fingerprint']!,
+          _providerFingerprintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('conditional_indexes_mode')) {
+      context.handle(
+        _conditionalIndexesModeMeta,
+        conditionalIndexesMode.isAcceptableOrUnknown(
+          data['conditional_indexes_mode']!,
+          _conditionalIndexesModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bulk_song_search_mode')) {
+      context.handle(
+        _bulkSongSearchModeMeta,
+        bulkSongSearchMode.isAcceptableOrUnknown(
+          data['bulk_song_search_mode']!,
+          _bulkSongSearchModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('safe_page_size')) {
+      context.handle(
+        _safePageSizeMeta,
+        safePageSize.isAcceptableOrUnknown(
+          data['safe_page_size']!,
+          _safePageSizeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('observed_at')) {
+      context.handle(
+        _observedAtMeta,
+        observedAt.isAcceptableOrUnknown(data['observed_at']!, _observedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId};
+  @override
+  LibrarySyncProviderProfileTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncProviderProfileTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      providerFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_fingerprint'],
+      ),
+      conditionalIndexesMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}conditional_indexes_mode'],
+      )!,
+      bulkSongSearchMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bulk_song_search_mode'],
+      )!,
+      safePageSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}safe_page_size'],
+      )!,
+      observedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}observed_at'],
+      ),
+    );
+  }
+
+  @override
+  $LibrarySyncProviderProfileTableTable createAlias(String alias) {
+    return $LibrarySyncProviderProfileTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncProviderProfileTableData extends DataClass
+    implements Insertable<LibrarySyncProviderProfileTableData> {
+  final int serverId;
+  final String? providerFingerprint;
+  final int conditionalIndexesMode;
+  final int bulkSongSearchMode;
+  final int safePageSize;
+  final DateTime? observedAt;
+  const LibrarySyncProviderProfileTableData({
+    required this.serverId,
+    this.providerFingerprint,
+    required this.conditionalIndexesMode,
+    required this.bulkSongSearchMode,
+    required this.safePageSize,
+    this.observedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    if (!nullToAbsent || providerFingerprint != null) {
+      map['provider_fingerprint'] = Variable<String>(providerFingerprint);
+    }
+    map['conditional_indexes_mode'] = Variable<int>(conditionalIndexesMode);
+    map['bulk_song_search_mode'] = Variable<int>(bulkSongSearchMode);
+    map['safe_page_size'] = Variable<int>(safePageSize);
+    if (!nullToAbsent || observedAt != null) {
+      map['observed_at'] = Variable<DateTime>(observedAt);
+    }
+    return map;
+  }
+
+  LibrarySyncProviderProfileTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncProviderProfileTableCompanion(
+      serverId: Value(serverId),
+      providerFingerprint: providerFingerprint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerFingerprint),
+      conditionalIndexesMode: Value(conditionalIndexesMode),
+      bulkSongSearchMode: Value(bulkSongSearchMode),
+      safePageSize: Value(safePageSize),
+      observedAt: observedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(observedAt),
+    );
+  }
+
+  factory LibrarySyncProviderProfileTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncProviderProfileTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      providerFingerprint: serializer.fromJson<String?>(
+        json['providerFingerprint'],
+      ),
+      conditionalIndexesMode: serializer.fromJson<int>(
+        json['conditionalIndexesMode'],
+      ),
+      bulkSongSearchMode: serializer.fromJson<int>(json['bulkSongSearchMode']),
+      safePageSize: serializer.fromJson<int>(json['safePageSize']),
+      observedAt: serializer.fromJson<DateTime?>(json['observedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'providerFingerprint': serializer.toJson<String?>(providerFingerprint),
+      'conditionalIndexesMode': serializer.toJson<int>(conditionalIndexesMode),
+      'bulkSongSearchMode': serializer.toJson<int>(bulkSongSearchMode),
+      'safePageSize': serializer.toJson<int>(safePageSize),
+      'observedAt': serializer.toJson<DateTime?>(observedAt),
+    };
+  }
+
+  LibrarySyncProviderProfileTableData copyWith({
+    int? serverId,
+    Value<String?> providerFingerprint = const Value.absent(),
+    int? conditionalIndexesMode,
+    int? bulkSongSearchMode,
+    int? safePageSize,
+    Value<DateTime?> observedAt = const Value.absent(),
+  }) => LibrarySyncProviderProfileTableData(
+    serverId: serverId ?? this.serverId,
+    providerFingerprint: providerFingerprint.present
+        ? providerFingerprint.value
+        : this.providerFingerprint,
+    conditionalIndexesMode:
+        conditionalIndexesMode ?? this.conditionalIndexesMode,
+    bulkSongSearchMode: bulkSongSearchMode ?? this.bulkSongSearchMode,
+    safePageSize: safePageSize ?? this.safePageSize,
+    observedAt: observedAt.present ? observedAt.value : this.observedAt,
+  );
+  LibrarySyncProviderProfileTableData copyWithCompanion(
+    LibrarySyncProviderProfileTableCompanion data,
+  ) {
+    return LibrarySyncProviderProfileTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      providerFingerprint: data.providerFingerprint.present
+          ? data.providerFingerprint.value
+          : this.providerFingerprint,
+      conditionalIndexesMode: data.conditionalIndexesMode.present
+          ? data.conditionalIndexesMode.value
+          : this.conditionalIndexesMode,
+      bulkSongSearchMode: data.bulkSongSearchMode.present
+          ? data.bulkSongSearchMode.value
+          : this.bulkSongSearchMode,
+      safePageSize: data.safePageSize.present
+          ? data.safePageSize.value
+          : this.safePageSize,
+      observedAt: data.observedAt.present
+          ? data.observedAt.value
+          : this.observedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncProviderProfileTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('providerFingerprint: $providerFingerprint, ')
+          ..write('conditionalIndexesMode: $conditionalIndexesMode, ')
+          ..write('bulkSongSearchMode: $bulkSongSearchMode, ')
+          ..write('safePageSize: $safePageSize, ')
+          ..write('observedAt: $observedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    serverId,
+    providerFingerprint,
+    conditionalIndexesMode,
+    bulkSongSearchMode,
+    safePageSize,
+    observedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncProviderProfileTableData &&
+          other.serverId == this.serverId &&
+          other.providerFingerprint == this.providerFingerprint &&
+          other.conditionalIndexesMode == this.conditionalIndexesMode &&
+          other.bulkSongSearchMode == this.bulkSongSearchMode &&
+          other.safePageSize == this.safePageSize &&
+          other.observedAt == this.observedAt);
+}
+
+class LibrarySyncProviderProfileTableCompanion
+    extends UpdateCompanion<LibrarySyncProviderProfileTableData> {
+  final Value<int> serverId;
+  final Value<String?> providerFingerprint;
+  final Value<int> conditionalIndexesMode;
+  final Value<int> bulkSongSearchMode;
+  final Value<int> safePageSize;
+  final Value<DateTime?> observedAt;
+  const LibrarySyncProviderProfileTableCompanion({
+    this.serverId = const Value.absent(),
+    this.providerFingerprint = const Value.absent(),
+    this.conditionalIndexesMode = const Value.absent(),
+    this.bulkSongSearchMode = const Value.absent(),
+    this.safePageSize = const Value.absent(),
+    this.observedAt = const Value.absent(),
+  });
+  LibrarySyncProviderProfileTableCompanion.insert({
+    this.serverId = const Value.absent(),
+    this.providerFingerprint = const Value.absent(),
+    this.conditionalIndexesMode = const Value.absent(),
+    this.bulkSongSearchMode = const Value.absent(),
+    this.safePageSize = const Value.absent(),
+    this.observedAt = const Value.absent(),
+  });
+  static Insertable<LibrarySyncProviderProfileTableData> custom({
+    Expression<int>? serverId,
+    Expression<String>? providerFingerprint,
+    Expression<int>? conditionalIndexesMode,
+    Expression<int>? bulkSongSearchMode,
+    Expression<int>? safePageSize,
+    Expression<DateTime>? observedAt,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (providerFingerprint != null)
+        'provider_fingerprint': providerFingerprint,
+      if (conditionalIndexesMode != null)
+        'conditional_indexes_mode': conditionalIndexesMode,
+      if (bulkSongSearchMode != null)
+        'bulk_song_search_mode': bulkSongSearchMode,
+      if (safePageSize != null) 'safe_page_size': safePageSize,
+      if (observedAt != null) 'observed_at': observedAt,
+    });
+  }
+
+  LibrarySyncProviderProfileTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<String?>? providerFingerprint,
+    Value<int>? conditionalIndexesMode,
+    Value<int>? bulkSongSearchMode,
+    Value<int>? safePageSize,
+    Value<DateTime?>? observedAt,
+  }) {
+    return LibrarySyncProviderProfileTableCompanion(
+      serverId: serverId ?? this.serverId,
+      providerFingerprint: providerFingerprint ?? this.providerFingerprint,
+      conditionalIndexesMode:
+          conditionalIndexesMode ?? this.conditionalIndexesMode,
+      bulkSongSearchMode: bulkSongSearchMode ?? this.bulkSongSearchMode,
+      safePageSize: safePageSize ?? this.safePageSize,
+      observedAt: observedAt ?? this.observedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (providerFingerprint.present) {
+      map['provider_fingerprint'] = Variable<String>(providerFingerprint.value);
+    }
+    if (conditionalIndexesMode.present) {
+      map['conditional_indexes_mode'] = Variable<int>(
+        conditionalIndexesMode.value,
+      );
+    }
+    if (bulkSongSearchMode.present) {
+      map['bulk_song_search_mode'] = Variable<int>(bulkSongSearchMode.value);
+    }
+    if (safePageSize.present) {
+      map['safe_page_size'] = Variable<int>(safePageSize.value);
+    }
+    if (observedAt.present) {
+      map['observed_at'] = Variable<DateTime>(observedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncProviderProfileTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('providerFingerprint: $providerFingerprint, ')
+          ..write('conditionalIndexesMode: $conditionalIndexesMode, ')
+          ..write('bulkSongSearchMode: $bulkSongSearchMode, ')
+          ..write('safePageSize: $safePageSize, ')
+          ..write('observedAt: $observedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibrarySyncRepairSessionTableTable extends LibrarySyncRepairSessionTable
+    with
+        TableInfo<
+          $LibrarySyncRepairSessionTableTable,
+          LibrarySyncRepairSessionTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibrarySyncRepairSessionTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _phaseMeta = const VerificationMeta('phase');
+  @override
+  late final GeneratedColumn<int> phase = GeneratedColumn<int>(
+    'phase',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletionFingerprintMeta =
+      const VerificationMeta('deletionFingerprint');
+  @override
+  late final GeneratedColumn<String> deletionFingerprint =
+      GeneratedColumn<String>(
+        'deletion_fingerprint',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _deletionCountMeta = const VerificationMeta(
+    'deletionCount',
+  );
+  @override
+  late final GeneratedColumn<int> deletionCount = GeneratedColumn<int>(
+    'deletion_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    generation,
+    phase,
+    deletionFingerprint,
+    deletionCount,
+    startedAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_sync_repair_session';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibrarySyncRepairSessionTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('phase')) {
+      context.handle(
+        _phaseMeta,
+        phase.isAcceptableOrUnknown(data['phase']!, _phaseMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_phaseMeta);
+    }
+    if (data.containsKey('deletion_fingerprint')) {
+      context.handle(
+        _deletionFingerprintMeta,
+        deletionFingerprint.isAcceptableOrUnknown(
+          data['deletion_fingerprint']!,
+          _deletionFingerprintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deletion_count')) {
+      context.handle(
+        _deletionCountMeta,
+        deletionCount.isAcceptableOrUnknown(
+          data['deletion_count']!,
+          _deletionCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId, generation};
+  @override
+  LibrarySyncRepairSessionTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibrarySyncRepairSessionTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+      phase: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}phase'],
+      )!,
+      deletionFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deletion_fingerprint'],
+      ),
+      deletionCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deletion_count'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LibrarySyncRepairSessionTableTable createAlias(String alias) {
+    return $LibrarySyncRepairSessionTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibrarySyncRepairSessionTableData extends DataClass
+    implements Insertable<LibrarySyncRepairSessionTableData> {
+  final int serverId;
+  final int generation;
+
+  /// Collecting, validating, awaiting confirmation, ready, or applying.
+  final int phase;
+  final String? deletionFingerprint;
+  final int deletionCount;
+  final DateTime startedAt;
+  final DateTime updatedAt;
+  const LibrarySyncRepairSessionTableData({
+    required this.serverId,
+    required this.generation,
+    required this.phase,
+    this.deletionFingerprint,
+    required this.deletionCount,
+    required this.startedAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    map['generation'] = Variable<int>(generation);
+    map['phase'] = Variable<int>(phase);
+    if (!nullToAbsent || deletionFingerprint != null) {
+      map['deletion_fingerprint'] = Variable<String>(deletionFingerprint);
+    }
+    map['deletion_count'] = Variable<int>(deletionCount);
+    map['started_at'] = Variable<DateTime>(startedAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LibrarySyncRepairSessionTableCompanion toCompanion(bool nullToAbsent) {
+    return LibrarySyncRepairSessionTableCompanion(
+      serverId: Value(serverId),
+      generation: Value(generation),
+      phase: Value(phase),
+      deletionFingerprint: deletionFingerprint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletionFingerprint),
+      deletionCount: Value(deletionCount),
+      startedAt: Value(startedAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LibrarySyncRepairSessionTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibrarySyncRepairSessionTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      generation: serializer.fromJson<int>(json['generation']),
+      phase: serializer.fromJson<int>(json['phase']),
+      deletionFingerprint: serializer.fromJson<String?>(
+        json['deletionFingerprint'],
+      ),
+      deletionCount: serializer.fromJson<int>(json['deletionCount']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'generation': serializer.toJson<int>(generation),
+      'phase': serializer.toJson<int>(phase),
+      'deletionFingerprint': serializer.toJson<String?>(deletionFingerprint),
+      'deletionCount': serializer.toJson<int>(deletionCount),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LibrarySyncRepairSessionTableData copyWith({
+    int? serverId,
+    int? generation,
+    int? phase,
+    Value<String?> deletionFingerprint = const Value.absent(),
+    int? deletionCount,
+    DateTime? startedAt,
+    DateTime? updatedAt,
+  }) => LibrarySyncRepairSessionTableData(
+    serverId: serverId ?? this.serverId,
+    generation: generation ?? this.generation,
+    phase: phase ?? this.phase,
+    deletionFingerprint: deletionFingerprint.present
+        ? deletionFingerprint.value
+        : this.deletionFingerprint,
+    deletionCount: deletionCount ?? this.deletionCount,
+    startedAt: startedAt ?? this.startedAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LibrarySyncRepairSessionTableData copyWithCompanion(
+    LibrarySyncRepairSessionTableCompanion data,
+  ) {
+    return LibrarySyncRepairSessionTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      phase: data.phase.present ? data.phase.value : this.phase,
+      deletionFingerprint: data.deletionFingerprint.present
+          ? data.deletionFingerprint.value
+          : this.deletionFingerprint,
+      deletionCount: data.deletionCount.present
+          ? data.deletionCount.value
+          : this.deletionCount,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncRepairSessionTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('generation: $generation, ')
+          ..write('phase: $phase, ')
+          ..write('deletionFingerprint: $deletionFingerprint, ')
+          ..write('deletionCount: $deletionCount, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    serverId,
+    generation,
+    phase,
+    deletionFingerprint,
+    deletionCount,
+    startedAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibrarySyncRepairSessionTableData &&
+          other.serverId == this.serverId &&
+          other.generation == this.generation &&
+          other.phase == this.phase &&
+          other.deletionFingerprint == this.deletionFingerprint &&
+          other.deletionCount == this.deletionCount &&
+          other.startedAt == this.startedAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LibrarySyncRepairSessionTableCompanion
+    extends UpdateCompanion<LibrarySyncRepairSessionTableData> {
+  final Value<int> serverId;
+  final Value<int> generation;
+  final Value<int> phase;
+  final Value<String?> deletionFingerprint;
+  final Value<int> deletionCount;
+  final Value<DateTime> startedAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const LibrarySyncRepairSessionTableCompanion({
+    this.serverId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.phase = const Value.absent(),
+    this.deletionFingerprint = const Value.absent(),
+    this.deletionCount = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LibrarySyncRepairSessionTableCompanion.insert({
+    required int serverId,
+    required int generation,
+    required int phase,
+    this.deletionFingerprint = const Value.absent(),
+    this.deletionCount = const Value.absent(),
+    required DateTime startedAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : serverId = Value(serverId),
+       generation = Value(generation),
+       phase = Value(phase),
+       startedAt = Value(startedAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<LibrarySyncRepairSessionTableData> custom({
+    Expression<int>? serverId,
+    Expression<int>? generation,
+    Expression<int>? phase,
+    Expression<String>? deletionFingerprint,
+    Expression<int>? deletionCount,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (generation != null) 'generation': generation,
+      if (phase != null) 'phase': phase,
+      if (deletionFingerprint != null)
+        'deletion_fingerprint': deletionFingerprint,
+      if (deletionCount != null) 'deletion_count': deletionCount,
+      if (startedAt != null) 'started_at': startedAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LibrarySyncRepairSessionTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<int>? generation,
+    Value<int>? phase,
+    Value<String?>? deletionFingerprint,
+    Value<int>? deletionCount,
+    Value<DateTime>? startedAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return LibrarySyncRepairSessionTableCompanion(
+      serverId: serverId ?? this.serverId,
+      generation: generation ?? this.generation,
+      phase: phase ?? this.phase,
+      deletionFingerprint: deletionFingerprint ?? this.deletionFingerprint,
+      deletionCount: deletionCount ?? this.deletionCount,
+      startedAt: startedAt ?? this.startedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (phase.present) {
+      map['phase'] = Variable<int>(phase.value);
+    }
+    if (deletionFingerprint.present) {
+      map['deletion_fingerprint'] = Variable<String>(deletionFingerprint.value);
+    }
+    if (deletionCount.present) {
+      map['deletion_count'] = Variable<int>(deletionCount.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibrarySyncRepairSessionTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('generation: $generation, ')
+          ..write('phase: $phase, ')
+          ..write('deletionFingerprint: $deletionFingerprint, ')
+          ..write('deletionCount: $deletionCount, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -25660,6 +28434,16 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   librarySyncOperationLedgerTable = $LibrarySyncOperationLedgerTableTable(this);
   late final $LibrarySyncExecutionLeaseTableTable
   librarySyncExecutionLeaseTable = $LibrarySyncExecutionLeaseTableTable(this);
+  late final $LibrarySyncRunRequestTableTable librarySyncRunRequestTable =
+      $LibrarySyncRunRequestTableTable(this);
+  late final $LibrarySyncRunAttemptTableTable librarySyncRunAttemptTable =
+      $LibrarySyncRunAttemptTableTable(this);
+  late final $LibrarySyncRunOutcomeTableTable librarySyncRunOutcomeTable =
+      $LibrarySyncRunOutcomeTableTable(this);
+  late final $LibrarySyncProviderProfileTableTable
+  librarySyncProviderProfileTable = $LibrarySyncProviderProfileTableTable(this);
+  late final $LibrarySyncRepairSessionTableTable librarySyncRepairSessionTable =
+      $LibrarySyncRepairSessionTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -25730,6 +28514,11 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     starredAbsenceCandidatesTable,
     librarySyncOperationLedgerTable,
     librarySyncExecutionLeaseTable,
+    librarySyncRunRequestTable,
+    librarySyncRunAttemptTable,
+    librarySyncRunOutcomeTable,
+    librarySyncProviderProfileTable,
+    librarySyncRepairSessionTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -25851,6 +28640,60 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       ),
       result: [
         TableUpdate('library_sync_execution_lease', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_sync_run_request', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'library_sync_run_request',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_sync_run_attempt', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'library_sync_run_request',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_sync_run_outcome', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'library_sync_run_attempt',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_sync_run_outcome', kind: UpdateKind.update),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_sync_provider_profile', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_sync_repair_session', kind: UpdateKind.delete),
       ],
     ),
   ]);
@@ -26014,6 +28857,82 @@ final class $$ServerConfigTableTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _librarySyncExecutionLeaseTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncRunRequestTableTable,
+    List<LibrarySyncRunRequestTableData>
+  >
+  _librarySyncRunRequestTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.librarySyncRunRequestTable,
+        aliasName: 'server_config__id__library_sync_run_request__server_id',
+      );
+
+  $$LibrarySyncRunRequestTableTableProcessedTableManager
+  get librarySyncRunRequestTableRefs {
+    final manager = $$LibrarySyncRunRequestTableTableTableManager(
+      $_db,
+      $_db.librarySyncRunRequestTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncRunRequestTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncProviderProfileTableTable,
+    List<LibrarySyncProviderProfileTableData>
+  >
+  _librarySyncProviderProfileTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.librarySyncProviderProfileTable,
+        aliasName:
+            'server_config__id__library_sync_provider_profile__server_id',
+      );
+
+  $$LibrarySyncProviderProfileTableTableProcessedTableManager
+  get librarySyncProviderProfileTableRefs {
+    final manager = $$LibrarySyncProviderProfileTableTableTableManager(
+      $_db,
+      $_db.librarySyncProviderProfileTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncProviderProfileTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncRepairSessionTableTable,
+    List<LibrarySyncRepairSessionTableData>
+  >
+  _librarySyncRepairSessionTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.librarySyncRepairSessionTable,
+        aliasName: 'server_config__id__library_sync_repair_session__server_id',
+      );
+
+  $$LibrarySyncRepairSessionTableTableProcessedTableManager
+  get librarySyncRepairSessionTableRefs {
+    final manager = $$LibrarySyncRepairSessionTableTableTableManager(
+      $_db,
+      $_db.librarySyncRepairSessionTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncRepairSessionTableRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -26204,6 +29123,91 @@ class $$ServerConfigTableTableFilterComposer
               }) => $$LibrarySyncExecutionLeaseTableTableFilterComposer(
                 $db: $db,
                 $table: $db.librarySyncExecutionLeaseTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> librarySyncRunRequestTableRefs(
+    Expression<bool> Function($$LibrarySyncRunRequestTableTableFilterComposer f)
+    f,
+  ) {
+    final $$LibrarySyncRunRequestTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRunRequestTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunRequestTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncRunRequestTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> librarySyncProviderProfileTableRefs(
+    Expression<bool> Function(
+      $$LibrarySyncProviderProfileTableTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$LibrarySyncProviderProfileTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncProviderProfileTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncProviderProfileTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncProviderProfileTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> librarySyncRepairSessionTableRefs(
+    Expression<bool> Function(
+      $$LibrarySyncRepairSessionTableTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$LibrarySyncRepairSessionTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRepairSessionTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRepairSessionTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncRepairSessionTable,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -26453,6 +29457,93 @@ class $$ServerConfigTableTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> librarySyncRunRequestTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibrarySyncRunRequestTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibrarySyncRunRequestTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRunRequestTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunRequestTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncRunRequestTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> librarySyncProviderProfileTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibrarySyncProviderProfileTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibrarySyncProviderProfileTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncProviderProfileTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncProviderProfileTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncProviderProfileTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> librarySyncRepairSessionTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibrarySyncRepairSessionTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibrarySyncRepairSessionTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRepairSessionTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRepairSessionTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncRepairSessionTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ServerConfigTableTableTableManager
@@ -26474,6 +29565,9 @@ class $$ServerConfigTableTableTableManager
             bool starredAbsenceCandidatesTableRefs,
             bool librarySyncOperationLedgerTableRefs,
             bool librarySyncExecutionLeaseTableRefs,
+            bool librarySyncRunRequestTableRefs,
+            bool librarySyncProviderProfileTableRefs,
+            bool librarySyncRepairSessionTableRefs,
           })
         > {
   $$ServerConfigTableTableTableManager(
@@ -26551,6 +29645,9 @@ class $$ServerConfigTableTableTableManager
                 starredAbsenceCandidatesTableRefs = false,
                 librarySyncOperationLedgerTableRefs = false,
                 librarySyncExecutionLeaseTableRefs = false,
+                librarySyncRunRequestTableRefs = false,
+                librarySyncProviderProfileTableRefs = false,
+                librarySyncRepairSessionTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -26563,6 +29660,12 @@ class $$ServerConfigTableTableTableManager
                       db.librarySyncOperationLedgerTable,
                     if (librarySyncExecutionLeaseTableRefs)
                       db.librarySyncExecutionLeaseTable,
+                    if (librarySyncRunRequestTableRefs)
+                      db.librarySyncRunRequestTable,
+                    if (librarySyncProviderProfileTableRefs)
+                      db.librarySyncProviderProfileTable,
+                    if (librarySyncRepairSessionTableRefs)
+                      db.librarySyncRepairSessionTable,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -26672,6 +29775,69 @@ class $$ServerConfigTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (librarySyncRunRequestTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibrarySyncRunRequestTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._librarySyncRunRequestTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncRunRequestTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (librarySyncProviderProfileTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibrarySyncProviderProfileTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._librarySyncProviderProfileTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncProviderProfileTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (librarySyncRepairSessionTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibrarySyncRepairSessionTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._librarySyncRepairSessionTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncRepairSessionTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -26698,6 +29864,9 @@ typedef $$ServerConfigTableTableProcessedTableManager =
         bool starredAbsenceCandidatesTableRefs,
         bool librarySyncOperationLedgerTableRefs,
         bool librarySyncExecutionLeaseTableRefs,
+        bool librarySyncRunRequestTableRefs,
+        bool librarySyncProviderProfileTableRefs,
+        bool librarySyncRepairSessionTableRefs,
       })
     >;
 typedef $$AppSettingsTableTableCreateCompanionBuilder =
@@ -41406,6 +44575,2513 @@ typedef $$LibrarySyncExecutionLeaseTableTableProcessedTableManager =
       LibrarySyncExecutionLeaseTableData,
       PrefetchHooks Function({bool serverId})
     >;
+typedef $$LibrarySyncRunRequestTableTableCreateCompanionBuilder =
+    LibrarySyncRunRequestTableCompanion Function({
+      Value<int> id,
+      required int serverId,
+      required int contractVersion,
+      required int origin,
+      required int intent,
+      required int targetKind,
+      Value<String> targetKey,
+      required int networkGrant,
+      required int planKind,
+      required int priority,
+      required String coalescingKey,
+      Value<int> status,
+      Value<int?> resumedFromRequestId,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+    });
+typedef $$LibrarySyncRunRequestTableTableUpdateCompanionBuilder =
+    LibrarySyncRunRequestTableCompanion Function({
+      Value<int> id,
+      Value<int> serverId,
+      Value<int> contractVersion,
+      Value<int> origin,
+      Value<int> intent,
+      Value<int> targetKind,
+      Value<String> targetKey,
+      Value<int> networkGrant,
+      Value<int> planKind,
+      Value<int> priority,
+      Value<String> coalescingKey,
+      Value<int> status,
+      Value<int?> resumedFromRequestId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$LibrarySyncRunRequestTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncRunRequestTableTable,
+          LibrarySyncRunRequestTableData
+        > {
+  $$LibrarySyncRunRequestTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) => db
+      .serverConfigTable
+      .createAlias('library_sync_run_request__server_id__server_config__id');
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncRunAttemptTableTable,
+    List<LibrarySyncRunAttemptTableData>
+  >
+  _librarySyncRunAttemptTableRefsTable(
+    _$NavisDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.librarySyncRunAttemptTable,
+    aliasName:
+        'library_sync_run_request__id__library_sync_run_attempt__request_id',
+  );
+
+  $$LibrarySyncRunAttemptTableTableProcessedTableManager
+  get librarySyncRunAttemptTableRefs {
+    final manager = $$LibrarySyncRunAttemptTableTableTableManager(
+      $_db,
+      $_db.librarySyncRunAttemptTable,
+    ).filter((f) => f.requestId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncRunAttemptTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncRunOutcomeTableTable,
+    List<LibrarySyncRunOutcomeTableData>
+  >
+  _librarySyncRunOutcomeTableRefsTable(
+    _$NavisDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.librarySyncRunOutcomeTable,
+    aliasName:
+        'library_sync_run_request__id__library_sync_run_outcome__request_id',
+  );
+
+  $$LibrarySyncRunOutcomeTableTableProcessedTableManager
+  get librarySyncRunOutcomeTableRefs {
+    final manager = $$LibrarySyncRunOutcomeTableTableTableManager(
+      $_db,
+      $_db.librarySyncRunOutcomeTable,
+    ).filter((f) => f.requestId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncRunOutcomeTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$LibrarySyncRunRequestTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunRequestTableTable> {
+  $$LibrarySyncRunRequestTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get contractVersion => $composableBuilder(
+    column: $table.contractVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get origin => $composableBuilder(
+    column: $table.origin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get intent => $composableBuilder(
+    column: $table.intent,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetKey => $composableBuilder(
+    column: $table.targetKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get networkGrant => $composableBuilder(
+    column: $table.networkGrant,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get planKind => $composableBuilder(
+    column: $table.planKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coalescingKey => $composableBuilder(
+    column: $table.coalescingKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get resumedFromRequestId => $composableBuilder(
+    column: $table.resumedFromRequestId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> librarySyncRunAttemptTableRefs(
+    Expression<bool> Function($$LibrarySyncRunAttemptTableTableFilterComposer f)
+    f,
+  ) {
+    final $$LibrarySyncRunAttemptTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRunAttemptTable,
+          getReferencedColumn: (t) => t.requestId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunAttemptTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncRunAttemptTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> librarySyncRunOutcomeTableRefs(
+    Expression<bool> Function($$LibrarySyncRunOutcomeTableTableFilterComposer f)
+    f,
+  ) {
+    final $$LibrarySyncRunOutcomeTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRunOutcomeTable,
+          getReferencedColumn: (t) => t.requestId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunOutcomeTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncRunOutcomeTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$LibrarySyncRunRequestTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunRequestTableTable> {
+  $$LibrarySyncRunRequestTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get contractVersion => $composableBuilder(
+    column: $table.contractVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get origin => $composableBuilder(
+    column: $table.origin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get intent => $composableBuilder(
+    column: $table.intent,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetKey => $composableBuilder(
+    column: $table.targetKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get networkGrant => $composableBuilder(
+    column: $table.networkGrant,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get planKind => $composableBuilder(
+    column: $table.planKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coalescingKey => $composableBuilder(
+    column: $table.coalescingKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get resumedFromRequestId => $composableBuilder(
+    column: $table.resumedFromRequestId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncRunRequestTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunRequestTableTable> {
+  $$LibrarySyncRunRequestTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get contractVersion => $composableBuilder(
+    column: $table.contractVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get origin =>
+      $composableBuilder(column: $table.origin, builder: (column) => column);
+
+  GeneratedColumn<int> get intent =>
+      $composableBuilder(column: $table.intent, builder: (column) => column);
+
+  GeneratedColumn<int> get targetKind => $composableBuilder(
+    column: $table.targetKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetKey =>
+      $composableBuilder(column: $table.targetKey, builder: (column) => column);
+
+  GeneratedColumn<int> get networkGrant => $composableBuilder(
+    column: $table.networkGrant,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get planKind =>
+      $composableBuilder(column: $table.planKind, builder: (column) => column);
+
+  GeneratedColumn<int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<String> get coalescingKey => $composableBuilder(
+    column: $table.coalescingKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get resumedFromRequestId => $composableBuilder(
+    column: $table.resumedFromRequestId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  Expression<T> librarySyncRunAttemptTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibrarySyncRunAttemptTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibrarySyncRunAttemptTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRunAttemptTable,
+          getReferencedColumn: (t) => t.requestId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunAttemptTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncRunAttemptTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> librarySyncRunOutcomeTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibrarySyncRunOutcomeTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibrarySyncRunOutcomeTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRunOutcomeTable,
+          getReferencedColumn: (t) => t.requestId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunOutcomeTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncRunOutcomeTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$LibrarySyncRunRequestTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncRunRequestTableTable,
+          LibrarySyncRunRequestTableData,
+          $$LibrarySyncRunRequestTableTableFilterComposer,
+          $$LibrarySyncRunRequestTableTableOrderingComposer,
+          $$LibrarySyncRunRequestTableTableAnnotationComposer,
+          $$LibrarySyncRunRequestTableTableCreateCompanionBuilder,
+          $$LibrarySyncRunRequestTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncRunRequestTableData,
+            $$LibrarySyncRunRequestTableTableReferences,
+          ),
+          LibrarySyncRunRequestTableData,
+          PrefetchHooks Function({
+            bool serverId,
+            bool librarySyncRunAttemptTableRefs,
+            bool librarySyncRunOutcomeTableRefs,
+          })
+        > {
+  $$LibrarySyncRunRequestTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncRunRequestTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncRunRequestTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncRunRequestTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncRunRequestTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> serverId = const Value.absent(),
+                Value<int> contractVersion = const Value.absent(),
+                Value<int> origin = const Value.absent(),
+                Value<int> intent = const Value.absent(),
+                Value<int> targetKind = const Value.absent(),
+                Value<String> targetKey = const Value.absent(),
+                Value<int> networkGrant = const Value.absent(),
+                Value<int> planKind = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<String> coalescingKey = const Value.absent(),
+                Value<int> status = const Value.absent(),
+                Value<int?> resumedFromRequestId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LibrarySyncRunRequestTableCompanion(
+                id: id,
+                serverId: serverId,
+                contractVersion: contractVersion,
+                origin: origin,
+                intent: intent,
+                targetKind: targetKind,
+                targetKey: targetKey,
+                networkGrant: networkGrant,
+                planKind: planKind,
+                priority: priority,
+                coalescingKey: coalescingKey,
+                status: status,
+                resumedFromRequestId: resumedFromRequestId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int serverId,
+                required int contractVersion,
+                required int origin,
+                required int intent,
+                required int targetKind,
+                Value<String> targetKey = const Value.absent(),
+                required int networkGrant,
+                required int planKind,
+                required int priority,
+                required String coalescingKey,
+                Value<int> status = const Value.absent(),
+                Value<int?> resumedFromRequestId = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+              }) => LibrarySyncRunRequestTableCompanion.insert(
+                id: id,
+                serverId: serverId,
+                contractVersion: contractVersion,
+                origin: origin,
+                intent: intent,
+                targetKind: targetKind,
+                targetKey: targetKey,
+                networkGrant: networkGrant,
+                planKind: planKind,
+                priority: priority,
+                coalescingKey: coalescingKey,
+                status: status,
+                resumedFromRequestId: resumedFromRequestId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncRunRequestTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                serverId = false,
+                librarySyncRunAttemptTableRefs = false,
+                librarySyncRunOutcomeTableRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (librarySyncRunAttemptTableRefs)
+                      db.librarySyncRunAttemptTable,
+                    if (librarySyncRunOutcomeTableRefs)
+                      db.librarySyncRunOutcomeTable,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (serverId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.serverId,
+                            referencedTable:
+                                $$LibrarySyncRunRequestTableTableReferences
+                                    ._serverIdTable(db),
+                            referencedColumn:
+                                $$LibrarySyncRunRequestTableTableReferences
+                                    ._serverIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (librarySyncRunAttemptTableRefs)
+                        await $_getPrefetchedData<
+                          LibrarySyncRunRequestTableData,
+                          $LibrarySyncRunRequestTableTable,
+                          LibrarySyncRunAttemptTableData
+                        >(
+                          currentTable: table,
+                          referencedTable:
+                              $$LibrarySyncRunRequestTableTableReferences
+                                  ._librarySyncRunAttemptTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$LibrarySyncRunRequestTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncRunAttemptTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.requestId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (librarySyncRunOutcomeTableRefs)
+                        await $_getPrefetchedData<
+                          LibrarySyncRunRequestTableData,
+                          $LibrarySyncRunRequestTableTable,
+                          LibrarySyncRunOutcomeTableData
+                        >(
+                          currentTable: table,
+                          referencedTable:
+                              $$LibrarySyncRunRequestTableTableReferences
+                                  ._librarySyncRunOutcomeTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$LibrarySyncRunRequestTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncRunOutcomeTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.requestId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$LibrarySyncRunRequestTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncRunRequestTableTable,
+      LibrarySyncRunRequestTableData,
+      $$LibrarySyncRunRequestTableTableFilterComposer,
+      $$LibrarySyncRunRequestTableTableOrderingComposer,
+      $$LibrarySyncRunRequestTableTableAnnotationComposer,
+      $$LibrarySyncRunRequestTableTableCreateCompanionBuilder,
+      $$LibrarySyncRunRequestTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncRunRequestTableData,
+        $$LibrarySyncRunRequestTableTableReferences,
+      ),
+      LibrarySyncRunRequestTableData,
+      PrefetchHooks Function({
+        bool serverId,
+        bool librarySyncRunAttemptTableRefs,
+        bool librarySyncRunOutcomeTableRefs,
+      })
+    >;
+typedef $$LibrarySyncRunAttemptTableTableCreateCompanionBuilder =
+    LibrarySyncRunAttemptTableCompanion Function({
+      Value<int> id,
+      required int requestId,
+      Value<int> status,
+      Value<int> ownerKind,
+      required DateTime startedAt,
+      Value<DateTime?> completedAt,
+    });
+typedef $$LibrarySyncRunAttemptTableTableUpdateCompanionBuilder =
+    LibrarySyncRunAttemptTableCompanion Function({
+      Value<int> id,
+      Value<int> requestId,
+      Value<int> status,
+      Value<int> ownerKind,
+      Value<DateTime> startedAt,
+      Value<DateTime?> completedAt,
+    });
+
+final class $$LibrarySyncRunAttemptTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncRunAttemptTableTable,
+          LibrarySyncRunAttemptTableData
+        > {
+  $$LibrarySyncRunAttemptTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $LibrarySyncRunRequestTableTable _requestIdTable(_$NavisDatabase db) =>
+      db.librarySyncRunRequestTable.createAlias(
+        'library_sync_run_attempt__request_id__library_sync_run_request__id',
+      );
+
+  $$LibrarySyncRunRequestTableTableProcessedTableManager get requestId {
+    final $_column = $_itemColumn<int>('request_id')!;
+
+    final manager = $$LibrarySyncRunRequestTableTableTableManager(
+      $_db,
+      $_db.librarySyncRunRequestTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_requestIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibrarySyncRunOutcomeTableTable,
+    List<LibrarySyncRunOutcomeTableData>
+  >
+  _librarySyncRunOutcomeTableRefsTable(
+    _$NavisDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.librarySyncRunOutcomeTable,
+    aliasName:
+        'library_sync_run_attempt__id__library_sync_run_outcome__attempt_id',
+  );
+
+  $$LibrarySyncRunOutcomeTableTableProcessedTableManager
+  get librarySyncRunOutcomeTableRefs {
+    final manager = $$LibrarySyncRunOutcomeTableTableTableManager(
+      $_db,
+      $_db.librarySyncRunOutcomeTable,
+    ).filter((f) => f.attemptId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _librarySyncRunOutcomeTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$LibrarySyncRunAttemptTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunAttemptTableTable> {
+  $$LibrarySyncRunAttemptTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ownerKind => $composableBuilder(
+    column: $table.ownerKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$LibrarySyncRunRequestTableTableFilterComposer get requestId {
+    final $$LibrarySyncRunRequestTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.requestId,
+          referencedTable: $db.librarySyncRunRequestTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunRequestTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncRunRequestTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  Expression<bool> librarySyncRunOutcomeTableRefs(
+    Expression<bool> Function($$LibrarySyncRunOutcomeTableTableFilterComposer f)
+    f,
+  ) {
+    final $$LibrarySyncRunOutcomeTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRunOutcomeTable,
+          getReferencedColumn: (t) => t.attemptId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunOutcomeTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncRunOutcomeTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$LibrarySyncRunAttemptTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunAttemptTableTable> {
+  $$LibrarySyncRunAttemptTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ownerKind => $composableBuilder(
+    column: $table.ownerKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$LibrarySyncRunRequestTableTableOrderingComposer get requestId {
+    final $$LibrarySyncRunRequestTableTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.requestId,
+          referencedTable: $db.librarySyncRunRequestTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunRequestTableTableOrderingComposer(
+                $db: $db,
+                $table: $db.librarySyncRunRequestTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncRunAttemptTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunAttemptTableTable> {
+  $$LibrarySyncRunAttemptTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get ownerKind =>
+      $composableBuilder(column: $table.ownerKind, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  $$LibrarySyncRunRequestTableTableAnnotationComposer get requestId {
+    final $$LibrarySyncRunRequestTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.requestId,
+          referencedTable: $db.librarySyncRunRequestTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunRequestTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncRunRequestTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  Expression<T> librarySyncRunOutcomeTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibrarySyncRunOutcomeTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibrarySyncRunOutcomeTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.librarySyncRunOutcomeTable,
+          getReferencedColumn: (t) => t.attemptId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunOutcomeTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncRunOutcomeTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$LibrarySyncRunAttemptTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncRunAttemptTableTable,
+          LibrarySyncRunAttemptTableData,
+          $$LibrarySyncRunAttemptTableTableFilterComposer,
+          $$LibrarySyncRunAttemptTableTableOrderingComposer,
+          $$LibrarySyncRunAttemptTableTableAnnotationComposer,
+          $$LibrarySyncRunAttemptTableTableCreateCompanionBuilder,
+          $$LibrarySyncRunAttemptTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncRunAttemptTableData,
+            $$LibrarySyncRunAttemptTableTableReferences,
+          ),
+          LibrarySyncRunAttemptTableData,
+          PrefetchHooks Function({
+            bool requestId,
+            bool librarySyncRunOutcomeTableRefs,
+          })
+        > {
+  $$LibrarySyncRunAttemptTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncRunAttemptTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncRunAttemptTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncRunAttemptTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncRunAttemptTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> requestId = const Value.absent(),
+                Value<int> status = const Value.absent(),
+                Value<int> ownerKind = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+              }) => LibrarySyncRunAttemptTableCompanion(
+                id: id,
+                requestId: requestId,
+                status: status,
+                ownerKind: ownerKind,
+                startedAt: startedAt,
+                completedAt: completedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int requestId,
+                Value<int> status = const Value.absent(),
+                Value<int> ownerKind = const Value.absent(),
+                required DateTime startedAt,
+                Value<DateTime?> completedAt = const Value.absent(),
+              }) => LibrarySyncRunAttemptTableCompanion.insert(
+                id: id,
+                requestId: requestId,
+                status: status,
+                ownerKind: ownerKind,
+                startedAt: startedAt,
+                completedAt: completedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncRunAttemptTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({requestId = false, librarySyncRunOutcomeTableRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (librarySyncRunOutcomeTableRefs)
+                      db.librarySyncRunOutcomeTable,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (requestId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.requestId,
+                            referencedTable:
+                                $$LibrarySyncRunAttemptTableTableReferences
+                                    ._requestIdTable(db),
+                            referencedColumn:
+                                $$LibrarySyncRunAttemptTableTableReferences
+                                    ._requestIdTable(db)
+                                    .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (librarySyncRunOutcomeTableRefs)
+                        await $_getPrefetchedData<
+                          LibrarySyncRunAttemptTableData,
+                          $LibrarySyncRunAttemptTableTable,
+                          LibrarySyncRunOutcomeTableData
+                        >(
+                          currentTable: table,
+                          referencedTable:
+                              $$LibrarySyncRunAttemptTableTableReferences
+                                  ._librarySyncRunOutcomeTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$LibrarySyncRunAttemptTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).librarySyncRunOutcomeTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.attemptId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$LibrarySyncRunAttemptTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncRunAttemptTableTable,
+      LibrarySyncRunAttemptTableData,
+      $$LibrarySyncRunAttemptTableTableFilterComposer,
+      $$LibrarySyncRunAttemptTableTableOrderingComposer,
+      $$LibrarySyncRunAttemptTableTableAnnotationComposer,
+      $$LibrarySyncRunAttemptTableTableCreateCompanionBuilder,
+      $$LibrarySyncRunAttemptTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncRunAttemptTableData,
+        $$LibrarySyncRunAttemptTableTableReferences,
+      ),
+      LibrarySyncRunAttemptTableData,
+      PrefetchHooks Function({
+        bool requestId,
+        bool librarySyncRunOutcomeTableRefs,
+      })
+    >;
+typedef $$LibrarySyncRunOutcomeTableTableCreateCompanionBuilder =
+    LibrarySyncRunOutcomeTableCompanion Function({
+      Value<int> id,
+      required int requestId,
+      Value<int?> attemptId,
+      required int outcomeKind,
+      required int safeReason,
+      Value<int> requestCount,
+      Value<int> byteCount,
+      required DateTime completedAt,
+    });
+typedef $$LibrarySyncRunOutcomeTableTableUpdateCompanionBuilder =
+    LibrarySyncRunOutcomeTableCompanion Function({
+      Value<int> id,
+      Value<int> requestId,
+      Value<int?> attemptId,
+      Value<int> outcomeKind,
+      Value<int> safeReason,
+      Value<int> requestCount,
+      Value<int> byteCount,
+      Value<DateTime> completedAt,
+    });
+
+final class $$LibrarySyncRunOutcomeTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncRunOutcomeTableTable,
+          LibrarySyncRunOutcomeTableData
+        > {
+  $$LibrarySyncRunOutcomeTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $LibrarySyncRunRequestTableTable _requestIdTable(_$NavisDatabase db) =>
+      db.librarySyncRunRequestTable.createAlias(
+        'library_sync_run_outcome__request_id__library_sync_run_request__id',
+      );
+
+  $$LibrarySyncRunRequestTableTableProcessedTableManager get requestId {
+    final $_column = $_itemColumn<int>('request_id')!;
+
+    final manager = $$LibrarySyncRunRequestTableTableTableManager(
+      $_db,
+      $_db.librarySyncRunRequestTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_requestIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $LibrarySyncRunAttemptTableTable _attemptIdTable(_$NavisDatabase db) =>
+      db.librarySyncRunAttemptTable.createAlias(
+        'library_sync_run_outcome__attempt_id__library_sync_run_attempt__id',
+      );
+
+  $$LibrarySyncRunAttemptTableTableProcessedTableManager? get attemptId {
+    final $_column = $_itemColumn<int>('attempt_id');
+    if ($_column == null) return null;
+    final manager = $$LibrarySyncRunAttemptTableTableTableManager(
+      $_db,
+      $_db.librarySyncRunAttemptTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_attemptIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibrarySyncRunOutcomeTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunOutcomeTableTable> {
+  $$LibrarySyncRunOutcomeTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get outcomeKind => $composableBuilder(
+    column: $table.outcomeKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get safeReason => $composableBuilder(
+    column: $table.safeReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get requestCount => $composableBuilder(
+    column: $table.requestCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get byteCount => $composableBuilder(
+    column: $table.byteCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$LibrarySyncRunRequestTableTableFilterComposer get requestId {
+    final $$LibrarySyncRunRequestTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.requestId,
+          referencedTable: $db.librarySyncRunRequestTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunRequestTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncRunRequestTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$LibrarySyncRunAttemptTableTableFilterComposer get attemptId {
+    final $$LibrarySyncRunAttemptTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.attemptId,
+          referencedTable: $db.librarySyncRunAttemptTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunAttemptTableTableFilterComposer(
+                $db: $db,
+                $table: $db.librarySyncRunAttemptTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncRunOutcomeTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunOutcomeTableTable> {
+  $$LibrarySyncRunOutcomeTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get outcomeKind => $composableBuilder(
+    column: $table.outcomeKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get safeReason => $composableBuilder(
+    column: $table.safeReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get requestCount => $composableBuilder(
+    column: $table.requestCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get byteCount => $composableBuilder(
+    column: $table.byteCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$LibrarySyncRunRequestTableTableOrderingComposer get requestId {
+    final $$LibrarySyncRunRequestTableTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.requestId,
+          referencedTable: $db.librarySyncRunRequestTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunRequestTableTableOrderingComposer(
+                $db: $db,
+                $table: $db.librarySyncRunRequestTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$LibrarySyncRunAttemptTableTableOrderingComposer get attemptId {
+    final $$LibrarySyncRunAttemptTableTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.attemptId,
+          referencedTable: $db.librarySyncRunAttemptTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunAttemptTableTableOrderingComposer(
+                $db: $db,
+                $table: $db.librarySyncRunAttemptTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncRunOutcomeTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRunOutcomeTableTable> {
+  $$LibrarySyncRunOutcomeTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get outcomeKind => $composableBuilder(
+    column: $table.outcomeKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get safeReason => $composableBuilder(
+    column: $table.safeReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get requestCount => $composableBuilder(
+    column: $table.requestCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get byteCount =>
+      $composableBuilder(column: $table.byteCount, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  $$LibrarySyncRunRequestTableTableAnnotationComposer get requestId {
+    final $$LibrarySyncRunRequestTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.requestId,
+          referencedTable: $db.librarySyncRunRequestTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunRequestTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncRunRequestTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$LibrarySyncRunAttemptTableTableAnnotationComposer get attemptId {
+    final $$LibrarySyncRunAttemptTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.attemptId,
+          referencedTable: $db.librarySyncRunAttemptTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibrarySyncRunAttemptTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.librarySyncRunAttemptTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncRunOutcomeTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncRunOutcomeTableTable,
+          LibrarySyncRunOutcomeTableData,
+          $$LibrarySyncRunOutcomeTableTableFilterComposer,
+          $$LibrarySyncRunOutcomeTableTableOrderingComposer,
+          $$LibrarySyncRunOutcomeTableTableAnnotationComposer,
+          $$LibrarySyncRunOutcomeTableTableCreateCompanionBuilder,
+          $$LibrarySyncRunOutcomeTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncRunOutcomeTableData,
+            $$LibrarySyncRunOutcomeTableTableReferences,
+          ),
+          LibrarySyncRunOutcomeTableData,
+          PrefetchHooks Function({bool requestId, bool attemptId})
+        > {
+  $$LibrarySyncRunOutcomeTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncRunOutcomeTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncRunOutcomeTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncRunOutcomeTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncRunOutcomeTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> requestId = const Value.absent(),
+                Value<int?> attemptId = const Value.absent(),
+                Value<int> outcomeKind = const Value.absent(),
+                Value<int> safeReason = const Value.absent(),
+                Value<int> requestCount = const Value.absent(),
+                Value<int> byteCount = const Value.absent(),
+                Value<DateTime> completedAt = const Value.absent(),
+              }) => LibrarySyncRunOutcomeTableCompanion(
+                id: id,
+                requestId: requestId,
+                attemptId: attemptId,
+                outcomeKind: outcomeKind,
+                safeReason: safeReason,
+                requestCount: requestCount,
+                byteCount: byteCount,
+                completedAt: completedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int requestId,
+                Value<int?> attemptId = const Value.absent(),
+                required int outcomeKind,
+                required int safeReason,
+                Value<int> requestCount = const Value.absent(),
+                Value<int> byteCount = const Value.absent(),
+                required DateTime completedAt,
+              }) => LibrarySyncRunOutcomeTableCompanion.insert(
+                id: id,
+                requestId: requestId,
+                attemptId: attemptId,
+                outcomeKind: outcomeKind,
+                safeReason: safeReason,
+                requestCount: requestCount,
+                byteCount: byteCount,
+                completedAt: completedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncRunOutcomeTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({requestId = false, attemptId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (requestId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.requestId,
+                        referencedTable:
+                            $$LibrarySyncRunOutcomeTableTableReferences
+                                ._requestIdTable(db),
+                        referencedColumn:
+                            $$LibrarySyncRunOutcomeTableTableReferences
+                                ._requestIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+                    if (attemptId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.attemptId,
+                        referencedTable:
+                            $$LibrarySyncRunOutcomeTableTableReferences
+                                ._attemptIdTable(db),
+                        referencedColumn:
+                            $$LibrarySyncRunOutcomeTableTableReferences
+                                ._attemptIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibrarySyncRunOutcomeTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncRunOutcomeTableTable,
+      LibrarySyncRunOutcomeTableData,
+      $$LibrarySyncRunOutcomeTableTableFilterComposer,
+      $$LibrarySyncRunOutcomeTableTableOrderingComposer,
+      $$LibrarySyncRunOutcomeTableTableAnnotationComposer,
+      $$LibrarySyncRunOutcomeTableTableCreateCompanionBuilder,
+      $$LibrarySyncRunOutcomeTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncRunOutcomeTableData,
+        $$LibrarySyncRunOutcomeTableTableReferences,
+      ),
+      LibrarySyncRunOutcomeTableData,
+      PrefetchHooks Function({bool requestId, bool attemptId})
+    >;
+typedef $$LibrarySyncProviderProfileTableTableCreateCompanionBuilder =
+    LibrarySyncProviderProfileTableCompanion Function({
+      Value<int> serverId,
+      Value<String?> providerFingerprint,
+      Value<int> conditionalIndexesMode,
+      Value<int> bulkSongSearchMode,
+      Value<int> safePageSize,
+      Value<DateTime?> observedAt,
+    });
+typedef $$LibrarySyncProviderProfileTableTableUpdateCompanionBuilder =
+    LibrarySyncProviderProfileTableCompanion Function({
+      Value<int> serverId,
+      Value<String?> providerFingerprint,
+      Value<int> conditionalIndexesMode,
+      Value<int> bulkSongSearchMode,
+      Value<int> safePageSize,
+      Value<DateTime?> observedAt,
+    });
+
+final class $$LibrarySyncProviderProfileTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncProviderProfileTableTable,
+          LibrarySyncProviderProfileTableData
+        > {
+  $$LibrarySyncProviderProfileTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) =>
+      db.serverConfigTable.createAlias(
+        'library_sync_provider_profile__server_id__server_config__id',
+      );
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibrarySyncProviderProfileTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncProviderProfileTableTable> {
+  $$LibrarySyncProviderProfileTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get providerFingerprint => $composableBuilder(
+    column: $table.providerFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get conditionalIndexesMode => $composableBuilder(
+    column: $table.conditionalIndexesMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bulkSongSearchMode => $composableBuilder(
+    column: $table.bulkSongSearchMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get safePageSize => $composableBuilder(
+    column: $table.safePageSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get observedAt => $composableBuilder(
+    column: $table.observedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncProviderProfileTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncProviderProfileTableTable> {
+  $$LibrarySyncProviderProfileTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get providerFingerprint => $composableBuilder(
+    column: $table.providerFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get conditionalIndexesMode => $composableBuilder(
+    column: $table.conditionalIndexesMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bulkSongSearchMode => $composableBuilder(
+    column: $table.bulkSongSearchMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get safePageSize => $composableBuilder(
+    column: $table.safePageSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get observedAt => $composableBuilder(
+    column: $table.observedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncProviderProfileTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncProviderProfileTableTable> {
+  $$LibrarySyncProviderProfileTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get providerFingerprint => $composableBuilder(
+    column: $table.providerFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get conditionalIndexesMode => $composableBuilder(
+    column: $table.conditionalIndexesMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bulkSongSearchMode => $composableBuilder(
+    column: $table.bulkSongSearchMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get safePageSize => $composableBuilder(
+    column: $table.safePageSize,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get observedAt => $composableBuilder(
+    column: $table.observedAt,
+    builder: (column) => column,
+  );
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncProviderProfileTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncProviderProfileTableTable,
+          LibrarySyncProviderProfileTableData,
+          $$LibrarySyncProviderProfileTableTableFilterComposer,
+          $$LibrarySyncProviderProfileTableTableOrderingComposer,
+          $$LibrarySyncProviderProfileTableTableAnnotationComposer,
+          $$LibrarySyncProviderProfileTableTableCreateCompanionBuilder,
+          $$LibrarySyncProviderProfileTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncProviderProfileTableData,
+            $$LibrarySyncProviderProfileTableTableReferences,
+          ),
+          LibrarySyncProviderProfileTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$LibrarySyncProviderProfileTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncProviderProfileTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncProviderProfileTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncProviderProfileTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncProviderProfileTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<String?> providerFingerprint = const Value.absent(),
+                Value<int> conditionalIndexesMode = const Value.absent(),
+                Value<int> bulkSongSearchMode = const Value.absent(),
+                Value<int> safePageSize = const Value.absent(),
+                Value<DateTime?> observedAt = const Value.absent(),
+              }) => LibrarySyncProviderProfileTableCompanion(
+                serverId: serverId,
+                providerFingerprint: providerFingerprint,
+                conditionalIndexesMode: conditionalIndexesMode,
+                bulkSongSearchMode: bulkSongSearchMode,
+                safePageSize: safePageSize,
+                observedAt: observedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<String?> providerFingerprint = const Value.absent(),
+                Value<int> conditionalIndexesMode = const Value.absent(),
+                Value<int> bulkSongSearchMode = const Value.absent(),
+                Value<int> safePageSize = const Value.absent(),
+                Value<DateTime?> observedAt = const Value.absent(),
+              }) => LibrarySyncProviderProfileTableCompanion.insert(
+                serverId: serverId,
+                providerFingerprint: providerFingerprint,
+                conditionalIndexesMode: conditionalIndexesMode,
+                bulkSongSearchMode: bulkSongSearchMode,
+                safePageSize: safePageSize,
+                observedAt: observedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncProviderProfileTableTableReferences(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable:
+                            $$LibrarySyncProviderProfileTableTableReferences
+                                ._serverIdTable(db),
+                        referencedColumn:
+                            $$LibrarySyncProviderProfileTableTableReferences
+                                ._serverIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibrarySyncProviderProfileTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncProviderProfileTableTable,
+      LibrarySyncProviderProfileTableData,
+      $$LibrarySyncProviderProfileTableTableFilterComposer,
+      $$LibrarySyncProviderProfileTableTableOrderingComposer,
+      $$LibrarySyncProviderProfileTableTableAnnotationComposer,
+      $$LibrarySyncProviderProfileTableTableCreateCompanionBuilder,
+      $$LibrarySyncProviderProfileTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncProviderProfileTableData,
+        $$LibrarySyncProviderProfileTableTableReferences,
+      ),
+      LibrarySyncProviderProfileTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
+typedef $$LibrarySyncRepairSessionTableTableCreateCompanionBuilder =
+    LibrarySyncRepairSessionTableCompanion Function({
+      required int serverId,
+      required int generation,
+      required int phase,
+      Value<String?> deletionFingerprint,
+      Value<int> deletionCount,
+      required DateTime startedAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$LibrarySyncRepairSessionTableTableUpdateCompanionBuilder =
+    LibrarySyncRepairSessionTableCompanion Function({
+      Value<int> serverId,
+      Value<int> generation,
+      Value<int> phase,
+      Value<String?> deletionFingerprint,
+      Value<int> deletionCount,
+      Value<DateTime> startedAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$LibrarySyncRepairSessionTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibrarySyncRepairSessionTableTable,
+          LibrarySyncRepairSessionTableData
+        > {
+  $$LibrarySyncRepairSessionTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) => db
+      .serverConfigTable
+      .createAlias('library_sync_repair_session__server_id__server_config__id');
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibrarySyncRepairSessionTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRepairSessionTableTable> {
+  $$LibrarySyncRepairSessionTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get phase => $composableBuilder(
+    column: $table.phase,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deletionFingerprint => $composableBuilder(
+    column: $table.deletionFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletionCount => $composableBuilder(
+    column: $table.deletionCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncRepairSessionTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRepairSessionTableTable> {
+  $$LibrarySyncRepairSessionTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get phase => $composableBuilder(
+    column: $table.phase,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deletionFingerprint => $composableBuilder(
+    column: $table.deletionFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletionCount => $composableBuilder(
+    column: $table.deletionCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibrarySyncRepairSessionTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibrarySyncRepairSessionTableTable> {
+  $$LibrarySyncRepairSessionTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get phase =>
+      $composableBuilder(column: $table.phase, builder: (column) => column);
+
+  GeneratedColumn<String> get deletionFingerprint => $composableBuilder(
+    column: $table.deletionFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deletionCount => $composableBuilder(
+    column: $table.deletionCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibrarySyncRepairSessionTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibrarySyncRepairSessionTableTable,
+          LibrarySyncRepairSessionTableData,
+          $$LibrarySyncRepairSessionTableTableFilterComposer,
+          $$LibrarySyncRepairSessionTableTableOrderingComposer,
+          $$LibrarySyncRepairSessionTableTableAnnotationComposer,
+          $$LibrarySyncRepairSessionTableTableCreateCompanionBuilder,
+          $$LibrarySyncRepairSessionTableTableUpdateCompanionBuilder,
+          (
+            LibrarySyncRepairSessionTableData,
+            $$LibrarySyncRepairSessionTableTableReferences,
+          ),
+          LibrarySyncRepairSessionTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$LibrarySyncRepairSessionTableTableTableManager(
+    _$NavisDatabase db,
+    $LibrarySyncRepairSessionTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibrarySyncRepairSessionTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibrarySyncRepairSessionTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibrarySyncRepairSessionTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<int> phase = const Value.absent(),
+                Value<String?> deletionFingerprint = const Value.absent(),
+                Value<int> deletionCount = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LibrarySyncRepairSessionTableCompanion(
+                serverId: serverId,
+                generation: generation,
+                phase: phase,
+                deletionFingerprint: deletionFingerprint,
+                deletionCount: deletionCount,
+                startedAt: startedAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int serverId,
+                required int generation,
+                required int phase,
+                Value<String?> deletionFingerprint = const Value.absent(),
+                Value<int> deletionCount = const Value.absent(),
+                required DateTime startedAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => LibrarySyncRepairSessionTableCompanion.insert(
+                serverId: serverId,
+                generation: generation,
+                phase: phase,
+                deletionFingerprint: deletionFingerprint,
+                deletionCount: deletionCount,
+                startedAt: startedAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibrarySyncRepairSessionTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable:
+                            $$LibrarySyncRepairSessionTableTableReferences
+                                ._serverIdTable(db),
+                        referencedColumn:
+                            $$LibrarySyncRepairSessionTableTableReferences
+                                ._serverIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibrarySyncRepairSessionTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibrarySyncRepairSessionTableTable,
+      LibrarySyncRepairSessionTableData,
+      $$LibrarySyncRepairSessionTableTableFilterComposer,
+      $$LibrarySyncRepairSessionTableTableOrderingComposer,
+      $$LibrarySyncRepairSessionTableTableAnnotationComposer,
+      $$LibrarySyncRepairSessionTableTableCreateCompanionBuilder,
+      $$LibrarySyncRepairSessionTableTableUpdateCompanionBuilder,
+      (
+        LibrarySyncRepairSessionTableData,
+        $$LibrarySyncRepairSessionTableTableReferences,
+      ),
+      LibrarySyncRepairSessionTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -41519,5 +47195,35 @@ class $NavisDatabaseManager {
       $$LibrarySyncExecutionLeaseTableTableTableManager(
         _db,
         _db.librarySyncExecutionLeaseTable,
+      );
+  $$LibrarySyncRunRequestTableTableTableManager
+  get librarySyncRunRequestTable =>
+      $$LibrarySyncRunRequestTableTableTableManager(
+        _db,
+        _db.librarySyncRunRequestTable,
+      );
+  $$LibrarySyncRunAttemptTableTableTableManager
+  get librarySyncRunAttemptTable =>
+      $$LibrarySyncRunAttemptTableTableTableManager(
+        _db,
+        _db.librarySyncRunAttemptTable,
+      );
+  $$LibrarySyncRunOutcomeTableTableTableManager
+  get librarySyncRunOutcomeTable =>
+      $$LibrarySyncRunOutcomeTableTableTableManager(
+        _db,
+        _db.librarySyncRunOutcomeTable,
+      );
+  $$LibrarySyncProviderProfileTableTableTableManager
+  get librarySyncProviderProfileTable =>
+      $$LibrarySyncProviderProfileTableTableTableManager(
+        _db,
+        _db.librarySyncProviderProfileTable,
+      );
+  $$LibrarySyncRepairSessionTableTableTableManager
+  get librarySyncRepairSessionTable =>
+      $$LibrarySyncRepairSessionTableTableTableManager(
+        _db,
+        _db.librarySyncRepairSessionTable,
       );
 }

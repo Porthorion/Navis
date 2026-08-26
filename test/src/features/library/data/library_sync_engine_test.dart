@@ -15,9 +15,36 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
+
+const _meteredManualDiscoveryPlan = SyncExecutionPlan(
+  request: SyncRunRequest(
+    contractVersion: SyncRunRequest.currentContractVersion,
+    origin: SyncRunOrigin.libraryPullToRefresh,
+    intent: SyncRunIntent.manualCatalogCheck,
+    target: LibrarySyncTarget.catalog(),
+    networkGrant: SyncNetworkGrant.boundedMeteredDiscovery,
+    priority: 60,
+  ),
+  kind: SyncExecutionPlanKind.manualCatalogDiscovery,
+  reason: SyncSafeReason.none,
+  budget: SyncExecutionBudget(
+    allowedEndpoints: <SyncEndpoint>{
+      SyncEndpoint.indexes,
+      SyncEndpoint.newestAlbums,
+      SyncEndpoint.artist,
+      SyncEndpoint.album,
+    },
+    maxNewestPages: 1,
+    maxAlbumHydrations: 3,
+    maxResponseBytes: 16 * 1024 * 1024,
+    maxTotalBytes: null,
+    maxConcurrency: 1,
+  ),
+);
 
 class _FakeCredentialStore implements SecureCredentialStore {
   String? _password;
@@ -1127,7 +1154,7 @@ void main() {
           fallbackArtistConcurrency: 1,
           cellularAlbumConcurrency: 1,
           writeChunkSize: 4,
-        )..allowMeteredManualDiscovery = true;
+        );
         final newest = List<Album>.generate(
           48,
           (index) => Album(
@@ -1160,7 +1187,9 @@ void main() {
           );
         }
 
-        final state = await meteredEngine.syncNow();
+        final state = await meteredEngine.executeSyncExecutionPlan(
+          _meteredManualDiscoveryPlan,
+        );
         final albums = await database.libraryDao
             .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
             .first;
@@ -3336,7 +3365,7 @@ void main() {
           fallbackArtistConcurrency: 1,
           cellularAlbumConcurrency: 1,
           writeChunkSize: 4,
-        )..allowMeteredManualDiscovery = true;
+        );
         api.fastPathPages[0] = List<Album>.generate(
           5,
           (index) => Album(
@@ -3359,7 +3388,9 @@ void main() {
           );
         }
 
-        final state = await meteredEngine.syncNow();
+        final state = await meteredEngine.executeSyncExecutionPlan(
+          _meteredManualDiscoveryPlan,
+        );
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('getAlbumListPage:0:50'));
@@ -3369,6 +3400,15 @@ void main() {
         );
         expect(
           api.calls.where((call) => call.startsWith('searchSongsPage:')),
+          isEmpty,
+        );
+        expect(
+          api.calls.where(
+            (call) =>
+                call.startsWith('getStarredContent') ||
+                call.startsWith('getPlaylists') ||
+                call.startsWith('getGenres'),
+          ),
           isEmpty,
         );
         expect(

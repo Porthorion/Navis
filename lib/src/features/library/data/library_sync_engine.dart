@@ -16,6 +16,7 @@ import 'package:navis/src/features/library/data/library_catalog_diff_analyzer.da
 import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -183,6 +184,82 @@ abstract interface class TargetedLibrarySyncExecutor {
   Future<LibrarySyncState> syncGenres({
     LibrarySyncProgressCallback? onProgress,
   });
+}
+
+/// Compatibility boundary for the typed scheduler. Implementations receive
+/// the plan selected at admission time; the legacy methods remain temporary
+/// adapters until the underlying executor is fully migrated.
+extension LibrarySyncExecutionPlanAdapter on LibrarySyncEngine {
+  Future<LibrarySyncState> executeSyncPlan(
+    SyncExecutionPlan plan, {
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    if (this case final DriftLibrarySyncEngine engine) {
+      return engine.executeSyncExecutionPlan(
+        plan,
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+      );
+    }
+    final targetExecutor = switch (this) {
+      final TargetedLibrarySyncExecutor executor => executor,
+      _ => null,
+    };
+    final target = plan.request.target;
+    return switch (plan.kind) {
+      SyncExecutionPlanKind.automaticProbe => probeCatalog(
+        onProgress: onProgress,
+      ),
+      SyncExecutionPlanKind.manualCatalogDiscovery => syncNow(
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+      ),
+      SyncExecutionPlanKind.repairLibrary ||
+      SyncExecutionPlanKind.catalogSnapshot => forceFullSync(
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+      ),
+      SyncExecutionPlanKind.compatibilityAudit => switch (this) {
+        final DriftLibrarySyncEngine engine => engine.runCompatibilityAudit(
+          priorityAlbumIds: priorityAlbumIds,
+          onProgress: onProgress,
+        ),
+        _ => continueVerification(
+          priorityAlbumIds: priorityAlbumIds,
+          onProgress: onProgress,
+        ),
+      },
+      SyncExecutionPlanKind.targetHydration ||
+      SyncExecutionPlanKind.auxiliaryRefresh => switch (target.kind) {
+        LibrarySyncTargetKind.album
+            when target.entityId != null && targetExecutor != null =>
+          targetExecutor.hydrateAlbum(target.entityId!, onProgress: onProgress),
+        LibrarySyncTargetKind.artist
+            when target.entityId != null && targetExecutor != null =>
+          targetExecutor.hydrateArtist(
+            target.entityId!,
+            onProgress: onProgress,
+          ),
+        LibrarySyncTargetKind.playlist
+            when target.entityId != null && targetExecutor != null =>
+          targetExecutor.hydratePlaylist(
+            target.entityId!,
+            onProgress: onProgress,
+          ),
+        LibrarySyncTargetKind.playlistHeaders when targetExecutor != null =>
+          targetExecutor.syncPlaylistHeaders(onProgress: onProgress),
+        LibrarySyncTargetKind.starred when targetExecutor != null =>
+          targetExecutor.syncStarredContent(onProgress: onProgress),
+        LibrarySyncTargetKind.genres when targetExecutor != null =>
+          targetExecutor.syncGenres(onProgress: onProgress),
+        _ => continueVerification(
+          priorityAlbumIds: priorityAlbumIds,
+          onProgress: onProgress,
+        ),
+      },
+    };
+  }
 }
 
 abstract class LibrarySyncApi {
@@ -758,8 +835,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
   Future<LibrarySyncState>? _inFlight;
   bool _cancelled = false;
-  bool allowMeteredBackgroundOverride = false;
-  bool allowMeteredManualDiscovery = false;
+  SyncExecutionPlan? _activeExecutionPlan;
   Map<String, int> lastEndpointRequestCounts = const <String, int>{};
 
   /// Cancel any in-progress sync. Durable orchestration retains the work.
@@ -786,12 +862,24 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   void _ensureBackgroundWorkAllowed() {
     final policy = _currentSyncPolicy;
     if (policy.allowsBackgroundSync ||
-        allowMeteredBackgroundOverride ||
-        allowMeteredManualDiscovery) {
+        _allowsBroadMeteredWork ||
+        _allowsLimitedMeteredManualDiscovery(manual: true)) {
       return;
     }
     _api.cancelActiveRequests();
     throw const SyncNetworkDeferredException();
+  }
+
+  bool get _allowsBroadMeteredWork =>
+      _activeExecutionPlan?.request.networkGrant ==
+      SyncNetworkGrant.broadMeteredOnce;
+
+  bool _allowsLimitedMeteredManualDiscovery({required bool manual}) {
+    final plan = _activeExecutionPlan;
+    return manual &&
+        _currentSyncPolicy.isMetered &&
+        plan?.kind == SyncExecutionPlanKind.manualCatalogDiscovery &&
+        plan?.request.networkGrant == SyncNetworkGrant.boundedMeteredDiscovery;
   }
 
   int get _albumConcurrency {
@@ -1530,6 +1618,71 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
+  /// Typed scheduler entrypoint. Policy-sensitive broad execution receives the
+  /// immutable plan selected at admission time; the public methods above are
+  /// retained only as compatibility adapters for older callers.
+  Future<LibrarySyncState> executeSyncExecutionPlan(
+    SyncExecutionPlan plan, {
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) {
+    final target = plan.request.target;
+    return switch (plan.kind) {
+      SyncExecutionPlanKind.automaticProbe => probeCatalog(
+        onProgress: onProgress,
+      ),
+      SyncExecutionPlanKind.manualCatalogDiscovery => _runWithLock(
+        force: true,
+        forceFull: false,
+        manual: true,
+        verificationContinuation: false,
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+        executionPlan: plan,
+      ),
+      SyncExecutionPlanKind.repairLibrary ||
+      SyncExecutionPlanKind.catalogSnapshot => _runWithLock(
+        force: true,
+        forceFull: true,
+        manual: true,
+        verificationContinuation: false,
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+        executionPlan: plan,
+      ),
+      SyncExecutionPlanKind.compatibilityAudit => _runWithLock(
+        force: true,
+        forceFull: false,
+        manual: false,
+        verificationContinuation: false,
+        compatibilityAudit: true,
+        priorityAlbumIds: priorityAlbumIds,
+        onProgress: onProgress,
+        executionPlan: plan,
+      ),
+      SyncExecutionPlanKind.targetHydration ||
+      SyncExecutionPlanKind.auxiliaryRefresh => switch (target.kind) {
+        LibrarySyncTargetKind.album when target.entityId != null =>
+          hydrateAlbum(target.entityId!, onProgress: onProgress),
+        LibrarySyncTargetKind.artist when target.entityId != null =>
+          hydrateArtist(target.entityId!, onProgress: onProgress),
+        LibrarySyncTargetKind.playlist when target.entityId != null =>
+          hydratePlaylist(target.entityId!, onProgress: onProgress),
+        LibrarySyncTargetKind.playlistHeaders => syncPlaylistHeaders(
+          onProgress: onProgress,
+        ),
+        LibrarySyncTargetKind.starred => syncStarredContent(
+          onProgress: onProgress,
+        ),
+        LibrarySyncTargetKind.genres => syncGenres(onProgress: onProgress),
+        _ => continueVerification(
+          priorityAlbumIds: priorityAlbumIds,
+          onProgress: onProgress,
+        ),
+      },
+    };
+  }
+
   @override
   Future<LibrarySyncState> probeCatalog({
     LibrarySyncProgressCallback? onProgress,
@@ -1690,6 +1843,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required bool manual,
     required bool verificationContinuation,
     bool compatibilityAudit = false,
+    SyncExecutionPlan? executionPlan,
     required Iterable<String> priorityAlbumIds,
     LibrarySyncProgressCallback? onProgress,
   }) {
@@ -1700,6 +1854,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
     _cancelled = false;
     _api.beginRun();
+    _activeExecutionPlan = executionPlan;
     final future = _runSync(
       force: force,
       forceFull: forceFull,
@@ -1713,6 +1868,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     return future.whenComplete(() {
       _inFlight = null;
       _cancelled = false;
+      if (identical(_activeExecutionPlan, executionPlan)) {
+        _activeExecutionPlan = null;
+      }
     });
   }
 
@@ -1796,7 +1954,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     try {
       _ensureBackgroundWorkAllowed();
       final auxiliaryDue = _shouldSyncAuxiliary(serverConfig.capabilitiesJson);
-      final syncAuxiliary = manual || auxiliaryDue;
+      // Typed catalog operations never absorb starred, playlist-header, or
+      // genre refreshes. Those are their own auxiliary targets. Legacy entry
+      // points retain the previous combined behavior for one release.
+      final syncAuxiliary =
+          _activeExecutionPlan == null && (manual || auxiliaryDue);
       if ((!force ||
               (verificationContinuation &&
                   pendingArtistVerificationCount == 0)) &&
@@ -1836,7 +1998,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           serverConfig: serverConfig,
           mode: mode,
           priorityAlbumIds: priorityAlbumIds,
-          syncAuxiliary: true,
+          syncAuxiliary: syncAuxiliary,
           metrics: metrics,
           onProgress: onProgress,
         );
@@ -1861,9 +2023,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         }
       }
 
-      if (manual ||
-          (metrics.metadataChanged && !metrics.verificationContinuation) ||
-          auxiliaryDue) {
+      if (syncAuxiliary &&
+          (manual ||
+              (metrics.metadataChanged && !metrics.verificationContinuation) ||
+              auxiliaryDue)) {
         await _reconcileStarredContent(metrics);
         if (metrics.starredSynchronized &&
             metrics.playlistHeadersSynchronized) {
@@ -2355,8 +2518,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     // scans a fixed 500-album window, independent of `getIndexes`; automatic
     // checks retain the original low-data one-page probe plus a look-ahead
     // only when that first page is entirely newer or unknown.
-    final limitedMeteredManualDiscovery =
-        manual && allowMeteredManualDiscovery && _currentSyncPolicy.isMetered;
+    final limitedMeteredManualDiscovery = _allowsLimitedMeteredManualDiscovery(
+      manual: manual,
+    );
     final maxPages = limitedMeteredManualDiscovery
         ? 1
         : manual
@@ -3381,8 +3545,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
-    final limitedMeteredManualDiscovery =
-        manual && allowMeteredManualDiscovery && _currentSyncPolicy.isMetered;
+    final limitedMeteredManualDiscovery = _allowsLimitedMeteredManualDiscovery(
+      manual: manual,
+    );
     var current = _withMetrics(
       state.copyWith(
         stage: LibrarySyncStage.fetchingArtists,

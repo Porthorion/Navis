@@ -36,6 +36,14 @@ const List<ChangelogVersion> changelogs = [
     version: '1.3.0',
     entries: [
       ChangelogEntry(
+        'Sync Settings now separates non-destructive Repair Library from Reset caches & rebuild library, clearly showing what each action keeps or removes',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Library sync now keeps a redacted, restart-safe history of checks, repairs, and recovery outcomes',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Navis now offers a full-screen first-run customization flow for appearance, playback, downloads, queues, and optional ListenBrainz or Last.fm setup',
         type: ChangelogEntryType.newFeature,
       ),

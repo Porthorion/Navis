@@ -12,6 +12,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart'
     as android_background_sync;
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -126,6 +127,12 @@ ProviderContainer _createRootProviderContainer({
         desktopWindowControllerProvider.overrideWith(
           (ref) => desktopBootstrap.controller,
         ),
+      // Sync diagnostics certify catalog scheduling and candidate promotion.
+      // A cache-layout upgrade is a separate destructive recovery flow, so it
+      // must not reset the disposable catalog while this runtime gate is
+      // exercising interruption and restart recovery.
+      if (_syncDiagnosticsRuntimeEnabled)
+        cacheSystemUpgradeRequiredProvider.overrideWithValue(false),
       if (_isCloneBootstrapFailureDiagnostics)
         audioBootstrapAttemptGateProvider.overrideWithValue(() async {
           if (remainingInjectedBootstrapFailures <= 0) {

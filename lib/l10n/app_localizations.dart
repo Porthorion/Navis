@@ -511,13 +511,13 @@ abstract class AppLocalizations {
   /// No description provided for @settingsCacheTitle.
   ///
   /// In en, this message translates to:
-  /// **'Cache'**
+  /// **'Device storage & cache'**
   String get settingsCacheTitle;
 
   /// No description provided for @settingsCacheSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Manage storage for audio, cover art and downloads.'**
+  /// **'Manage on-device audio, artwork, and download storage.'**
   String get settingsCacheSubtitle;
 
   /// No description provided for @settingsDownloadsSubtitle.
@@ -574,6 +574,12 @@ abstract class AppLocalizations {
   /// **'Storage'**
   String get settingsGroupStorage;
 
+  /// No description provided for @settingsGroupDeviceStorageCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Device storage & cache'**
+  String get settingsGroupDeviceStorageCache;
+
   /// No description provided for @settingsGroupPlayback.
   ///
   /// In en, this message translates to:
@@ -585,6 +591,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Automation'**
   String get settingsGroupAutomation;
+
+  /// No description provided for @settingsGroupLibrarySynchronization.
+  ///
+  /// In en, this message translates to:
+  /// **'Library synchronization'**
+  String get settingsGroupLibrarySynchronization;
 
   /// No description provided for @settingsGroupOther.
   ///
@@ -1299,19 +1311,19 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsRepairLibraryMetadata.
   ///
   /// In en, this message translates to:
-  /// **'Repair Library Metadata'**
+  /// **'Repair Library'**
   String get syncSettingsRepairLibraryMetadata;
 
   /// No description provided for @syncSettingsRepairLibraryMetadataDescription.
   ///
   /// In en, this message translates to:
-  /// **'Rebuild and reconcile library metadata. Keeps downloads, streaming cache, and artwork.'**
+  /// **'Reconcile your local library with the server. Keeps downloads, streaming cache, and artwork.'**
   String get syncSettingsRepairLibraryMetadataDescription;
 
   /// No description provided for @syncSettingsRepairLibraryMetadataRunning.
   ///
   /// In en, this message translates to:
-  /// **'Repairing library metadata...'**
+  /// **'Repairing library...'**
   String get syncSettingsRepairLibraryMetadataRunning;
 
   /// No description provided for @syncSettingsRepairDeletionConfirmationPending.
@@ -1359,13 +1371,13 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsRepairMeteredConfirmTitle.
   ///
   /// In en, this message translates to:
-  /// **'Repair Library Metadata on Mobile Data?'**
+  /// **'Repair Library on Mobile Data?'**
   String get syncSettingsRepairMeteredConfirmTitle;
 
   /// No description provided for @syncSettingsRepairMeteredConfirmBody.
   ///
   /// In en, this message translates to:
-  /// **'Repairing library metadata can download a large amount of metadata over your current connection.'**
+  /// **'Repairing your library can download a large amount of metadata over your current connection.'**
   String get syncSettingsRepairMeteredConfirmBody;
 
   /// No description provided for @syncSettingsRepairMeteredConfirmAction.
@@ -1377,32 +1389,50 @@ abstract class AppLocalizations {
   /// No description provided for @cacheSettingsResetLibraryCache.
   ///
   /// In en, this message translates to:
-  /// **'Reset Library Cache'**
+  /// **'Reset caches & rebuild library'**
   String get cacheSettingsResetLibraryCache;
 
   /// No description provided for @cacheSettingsResetLibraryCacheDescription.
   ///
   /// In en, this message translates to:
-  /// **'Clear streaming cache, cover art, and local library metadata, then fully resync. Downloaded music is kept.'**
+  /// **'Clear local streaming and artwork caches plus library metadata, then rebuild from the server. Downloaded music is kept.'**
   String get cacheSettingsResetLibraryCacheDescription;
 
   /// No description provided for @cacheSettingsResetLibraryCacheConfirmTitle.
   ///
   /// In en, this message translates to:
-  /// **'Reset Library Cache?'**
+  /// **'Reset caches & rebuild library?'**
   String get cacheSettingsResetLibraryCacheConfirmTitle;
 
   /// No description provided for @cacheSettingsResetLibraryCacheConfirmBody.
   ///
   /// In en, this message translates to:
-  /// **'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music will be kept. Navis will then fully resync your library.'**
+  /// **'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music will be kept. Navis will then rebuild your library from the server.'**
   String get cacheSettingsResetLibraryCacheConfirmBody;
 
   /// No description provided for @cacheSettingsResetLibraryCacheConfirmAction.
   ///
   /// In en, this message translates to:
-  /// **'Reset Cache'**
+  /// **'Reset caches & rebuild'**
   String get cacheSettingsResetLibraryCacheConfirmAction;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheMeteredConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild Library on Mobile Data?'**
+  String get cacheSettingsResetLibraryCacheMeteredConfirmTitle;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheMeteredConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuilding your library can download a large amount of metadata over your current connection.'**
+  String get cacheSettingsResetLibraryCacheMeteredConfirmBody;
+
+  /// No description provided for @cacheSettingsResetLibraryCacheMeteredConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild on Mobile Data'**
+  String get cacheSettingsResetLibraryCacheMeteredConfirmAction;
 
   /// No description provided for @cacheSettingsResetLibraryCacheSuccess.
   ///
@@ -2718,6 +2748,12 @@ abstract class AppLocalizations {
   /// **'Scanning songs'**
   String get librarySyncStageSongs;
 
+  /// No description provided for @librarySyncStageStarred.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating liked items'**
+  String get librarySyncStageStarred;
+
   /// No description provided for @librarySyncStageGenres.
   ///
   /// In en, this message translates to:
@@ -2727,7 +2763,7 @@ abstract class AppLocalizations {
   /// No description provided for @librarySyncStagePlaylists.
   ///
   /// In en, this message translates to:
-  /// **'Fetching playlists'**
+  /// **'Updating playlists'**
   String get librarySyncStagePlaylists;
 
   /// No description provided for @librarySyncStageFinalizing.

@@ -7,9 +7,41 @@ import 'package:navis/src/database/tables/library_sync_work_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/library_sync_operation_ledger_table.dart';
 import 'package:navis/src/database/tables/library_sync_execution_lease_table.dart';
+import 'package:navis/src/database/tables/library_sync_provider_profile_table.dart';
+import 'package:navis/src/database/tables/library_sync_repair_session_table.dart';
+import 'package:navis/src/database/tables/library_sync_run_attempt_table.dart';
+import 'package:navis/src/database/tables/library_sync_run_outcome_table.dart';
+import 'package:navis/src/database/tables/library_sync_run_request_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
 part 'library_sync_dao.g.dart';
+
+/// The redacted record exposed by settings and the diagnostics API.
+class LibrarySyncRunHistoryEntry {
+  const LibrarySyncRunHistoryEntry({
+    required this.origin,
+    required this.intent,
+    required this.targetKind,
+    required this.planKind,
+    required this.outcome,
+    required this.reason,
+    required this.requestCount,
+    required this.byteCount,
+    required this.completedAt,
+  });
+
+  final SyncRunOrigin origin;
+  final SyncRunIntent intent;
+  final LibrarySyncTargetKind targetKind;
+  final SyncExecutionPlanKind planKind;
+  final SyncRunOutcomeKind outcome;
+  final SyncSafeReason reason;
+  final int requestCount;
+  final int byteCount;
+  final DateTime completedAt;
+}
 
 @DriftAccessor(
   tables: [
@@ -19,11 +51,534 @@ part 'library_sync_dao.g.dart';
     StarredAbsenceCandidatesTable,
     LibrarySyncOperationLedgerTable,
     LibrarySyncExecutionLeaseTable,
+    LibrarySyncRunRequestTable,
+    LibrarySyncRunAttemptTable,
+    LibrarySyncRunOutcomeTable,
+    LibrarySyncProviderProfileTable,
+    LibrarySyncRepairSessionTable,
   ],
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     with _$LibrarySyncDaoMixin {
   LibrarySyncDao(super.attachedDatabase);
+
+  static const int _runQueued = 0;
+  static const int _runRunning = 1;
+  static const int _runTerminal = 2;
+  static const int _attemptRunning = 0;
+  static const int _attemptRecovered = 1;
+  static const int _attemptTerminal = 2;
+
+  /// Persists a typed request before legacy work is enqueued. Equivalent
+  /// active requests share this durable identity, but terminal requests are
+  /// retained as independent history entries.
+  Future<LibrarySyncRunRequestTableData> enqueueSyncRun({
+    required int serverId,
+    required SyncExecutionPlan plan,
+    DateTime? now,
+  }) async {
+    final timestamp = (now ?? DateTime.now()).toUtc();
+    final request = plan.request;
+    final active =
+        await (select(librarySyncRunRequestTable)
+              ..where(
+                (table) =>
+                    table.serverId.equals(serverId) &
+                    table.coalescingKey.equals(request.coalescingKey) &
+                    table.status.isIn(const <int>[_runQueued, _runRunning]),
+              )
+              ..orderBy([(table) => OrderingTerm.desc(table.updatedAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    if (active != null) {
+      return active;
+    }
+    final id = await into(librarySyncRunRequestTable).insert(
+      LibrarySyncRunRequestTableCompanion.insert(
+        serverId: serverId,
+        contractVersion: request.contractVersion,
+        origin: request.origin.index,
+        intent: request.intent.index,
+        targetKind: request.target.kind.index,
+        targetKey: Value(librarySyncTargetWorkKey(request.target)),
+        networkGrant: request.networkGrant.index,
+        planKind: plan.kind.index,
+        priority: request.priority,
+        coalescingKey: request.coalescingKey,
+        status: const Value(_runQueued),
+        resumedFromRequestId: request.resumedFromRequestId == null
+            ? const Value(null)
+            : Value(request.resumedFromRequestId),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      ),
+    );
+    return (select(
+      librarySyncRunRequestTable,
+    )..where((table) => table.id.equals(id))).getSingle();
+  }
+
+  Future<LibrarySyncRunAttemptTableData> beginSyncRunAttempt({
+    required int requestId,
+    required bool androidWorker,
+    DateTime? now,
+  }) async {
+    final timestamp = (now ?? DateTime.now()).toUtc();
+    return transaction(() async {
+      await (update(
+        librarySyncRunRequestTable,
+      )..where((table) => table.id.equals(requestId))).write(
+        LibrarySyncRunRequestTableCompanion(
+          status: const Value(_runRunning),
+          updatedAt: Value(timestamp),
+        ),
+      );
+      final id = await into(librarySyncRunAttemptTable).insert(
+        LibrarySyncRunAttemptTableCompanion.insert(
+          requestId: requestId,
+          ownerKind: Value(androidWorker ? 1 : 0),
+          startedAt: timestamp,
+        ),
+      );
+      return (select(
+        librarySyncRunAttemptTable,
+      )..where((table) => table.id.equals(id))).getSingle();
+    });
+  }
+
+  /// Completes a request with a redacted, typed result. A target identifier is
+  /// cleared from the request at this boundary, so durable history can explain
+  /// a run without retaining private library metadata.
+  Future<void> completeSyncRun({
+    required int requestId,
+    required SyncRunOutcome outcome,
+    int? attemptId,
+    DateTime? now,
+  }) async {
+    final timestamp = (now ?? DateTime.now()).toUtc();
+    await transaction(() async {
+      if (attemptId != null) {
+        await (update(
+          librarySyncRunAttemptTable,
+        )..where((table) => table.id.equals(attemptId))).write(
+          LibrarySyncRunAttemptTableCompanion(
+            status: const Value(_attemptTerminal),
+            completedAt: Value(timestamp),
+          ),
+        );
+      }
+      await into(librarySyncRunOutcomeTable).insert(
+        LibrarySyncRunOutcomeTableCompanion.insert(
+          requestId: requestId,
+          attemptId: attemptId == null ? const Value(null) : Value(attemptId),
+          outcomeKind: outcome.kind.index,
+          safeReason: outcome.reason.index,
+          requestCount: Value(outcome.requestCount),
+          byteCount: Value(outcome.byteCount),
+          completedAt: timestamp,
+        ),
+      );
+      await (update(
+        librarySyncRunRequestTable,
+      )..where((table) => table.id.equals(requestId))).write(
+        LibrarySyncRunRequestTableCompanion(
+          status: const Value(_runTerminal),
+          targetKey: const Value(''),
+          updatedAt: Value(timestamp),
+        ),
+      );
+    });
+  }
+
+  /// Converts abandoned in-process attempts back to their request queue. The
+  /// attempt remains durable evidence that a restart recovery occurred.
+  Future<void> recoverInterruptedSyncRuns(int serverId, {DateTime? now}) {
+    final timestamp = (now ?? DateTime.now()).toUtc();
+    return transaction(() async {
+      final runningRequests =
+          await (select(librarySyncRunRequestTable)..where(
+                (table) =>
+                    table.serverId.equals(serverId) &
+                    table.status.equals(_runRunning),
+              ))
+              .get();
+      if (runningRequests.isEmpty) {
+        return;
+      }
+      final ids = runningRequests.map((row) => row.id).toList(growable: false);
+      await (update(librarySyncRunAttemptTable)..where(
+            (table) =>
+                table.requestId.isIn(ids) &
+                table.status.equals(_attemptRunning),
+          ))
+          .write(
+            const LibrarySyncRunAttemptTableCompanion(
+              status: Value(_attemptRecovered),
+            ),
+          );
+      await (update(
+        librarySyncRunRequestTable,
+      )..where((table) => table.id.isIn(ids))).write(
+        LibrarySyncRunRequestTableCompanion(
+          status: const Value(_runQueued),
+          updatedAt: Value(timestamp),
+        ),
+      );
+    });
+  }
+
+  Future<List<LibrarySyncRunHistoryEntry>> getRecentSyncRunHistory(
+    int serverId, {
+    int limit = 50,
+  }) async {
+    final safeLimit = limit.clamp(1, 50);
+    final rows =
+        await (select(librarySyncRunOutcomeTable).join([
+                innerJoin(
+                  librarySyncRunRequestTable,
+                  librarySyncRunRequestTable.id.equalsExp(
+                    librarySyncRunOutcomeTable.requestId,
+                  ),
+                ),
+              ])
+              ..where(librarySyncRunRequestTable.serverId.equals(serverId))
+              ..orderBy([
+                OrderingTerm.desc(librarySyncRunOutcomeTable.completedAt),
+                OrderingTerm.desc(librarySyncRunOutcomeTable.id),
+              ])
+              ..limit(safeLimit))
+            .get();
+    return rows
+        .map(
+          (row) => LibrarySyncRunHistoryEntry(
+            origin: SyncRunOrigin
+                .values[row.readTable(librarySyncRunRequestTable).origin],
+            intent: SyncRunIntent
+                .values[row.readTable(librarySyncRunRequestTable).intent],
+            targetKind: LibrarySyncTargetKind
+                .values[row.readTable(librarySyncRunRequestTable).targetKind],
+            planKind: SyncExecutionPlanKind
+                .values[row.readTable(librarySyncRunRequestTable).planKind],
+            outcome: SyncRunOutcomeKind
+                .values[row.readTable(librarySyncRunOutcomeTable).outcomeKind],
+            reason: SyncSafeReason
+                .values[row.readTable(librarySyncRunOutcomeTable).safeReason],
+            requestCount: row
+                .readTable(librarySyncRunOutcomeTable)
+                .requestCount,
+            byteCount: row.readTable(librarySyncRunOutcomeTable).byteCount,
+            completedAt: row.readTable(librarySyncRunOutcomeTable).completedAt,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> pruneSyncRunHistoryBefore(DateTime cutoff) async {
+    final normalized = cutoff.toUtc();
+    await transaction(() async {
+      await (delete(
+            librarySyncRunOutcomeTable,
+          )..where((table) => table.completedAt.isSmallerThanValue(normalized)))
+          .go();
+      await (delete(librarySyncRunRequestTable)..where(
+            (table) =>
+                table.status.equals(_runTerminal) &
+                table.updatedAt.isSmallerThanValue(normalized),
+          ))
+          .go();
+    });
+  }
+
+  Future<void> writeSyncProviderProfile({
+    required int serverId,
+    String? providerFingerprint,
+    required int conditionalIndexesMode,
+    required int bulkSongSearchMode,
+    required int safePageSize,
+    DateTime? observedAt,
+  }) {
+    return into(librarySyncProviderProfileTable).insertOnConflictUpdate(
+      LibrarySyncProviderProfileTableCompanion(
+        serverId: Value(serverId),
+        providerFingerprint: Value(providerFingerprint),
+        conditionalIndexesMode: Value(conditionalIndexesMode),
+        bulkSongSearchMode: Value(bulkSongSearchMode),
+        safePageSize: Value(safePageSize),
+        observedAt: Value(observedAt?.toUtc()),
+      ),
+    );
+  }
+
+  Future<void> writeRepairSession({
+    required int serverId,
+    required int generation,
+    required int phase,
+    String? deletionFingerprint,
+    required int deletionCount,
+    required DateTime startedAt,
+    DateTime? now,
+  }) {
+    final timestamp = (now ?? DateTime.now()).toUtc();
+    return into(librarySyncRepairSessionTable).insertOnConflictUpdate(
+      LibrarySyncRepairSessionTableCompanion(
+        serverId: Value(serverId),
+        generation: Value(generation),
+        phase: Value(phase),
+        deletionFingerprint: Value(deletionFingerprint),
+        deletionCount: Value(deletionCount),
+        startedAt: Value(startedAt.toUtc()),
+        updatedAt: Value(timestamp),
+      ),
+    );
+  }
+
+  /// Imports pre-v71 work exactly once without changing the legacy rows. This
+  /// is a compatibility migration, so parsing is confined here; the typed
+  /// scheduler never uses JSON checkpoints as its normal control protocol.
+  Future<void> migrateLegacySyncWork(int serverId, {DateTime? now}) async {
+    final timestamp = (now ?? DateTime.now()).toUtc();
+    final state = await getOrCreateState(serverId);
+    if (state.plannerVersion >= 3) {
+      return;
+    }
+    final legacyRows = await (select(
+      librarySyncWorkTable,
+    )..where((table) => table.serverId.equals(serverId))).get();
+    for (final row in legacyRows) {
+      final planKind = LibrarySyncPlanKind.values.where(
+        (kind) => kind.name == row.kind,
+      );
+      if (planKind.isEmpty) {
+        await _recordAmbiguousLegacyWork(serverId, row, timestamp);
+        continue;
+      }
+      final target = _legacyTargetFromWork(row);
+      final intent = _legacyIntentFromWork(row, target);
+      final request = SyncRunRequest(
+        contractVersion: SyncRunRequest.currentContractVersion,
+        origin: SyncRunOrigin.legacyRecovery,
+        intent: intent,
+        target: target,
+        networkGrant: SyncNetworkGrant.none,
+        priority: row.priority,
+      );
+      final plan = SyncExecutionPlan(
+        request: request,
+        kind: syncExecutionPlanKindFromLegacy(planKind.first, request),
+        reason: SyncSafeReason.none,
+        budget: const SyncExecutionBudget(
+          allowedEndpoints: <SyncEndpoint>{},
+          maxNewestPages: 0,
+          maxAlbumHydrations: 0,
+          maxResponseBytes: null,
+          maxTotalBytes: null,
+          maxConcurrency: 1,
+        ),
+      );
+      final durable = await enqueueSyncRun(
+        serverId: serverId,
+        plan: plan,
+        now: row.createdAt,
+      );
+      switch (row.status) {
+        case 'completed':
+          await completeSyncRun(
+            requestId: durable.id,
+            outcome: const SyncRunOutcome(
+              kind: SyncRunOutcomeKind.completed,
+              reason: SyncSafeReason.none,
+            ),
+            now: row.updatedAt,
+          );
+        case 'cancelled':
+          await completeSyncRun(
+            requestId: durable.id,
+            outcome: const SyncRunOutcome(
+              kind: SyncRunOutcomeKind.cancelled,
+              reason: SyncSafeReason.cancellation,
+            ),
+            now: row.updatedAt,
+          );
+        case 'awaitingConfirmation':
+          await completeSyncRun(
+            requestId: durable.id,
+            outcome: const SyncRunOutcome(
+              kind: SyncRunOutcomeKind.awaitingConfirmation,
+              reason: SyncSafeReason.confirmationRequired,
+            ),
+            now: row.updatedAt,
+          );
+        case 'running':
+          await _recoverLegacyRunningRequest(durable.id, timestamp);
+        case 'queued' || 'failed':
+          break;
+        default:
+          await completeSyncRun(
+            requestId: durable.id,
+            outcome: const SyncRunOutcome(
+              kind: SyncRunOutcomeKind.cancelled,
+              reason: SyncSafeReason.legacyAmbiguous,
+            ),
+            now: row.updatedAt,
+          );
+      }
+    }
+    final generation = state.candidateGeneration;
+    final candidateStatus = state.candidateStatus;
+    if (generation != null && candidateStatus != null) {
+      await writeRepairSession(
+        serverId: serverId,
+        generation: generation,
+        phase: _legacyRepairPhase(candidateStatus),
+        deletionFingerprint: state.deletionCandidateFingerprint,
+        deletionCount: state.deletionCandidateCount,
+        startedAt: state.candidateStartedAt ?? timestamp,
+        now: timestamp,
+      );
+    }
+    await writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
+        plannerVersion: const Value(3),
+      ),
+    );
+  }
+
+  Future<void> _recordAmbiguousLegacyWork(
+    int serverId,
+    LibrarySyncWorkTableData row,
+    DateTime now,
+  ) async {
+    const request = SyncRunRequest(
+      contractVersion: SyncRunRequest.currentContractVersion,
+      origin: SyncRunOrigin.legacyRecovery,
+      intent: SyncRunIntent.automaticCatalogCheck,
+      target: LibrarySyncTarget.catalog(),
+      networkGrant: SyncNetworkGrant.none,
+      priority: 0,
+    );
+    const plan = SyncExecutionPlan(
+      request: request,
+      kind: SyncExecutionPlanKind.automaticProbe,
+      reason: SyncSafeReason.legacyAmbiguous,
+      budget: SyncExecutionBudget(
+        allowedEndpoints: <SyncEndpoint>{},
+        maxNewestPages: 0,
+        maxAlbumHydrations: 0,
+        maxResponseBytes: null,
+        maxTotalBytes: null,
+        maxConcurrency: 1,
+      ),
+    );
+    final durable = await enqueueSyncRun(
+      serverId: serverId,
+      plan: plan,
+      now: now,
+    );
+    await completeSyncRun(
+      requestId: durable.id,
+      outcome: const SyncRunOutcome(
+        kind: SyncRunOutcomeKind.cancelled,
+        reason: SyncSafeReason.legacyAmbiguous,
+      ),
+      now: now,
+    );
+  }
+
+  Future<void> _recoverLegacyRunningRequest(int requestId, DateTime now) async {
+    final attempt = await beginSyncRunAttempt(
+      requestId: requestId,
+      androidWorker: false,
+      now: now,
+    );
+    await (update(
+      librarySyncRunAttemptTable,
+    )..where((table) => table.id.equals(attempt.id))).write(
+      const LibrarySyncRunAttemptTableCompanion(
+        status: Value(_attemptRecovered),
+      ),
+    );
+    await (update(
+      librarySyncRunRequestTable,
+    )..where((table) => table.id.equals(requestId))).write(
+      LibrarySyncRunRequestTableCompanion(
+        status: const Value(_runQueued),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  SyncRunIntent _legacyIntentFromWork(
+    LibrarySyncWorkTableData work,
+    LibrarySyncTarget target,
+  ) {
+    if (work.kind == LibrarySyncPlanKind.fullRepair.name) {
+      return SyncRunIntent.repairLibrary;
+    }
+    if (target.kind == LibrarySyncTargetKind.starred ||
+        target.kind == LibrarySyncTargetKind.playlistHeaders ||
+        target.kind == LibrarySyncTargetKind.genres) {
+      return SyncRunIntent.auxiliaryRefresh;
+    }
+    if (target.kind != LibrarySyncTargetKind.catalog) {
+      return SyncRunIntent.targetHydration;
+    }
+    try {
+      final decoded = jsonDecode(work.checkpointJson ?? '');
+      if (decoded is Map &&
+          decoded['intent'] == LibrarySyncIntent.checkForUpdates.name) {
+        return SyncRunIntent.manualCatalogCheck;
+      }
+    } on FormatException {
+      // The request is still safe to represent as automatic recovery.
+    }
+    return SyncRunIntent.automaticCatalogCheck;
+  }
+
+  LibrarySyncTarget _legacyTargetFromWork(LibrarySyncWorkTableData work) {
+    try {
+      final decoded = jsonDecode(work.checkpointJson ?? '');
+      if (decoded is Map && decoded['targetKind'] is String) {
+        final matching = LibrarySyncTargetKind.values.where(
+          (kind) => kind.name == decoded['targetKind'],
+        );
+        if (matching.isNotEmpty) {
+          final kind = matching.first;
+          final requiresId =
+              kind == LibrarySyncTargetKind.artist ||
+              kind == LibrarySyncTargetKind.album ||
+              kind == LibrarySyncTargetKind.playlist;
+          return LibrarySyncTarget(
+            kind,
+            entityId: requiresId
+                ? librarySyncTargetEntityIdFromWorkKey(kind, work.entityId)
+                : null,
+          );
+        }
+      }
+    } on FormatException {
+      // A legacy target row falls back to the existing album-key convention.
+    }
+    if (work.kind == LibrarySyncPlanKind.targetedHydration.name &&
+        work.entityId.isNotEmpty) {
+      return LibrarySyncTarget.album(
+        librarySyncTargetEntityIdFromWorkKey(
+          LibrarySyncTargetKind.album,
+          work.entityId,
+        ),
+      );
+    }
+    return const LibrarySyncTarget.catalog();
+  }
+
+  int _legacyRepairPhase(String status) => switch (status) {
+    'collecting' => 0,
+    'validating' => 1,
+    'awaitingDeletionConfirmation' => 2,
+    'ready' => 3,
+    'applying' => 4,
+    _ => 0,
+  };
 
   /// Attempts to acquire the server's broad-sync lease.
   ///

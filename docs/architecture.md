@@ -144,6 +144,17 @@ Located in `lib/src/providers/app_providers.dart`:
 - Durable sync work uses terminal `completed`, `cancelled`, `failed`, and
   `awaitingConfirmation` states. The next app lifecycle event must not revive
   a cancelled operation; only a new compatible user action reactivates it.
+- Schema v71 adds a typed, redacted sync lifecycle beside the retained
+  compatibility work mirror: `library_sync_run_request`,
+  `library_sync_run_attempt`, `library_sync_run_outcome`,
+  `library_sync_provider_profile`, and `library_sync_repair_session`.
+  `SyncRunRequest` records a versioned origin, intent, target kind, priority,
+  resumption provenance, and metered grant. The scheduler resolves it once
+  into immutable `SyncExecutionPlan` endpoint/page/hydration/byte/concurrency
+  limits before dispatch. Terminal history retains only enums, aggregate
+  counts, and timestamps for 90 days; a target key is cleared on completion,
+  so neither diagnostics nor Settings history retains IDs, titles, URLs,
+  credentials, or filesystem paths.
 - `requiredLibrarySyncModelVersionProvider` - One-time sync model `56` repair
   gate for the schema-v56 candidate-catalog contract; app build updates do not
   force full sync, and a promoted catalog satisfies the gate even when
@@ -865,11 +876,22 @@ states without starting audio or modifying a queue.
 
 ### Sync Flow
 
-1. Callers submit a `LibrarySyncRequest` with trigger, intent, and target.
+1. Callers submit a versioned `SyncRunRequest`; the current
+   `LibrarySyncRequest` remains a one-release compatibility adapter at the
+   outer boundary. The request distinguishes automatic catalog checks, manual
+   catalog checks, Repair Library, target hydration, and auxiliary refreshes.
    `LibrarySyncPlanner` selects the smallest safe plan: probe, targeted
    hydration, delta reconciliation, catalog snapshot, compatibility audit, or
-   full repair.
-2. `AdaptiveLibrarySyncCoordinator` serializes runs, persists the chosen plan
+   full repair. The scheduler admits one immutable `SyncExecutionPlan` per
+   run, including its endpoint allowlist and data/concurrency budget.
+2. `AdaptiveLibrarySyncCoordinator` serializes runs, persists the typed
+   request/attempt/outcome lifecycle and the chosen plan, mirrors legacy work
+   during the compatibility release, restores interrupted attempts, and
+   persists provider-profile and repair-session observations. It still uses a
+   compatibility executor adapter internally; execution receives the selected
+   immutable plan rather than reconstructing the operation from display text
+   or checkpoints. The coordinator deduplicates durable work, measures
+   requests/bytes, and owns cooldown/circuit policy. Targeted work
    and provider profile, deduplicates durable work, restores interrupted work,
    measures requests/bytes, and owns cooldown/circuit policy. Targeted work
    keys are namespaced by entity kind, so equal server IDs in different
@@ -1026,8 +1048,12 @@ states without starting audio or modifying a queue.
    ephemeral one-time mobile-data override. Live network policy is re-checked
    at page and hydration boundaries; unmetered-to-metered transitions
    checkpoint and return `deferred`. Cancellation returns work to the queue.
-10. Starred content and playlist headers use the 12-hour auxiliary window and
-    can also run as explicit targeted planner work. Starred reconciliation
+10. Starred content, playlist headers, and genres are independent auxiliary
+    targets. Typed catalog checks and repairs do not update them as incidental
+    work; their user-facing states are **Updating liked items** and
+    **Updating playlists**, not catalog-sync progress. They use the 12-hour
+    auxiliary window and can also run as explicit targeted planner work.
+    Starred reconciliation
     excludes queued local star/unstar actions until they reach the server.
     Playlist headers upsert without replacing parent rows, so an unchanged
     header refresh cannot cascade-delete cached membership. The authoritative
@@ -1096,7 +1122,16 @@ OpenSubsonic documents the conditional full-index semantics of
 10. A profile migrated before library-cache-system version 2 must clear recoverable
    rolling cache and library metadata once before using the current contract.
    The upgrade prompt can be dismissed, but returns on the next launch until a
-   successful reset and committed full catalog scan. Choosing reset enters the
+   successful reset and committed full catalog scan. **Repair Library** is the
+   non-destructive server-catalog reconciliation: its candidate remains hidden
+   until atomic promotion, and it preserves downloads, rolling cache, artwork,
+   and the visible catalog until then. **Reset caches & rebuild library** is
+   the distinct device-storage recovery action: it deletes rolling cache,
+   cover-art cache, and local library metadata, preserves permanent downloads,
+   then starts a fresh catalog build. Settings keeps these actions in the
+   separate **Library synchronization** and **Device storage & cache** groups;
+   their metered confirmations, history origins, and full-screen progress
+   states stay distinct even though both can collect a catalog. Choosing reset enters the
    shared full-screen required-library-rebuild route, which is also used for a
    first login, Repair Library, Settings cache reset, and playback recovery. It blocks ordinary
    navigation until the catalog is committed, keeps users in place with retry,

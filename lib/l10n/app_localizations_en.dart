@@ -233,11 +233,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Server connection, account, and external services.';
 
   @override
-  String get settingsCacheTitle => 'Cache';
+  String get settingsCacheTitle => 'Device storage & cache';
 
   @override
   String get settingsCacheSubtitle =>
-      'Manage storage for audio, cover art and downloads.';
+      'Manage on-device audio, artwork, and download storage.';
 
   @override
   String get settingsDownloadsSubtitle => 'Manage offline downloads and queue.';
@@ -270,10 +270,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsGroupStorage => 'Storage';
 
   @override
+  String get settingsGroupDeviceStorageCache => 'Device storage & cache';
+
+  @override
   String get settingsGroupPlayback => 'Playback';
 
   @override
   String get settingsGroupAutomation => 'Automation';
+
+  @override
+  String get settingsGroupLibrarySynchronization => 'Library synchronization';
 
   @override
   String get settingsGroupOther => 'Other';
@@ -700,15 +706,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsSyncUsingMobileData => 'Sync using mobile data';
 
   @override
-  String get syncSettingsRepairLibraryMetadata => 'Repair Library Metadata';
+  String get syncSettingsRepairLibraryMetadata => 'Repair Library';
 
   @override
   String get syncSettingsRepairLibraryMetadataDescription =>
-      'Rebuild and reconcile library metadata. Keeps downloads, streaming cache, and artwork.';
+      'Reconcile your local library with the server. Keeps downloads, streaming cache, and artwork.';
 
   @override
-  String get syncSettingsRepairLibraryMetadataRunning =>
-      'Repairing library metadata...';
+  String get syncSettingsRepairLibraryMetadataRunning => 'Repairing library...';
 
   @override
   String syncSettingsRepairDeletionConfirmationPending(Object count) {
@@ -741,32 +746,45 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncSettingsRepairMeteredConfirmTitle =>
-      'Repair Library Metadata on Mobile Data?';
+      'Repair Library on Mobile Data?';
 
   @override
   String get syncSettingsRepairMeteredConfirmBody =>
-      'Repairing library metadata can download a large amount of metadata over your current connection.';
+      'Repairing your library can download a large amount of metadata over your current connection.';
 
   @override
   String get syncSettingsRepairMeteredConfirmAction => 'Repair on Mobile Data';
 
   @override
-  String get cacheSettingsResetLibraryCache => 'Reset Library Cache';
+  String get cacheSettingsResetLibraryCache => 'Reset caches & rebuild library';
 
   @override
   String get cacheSettingsResetLibraryCacheDescription =>
-      'Clear streaming cache, cover art, and local library metadata, then fully resync. Downloaded music is kept.';
+      'Clear local streaming and artwork caches plus library metadata, then rebuild from the server. Downloaded music is kept.';
 
   @override
   String get cacheSettingsResetLibraryCacheConfirmTitle =>
-      'Reset Library Cache?';
+      'Reset caches & rebuild library?';
 
   @override
   String get cacheSettingsResetLibraryCacheConfirmBody =>
-      'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music will be kept. Navis will then fully resync your library.';
+      'This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music will be kept. Navis will then rebuild your library from the server.';
 
   @override
-  String get cacheSettingsResetLibraryCacheConfirmAction => 'Reset Cache';
+  String get cacheSettingsResetLibraryCacheConfirmAction =>
+      'Reset caches & rebuild';
+
+  @override
+  String get cacheSettingsResetLibraryCacheMeteredConfirmTitle =>
+      'Rebuild Library on Mobile Data?';
+
+  @override
+  String get cacheSettingsResetLibraryCacheMeteredConfirmBody =>
+      'Rebuilding your library can download a large amount of metadata over your current connection.';
+
+  @override
+  String get cacheSettingsResetLibraryCacheMeteredConfirmAction =>
+      'Rebuild on Mobile Data';
 
   @override
   String get cacheSettingsResetLibraryCacheSuccess =>
@@ -1525,10 +1543,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySyncStageSongs => 'Scanning songs';
 
   @override
+  String get librarySyncStageStarred => 'Updating liked items';
+
+  @override
   String get librarySyncStageGenres => 'Fetching genres';
 
   @override
-  String get librarySyncStagePlaylists => 'Fetching playlists';
+  String get librarySyncStagePlaylists => 'Updating playlists';
 
   @override
   String get librarySyncStageFinalizing => 'Finalizing';

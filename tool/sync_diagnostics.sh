@@ -325,6 +325,14 @@ terminal = (
 raise SystemExit(0 if terminal else 1)
 PY
     then
+      if python3 - "$status" <<'PY'
+import json, sys
+value = json.loads(sys.argv[1])
+raise SystemExit(0 if value.get("planReason") == "leaseHeld" else 1)
+PY
+      then
+        return 75
+      fi
       echo "Catalog candidate did not begin collection: $status" >&2
       exit 70
     fi
@@ -870,8 +878,30 @@ PY
   api POST /v1/sync/repair > "$OUTPUT_ROOT/repair-resume-start.json"
   wait_for_sync > "$OUTPUT_ROOT/repair-result.json"
   api POST /v1/sync/repair > "$OUTPUT_ROOT/identical-repair-start.json"
+  # The predecessor process was intentionally interrupted while it owned the
+  # cross-engine catalog lease. A competing request must expose `leaseHeld`,
+  # never begin duplicate work. Clone diagnostics use a short, heartbeated
+  # lease so this retry can also certify safe recovery without a ten-minute
+  # wall-clock wait.
   if [[ -n "$SONG_ID" ]]; then
-    wait_for_candidate_collection
+    for LEASE_RECOVERY_ATTEMPT in $(seq 1 8); do
+      if wait_for_candidate_collection; then
+        break
+      else
+        LEASE_WAIT_RESULT=$?
+      fi
+      if [[ "$LEASE_WAIT_RESULT" -ne 75 ]]; then
+        exit 70
+      fi
+      api GET /v1/sync/status > "$OUTPUT_ROOT/lease-held-$LEASE_RECOVERY_ATTEMPT.json"
+      if [[ "$LEASE_RECOVERY_ATTEMPT" == "8" ]]; then
+        echo "Interrupted catalog lease did not become recoverable." >&2
+        exit 70
+      fi
+      sleep 2
+      api POST /v1/sync/repair \
+        > "$OUTPUT_ROOT/identical-repair-retry-$LEASE_RECOVERY_ATTEMPT-start.json"
+    done
     api POST /v1/diagnostics/local-mutation \
       "$(python3 - "$SONG_ID" <<'PY'
 import json, sys

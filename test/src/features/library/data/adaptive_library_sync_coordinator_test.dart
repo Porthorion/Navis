@@ -8,6 +8,7 @@ import 'package:navis/src/features/library/data/adaptive_library_sync_coordinato
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -142,6 +143,7 @@ class _ProbeLibrarySyncEngine
 class _CompletedCatalogWithPendingAlbumEngine
     implements LibrarySyncEngine, TargetedLibrarySyncExecutor {
   final List<String> targetedCalls = <String>[];
+  int syncIfStaleCalls = 0;
 
   LibrarySyncState _result() => LibrarySyncState(
     status: LibrarySyncStatus.succeeded,
@@ -181,7 +183,10 @@ class _CompletedCatalogWithPendingAlbumEngine
   Future<LibrarySyncState> syncIfStale({
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
+  }) async {
+    syncIfStaleCalls++;
+    return _result();
+  }
 
   @override
   Future<LibrarySyncState> syncNow({
@@ -285,6 +290,32 @@ void main() {
       expect(result.status, LibrarySyncStatus.partial);
       expect(work?.status, 'completed');
       expect(await database.librarySyncDao.countPendingWork(1), 0);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'cooldown deferral records a typed durable outcome without dispatching',
+    () async {
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          failureStreak: const Value(3),
+          nextEligibleAt: Value(DateTime.utc(2026, 8, 5)),
+        ),
+      );
+
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
+
+      expect(result.status, LibrarySyncStatus.deferred);
+      expect(result.planReason, 'endpointCircuitOpen');
+      expect(executor.syncIfStaleCalls, 0);
+      final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
+      expect(history, hasLength(1));
+      expect(history.single.outcome, SyncRunOutcomeKind.deferred);
+      expect(history.single.reason, SyncSafeReason.cooldown);
     },
     skip: !sqliteAvailable,
   );
