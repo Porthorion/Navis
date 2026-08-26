@@ -111,13 +111,16 @@ class _RequiredLibraryRebuildScreenState
                         alignment: Alignment.center,
                         children: <Widget>[
                           SizedBox.square(
+                            key: const ValueKey<String>(
+                              'requiredSyncProgressRing',
+                            ),
                             dimension: 152,
                             child: CircularProgressIndicator(
                               value: progress,
                               strokeWidth: 7,
                             ),
                           ),
-                          const NavisIcon(size: 96),
+                          const NavisIcon(size: 120),
                         ],
                       ),
                     ),

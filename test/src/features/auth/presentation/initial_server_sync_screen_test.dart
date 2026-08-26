@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/initial_server_sync_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -138,6 +139,13 @@ void main() {
       find.byType(CircularProgressIndicator),
     );
     expect(progress.value, 0.5);
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey<String>('requiredSyncProgressRing')),
+      ),
+      const Size.square(152),
+    );
+    expect(tester.widget<NavisIcon>(find.byType(NavisIcon)).size, 120);
     expect(find.text('Getting song index'), findsOneWidget);
     final semantics = tester.getSemantics(
       find.byKey(const ValueKey('requiredSyncProgressSemantics')),
