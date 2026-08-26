@@ -389,7 +389,69 @@ void main() {
       router.routeInformationProvider.value.uri.queryParameters['reason'],
       'cache-upgrade',
     );
+    expect(
+      router
+          .routeInformationProvider
+          .value
+          .uri
+          .queryParameters['homeWarmupEligible'],
+      '1',
+    );
     expect(find.byKey(const ValueKey('requiredSyncSignOut')), findsOneWidget);
+  });
+
+  testWidgets('initial library build has priority over onboarding', (
+    tester,
+  ) async {
+    final container = _createContainerWithDatabase(
+      initialSyncRequired: true,
+      onboardingVersion: 0,
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              id: 1,
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        requiredLibraryRebuildControllerProvider(
+          RequiredLibraryRebuildReason.initialLogin,
+        ).overrideWith(_StaticRequiredLibraryRebuildController.new),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    final router = container.read(appRouterProvider);
+    expect(router.state.matchedLocation, '/initial-sync');
+    expect(
+      router
+          .routeInformationProvider
+          .value
+          .uri
+          .queryParameters['homeWarmupEligible'],
+      '1',
+    );
+    expect(find.text('Building Your Library'), findsOneWidget);
   });
 
   testWidgets('completed cache renewal goes directly to onboarding', (
@@ -402,6 +464,7 @@ void main() {
           path: '/library-rebuild',
           builder: (context, state) => const RequiredLibraryRebuildScreen(
             reason: RequiredLibraryRebuildReason.cacheUpgrade,
+            homeWarmupEligible: true,
           ),
         ),
         GoRoute(
@@ -435,6 +498,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Onboarding destination'), findsOneWidget);
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['homeWarmup'],
+      '1',
+    );
   });
 
   testWidgets('shows offline banner when reachability is offline', (
@@ -747,9 +814,7 @@ void main() {
       }
     }
 
-    for (final route in router.configuration.routes) {
-      collect(route);
-    }
+    router.configuration.routes.forEach(collect);
 
     expect(configuredLocations, contains('/login'));
     expect(configuredLocations, contains('/initial-sync'));

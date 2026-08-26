@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
@@ -16,9 +17,17 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// A deliberately shell-free, one-time customization experience.
 class OnboardingScreen extends ConsumerStatefulWidget {
-  const OnboardingScreen({super.key, this.reviewMode = false});
+  const OnboardingScreen({
+    super.key,
+    this.reviewMode = false,
+    this.homeWarmupAfterRebuild = false,
+  });
 
   final bool reviewMode;
+
+  /// True only for the one-time handoff from a successful required rebuild.
+  /// It is intentionally route-scoped rather than persisted or user-visible.
+  final bool homeWarmupAfterRebuild;
 
   @override
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -39,6 +48,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   late final List<ScrollController> _stepScrollControllers;
   late final List<bool> _stepCanScroll;
   final Set<int> _scrollabilityMeasurementPending = <int>{};
+  HomeOnboardingWarmupSession? _homeWarmup;
+  AppLifecycleListener? _homeWarmupLifecycleListener;
+  var _homeWarmupAllowed = true;
 
   @override
   void initState() {
@@ -50,16 +62,37 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       (_) => ScrollController(),
     );
     _stepCanScroll = List<bool>.filled(_steps, false);
+    if (widget.homeWarmupAfterRebuild) {
+      _homeWarmupLifecycleListener = AppLifecycleListener(
+        onInactive: _stopHomeWarmup,
+        onPause: _stopHomeWarmup,
+        onHide: _stopHomeWarmup,
+        onDetach: _stopHomeWarmup,
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_homeWarmupAllowed) {
+          return;
+        }
+        _homeWarmup = startHomeOnboardingWarmup(ref, context);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _stopHomeWarmup();
+    _homeWarmupLifecycleListener?.dispose();
     _lastFmKey.dispose();
     _listenBrainzToken.dispose();
     for (final controller in _stepScrollControllers) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _stopHomeWarmup() {
+    _homeWarmupAllowed = false;
+    _homeWarmup?.stop();
   }
 
   void _hydrate(AppSettingsModel settings) {
@@ -99,10 +132,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         final handler = ref.read(audioHandlerProvider);
         if (handler != null) await handler.applyRuntimeSettings();
       }
-      await ref
-          .read(navisDatabaseProvider)
-          .appSettingsDao
-          .completeOnboarding(currentOnboardingVersion);
+      await ref.read(onboardingCompletionServiceProvider).complete();
       if (!mounted) return;
       await Future<void>.delayed(const Duration(milliseconds: 260));
       if (!mounted) return;

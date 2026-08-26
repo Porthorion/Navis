@@ -136,6 +136,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isInitialSyncRoute = state.matchedLocation == '/initial-sync';
       final isOnboardingRoute = state.matchedLocation == '/onboarding';
       final isOnboardingReview = state.uri.queryParameters['review'] == '1';
+      final hasHomeWarmupEligibility =
+          state.uri.queryParameters['homeWarmupEligible'] == '1';
       final isCacheUpgradeRoute =
           state.matchedLocation == '/library-rebuild' &&
           state.uri.queryParameters['reason'] ==
@@ -152,17 +154,39 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
       if (cacheSystemUpgradeRequired.value == true) {
-        return isCacheUpgradeRoute
+        final shouldCarryHomeWarmup = onboardingRequired.value == true;
+        final target = requiredLibraryRebuildRoute(
+          RequiredLibraryRebuildReason.cacheUpgrade,
+          homeWarmupEligible: shouldCarryHomeWarmup,
+        );
+        return isCacheUpgradeRoute &&
+                hasHomeWarmupEligibility == shouldCarryHomeWarmup
             ? null
-            : requiredLibraryRebuildRoute(
-                RequiredLibraryRebuildReason.cacheUpgrade,
-              );
+            : target;
+      }
+      if (sessionPhase.value == SessionRoutePhase.initialSyncRequired) {
+        if (onboardingRequired.value == null) {
+          return isInitialSyncRoute ? null : '/initial-sync';
+        }
+        final shouldCarryHomeWarmup = onboardingRequired.value == true;
+        final target = shouldCarryHomeWarmup
+            ? '/initial-sync?homeWarmupEligible=1'
+            : '/initial-sync';
+        return isInitialSyncRoute &&
+                hasHomeWarmupEligibility == shouldCarryHomeWarmup
+            ? null
+            : target;
       }
       if (onboardingRequired.value == null) {
         return null;
       }
       if (onboardingRequired.value == true) {
-        return isOnboardingRoute ? null : '/onboarding';
+        if (isOnboardingRoute) {
+          return null;
+        }
+        return hasHomeWarmupEligibility
+            ? '/onboarding?homeWarmup=1'
+            : '/onboarding';
       }
 
       return switch (sessionPhase.value) {
@@ -182,8 +206,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/initial-sync',
-        builder: (context, state) => const RequiredLibraryRebuildScreen(
+        builder: (context, state) => RequiredLibraryRebuildScreen(
           reason: RequiredLibraryRebuildReason.initialLogin,
+          homeWarmupEligible:
+              state.uri.queryParameters['homeWarmupEligible'] == '1',
         ),
       ),
       GoRoute(
@@ -194,6 +220,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           fadeOnly: true,
           child: OnboardingScreen(
             reviewMode: state.uri.queryParameters['review'] == '1',
+            homeWarmupAfterRebuild:
+                state.uri.queryParameters['homeWarmup'] == '1',
           ),
         ),
       ),
@@ -213,6 +241,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             reason: reason,
             allowMeteredBroadOverride:
                 state.uri.queryParameters['metered'] == '1',
+            homeWarmupEligible:
+                state.uri.queryParameters['homeWarmupEligible'] == '1',
           );
         },
       ),

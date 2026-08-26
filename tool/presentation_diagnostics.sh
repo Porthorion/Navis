@@ -88,10 +88,14 @@ for song_id, source_path in target.execute(
         "UPDATE cached_tracks SET file_path = ? WHERE song_id = ?",
         (destination, song_id),
     )
-if sys.argv[4] == "cache-upgrade":
+if sys.argv[4] in ("cache-upgrade", "home-warmup"):
     # Provision a pre-v3 profile in the isolated copy so the mandatory router
     # gate and reset path are exercised without touching the primary profile.
     target.execute("DELETE FROM cache_system_state")
+if sys.argv[4] == "home-warmup":
+    # Exercise the actual update/first-setup sequence: cache renewal must
+    # complete before onboarding, which then owns the ephemeral Home warm-up.
+    target.execute("UPDATE app_settings SET onboarding_version = 0")
 target.commit()
 integrity = target.execute("PRAGMA integrity_check").fetchone()[0]
 foreign_keys = target.execute("PRAGMA foreign_key_check").fetchall()
@@ -149,6 +153,12 @@ trap cleanup EXIT INT TERM
 
 launch_app() {
   rm -f "$HANDSHAKE"
+  local -a cache_upgrade_define=()
+  if [[ "$LABEL" == "cache-upgrade" || "$LABEL" == "home-warmup" ]]; then
+    cache_upgrade_define+=(
+      --dart-define=NAVIS_SYNC_DIAGNOSTICS_ALLOW_CACHE_UPGRADE=true
+    )
+  fi
   flutter run -d linux --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
@@ -159,6 +169,7 @@ launch_app() {
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
     --dart-define="NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=$BOOTSTRAP_FAILURE_ATTEMPTS" \
+    "${cache_upgrade_define[@]}" \
     >>"$APP_LOG" 2>&1 &
   FLUTTER_PID=$!
 
@@ -282,14 +293,16 @@ import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
 requested, label, capture = sys.argv[2:]
 actual = value.get("actualLocation")
-if label != "cache-upgrade" and actual != requested:
+if label not in ("cache-upgrade", "home-warmup") and actual != requested:
     raise SystemExit(f"navigation did not reach requested route: {value}")
-if label == "cache-upgrade" and capture == "initial":
-    if actual != "/library-rebuild?reason=cache-upgrade":
+if label in ("cache-upgrade", "home-warmup") and capture == "initial":
+    if not actual.startswith("/library-rebuild?reason=cache-upgrade"):
         raise SystemExit(f"cache renewal did not take priority: {value}")
 if label == "cache-upgrade" and capture == "restart":
     if actual not in ("/", "/onboarding"):
         raise SystemExit(f"cache renewal did not release to setup or Home: {value}")
+if label == "home-warmup" and capture == "restart" and actual != "/":
+    raise SystemExit(f"Home warm-up flow did not persist completed setup: {value}")
 PY
 }
 
@@ -397,6 +410,46 @@ PY
     sleep 1
   done
   echo "Timed out waiting for the mandatory cache renewal." >&2
+  exit 70
+}
+
+wait_for_home_warmup() {
+  local output_file="$1"
+  local deadline=$((SECONDS + 90))
+  while (( SECONDS < deadline )); do
+    api GET /v1/presentation/home-warmup > "$output_file"
+    if python3 - "$output_file" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+targets = value.get("targetCount")
+ready = value.get("readyCount")
+raise SystemExit(0 if isinstance(targets, int) and isinstance(ready, int)
+                 and 0 < targets <= 6 and ready == targets else 1)
+PY
+    then
+      return
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for bounded Home artwork warm-up." >&2
+  exit 70
+}
+
+wait_for_home_route() {
+  local output_file="$1"
+  local deadline=$((SECONDS + 30))
+  while (( SECONDS < deadline )); do
+    api GET /v1/presentation/status > "$output_file"
+    if python3 - "$output_file" <<'PY'
+import json, sys
+raise SystemExit(0 if json.load(open(sys.argv[1], encoding="utf-8")).get("route") == "/" else 1)
+PY
+    then
+      return
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for Home after onboarding completion." >&2
   exit 70
 }
 
@@ -659,6 +712,27 @@ run_capture() {
     "$OUTPUT_ROOT/$prefix-screenshot-path.txt"
   if [[ "$LABEL" == "cache-upgrade" && "$prefix" == "initial" ]]; then
     wait_for_cache_renewal "$OUTPUT_ROOT/$prefix-cache-status.json"
+  fi
+  if [[ "$LABEL" == "home-warmup" && "$prefix" == "initial" ]]; then
+    wait_for_cache_renewal "$OUTPUT_ROOT/$prefix-cache-status.json"
+    wait_for_home_warmup "$OUTPUT_ROOT/$prefix-home-warmup.json"
+    capture_window_screenshot "$prefix-onboarding-warmup" "$prefix-onboarding-warmup"
+    api POST /v1/presentation/onboarding/complete '{}' \
+      > "$OUTPUT_ROOT/$prefix-onboarding-complete.json"
+    wait_for_home_route "$OUTPUT_ROOT/$prefix-home-status.json"
+    api GET /v1/presentation/home-warmup \
+      > "$OUTPUT_ROOT/$prefix-home-warmup-after-navigation.json"
+    if ! cmp -s \
+      "$OUTPUT_ROOT/$prefix-home-warmup.json" \
+      "$OUTPUT_ROOT/$prefix-home-warmup-after-navigation.json"; then
+      echo "Home artwork warm-up state changed after navigation." >&2
+      exit 1
+    fi
+    api POST /v1/presentation/screenshot "$(screenshot_body "$capture_label")" \
+      > "$OUTPUT_ROOT/$prefix-screenshot.json"
+    validate_screenshot \
+      "$OUTPUT_ROOT/$prefix-screenshot.json" \
+      "$OUTPUT_ROOT/$prefix-screenshot-path.txt"
   fi
 }
 

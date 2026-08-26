@@ -15,11 +15,13 @@ class RequiredLibraryRebuildScreen extends ConsumerStatefulWidget {
   const RequiredLibraryRebuildScreen({
     required this.reason,
     this.allowMeteredBroadOverride = false,
+    this.homeWarmupEligible = false,
     super.key,
   });
 
   final RequiredLibraryRebuildReason reason;
   final bool allowMeteredBroadOverride;
+  final bool homeWarmupEligible;
 
   @override
   ConsumerState<RequiredLibraryRebuildScreen> createState() =>
@@ -59,8 +61,10 @@ class _RequiredLibraryRebuildScreenState
     final controller = ref.read(
       requiredLibraryRebuildControllerProvider(widget.reason).notifier,
     );
-    final onboardingRequired =
-        widget.reason == RequiredLibraryRebuildReason.cacheUpgrade
+    final warmupEligible =
+        widget.reason == RequiredLibraryRebuildReason.cacheUpgrade ||
+        widget.reason == RequiredLibraryRebuildReason.initialLogin;
+    final onboardingRequired = warmupEligible
         ? ref.watch(onboardingRequiredProvider)
         : false;
     if (rebuild.status == RequiredLibraryRebuildStatus.complete &&
@@ -69,7 +73,13 @@ class _RequiredLibraryRebuildScreenState
       _navigatedHome = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          context.go(onboardingRequired ? '/onboarding' : '/');
+          final shouldWarmHome =
+              warmupEligible && onboardingRequired && widget.homeWarmupEligible;
+          context.go(
+            onboardingRequired
+                ? (shouldWarmHome ? '/onboarding?homeWarmup=1' : '/onboarding')
+                : '/',
+          );
         }
       });
     }

@@ -399,6 +399,22 @@ NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
   ./tool/presentation_diagnostics.sh clone / cache-upgrade
 ```
 
+To validate the full required-rebuild → onboarding → Home warm-up path, use
+`home-warmup`. It removes the cache marker and makes setup pending only in the
+isolated clone, waits for the bounded six-cover warm-up to report all selected
+cache entries ready, completes onboarding through the production completion
+service, verifies that the aggregate warm-up state remains ready on Home, and
+captures both the warmed onboarding and Home frames:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/presentation_diagnostics.sh clone / home-warmup
+```
+
+The diagnostic response contains aggregate target and ready counts only; it
+must never expose cover IDs, titles, paths, URLs, or credentials. Open the
+resulting Home screenshot as part of the runtime validation loop.
+
 To validate seamless playback startup recovery, set
 `NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=2` for the same clone-only
 presentation command. The launcher injects two failures before audio-handler

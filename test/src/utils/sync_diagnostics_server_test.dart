@@ -22,6 +22,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
+import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -664,6 +665,8 @@ void main() {
         ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/onboarding/complete'),
+        ('GET', '/v1/presentation/home-warmup'),
         ('POST', '/v1/presentation/library-filter'),
         ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),
@@ -686,6 +689,41 @@ void main() {
       expect(status.body['route'], '/');
       expect(status.body['appReady'], isTrue);
       expect(status.body['screenshotReady'], isTrue);
+
+      fixture.container.read(homeOnboardingWarmupTrackerProvider).recordTargets(
+        const <HomeArtworkWarmupTarget>[
+          HomeArtworkWarmupTarget(coverArtId: 'private-cover-a', size: 600),
+          HomeArtworkWarmupTarget(coverArtId: 'private-cover-b', size: 160),
+        ],
+      );
+      fixture.container
+          .read(homeOnboardingWarmupTrackerProvider)
+          .recordReady(
+            const HomeArtworkWarmupTarget(
+              coverArtId: 'private-cover-a',
+              size: 600,
+            ),
+          );
+      final warmupStatus = await _request(
+        fixture.port,
+        '/v1/presentation/home-warmup',
+        token: fixture.token,
+      );
+      expect(warmupStatus.statusCode, HttpStatus.ok);
+      expect(
+        warmupStatus.body,
+        <String, Object?>{'targetCount': 2, 'readyCount': 1},
+      );
+      expect(jsonEncode(warmupStatus.body), isNot(contains('private-cover')));
+
+      final completeOnboarding = await _request(
+        fixture.port,
+        '/v1/presentation/onboarding/complete',
+        method: 'POST',
+        token: fixture.token,
+      );
+      expect(completeOnboarding.statusCode, HttpStatus.ok);
+      expect(completeOnboarding.body['actualLocation'], '/');
 
       final invalidNavigation = await _request(
         fixture.port,
@@ -715,7 +753,7 @@ void main() {
       expect(navigation.statusCode, HttpStatus.ok);
       expect(navigation.body['requestedLocation'], '/target');
       expect(navigation.body['actualLocation'], '/target');
-      verify(presentation.waitForFrame).called(1);
+      verify(presentation.waitForFrame).called(2);
 
       final redirected = await _request(
         fixture.port,
@@ -871,6 +909,8 @@ void main() {
         ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/onboarding/complete'),
+        ('GET', '/v1/presentation/home-warmup'),
         ('POST', '/v1/presentation/library-filter'),
         ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),

@@ -127,11 +127,10 @@ ProviderContainer _createRootProviderContainer({
         desktopWindowControllerProvider.overrideWith(
           (ref) => desktopBootstrap.controller,
         ),
-      // Sync diagnostics certify catalog scheduling and candidate promotion.
-      // A cache-layout upgrade is a separate destructive recovery flow, so it
-      // must not reset the disposable catalog while this runtime gate is
-      // exercising interruption and restart recovery.
-      if (_syncDiagnosticsRuntimeEnabled)
+      // Most sync diagnostics certify catalog scheduling and candidate
+      // promotion, so they suppress the separate destructive cache-upgrade
+      // route. Its focused clone scenario opts back in explicitly.
+      if (_syncDiagnosticsRuntimeEnabled && !_allowCacheUpgradeDiagnostics)
         cacheSystemUpgradeRequiredProvider.overrideWithValue(false),
       if (_isCloneBootstrapFailureDiagnostics)
         audioBootstrapAttemptGateProvider.overrideWithValue(() async {
@@ -374,6 +373,10 @@ const bool _forceEnableMediaKitInDebug = bool.fromEnvironment(
 
 const bool _syncDiagnosticsRequested = bool.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS',
+  defaultValue: false,
+);
+const bool _allowCacheUpgradeDiagnostics = bool.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_ALLOW_CACHE_UPGRADE',
   defaultValue: false,
 );
 const String _syncDiagnosticsModeValue = String.fromEnvironment(

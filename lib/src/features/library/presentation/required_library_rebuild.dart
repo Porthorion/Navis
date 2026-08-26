@@ -26,7 +26,9 @@ enum RequiredLibraryRebuildReason {
 String requiredLibraryRebuildRoute(
   RequiredLibraryRebuildReason reason, {
   bool allowMeteredBroadOverride = false,
+  bool homeWarmupEligible = false,
 }) {
   return '/library-rebuild?reason=${reason.routeValue}'
-      '${allowMeteredBroadOverride ? '&metered=1' : ''}';
+      '${allowMeteredBroadOverride ? '&metered=1' : ''}'
+      '${homeWarmupEligible ? '&homeWarmupEligible=1' : ''}';
 }

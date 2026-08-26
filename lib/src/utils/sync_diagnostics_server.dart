@@ -28,6 +28,8 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -319,6 +321,38 @@ class SyncDiagnosticsServer {
           'requestedLocation': location,
           'actualLocation': actualLocation,
           'redirected': actualLocation != location,
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/onboarding/complete') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await _container.read(onboardingCompletionServiceProvider).complete();
+        await presentation.waitForFrame();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'actualLocation': _navigationDriver.location,
+        });
+        return;
+      }
+      if (request.method == 'GET' && path == '/v1/presentation/home-warmup') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final status = _container
+            .read(homeOnboardingWarmupTrackerProvider)
+            .status;
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'targetCount': status.targetCount,
+          'readyCount': status.readyCount,
         });
         return;
       }

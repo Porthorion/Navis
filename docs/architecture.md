@@ -523,7 +523,7 @@ Routes are defined in `lib/src/routing/app_router.dart`:
 ### Main Routes
 
 - `/login` - Login screen (unauthenticated)
-- `/initial-sync` - legacy recoverable first-catalog route; authenticated profiles redirect to Home
+- `/initial-sync` - recoverable first-catalog route; it takes priority over versioned onboarding and opens Home only after a committed catalog
 - `/library-rebuild` - mandatory and user-started recoverable library rebuilds
 - `/onboarding` - full-screen, versioned first-run customization before normal authenticated routing
 - `/` - Home screen (default after login)
@@ -563,6 +563,20 @@ an unreadable marker, keeps the renewal pending until it can be resolved.
 Completion goes directly
 to versioned onboarding when it is required; otherwise it opens Home. Ordinary
 settings updates must not refresh the router.
+
+When a successful required initial-library build or cache renewal immediately
+leads to onboarding, the rebuild route carries only an internal eligibility
+marker. It becomes the route-scoped `homeWarmup=1` handoff only after the
+catalog has committed successfully.
+After onboarding's first frame, that one session resolves the configured visible
+Home order and filters, selects no more than six unique first-view covers, and
+uses the same key and requested size as their Home surfaces. It uses the normal
+bounded Home providers but never starts catalog sync, auxiliary refresh, or
+ListenBrainz discovery. Artwork requests run one at a time at background
+priority, decode only the first three covers into Flutter's image cache, and
+stop scheduling when onboarding exits or the app backgrounds. The handoff is
+not persisted, is skipped offline, and never runs for repair, reset, failed,
+cancelled, or direct-to-Home flows.
 
 ### Shell Routes
 

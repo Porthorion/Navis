@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.3.0',
     [
       _Entry(
+        'After a required library rebuild, first-time setup now prepares the first visible Home artwork so Home feels ready when you arrive',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
         'Sync Settings now separates non-destructive Repair Library from Reset caches & rebuild library, clearly showing what each action keeps or removes',
         type: _EntryType.improvement,
       ),
