@@ -143,9 +143,9 @@ void main() {
       tester.getSize(
         find.byKey(const ValueKey<String>('requiredSyncProgressRing')),
       ),
-      const Size.square(152),
+      const Size.square(128),
     );
-    expect(tester.widget<NavisIcon>(find.byType(NavisIcon)).size, 120);
+    expect(tester.widget<NavisIcon>(find.byType(NavisIcon)).size, 132);
     expect(find.text('Getting song index'), findsOneWidget);
     final semantics = tester.getSemantics(
       find.byKey(const ValueKey('requiredSyncProgressSemantics')),

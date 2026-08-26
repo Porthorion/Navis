@@ -106,7 +106,7 @@ class _RequiredLibraryRebuildScreenState
                         ? '$processed / $total'
                         : null,
                     child: SizedBox.square(
-                      dimension: 168,
+                      dimension: 144,
                       child: Stack(
                         alignment: Alignment.center,
                         children: <Widget>[
@@ -114,13 +114,13 @@ class _RequiredLibraryRebuildScreenState
                             key: const ValueKey<String>(
                               'requiredSyncProgressRing',
                             ),
-                            dimension: 152,
+                            dimension: 128,
                             child: CircularProgressIndicator(
                               value: progress,
                               strokeWidth: 7,
                             ),
                           ),
-                          const NavisIcon(size: 120),
+                          const NavisIcon(size: 132),
                         ],
                       ),
                     ),
