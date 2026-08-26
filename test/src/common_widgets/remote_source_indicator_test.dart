@@ -299,7 +299,12 @@ void main() {
   ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(840, 320);
-    addTearDown(tester.view.reset);
+    await tester.binding.setSurfaceSize(const Size(840, 320));
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      return tester.binding.setSurfaceSize(null);
+    });
 
     await tester.pumpWidget(
       ProviderScope(
@@ -307,22 +312,26 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
-            body: Row(
-              key: const ValueKey<String>('remote-indicator-golden'),
-              children: <Widget>[
-                _IndicatorThemeSample(
-                  label: 'Light',
-                  theme: buildLightTheme(Colors.indigo),
-                ),
-                _IndicatorThemeSample(
-                  label: 'Dark',
-                  theme: buildDarkTheme(Colors.indigo),
-                ),
-                _IndicatorThemeSample(
-                  label: 'OLED',
-                  theme: buildOledTheme(Colors.indigo),
-                ),
-              ],
+            body: SizedBox(
+              width: 840,
+              height: 320,
+              child: Row(
+                key: const ValueKey<String>('remote-indicator-golden'),
+                children: <Widget>[
+                  _IndicatorThemeSample(
+                    label: 'Light',
+                    theme: buildLightTheme(Colors.indigo),
+                  ),
+                  _IndicatorThemeSample(
+                    label: 'Dark',
+                    theme: buildDarkTheme(Colors.indigo),
+                  ),
+                  _IndicatorThemeSample(
+                    label: 'OLED',
+                    theme: buildOledTheme(Colors.indigo),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

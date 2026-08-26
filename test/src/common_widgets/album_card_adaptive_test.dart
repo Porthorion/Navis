@@ -85,7 +85,7 @@ void main() {
       final fade = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey<String>('albumCardTitleSurfaceFade')),
       );
-      final decoration = fade.decoration! as BoxDecoration;
+      final decoration = fade.decoration as BoxDecoration;
       final gradient = decoration.gradient! as LinearGradient;
 
       expect(

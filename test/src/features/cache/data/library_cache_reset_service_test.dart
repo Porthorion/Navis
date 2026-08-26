@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/cache_system_upgrade_service.dart';
 import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
+import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -53,6 +55,36 @@ void main() {
     await service.resetAndMarkCurrent();
     expect(await service.needsReset(), isFalse);
   }, skip: !sqliteAvailable);
+
+  test(
+    'renewal routing state refreshes after the cache version is acknowledged',
+    () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      final container = ProviderContainer(
+        overrides: withTestDatabase(database),
+      );
+      addTearDown(database.close);
+      addTearDown(container.dispose);
+      await database.cacheSystemStateDao.markVersion(
+        CacheSystemUpgradeService.currentVersion - 1,
+      );
+
+      expect(
+        await container.read(cacheSystemUpgradeNeededProvider.future),
+        isTrue,
+      );
+
+      await database.cacheSystemStateDao.markVersion(
+        CacheSystemUpgradeService.currentVersion,
+      );
+
+      expect(
+        await container.refresh(cacheSystemUpgradeNeededProvider.future),
+        isFalse,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     'legacy profiles stay pending when the post-reset full scan fails',

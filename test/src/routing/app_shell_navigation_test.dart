@@ -1582,9 +1582,11 @@ void main() {
   ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(799, 599);
+    await tester.binding.setSurfaceSize(const Size(799, 599));
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
+      return tester.binding.setSurfaceSize(null);
     });
     final windowController = DesktopWindowController.fallback(
       desktopRuntime: true,
@@ -1600,6 +1602,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: testNavisApp),
     );
+    await tester.pump();
     await tester.pump(
       DesktopWindowController.resizeSettleInterval +
           const Duration(milliseconds: 1),
@@ -1620,9 +1623,11 @@ void main() {
   ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(799, 444);
+    await tester.binding.setSurfaceSize(const Size(799, 444));
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
+      return tester.binding.setSurfaceSize(null);
     });
     final windowController = DesktopWindowController.fallback(
       desktopRuntime: true,
@@ -1638,6 +1643,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: testNavisApp),
     );
+    await tester.pump();
     await tester.pump(
       DesktopWindowController.resizeSettleInterval +
           const Duration(milliseconds: 1),
@@ -1672,9 +1678,11 @@ void main() {
   ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(800, 600);
+    await tester.binding.setSurfaceSize(const Size(800, 600));
     addTearDown(() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
+      return tester.binding.setSurfaceSize(null);
     });
     final windowController = DesktopWindowController.fallback(
       desktopRuntime: true,
@@ -1691,6 +1699,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: testNavisApp),
     );
+    await tester.pump();
     await tester.pump(
       DesktopWindowController.resizeSettleInterval +
           const Duration(milliseconds: 1),

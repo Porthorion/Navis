@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -23,6 +24,9 @@ List<Override> _noDbOverrides({
     // Prevent the database from being accessed at all.
     appSettingsProvider.overrideWith(
       (_) => Stream.value(const AppSettingsModel.defaults()),
+    ),
+    onboardingVersionProvider.overrideWithValue(
+      const AsyncData(currentOnboardingVersion),
     ),
     ...extras,
   ];

@@ -153,7 +153,17 @@ class RequiredLibraryRebuildController
           await ref
               .read(cacheSystemUpgradeServiceProvider)
               .markCurrentVersionAfterSuccessfulScan();
-          await ref.refresh(cacheSystemUpgradeNeededProvider.future);
+          final cacheRenewalStillRequired = await ref.refresh(
+            cacheSystemUpgradeNeededProvider.future,
+          );
+          if (cacheRenewalStillRequired) {
+            state = const RequiredLibraryRebuildState(
+              status: RequiredLibraryRebuildStatus.failed,
+              errorMessage:
+                  'Library cache renewal is still pending after the rebuild.',
+            );
+            return;
+          }
         }
         if (_reason == RequiredLibraryRebuildReason.initialLogin) {
           ref.invalidate(initialSyncRequiredProvider);

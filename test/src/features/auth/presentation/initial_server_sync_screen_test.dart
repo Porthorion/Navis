@@ -8,6 +8,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
+import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 class _StaticRequiredRebuildController
@@ -53,6 +54,9 @@ Widget _testApp({
       ).overrideWith(() => setup),
       librarySyncControllerProvider.overrideWith(
         () => _StaticLibrarySyncController(sync),
+      ),
+      onboardingVersionProvider.overrideWithValue(
+        const AsyncData(currentOnboardingVersion),
       ),
     ],
     child: MaterialApp(
