@@ -164,12 +164,14 @@ Use this evidence table per validation run:
 | 2026-02-23 | OpenSubsonic | SM-S928B (Android 16) | FLAC | `lockCachedStream` | pass | none observed | from `codec_runtime_raw.log` (`Playback source resolved`, `format=original`) |
 | 2026-02-23 | OpenSubsonic | SM-S928B (Android 16) | AAC | `lockCachedStream` | pass | none observed | from `codec_runtime_raw.log` (`Playback source resolved`, `format=aac`, `maxBitRate=320`) |
 | 2026-02-23 | OpenSubsonic | SM-S928B (Android 16) | MP3 | `lockCachedStream` | pass | none observed | from `codec_runtime_raw.log` (`Playback source resolved`, `format=mp3`, `maxBitRate=320`) |
+| 2026-08-26 | OpenSubsonic | SM-S948B (Android 16) | Vorbis (transcoded) | `lockCachedStream` | pass | none observed | Wi-Fi 320 kbps; original FLAC cache correctly bypassed for the active Vorbis profile; 75.34 s buffered |
+| 2026-08-26 | OpenSubsonic | SM-S948B (Android 16) | Opus (transcoded) | `lockCachedStream` | pass | none observed | Wi-Fi 320 kbps; active Android media session at 1.22 s with 75.74 s buffered |
 
 Provisional closeout decision (2026-02-23):
 - Accepted to proceed toward Phase 5 based on automated preflight + FLAC/AAC/MP3 runtime evidence.
-- Remaining caveat: capture Opus and Vorbis runtime rows by selecting each
-  output format in **Settings → Playback** and playing a source in another
-  format. Both are server-transcode validation rows, not native-catalog rows.
+- Opus and Vorbis are certified through server transcoding, not native-catalog
+  samples. Each was selected in **Settings → Playback** and played from a
+  different source format on a physical Android device.
 
 Latest automated preflight evidence (tests + metadata template generation):
 
