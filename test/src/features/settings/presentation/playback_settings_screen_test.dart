@@ -207,6 +207,39 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('autosave persists Vorbis as a streaming transcode format', (
+      tester,
+    ) async {
+      AppSettingsModel? savedModel;
+      when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
+        savedModel = invocation.positionalArguments.first as AppSettingsModel;
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(initialSettings),
+            ),
+          ],
+          child: _buildTestApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VORBIS').last);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(savedModel, isNotNull);
+      expect(savedModel!.wifiFormat, 'vorbis');
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('cross-fade controls depend on gapless playback', (
       tester,
     ) async {

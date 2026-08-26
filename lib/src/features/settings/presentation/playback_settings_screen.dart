@@ -40,6 +40,7 @@ class _PlaybackSettingsScreenState
     'mp3',
     'aac',
     'opus',
+    'vorbis',
   ];
 
   final _formKey = GlobalKey<FormState>();

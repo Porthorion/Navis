@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.3.0',
     entries: [
       ChangelogEntry(
+        'Streaming quality settings can now request Vorbis transcoding alongside MP3, AAC, and Opus',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'After a required library rebuild, first-time setup now prepares the first visible Home artwork so Home feels ready when you arrive',
         type: ChangelogEntryType.improvement,
       ),

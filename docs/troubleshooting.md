@@ -167,8 +167,9 @@ Use this evidence table per validation run:
 
 Provisional closeout decision (2026-02-23):
 - Accepted to proceed toward Phase 5 based on automated preflight + FLAC/AAC/MP3 runtime evidence.
-- Remaining caveat: capture Opus runtime row when sample is available.
-- Vorbis is currently unavailable in the active library/server catalog, so no runtime row was captured.
+- Remaining caveat: capture Opus and Vorbis runtime rows by selecting each
+  output format in **Settings → Playback** and playing a source in another
+  format. Both are server-transcode validation rows, not native-catalog rows.
 
 Latest automated preflight evidence (tests + metadata template generation):
 
