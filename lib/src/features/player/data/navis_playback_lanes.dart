@@ -64,51 +64,73 @@ class _SerializationLane {
 /// [OperationToken.isCancelled] / [OperationToken.checkCancelled] at
 /// async boundaries and bail out early.
 ///
-/// Execution is still serialized (one at a time, FIFO) — this lane does
-/// *not* interrupt Dart async; it merely signals that the result is no
-/// longer needed so the operation can skip remaining work.
-class _SupersedingLane {
-  Future<void> _inFlight = Future<void>.value();
-  OperationToken? _currentToken;
+/// Execution is still serialized. At most one replacement waits behind the
+/// active operation; newer requests settle and discard older pending work.
+/// This lane does *not* interrupt Dart async or native playback commands.
+class NavisSupersedingLane {
+  _SupersedingWork? _active;
+  _SupersedingWork? _pending;
+  bool _draining = false;
 
-  /// Cancels the most recently issued token, if any.
-  void cancelCurrent() => _currentToken?.cancel();
+  int get pendingCount => _pending == null ? 0 : 1;
 
-  Future<T> run<T>(Future<T> Function(OperationToken token) operation) {
-    // Cancel whatever is currently running — it has been superseded.
-    _currentToken?.cancel();
-    final token = OperationToken();
-    _currentToken = token;
+  /// Retires the active operation and discards the one pending replacement.
+  /// The active operation still owns the lane until its awaited backend call
+  /// returns or times out, so another operation cannot touch the same player.
+  void cancelCurrent() {
+    _active?.cancel();
+    _pending?.cancel();
+    _pending = null;
+  }
 
-    final completer = Completer<T>();
+  Future<void> run(Future<void> Function(OperationToken token) operation) {
+    cancelCurrent();
+    final work = _SupersedingWork(operation);
+    _pending = work;
+    if (!_draining) {
+      _draining = true;
+      unawaited(_drain());
+    }
+    return work.future;
+  }
 
-    _inFlight = _inFlight.then((_) async {
-      if (token.isCancelled || completer.isCompleted) {
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-        return;
+  Future<void> _drain() async {
+    while (_pending != null) {
+      final work = _pending!;
+      _pending = null;
+      _active = work;
+      await work.execute();
+      _active = null;
+    }
+    _draining = false;
+  }
+}
+
+class _SupersedingWork {
+  _SupersedingWork(this._operation);
+
+  final Future<void> Function(OperationToken token) _operation;
+  final OperationToken token = OperationToken();
+  final Completer<void> _completion = Completer<void>();
+
+  Future<void> get future => _completion.future;
+
+  void cancel() {
+    token.cancel();
+    if (!_completion.isCompleted) _completion.complete();
+  }
+
+  Future<void> execute() async {
+    if (token.isCancelled) return;
+    try {
+      await _operation(token);
+      if (!_completion.isCompleted) _completion.complete();
+    } on OperationCancelledException {
+      if (!_completion.isCompleted) _completion.complete();
+    } on Object catch (error, stackTrace) {
+      if (!_completion.isCompleted) {
+        _completion.completeError(error, stackTrace);
       }
-      try {
-        final value = await operation(token);
-        if (!token.isCancelled && !completer.isCompleted) {
-          completer.complete(value);
-        } else if (!completer.isCompleted) {
-          completer.complete();
-        }
-      } on OperationCancelledException {
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      } on Object catch (error, stackTrace) {
-        if (!completer.isCompleted) {
-          completer.completeError(error, stackTrace);
-        }
-      }
-    });
-
-    _inFlight = _inFlight.catchError((_) {});
-
-    return completer.future;
+    }
   }
 }

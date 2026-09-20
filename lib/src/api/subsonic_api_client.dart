@@ -8,6 +8,7 @@ import 'package:dio/io.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/api/subsonic_logging_interceptor.dart';
 import 'package:navis/src/api/subsonic_retry_interceptor.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -23,7 +24,19 @@ class SubsonicApiClient {
     this.enableLogging = true,
     this.maxConnectionsPerHost,
     NetworkUsageReporter? reportNetworkUsage,
-  }) : _uuid = const Uuid(),
+  }) : connectionIdentity = sha256
+           .convert(
+             utf8.encode(
+               jsonEncode(<String>[
+                 _normalizeBaseUrl(baseUrl),
+                 authConfig.username,
+                 authConfig.password,
+                 authConfig.authType.name,
+               ]),
+             ),
+           )
+           .toString(),
+       _uuid = const Uuid(),
        _reportNetworkUsage = reportNetworkUsage,
        _dio =
            dio ??
@@ -50,6 +63,10 @@ class SubsonicApiClient {
   final Dio _dio;
   final Uuid _uuid;
   final SubsonicAuthConfig authConfig;
+
+  /// Internal session key for comparing transports across connectivity-only
+  /// rebuilds. Never expose it in logs or diagnostics.
+  final Object? connectionIdentity;
   final bool enableLogging;
   final int? maxConnectionsPerHost;
   final NetworkUsageReporter? _reportNetworkUsage;
@@ -95,10 +112,21 @@ class SubsonicApiClient {
       cancelToken: cancelToken,
     );
 
-    final extensionsRoot = _asMap(root['openSubsonicExtensions']);
-    final extensions = _asMapList(
-      extensionsRoot['openSubsonicExtension'],
-    ).map(OpenSubsonicExtension.fromJson).toList(growable: false);
+    final extensionsRoot = root['openSubsonicExtensions'];
+    final rawExtensions = extensionsRoot is List
+        ? extensionsRoot
+        : _asMap(extensionsRoot)['openSubsonicExtension'];
+    final extensions = _asMapList(rawExtensions)
+        .map((raw) {
+          final versions = raw['versions'];
+          return OpenSubsonicExtension.fromJson({
+            ...raw,
+            'versions': versions is List
+                ? versions.map((version) => version.toString()).toList()
+                : <String>[],
+          });
+        })
+        .toList(growable: false);
 
     return ServerCapabilities(extensions: extensions);
   }
@@ -108,18 +136,18 @@ class SubsonicApiClient {
       '/rest/getArtists.view',
       cancelToken: cancelToken,
     );
-    final artistsNode = _asMap(root['artists']);
-    final indexEntries = _asMapList(artistsNode['index']);
+    final artistsNode = _snapshotNode(root, 'artists');
+    final indexEntries = _snapshotList(artistsNode['index']);
 
     final artists = <Artist>[];
     for (final indexEntry in indexEntries) {
       artists.addAll(
-        _asMapList(indexEntry['artist']).map(Artist.fromJson),
+        _snapshotList(indexEntry['artist']).map(Artist.fromJson),
       );
     }
 
     if (artists.isEmpty) {
-      artists.addAll(_asMapList(artistsNode['artist']).map(Artist.fromJson));
+      artists.addAll(_snapshotList(artistsNode['artist']).map(Artist.fromJson));
     }
 
     return artists;
@@ -136,13 +164,13 @@ class SubsonicApiClient {
       cancelToken: cancelToken,
       maxResponseBytes: maxResponseBytes,
     );
-    final artist = _asMap(root['artist']);
+    final artist = _snapshotNode(root, 'artist');
     // Standard Subsonic payloads use `album`, while Navis's model follows the
     // plural Dart field name. Normalizing here preserves artist-detail albums
     // for incremental discovery and hydration.
     return Artist.fromJson(<String, dynamic>{
       ...artist,
-      'albums': _asMapList(artist['album']),
+      'albums': _snapshotList(artist['album']),
     });
   }
 
@@ -157,12 +185,13 @@ class SubsonicApiClient {
       cancelToken: cancelToken,
       maxResponseBytes: maxResponseBytes,
     );
-    final album = _asMap(root['album']);
+    final album = _snapshotNode(root, 'album');
+    _requireDetailEntries(album, 'song', 'songCount');
     return Album.fromJson(<String, dynamic>{
       ...album,
       // Subsonic uses `song` for album track payloads. Normalize it so
       // Album.fromJson always receives the expected `songs` list key.
-      'songs': _asMapList(album['song']),
+      'songs': _snapshotList(album['song']),
     });
   }
 
@@ -211,10 +240,10 @@ class SubsonicApiClient {
       '/rest/getGenres.view',
       cancelToken: cancelToken,
     );
-    final rawGenres = _asMapList(_asMap(root['genres'])['genre']);
+    final rawGenres = _snapshotList(_snapshotNode(root, 'genres')['genre']);
     final genres = <Genre>[];
     for (final rawGenre in rawGenres) {
-      final rawName = rawGenre['name'];
+      final rawName = rawGenre['value'] ?? rawGenre['name'];
       if (rawName is! String) {
         continue;
       }
@@ -228,6 +257,11 @@ class SubsonicApiClient {
           songCount: _toInt(rawGenre['songCount']),
           albumCount: _toInt(rawGenre['albumCount']),
         ),
+      );
+    }
+    if (rawGenres.isNotEmpty && genres.isEmpty) {
+      throw const SubsonicIncompleteResponseException(
+        'Genre snapshot contained no valid names.',
       );
     }
     return genres;
@@ -248,8 +282,8 @@ class SubsonicApiClient {
       },
       cancelToken: cancelToken,
     );
-    return _asMapList(
-      _asMap(root['albumList2'])['album'],
+    return _snapshotList(
+      _snapshotNode(root, 'albumList2')['album'],
     ).map(Album.fromJson).toList(growable: false);
   }
 
@@ -311,15 +345,15 @@ class SubsonicApiClient {
       '/rest/getStarred2.view',
       cancelToken: cancelToken,
     );
-    final starred = _asMap(root['starred2']);
+    final starred = _snapshotNode(root, 'starred2');
     return StarredContent(
-      albums: _asMapList(
+      albums: _snapshotList(
         starred['album'],
       ).map(Album.fromJson).toList(growable: false),
-      artists: _asMapList(
+      artists: _snapshotList(
         starred['artist'],
       ).map(Artist.fromJson).toList(growable: false),
-      songs: _asMapList(
+      songs: _snapshotList(
         starred['song'],
       ).map(Song.fromJson).toList(growable: false),
     );
@@ -335,7 +369,7 @@ class SubsonicApiClient {
     ).map(Song.fromJson).toList(growable: false);
   }
 
-  /// Returns songs from the Subsonic `getInstantMix` endpoint.
+  /// Returns songs from Navidrome's optional `getInstantMix` endpoint.
   Future<List<Song>> getInstantMix(
     String seedSongId, {
     int count = 50,
@@ -351,34 +385,69 @@ class SubsonicApiClient {
     ).map(Song.fromJson).toList(growable: false);
   }
 
+  /// Generic server similarity without endpoint fallback. A caller can
+  /// distinguish an unsupported endpoint from an empty or unindexed seed.
+  Future<List<Song>> getSimilarSongs2(
+    String seedSongId, {
+    int count = 50,
+    CancelToken? cancelToken,
+  }) async {
+    final root = await _readRoot(
+      '/rest/getSimilarSongs2.view',
+      query: {'id': seedSongId, 'count': count},
+      cancelToken: cancelToken,
+    );
+    return _asMapList(_asMap(root['similarSongs2'])['song'])
+        .map(Song.fromJson)
+        .toList(growable: false);
+  }
+
+  /// The original Subsonic similarity endpoint. Some compatible servers
+  /// implement this endpoint but do not implement `getSimilarSongs2`.
+  Future<List<Song>> getLegacySimilarSongs(
+    String seedSongId, {
+    int count = 50,
+    CancelToken? cancelToken,
+  }) async {
+    final root = await _readRoot(
+      '/rest/getSimilarSongs.view',
+      query: {'id': seedSongId, 'count': count},
+      cancelToken: cancelToken,
+    );
+    return _asMapList(_asMap(root['similarSongs'])['song'])
+        .map(Song.fromJson)
+        .toList(growable: false);
+  }
+
   /// Returns songs similar to [seedSongId] using `getSimilarSongs2`.
   ///
-  /// Falls back to `getInstantMix` when the primary endpoint returns a
-  /// [SubsonicNotFoundException] (code 70 — not supported by the server).
+  /// Falls back to the original standard endpoint before Navidrome's
+  /// `getInstantMix` when an endpoint is unsupported.
   Future<List<Song>> getSimilarSongs(
     String seedSongId, {
     int count = 50,
     CancelToken? cancelToken,
   }) async {
-    Future<List<Song>> fetch(String endpoint) async {
-      final root = await _readRoot(
-        endpoint,
-        query: {'id': seedSongId, 'count': count},
-        cancelToken: cancelToken,
-      );
-      return _asMapList(
-        _asMap(root['similarSongs2'])['song'],
-      ).map(Song.fromJson).toList(growable: false);
-    }
-
     try {
-      return await fetch('/rest/getSimilarSongs2.view');
-    } on SubsonicNotFoundException {
-      return getInstantMix(
+      return await getSimilarSongs2(
         seedSongId,
         count: count,
         cancelToken: cancelToken,
       );
+    } on SubsonicNotFoundException {
+      try {
+        return await getLegacySimilarSongs(
+          seedSongId,
+          count: count,
+          cancelToken: cancelToken,
+        );
+      } on SubsonicNotFoundException {
+        return getInstantMix(
+          seedSongId,
+          count: count,
+          cancelToken: cancelToken,
+        );
+      }
     }
   }
 
@@ -425,8 +494,8 @@ class SubsonicApiClient {
       '/rest/getPlaylists.view',
       cancelToken: cancelToken,
     );
-    return _asMapList(
-      _asMap(root['playlists'])['playlist'],
+    return _snapshotList(
+      _snapshotNode(root, 'playlists')['playlist'],
     ).map(Playlist.fromJson).toList(growable: false);
   }
 
@@ -441,10 +510,11 @@ class SubsonicApiClient {
       cancelToken: cancelToken,
       maxResponseBytes: maxResponseBytes,
     );
-    final playlist = _asMap(root['playlist']);
+    final playlist = _snapshotNode(root, 'playlist');
+    _requireDetailEntries(playlist, 'entry', 'songCount');
     return Playlist.fromJson(<String, dynamic>{
       ...playlist,
-      'entries': _asMapList(playlist['entry']),
+      'entries': _snapshotList(playlist['entry']),
     });
   }
 
@@ -595,18 +665,33 @@ class SubsonicApiClient {
     return LyricsList.fromJson(_asMap(root['lyricsList']));
   }
 
-  Future<void> star(String id, {CancelToken? cancelToken}) async {
+  static String _starIdParameter(String itemType) => switch (itemType) {
+    'song' => 'id',
+    'album' => 'albumId',
+    'artist' => 'artistId',
+    _ => throw ArgumentError.value(itemType, 'itemType'),
+  };
+
+  Future<void> star(
+    String id, {
+    String itemType = 'song',
+    CancelToken? cancelToken,
+  }) async {
     await _readRoot(
       '/rest/star.view',
-      query: {'id': id},
+      query: {_starIdParameter(itemType): id},
       cancelToken: cancelToken,
     );
   }
 
-  Future<void> unstar(String id, {CancelToken? cancelToken}) async {
+  Future<void> unstar(
+    String id, {
+    String itemType = 'song',
+    CancelToken? cancelToken,
+  }) async {
     await _readRoot(
       '/rest/unstar.view',
-      query: {'id': id},
+      query: {_starIdParameter(itemType): id},
       cancelToken: cancelToken,
     );
   }
@@ -687,6 +772,9 @@ class SubsonicApiClient {
     bool disableRetry = false,
     int? maxResponseBytes,
   }) async {
+    final scope = SyncRequestScope.current;
+    final endpoint = syncEndpointForPath(path, query);
+    var attempt = scope?.beginTransport(endpoint);
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         path,
@@ -695,13 +783,22 @@ class SubsonicApiClient {
         options: Options(
           extra: <String, Object?>{
             if (disableRetry) 'navisDisableRetry': true,
+            if (scope != null)
+              'navisBeforeSyncRetry': (int previousBytes) {
+                attempt?.observe(previousBytes);
+                attempt?.finish(succeeded: false);
+                attempt = scope.beginTransport(endpoint, retryOf: attempt);
+              },
           },
         ),
-        onReceiveProgress: maxResponseBytes == null
+        onReceiveProgress: maxResponseBytes == null && scope == null
             ? null
             : (received, total) {
+                attempt?.observe(received);
                 final knownTotal = total > 0 ? total : null;
-                if (knownTotal != null && knownTotal > maxResponseBytes) {
+                if (maxResponseBytes != null &&
+                    knownTotal != null &&
+                    knownTotal > maxResponseBytes) {
                   cancelToken?.cancel(
                     'Response exceeds sync byte budget ($maxResponseBytes).',
                   );
@@ -710,7 +807,7 @@ class SubsonicApiClient {
                     observedBytes: knownTotal,
                   );
                 }
-                if (received > maxResponseBytes) {
+                if (maxResponseBytes != null && received > maxResponseBytes) {
                   cancelToken?.cancel(
                     'Response exceeds sync byte budget ($maxResponseBytes).',
                   );
@@ -722,6 +819,7 @@ class SubsonicApiClient {
               },
       );
       final bytes = _responseBodyBytes(response);
+      attempt?.observe(bytes);
       if (maxResponseBytes != null && bytes > maxResponseBytes) {
         throw SubsonicResponseBudgetExceededException(
           maxBytes: maxResponseBytes,
@@ -730,11 +828,19 @@ class SubsonicApiClient {
       }
       _recordUsageForResponse(path, response);
       final payload = _asMap(response.data);
-      return _extractRoot(payload);
+      final root = _extractRoot(payload);
+      attempt?.finish(succeeded: true);
+      return root;
     } on SubsonicResponseBudgetExceededException {
       rethrow;
     } on DioException catch (err) {
       final nested = err.error;
+      final failedData = err.response?.data;
+      if (failedData != null)
+        attempt?.observe(utf8.encode(jsonEncode(failedData)).length);
+      if (nested is SubsonicSyncLimitException) throw nested;
+      if (scope?.stopped case final SubsonicSyncLimitException stopped)
+        throw stopped;
       if (nested is SubsonicResponseBudgetExceededException) {
         throw nested;
       }
@@ -743,6 +849,9 @@ class SubsonicApiClient {
         throw err.error as SubsonicResponseBudgetExceededException;
       }
       throw _mapDioException(err);
+    } finally {
+      // Idempotent: a successful envelope or earlier retry is already closed.
+      attempt?.finish(succeeded: false);
     }
   }
 
@@ -850,7 +959,11 @@ class SubsonicApiClient {
       final message = statusMessage == null || statusMessage.isEmpty
           ? 'Subsonic server returned HTTP $statusCode.'
           : 'Subsonic server returned HTTP $statusCode: $statusMessage';
-      return SubsonicGenericException(code: statusCode, message: message);
+      return SubsonicGenericException(
+        code: statusCode,
+        message: message,
+        retryAt: subsonicRetryAt(err.response?.headers.value('retry-after')),
+      );
     }
 
     return SubsonicConnectionException(
@@ -928,6 +1041,40 @@ class SubsonicApiClient {
       deduped.add(artist);
     }
     return deduped;
+  }
+
+  Map<String, dynamic> _snapshotNode(Map<String, dynamic> root, String key) {
+    final value = root[key];
+    if (value is! Map) {
+      throw SubsonicIncompleteResponseException(
+        'Missing or invalid $key snapshot.',
+      );
+    }
+    return _asMap(value);
+  }
+
+  List<Map<String, dynamic>> _snapshotList(Object? value) {
+    // Subsonic represents an empty collection by omitting its child field.
+    if (value == null) return const [];
+    final values = value is List ? value : [value];
+    if (values.any((entry) => entry is! Map || entry.isEmpty)) {
+      throw const SubsonicIncompleteResponseException(
+        'Snapshot contains invalid entries.',
+      );
+    }
+    return values.map(_asMap).toList(growable: false);
+  }
+
+  void _requireDetailEntries(
+    Map<String, dynamic> detail,
+    String key,
+    String countKey,
+  ) {
+    if (detail[key] == null && _toInt(detail[countKey]) != 0) {
+      throw SubsonicIncompleteResponseException(
+        'Detail omitted $key entries without an explicit zero count.',
+      );
+    }
   }
 
   Map<String, dynamic> _asMap(Object? value) {

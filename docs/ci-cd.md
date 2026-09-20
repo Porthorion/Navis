@@ -7,6 +7,12 @@ GMTC validation command described in `docs/development-workflow.md`:
 `tool/windows_smtc_diagnostics.ps1`. It runs after Linux smoke and focused
 tests; it is not a replacement for `./tool/check.sh`.
 
+`tool/dev_app.sh run -d linux` accepts interactive, isolated sync/setup
+presets. Their profile-mode clone and fixture flows are documented in
+`docs/dev-testing-builds.md`; they are exploratory launchers, not quality-gate
+replacements. Changes to their launch or preparation behavior require focused
+scenario tests, the Linux app/API runtime loop, and this repository gate.
+
 ## Quality Gate (`tool/check.sh`)
 
 Run before every commit (automatically enforced if the pre-commit hook is enabled):
@@ -39,6 +45,28 @@ It checks that release discovery metadata and the canonical
 `com.ryanheise.audioservice.AudioService` are present and no privileged
 media-browser bind permission blocks Android Auto.
 
+Mix and radio runtime checks use an isolated Linux diagnostics clone. The
+clone-only `/v1/mix/*` API exercises production providers and queue commits;
+an optional Last.fm key file must be owned by the current user and mode 600.
+The normal build-time Last.fm key precedence remains unchanged.
+
+Rapid playback navigation has a focused Linux runtime gate:
+
+```bash
+NAVIS_DIAGNOSTICS_CREDENTIAL_PATH=/path/to/private-password-file \
+NAVIS_DIAGNOSTICS_USERNAME=your-username \
+python3 tool/rapid_playback_diagnostics.py
+```
+
+The credential file must be a private regular file. The runner clones the
+local database, sends overlapping Next/Previous bursts through the authenticated
+production handler, checks Pause during a row selection and the final player
+state, captures an app-owned screenshot, and repeats the status check after a
+clean restart. Evidence lives
+under `build/rapid-playback/`. Run it for navigation, queue loading, and player
+recovery or adapter changes in addition to `./tool/check.sh`; set
+`NAVIS_RAPID_QUEUE_LENGTH=500` for the large-queue case.
+
 Android Auto's service-first regression has a separate Android phone-emulator
 gate. It builds only the `.dev` sidecar, force-stops it, and binds an external
 MediaBrowser client without launching `MainActivity`:
@@ -46,6 +74,9 @@ MediaBrowser client without launching `MainActivity`:
 ```bash
 ./tool/android_auto_cold_start_diagnostics.sh
 ```
+
+The debug sidecar install permits a version downgrade while retaining sidecar
+app data, so a newer local dev build does not block this gate.
 
 The diagnostic requires exactly one running, non-automotive Android emulator.
 It asserts the service connects within 10 seconds, exposes the four Navis root
@@ -121,11 +152,15 @@ First-login and logout ownership are exercised separately with:
 
 ```bash
 ./tool/auth_lifecycle_diagnostics.sh clone
+./tool/auth_lifecycle_diagnostics.sh partial
 ```
 
 This clone-only Linux profile gate covers the `/initial-sync` route, offline
 recovery and app-owned screenshots, safe catalog promotion and restart,
 playback-to-sign-out teardown, queue/activity cleanup, and setup cancellation.
+The `partial` mode separately proves that a committed catalog with only
+incomplete album details opens Home, retains its incomplete state across a
+clean restart, and later hydrates the missing tracks through automatic sync.
 It uses a deterministic loopback Subsonic fixture and isolated credential file;
 it never reads device third-party credentials or enables personalized Last.fm
 or ListenBrainz discovery, and it must never be run in primary-certification
@@ -136,6 +171,11 @@ mode.
 route. That path reads only the isolated weekly cache through production
 providers; it does not copy, validate, log, or return ListenBrainz credentials
 or usernames.
+For a remote Search playback capture, it verifies a ready player and advancing
+position through the authenticated playback status before accepting the result;
+the `playing` flag alone does not prove that audio started.
+Its optional remote-seek path verifies resumed progress after a 30-second seek
+on both sides of a clean restart.
 It may also enable `artistTopTracksPresentationFixture` for an explicit local
 artist Top Tracks route. That fixture supplies deterministic rows through the
 production provider and never requires a Last.fm key or contacts the configured
@@ -411,3 +451,49 @@ The intended flow for shipping a feature or fix:
 4. When ready to release: merge `dev` → `main`.
 5. Run `./tool/release.sh v0.x.0` from `main`.
 6. The script handles everything: checks, build, tag, Forgejo release, APK upload.
+
+The manual discovery gate also calls `GET /v1/library/album?verifySongs=true`
+(with the fixture album `id`) and requires `persistedSongCount` before and after
+restart. A hydration flag or declared server count alone is insufficient proof
+that an album's tracks were actually stored.
+
+For sync/outbox changes, the loopback manual-discovery gate accepts
+`NAVIS_ANNOTATION_FIXTURE=true` and verifies offline favorites/ratings delivery
+using exact typed Subsonic parameters. It enables delivery only to the isolated
+loopback fixture and discards copied pending annotations. Sync interaction traces
+can reset diagnostics metrics and drive the mounted Albums scroll controller
+through clone-only authenticated API endpoints; inspect resulting screenshots
+and keep timing interpretation consistent with `docs/development-workflow.md`.
+
+
+Android worker certification can use the isolated profile-sidecar fixture
+contract in `development-workflow.md`. The opt-in
+`NAVIS_DIAGNOSTICS_ANDROID_WORKER_FIXTURE` permits that sidecar's production
+secure storage for cross-engine session recovery; it is ignored outside an
+Android clone build with a nonempty application suffix. This is separate from
+the default in-memory clone credential workflow and from primary certification.
+
+The auth/manual-discovery fixture returns album-specific detail identities for
+both its existing and newest album, and an explicit not-found error for unknown
+IDs. This permits worker continuation tests to verify every declared fixture
+album without accidentally exercising an unrelated identity-mismatch failure.
+
+Large clone-mode first-sync certification can set
+`NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS=600` at compile time to retain production
+lease duration during atomic promotion. Keep the default accelerated lease for
+interrupted-owner scenarios; neither mode bypasses the write fence.
+
+
+Attempt-telemetry changes require migration coverage for schema v77, bounded
+phase/transport retention, retry attribution, interrupted recovery, privacy and
+terminal-row immutability. In the isolated Linux repair/restart loop, capture
+`GET /v1/sync/attempts` and check that the report's `reportedAttempt.attemptId`
+matches `sync.runAttemptId` even when auxiliary work completes later. Verify
+request/byte totals, publication-phase ordering and the same persisted attempt
+after restart. Telemetry capture completion alone is not sync completion.
+
+Frame-attribution changes preserve the legacy build-plus-raster `frames` field
+and test independent `frameBuild`, `frameRaster` and `frameSpan` timing, the
+5,000-sample cap and atomic window reset. Runtime evidence must state library
+size, playback/sync activity and renderer; a no-sync scrolling control cannot
+stand in for playback-under-sync certification.

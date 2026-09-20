@@ -19,4 +19,7 @@ class LibrarySyncRunAttemptTable extends Table {
   IntColumn get ownerKind => integer().withDefault(const Constant(0))();
   DateTimeColumn get startedAt => dateTime()();
   DateTimeColumn get completedAt => dateTime().nullable()();
+
+  /// Bounded versioned diagnostics; no target identifiers or response payloads.
+  TextColumn get telemetryJson => text().nullable()();
 }

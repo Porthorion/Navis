@@ -844,15 +844,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Preload tracks to reduce gaps between songs.';
 
   @override
-  String get playbackSettingsLegacyInstantMixTitle => 'Legacy Instant Mix';
+  String get playbackSettingsLegacyInstantMixTitle => 'Server mix';
 
   @override
   String get playbackSettingsLegacyInstantMixSubtitle =>
-      'Use local-only similar songs instead of Last.fm recommendations.';
+      'Use your server\'s song recommendations. Turn off for Last.fm · Same Vibes.';
+
+  @override
+  String get playbackSettingsLastFmSameVibesTitle => 'Last.fm · Same Vibes';
+
+  @override
+  String get playbackSettingsLastFmSameVibesSubtitle =>
+      'Match Last.fm recommendations to your library. Turn on for Server mix.';
 
   @override
   String get playbackSettingsLegacyInstantMixLocked =>
-      'This build has no Last.fm API key, so Legacy Instant Mix is required.';
+      'This build has no Last.fm API key, so Server mix is required.';
 
   @override
   String get playbackSettingsShowRadioPageTitle => 'Show Radio Page';
@@ -2310,6 +2317,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instantRadioAction => 'Instant Radio';
+
+  @override
+  String get instantRadioLoading => 'Starting radio…';
+
+  @override
+  String get instantRadioStop => 'Stop radio';
+
+  @override
+  String get instantRadioEmpty => 'No playable songs match these filters.';
+
+  @override
+  String get instantRadioError =>
+      'Couldn’t start radio. Check your connection or try again.';
+
+  @override
+  String get instantRadioFallback => 'Radio is using music from your library.';
+
+  @override
+  String get instantRadioRetry => 'Retry radio';
+
+  @override
+  String get sameVibesInvalidKey =>
+      'Last.fm rejected the API key. Update it in Settings and retry.';
+
+  @override
+  String get sameVibesRateLimited =>
+      'Last.fm is limiting requests. Try again later.';
 
   @override
   String get searchRecentTitle => 'Recent Searches';

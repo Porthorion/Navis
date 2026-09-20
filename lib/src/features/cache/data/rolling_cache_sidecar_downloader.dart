@@ -10,10 +10,11 @@ import 'package:navis/src/utils/app_logger.dart';
 /// desktop plays via HTTPS direct stream and fills the rolling cache here.
 class RollingCacheSidecarDownloader {
   RollingCacheSidecarDownloader({
-    HttpClient? httpClient,
-  }) : _httpClient = httpClient ?? HttpClient();
+    HttpClient Function()? httpClientFactory,
+  }) : _httpClientFactory = httpClientFactory ?? HttpClient.new;
 
-  final HttpClient _httpClient;
+  final HttpClient Function() _httpClientFactory;
+  HttpClient? _activeClient;
   int _generation = 0;
   String? _activeSongId;
   String? _activeCacheFilePath;
@@ -30,30 +31,38 @@ class RollingCacheSidecarDownloader {
     if (_activeSongId == songId && _activeCacheFilePath == cacheFilePath) {
       return;
     }
-    await cancel();
+    // Claim ownership before the first await. Otherwise two rapid start calls
+    // can resume after cancel in the wrong order.
+    _cancelActive();
     final generation = ++_generation;
     _activeSongId = songId;
     _activeCacheFilePath = cacheFilePath;
+    final client = _httpClientFactory();
+    _activeClient = client;
 
     final cacheFile = File(cacheFilePath);
     if (cacheFile.existsSync() && cacheFile.lengthSync() > 0) {
       // Already on disk from a prior play — skip activity churn and
       // re-registration; CacheDao upsert is owned by the first completion.
+      client.close(force: true);
       _clearActive(generation);
       return;
     }
 
-    final partFile = File('$cacheFilePath.part');
+    // An older attempt may still be unwinding after cancellation. Give it a
+    // distinct file so its cleanup cannot delete this attempt's bytes.
+    final partFile = File('$cacheFilePath.part.$pid.$generation');
     try {
-      if (partFile.existsSync()) {
-        await partFile.delete();
-      }
       await partFile.parent.create(recursive: true);
+      if (!_isCurrent(generation)) return;
 
-      final request = await _httpClient.getUrl(uri);
+      final request = await client.getUrl(uri);
+      if (!_isCurrent(generation)) {
+        request.abort();
+        return;
+      }
       final response = await request.close();
       if (!_isCurrent(generation)) {
-        await response.drain<void>();
         return;
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -87,46 +96,53 @@ class RollingCacheSidecarDownloader {
       }
 
       if (!_isCurrent(generation)) {
-        if (partFile.existsSync()) {
-          await partFile.delete();
-        }
         return;
       }
       if (received <= 0) {
         throw StateError('Sidecar cache download produced an empty file.');
       }
-      if (cacheFile.existsSync()) {
-        await cacheFile.delete();
-      }
-      await partFile.rename(cacheFile.path);
+      // Publishing a complete file is a short synchronous critical section.
+      // No cancellation can interleave between the final ownership check and
+      // the rename. Never delete a newer attempt's completed file.
+      if (cacheFile.existsSync()) cacheFile.deleteSync();
+      partFile.renameSync(cacheFile.path);
       onProgress(1);
       await onComplete(cacheFile);
-      _clearActive(generation);
     } on Object catch (error, stackTrace) {
-      AppLogger.debug(
-        'Sidecar rolling-cache download failed for song=$songId: '
-        '$error\n$stackTrace',
-      );
+      if (_isCurrent(generation)) {
+        AppLogger.debug(
+          'Sidecar rolling-cache download failed for song=$songId: '
+          '$error\n$stackTrace',
+        );
+      }
+    } finally {
+      client.close(force: true);
       if (partFile.existsSync()) {
         try {
           await partFile.delete();
         } on Object {
-          // Best-effort cleanup.
+          // Best-effort cleanup of this attempt's file only.
         }
       }
       _clearActive(generation);
     }
   }
 
-  Future<void> cancel() async {
+  void _cancelActive() {
     _generation++;
+    _activeClient?.close(force: true);
+    _activeClient = null;
     _activeSongId = null;
     _activeCacheFilePath = null;
   }
 
+  Future<void> cancel() {
+    _cancelActive();
+    return Future<void>.value();
+  }
+
   Future<void> dispose() async {
     await cancel();
-    _httpClient.close(force: true);
   }
 
   bool _isCurrent(int generation) => generation == _generation;
@@ -135,6 +151,7 @@ class RollingCacheSidecarDownloader {
     if (!_isCurrent(generation)) {
       return;
     }
+    _activeClient = null;
     _activeSongId = null;
     _activeCacheFilePath = null;
   }

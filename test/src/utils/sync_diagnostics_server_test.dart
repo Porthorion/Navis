@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show FrameTiming;
 
 import 'package:audio_service/audio_service.dart';
-import 'package:drift/drift.dart' hide isNull;
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/cache/data/library_cache_reset_service.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
@@ -39,6 +41,208 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;
 
+  test(
+    'rapid playback endpoints use the handler and remain clone-only',
+    () async {
+      final handler = _MockPlaybackHandler();
+      var nextCalls = 0;
+      var previousCalls = 0;
+      when(() => handler.loadFailureStream).thenAnswer(
+        (_) => const Stream<PlaybackLoadFailure>.empty(),
+      );
+      when(handler.waitUntilReady).thenAnswer((_) async {});
+      when(handler.skipToNext).thenAnswer((_) async {
+        nextCalls++;
+      });
+      when(handler.skipToPrevious).thenAnswer((_) async {
+        previousCalls++;
+      });
+      when(handler.collectPlaybackDiagnostics).thenAnswer(
+        (_) => <String, Object?>{
+          'navigation': <String, Object?>{'pending': false},
+        },
+      );
+
+      final clone = await _startFixture(
+        SyncDiagnosticsMode.clone,
+        handler: handler,
+      );
+      addTearDown(clone.close);
+      for (final path in <String>[
+        '/v1/playback/next',
+        '/v1/playback/previous',
+      ]) {
+        final response = await _request(
+          clone.port,
+          path,
+          method: 'POST',
+          token: clone.token,
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.body['navigation'], <String, Object?>{
+          'pending': false,
+        });
+      }
+      expect(nextCalls, 1);
+      expect(previousCalls, 1);
+      await clone.close();
+
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+        handler: handler,
+      );
+      addTearDown(primary.close);
+      final forbidden = await _request(
+        primary.port,
+        '/v1/playback/next',
+        method: 'POST',
+        token: primary.token,
+      );
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+      expect(nextCalls, 1);
+    },
+  );
+
+  test(
+    'frame evidence separates build, raster and span with bounded reset',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      FrameTiming timing(int build) => FrameTiming(
+        vsyncStart: 0,
+        buildStart: 100,
+        buildFinish: 100 + build,
+        rasterStart: 200 + build,
+        rasterFinish: 1200 + build,
+        rasterFinishWallTime: 1200 + build,
+      );
+      binding.platformDispatcher.onReportTimings!([
+        for (var i = 0; i < 5; i++) timing(999999),
+        for (var i = 0; i < 5000; i++) timing(2000),
+      ]);
+      final report = await _request(
+        fixture.port,
+        '/v1/diagnostics/report',
+        token: fixture.token,
+      );
+      for (final entry in {
+        'frames': 3000,
+        'frameBuild': 2000,
+        'frameRaster': 1000,
+        'frameSpan': 3200,
+      }.entries) {
+        expect(report.body[entry.key], {
+          'samples': 5000,
+          'p95Micros': entry.value,
+          'p99Micros': entry.value,
+          'maxMicros': entry.value,
+        });
+      }
+      final reset = await _request(
+        fixture.port,
+        '/v1/diagnostics/metrics/reset',
+        method: 'POST',
+        token: fixture.token,
+      );
+      expect(reset.statusCode, HttpStatus.ok);
+      final cleared = await _request(
+        fixture.port,
+        '/v1/diagnostics/report',
+        token: fixture.token,
+      );
+      for (final key in ['frames', 'frameBuild', 'frameRaster', 'frameSpan']) {
+        expect(cleared.body[key], {'samples': 0});
+      }
+    },
+  );
+
+  test('attempt endpoint correlates active and terminal evidence without target keys', () async {
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      serverConfig: const ServerConfigModel(
+        id: 1,
+        url: 'https://private.example',
+        username: 'private-user',
+        password: 'private-password',
+        apiVersion: '1.16.1',
+      ),
+    );
+    addTearDown(fixture.close);
+    final database = fixture.database as NavisDatabase;
+    await database.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'https://private.example',
+        username: 'private-user',
+        apiVersion: '1.16.1',
+      ),
+    );
+    const plan = SyncExecutionPlan(
+      request: SyncRunRequest(
+        contractVersion: 1,
+        origin: SyncRunOrigin.interaction,
+        intent: SyncRunIntent.targetHydration,
+        target: LibrarySyncTarget.album('private-target'),
+        networkGrant: SyncNetworkGrant.none,
+        priority: 1,
+      ),
+      kind: SyncExecutionPlanKind.targetHydration,
+      reason: SyncSafeReason.none,
+      budget: SyncExecutionBudget(
+        allowedEndpoints: {SyncEndpoint.album},
+        maxNewestPages: 0,
+        maxAlbumHydrations: 1,
+        maxResponseBytes: 1000,
+        maxTotalBytes: 1000,
+        maxConcurrency: 1,
+      ),
+    );
+    final request = await database.librarySyncDao.enqueueSyncRun(
+      serverId: 1,
+      plan: plan,
+    );
+    final attempt = await database.librarySyncDao.beginSyncRunAttempt(
+      requestId: request.id,
+      androidWorker: false,
+    );
+    await database.librarySyncDao.writeAttemptTelemetry(attempt.id, {
+      'version': 1,
+      'requestId': request.id,
+      'attemptId': attempt.id,
+      'captureComplete': false,
+    });
+    final active = await _request(
+      fixture.port,
+      '/v1/sync/attempts',
+      token: fixture.token,
+    );
+    expect(active.statusCode, HttpStatus.ok);
+    final row = (active.body['attempts']! as List).single as Map;
+    expect(row['requestId'], request.id);
+    expect(row['attemptId'], attempt.id);
+    expect(row['status'], 'running');
+    expect(row['telemetry']['captureComplete'], isFalse);
+    expect(jsonEncode(active.body), isNot(contains('private')));
+    await database.librarySyncDao.completeSyncRun(
+      requestId: request.id,
+      attemptId: attempt.id,
+      outcome: const SyncRunOutcome(
+        kind: SyncRunOutcomeKind.completed,
+        reason: SyncSafeReason.none,
+      ),
+    );
+    final ledger = await _request(
+      fixture.port,
+      '/v1/sync/ledger',
+      token: fixture.token,
+    );
+    final history = (ledger.body['durableRuns']! as List).single as Map;
+    expect(history['requestId'], request.id);
+    expect(history['attemptId'], attempt.id);
+    expect(history['startedAt'], isA<String>());
+    expect(jsonEncode(ledger.body), isNot(contains('private')));
+  });
+
   test('diagnostics API requires its random bearer token', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
@@ -56,7 +260,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 73);
+    expect(authorized.body['schemaVersion'], 78);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -537,6 +741,55 @@ void main() {
     expect(cleared.body['artistTopTracksPresentationFixture'], isFalse);
   });
 
+  test('clone diagnostics can simulate foreground sync admission', () async {
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      serverConfig: const ServerConfigModel(
+        id: 1,
+        url: 'https://example.test',
+        username: 'fixture',
+        password: 'fixture',
+        apiVersion: '1.16.1',
+      ),
+    );
+    addTearDown(fixture.close);
+    await fixture.database.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'https://example.test',
+        username: 'fixture',
+        apiVersion: '1.16.1',
+      ),
+    );
+    final response = await _request(
+      fixture.port,
+      '/v1/diagnostics/sync-foreground',
+      method: 'POST',
+      token: fixture.token,
+      body: <String, Object?>{'active': true},
+    );
+    expect(response.statusCode, HttpStatus.ok);
+    expect(response.body['active'], isTrue);
+    final invalid = await _request(
+      fixture.port,
+      '/v1/diagnostics/sync-foreground',
+      method: 'POST',
+      token: fixture.token,
+      body: <String, Object?>{'active': 'true'},
+    );
+    expect(invalid.statusCode, HttpStatus.badRequest);
+    final due = await _request(
+      fixture.port,
+      '/v1/diagnostics/automatic-sync-due',
+      method: 'POST',
+      token: fixture.token,
+    );
+    expect(due.statusCode, HttpStatus.ok);
+    expect(due.body['due'], isTrue);
+    final scheduled = await fixture.database.librarySyncDao.getOrCreateState(1);
+    expect(scheduled.nextAutomaticCheckAt, isNotNull);
+    expect(scheduled.nextAutomaticCheckAt!.isAfter(DateTime.now()), isFalse);
+  });
+
   test(
     'primary certification rejects diagnostics override mutations',
     () async {
@@ -554,6 +807,21 @@ void main() {
       );
 
       expect(response.statusCode, HttpStatus.forbidden);
+      final foreground = await _request(
+        fixture.port,
+        '/v1/diagnostics/sync-foreground',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'active': true},
+      );
+      expect(foreground.statusCode, HttpStatus.forbidden);
+      final due = await _request(
+        fixture.port,
+        '/v1/diagnostics/automatic-sync-due',
+        method: 'POST',
+        token: fixture.token,
+      );
+      expect(due.statusCode, HttpStatus.forbidden);
     },
   );
 
@@ -1482,12 +1750,15 @@ Future<_DiagnosticsFixture> _startFixture(
   PlaybackSnapshot? playbackSnapshot,
   DiagnosticsPresentationController? presentationController,
   DiagnosticsNavigationDriver? navigationDriver,
+  ServerConfigModel? serverConfig,
 }) async {
   final temp = await Directory.systemTemp.createTemp('navis_diagnostics_test_');
   final database = createTestDatabase();
   final container = ProviderContainer(
     overrides: [
       navisDatabaseProvider.overrideWith((ref) => database),
+      if (serverConfig != null)
+        serverConfigStateProvider.overrideWithValue(AsyncData(serverConfig)),
       libraryCacheResetServiceProvider.overrideWith(
         (ref) => LibraryCacheResetService(database: database),
       ),

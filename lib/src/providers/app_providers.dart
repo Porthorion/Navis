@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_repository.dart';
@@ -32,6 +34,9 @@ import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dar
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
+import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -63,6 +68,12 @@ const String _syncDiagnosticsRoot = String.fromEnvironment(
 const bool _syncDiagnosticsEnabled = bool.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS',
   defaultValue: false,
+);
+const String _syncDiagnosticsMode = String.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_MODE',
+);
+const String _syncDiagnosticsLastFmKeyFile = String.fromEnvironment(
+  'NAVIS_SYNC_DIAGNOSTICS_LASTFM_KEY_FILE',
 );
 const bool _syncDiagnosticsMuted = bool.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS_MUTED',
@@ -127,6 +138,12 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   );
   final manager = createCoverArtCacheManager(
     maxNrOfCacheObjects: maxObjects,
+    cacheKey:
+        _syncDiagnosticsEnabled &&
+            _syncDiagnosticsMode == 'clone' &&
+            _syncDiagnosticsRoot.isNotEmpty
+        ? '${coverArtCacheKey}_${sha256.convert(utf8.encode(_syncDiagnosticsRoot)).toString().substring(0, 16)}'
+        : coverArtCacheKey,
     fileService: service,
   );
   ref.onDispose(() {
@@ -467,6 +484,22 @@ final lastFmBundledKeyProvider = Provider<bool>((_) {
 /// is present, falls back to the user-provided key stored in app settings.
 final lastFmApiKeyProvider = Provider<String>((ref) {
   if (_syncDiagnosticsEnabled) {
+    if (_syncDiagnosticsMode == 'clone' &&
+        _syncDiagnosticsLastFmKeyFile.isNotEmpty) {
+      try {
+        final path = _syncDiagnosticsLastFmKeyFile;
+        if (FileSystemEntity.typeSync(path, followLinks: false) !=
+            FileSystemEntityType.file) {
+          return '';
+        }
+        final file = File(path);
+        final mode = file.statSync().mode;
+        if ((mode & 0x3f) != 0 || (mode & 0x100) == 0) return '';
+        return file.readAsStringSync().trim();
+      } on FileSystemException {
+        return '';
+      }
+    }
     return '';
   }
   const bundledKey = AppConstants.lastFmApiKey;
@@ -612,6 +645,40 @@ final listenBrainzFeedbackServiceProvider =
     });
 
 typedef AudioHandlerInitializer = Future<NavisPlaybackHandler> Function();
+
+final annotationSyncDispatcherProvider = Provider<AnnotationSyncDispatcher>((
+  ref,
+) {
+  final database = ref.watch(navisDatabaseProvider);
+  final dispatcher = AnnotationSyncDispatcher(
+    dao: database.starSyncDao,
+    readClient: () => ref.read(subsonicApiProvider),
+    readAccountIdentity: () async {
+      final config = await ref
+          .read(serverConfigRepositoryProvider)
+          .getActiveServer();
+      if (config == null) return null;
+      if (const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS')) {
+        final uri = Uri.tryParse(config.url);
+        if (!const bool.fromEnvironment(
+              'NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE',
+            ) ||
+            uri?.scheme != 'http' ||
+            !const {'127.0.0.1', '::1'}.contains(uri?.host) ||
+            config.username != 'diagnostics')
+          return null;
+      }
+      return '${config.id}|${config.url}|${config.username}';
+    },
+    canConnect: () => ref.read(networkTypeProvider) != NetworkType.offline,
+  );
+  // Isolated diagnostics never transmit copied user annotations to a server.
+  if (!const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') ||
+      const bool.fromEnvironment('NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE'))
+    dispatcher.start();
+  ref.onDispose(dispatcher.dispose);
+  return dispatcher;
+});
 typedef AudioBootstrapAttemptGate = Future<void> Function();
 
 final audioBootstrapTimeoutProvider = Provider<Duration>((_) {
@@ -634,6 +701,11 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
   ref,
 ) {
   return () async {
+    ref.read(annotationSyncDispatcherProvider);
+    // Queue restoration resolves remote sources during audio initialization.
+    // Hydrate the retained session first so the resolver does not mistake an
+    // as-yet-loading credential for a signed-out session on cold start.
+    final sessionHydration = ref.read(serverConfigProvider.future);
     AppSettingsModel? hydratedSettings;
     try {
       final settingsRepository = ref.read(settingsRepositoryProvider);
@@ -658,6 +730,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
 
     final database = ref.read(navisDatabaseProvider);
     final networkUsageMeter = ref.read(networkUsageMeterProvider);
+    await sessionHydration;
     final handler = await initNavisAudioHandler(
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
@@ -705,6 +778,63 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         } on StateError {
           // The target notifier can be disposed immediately before this
           // initializer during root-container teardown.
+        }
+      },
+      startPersonalRadio: (autoPlay) async =>
+          (await ref
+                  .read(personalRadioProvider.notifier)
+                  .start(
+                    autoPlay: autoPlay,
+                  ))
+              .succeeded,
+      startPreferredMix: (seedId) async {
+        final settings = await ref
+            .read(settingsRepositoryProvider)
+            .getSettings();
+        final useServer =
+            ref.read(legacyInstantMixLockedProvider) ||
+            settings.legacyInstantMixEnabled;
+        if (useServer) {
+          ref.read(sameVibesProvider.notifier).deactivate();
+          await ref.read(instantMixProvider.notifier).activate(seedId);
+          if (!ref.read(instantMixProvider).active) {
+            throw StateError('Server mix did not insert playable tracks.');
+          }
+        } else {
+          ref.read(instantMixProvider.notifier).deactivate();
+          await ref.read(sameVibesProvider.notifier).activate(seedId);
+          if (!ref.read(sameVibesProvider).active) {
+            throw StateError('Same Vibes did not insert playable tracks.');
+          }
+        }
+      },
+      togglePreferredMix: (seedId) async {
+        final settings = await ref
+            .read(settingsRepositoryProvider)
+            .getSettings();
+        final useServer =
+            ref.read(legacyInstantMixLockedProvider) ||
+            settings.legacyInstantMixEnabled;
+        if (useServer && ref.read(instantMixProvider).active) {
+          ref.read(instantMixProvider.notifier).deactivate();
+          return;
+        }
+        if (!useServer && ref.read(sameVibesProvider).active) {
+          ref.read(sameVibesProvider.notifier).deactivate();
+          return;
+        }
+        if (useServer) {
+          ref.read(sameVibesProvider.notifier).deactivate();
+          await ref.read(instantMixProvider.notifier).activate(seedId);
+          if (!ref.read(instantMixProvider).active) {
+            throw StateError('Server mix did not insert playable tracks.');
+          }
+        } else {
+          ref.read(instantMixProvider.notifier).deactivate();
+          await ref.read(sameVibesProvider.notifier).activate(seedId);
+          if (!ref.read(sameVibesProvider).active) {
+            throw StateError('Same Vibes did not insert playable tracks.');
+          }
         }
       },
       readRuntimeSettings: () {
@@ -2048,6 +2178,16 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
       final config = ref.read(serverConfigProvider).asData?.value;
       return config == null ? null : '${config.url}|${config.username}';
     },
+    readApplicationSupportDirectory:
+        _syncDiagnosticsEnabled &&
+            _syncDiagnosticsMode == 'clone' &&
+            _syncDiagnosticsRoot.isNotEmpty
+        ? () async {
+            final directory = Directory('$_syncDiagnosticsRoot/support');
+            await directory.create(recursive: true);
+            return directory;
+          }
+        : null,
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
   );
   ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {
@@ -2368,25 +2508,41 @@ Future<void> seedDefaultServerConfig(Ref ref) async {
 // Smart Queue — AudioMuse plugin detection
 // ---------------------------------------------------------------------------
 
-/// Probes the Navidrome server to detect whether the AudioMuse plugin is
-/// installed by calling `getSimilarSongs2` with a random track.
-///
-/// Returns `true` when the endpoint returns at least one result (i.e. the
-/// plugin is active and has analysed the library).  The result is cached
-/// per server session (re-evaluated on server config change).
-final smartQueueAvailableProvider = FutureProvider<bool>((ref) async {
+/// Capabilities are refreshed for the authenticated client session. Saved
+/// capability JSON remains a fallback for offline use and older installs.
+final currentServerCapabilitiesProvider = FutureProvider<ServerCapabilities>((
+  ref,
+) async {
   final api = ref.watch(subsonicApiProvider);
-  if (api == null) return false;
+  if (api == null) return const ServerCapabilities();
   try {
-    // Grab a random song to use as the probe seed.
-    final randomSongs = await api.getRandomSongs(size: 1);
-    if (randomSongs.isEmpty) return false;
-    final probe = randomSongs.first;
-    final similar = await api.getSimilarSongs(probe.id, count: 3);
-    return similar.isNotEmpty;
-  } on Exception {
-    return false;
+    return await api.getOpenSubsonicExtensions();
+  } on Object {
+    final saved = ref
+        .read(serverConfigStateProvider)
+        .asData
+        ?.value
+        ?.capabilitiesJson;
+    if (saved == null || saved.isEmpty) return const ServerCapabilities();
+    try {
+      return ServerCapabilities.fromJson(
+        jsonDecode(saved) as Map<String, dynamic>,
+      );
+    } on Object {
+      return const ServerCapabilities();
+    }
   }
+});
+
+/// Sonic support is signaled by the OpenSubsonic extension, not by a
+/// successful generic similarity request.
+final smartQueueAvailableProvider = FutureProvider<bool>((ref) async {
+  final capabilities = await ref.watch(
+    currentServerCapabilitiesProvider.future,
+  );
+  return capabilities.extensions.any(
+    (extension) => extension.name == 'sonicSimilarity',
+  );
 });
 
 // ---------------------------------------------------------------------------

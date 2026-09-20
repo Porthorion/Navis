@@ -157,11 +157,13 @@ private class FlutterEngineBackgroundSyncSession(
     private val ready = CompletableDeferred<Unit>()
     private lateinit var engine: FlutterEngine
     private lateinit var channel: MethodChannel
+    private var networkCostChannel: MethodChannel? = null
 
     override suspend fun start() {
         engine = FlutterEngine(context)
         channel = MethodChannel(engine.dartExecutor.binaryMessenger, backgroundSyncChannelName)
         GeneratedPluginRegistrant.registerWith(engine)
+        networkCostChannel = registerNetworkCostChannel(context, engine.dartExecutor.binaryMessenger)
         channel.setMethodCallHandler { call, result ->
             if (call.method == "ready") {
                 if (!ready.isCompleted) ready.complete(Unit)
@@ -200,6 +202,8 @@ private class FlutterEngineBackgroundSyncSession(
     }
 
     override suspend fun close() {
+        networkCostChannel?.setMethodCallHandler(null)
+        networkCostChannel = null
         if (::engine.isInitialized) engine.destroy()
     }
 }

@@ -40,6 +40,9 @@ class AlbumsTable extends Table {
   BoolColumn get songsHydrated =>
       boolean().withDefault(const Constant(false))();
 
+  /// Last complete track snapshot, independent of album-header/index changes.
+  DateTimeColumn get songsVerifiedAt => dateTime().nullable()();
+
   DateTimeColumn get starred => dateTime().nullable()();
 
   IntColumn get userRating => integer().nullable()();

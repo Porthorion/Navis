@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
@@ -13,6 +14,16 @@ final secureCredentialStoreProvider = Provider<SecureCredentialStore>((ref) {
     'NAVIS_SYNC_DIAGNOSTICS_MODE',
   );
   if (diagnosticsEnabled && diagnosticsMode == 'clone') {
+    // An explicitly isolated Android sidecar can exercise the real headless
+    // worker, which reads platform secure storage in another Flutter engine.
+    // Ordinary clone diagnostics continue to keep credentials in memory.
+    if (Platform.isAndroid &&
+        const bool.fromEnvironment(
+          'NAVIS_DIAGNOSTICS_ANDROID_WORKER_FIXTURE',
+        ) &&
+        const String.fromEnvironment('NAVIS_APP_ID_SUFFIX').isNotEmpty) {
+      return backing;
+    }
     const credentialPath = String.fromEnvironment(
       'NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH',
     );

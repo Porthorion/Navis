@@ -145,6 +145,20 @@ PY
       "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
     )
   fi
+  if [[ -n "${NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE:-}" ]]; then
+    if [[ ! -f "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE" || -L "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE" ]]; then
+      echo "Last.fm diagnostics key file must be a regular file." >&2
+      exit 66
+    fi
+    if [[ "$(stat -c '%u' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")" != "$(id -u)" ||
+          "$(stat -c '%a' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")" != "600" ]]; then
+      echo "Last.fm diagnostics key file must be owned by this user with mode 600." >&2
+      exit 77
+    fi
+    DATABASE_DEFINE+=(
+      "--dart-define=NAVIS_SYNC_DIAGNOSTICS_LASTFM_KEY_FILE=$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE"
+    )
+  fi
 fi
 
 write_database_summary() {

@@ -53,6 +53,72 @@ void main() {
   });
 
   test(
+    'explicit source repair supports dry run and preserves cached references',
+    () async {
+      await database.customStatement(
+        'UPDATE artists SET is_provisional = 0, is_external = 0',
+      );
+      await database.customStatement(
+        'UPDATE albums SET is_provisional = 0, is_external = 0',
+      );
+      await database.customStatement(
+        'UPDATE songs SET is_provisional = 0, is_external = 0, user_rating = 4',
+      );
+      final audio = File('${tempDirectory.path}/retained.mp3');
+      await audio.writeAsBytes([1, 2, 3]);
+      await database
+          .into(database.cachedTracksTable)
+          .insert(
+            CachedTracksTableCompanion.insert(
+              songId: 'remote-song',
+              filePath: audio.path,
+              fileSize: 3,
+              format: 'mp3',
+              lastAccessedAt: DateTime.now(),
+              cacheType: CacheType.rolling,
+              downloadStatus: DownloadStatus.complete,
+            ),
+          );
+      final preview = await database.libraryDao.repairExternalSourceEvidence(
+        artistIds: ['remote-artist'],
+        albumIds: ['remote-album'],
+        songIds: ['remote-song'],
+        dryRun: true,
+      );
+      expect(preview, {'artists': 1, 'albums': 1, 'songs': 1});
+      expect((await database.libraryDao.getAllAlbums()), hasLength(1));
+      final applied = await database.libraryDao.repairExternalSourceEvidence(
+        artistIds: ['remote-artist'],
+        albumIds: ['remote-album'],
+        songIds: ['remote-song'],
+      );
+      expect(applied, preview);
+      expect(await database.libraryDao.getAllAlbums(), isEmpty);
+      final song = (await database.libraryDao.getSongById('remote-song'))!;
+      expect(song.isExternal, isTrue);
+      expect(song.userRating, 4);
+      expect(song.albumId, 'remote-album');
+      expect(await audio.exists(), isTrue);
+      expect(
+        await database.libraryDao.searchCachedSongs('Remote Song'),
+        hasLength(1),
+      );
+      // Current explicit local evidence remains able to promote the same ID.
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'remote-song',
+          title: 'Imported',
+          isExternal: const Value(false),
+        ),
+      ]);
+      expect(
+        (await database.libraryDao.getSongById('remote-song'))!.isProvisional,
+        isFalse,
+      );
+    },
+  );
+
+  test(
     'provisional parents stay hidden and cached songs remain searchable',
     () async {
       expect(await database.libraryDao.getAllArtists(), isEmpty);
@@ -167,12 +233,14 @@ void main() {
       await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
         ArtistsTableCompanion.insert(
           id: 'remote-artist',
+          isExternal: const Value(false),
           name: 'Canonical Artist',
         ),
       ]);
       await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
         AlbumsTableCompanion.insert(
           id: 'remote-album',
+          isExternal: const Value(false),
           name: 'Canonical Album',
           artistId: const Value('remote-artist'),
           artistName: const Value('Canonical Artist'),
@@ -181,6 +249,7 @@ void main() {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[
         SongsTableCompanion.insert(
           id: 'remote-song',
+          isExternal: const Value(false),
           title: 'Canonical Song',
           albumId: const Value('remote-album'),
           albumName: const Value('Canonical Album'),

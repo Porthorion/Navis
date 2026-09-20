@@ -9,7 +9,6 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
-import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Global broadcast stream for playback action errors.
 ///
@@ -38,6 +37,15 @@ class PlaybackActionError {
   final String? action;
 }
 
+/// The queue entries that were observed after a recommendation commit.
+class RecommendationQueueResult {
+  const RecommendationQueueResult(this.insertedIds);
+
+  final List<String> insertedIds;
+
+  int get count => insertedIds.length;
+}
+
 final currentQueueSongIdProvider = Provider<String?>((ref) {
   return ref.watch(currentSongProvider);
 });
@@ -61,6 +69,9 @@ class RegularQueueReplacementEpoch extends Notifier<int> {
 }
 
 class QueueController extends Notifier<List<String>> {
+  Future<void> _recommendationCommitTail = Future<void>.value();
+  int _regularSelectionEpoch = 0;
+
   @override
   List<String> build() {
     final snapshot = ref.watch(playbackSnapshotProvider).asData?.value;
@@ -75,11 +86,12 @@ class QueueController extends Notifier<List<String>> {
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
   }) async {
+    final selectionEpoch = ++_regularSelectionEpoch;
     final handler = _requireHandler();
+    _markRegularQueueReplacement(notify: notifyMixSessionReset);
     final normalized = _normalizeSongIds(ids);
     if (normalized.isEmpty) {
       await handler.clearQueue();
-      _markRegularQueueReplacement(notify: notifyMixSessionReset);
       return;
     }
     final normalizedStartIndex = startIndex.clamp(0, normalized.length - 1);
@@ -89,15 +101,11 @@ class QueueController extends Notifier<List<String>> {
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
     );
-    await _ensurePlayingAfterAutoPlay(
-      autoPlay: autoPlay,
-      songId: normalized[normalizedStartIndex],
-    );
+    if (selectionEpoch != _regularSelectionEpoch) return;
     _prewarmLyricsForIds(
       normalized,
       priorityId: normalized[normalizedStartIndex],
     );
-    _markRegularQueueReplacement(notify: notifyMixSessionReset);
   }
 
   /// Like [replace] but accepts pre-fetched [SongsTableData] rows so the
@@ -110,10 +118,11 @@ class QueueController extends Notifier<List<String>> {
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
   }) async {
+    final selectionEpoch = ++_regularSelectionEpoch;
     final handler = _requireHandler();
+    _markRegularQueueReplacement(notify: notifyMixSessionReset);
     if (songs.isEmpty) {
       await handler.clearQueue();
-      _markRegularQueueReplacement(notify: notifyMixSessionReset);
       return;
     }
     final normalizedStartIndex = startIndex.clamp(0, songs.length - 1);
@@ -123,15 +132,11 @@ class QueueController extends Notifier<List<String>> {
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
     );
-    await _ensurePlayingAfterAutoPlay(
-      autoPlay: autoPlay,
-      songId: songs[normalizedStartIndex].id,
-    );
+    if (selectionEpoch != _regularSelectionEpoch) return;
     _prewarmLyricsForIds(
       songs.map((song) => song.id),
       priorityId: songs[normalizedStartIndex].id,
     );
-    _markRegularQueueReplacement(notify: notifyMixSessionReset);
   }
 
   Future<void> add(String id) async {
@@ -166,23 +171,68 @@ class QueueController extends Notifier<List<String>> {
     bool expandMatchFlows = true,
     bool notifyMixSessionReset = true,
   }) async {
+    final selectionEpoch = ++_regularSelectionEpoch;
+    final handler = _requireHandler();
+    _markRegularQueueReplacement(notify: notifyMixSessionReset);
     if (songs.isEmpty) {
-      final handler = _requireHandler();
       await handler.clearQueue();
-      _markRegularQueueReplacement(notify: notifyMixSessionReset);
       return;
     }
-    await _ensureSongsInDatabase(songs);
+    final selectedSong = songs[startIndex.clamp(0, songs.length - 1)];
+    final PlaybackStartupObserver? startupObserver =
+        handler is PlaybackStartupObserver
+        ? handler as PlaybackStartupObserver
+        : null;
+    final startupAttempt = startupObserver?.beginPlaybackSelection(
+      selectedSong.id,
+      isExternal: isExternalCatalogSource(
+        id: selectedSong.id,
+        apiIsExternal: selectedSong.isExternal,
+      ),
+    );
+    try {
+      await _ensureSongsInDatabase(songs);
+    } on Object {
+      if (startupAttempt != null) {
+        startupObserver?.notePlaybackSelectionStage(
+          startupAttempt,
+          'provisionalPersistenceFailed',
+        );
+      }
+      rethrow;
+    }
+    if (selectionEpoch != _regularSelectionEpoch) return;
+    if (startupAttempt != null &&
+        startupObserver?.isPlaybackSelectionCurrent(startupAttempt) == false) {
+      return;
+    }
+    if (startupAttempt != null) {
+      startupObserver?.notePlaybackSelectionStage(
+        startupAttempt,
+        'provisionalPersistenceComplete',
+      );
+    }
     final ids = songs.map((s) => s.id).toList(growable: false);
     final db = ref.read(navisDatabaseProvider);
     final persistedSongs = await db.libraryDao.getSongsByIds(ids);
+    if (selectionEpoch != _regularSelectionEpoch) return;
+    if (startupAttempt != null &&
+        startupObserver?.isPlaybackSelectionCurrent(startupAttempt) == false) {
+      return;
+    }
+    if (startupAttempt != null) {
+      startupObserver?.notePlaybackSelectionStage(
+        startupAttempt,
+        'songReadbackComplete',
+      );
+    }
     if (persistedSongs.length == ids.length) {
       await replaceWithTableData(
         persistedSongs,
         startIndex: startIndex,
         autoPlay: autoPlay,
         expandMatchFlows: expandMatchFlows,
-        notifyMixSessionReset: notifyMixSessionReset,
+        notifyMixSessionReset: false,
       );
       return;
     }
@@ -191,7 +241,7 @@ class QueueController extends Notifier<List<String>> {
       startIndex: startIndex,
       autoPlay: autoPlay,
       expandMatchFlows: expandMatchFlows,
-      notifyMixSessionReset: notifyMixSessionReset,
+      notifyMixSessionReset: false,
     );
   }
 
@@ -273,6 +323,17 @@ class QueueController extends Notifier<List<String>> {
   Future<int> appendMixTracks(
     List<Song> songs, {
     bool expandMatchFlows = false,
+  }) async => (await appendRecommendationTracks(
+    songs,
+    expandMatchFlows: expandMatchFlows,
+  )).count;
+
+  /// Serializes recommendation appends and checks session ownership again
+  /// immediately before the handler's queue operation.
+  Future<RecommendationQueueResult> appendRecommendationTracks(
+    List<Song> songs, {
+    bool expandMatchFlows = false,
+    bool Function()? isCurrent,
   }) async {
     final normalizedSongs = songs
         .map((song) {
@@ -282,17 +343,28 @@ class QueueController extends Notifier<List<String>> {
         .nonNulls
         .toList(growable: false);
     if (normalizedSongs.isEmpty) {
-      return 0;
+      return const RecommendationQueueResult(<String>[]);
     }
     await _ensureSongsInDatabase(normalizedSongs);
     final ids = normalizedSongs.map((song) => song.id).toList(growable: false);
-    final handler = _requireHandler();
-    final before = handler.snapshot.queueSongIds;
-    await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
-    _prewarmLyricsForIds(ids);
-    final after = handler.snapshot.queueSongIds;
-    final inserted = _countInsertedSongIds(before: before, after: after);
-    return inserted > 0 ? inserted : normalizedSongs.length;
+    final previous = _recommendationCommitTail;
+    final complete = Completer<void>();
+    _recommendationCommitTail = complete.future;
+    await previous;
+    try {
+      if (isCurrent != null && !isCurrent()) {
+        return const RecommendationQueueResult(<String>[]);
+      }
+      final handler = _requireHandler();
+      final before = handler.snapshot.queueSongIds;
+      await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
+      final after = handler.snapshot.queueSongIds;
+      final insertedIds = _insertedSongIds(before: before, after: after);
+      _prewarmLyricsForIds(insertedIds);
+      return RecommendationQueueResult(insertedIds);
+    } finally {
+      complete.complete();
+    }
   }
 
   void _markRegularQueueReplacement({required bool notify}) {
@@ -302,7 +374,7 @@ class QueueController extends Notifier<List<String>> {
     ref.read(regularQueueReplacementEpochProvider.notifier).bump();
   }
 
-  int _countInsertedSongIds({
+  List<String> _insertedSongIds({
     required List<String> before,
     required List<String> after,
   }) {
@@ -310,13 +382,13 @@ class QueueController extends Notifier<List<String>> {
     for (final id in before) {
       beforeCounts[id] = (beforeCounts[id] ?? 0) + 1;
     }
-    var inserted = 0;
+    final inserted = <String>[];
     for (final id in after) {
       final remaining = beforeCounts[id] ?? 0;
       if (remaining > 0) {
         beforeCounts[id] = remaining - 1;
       } else {
-        inserted++;
+        inserted.add(id);
       }
     }
     return inserted;
@@ -463,6 +535,7 @@ class QueueController extends Notifier<List<String>> {
 
   Future<void> clear() async {
     final handler = _requireHandler();
+    _markRegularQueueReplacement(notify: true);
     await handler.clearQueue();
     final settings =
         ref.read(appSettingsProvider).asData?.value ??
@@ -501,27 +574,6 @@ class QueueController extends Notifier<List<String>> {
       reason: reason,
       message: bootstrap.errorMessage,
     );
-  }
-
-  Future<void> _ensurePlayingAfterAutoPlay({
-    required bool autoPlay,
-    String? songId,
-  }) async {
-    if (!autoPlay) {
-      return;
-    }
-    final handler = ref.read(audioHandlerProvider);
-    if (handler == null) {
-      return;
-    }
-    final normalized = songId?.trim() ?? '';
-    if (normalized.isNotEmpty && !isServerAddressableSongId(normalized)) {
-      await handler.play();
-      return;
-    }
-    if (!handler.snapshot.playing) {
-      await handler.play();
-    }
   }
 
   void _prewarmLyricsForIds(

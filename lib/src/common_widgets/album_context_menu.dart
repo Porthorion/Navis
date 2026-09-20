@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -339,39 +338,12 @@ Future<void> _deleteAlbumDownloads(
       .removeDownloadedTracks(songs.map((song) => song.id));
 }
 
-Future<void> _toggleAlbumStar(
-  WidgetRef ref,
-  String albumId,
-  bool isStarred,
-) async {
-  final dao = ref.read(navisDatabaseProvider).libraryDao;
-
-  // Optimistic DB update FIRST — Drift fires stream notification immediately
-  // so any screen watching albumProvider(albumId) or the liked albums
-  // providers (library, home) updates right away, without waiting ~300 ms for
-  // the server round-trip.
-  await dao.updateAlbumStarred(albumId, isStarred ? null : DateTime.now());
-
-  final api = ref.read(subsonicApiProvider);
-  if (api == null) return;
-  try {
-    if (isStarred) {
-      await api.unstar(albumId);
-    } else {
-      await api.star(albumId);
-    }
-  } on SubsonicConnectionException {
-    // Offline — the optimistic DB state is kept; just queue for server sync.
-    await ref
+Future<void> _toggleAlbumStar(WidgetRef ref, String albumId, bool isStarred) =>
+    ref
         .read(navisDatabaseProvider)
         .starSyncDao
-        .queueStarAction(
+        .setStarred(
           itemId: albumId,
           itemType: 'album',
-          action: isStarred ? 'unstar' : 'star',
+          liked: !isStarred,
         );
-  } catch (_) {
-    // API error — rollback the optimistic DB update.
-    await dao.updateAlbumStarred(albumId, isStarred ? DateTime.now() : null);
-  }
-}

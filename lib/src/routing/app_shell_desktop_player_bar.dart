@@ -811,8 +811,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         icon: _remoteLoadingPlayPauseIcon(
                                           isExternalSource:
                                               widget.isExternalSource,
-                                          isLoading: playback.isLoading,
+                                          playback: playback,
                                           isPlaying: isPlaying,
+                                          loadingColor: Theme.of(context)
+                                              .colorScheme
+                                              .onSecondaryContainer,
                                           size: primaryIconSize,
                                         ),
                                       ),

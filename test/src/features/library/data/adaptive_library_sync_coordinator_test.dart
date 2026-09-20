@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -140,6 +143,25 @@ class _ProbeLibrarySyncEngine
   }) async => _idle();
 }
 
+class _ThrowingTransportEngine extends _ProbeLibrarySyncEngine {
+  @override
+  Future<LibrarySyncState> forceFullSync({
+    Iterable<String> priorityAlbumIds = const <String>[],
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
+    onProgress?.call(
+      const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingArtists,
+      ),
+    );
+    final attempt = SyncRequestScope.current!.beginTransport('getArtists');
+    attempt.observe(9);
+    attempt.finish(succeeded: false);
+    throw StateError('private server failure');
+  }
+}
+
 class _CompletedCatalogWithPendingAlbumEngine
     implements LibrarySyncEngine, TargetedLibrarySyncExecutor {
   final List<String> targetedCalls = <String>[];
@@ -224,17 +246,17 @@ class _CompletedCatalogWithPendingAlbumEngine
   @override
   Future<LibrarySyncState> syncGenres({
     LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
+  }) async => _targetResult();
 
   @override
   Future<LibrarySyncState> syncPlaylistHeaders({
     LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
+  }) async => _targetResult();
 
   @override
   Future<LibrarySyncState> syncStarredContent({
     LibrarySyncProgressCallback? onProgress,
-  }) async => _result();
+  }) async => _targetResult();
 
   @override
   Future<LibrarySyncState> probeCatalog({
@@ -290,8 +312,53 @@ void main() {
       expect(result.status, LibrarySyncStatus.partial);
       expect(work?.status, 'completed');
       expect(await database.librarySyncDao.countPendingWork(1), 0);
+      final history = (await database.librarySyncDao.getRecentSyncRunHistory(1))
+          .singleWhere((entry) => entry.requestId == result.runRequestId);
+      expect(result.runRequestId, history.requestId);
+      expect(result.runAttemptId, history.attemptId);
+      final attempt = (await database.librarySyncDao.getRecentSyncAttempts(
+        1,
+        attemptId: result.runAttemptId,
+      )).first;
+      final telemetry =
+          jsonDecode(attempt.telemetryJson!) as Map<String, dynamic>;
+      expect(telemetry['captureComplete'], isTrue);
+      expect(telemetry['status'], 'partial');
+      expect(telemetry['pending']['albumHydration'], 1);
+      expect(telemetry['transport']['observed'], isFalse);
     },
     skip: !sqliteAvailable,
+  );
+
+  test(
+    'unexpected executor failure retains consumed bytes and attempt evidence',
+    () async {
+      final failing = AdaptiveLibrarySyncCoordinator(
+        executor: _ThrowingTransportEngine(),
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+      );
+      await expectLater(
+        failing.requestSync(const LibrarySyncRequest.repair()),
+        throwsStateError,
+      );
+      final history = (await database.librarySyncDao.getRecentSyncRunHistory(1))
+          .first;
+      expect(history.requestCount, 1);
+      expect(history.byteCount, 9);
+      expect(history.outcome, SyncRunOutcomeKind.failed);
+      final attempt = (await database.librarySyncDao.getRecentSyncAttempts(1))
+          .first;
+      expect(attempt.status, 2);
+      final telemetry =
+          jsonDecode(attempt.telemetryJson!) as Map<String, dynamic>;
+      expect(telemetry['status'], 'failed');
+      expect(telemetry['transport']['requests'], 1);
+      expect(attempt.telemetryJson, isNot(contains('private server failure')));
+    },
   );
 
   test(
@@ -313,9 +380,13 @@ void main() {
       expect(result.planReason, 'endpointCircuitOpen');
       expect(executor.syncIfStaleCalls, 0);
       final history = await database.librarySyncDao.getRecentSyncRunHistory(1);
-      expect(history, hasLength(1));
-      expect(history.single.outcome, SyncRunOutcomeKind.deferred);
-      expect(history.single.reason, SyncSafeReason.cooldown);
+      final deferred = history.where(
+        (run) => run.reason == SyncSafeReason.cooldown,
+      );
+      expect(deferred, hasLength(1));
+      expect(deferred.single.outcome, SyncRunOutcomeKind.deferred);
+      // The catalog circuit does not suppress independent auxiliary domains.
+      expect(history, hasLength(4));
     },
     skip: !sqliteAvailable,
   );

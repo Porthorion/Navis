@@ -130,7 +130,25 @@ class SyncDiagnosticsOverrides {
 class SyncDiagnosticsOverridesController
     extends Notifier<SyncDiagnosticsOverrides> {
   @override
-  SyncDiagnosticsOverrides build() => const SyncDiagnosticsOverrides();
+  SyncDiagnosticsOverrides build() {
+    const cloneDiagnostics =
+        bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
+        String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') == 'clone';
+    if (!cloneDiagnostics) return const SyncDiagnosticsOverrides();
+    return switch (const String.fromEnvironment(
+      'NAVIS_SYNC_DIAGNOSTICS_INITIAL_NETWORK',
+    )) {
+      'offline' => const SyncDiagnosticsOverrides(
+        networkType: NetworkType.offline,
+        nativeMetered: false,
+      ),
+      'metered' => const SyncDiagnosticsOverrides(
+        networkType: NetworkType.cellular,
+        nativeMetered: true,
+      ),
+      _ => const SyncDiagnosticsOverrides(),
+    };
+  }
 
   void apply(SyncDiagnosticsOverrides overrides) {
     state = overrides;

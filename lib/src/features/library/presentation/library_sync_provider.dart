@@ -238,7 +238,12 @@ final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
     // diagnostic. Production retains its ten-minute, one-minute-heartbeat
     // cross-engine lease.
     executionLeaseTtl: _syncDiagnosticsEnabled
-        ? const Duration(seconds: 6)
+        ? Duration(
+            seconds: const int.fromEnvironment(
+              'NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS',
+              defaultValue: 6,
+            ).clamp(1, 600),
+          )
         : null,
     executionLeaseHeartbeatInterval: _syncDiagnosticsEnabled
         ? const Duration(seconds: 1)
@@ -255,6 +260,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   bool _startupSyncInFlight = false;
   bool _startupSyncSuppressed = false;
   int _startupSyncEpoch = 0;
+  int _cancellationGeneration = 0;
   Future<LibrarySyncState>? _activeCatalogSync;
   int? _activeCatalogSyncPriority;
   Future<LibrarySyncState>? _activeAutomaticCheck;
@@ -469,6 +475,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   /// Cancel a running sync while retaining its durable work for resume.
   void cancelSync() {
+    _cancellationGeneration++;
     final engine = ref.read(librarySyncEngineProvider);
     if (engine is AdaptiveLibrarySyncCoordinator) {
       engine.cancelSync();
@@ -1036,11 +1043,23 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return active;
     }
 
+    final generation = _cancellationGeneration;
+    Future<LibrarySyncState> startUnlessCancelled() async {
+      if (!ref.mounted || generation != _cancellationGeneration) {
+        return LibrarySyncState(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        );
+      }
+      return start();
+    }
+
     final task = active == null
-        ? start()
+        ? startUnlessCancelled()
         : active.then<LibrarySyncState>(
-            (_) => start(),
-            onError: (error, _) => start(),
+            (_) => startUnlessCancelled(),
+            onError: (error, _) => startUnlessCancelled(),
           );
     _activeCatalogSync = task;
     _activeCatalogSyncPriority = priority;
@@ -1093,6 +1112,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         stage: LibrarySyncStage.completed,
         completedAt: DateTime.now(),
         errorMessage: 'Metadata sync unavailable for current session.',
+        clearRunIdentity: true,
+        apiRequests: 0,
+        endpointRequests: const {},
+        apiRetries: 0,
+        apiFailures: 0,
+        lastRunBytes: 0,
+        dbWriteBatches: 0,
+        clearAverageLatencyMs: true,
       );
       return state;
     }
@@ -1104,6 +1131,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     state = state.copyWith(
       status: LibrarySyncStatus.running,
       stage: LibrarySyncStage.preparing,
+      clearRunIdentity: true,
+      apiRequests: 0,
+      endpointRequests: const {},
+      apiRetries: 0,
+      apiFailures: 0,
+      lastRunBytes: 0,
+      dbWriteBatches: 0,
+      clearAverageLatencyMs: true,
       mode: forceFull
           ? LibrarySyncMode.forceFull
           : force
@@ -1116,6 +1151,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       clearTotal: true,
       clearHydratedAlbums: true,
       clearPendingHydrationCount: true,
+      onlyIncompleteAlbumDetails: false,
+      catalogPublishedThisRun: false,
       startedAt: DateTime.now(),
       clearCompletedAt: true,
       clearErrorMessage: true,

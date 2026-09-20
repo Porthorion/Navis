@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/initial_server_sync_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
@@ -147,8 +148,16 @@ class RequiredLibraryRebuildController
           state.status == RequiredLibraryRebuildStatus.cancelling) {
         return;
       }
-      if (result.status == LibrarySyncStatus.succeeded &&
-          await _hasCommittedCatalog()) {
+      final usableIncompleteAlbums = isUsableIncompleteAlbumSyncRun(result);
+      if ((_reason == RequiredLibraryRebuildReason.initialLogin
+              ? isCompletedInitialSyncRun(result) || usableIncompleteAlbums
+              : result.status == LibrarySyncStatus.succeeded ||
+                    usableIncompleteAlbums) &&
+          await _hasCommittedCatalog(result)) {
+        if (runEpoch != _epoch ||
+            state.status == RequiredLibraryRebuildStatus.cancelling) {
+          return;
+        }
         if (_reason == RequiredLibraryRebuildReason.cacheUpgrade) {
           await ref
               .read(cacheSystemUpgradeServiceProvider)
@@ -165,8 +174,15 @@ class RequiredLibraryRebuildController
             return;
           }
         }
+        if (runEpoch != _epoch ||
+            state.status == RequiredLibraryRebuildStatus.cancelling) {
+          return;
+        }
         if (_reason == RequiredLibraryRebuildReason.initialLogin) {
           ref.invalidate(initialSyncRequiredProvider);
+        }
+        if (usableIncompleteAlbums) {
+          ref.read(initialSyncCompletionWarningProvider.notifier).show();
         }
         state = const RequiredLibraryRebuildState(
           status: RequiredLibraryRebuildStatus.complete,
@@ -240,15 +256,26 @@ class RequiredLibraryRebuildController
     };
   }
 
-  Future<bool> _hasCommittedCatalog() async {
+  Future<bool> _hasCommittedCatalog(LibrarySyncState result) async {
     final serverId = ref.read(serverConfigStateProvider).asData?.value?.id;
     if (serverId == null) return false;
-    final persisted = await ref
-        .read(navisDatabaseProvider)
-        .librarySyncDao
-        .getOrCreateState(serverId);
-    return persisted.currentGeneration > 0 &&
-        persisted.candidateStatus != 'applying';
+    final database = ref.read(navisDatabaseProvider);
+    final persisted = await database.librarySyncDao.getOrCreateState(serverId);
+    if (_reason == RequiredLibraryRebuildReason.initialLogin) {
+      return recordInitialCatalogReadiness(
+        database: database,
+        serverId: serverId,
+        result: result,
+      );
+    }
+    if (persisted.currentGeneration <= 0 ||
+        persisted.candidateGeneration != null ||
+        persisted.candidateStatus != null) {
+      return false;
+    }
+    return !isUsableIncompleteAlbumSyncRun(result) ||
+        await database.libraryDao.countPendingHydrationAlbums() ==
+            result.pendingHydrationCount;
   }
 
   Future<void> cancelAndSignOut() async {

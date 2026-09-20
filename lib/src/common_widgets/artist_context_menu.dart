@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -278,33 +277,16 @@ Future<void> _toggleArtistStar(
   String artistId,
   bool isStarred,
 ) async {
-  final dao = ref.read(navisDatabaseProvider).libraryDao;
-  await dao.updateArtistStarred(
-    artistId,
-    isStarred ? null : DateTime.now(),
-  );
-  final api = ref.read(subsonicApiProvider);
-  if (api == null) return;
   try {
-    if (isStarred) {
-      await api.unstar(artistId);
-    } else {
-      await api.star(artistId);
-    }
-  } on SubsonicConnectionException {
     await ref
         .read(navisDatabaseProvider)
         .starSyncDao
-        .queueStarAction(
+        .setStarred(
           itemId: artistId,
           itemType: 'artist',
-          action: isStarred ? 'unstar' : 'star',
+          liked: !isStarred,
         );
   } on Object {
-    await dao.updateArtistStarred(
-      artistId,
-      isStarred ? DateTime.now() : null,
-    );
     if (!context.mounted) return;
     showAppNotice(
       context,

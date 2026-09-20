@@ -21,8 +21,6 @@ import 'package:navis/src/features/auth/presentation/session_route_provider.dart
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
-import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
-import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -31,10 +29,15 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
+import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -86,6 +89,9 @@ class SyncDiagnosticsServer {
   final DiagnosticsNavigationDriver _navigationDriver;
   final Random _random;
   final List<int> _frameMicros = <int>[];
+  final List<int> _frameBuildMicros = <int>[];
+  final List<int> _frameRasterMicros = <int>[];
+  final List<int> _frameSpanMicros = <int>[];
   final List<int> _databaseCanaryMicros = <int>[];
   final Map<String, List<int>> _databaseCanaryMicrosByPhase =
       <String, List<int>>{};
@@ -97,7 +103,6 @@ class SyncDiagnosticsServer {
   Future<LibrarySyncState>? _activeSync;
   LibrarySyncState? _lastSync;
   Object? _lastSyncError;
-  Map<String, int> _lastEndpointRequests = const <String, int>{};
   final List<Map<String, Object?>> _syncLedger = <Map<String, Object?>>[];
   int _nextSyncLedgerId = 1;
   Map<String, Song> _presentationSearchSongs = const <String, Song>{};
@@ -162,6 +167,36 @@ class SyncDiagnosticsServer {
     }
   }
 
+  Map<String, Object?> _mixStatusJson() {
+    final session = _container.read(recommendationSessionProvider);
+    final radio = _container.read(personalRadioProvider);
+    final server = _container.read(instantMixProvider);
+    final lastFm = _container.read(sameVibesProvider);
+    return <String, Object?>{
+      'appVersion': _container.read(packageInfoProvider).asData?.value.version,
+      'selectedSongMix':
+          _container.read(preferredMixModeProvider) ==
+              PreferredMixMode.legacyInstantMix
+          ? 'server'
+          : 'lastfm',
+      'mode': session.mode?.name,
+      'operationId': session.generation,
+      'seedId': session.seedId,
+      'stage': session.stage,
+      'recommendationSource': session.source,
+      'candidateCount': session.candidateCount,
+      'insertedCount': session.insertedCount,
+      'errorCategory': session.errorCategory,
+      'retryCount': session.retryCount,
+      'retryState': session.stage == 'retryPending'
+          ? 'pending'
+          : session.stage == 'retryExhausted'
+          ? 'exhausted'
+          : 'none',
+      'active': radio.active || server.active || lastFm.active,
+    };
+  }
+
   Future<void> _handle(HttpRequest request) async {
     try {
       if (request.headers.value(HttpHeaders.authorizationHeader) !=
@@ -187,6 +222,122 @@ class SyncDiagnosticsServer {
             'songs': counts.songs,
           },
         });
+        return;
+      }
+      if (path == '/v1/mix/status' && request.method == 'GET') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _respond(request, HttpStatus.ok, _mixStatusJson());
+        return;
+      }
+      if (path == '/v1/mix/start' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final rawMode = body['mode'];
+        final mode = rawMode == 'selected'
+            ? (_container.read(preferredMixModeProvider) ==
+                      PreferredMixMode.legacyInstantMix
+                  ? 'server'
+                  : 'lastfm')
+            : rawMode;
+        if (mode != 'server' && mode != 'lastfm' && mode != 'radio') {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'mode must be selected, server, lastfm, or radio',
+          });
+          return;
+        }
+        await _waitForPlaybackHandler();
+        if (mode == 'radio') {
+          final likedOnly = body['likedOnly'];
+          final downloadedOnly = body['downloadedOnly'];
+          if ((likedOnly != null && likedOnly is! bool) ||
+              (downloadedOnly != null && downloadedOnly is! bool)) {
+            await _respond(request, HttpStatus.badRequest, <String, Object?>{
+              'error': 'radio filters must be booleans',
+            });
+            return;
+          }
+          final result = await _container
+              .read(personalRadioProvider.notifier)
+              .start(
+                filters: RadioFilters(
+                  likedOnly: likedOnly == true,
+                  downloadedOnly: downloadedOnly == true,
+                ),
+              );
+          await _respond(
+            request,
+            result.succeeded ? HttpStatus.ok : HttpStatus.unprocessableEntity,
+            _mixStatusJson(),
+          );
+          return;
+        }
+        final seedId = body['seedId'];
+        if (seedId is! String || seedId.trim().isEmpty) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'seedId is required for song mixes',
+          });
+          return;
+        }
+        if (mode == 'server') {
+          await _container.read(instantMixProvider.notifier).activate(seedId);
+        } else {
+          await _container.read(sameVibesProvider.notifier).activate(seedId);
+        }
+        final status = _container.read(recommendationSessionProvider);
+        await _respond(
+          request,
+          status.insertedCount > 0
+              ? HttpStatus.ok
+              : HttpStatus.unprocessableEntity,
+          _mixStatusJson(),
+        );
+        return;
+      }
+      if (path == '/v1/mix/stop' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        _container.read(instantMixProvider.notifier).deactivate();
+        _container.read(sameVibesProvider.notifier).deactivate();
+        _container.read(personalRadioProvider.notifier).stop();
+        await _respond(request, HttpStatus.ok, _mixStatusJson());
+        return;
+      }
+      if (path == '/v1/mix/retry' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final status = _container.read(recommendationSessionProvider);
+        final seedId = status.seedId;
+        switch (status.mode) {
+          case RecommendationMode.serverMix when seedId != null:
+            await _container.read(instantMixProvider.notifier).activate(seedId);
+          case RecommendationMode.sameVibes when seedId != null:
+            await _container.read(sameVibesProvider.notifier).activate(seedId);
+          case RecommendationMode.personalRadio:
+            await _container.read(personalRadioProvider.notifier).retry();
+          case _:
+            await _respond(request, HttpStatus.conflict, <String, Object?>{
+              'error': 'no recommendation session to retry',
+            });
+            return;
+        }
+        final result = _mixStatusJson();
+        await _respond(
+          request,
+          (result['insertedCount'] as int? ?? 0) > 0
+              ? HttpStatus.ok
+              : HttpStatus.unprocessableEntity,
+          result,
+        );
         return;
       }
       if (request.method == 'GET' && path == '/v1/presentation/window') {
@@ -384,6 +535,26 @@ class SyncDiagnosticsServer {
           'query': query,
           'section': _container.read(librarySectionProvider).name,
         });
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/library-scroll') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final pixels = body['pixels'];
+        if (pixels is! num ||
+            !pixels.isFinite ||
+            pixels < 0 ||
+            pixels > 100000) {
+          throw const FormatException();
+        }
+        final actual = await _container
+            .read(libraryScrollDiagnosticsProvider.notifier)
+            .scroll(pixels.toDouble());
+        await _respond(request, HttpStatus.ok, {'pixels': actual});
         return;
       }
       if (request.method == 'POST' && path == '/v1/presentation/notice') {
@@ -699,18 +870,10 @@ class SyncDiagnosticsServer {
         return;
       }
       if (request.method == 'GET' && path == '/v1/sync/status') {
-        // The engine updates this map with every progress frame. Refresh it
-        // here as well so a long-running repair exposes its live endpoint mix
-        // instead of the previous completed run's counts.
-        _captureEndpointRequests();
-        final controllerState = _container.read(librarySyncControllerProvider);
         await _respond(
           request,
           HttpStatus.ok,
-          await _syncStateJson(
-            (_activeSync != null ? controllerState : _lastSync) ??
-                controllerState,
-          ),
+          await _syncStateJson(_reportedSyncState()),
         );
         return;
       }
@@ -723,6 +886,12 @@ class SyncDiagnosticsServer {
           'events': List<Map<String, Object?>>.unmodifiable(_syncLedger),
           'durableRuns': await _durableRunHistoryJson(),
           'durableOperations': await _durableOperationLedgerJson(),
+        });
+        return;
+      }
+      if (request.method == 'GET' && path == '/v1/sync/attempts') {
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'attempts': await _durableAttemptHistoryJson(),
         });
         return;
       }
@@ -744,6 +913,14 @@ class SyncDiagnosticsServer {
           if (album != null) ...<String, Object?>{
             'songsHydrated': album.songsHydrated,
             'songCount': album.songCount,
+            if (request.uri.queryParameters['verifySongs'] == 'true')
+              'persistedSongCount':
+                  (await _container
+                          .read(navisDatabaseProvider)
+                          .libraryDao
+                          .watchSongsByAlbum(id)
+                          .first)
+                      .length,
           },
         });
         return;
@@ -948,6 +1125,59 @@ class SyncDiagnosticsServer {
           HttpStatus.ok,
           _container.read(syncDiagnosticsOverridesProvider).toJson(),
         );
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/diagnostics/sync-foreground') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final active = body['active'];
+        if (active is! bool) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'active must be a boolean',
+          });
+          return;
+        }
+        _container
+            .read(librarySyncForegroundProvider.notifier)
+            .setForeground(active);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'active': _container.read(librarySyncForegroundProvider),
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/diagnostics/automatic-sync-due') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final serverId = _container
+            .read(serverConfigStateProvider)
+            .asData
+            ?.value
+            ?.id;
+        if (serverId == null) {
+          await _respond(request, HttpStatus.conflict, <String, Object?>{
+            'error': 'No active server',
+          });
+          return;
+        }
+        await _container
+            .read(navisDatabaseProvider)
+            .librarySyncDao
+            .setNextAutomaticCheckAt(
+              serverId: serverId,
+              nextAutomaticCheckAt: DateTime.now().toUtc().subtract(
+                const Duration(seconds: 1),
+              ),
+            );
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'due': true,
+        });
         return;
       }
       if (request.method == 'POST' && path == '/v1/sync/automatic') {
@@ -1473,6 +1703,50 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' && path == '/v1/playback/queue-index') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final index = body['index'];
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        final length = handler.snapshot.queueSongIds.length;
+        if (index is! int || index < 0 || index >= length) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'index must identify a queued song',
+          });
+          return;
+        }
+        await handler.playFromIndex(index);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'currentIndex': handler.snapshot.currentIndex,
+          'queueCount': handler.snapshot.queueSongIds.length,
+          'mix': _mixStatusJson(),
+        });
+        return;
+      }
+      if (request.method == 'POST' &&
+          (path == '/v1/playback/next' || path == '/v1/playback/previous')) {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        if (path == '/v1/playback/next') {
+          await handler.skipToNext();
+        } else {
+          await handler.skipToPrevious();
+        }
+        await _respond(
+          request,
+          HttpStatus.ok,
+          handler.collectPlaybackDiagnostics(),
+        );
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/playback/pause') {
         final handler = await _waitForPlaybackHandler();
         await handler.waitUntilReady();
@@ -1493,6 +1767,21 @@ class SyncDiagnosticsServer {
           HttpStatus.ok,
           handler.collectPlaybackDiagnostics(),
         );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/diagnostics/metrics/reset') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        _frameMicros.clear();
+        _frameBuildMicros.clear();
+        _frameRasterMicros.clear();
+        _frameSpanMicros.clear();
+        _databaseCanaryMicros.clear();
+        _databaseCanaryMicrosByPhase.clear();
+        _playbackFailureCount = 0;
+        await _respond(request, HttpStatus.ok, {'status': 'reset'});
         return;
       }
       if (request.method == 'GET' && path == '/v1/diagnostics/report') {
@@ -1691,10 +1980,7 @@ class SyncDiagnosticsServer {
     final pendingWork = await database
         .select(database.librarySyncWorkTable)
         .get();
-    final controllerSync = _container.read(librarySyncControllerProvider);
-    final sync = _activeSync != null
-        ? controllerSync
-        : _lastSync ?? controllerSync;
+    final sync = _reportedSyncState();
     final phase = _container.read(sessionRoutePhaseProvider);
     final initialSync = activateInitialSync
         ? _container.read(initialServerSyncControllerProvider).status
@@ -1808,7 +2094,6 @@ class SyncDiagnosticsServer {
           .then<void>(
             (state) {
               _lastSync = state;
-              _captureEndpointRequests();
               _recordSyncLedgerEvent(
                 phase: 'terminal',
                 cause: cause,
@@ -1851,7 +2136,7 @@ class SyncDiagnosticsServer {
       'planKind': state?.planKind?.name,
       'planReason': state?.planReason,
       'result': state?.status.name,
-      'endpointRequests': state == null ? null : _lastEndpointRequests,
+      'endpointRequests': state?.endpointRequests,
       'errorType': errorType,
     });
     if (_syncLedger.length > 50) {
@@ -2179,21 +2464,6 @@ class SyncDiagnosticsServer {
     };
   }
 
-  void _captureEndpointRequests() {
-    final engine = _container.read(librarySyncEngineProvider);
-    DriftLibrarySyncEngine? drift;
-    if (engine is DriftLibrarySyncEngine) {
-      drift = engine;
-    } else if (engine is AdaptiveLibrarySyncCoordinator) {
-      drift = engine.driftExecutor;
-    }
-    if (drift != null) {
-      _lastEndpointRequests = Map<String, int>.from(
-        drift.lastEndpointRequestCounts,
-      );
-    }
-  }
-
   Future<NavisPlaybackHandler> _waitForPlaybackHandler() async {
     final existingHandler = _container.read(audioHandlerProvider);
     if (existingHandler != null) return existingHandler;
@@ -2216,40 +2486,22 @@ class SyncDiagnosticsServer {
     if (id.isEmpty || type == null || field == null) {
       throw const FormatException();
     }
-    final dao = _container.read(navisDatabaseProvider).libraryDao;
+    final dao = _container.read(navisDatabaseProvider).starSyncDao;
     if (field == 'starred') {
       final value = body['value'];
-      if (value is! bool) throw const FormatException();
-      final starred = value ? DateTime.now() : null;
-      switch (type) {
-        case 'artist':
-          await dao.updateArtistStarred(id, starred);
-        case 'album':
-          await dao.updateAlbumStarred(id, starred);
-        case 'song':
-          await dao.updateSongStarred(id, starred);
-        default:
-          throw const FormatException();
-      }
-      await _container
-          .read(navisDatabaseProvider)
-          .starSyncDao
-          .queueStarAction(
-            itemId: id,
-            itemType: type,
-            action: value ? 'star' : 'unstar',
-          );
+      if (value is! bool || !const {'artist', 'album', 'song'}.contains(type))
+        throw const FormatException();
+      await dao.setStarred(itemId: id, itemType: type, liked: value);
     } else if (field == 'rating') {
       final value = body['value'];
-      if (value != null && value is! int) throw const FormatException();
-      switch (type) {
-        case 'album':
-          await dao.updateAlbumRating(id, value as int?);
-        case 'song':
-          await dao.updateSongRating(id, value as int?);
-        default:
-          throw const FormatException();
-      }
+      if ((value != null && value is! int) ||
+          !const {'album', 'song'}.contains(type))
+        throw const FormatException();
+      await dao.setRating(
+        itemId: id,
+        itemType: type,
+        rating: (value as int?) ?? 0,
+      );
     } else {
       throw const FormatException();
     }
@@ -2277,7 +2529,10 @@ class SyncDiagnosticsServer {
     final starSyncDao = _container.read(navisDatabaseProvider).starSyncDao;
     final diagnosticActions = await starSyncDao.getPendingActions();
     for (final action in diagnosticActions.where(
-      (action) => action.itemType == 'song' && action.itemId == songId,
+      (action) =>
+          action.operation == 'star' &&
+          action.itemType == 'song' &&
+          action.itemId == songId,
     )) {
       await starSyncDao.removeAction(action.id);
     }
@@ -2296,28 +2551,43 @@ class SyncDiagnosticsServer {
         ? null
         : await database.librarySyncDao.getOrCreateState(server!.id);
     final playback = _container.read(audioHandlerProvider)?.snapshot;
+    final reportState = _reportedSyncState();
+    final reportedAttempts = reportState.runAttemptId == null
+        ? <Map<String, Object?>>[]
+        : await _durableAttemptHistoryJson(
+            limit: 1,
+            attemptId: reportState.runAttemptId,
+          );
     return <String, Object?>{
       'mode': mode.name,
       'startedAt': _startedAt.toIso8601String(),
       'capturedAt': DateTime.now().toIso8601String(),
       'rssBytes': ProcessInfo.currentRss,
+      'peakRssBytes': ProcessInfo.maxRss,
       'catalog': <String, int>{
         'artists': counts.artists,
         'albums': counts.albums,
         'songs': counts.songs,
       },
-      'sync': await _syncStateJson(
-        _lastSync ?? _container.read(librarySyncControllerProvider),
-      ),
+      'sync': await _syncStateJson(reportState),
       'syncErrorType': _lastSyncError?.runtimeType.toString(),
+      'reportedAttempt': reportedAttempts.isEmpty
+          ? null
+          : reportedAttempts.first,
       'diagnosticsOverrides': _container
           .read(syncDiagnosticsOverridesProvider)
           .toJson(),
-      'endpointRequests': _lastEndpointRequests,
+      'endpointRequests': reportState.endpointRequests,
+      // These persisted statistics can predate the current incremental run.
+      'promotionScope': 'lastCommittedCatalogPromotion',
+      'promotionGeneration': persistedSync?.currentGeneration,
       'promotion': _decodeSafeJson(
         persistedSync?.lastPromotionDiagnosticsJson,
       ),
       'frames': _sampleSummary(_frameMicros),
+      'frameBuild': _sampleSummary(_frameBuildMicros),
+      'frameRaster': _sampleSummary(_frameRasterMicros),
+      'frameSpan': _sampleSummary(_frameSpanMicros),
       'databaseCanary': _sampleSummary(_databaseCanaryMicros),
       'databaseCanaryByPhase': <String, Object?>{
         for (final entry in _databaseCanaryMicrosByPhase.entries)
@@ -2332,6 +2602,20 @@ class SyncDiagnosticsServer {
     };
   }
 
+  LibrarySyncState _reportedSyncState() {
+    final controller = _container.read(librarySyncControllerProvider);
+    if (_activeSync != null) return controller;
+    final lastApiRun = _lastSync;
+    if (lastApiRun == null) return controller;
+    final controllerRequestId = controller.runRequestId;
+    final apiRequestId = lastApiRun.runRequestId;
+    if (controllerRequestId != null &&
+        (apiRequestId == null || controllerRequestId > apiRequestId)) {
+      return controller;
+    }
+    return lastApiRun;
+  }
+
   Future<Map<String, Object?>> _syncStateJson(LibrarySyncState state) async {
     final policy = _container.read(syncNetworkPolicyProvider);
     final overrides = _container.read(syncDiagnosticsOverridesProvider);
@@ -2340,12 +2624,16 @@ class SyncDiagnosticsServer {
         .libraryDao
         .getCatalogCounts();
     final json = <String, Object?>{
-      'requestActive': _activeSync != null,
+      'requestActive':
+          _activeSync != null || state.status == LibrarySyncStatus.running,
+      'runRequestId': state.runRequestId,
+      'runAttemptId': state.runAttemptId,
       'status': state.status.name,
       'stage': state.stage.name,
       'mode': state.mode?.name,
       'planKind': state.planKind?.name,
       'planReason': state.planReason,
+      'failureCategory': state.failureCategory,
       'nextAutomaticCheckAt': state.nextAutomaticCheckAt
           ?.toUtc()
           .toIso8601String(),
@@ -2354,6 +2642,9 @@ class SyncDiagnosticsServer {
       'total': state.total,
       'hydrationAlbumsPerSecond': state.hydrationThroughputAlbumsPerSecond,
       'pendingWork': state.pendingWorkCount,
+      'pendingHydration': state.pendingHydrationCount,
+      'remainingVerification': state.remainingVerificationCount,
+      'workSummary': await _workSummaryJson(),
       'candidateStatus': state.candidateStatus,
       'candidateGeneration': state.candidateGeneration,
       // Safe aggregate evidence for the explicit repair-confirmation contract;
@@ -2381,7 +2672,7 @@ class SyncDiagnosticsServer {
       'durableOperations': await _durableOperationLedgerJson(),
     };
     if (overrides.requestReporting) {
-      json['endpointRequests'] = _lastEndpointRequests;
+      json['endpointRequests'] = state.endpointRequests;
     }
     return json;
   }
@@ -2463,6 +2754,9 @@ class SyncDiagnosticsServer {
     return entries
         .map(
           (entry) => <String, Object?>{
+            'requestId': entry.requestId,
+            'attemptId': entry.attemptId,
+            'startedAt': entry.startedAt?.toUtc().toIso8601String(),
             'origin': entry.origin.name,
             'intent': entry.intent.name,
             'targetKind': entry.targetKind.name,
@@ -2475,6 +2769,52 @@ class SyncDiagnosticsServer {
           },
         )
         .toList(growable: false);
+  }
+
+  Future<List<Map<String, Object?>>> _durableAttemptHistoryJson({
+    int limit = 20,
+    int? attemptId,
+  }) async {
+    final serverId = _container
+        .read(serverConfigStateProvider)
+        .asData
+        ?.value
+        ?.id;
+    if (serverId == null) return [];
+    final rows = await _container
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .getRecentSyncAttempts(serverId, limit: limit, attemptId: attemptId);
+    return [
+      for (final row in rows)
+        {
+          'requestId': row.requestId,
+          'attemptId': row.id,
+          'status': switch (row.status) {
+            0 => 'running',
+            1 => 'recovered',
+            2 => 'terminal',
+            _ => 'unknown',
+          },
+          'owner': row.ownerKind == 1 ? 'androidWorker' : 'foreground',
+          'startedAt': row.startedAt.toUtc().toIso8601String(),
+          'completedAt': row.completedAt?.toUtc().toIso8601String(),
+          'telemetry': _decodeSafeJson(row.telemetryJson),
+        },
+    ];
+  }
+
+  Future<List<Map<String, Object?>>> _workSummaryJson() async {
+    final serverId = _container
+        .read(serverConfigStateProvider)
+        .asData
+        ?.value
+        ?.id;
+    if (serverId == null) return [];
+    return _container
+        .read(navisDatabaseProvider)
+        .librarySyncDao
+        .getWorkSummary(serverId, DateTime.now());
   }
 
   Object? _decodeSafeJson(String? value) {
@@ -2519,12 +2859,18 @@ class SyncDiagnosticsServer {
 
   void _recordFrameTimings(List<FrameTiming> timings) {
     for (final timing in timings) {
+      _frameBuildMicros.add(timing.buildDuration.inMicroseconds);
+      _frameRasterMicros.add(timing.rasterDuration.inMicroseconds);
+      _frameSpanMicros.add(timing.totalSpan.inMicroseconds);
       _frameMicros.add(
         timing.buildDuration.inMicroseconds +
             timing.rasterDuration.inMicroseconds,
       );
     }
     _trimSamples(_frameMicros);
+    _trimSamples(_frameBuildMicros);
+    _trimSamples(_frameRasterMicros);
+    _trimSamples(_frameSpanMicros);
   }
 
   Future<void> _runDatabaseCanary() async {

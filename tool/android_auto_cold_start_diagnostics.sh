@@ -45,7 +45,7 @@ if [[ ! -f "${APP_APK}" ]]; then
 fi
 
 echo "==> Installing ${APP_PKG} on ${ADB_SERIAL}"
-adb "${ADB_ARGS[@]}" install -r "${APP_APK}" >/dev/null
+adb "${ADB_ARGS[@]}" install -r -d "${APP_APK}" >/dev/null
 adb "${ADB_ARGS[@]}" shell am force-stop "${APP_PKG}"
 adb "${ADB_ARGS[@]}" logcat -c
 

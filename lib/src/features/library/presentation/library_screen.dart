@@ -6,7 +6,6 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
@@ -141,6 +140,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late final ProviderSubscription<int> _libraryScrollSubscription;
   late final ProviderSubscription<bool> _downloadedOnlySubscription;
   late final ProviderSubscription<String?> _typeFilterDiagnosticsSubscription;
+  late final ProviderSubscription<LibraryScrollDiagnosticsRequest?>
+  _scrollDiagnosticsSubscription;
   int _lastLibraryScrollRequest = 0;
 
   // ── Type-to-filter (keyboard-driven inline search) ──────────────────────
@@ -200,6 +201,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         _updateTypeFilter(next);
       },
     );
+    _scrollDiagnosticsSubscription = ref.listenManual(
+      libraryScrollDiagnosticsProvider,
+      (previous, request) async {
+        if (request == null) return;
+        if (!mounted || !_albumsScrollController.hasClients) {
+          request.completed.completeError(
+            StateError('Albums scroll view is not mounted'),
+          );
+          return;
+        }
+        try {
+          final target = request.pixels.clamp(
+            0.0,
+            _albumsScrollController.position.maxScrollExtent,
+          );
+          await _albumsScrollController.animateTo(
+            target,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.linear,
+          );
+          if (!mounted || !_albumsScrollController.hasClients)
+            throw StateError('Albums scroll view detached');
+          request.completed.complete(_albumsScrollController.offset);
+        } on Object catch (error, stack) {
+          request.completed.completeError(error, stack);
+        }
+      },
+    );
     HardwareKeyboard.instance.addHandler(_onLibraryKeyEvent);
   }
 
@@ -208,6 +237,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _libraryScrollSubscription.close();
     _downloadedOnlySubscription.close();
     _typeFilterDiagnosticsSubscription.close();
+    _scrollDiagnosticsSubscription.close();
     _tabController?.removeListener(_handleTabControllerTick);
     _tabController?.dispose();
     _albumsScrollController
@@ -2701,81 +2731,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   // Kept for future star action in album context menu.
   // ignore: unused_element
-  Future<void> _toggleAlbumStar(AlbumsTableData album) async {
-    final l10n = AppLocalizations.of(context)!;
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
-    final isStarred = album.starred != null;
-    // DB update first so all watching streams update immediately (before API ~300ms).
-    final dao = ref.read(navisDatabaseProvider).libraryDao;
-    await dao.updateAlbumStarred(
-      album.id,
-      isStarred ? null : DateTime.now(),
-    );
-    try {
-      if (isStarred) {
-        await api.unstar(album.id);
-      } else {
-        await api.star(album.id);
-      }
-    } on SubsonicConnectionException {
-      if (!mounted) return;
-      final db = ref.read(navisDatabaseProvider);
-      await db.starSyncDao.queueStarAction(
-        itemId: album.id,
-        itemType: 'album',
-        action: isStarred ? 'unstar' : 'star',
-      );
-    } on Object {
-      if (!mounted) return;
-      // Rollback the optimistic DB update on failure.
-      await dao.updateAlbumStarred(
-        album.id,
-        isStarred ? DateTime.now() : null,
-      );
-      showAppNotice(
-        context,
-        message: l10n.albumDetailStarFailure,
-        level: AppNoticeLevel.error,
-      );
-    }
-  }
+  Future<void> _toggleAlbumStar(AlbumsTableData album) =>
+      _saveStarred(album.id, 'album', album.starred == null);
 
-  Future<void> _toggleArtistStar(ArtistsTableData artist) async {
-    final l10n = AppLocalizations.of(context)!;
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
-    final isStarred = artist.starred != null;
-    // DB update first so all watching streams update immediately (before API ~300ms).
-    final dao = ref.read(navisDatabaseProvider).libraryDao;
-    await dao.updateArtistStarred(
-      artist.id,
-      isStarred ? null : DateTime.now(),
-    );
+  Future<void> _toggleArtistStar(ArtistsTableData artist) =>
+      _saveStarred(artist.id, 'artist', artist.starred == null);
+
+  Future<void> _saveStarred(String id, String type, bool liked) async {
     try {
-      if (isStarred) {
-        await api.unstar(artist.id);
-      } else {
-        await api.star(artist.id);
-      }
-    } on SubsonicConnectionException {
-      if (!mounted) return;
-      final db = ref.read(navisDatabaseProvider);
-      await db.starSyncDao.queueStarAction(
-        itemId: artist.id,
-        itemType: 'artist',
-        action: isStarred ? 'unstar' : 'star',
-      );
+      await ref
+          .read(navisDatabaseProvider)
+          .starSyncDao
+          .setStarred(
+            itemId: id,
+            itemType: type,
+            liked: liked,
+          );
     } on Object {
       if (!mounted) return;
-      // Rollback the optimistic DB update on failure.
-      await dao.updateArtistStarred(
-        artist.id,
-        isStarred ? DateTime.now() : null,
-      );
       showAppNotice(
         context,
-        message: l10n.albumDetailStarFailure,
+        message: AppLocalizations.of(context)!.albumDetailStarFailure,
         level: AppNoticeLevel.error,
       );
     }

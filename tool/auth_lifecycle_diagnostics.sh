@@ -2,20 +2,21 @@
 set -euo pipefail
 
 MODE="${1:-clone}"
-if [[ "$MODE" != "clone" ]]; then
-  echo "Usage: $0 clone" >&2
+if [[ "$MODE" != "clone" && "$MODE" != "partial" ]]; then
+  echo "Usage: $0 [clone|partial]" >&2
   exit 64
 fi
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DB="${NAVIS_DIAGNOSTICS_PRIMARY_DB:-$HOME/Documents/navis.sqlite.sqlite}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-OUTPUT_ROOT="$PROJECT_DIR/build/auth-lifecycle-diagnostics/$STAMP-clone"
+OUTPUT_ROOT="$PROJECT_DIR/build/auth-lifecycle-diagnostics/$STAMP-$MODE"
 HANDSHAKE="$OUTPUT_ROOT/handshake.json"
 FIXTURE_HANDSHAKE="$OUTPUT_ROOT/fixture-handshake.json"
 FIXTURE_LOG="$OUTPUT_ROOT/fixture.log"
 CREDENTIAL_FILE="$OUTPUT_ROOT/fixture-password"
 FIXTURE_FAILURE_FLAG="$OUTPUT_ROOT/fixture-sync-failure"
+PARTIAL_ALBUM_FLAG="$OUTPUT_ROOT/fixture-partial-album"
 mkdir -p "$OUTPUT_ROOT"
 chmod 700 "$OUTPUT_ROOT"
 
@@ -52,9 +53,18 @@ start_fixture() {
   printf '%s\n' 'navis-auth-lifecycle-fixture' > "$CREDENTIAL_FILE"
   chmod 600 "$CREDENTIAL_FILE"
   : > "$FIXTURE_LOG"
+  local fixture_args=(
+    --handshake "$FIXTURE_HANDSHAKE"
+    --failure-flag "$FIXTURE_FAILURE_FLAG"
+  )
+  if [[ "$MODE" == "partial" ]]; then
+    fixture_args+=(
+      --scenario partial-album
+      --partial-album-flag "$PARTIAL_ALBUM_FLAG"
+    )
+  fi
   python3 "$PROJECT_DIR/tool/auth_lifecycle_fixture_server.py" \
-    --handshake "$FIXTURE_HANDSHAKE" \
-    --failure-flag "$FIXTURE_FAILURE_FLAG" >>"$FIXTURE_LOG" 2>&1 &
+    "${fixture_args[@]}" >>"$FIXTURE_LOG" 2>&1 &
   FIXTURE_PID=$!
   local deadline=$((SECONDS + 30))
   while [[ ! -s "$FIXTURE_HANDSHAKE" ]] && (( SECONDS < deadline )); do
@@ -249,6 +259,201 @@ assert all(count == 0 for count in value["queues"].values()), value
 assert not any(value["activity"].values()), value
 PY
 }
+
+if [[ "$MODE" == "partial" ]]; then
+  PARTIAL_DB="$OUTPUT_ROOT/partial.sqlite"
+  start_fixture
+  clone_database "$PARTIAL_DB" "$OUTPUT_ROOT/partial-cache"
+  cd "$PROJECT_DIR"
+  launch_app "$PARTIAL_DB" partial-setup
+  api GET /v1/health > "$OUTPUT_ROOT/partial-health.json"
+  wait_for_session ready '' "$OUTPUT_ROOT/partial-ready-before-reset.json" 180
+  : > "$PARTIAL_ALBUM_FLAG"
+  api POST /v1/diagnostics/overrides \
+    '{"networkType":"offline","nativeMetered":false}' >/dev/null
+  api POST /v1/session/reset-initial-state > "$OUTPUT_ROOT/partial-reset.json"
+  wait_for_session initialSyncRequired waitingForNetwork \
+    "$OUTPUT_ROOT/partial-fullscreen.json" 180
+  api POST /v1/diagnostics/overrides \
+    '{"networkType":"wifi","nativeMetered":false}' >/dev/null
+  wait_for_session ready complete "$OUTPUT_ROOT/partial-ready.json" 600
+  capture_screenshot partial-ready-home \
+    "$OUTPUT_ROOT/partial-ready-screenshot.json" \
+    > "$OUTPUT_ROOT/partial-ready-screenshot-path.txt"
+  python3 - "$PARTIAL_DB" <<'PY'
+import sqlite3, sys
+db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+server = db.execute("SELECT last_synced FROM server_config LIMIT 1").fetchone()
+state = db.execute("SELECT current_generation, last_catalog_synced_at, initial_catalog_usable_at FROM library_sync_state LIMIT 1").fetchone()
+pending = db.execute("SELECT count(*) FROM albums WHERE songs_hydrated = 0 AND is_external = 0 AND is_provisional = 0").fetchone()[0]
+songs = db.execute("SELECT count(*) FROM songs WHERE server_deleted_at IS NULL").fetchone()[0]
+assert server is not None and server[0] is None, server
+assert state is not None and state[0] > 0 and state[1] is None and state[2] is not None, state
+assert pending == 1 and songs >= 1, (pending, songs)
+db.close()
+PY
+  stop_app
+  launch_app "$PARTIAL_DB" partial-restart
+  wait_for_session ready '' "$OUTPUT_ROOT/partial-clean-restart.json" 180
+  api GET '/v1/library/album?id=fixture-incomplete-album&verifySongs=true' \
+    > "$OUTPUT_ROOT/partial-album-before-recovery.json"
+  python3 - "$OUTPUT_ROOT/partial-album-before-recovery.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value.get("exists") and value.get("songsHydrated") is False, value
+PY
+  stop_app
+  rm -f "$PARTIAL_ALBUM_FLAG"
+  launch_app "$PARTIAL_DB" partial-recovery
+  wait_for_session ready '' "$OUTPUT_ROOT/partial-recovery-ready.json" 180
+  api POST /v1/diagnostics/overrides \
+    '{"networkType":"wifi","nativeMetered":false}' >/dev/null
+  api POST /v1/diagnostics/sync-foreground '{"active":true}' \
+    > "$OUTPUT_ROOT/partial-foreground.json"
+  api POST /v1/diagnostics/automatic-sync-due \
+    > "$OUTPUT_ROOT/partial-due.json"
+  api POST /v1/sync/automatic > "$OUTPUT_ROOT/partial-automatic-result.json"
+  recovery_deadline=$((SECONDS + 180))
+  next_recovery_dispatch=$((SECONDS + 20))
+  recovery_redispatches=0
+  while (( SECONDS < recovery_deadline )); do
+    api GET '/v1/library/album?id=fixture-incomplete-album&verifySongs=true' \
+      > "$OUTPUT_ROOT/partial-album-after-recovery.json"
+    if python3 - "$OUTPUT_ROOT/partial-album-after-recovery.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if value.get("songsHydrated") is True and value.get("persistedSongCount") == 2 else 1)
+PY
+    then
+      break
+    fi
+    if (( recovery_redispatches < 6 && SECONDS >= next_recovery_dispatch )); then
+      # Startup's deferred automatic request can coalesce with an early
+      # dispatch. Recheck admission at a bounded interval until it settles.
+      api GET /v1/sync/status \
+        > "$OUTPUT_ROOT/partial-recovery-admission-status.json"
+      if python3 - "$OUTPUT_ROOT/partial-recovery-admission-status.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if value.get("requestActive") is False else 1)
+PY
+      then
+        recovery_redispatches=$((recovery_redispatches + 1))
+        api POST /v1/diagnostics/sync-foreground '{"active":true}' \
+          > "$OUTPUT_ROOT/partial-foreground-retry-$recovery_redispatches.json"
+        api POST /v1/diagnostics/automatic-sync-due \
+          > "$OUTPUT_ROOT/partial-due-retry-$recovery_redispatches.json"
+        api POST /v1/sync/automatic \
+          > "$OUTPUT_ROOT/partial-automatic-retry-$recovery_redispatches.json"
+        next_recovery_dispatch=$((SECONDS + 20))
+      else
+        next_recovery_dispatch=$((SECONDS + 5))
+      fi
+    fi
+    sleep 1
+  done
+  python3 - "$OUTPUT_ROOT/partial-album-after-recovery.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value.get("songsHydrated") is True and value.get("persistedSongCount") == 2, value
+PY
+  recovery_settle_deadline=$((SECONDS + 30))
+  while (( SECONDS < recovery_settle_deadline )); do
+    api GET /v1/sync/status > "$OUTPUT_ROOT/partial-recovered-status.json"
+    if python3 - "$OUTPUT_ROOT/partial-recovered-status.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if not value.get("requestActive") else 1)
+PY
+    then
+      break
+    fi
+    sleep 1
+  done
+  python3 - "$OUTPUT_ROOT/partial-recovered-status.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value["requestActive"] is False, value
+assert value["pendingHydration"] == 0, value
+assert any(
+    run.get("intent") == "automaticCatalogCheck"
+    and run.get("outcome") == "completed"
+    and run.get("planKind") == "targetHydration"
+    for run in value["durableRuns"]
+), value
+PY
+  : > "$PARTIAL_ALBUM_FLAG"
+  for rebuild_reason in manual-cache-reset repair-library playback-recovery cache-upgrade; do
+    baseline_request_id="$(api GET /v1/sync/ledger | python3 -c \
+      'import json,sys; print(max((run["requestId"] for run in json.load(sys.stdin)["durableRuns"]), default=0))')"
+    api POST /v1/presentation/navigate \
+      "{\"location\":\"/library-rebuild?reason=$rebuild_reason\"}" \
+      > "$OUTPUT_ROOT/partial-$rebuild_reason-navigation.json"
+    rebuild_deadline=$((SECONDS + 180))
+    while (( SECONDS < rebuild_deadline )); do
+      api GET /v1/presentation/status \
+        > "$OUTPUT_ROOT/partial-$rebuild_reason-presentation.json"
+      api GET /v1/sync/ledger \
+        > "$OUTPUT_ROOT/partial-$rebuild_reason-ledger.json"
+      api GET '/v1/library/album?id=fixture-incomplete-album&verifySongs=true' \
+        > "$OUTPUT_ROOT/partial-$rebuild_reason-album.json"
+      if python3 - \
+        "$OUTPUT_ROOT/partial-$rebuild_reason-presentation.json" \
+        "$OUTPUT_ROOT/partial-$rebuild_reason-ledger.json" \
+        "$OUTPUT_ROOT/partial-$rebuild_reason-album.json" \
+        "$baseline_request_id" <<'PY'
+import json, sys
+presentation = json.load(open(sys.argv[1], encoding="utf-8"))
+ledger = json.load(open(sys.argv[2], encoding="utf-8"))
+album = json.load(open(sys.argv[3], encoding="utf-8"))
+ready = (
+    presentation.get("route") == "/"
+    and album.get("exists") is True
+    and album.get("songsHydrated") is False
+    and any(
+        run.get("requestId", 0) > int(sys.argv[4])
+        and run.get("targetKind") == "catalog"
+        and run.get("outcome") == "partial"
+        for run in ledger["durableRuns"]
+    )
+)
+raise SystemExit(0 if ready else 1)
+PY
+      then
+        break
+      fi
+      sleep 1
+    done
+    python3 - "$OUTPUT_ROOT/partial-$rebuild_reason-presentation.json" \
+      "$OUTPUT_ROOT/partial-$rebuild_reason-ledger.json" \
+      "$OUTPUT_ROOT/partial-$rebuild_reason-album.json" \
+      "$baseline_request_id" <<'PY'
+import json, sys
+presentation = json.load(open(sys.argv[1], encoding="utf-8"))
+ledger = json.load(open(sys.argv[2], encoding="utf-8"))
+album = json.load(open(sys.argv[3], encoding="utf-8"))
+assert presentation.get("route") == "/", presentation
+assert album.get("exists") is True and album.get("songsHydrated") is False, album
+assert any(
+    run.get("requestId", 0) > int(sys.argv[4])
+    and run.get("targetKind") == "catalog"
+    and run.get("outcome") == "partial"
+    for run in ledger["durableRuns"]
+), ledger
+PY
+  done
+  capture_screenshot partial-repair-ready-home \
+    "$OUTPUT_ROOT/partial-repair-ready-screenshot.json" \
+    > "$OUTPUT_ROOT/partial-repair-ready-screenshot-path.txt"
+  stop_app
+  if rg -n 'Unhandled Exception|Tried to modify a provider while|NavisDatabase multiple times' \
+    "$OUTPUT_ROOT"/*-navis.log; then
+    echo "Partial auth diagnostics found a fatal log pattern." >&2
+    exit 1
+  fi
+  echo "Partial auth diagnostics passed: $OUTPUT_ROOT"
+  exit 0
+fi
 
 SETUP_DB="$OUTPUT_ROOT/setup-and-signout.sqlite"
 CANCEL_DB="$OUTPUT_ROOT/cancel.sqlite"

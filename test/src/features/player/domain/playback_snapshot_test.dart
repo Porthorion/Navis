@@ -7,6 +7,25 @@ void main() {
     test('idle snapshot defaults isCurrentSongLiked to false', () {
       const snapshot = PlaybackSnapshot.idle();
       expect(snapshot.isCurrentSongLiked, isFalse);
+      expect(snapshot.pendingQueueIndex, isNull);
+    });
+
+    test('pending queue index identifies the requested entry', () {
+      const snapshot = PlaybackSnapshot(
+        queueSongIds: <String>['a', 'b'],
+        currentSongId: 'a',
+        currentIndex: 0,
+        playing: true,
+        processingState: AudioProcessingState.loading,
+        position: Duration.zero,
+        duration: Duration.zero,
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+        pendingQueueIndex: 1,
+      );
+      expect(snapshot.pendingQueueIndex, 1);
+      expect(snapshot.copyWith(playing: false).pendingQueueIndex, 1);
     });
 
     test('full constructor defaults isCurrentSongLiked to false', () {
@@ -111,6 +130,93 @@ void main() {
       expect(snapshot.lastFailedSongId, isNull);
     });
 
+    test('remote loading follows the selected song, then active buffering', () {
+      const local = PlaybackSnapshot(
+        queueSongIds: <String>['local'],
+        currentSongId: 'local',
+        currentIndex: 0,
+        playing: true,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration(minutes: 3),
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+      );
+      final remotePending = local.copyWith(
+        isLoading: true,
+        loadingSongId: 'ext-deezer-track',
+      );
+      expect(
+        shouldShowRemotePlaybackLoading(
+          playback: remotePending,
+          currentIsExternal: false,
+        ),
+        isTrue,
+      );
+
+      final remoteReady = remotePending.copyWith(
+        currentSongId: 'ext-deezer-track',
+      );
+      expect(
+        shouldShowRemotePlaybackLoading(
+          playback: remoteReady,
+          currentIsExternal: true,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldShowRemotePlaybackLoading(
+          playback: remoteReady.copyWith(
+            isLoading: false,
+            processingState: AudioProcessingState.buffering,
+          ),
+          currentIsExternal: true,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldShowRemotePlaybackLoading(
+          playback: remoteReady.copyWith(isLoading: false),
+          currentIsExternal: true,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldShowRemotePlaybackLoading(
+          playback: remoteReady.copyWith(
+            isLoading: false,
+            playing: false,
+            processingState: AudioProcessingState.buffering,
+          ),
+          currentIsExternal: true,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldShowRemotePlaybackLoading(
+          playback: remoteReady.copyWith(
+            isLoading: true,
+            loadingSongId: 'local-track',
+            processingState: AudioProcessingState.buffering,
+          ),
+          currentIsExternal: true,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldShowRemotePlaybackLoading(
+          playback: remoteReady.copyWith(
+            isLoading: false,
+            processingState: AudioProcessingState.idle,
+            lastFailedSongId: 'ext-deezer-track',
+          ),
+          currentIsExternal: true,
+        ),
+        isFalse,
+      );
+    });
+
     test('song metadata keeps transcoded playback duration stable', () {
       const metadataDuration = Duration(minutes: 4);
 
@@ -150,6 +256,18 @@ void main() {
           playerDuration: decoderDuration,
         ),
         decoderDuration,
+      );
+    });
+
+    test('pending queue index can be cleared after navigation settles', () {
+      const pending = PlaybackSnapshot.idle();
+      final selected = pending.copyWith(pendingQueueIndex: 3);
+
+      expect(selected.pendingQueueIndex, 3);
+      expect(selected.copyWith().pendingQueueIndex, 3);
+      expect(
+        selected.copyWith(pendingQueueIndex: null).pendingQueueIndex,
+        isNull,
       );
     });
   });

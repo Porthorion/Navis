@@ -333,7 +333,7 @@ void main() {
 
       final legacyToggle = find.widgetWithText(
         SwitchListTile,
-        'Legacy Instant Mix',
+        'Last.fm · Same Vibes',
       );
       await tester.ensureVisible(legacyToggle);
       await tester.pumpAndSettle();

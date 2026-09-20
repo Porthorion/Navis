@@ -15,5 +15,5 @@ class PlaylistSongsTable extends Table {
   IntColumn get sortOrder => integer()();
 
   @override
-  Set<Column<Object>> get primaryKey => {playlistId, songId};
+  Set<Column<Object>> get primaryKey => {playlistId, sortOrder};
 }

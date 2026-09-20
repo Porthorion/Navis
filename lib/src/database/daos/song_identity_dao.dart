@@ -221,17 +221,8 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         <Object?>[oldId],
       );
       await customStatement(
-        '''
-        INSERT OR IGNORE INTO playlist_songs (playlist_id, song_id, sort_order)
-        SELECT playlist_id, ?, sort_order
-        FROM playlist_songs
-        WHERE song_id = ?;
-        ''',
+        'UPDATE playlist_songs SET song_id = ? WHERE song_id = ?;',
         <Object?>[canonicalId, oldId],
-      );
-      await customStatement(
-        'DELETE FROM playlist_songs WHERE song_id = ?;',
-        <Object?>[oldId],
       );
       await customStatement(
         '''

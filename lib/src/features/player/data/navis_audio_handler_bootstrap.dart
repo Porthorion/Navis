@@ -84,6 +84,9 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   double initialVolume = 1.0,
   NetworkUsageReporter? reportNetworkUsage,
   void Function(RollingCacheActivity activity)? reportRollingCacheActivity,
+  Future<bool> Function(bool autoPlay)? startPersonalRadio,
+  Future<void> Function(String)? startPreferredMix,
+  Future<void> Function(String)? togglePreferredMix,
 }) {
   final cached = _audioHandlerInitCache;
   if (cached != null && !cached.invalidated) {
@@ -108,6 +111,9 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       initialVolume: initialVolume,
       reportNetworkUsage: reportNetworkUsage,
       reportRollingCacheActivity: reportRollingCacheActivity,
+      startPersonalRadio: startPersonalRadio,
+      startPreferredMix: startPreferredMix,
+      togglePreferredMix: togglePreferredMix,
     );
   }
 
@@ -164,12 +170,25 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   return initFuture;
 }
 
-class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
+class WindowsNavisPlaybackHandler
+    implements NavisPlaybackHandler, PlaybackStartupObserver {
   WindowsNavisPlaybackHandler(this._delegate) {
     _smtcBridge = WindowsSmtcBridge(handler: this);
   }
 
   final NavisAudioHandler _delegate;
+
+  @override
+  int beginPlaybackSelection(String songId, {required bool isExternal}) =>
+      _delegate.beginPlaybackSelection(songId, isExternal: isExternal);
+
+  @override
+  void notePlaybackSelectionStage(int attempt, String stage) =>
+      _delegate.notePlaybackSelectionStage(attempt, stage);
+
+  @override
+  bool isPlaybackSelectionCurrent(int attempt) =>
+      _delegate.isPlaybackSelectionCurrent(attempt);
   late final WindowsSmtcBridge _smtcBridge;
 
   void beginTeardown() {
@@ -365,12 +384,25 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   ) => _delegate.registerPreferredMixToggleCallback(callback);
 }
 
-class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
+class LinuxNavisPlaybackHandler
+    implements NavisPlaybackHandler, PlaybackStartupObserver {
   LinuxNavisPlaybackHandler(this._delegate) {
     _mprisBridge = LinuxMprisBridge(handler: this);
   }
 
   final NavisAudioHandler _delegate;
+
+  @override
+  int beginPlaybackSelection(String songId, {required bool isExternal}) =>
+      _delegate.beginPlaybackSelection(songId, isExternal: isExternal);
+
+  @override
+  void notePlaybackSelectionStage(int attempt, String stage) =>
+      _delegate.notePlaybackSelectionStage(attempt, stage);
+
+  @override
+  bool isPlaybackSelectionCurrent(int attempt) =>
+      _delegate.isPlaybackSelectionCurrent(attempt);
   late final LinuxMprisBridge _mprisBridge;
 
   void beginTeardown() {

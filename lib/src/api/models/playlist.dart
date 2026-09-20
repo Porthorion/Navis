@@ -15,6 +15,7 @@ abstract class Playlist with _$Playlist {
     @JsonKey(name: 'public') bool? isPublic,
     String? coverArt,
     String? comment,
+    DateTime? changed,
     @Default(<Song>[]) List<Song> entries,
   }) = _Playlist;
 

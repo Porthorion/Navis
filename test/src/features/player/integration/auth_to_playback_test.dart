@@ -252,7 +252,7 @@ void main() {
 
       expect(handler.replaceQueueCalls, 1);
       expect(handler.replaceQueueWithDataCalls, 1);
-      expect(handler.playCalls, 1);
+      expect(handler.playCalls, 0);
       expect(handler.lastQueue, <String>['remote-song-1']);
       expect(handler.lastExpandMatchFlows, isFalse);
 

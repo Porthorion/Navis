@@ -57,6 +57,24 @@ class _FakeQueueController extends QueueController {
     }
     return insertedCount ?? songs.length;
   }
+
+  @override
+  Future<RecommendationQueueResult> appendRecommendationTracks(
+    List<Song> songs, {
+    bool expandMatchFlows = false,
+    bool Function()? isCurrent,
+  }) async {
+    if (isCurrent != null && !isCurrent()) {
+      return const RecommendationQueueResult(<String>[]);
+    }
+    final count = await appendMixTracks(
+      songs,
+      expandMatchFlows: expandMatchFlows,
+    );
+    return RecommendationQueueResult(
+      songs.take(count).map((song) => song.id).toList(),
+    );
+  }
 }
 
 void main() {
@@ -147,11 +165,19 @@ void main() {
           _SnapshotController.new,
         );
 
+    final api = _MockSubsonicApiClient();
+    when(
+      () => api.getSimilarSongs2(
+        any(),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenAnswer((_) async => songs(5));
     final container = ProviderContainer(
       overrides: [
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
         queueProvider.overrideWith(_FakeQueueController.new),
-        subsonicApiProvider.overrideWith((_) => null),
+        subsonicApiProvider.overrideWithValue(api),
         audioMuseRepositoryProvider.overrideWith((_) => null),
         appSettingsProvider.overrideWithValue(
           const AsyncData(AppSettingsModel.defaults()),
@@ -179,7 +205,7 @@ void main() {
   });
 
   test(
-    'legacy activation inserts 50 Subsonic instant-mix tracks',
+    'server activation inserts 50 generic similar tracks',
     () async {
       final snapshotState =
           NotifierProvider<_SnapshotController, PlaybackSnapshot>(
@@ -187,7 +213,7 @@ void main() {
           );
       final api = _MockSubsonicApiClient();
       when(
-        () => api.getInstantMix(
+        () => api.getSimilarSongs2(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
@@ -246,9 +272,15 @@ void main() {
       expect(queue.mixTrackBatches.single, hasLength(50));
       expect(queue.mixTrackBatches.single.first.id, 'rec-0');
       expect(container.read(instantMixProvider).pendingSnackbar, '50');
-      verify(() => api.getInstantMix('seed', count: 50)).called(1);
+      verify(
+        () => api.getSimilarSongs2(
+          'seed',
+          count: 50,
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).called(1);
       verifyNever(
-        () => api.getSimilarSongs(
+        () => api.getInstantMix(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
@@ -266,7 +298,7 @@ void main() {
           );
       final api = _MockSubsonicApiClient();
       when(
-        () => api.getInstantMix(
+        () => api.getSimilarSongs2(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
@@ -335,7 +367,7 @@ void main() {
           );
       final api = _MockSubsonicApiClient();
       when(
-        () => api.getInstantMix(
+        () => api.getSimilarSongs2(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
@@ -394,7 +426,7 @@ void main() {
   );
 
   test(
-    'legacy activation falls back to similar songs when instant mix is unsupported',
+    'server activation falls back to instant mix only when similarity is unsupported',
     () async {
       final snapshotState =
           NotifierProvider<_SnapshotController, PlaybackSnapshot>(
@@ -402,7 +434,7 @@ void main() {
           );
       final api = _MockSubsonicApiClient();
       when(
-        () => api.getInstantMix(
+        () => api.getSimilarSongs2(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
@@ -411,7 +443,16 @@ void main() {
         const SubsonicNotFoundException(message: 'Unsupported endpoint'),
       );
       when(
-        () => api.getSimilarSongs(
+        () => api.getLegacySimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenThrow(
+        const SubsonicNotFoundException(message: 'Unsupported endpoint'),
+      );
+      when(
+        () => api.getInstantMix(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
@@ -453,63 +494,91 @@ void main() {
       expect(queue.mixTrackBatches, hasLength(1));
       expect(queue.mixTrackBatches.single, hasLength(50));
       expect(queue.mixTrackBatches.single.first.id, 'similar-0');
-      verify(() => api.getInstantMix('seed', count: 50)).called(1);
-      verify(() => api.getSimilarSongs('seed', count: 50)).called(1);
+      verify(
+        () => api.getSimilarSongs2(
+          'seed',
+          count: 50,
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).called(1);
+      verify(
+        () => api.getInstantMix(
+          'seed',
+          count: 50,
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).called(1);
     },
   );
 
-  test('AudioMuse recommendations append to the queue', () async {
-    final snapshotState =
-        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-          _SnapshotController.new,
-        );
-    final audioMuse = _MockAudioMuseRepository();
-    when(
-      () => audioMuse.getRecommendations(
-        seedSongId: any(named: 'seedSongId'),
-      ),
-    ).thenAnswer(
-      (_) async => const <AudioMuseRecommendation>[
-        AudioMuseRecommendation(id: 'ai-1', title: 'AI 1'),
-        AudioMuseRecommendation(id: 'ai-2', title: 'AI 2'),
-      ],
-    );
+  test(
+    'server mix uses server API rather than a direct AudioMuse client',
+    () async {
+      final snapshotState =
+          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+            _SnapshotController.new,
+          );
+      final audioMuse = _MockAudioMuseRepository();
+      when(
+        () => audioMuse.getRecommendations(
+          seedSongId: any(named: 'seedSongId'),
+        ),
+      ).thenAnswer(
+        (_) async => const <AudioMuseRecommendation>[
+          AudioMuseRecommendation(id: 'ai-1', title: 'AI 1'),
+          AudioMuseRecommendation(id: 'ai-2', title: 'AI 2'),
+        ],
+      );
+      final api = _MockSubsonicApiClient();
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => songs(2, prefix: 'server'));
 
-    final container = ProviderContainer(
-      overrides: [
-        playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
-        queueProvider.overrideWith(_FakeQueueController.new),
-        subsonicApiProvider.overrideWith((_) => null),
-        audioMuseRepositoryProvider.overrideWithValue(audioMuse),
-        lastFmApiKeyProvider.overrideWithValue('test-key'),
-        appSettingsProvider.overrideWithValue(
-          AsyncData(
-            AppSettingsModel.defaults().copyWith(
-              legacyInstantMixEnabled: false,
+      final container = ProviderContainer(
+        overrides: [
+          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+          queueProvider.overrideWith(_FakeQueueController.new),
+          subsonicApiProvider.overrideWithValue(api),
+          audioMuseRepositoryProvider.overrideWithValue(audioMuse),
+          lastFmApiKeyProvider.overrideWithValue('test-key'),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              AppSettingsModel.defaults().copyWith(
+                legacyInstantMixEnabled: false,
+              ),
             ),
           ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container
+          .read(snapshotState.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['seed', 'queued'],
+              currentSongId: 'seed',
+              currentIndex: 0,
+            ),
+          );
+
+      await container.read(instantMixProvider.notifier).activate('seed');
+
+      final queue =
+          container.read(queueProvider.notifier) as _FakeQueueController;
+      expect(queue.mixTrackBatches.single.length, 2);
+      expect(queue.mixTrackBatches.single.first.id, 'server-0');
+      verifyNever(
+        () => audioMuse.getRecommendations(
+          seedSongId: any(named: 'seedSongId'),
         ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    container
-        .read(snapshotState.notifier)
-        .emitSnapshot(
-          snapshot(
-            queueSongIds: const <String>['seed', 'queued'],
-            currentSongId: 'seed',
-            currentIndex: 0,
-          ),
-        );
-
-    await container.read(instantMixProvider.notifier).activate('seed');
-
-    final queue =
-        container.read(queueProvider.notifier) as _FakeQueueController;
-    expect(queue.mixTrackBatches.single.length, 2);
-    expect(queue.mixTrackBatches.single.first.id, 'ai-1');
-  });
+      );
+    },
+  );
 
   test('auto-refill path updates seed when remaining tracks <= 3', () async {
     final snapshotState =
@@ -517,12 +586,20 @@ void main() {
           _SnapshotController.new,
         );
 
+    final api = _MockSubsonicApiClient();
+    when(
+      () => api.getSimilarSongs2(
+        any(),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenAnswer((_) async => songs(5));
     final container = ProviderContainer(
       overrides: [
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
         queueProvider.overrideWith(_FakeQueueController.new),
         audioHandlerProvider.overrideWithValue(null),
-        subsonicApiProvider.overrideWith((_) => null),
+        subsonicApiProvider.overrideWithValue(api),
         audioMuseRepositoryProvider.overrideWith((_) => null),
         appSettingsProvider.overrideWithValue(
           const AsyncData(AppSettingsModel.defaults()),
@@ -543,13 +620,24 @@ void main() {
         );
     await notifier.activate('seed-a');
 
+    await Future<void>.delayed(const Duration(milliseconds: 1250));
+
     container
         .read(snapshotState.notifier)
         .emitSnapshot(
           snapshot(
-            queueSongIds: const <String>['seed-a', 'b', 'c', 'd'],
+            queueSongIds: const <String>[
+              'seed-a',
+              'b',
+              'c',
+              'd',
+              'e',
+              'f',
+              'g',
+              'h',
+            ],
             currentSongId: 'seed-b',
-            currentIndex: 0,
+            currentIndex: 6,
           ),
         );
     await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -565,12 +653,20 @@ void main() {
           _SnapshotController.new,
         );
 
+    final api = _MockSubsonicApiClient();
+    when(
+      () => api.getSimilarSongs2(
+        any(),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenAnswer((_) async => songs(5));
     final container = ProviderContainer(
       overrides: [
         playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
         queueProvider.overrideWith(_FakeQueueController.new),
         audioHandlerProvider.overrideWithValue(null),
-        subsonicApiProvider.overrideWith((_) => null),
+        subsonicApiProvider.overrideWithValue(api),
         audioMuseRepositoryProvider.overrideWith((_) => null),
         appSettingsProvider.overrideWithValue(
           const AsyncData(AppSettingsModel.defaults()),
@@ -604,6 +700,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 10));
 
     final state = container.read(instantMixProvider);
-    expect(state.seedSongId, 'seed-a');
+    expect(state.active, isFalse);
+    expect(state.seedSongId, isNull);
   });
 }

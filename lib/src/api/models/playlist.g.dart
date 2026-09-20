@@ -15,6 +15,9 @@ _Playlist _$PlaylistFromJson(Map<String, dynamic> json) => _Playlist(
   isPublic: json['public'] as bool?,
   coverArt: json['coverArt'] as String?,
   comment: json['comment'] as String?,
+  changed: json['changed'] == null
+      ? null
+      : DateTime.parse(json['changed'] as String),
   entries:
       (json['entries'] as List<dynamic>?)
           ?.map((e) => Song.fromJson(e as Map<String, dynamic>))
@@ -31,5 +34,6 @@ Map<String, dynamic> _$PlaylistToJson(_Playlist instance) => <String, dynamic>{
   'public': instance.isPublic,
   'coverArt': instance.coverArt,
   'comment': instance.comment,
+  'changed': instance.changed?.toIso8601String(),
   'entries': instance.entries,
 };

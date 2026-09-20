@@ -37,6 +37,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   int? _errorCode;
   String? _errorMessage;
   Completer<Duration?>? _loadCompleter;
+  int _loadGeneration = 0;
 
   /// The index that's currently playing
   int _currentIndex = 0;
@@ -97,9 +98,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         if (_processingState == ProcessingStateMessage.loading) {
           if (!isBuffering && _mediaOpened) {
             _processingState = ProcessingStateMessage.ready;
-            if (_loadCompleter?.isCompleted != true) {
-              _loadCompleter?.complete(_duration);
-            }
+            _completeLoad(_duration);
           }
         } else if (_processingState != ProcessingStateMessage.completed ||
             isBuffering) {
@@ -123,9 +122,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
             start != null &&
             _bufferedPosition > start) {
           _processingState = ProcessingStateMessage.ready;
-          if (_loadCompleter?.isCompleted != true) {
-            _loadCompleter?.complete(_duration);
-          }
+          _completeLoad(_duration);
         }
         _updatePlaybackEvent();
       }),
@@ -153,6 +150,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
           _errorCode = kErrorCode;
           _errorMessage = error;
           _updatePlaybackEvent();
+          final load = _loadCompleter;
+          if (load != null && !load.isCompleted) {
+            load.completeError(StateError('Media source failed to load.'));
+          }
         }
         _logger.severe('ERROR OCCURRED: $error');
       }),
@@ -187,6 +188,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (end != null) duration = end;
     if (start != null) duration -= start;
     _duration = duration;
+  }
+
+  void _completeLoad(Duration? duration) {
+    final load = _loadCompleter;
+    if (load != null && !load.isCompleted) load.complete(duration);
   }
 
   PlaylistMode _loopModeToPlaylistMode(LoopModeMessage loopMode) {
@@ -232,8 +238,16 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<LoadResponse> load(LoadRequest request) async {
     _logger.finest('load(${request.toMap()})');
+    // A later load supersedes the old wait. The previous caller must settle
+    // even if libmpv never emits a ready event for its retired source.
+    _completeLoad(null);
+    final generation = ++_loadGeneration;
+    final load = Completer<Duration?>();
+    unawaited(
+        load.future.then<void>((_) {}, onError: (Object _, StackTrace __) {}));
     _mediaOpened = false;
-    _loadCompleter = Completer();
+    _loadCompleter = load;
+    _setPosition = null;
     _currentIndex = request.initialIndex ?? 0;
     _bufferedPosition = Duration.zero;
     _position = Duration.zero;
@@ -243,29 +257,33 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _errorMessage = null;
     _updatePlaybackEvent();
 
-    if (request.audioSourceMessage is ConcatenatingAudioSourceMessage) {
-      final audioSource =
-          request.audioSourceMessage as ConcatenatingAudioSourceMessage;
-      final playable = Playlist(
-          audioSource.children.map(_convertAudioSourceIntoMediaKit).toList(),
-          index: _currentIndex);
+    try {
+      if (request.audioSourceMessage is ConcatenatingAudioSourceMessage) {
+        final audioSource =
+            request.audioSourceMessage as ConcatenatingAudioSourceMessage;
+        final playable = Playlist(
+            audioSource.children.map(_convertAudioSourceIntoMediaKit).toList(),
+            index: _currentIndex);
 
-      await _player.open(playable, play: _playing);
-    } else {
-      final playable =
-          _convertAudioSourceIntoMediaKit(request.audioSourceMessage);
-      _logger.finest('playable is ${playable.toString()}');
-      await _player.open(playable, play: _playing);
+        await _player.open(playable, play: _playing);
+      } else {
+        final playable =
+            _convertAudioSourceIntoMediaKit(request.audioSourceMessage);
+        _logger.finest('playable is ${playable.toString()}');
+        await _player.open(playable, play: _playing);
+      }
+      if (generation != _loadGeneration) return LoadResponse(duration: null);
+      _mediaOpened = true;
+
+      if (request.initialPosition != null) {
+        _setPosition = _position = request.initialPosition!;
+      }
+
+      _updatePlaybackEvent();
+      return LoadResponse(duration: await load.future);
+    } finally {
+      if (identical(_loadCompleter, load)) _loadCompleter = null;
     }
-    _mediaOpened = true;
-
-    if (request.initialPosition != null) {
-      _setPosition = _position = request.initialPosition!;
-    }
-
-    _updatePlaybackEvent();
-    final duration = await _loadCompleter?.future;
-    return LoadResponse(duration: duration);
   }
 
   @override
@@ -361,7 +379,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       if (length == 0 || length == 1) continue;
 
       if (request.index < (length - 1) && request.index >= 0) {
-        await _player.move(length, request.index);
+        // `add` appends at length - 1. Passing length asks libmpv to move a
+        // nonexistent entry, leaving its playlist out of sync with just_audio.
+        await _player.move(length - 1, request.index);
       }
     }
 
@@ -395,6 +415,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// Release the resources used by this player.
   Future<void> release() async {
     _logger.info('releasing player resources');
+    ++_loadGeneration;
+    _completeLoad(null);
+    _loadCompleter = null;
     _mediaOpened = false;
     await _player.dispose();
     // cancel all stream subscriptions

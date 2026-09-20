@@ -265,3 +265,23 @@ If scrobbling appears stuck, verify:
 1. `/settings/playback` has scrobbling enabled.
 2. reachability banner is not showing offline.
 3. app logs do not show repeated terminal `scrobble` API failures.
+
+## Mix and Instant Radio troubleshooting
+
+**Server mix** uses portable Subsonic similarity first. An empty batch can
+mean the server has no recommendations for that seed, including while a server
+plugin is still indexing. Try another song or use **Instant Radio**, which can
+draw from eligible liked, recent, and local songs. The client does not infer a
+plugin's analysis progress from an empty response.
+
+**Last.fm · Same Vibes** needs a valid Last.fm key to use Last.fm matches.
+When the service has only a few playable library matches, Navis keeps them
+and fills from standard server similarity where available. A rejected key or
+rate limit is shown as an actionable failure rather than retried on every
+playback update.
+
+Home's **Liked only** and **Downloaded only** filters apply to every Instant
+Radio track. Downloaded only requires a permanent file; ordinary offline
+radio can also use a valid rolling-cache file. If radio reports no eligible
+music, relax the filters or download more songs. A catalog listing by itself
+does not make an offline song playable.

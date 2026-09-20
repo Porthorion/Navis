@@ -25,7 +25,11 @@ class _TransportControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final isPlaying = playback.playing;
-    final showLoading = isExternalSource && playback.isLoading;
+    final showLoading = shouldShowRemotePlaybackLoading(
+      playback: playback,
+      currentIsExternal: isExternalSource,
+    );
+    final loadingColor = Theme.of(context).colorScheme.onPrimary;
 
     if (isRadio) {
       // Simplified radio transport: just play/pause and stop.
@@ -51,6 +55,8 @@ class _TransportControls extends ConsumerWidget {
                 showLoading: showLoading,
                 isPlaying: isPlaying,
                 size: compact ? 30 : 36,
+                loadingColor: loadingColor,
+                loadingLabel: l10n.commonLoading,
               ),
             ),
           ),
@@ -179,6 +185,8 @@ class _TransportControls extends ConsumerWidget {
                   showLoading: showLoading,
                   isPlaying: isPlaying,
                   size: compact ? 30 : 36,
+                  loadingColor: loadingColor,
+                  loadingLabel: l10n.commonLoading,
                 ),
               ),
             ),
@@ -288,11 +296,20 @@ Widget _playPauseChild({
   required bool showLoading,
   required bool isPlaying,
   required double size,
+  required Color loadingColor,
+  required String loadingLabel,
 }) {
   if (showLoading) {
-    return SizedBox.square(
-      dimension: size,
-      child: const CircularProgressIndicator(strokeWidth: 2.4),
+    return Semantics(
+      label: loadingLabel,
+      child: SizedBox.square(
+        dimension: size,
+        child: CircularProgressIndicator(
+          key: const ValueKey<String>('remote-playback-loading-indicator'),
+          color: loadingColor,
+          strokeWidth: 2.4,
+        ),
+      ),
     );
   }
   return Icon(isPlaying ? Icons.pause : Icons.play_arrow, size: size);

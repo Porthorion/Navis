@@ -73,6 +73,24 @@ class _FakeQueueController extends QueueController {
     }
     return insertedCount ?? songs.length;
   }
+
+  @override
+  Future<RecommendationQueueResult> appendRecommendationTracks(
+    List<Song> songs, {
+    bool expandMatchFlows = false,
+    bool Function()? isCurrent,
+  }) async {
+    if (isCurrent != null && !isCurrent()) {
+      return const RecommendationQueueResult(<String>[]);
+    }
+    final count = await appendMixTracks(
+      songs,
+      expandMatchFlows: expandMatchFlows,
+    );
+    return RecommendationQueueResult(
+      songs.take(count).map((song) => song.id).toList(),
+    );
+  }
 }
 
 void main() {

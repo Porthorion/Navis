@@ -1,8 +1,21 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:navis/src/utils/app_logger.dart';
+
+DateTime? subsonicRetryAt(String? value) {
+  if (value == null) return null;
+  final seconds = int.tryParse(value.trim());
+  if (seconds != null && seconds >= 0)
+    return DateTime.now().toUtc().add(Duration(seconds: seconds));
+  try {
+    return HttpDate.parse(value.trim());
+  } on FormatException {
+    return null;
+  }
+}
 
 /// Retries transient Subsonic request failures with exponential backoff.
 class SubsonicRetryInterceptor extends Interceptor {
@@ -45,7 +58,24 @@ class SubsonicRetryInterceptor extends Interceptor {
         extra: updatedExtra,
       );
 
-      await Future<void>.delayed(_retryDelay(currentError, attempt));
+      final delay = _retryDelay(currentError, attempt);
+      // Long Retry-After guidance belongs to durable scheduling, not a
+      // sleeping foreground request. Never retry sooner than the server asks.
+      if (delay > const Duration(seconds: 10)) break;
+      await Future<void>.delayed(delay);
+
+      final beforeRetry = retryOptions.extra['navisBeforeSyncRetry'];
+      if (beforeRetry is void Function(int)) {
+        try {
+          final data = currentError.response?.data;
+          beforeRetry(data == null ? 0 : utf8.encode(jsonEncode(data)).length);
+        } on Object catch (error) {
+          handler.next(
+            DioException(requestOptions: retryOptions, error: error),
+          );
+          return;
+        }
+      }
 
       try {
         final response = await dio.fetch<dynamic>(retryOptions);

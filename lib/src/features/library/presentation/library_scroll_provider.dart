@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Incremented whenever the user taps the Library nav icon while already on
@@ -123,3 +125,27 @@ final libraryTypeFilterDiagnosticsProvider =
     NotifierProvider<LibraryTypeFilterDiagnosticsController, String?>(
       LibraryTypeFilterDiagnosticsController.new,
     );
+
+/// Clone-only diagnostics command, consumed by the mounted Albums scroll view.
+class LibraryScrollDiagnosticsRequest {
+  LibraryScrollDiagnosticsRequest(this.pixels);
+  final double pixels;
+  final completed = Completer<double>();
+}
+
+class LibraryScrollDiagnosticsController
+    extends Notifier<LibraryScrollDiagnosticsRequest?> {
+  @override
+  LibraryScrollDiagnosticsRequest? build() => null;
+  Future<double> scroll(double pixels) {
+    final request = LibraryScrollDiagnosticsRequest(pixels);
+    state = request;
+    return request.completed.future.timeout(const Duration(seconds: 3));
+  }
+}
+
+final libraryScrollDiagnosticsProvider =
+    NotifierProvider<
+      LibraryScrollDiagnosticsController,
+      LibraryScrollDiagnosticsRequest?
+    >(LibraryScrollDiagnosticsController.new);

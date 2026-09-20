@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -23,6 +25,130 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  test('cancelled work reopens only for changed evidence', () async {
+    Future<void> observe(String evidence) =>
+        database.librarySyncDao.enqueueWork(
+          serverId: 1,
+          kind: 'targetedHydration',
+          entityId: 'playlist:p',
+          priority: 30,
+          evidenceVersion: evidence,
+          checkpointJson: '{"targetKind":"playlist"}',
+        );
+    await observe('v1');
+    var row = (await database.librarySyncDao.getWork(
+      serverId: 1,
+      kind: 'targetedHydration',
+      entityId: 'playlist:p',
+    ))!;
+    await database.librarySyncDao.markCancelled(row.id);
+    await observe('v1');
+    row = (await database.librarySyncDao.getWork(
+      serverId: 1,
+      kind: 'targetedHydration',
+      entityId: 'playlist:p',
+    ))!;
+    expect(row.status, 'cancelled');
+    await observe('v2');
+    row = (await database.librarySyncDao.getWork(
+      serverId: 1,
+      kind: 'targetedHydration',
+      entityId: 'playlist:p',
+    ))!;
+    expect(row.status, 'queued');
+    expect(row.checkpointJson, contains('v2'));
+    expect(row.notBefore, isNull);
+  });
+
+  test(
+    'work summary separates cooldown and confirmation without target IDs',
+    () async {
+      final now = DateTime.utc(2026, 9, 19);
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'targetedHydration',
+        entityId: 'album:private-id',
+        priority: 1,
+        now: now,
+      );
+      final album = (await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: 'targetedHydration',
+        entityId: 'album:private-id',
+      ))!;
+      await (database.update(
+        database.librarySyncWorkTable,
+      )..where((row) => row.id.equals(album.id))).write(
+        LibrarySyncWorkTableCompanion(
+          status: const Value('failed'),
+          notBefore: Value(now.add(const Duration(minutes: 5))),
+        ),
+      );
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'targetedHydration',
+        entityId: '@starred',
+        priority: 1,
+        now: now,
+      );
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: 'fullRepair',
+        priority: 1,
+        now: now,
+      );
+      final repair = (await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: 'fullRepair',
+      ))!;
+      await database.librarySyncDao.markAwaitingConfirmation(
+        repair.id,
+        now: now,
+      );
+      final summary = await database.librarySyncDao.getWorkSummary(1, now);
+      expect(
+        summary,
+        contains(
+          equals({
+            'target': 'album',
+            'status': 'failed',
+            'coolingDown': true,
+            'nextRetryAt': now
+                .add(const Duration(minutes: 5))
+                .toIso8601String(),
+            'count': 1,
+          }),
+        ),
+      );
+      expect(
+        summary,
+        contains(
+          equals({
+            'target': 'catalog',
+            'status': 'awaitingConfirmation',
+            'coolingDown': false,
+            'nextRetryAt': null,
+            'count': 1,
+          }),
+        ),
+      );
+      expect(
+        summary,
+        contains(
+          equals({
+            'target': 'starred',
+            'status': 'queued',
+            'coolingDown': false,
+            'nextRetryAt': null,
+            'count': 1,
+          }),
+        ),
+      );
+      expect(jsonEncode(summary), isNot(contains('private-id')));
+      expect(await database.librarySyncDao.getWorkSummary(999, now), isEmpty);
+    },
+  );
 
   test('persists one typed request, attempt, and redacted outcome', () async {
     final now = DateTime.utc(2026, 8, 26, 10);
@@ -68,6 +194,11 @@ void main() {
       androidWorker: false,
       now: now,
     );
+    await database.librarySyncDao.writeAttemptTelemetry(attempt.id, {
+      'version': 1,
+      'requestId': queued.id,
+      'attemptId': attempt.id,
+    });
     await database.librarySyncDao.completeSyncRun(
       requestId: queued.id,
       attemptId: attempt.id,
@@ -88,6 +219,58 @@ void main() {
     expect(history.single.outcome, SyncRunOutcomeKind.completed);
     expect(history.single.requestCount, 6);
     expect(history.single.byteCount, 2048);
+    expect(history.single.requestId, queued.id);
+    expect(history.single.attemptId, attempt.id);
+    expect(history.single.startedAt?.toUtc(), now);
+    final recorded = (await database.librarySyncDao.getRecentSyncAttempts(1))
+        .single;
+    expect(recorded.telemetryJson, contains('"version":1'));
+    expect(
+      await database.librarySyncDao.getRecentSyncAttempts(
+        1,
+        attemptId: attempt.id,
+      ),
+      hasLength(1),
+    );
+    expect(
+      await database.librarySyncDao.getRecentSyncAttempts(
+        1,
+        attemptId: attempt.id + 1,
+      ),
+      isEmpty,
+    );
+    expect(
+      await database.librarySyncDao.getRecentSyncAttempts(
+        999,
+        attemptId: attempt.id,
+      ),
+      isEmpty,
+    );
+    await database.librarySyncDao.writeAttemptTelemetry(attempt.id, {
+      'version': 999,
+    });
+    expect(
+      (await database.librarySyncDao.getRecentSyncAttempts(1))
+          .single
+          .telemetryJson,
+      recorded.telemetryJson,
+      reason: 'terminal telemetry cannot be overwritten',
+    );
+    await database.librarySyncDao.pruneAttemptTelemetryBefore(
+      now.add(const Duration(days: 8)),
+    );
+    expect(
+      (await database.librarySyncDao.getRecentSyncAttempts(1))
+          .single
+          .telemetryJson,
+      isNull,
+    );
+    expect(
+      (await database.librarySyncDao.getRecentSyncRunHistory(1))
+          .single
+          .byteCount,
+      2048,
+    );
     final storedRequest = await (database.select(
       database.librarySyncRunRequestTable,
     )..where((table) => table.id.equals(queued.id))).getSingle();
@@ -139,11 +322,15 @@ void main() {
         plan: plan,
         now: now,
       );
-      await database.librarySyncDao.beginSyncRunAttempt(
+      final interrupted = await database.librarySyncDao.beginSyncRunAttempt(
         requestId: queued.id,
         androidWorker: false,
         now: now,
       );
+      await database.librarySyncDao.writeAttemptTelemetry(interrupted.id, {
+        'version': 1,
+        'captureComplete': false,
+      });
 
       await database.librarySyncDao.recoverInterruptedSyncRuns(1, now: now);
 
@@ -155,6 +342,10 @@ void main() {
         database.librarySyncRunAttemptTable,
       )..where((table) => table.requestId.equals(queued.id))).get();
       expect(attempts.single.status, 1);
+      expect(
+        attempts.single.telemetryJson,
+        contains('"captureComplete":false'),
+      );
     },
     skip: !sqliteAvailable,
   );

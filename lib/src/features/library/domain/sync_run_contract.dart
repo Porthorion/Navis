@@ -51,6 +51,7 @@ enum SyncExecutionPlanKind {
 enum SyncEndpoint {
   indexes,
   newestAlbums,
+  catalogAlbums,
   artists,
   artist,
   album,
@@ -101,6 +102,8 @@ class SyncExecutionBudget {
     required this.maxResponseBytes,
     required this.maxTotalBytes,
     required this.maxConcurrency,
+    this.maxRequests = 10000,
+    this.maxDuration = const Duration(minutes: 10),
   });
 
   final Set<SyncEndpoint> allowedEndpoints;
@@ -109,6 +112,8 @@ class SyncExecutionBudget {
   final int? maxResponseBytes;
   final int? maxTotalBytes;
   final int maxConcurrency;
+  final int maxRequests;
+  final Duration maxDuration;
 }
 
 /// A request is immutable from its caller through durable scheduling and

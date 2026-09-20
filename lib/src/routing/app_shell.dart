@@ -31,8 +31,10 @@ import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/mix_mode_reconciliation_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_sheet.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
@@ -610,10 +612,16 @@ class _AppShellState extends ConsumerState<AppShell> {
 
       // Instant Radio: always activate (never toggle).
       handler.registerPreferredMixCallback(
-        (seedSongId) => activatePreferredMixModeFromContainer(
-          ref.container,
-          seedSongId: seedSongId,
-        ),
+        (seedSongId) async {
+          await activatePreferredMixModeFromContainer(
+            ref.container,
+            seedSongId: seedSongId,
+          );
+          if (ref.container.read(recommendationSessionProvider).insertedCount ==
+              0) {
+            throw StateError('Instant Mix did not insert playable tracks.');
+          }
+        },
       );
 
       // Instant Mix: toggle like the in-app player button.
@@ -649,6 +657,16 @@ class _AppShellState extends ConsumerState<AppShell> {
             : l10n.nowPlayingInstantMixError;
         _appNoticeController.show(message: msg, level: AppNoticeLevel.error);
         ref.read(instantMixProvider.notifier).clearError();
+      }
+    });
+
+    ref.listen<PersonalRadioState>(personalRadioProvider, (previous, next) {
+      if (!mounted || !next.active || !(previous?.active ?? false)) return;
+      if (next.source != previous?.source && next.source != null) {
+        _appNoticeController.show(
+          message: l10n.instantRadioFallback,
+          level: AppNoticeLevel.info,
+        );
       }
     });
 
@@ -697,9 +715,12 @@ class _AppShellState extends ConsumerState<AppShell> {
         ref.read(sameVibesProvider.notifier).clearSnackbar();
       }
       if (next.error != null && next.error != prev?.error) {
-        final msg = next.error == SameVibesError.unsupported
-            ? l10n.nowPlayingSameVibesUnsupported
-            : l10n.nowPlayingSameVibesError;
+        final msg = switch (next.error!) {
+          SameVibesError.unsupported => l10n.nowPlayingSameVibesUnsupported,
+          SameVibesError.invalidKey => l10n.sameVibesInvalidKey,
+          SameVibesError.rateLimited => l10n.sameVibesRateLimited,
+          SameVibesError.networkError => l10n.nowPlayingSameVibesError,
+        };
         _appNoticeController.show(message: msg, level: AppNoticeLevel.error);
         ref.read(sameVibesProvider.notifier).clearError();
       }

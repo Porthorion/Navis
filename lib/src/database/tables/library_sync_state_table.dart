@@ -54,6 +54,10 @@ class LibrarySyncStateTable extends Table {
 
   DateTimeColumn get lastCatalogSyncedAt => dateTime().nullable()();
 
+  /// First setup may leave a safely promoted catalog with only incomplete
+  /// server album details pending. This is readiness, not full freshness.
+  DateTimeColumn get initialCatalogUsableAt => dateTime().nullable()();
+
   DateTimeColumn get lastAuxiliarySyncedAt => dateTime().nullable()();
 
   DateTimeColumn get lastGenresSyncedAt => dateTime().nullable()();

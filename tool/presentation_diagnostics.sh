@@ -8,6 +8,8 @@ SEARCH_QUERY="${NAVIS_PRESENTATION_SEARCH_QUERY:-}"
 SEARCH_FILTER="${NAVIS_PRESENTATION_SEARCH_FILTER:-all}"
 SEARCH_REQUIRE_MIXED="${NAVIS_PRESENTATION_SEARCH_REQUIRE_MIXED:-0}"
 SEARCH_PLAY_REMOTE="${NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE:-0}"
+REMOTE_SONG_ID="${NAVIS_PRESENTATION_REMOTE_SONG_ID:-}"
+REMOTE_SEEK="${NAVIS_PRESENTATION_REMOTE_SEEK:-0}"
 OPEN_NOW_PLAYING="${NAVIS_PRESENTATION_OPEN_NOW_PLAYING:-0}"
 TRANSPORT_ACTION="${NAVIS_PRESENTATION_TRANSPORT_ACTION:-}"
 FORCE_SEARCH_REMOTE_FAILURE="${NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE:-0}"
@@ -24,6 +26,10 @@ if [[ "$MODE" != "clone" ]] ||
    [[ ! "$SEARCH_FILTER" =~ ^(all|artists|albums|songs)$ ]] ||
    [[ ! "$SEARCH_REQUIRE_MIXED" =~ ^(0|1)$ ]] ||
    [[ ! "$SEARCH_PLAY_REMOTE" =~ ^(0|1)$ ]] ||
+   [[ -n "$REMOTE_SONG_ID" && ! "$REMOTE_SONG_ID" =~ ^[[:alnum:]_.:-]{1,128}$ ]] ||
+   [[ -n "$REMOTE_SONG_ID" && "$SEARCH_PLAY_REMOTE" != "1" ]] ||
+   [[ ! "$REMOTE_SEEK" =~ ^(0|1)$ ]] ||
+   [[ "$REMOTE_SEEK" == "1" && "$SEARCH_PLAY_REMOTE" != "1" ]] ||
    [[ ! "$OPEN_NOW_PLAYING" =~ ^(0|1)$ ]] ||
    [[ -n "$TRANSPORT_ACTION" && ! "$TRANSPORT_ACTION" =~ ^(baseline|manualNext|manualPrevious|automaticAdvance|restartCurrent|unavailableNext|unavailablePrevious|rapidNext)$ ]] ||
    [[ ! "$FORCE_SEARCH_REMOTE_FAILURE" =~ ^(0|1)$ ]] ||
@@ -117,12 +123,15 @@ cleanup() {
 }
 
 remote_search_song_body() {
-  python3 - "$1" <<'PY'
+  python3 - "$1" "$REMOTE_SONG_ID" <<'PY'
 import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
-record = next((item for item in value.get("songs", []) if item.get("source") == "remote"), None)
+selected_id = sys.argv[2]
+record = next((item for item in value.get("songs", [])
+               if item.get("source") == "remote"
+               and (not selected_id or item.get("id") == selected_id)), None)
 if record is None:
-    raise SystemExit("search returned no remote song to play")
+    raise SystemExit("search returned no matching remote song to play")
 print(json.dumps({"songId": record["id"]}))
 PY
 }
@@ -137,16 +146,53 @@ wait_for_search_song() {
 import json, sys
 expected = json.load(open(sys.argv[1], encoding="utf-8"))["songId"]
 value = json.load(open(sys.argv[2], encoding="utf-8"))
-raise SystemExit(0 if value.get("songId") == expected
-                 and value.get("playing") is True
-                 and value.get("isLoading") is not True else 1)
+attempts = value.get("startupAttempts") or []
+latest = attempts[-1] if attempts else {}
+stages = {event.get("stage") for event in latest.get("events", [])}
+ready = (value.get("songId") == expected
+         and value.get("playing") is True
+         and value.get("isLoading") is not True
+         and value.get("processingState") == "ready"
+         and value.get("playerPositionMs", 0) > 0
+         and "firstAdvancingPosition" in stages)
+failed = (value.get("songId") == expected
+          and value.get("isLoading") is not True
+          and "queueLoadFailed" in stages)
+raise SystemExit(0 if ready else 2 if failed else 1)
+PY
+    then
+      return
+    else
+      local result=$?
+      if [[ "$result" == "2" ]]; then
+        echo "Remote Search song failed to load. See $APP_LOG" >&2
+        exit 70
+      fi
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for the remote Search song. See $APP_LOG" >&2
+  exit 70
+}
+
+wait_for_remote_seek() {
+  local output_file="$1"
+  local deadline=$((SECONDS + 30))
+  while (( SECONDS < deadline )); do
+    api GET /v1/playback/status > "$output_file"
+    if python3 - "$output_file" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if value.get("playing") is True
+                 and value.get("processingState") == "ready"
+                 and value.get("playerPositionMs", 0) > 30000 else 1)
 PY
     then
       return
     fi
     sleep 1
   done
-  echo "Timed out waiting for the remote Search song. See $APP_LOG" >&2
+  echo "Timed out waiting for the remote song seek. See $APP_LOG" >&2
   exit 70
 }
 trap cleanup EXIT INT TERM
@@ -574,13 +620,42 @@ run_capture() {
     if [[ "$SEARCH_PLAY_REMOTE" == "1" ]]; then
       api POST /v1/presentation/search/play \
         "$(remote_search_song_body "$OUTPUT_ROOT/$prefix-search.json")" \
-        > "$OUTPUT_ROOT/$prefix-search-play.json"
+        > "$OUTPUT_ROOT/$prefix-search-play.json" &
+      local play_pid=$!
+      local loading_deadline=$((SECONDS + 10))
+      while (( SECONDS < loading_deadline )) && kill -0 "$play_pid" 2>/dev/null; do
+        api GET /v1/playback/status \
+          > "$OUTPUT_ROOT/$prefix-remote-loading-status.json"
+        if python3 - "$OUTPUT_ROOT/$prefix-remote-loading-status.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if value.get("isLoading") is True
+                 and value.get("loadingSongId") else 1)
+PY
+        then
+          api POST /v1/presentation/player-overlay \
+            '{"surface":"nowPlaying","visible":true}' \
+            > "$OUTPUT_ROOT/$prefix-now-playing-overlay.json"
+          capture_window_screenshot \
+            "$prefix-remote-loading-screenshot" "$prefix-remote-loading"
+          break
+        fi
+        sleep 0.2
+      done
+      wait "$play_pid"
       wait_for_search_song \
         "$OUTPUT_ROOT/$prefix-search-play.json" \
         "$OUTPUT_ROOT/$prefix-search-playback.json"
-      api POST /v1/presentation/player-overlay \
-        '{"surface":"nowPlaying","visible":true}' \
-        > "$OUTPUT_ROOT/$prefix-now-playing-overlay.json"
+      if [[ "$REMOTE_SEEK" == "1" ]]; then
+        api POST /v1/playback/seek '{"positionMs":30000}' \
+          > "$OUTPUT_ROOT/$prefix-remote-seek.json"
+        wait_for_remote_seek "$OUTPUT_ROOT/$prefix-remote-seek-playback.json"
+      fi
+      if [[ ! -f "$OUTPUT_ROOT/$prefix-now-playing-overlay.json" ]]; then
+        api POST /v1/presentation/player-overlay \
+          '{"surface":"nowPlaying","visible":true}' \
+          > "$OUTPUT_ROOT/$prefix-now-playing-overlay.json"
+      fi
     fi
   fi
   if [[ ( "$OPEN_NOW_PLAYING" == "1" || -n "$TRANSPORT_ACTION" ) && "$SEARCH_PLAY_REMOTE" != "1" ]]; then
@@ -773,7 +848,8 @@ python3 - \
   "$ARTIST_TOP_TRACKS_FIXTURE" \
   "$ERROR_NOTICE" \
   "$BOOTSTRAP_RECOVERY" \
-  "$LABEL" <<'PY'
+  "$LABEL" \
+  "$REMOTE_SEEK" <<'PY'
 import json, sys
 screenshots = []
 for path in sys.argv[4:6]:
@@ -817,6 +893,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
               "POST /v1/presentation/search/play",
               "POST /v1/presentation/player-overlay",
             ] if sys.argv[7] == "1" else [])
+          + (["POST /v1/playback/seek"] if sys.argv[17] == "1" else [])
           + (["POST /v1/presentation/player-overlay"]
              if sys.argv[10] == "1" and sys.argv[7] != "1" else []),
         "screenshots": screenshots,
@@ -824,6 +901,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
         "logReview": "no-hard-fail-patterns",
         "qualityGate": sys.argv[3],
         "cleanRestart": "passed",
+        "remoteSeek": "passed" if sys.argv[17] == "1" else "not-run",
     }, output)
 PY
 

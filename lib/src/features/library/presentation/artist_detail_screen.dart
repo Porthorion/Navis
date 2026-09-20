@@ -7,7 +7,6 @@ import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
@@ -67,42 +66,22 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   }
 
   Future<void> _toggleStar({required bool isStarred}) async {
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) return;
-    // Optimistic update — flip the icon immediately, block re-taps in flight.
     setState(() {
       _isStarred = !isStarred;
       _isStarring = true;
     });
-    // DB update first so all watching streams update immediately (before API ~300ms).
-    final dao = ref.read(navisDatabaseProvider).libraryDao;
-    await dao.updateArtistStarred(
-      widget.artistId,
-      isStarred ? null : DateTime.now(),
-    );
     try {
-      if (isStarred) {
-        await api.unstar(widget.artistId);
-      } else {
-        await api.star(widget.artistId);
-      }
-    } on SubsonicConnectionException {
-      // Offline — queue for retry and keep the optimistic UI (DB already updated).
+      await ref
+          .read(navisDatabaseProvider)
+          .starSyncDao
+          .setStarred(
+            itemId: widget.artistId,
+            itemType: 'artist',
+            liked: !isStarred,
+          );
+    } on Object {
+      // A local persistence failure means the intent was not saved.
       if (!mounted) return;
-      final db = ref.read(navisDatabaseProvider);
-      await db.starSyncDao.queueStarAction(
-        itemId: widget.artistId,
-        itemType: 'artist',
-        action: isStarred ? 'unstar' : 'star',
-      );
-    } on Object catch (error, stackTrace) {
-      debugPrint('Star toggle failed: $error\n$stackTrace');
-      // Rollback the optimistic update on failure.
-      if (!mounted) return;
-      await dao.updateArtistStarred(
-        widget.artistId,
-        isStarred ? DateTime.now() : null,
-      );
       setState(() => _isStarred = isStarred);
       showAppNotice(
         context,

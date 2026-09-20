@@ -217,7 +217,8 @@ class DriftRollingCacheManager implements RollingCacheManager {
         // Stale .part files (interrupted downloads from previous sessions).
         // Skip anything touched recently — active downloads update mtime
         // continuously, so a 2-hour threshold safely excludes them.
-        if (path.endsWith('.part')) {
+        if (path.endsWith('.part') ||
+            RegExp(r'\.part\.[0-9]+\.[0-9]+$').hasMatch(path)) {
           final age = _now().difference(entity.statSync().modified);
           if (age < const Duration(hours: 2)) {
             continue;

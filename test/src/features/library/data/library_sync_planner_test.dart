@@ -139,7 +139,7 @@ void main() {
   });
 
   test('pending album work resumes without a broad catalog scan', () {
-    final plan = planner.plan(context(pendingHydration: 4));
+    final plan = planner.plan(context(pendingHydration: 4, due: false));
     expect(plan.kind, LibrarySyncPlanKind.targetedHydration);
   });
 
@@ -164,6 +164,17 @@ void main() {
     expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
     expect(plan.shouldExecute, isTrue);
     expect(plan.reason, 'manualCatalogDiscovery');
+  });
+
+  test('eligible due automatic checks discover beyond an unchanged index', () {
+    final plan = planner.plan(context(indexChanged: false));
+    expect(plan.kind, LibrarySyncPlanKind.deltaReconcile);
+    expect(plan.reason, 'automaticCatalogDiscovery');
+    expect(plan.shouldExecute, isTrue);
+    final duringPlayback = planner.plan(context(playing: true));
+    expect(duringPlayback.deferred, isTrue);
+    final backgrounded = planner.plan(context(foreground: false));
+    expect(backgrounded.deferred, isTrue);
   });
 
   test(

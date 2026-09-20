@@ -12,6 +12,250 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
+  test(
+    'v77 catalog readiness migrates separately from full freshness',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_catalog_readiness_migration_',
+      );
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await seed.librarySyncDao.getOrCreateState(1);
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      raw.execute(
+        'ALTER TABLE library_sync_state DROP COLUMN initial_catalog_usable_at',
+      );
+      raw.execute('PRAGMA user_version = 77');
+      raw.dispose();
+      final migrated = createTestDatabase(file: file);
+      addTearDown(() async {
+        await migrated.close();
+        await directory.delete(recursive: true);
+      });
+      final state = await migrated.librarySyncDao.getOrCreateState(1);
+      expect(state.initialCatalogUsableAt, isNull);
+      expect(state.lastCatalogSyncedAt, isNull);
+      await migrated.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: const Value(1),
+          initialCatalogUsableAt: Value(DateTime.utc(2026, 9, 20)),
+        ),
+      );
+      final ready = await migrated.librarySyncDao.getOrCreateState(1);
+      expect(ready.initialCatalogUsableAt, isNotNull);
+      expect(ready.lastCatalogSyncedAt, isNull);
+      expect(migrated.schemaVersion, 78);
+    },
+  );
+
+  test('v76 attempts survive migration with unknown telemetry', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'navis_attempt_migration_',
+    );
+    final file = File(p.join(directory.path, 'fixture.sqlite'));
+    final seed = createTestDatabase(file: file);
+    await seed.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'https://example.test',
+        username: 'fixture',
+        apiVersion: '1.16.1',
+      ),
+    );
+    final now = DateTime.utc(2026, 9, 19);
+    final requestId = await seed
+        .into(seed.librarySyncRunRequestTable)
+        .insert(
+          LibrarySyncRunRequestTableCompanion.insert(
+            serverId: 1,
+            contractVersion: 1,
+            origin: 0,
+            intent: 0,
+            targetKind: 0,
+            networkGrant: 0,
+            planKind: 0,
+            priority: 1,
+            coalescingKey: 'fixture',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    final attempt = await seed.librarySyncDao.beginSyncRunAttempt(
+      requestId: requestId,
+      androidWorker: true,
+      now: now,
+    );
+    await seed.close();
+    final raw = sqlite3.open(file.path);
+    raw.execute(
+      'ALTER TABLE library_sync_run_attempt DROP COLUMN telemetry_json',
+    );
+    raw.execute('PRAGMA user_version = 76');
+    raw.dispose();
+    final migrated = createTestDatabase(file: file);
+    addTearDown(() async {
+      await migrated.close();
+      await directory.delete(recursive: true);
+    });
+    final rows = await migrated.librarySyncDao.getRecentSyncAttempts(1);
+    expect(rows.single.id, attempt.id);
+    expect(rows.single.requestId, requestId);
+    expect(rows.single.status, 0);
+    expect(rows.single.ownerKind, 1);
+    expect(rows.single.telemetryJson, isNull);
+    await migrated.librarySyncDao.writeAttemptTelemetry(attempt.id, {
+      'version': 1,
+    });
+    expect(
+      (await migrated.librarySyncDao.getRecentSyncAttempts(1))
+          .single
+          .telemetryJson,
+      '{"version":1}',
+    );
+    expect(migrated.schemaVersion, 78);
+    expect(
+      await migrated.customSelect('PRAGMA foreign_key_check').get(),
+      isEmpty,
+    );
+  });
+
+  test(
+    'v75 playlist migration preserves rows and allows repeated tracks',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_playlist_migration_',
+      );
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 's', title: 'Song'),
+      ]);
+      await seed.playlistDao.upsertPlaylists([
+        PlaylistsTableCompanion.insert(id: 'p', name: 'Playlist'),
+      ]);
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      raw.execute('DROP TABLE annotation_dispatch_lease');
+      raw.execute('DROP TABLE playlist_songs');
+      raw.execute(
+        'CREATE TABLE playlist_songs (playlist_id TEXT NOT NULL REFERENCES playlists(id), '
+        'song_id TEXT NOT NULL REFERENCES songs(id), sort_order INTEGER NOT NULL, PRIMARY KEY (playlist_id, song_id))',
+      );
+      raw.execute("INSERT INTO playlist_songs VALUES ('p','s',4)");
+      raw.execute('PRAGMA user_version = 75');
+      raw.dispose();
+      final migrated = createTestDatabase(file: file);
+      addTearDown(() async {
+        await migrated.close();
+        await directory.delete(recursive: true);
+      });
+      expect(
+        await migrated.playlistDao.watchPlaylistSongs('p').first,
+        hasLength(1),
+      );
+      await migrated
+          .into(migrated.playlistSongsTable)
+          .insert(
+            PlaylistSongsTableCompanion.insert(
+              playlistId: 'p',
+              songId: 's',
+              sortOrder: 1,
+            ),
+          );
+      expect(
+        await migrated.playlistDao.watchPlaylistSongs('p').first,
+        hasLength(2),
+      );
+      expect(
+        await migrated.starSyncDao.acquireDispatchLease(
+          'fixture',
+          DateTime.now(),
+        ),
+        isTrue,
+      );
+      expect(
+        await migrated.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
+    },
+  );
+  test(
+    'v74 adds unknown verification age without claiming old songs are fresh',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_verification_migration_',
+      );
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'kept',
+          name: 'Kept',
+          songsHydrated: const Value(true),
+        ),
+      ]);
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      raw.execute('ALTER TABLE albums DROP COLUMN songs_verified_at');
+      raw.execute('PRAGMA user_version = 74');
+      raw.dispose();
+      final migrated = createTestDatabase(file: file);
+      addTearDown(() async {
+        await migrated.close();
+        await directory.delete(recursive: true);
+      });
+      final album = (await migrated.libraryDao.getAlbumById('kept'))!;
+      expect(album.songsHydrated, isTrue);
+      expect(album.songsVerifiedAt, isNull);
+      expect(migrated.schemaVersion, 78);
+    },
+  );
+  test(
+    'v73 annotation outbox retains pending stars and adds durable retry fields',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_annotation_migration_',
+      );
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.starSyncDao.queueStarAction(
+        itemId: 'a',
+        itemType: 'album',
+        action: 'unstar',
+      );
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      for (final column in [
+        'operation',
+        'attempt_count',
+        'not_before',
+        'last_error_type',
+      ]) {
+        raw.execute('ALTER TABLE star_sync_queue DROP COLUMN $column');
+      }
+      raw.execute('PRAGMA user_version = 73');
+      raw.dispose();
+      final migrated = createTestDatabase(file: file);
+      addTearDown(() async {
+        await migrated.close();
+        await directory.delete(recursive: true);
+      });
+      final pending = (await migrated.starSyncDao.getPendingActions()).single;
+      expect(pending.itemId, 'a');
+      expect(pending.action, 'unstar');
+      expect(pending.operation, 'star');
+      expect(pending.attemptCount, 0);
+      expect(pending.notBefore, isNull);
+      expect(migrated.schemaVersion, 78);
+    },
+  );
   test('latest schema opens with expected user_version', () async {
     final database = NavisDatabase(NativeDatabase.memory());
     addTearDown(database.close);
@@ -20,8 +264,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 73);
-    expect(pragmaRow.read<int>('user_version'), 73);
+    expect(database.schemaVersion, 78);
+    expect(pragmaRow.read<int>('user_version'), 78);
   }, skip: !sqliteAvailable);
 
   test('migrates v70 profiles to typed sync lifecycle storage', () async {
@@ -51,7 +295,7 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 73);
+    expect(migrated.schemaVersion, 78);
     final tables = await migrated
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
         .get();
@@ -96,7 +340,7 @@ void main() {
     final columns = await migrated
         .customSelect("PRAGMA table_info('library_sync_candidate_albums');")
         .get();
-    expect(migrated.schemaVersion, 73);
+    expect(migrated.schemaVersion, 78);
     expect(
       columns.map((row) => row.read<String>('name')),
       contains('recently_added_rank'),
@@ -142,7 +386,7 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 73);
+    expect(migrated.schemaVersion, 78);
     expect(
       (await migrated.libraryDao.getArtistById('ext-artist'))?.isExternal,
       isTrue,
@@ -189,7 +433,7 @@ void main() {
       final marker = await migrated
           .customSelect('SELECT * FROM cache_system_state;')
           .get();
-      expect(version.read<int>('user_version'), 73);
+      expect(version.read<int>('user_version'), 78);
       expect(marker, isEmpty);
     },
     skip: !sqliteAvailable,
@@ -227,7 +471,7 @@ void main() {
         .customSelect("PRAGMA table_info('albums');")
         .get();
 
-    expect(version.read<int>('user_version'), 73);
+    expect(version.read<int>('user_version'), 78);
     expect(
       columns.map((row) => row.read<String>('name')),
       contains('recently_added_rank'),
@@ -362,7 +606,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 73);
+      expect(versionRow.read<int>('user_version'), 78);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -455,7 +699,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 73);
+      expect(versionRow.read<int>('user_version'), 78);
 
       final now = DateTime.utc(2026, 1, 1, 1);
       await migrated.scrobbleDao.enqueue(
@@ -538,7 +782,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 73);
+      expect(versionRow.read<int>('user_version'), 78);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -657,7 +901,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 73);
+      expect(versionRow.read<int>('user_version'), 78);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -775,7 +1019,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 73);
+      expect(versionRow.read<int>('user_version'), 78);
 
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings?.customVoyageServers, isNull);
@@ -852,7 +1096,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 73);
+      expect(versionRow.read<int>('user_version'), 78);
 
       for (final table in <String>['artists', 'albums', 'songs']) {
         final columns = await migrated
@@ -969,7 +1213,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 73);
+      expect(version.read<int>('user_version'), 78);
       final state = await migrated.librarySyncDao.getOrCreateState(1);
       expect(state.conditionalIndexesMode, 'reliable');
       expect(state.bulkSearchMode, 'supported');
@@ -1048,7 +1292,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 73);
+      expect(version.read<int>('user_version'), 78);
       final tables = await migrated
           .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
           .get();
@@ -1130,7 +1374,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 73);
+      expect(version.read<int>('user_version'), 78);
       for (final table in <String>[
         'library_sync_candidate_artists',
         'library_sync_candidate_albums',
@@ -1189,7 +1433,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 73);
+      expect(version.read<int>('user_version'), 78);
       final settingsColumns = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
           .get();
@@ -1278,7 +1522,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 73);
+      expect(migrated.schemaVersion, 78);
       final artist = await migrated.libraryDao.getArtistById(
         'ext-deezer-artist-1',
       );
@@ -1342,7 +1586,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 73);
+      expect(migrated.schemaVersion, 78);
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings, isNotNull);
       expect(settings!.themeMode, 'oled');
@@ -1383,7 +1627,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 73);
+      expect(migrated.schemaVersion, 78);
       final retained = await migrated.serverDao.getRetainedServer();
       expect(retained, isNotNull);
       expect(retained!.isAuthenticated, isTrue);
@@ -1414,7 +1658,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 73);
+    expect(migrated.schemaVersion, 78);
     final table = await migrated
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' "
@@ -1450,7 +1694,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 73);
+    expect(migrated.schemaVersion, 78);
     final column = await migrated
         .customSelect(
           "SELECT name FROM pragma_table_info('library_sync_state') "
@@ -1483,7 +1727,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 73);
+    expect(migrated.schemaVersion, 78);
     final table = await migrated
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' "
@@ -1533,7 +1777,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 73);
+      expect(migrated.schemaVersion, 78);
       final columns = await migrated
           .customSelect("PRAGMA table_info('library_sync_state');")
           .get();

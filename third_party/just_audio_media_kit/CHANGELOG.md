@@ -1,3 +1,10 @@
+## Navis local reliability patch
+
+- Settle superseded or disposed source-load waits so rapid navigation cannot
+  leave a stale `load()` Future pending indefinitely.
+- Move the valid appended playlist index during queue insertion; the old
+  one-past-end index produced libmpv `playlist-move` errors.
+
 ## 2.1.0
 
 - Implement just_audio_platform_interface 4.5.0 and fix media playing when it's not supposed to ([#23](https://github.com/Pato05/just_audio_media_kit/pull/23), thanks [@ryanheise](https://github.com/ryanheise))

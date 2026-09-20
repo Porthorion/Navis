@@ -8,6 +8,8 @@
 #
 # Usage:
 #   ./tool/dev_app.sh run [flutter-run-args...]
+#   ./tool/dev_app.sh run -d linux --first-setup [--offline|--metered]
+#   ./tool/dev_app.sh scenario <isolated-run-dir> <control-action>
 #   ./tool/dev_app.sh linux [flutter-run-args...]
 #   ./tool/dev_app.sh linux-icon
 #   ./tool/dev_app.sh apk [flutter-build-args...]
@@ -188,7 +190,26 @@ install_linux_desktop_icon() {
 
 case "${MODE}" in
   run)
-    flutter run --debug "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
+    scenario_requested=0
+    for arg in "$@"; do
+      case "$arg" in
+        --first-setup|--bad-cache|--force-setup|--repair-library|--manual-cache-reset|--playback-recovery|--partial-album|--server-error|--fresh-login|--offline|--metered|--scenario-source|--scenario-help)
+          scenario_requested=1
+          ;;
+      esac
+    done
+    if (( scenario_requested )); then
+      if [[ "$*" == *--scenario-help* ]]; then
+        python3 "${SCRIPT_DIR}/dev_sync_scenario.py" --help
+      else
+        python3 "${SCRIPT_DIR}/dev_sync_scenario.py" "$@"
+      fi
+    else
+      flutter run --debug "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
+    fi
+    ;;
+  scenario)
+    python3 "${SCRIPT_DIR}/dev_sync_scenario.py" control "$@"
     ;;
   linux)
     # Install user-level desktop file + icon before running so Wayland

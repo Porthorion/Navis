@@ -25,6 +25,14 @@ const PlaybackSnapshot _songPlayback = PlaybackSnapshot(
   repeatMode: AudioServiceRepeatMode.none,
 );
 
+double _contrastRatio(Color a, Color b) {
+  final first = a.computeLuminance();
+  final second = b.computeLuminance();
+  final lighter = first > second ? first : second;
+  final darker = first > second ? second : first;
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 class _TestPlaybackNotifier extends Notifier<PlaybackSnapshot> {
   @override
   PlaybackSnapshot build() => const PlaybackSnapshot.idle();
@@ -80,13 +88,18 @@ Future<void> _pumpNowPlaying(
   bool wideEmbeddedMode = false,
   bool compactWideLandscapeMode = false,
   TextScaler? textScaler,
+  Brightness brightness = Brightness.light,
+  TargetPlatform platform = TargetPlatform.linux,
   bool settle = true,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.linux),
+        theme: ThemeData(
+          platform: platform,
+          brightness: brightness,
+        ),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
@@ -398,7 +411,7 @@ void main() {
     },
   );
 
-  testWidgets('fullscreen transport shows loading for remote playback', (
+  testWidgets('fullscreen remote loading stays visible against play button', (
     tester,
   ) async {
     if (!sqliteAvailable) {
@@ -420,12 +433,102 @@ void main() {
       ],
     );
     container.read(_testPlaybackProvider.notifier).state = _songPlayback
-        .copyWith(isLoading: true, loadingSongId: 'song-1');
+        .copyWith(
+          isLoading: true,
+          loadingSongId: 'song-1',
+          processingState: AudioProcessingState.loading,
+        );
 
-    await _pumpNowPlaying(tester, container, settle: false);
+    final indicatorFinder = find.byKey(
+      const ValueKey<String>('remote-playback-loading-indicator'),
+    );
+    for (final brightness in <Brightness>[
+      Brightness.light,
+      Brightness.dark,
+    ]) {
+      await _pumpNowPlaying(
+        tester,
+        container,
+        brightness: brightness,
+        platform: TargetPlatform.android,
+        settle: false,
+      );
+      await tester.pump();
+      expect(indicatorFinder, findsOneWidget);
+      final indicator = tester.widget<CircularProgressIndicator>(
+        indicatorFinder,
+      );
+      expect(
+        find.ancestor(
+          of: indicatorFinder,
+          matching: find.byType(FilledButton),
+        ),
+        findsOneWidget,
+      );
+      final colors = Theme.of(tester.element(indicatorFinder)).colorScheme;
+      expect(
+        indicator.color,
+        colors.onPrimary,
+      );
+      expect(
+        _contrastRatio(indicator.color!, colors.primary),
+        greaterThanOrEqualTo(3),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(indicatorFinder, findsOneWidget);
+    }
+
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+    await tester.pump();
+    expect(indicatorFinder, findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('landscape remote loading stays inside the play button', (
+    tester,
+  ) async {
+    if (!sqliteAvailable) {
+      return;
+    }
+    setAdaptiveTestViewport(tester, const Size(844, 390));
+    final container = _createContainer(
+      overrides: <Override>[
+        songByIdProvider.overrideWith(
+          (ref, id) => Stream<SongsTableData?>.value(
+            const SongsTableData(
+              id: 'song-1',
+              title: 'Remote fixture',
+              isProvisional: false,
+              isExternal: true,
+            ),
+          ),
+        ),
+      ],
+    );
+    container.read(_testPlaybackProvider.notifier).state = _songPlayback
+        .copyWith(
+          isLoading: true,
+          loadingSongId: 'song-1',
+          processingState: AudioProcessingState.loading,
+        );
+    await _pumpNowPlaying(
+      tester,
+      container,
+      wideEmbeddedMode: true,
+      compactWideLandscapeMode: true,
+      platform: TargetPlatform.android,
+      settle: false,
+    );
     await tester.pump();
 
-    expect(find.byType(CircularProgressIndicator), findsWidgets);
+    final indicatorFinder = find.byKey(
+      const ValueKey<String>('remote-playback-loading-indicator'),
+    );
+    expect(indicatorFinder, findsOneWidget);
+    expect(
+      find.ancestor(of: indicatorFinder, matching: find.byType(FilledButton)),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

@@ -1,7 +1,10 @@
+import 'package:navis/src/database/tables/annotation_dispatch_lease_table.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:drift/native.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -91,6 +94,7 @@ part 'navis_database.g.dart';
     MatchFlowSongsTable,
     ScrobbleQueueTable,
     StarSyncQueueTable,
+    AnnotationDispatchLeaseTable,
     ListenBrainzFeedbackQueueTable,
     ListenBrainzWeeklyCacheTable,
     NetworkUsageTable,
@@ -132,7 +136,11 @@ part 'navis_database.g.dart';
 )
 class NavisDatabase extends _$NavisDatabase {
   NavisDatabase([QueryExecutor? executor])
-    : super(executor ?? _openConnection());
+    : super(
+        (executor ?? _openConnection()).interceptWith(
+          SyncWriteFenceInterceptor(),
+        ),
+      );
 
   NavisDatabase.atPath(String databasePath)
     : this(_openFileConnection(File(databasePath)));
@@ -155,7 +163,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 73;
+  int get schemaVersion => 78;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -395,6 +403,79 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 73 && to >= 73) {
       await from72To73(migrator);
+    }
+    if (from < 74 && to >= 74) {
+      await from73To74(migrator);
+    }
+    if (from < 75 && to >= 75) {
+      await from74To75(migrator);
+    }
+    if (from < 76 && to >= 76) {
+      await from75To76(migrator);
+    }
+    if (from < 77 && to >= 77) {
+      await from76To77(migrator);
+    }
+    if (from < 78 && to >= 78) {
+      await from77To78(migrator);
+    }
+  }
+
+  Future<void> from77To78(Migrator migrator) async {
+    if (!await _columnExists(
+      'library_sync_state',
+      'initial_catalog_usable_at',
+    )) {
+      await migrator.addColumn(
+        librarySyncStateTable,
+        librarySyncStateTable.initialCatalogUsableAt,
+      );
+    }
+  }
+
+  Future<void> from76To77(Migrator migrator) async {
+    if (!await _columnExists('library_sync_run_attempt', 'telemetry_json')) {
+      await migrator.addColumn(
+        librarySyncRunAttemptTable,
+        librarySyncRunAttemptTable.telemetryJson,
+      );
+    }
+  }
+
+  Future<void> from75To76(Migrator migrator) async {
+    await customStatement(
+      'CREATE TEMP TABLE playlist_membership_v75 AS SELECT * FROM playlist_songs',
+    );
+    await migrator.deleteTable('playlist_songs');
+    await migrator.createTable(playlistSongsTable);
+    // Legacy rows can share a sort index. Preserve every row in a stable order.
+    await customStatement(
+      'INSERT INTO playlist_songs (playlist_id, song_id, sort_order) '
+      'SELECT playlist_id, song_id, ROW_NUMBER() OVER ('
+      'PARTITION BY playlist_id ORDER BY sort_order, song_id) - 1 FROM playlist_membership_v75',
+    );
+    await customStatement('DROP TABLE playlist_membership_v75');
+    if (!await _tableExists('annotation_dispatch_lease')) {
+      await migrator.createTable(annotationDispatchLeaseTable);
+    }
+  }
+
+  Future<void> from74To75(Migrator migrator) async {
+    if (!await _columnExists('albums', 'songs_verified_at')) {
+      await migrator.addColumn(albumsTable, albumsTable.songsVerifiedAt);
+    }
+  }
+
+  Future<void> from73To74(Migrator migrator) async {
+    for (final column in [
+      starSyncQueueTable.operation,
+      starSyncQueueTable.attemptCount,
+      starSyncQueueTable.notBefore,
+      starSyncQueueTable.lastErrorType,
+    ]) {
+      if (!await _columnExists('star_sync_queue', column.$name)) {
+        await migrator.addColumn(starSyncQueueTable, column);
+      }
     }
   }
 

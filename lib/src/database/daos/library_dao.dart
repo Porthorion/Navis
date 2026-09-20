@@ -4,6 +4,9 @@ import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/snapshot_write_guard.dart';
+import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/database/tables/album_info_cache_table.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
@@ -101,10 +104,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Stream<List<ArtistsTableData>> watchArtists({bool likedOnly = false}) {
     final query = select(artistsTable)
-      ..where((table) => table.isProvisional.equals(false))
       ..orderBy([(table) => OrderingTerm.asc(table.name)]);
     if (likedOnly) {
       query.where((table) => table.starred.isNotNull());
+    } else {
+      query.where((table) => table.isProvisional.equals(false));
     }
     return query.watch();
   }
@@ -129,8 +133,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         WHERE al.starred IS NOT NULL
         GROUP BY al.artist_id
       ) album_likes ON album_likes.artist_id = a.id
-      WHERE a.is_provisional = 0
-        AND (
+      WHERE (
           a.starred IS NOT NULL
           OR song_likes.song_starred IS NOT NULL
           OR album_likes.album_starred IS NOT NULL
@@ -286,9 +289,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return customSelect(
       '''
       SELECT albums.* FROM albums
-      WHERE albums.is_provisional = 0
-        AND albums.is_external = 0
-        AND ${_likedAlbumPredicate('albums')}
+      WHERE ${_likedAlbumPredicate('albums')}
       ORDER BY
         albums.starred DESC NULLS LAST,
         albums.name ASC,
@@ -318,9 +319,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       '''
       SELECT COUNT(*) AS count
       FROM albums
-      WHERE albums.is_provisional = 0
-        AND albums.is_external = 0
-        AND ${_likedAlbumPredicate('albums')}
+      WHERE ${_likedAlbumPredicate('albums')}
       ''',
       readsFrom: {albumsTable, songsTable},
     ).watchSingle().map((row) => row.read<int>('count'));
@@ -620,57 +619,148 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
-  Future<void> upsertArtists(List<ArtistsTableCompanion> artists) async {
-    if (artists.isEmpty) {
-      return;
-    }
-    final pendingStars = await _pendingStarOverrides('artist');
-    await batch((batch) {
-      for (final artist in artists) {
-        var canonicalArtist = artist.copyWith(
-          isProvisional: const Value(false),
-          isExternal: const Value(false),
-        );
-        final id = canonicalArtist.id.present ? canonicalArtist.id.value : null;
-        if (id != null && pendingStars.containsKey(id)) {
-          canonicalArtist = canonicalArtist.copyWith(
-            starred: Value(pendingStars[id]),
+  /// Reclassify only IDs explicitly identified as external by a current
+  /// server response. Retain all rows, relationships, annotations and files.
+  /// Callers can inspect counts without mutation before applying the evidence.
+  Future<Map<String, int>> repairExternalSourceEvidence({
+    Iterable<String> artistIds = const [],
+    Iterable<String> albumIds = const [],
+    Iterable<String> songIds = const [],
+    bool dryRun = false,
+    int? serverId,
+  }) => transaction(() async {
+    final counts = <String, int>{};
+    for (final entry in <String, Iterable<String>>{
+      'artists': artistIds,
+      'albums': albumIds,
+      'songs': songIds,
+    }.entries) {
+      final ids = entry.value
+          .where((id) => id.trim().isNotEmpty)
+          .toSet()
+          .toList();
+      var count = 0;
+      for (
+        var offset = 0;
+        offset < ids.length;
+        offset += _safeSqlVariableChunkSize
+      ) {
+        final chunk = ids.skip(offset).take(_safeSqlVariableChunkSize).toList();
+        final placeholders = List.filled(chunk.length, '?').join(',');
+        final variables = chunk.map(Variable.withString).toList();
+        final predicate =
+            'id IN ($placeholders) AND (is_provisional = 0 OR is_external = 0)';
+        final row = await customSelect(
+          'SELECT COUNT(*) AS n FROM ${entry.key} WHERE $predicate',
+          variables: variables,
+        ).getSingle();
+        count += row.read<int>('n');
+        if (!dryRun && row.read<int>('n') > 0) {
+          await customUpdate(
+            'UPDATE ${entry.key} SET is_provisional = 1, is_external = 1 WHERE $predicate',
+            variables: variables,
+            updates: {artistsTable, albumsTable, songsTable},
           );
         }
-        batch.insert(
-          artistsTable,
-          canonicalArtist,
+      }
+      counts[entry.key] = count;
+    }
+    if (!dryRun &&
+        serverId != null &&
+        counts.values.any((count) => count > 0)) {
+      await attachedDatabase.librarySyncDao.recordOperationLedgerEntry(
+        serverId: serverId,
+        operation: 'sourceEvidenceRepair',
+        reason: 'explicitExternalResponse',
+        details: counts,
+      );
+    }
+    return counts;
+  });
+
+  Future<void> upsertArtists(
+    List<ArtistsTableCompanion> artists, {
+    DateTime? snapshotStartedAt,
+  }) async {
+    await transaction(() async {
+      final guard = await SnapshotWriteGuard.read(
+        attachedDatabase,
+        snapshotStartedAt,
+      );
+      if (artists.isEmpty) {
+        return;
+      }
+      final external = artists
+          .where(
+            (row) => isExternalCatalogSource(
+              id: row.id.value,
+              apiIsExternal: row.isExternal.present
+                  ? row.isExternal.value
+                  : null,
+            ),
+          )
+          .toList(growable: false);
+      await upsertProvisionalArtists(
+        external
+            .map((row) => row.copyWith(isExternal: const Value(true)))
+            .toList(growable: false),
+        snapshotStartedAt: snapshotStartedAt,
+      );
+      final externalIds = external.map((row) => row.id.value).toSet();
+      await batch((batch) {
+        for (final artist in artists) {
+          if (externalIds.contains(artist.id.value)) continue;
+          var canonicalArtist = artist.copyWith(
+            isProvisional: const Value(false),
+            isExternal: const Value(false),
+          );
+          canonicalArtist = guard.artist(canonicalArtist);
+          batch.insert(
+            artistsTable,
+            canonicalArtist,
+            // Keep the primary key out of metadata updates: even id = id
+            // makes SQLite recheck child foreign keys across the library.
+            onConflict: DoUpdate(
+              (old) => canonicalArtist.copyWith(id: const Value.absent()),
+              target: [artistsTable.id],
+            ),
+          );
+        }
+      });
+    });
+  }
+
+  Future<void> upsertProvisionalArtists(
+    List<ArtistsTableCompanion> artists, {
+    DateTime? snapshotStartedAt,
+  }) async {
+    await transaction(() async {
+      final guard = await SnapshotWriteGuard.read(
+        attachedDatabase,
+        snapshotStartedAt,
+      );
+      for (final artist in artists) {
+        if (!artist.id.present) {
+          continue;
+        }
+        final existing = await getArtistById(artist.id.value);
+        if (existing != null && !existing.isProvisional) {
+          continue;
+        }
+        final provisionalArtist = guard
+            .artist(artist)
+            .copyWith(
+              isProvisional: Value(existing?.isProvisional ?? true),
+            );
+        await into(artistsTable).insert(
+          provisionalArtist,
           onConflict: DoUpdate(
-            (old) => canonicalArtist,
+            (old) => provisionalArtist.copyWith(id: const Value.absent()),
             target: [artistsTable.id],
           ),
         );
       }
     });
-  }
-
-  Future<void> upsertProvisionalArtists(
-    List<ArtistsTableCompanion> artists,
-  ) async {
-    for (final artist in artists) {
-      if (!artist.id.present) {
-        continue;
-      }
-      final existing = await getArtistById(artist.id.value);
-      if (existing != null && !existing.isProvisional) {
-        continue;
-      }
-      final provisionalArtist = artist.copyWith(
-        isProvisional: Value(existing?.isProvisional ?? true),
-      );
-      await into(artistsTable).insert(
-        provisionalArtist,
-        onConflict: DoUpdate(
-          (old) => provisionalArtist,
-          target: [artistsTable.id],
-        ),
-      );
-    }
   }
 
   Future<void> replaceAlbums(List<AlbumsTableCompanion> albums) async {
@@ -688,55 +778,75 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<void> upsertAlbums(
     List<AlbumsTableCompanion> albums, {
     bool preserveHydrationState = true,
+    DateTime? snapshotStartedAt,
   }) async {
-    if (albums.isEmpty) {
-      return;
-    }
-    final now = DateTime.now();
-    final pendingStars = await _pendingStarOverrides('album');
-    await batch((batch) {
-      for (final album in albums) {
-        var canonicalAlbum = album.copyWith(
-          syncedAt: Value(now),
-          isProvisional: const Value(false),
-          isExternal: const Value(false),
-        );
-        // getAlbum and older Subsonic implementations may omit `created`.
-        // Absence is not deletion authority: preserving the existing server
-        // timestamp keeps Recently Added stable across detail hydration.
-        if (!canonicalAlbum.serverCreatedAt.present ||
-            canonicalAlbum.serverCreatedAt.value == null) {
-          canonicalAlbum = canonicalAlbum.copyWith(
-            serverCreatedAt: const Value.absent(),
-          );
-        }
-        final id = canonicalAlbum.id.present ? canonicalAlbum.id.value : null;
-        if (id != null && pendingStars.containsKey(id)) {
-          canonicalAlbum = canonicalAlbum.copyWith(
-            starred: Value(pendingStars[id]),
-          );
-        }
-        batch.insert(
-          albumsTable,
-          canonicalAlbum,
-          onConflict: DoUpdate(
-            (old) => canonicalAlbum.copyWith(
-              syncedAt: const Value.absent(),
-              songsHydrated: preserveHydrationState
-                  ? const Value.absent()
-                  : canonicalAlbum.songsHydrated,
-            ),
-            target: [albumsTable.id],
-          ),
-        );
+    await transaction(() async {
+      final guard = await SnapshotWriteGuard.read(
+        attachedDatabase,
+        snapshotStartedAt,
+      );
+      if (albums.isEmpty) {
+        return;
       }
+      final now = DateTime.now();
+      final external = albums
+          .where(
+            (row) => isExternalCatalogSource(
+              id: row.id.value,
+              apiIsExternal: row.isExternal.present
+                  ? row.isExternal.value
+                  : null,
+            ),
+          )
+          .toList(growable: false);
+      await upsertProvisionalAlbums(
+        external
+            .map((row) => row.copyWith(isExternal: const Value(true)))
+            .toList(growable: false),
+        snapshotStartedAt: snapshotStartedAt,
+      );
+      final externalIds = external.map((row) => row.id.value).toSet();
+      await batch((batch) {
+        for (final album in albums) {
+          if (externalIds.contains(album.id.value)) continue;
+          var canonicalAlbum = album.copyWith(
+            syncedAt: Value(now),
+            isProvisional: const Value(false),
+            isExternal: const Value(false),
+          );
+          // getAlbum and older Subsonic implementations may omit `created`.
+          // Absence is not deletion authority: preserving the existing server
+          // timestamp keeps Recently Added stable across detail hydration.
+          if (!canonicalAlbum.serverCreatedAt.present ||
+              canonicalAlbum.serverCreatedAt.value == null) {
+            canonicalAlbum = canonicalAlbum.copyWith(
+              serverCreatedAt: const Value.absent(),
+            );
+          }
+          canonicalAlbum = guard.album(canonicalAlbum);
+          batch.insert(
+            albumsTable,
+            canonicalAlbum,
+            onConflict: DoUpdate(
+              (old) => canonicalAlbum.copyWith(
+                id: const Value.absent(),
+                syncedAt: const Value.absent(),
+                songsHydrated: preserveHydrationState
+                    ? const Value.absent()
+                    : canonicalAlbum.songsHydrated,
+              ),
+              target: [albumsTable.id],
+            ),
+          );
+        }
+      });
+      // Backfill syncedAt for albums that were migrated from schema < v16 and
+      // therefore still have syncedAt = null even after the conflict-preserve
+      // path above.  Only runs once per such row; subsequent upserts are no-ops.
+      await (update(albumsTable)..where((t) => t.syncedAt.isNull())).write(
+        AlbumsTableCompanion(syncedAt: Value(now)),
+      );
     });
-    // Backfill syncedAt for albums that were migrated from schema < v16 and
-    // therefore still have syncedAt = null even after the conflict-preserve
-    // path above.  Only runs once per such row; subsequent upserts are no-ops.
-    await (update(albumsTable)..where((t) => t.syncedAt.isNull())).write(
-      AlbumsTableCompanion(syncedAt: Value(now)),
-    );
   }
 
   /// Atomically replaces Recently Added order with a server `newest` snapshot.
@@ -745,26 +855,72 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// snapshot deliberately remain unranked and sort by their server creation
   /// date, never by the local synchronization time.
   Future<void> replaceRecentlyAddedRanksFromNewestFeed(
-    Map<String, int> ranks,
-  ) async {
+    Map<String, int> ranks, {
+    bool complete = true,
+  }) async {
     final normalizedRanks = <String, int>{
       for (final entry in ranks.entries)
         if (entry.key.trim().isNotEmpty && entry.value >= 0)
           entry.key.trim(): entry.value,
     };
+    if (!complete && normalizedRanks.isEmpty) return;
     await transaction(() async {
-      await (update(albumsTable)..where(
-            (table) => table.isExternal.equals(false),
-          ))
-          .write(const AlbumsTableCompanion(recentlyAddedRank: Value(null)));
-      if (normalizedRanks.isEmpty) return;
+      // Ordering needs two scalar columns. Loading full album metadata here
+      // needlessly transfers and decodes the entire library on each check.
+      final query = selectOnly(albumsTable)
+        ..addColumns([albumsTable.id, albumsTable.recentlyAddedRank])
+        ..where(
+          albumsTable.isExternal.equals(false) &
+              albumsTable.isProvisional.equals(false),
+        );
+      final rows = (await query.get())
+          .map(
+            (row) => (
+              id: row.read(albumsTable.id)!,
+              recentlyAddedRank: row.read(albumsTable.recentlyAddedRank),
+            ),
+          )
+          .toList(growable: false);
+      final byId = {for (final row in rows) row.id: row};
+      final nextRanks = <String, int>{};
+      if (complete) {
+        nextRanks.addAll(normalizedRanks);
+      } else {
+        final prefix =
+            normalizedRanks.entries
+                .where((entry) => byId.containsKey(entry.key))
+                .toList()
+              ..sort((a, b) => a.value.compareTo(b.value));
+        final tail =
+            rows
+                .where(
+                  (row) =>
+                      row.recentlyAddedRank != null &&
+                      !normalizedRanks.containsKey(row.id),
+                )
+                .toList()
+              ..sort((a, b) {
+                final rank = a.recentlyAddedRank!.compareTo(
+                  b.recentlyAddedRank!,
+                );
+                return rank == 0 ? a.id.compareTo(b.id) : rank;
+              });
+        final ordered = [
+          ...prefix.map((entry) => entry.key),
+          ...tail.map((row) => row.id),
+        ];
+        for (var index = 0; index < ordered.length; index++) {
+          nextRanks[ordered[index]] = index;
+        }
+      }
       await batch((batch) {
-        for (final entry in normalizedRanks.entries) {
+        for (final row in rows) {
+          final nextRank = nextRanks[row.id];
+          if (nextRank == row.recentlyAddedRank) continue;
           batch.update(
             albumsTable,
-            AlbumsTableCompanion(recentlyAddedRank: Value(entry.value)),
-            where: (table) =>
-                table.id.equals(entry.key) & table.isExternal.equals(false),
+            AlbumsTableCompanion(recentlyAddedRank: Value(nextRank)),
+            where: (table) => table.id.equals(row.id),
           );
         }
       });
@@ -772,29 +928,38 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> upsertProvisionalAlbums(
-    List<AlbumsTableCompanion> albums,
-  ) async {
-    final now = DateTime.now();
-    for (final album in albums) {
-      if (!album.id.present) {
-        continue;
-      }
-      final existing = await getAlbumById(album.id.value);
-      if (existing != null && !existing.isProvisional) {
-        continue;
-      }
-      final provisionalAlbum = album.copyWith(
-        syncedAt: Value(now),
-        isProvisional: Value(existing?.isProvisional ?? true),
+    List<AlbumsTableCompanion> albums, {
+    DateTime? snapshotStartedAt,
+  }) async {
+    await transaction(() async {
+      final guard = await SnapshotWriteGuard.read(
+        attachedDatabase,
+        snapshotStartedAt,
       );
-      await into(albumsTable).insert(
-        provisionalAlbum,
-        onConflict: DoUpdate(
-          (old) => provisionalAlbum,
-          target: [albumsTable.id],
-        ),
-      );
-    }
+      final now = DateTime.now();
+      for (final album in albums) {
+        if (!album.id.present) {
+          continue;
+        }
+        final existing = await getAlbumById(album.id.value);
+        if (existing != null && !existing.isProvisional) {
+          continue;
+        }
+        final provisionalAlbum = guard
+            .album(album)
+            .copyWith(
+              syncedAt: Value(now),
+              isProvisional: Value(existing?.isProvisional ?? true),
+            );
+        await into(albumsTable).insert(
+          provisionalAlbum,
+          onConflict: DoUpdate(
+            (old) => provisionalAlbum.copyWith(id: const Value.absent()),
+            target: [albumsTable.id],
+          ),
+        );
+      }
+    });
   }
 
   /// Keeps externally sourced releases available from their artist without
@@ -834,10 +999,37 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return reconcileSongsForAlbumsChunk(songsByAlbumId);
   }
 
+  /// Oldest complete snapshots first; null is legacy/unverified evidence.
+  Future<List<String>> getAlbumsDueForSongVerification({
+    required DateTime before,
+    required int limit,
+  }) async {
+    final rows =
+        await (select(albumsTable)
+              ..where(
+                (table) =>
+                    table.isProvisional.equals(false) &
+                    table.isExternal.equals(false) &
+                    table.songsHydrated.equals(true) &
+                    (table.songsVerifiedAt.isNull() |
+                        table.songsVerifiedAt.isSmallerOrEqualValue(before)),
+              )
+              ..orderBy([
+                (table) => OrderingTerm.asc(table.songsVerifiedAt),
+                (table) => OrderingTerm.asc(table.id),
+              ])
+              ..limit(limit))
+            .get();
+    return rows.map((row) => row.id).toList(growable: false);
+  }
+
   Future<void> reconcileSongsForAlbumsChunk(
     Map<String, List<SongsTableCompanion>> songsByAlbumId, {
     bool markAlbumsHydrated = false,
     List<AlbumsTableCompanion> albumMetadata = const <AlbumsTableCompanion>[],
+    DateTime? snapshotStartedAt,
+    List<String>? deferredCacheFiles,
+    int? serverId,
   }) async {
     final albumIds = songsByAlbumId.keys
         .map((id) => id.trim())
@@ -847,9 +1039,36 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return;
     }
 
+    final cacheFiles = <String>[];
     await transaction(() async {
-      final pendingAlbumStars = await _pendingStarOverrides('album');
-      final pendingSongStars = await _pendingStarOverrides('song');
+      final guard = await SnapshotWriteGuard.read(
+        attachedDatabase,
+        snapshotStartedAt,
+      );
+      for (final row in [
+        ...albumMetadata,
+        ...songsByAlbumId.values.expand((rows) => rows),
+      ]) {
+        // Validate typed companions below before any destructive mutation.
+        if (row is AlbumsTableCompanion &&
+                isExternalCatalogSource(
+                  id: row.id.value,
+                  apiIsExternal: row.isExternal.present
+                      ? row.isExternal.value
+                      : null,
+                ) ||
+            row is SongsTableCompanion &&
+                isExternalCatalogSource(
+                  id: row.id.value,
+                  apiIsExternal: row.isExternal.present
+                      ? row.isExternal.value
+                      : null,
+                )) {
+          throw const SubsonicIncompleteResponseException(
+            'External metadata cannot replace canonical membership.',
+          );
+        }
+      }
       if (albumMetadata.isNotEmpty) {
         final now = DateTime.now();
         await batch((batch) {
@@ -868,17 +1087,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
                 serverCreatedAt: const Value.absent(),
               );
             }
-            final id = canonical.id.present ? canonical.id.value : null;
-            if (id != null && pendingAlbumStars.containsKey(id)) {
-              canonical = canonical.copyWith(
-                starred: Value(pendingAlbumStars[id]),
-              );
-            }
+            canonical = guard.album(canonical);
             batch.insert(
               albumsTable,
               canonical,
               onConflict: DoUpdate(
                 (old) => canonical.copyWith(
+                  id: const Value.absent(),
                   syncedAt: const Value.absent(),
                   songsHydrated: const Value.absent(),
                 ),
@@ -902,7 +1117,23 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           )
           .toList(growable: false);
 
-      await _handleRemovedServerSongs(removedRows);
+      cacheFiles.addAll(
+        await _handleRemovedServerSongs(
+          removedRows,
+          deferCacheFileDeletion: true,
+        ),
+      );
+      if (serverId != null && removedRows.isNotEmpty) {
+        await attachedDatabase.librarySyncDao.recordOperationLedgerEntry(
+          serverId: serverId,
+          operation: 'albumReconciliation',
+          reason: 'validatedDetail',
+          details: {
+            'albums': albumIds.length,
+            'removedSongs': removedRows.length,
+          },
+        );
+      }
 
       final currentSongs = songsByAlbumId.values
           .expand((rows) => rows)
@@ -912,12 +1143,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
               isProvisional: const Value(false),
               isExternal: const Value(false),
             );
-            final id = canonical.id.present ? canonical.id.value : null;
-            if (id != null && pendingSongStars.containsKey(id)) {
-              canonical = canonical.copyWith(
-                starred: Value(pendingSongStars[id]),
-              );
-            }
+            canonical = guard.song(canonical);
             return canonical;
           })
           .toList(growable: false);
@@ -928,7 +1154,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
               songsTable,
               song,
               onConflict: DoUpdate(
-                (old) => song,
+                (old) => song.copyWith(id: const Value.absent()),
                 target: [songsTable.id],
               ),
             );
@@ -939,65 +1165,103 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         await (update(
           albumsTable,
         )..where((table) => table.id.isIn(albumIds))).write(
-          const AlbumsTableCompanion(songsHydrated: Value(true)),
+          AlbumsTableCompanion(
+            songsHydrated: const Value(true),
+            songsVerifiedAt: Value(snapshotStartedAt ?? DateTime.now()),
+          ),
         );
       }
     });
+    if (deferredCacheFiles != null) {
+      deferredCacheFiles.addAll(cacheFiles);
+    } else {
+      await cleanupRemovedCacheFiles(cacheFiles);
+    }
   }
 
-  Future<void> upsertSongs(List<SongsTableCompanion> songs) async {
-    if (songs.isEmpty) {
-      return;
-    }
-    final pendingStars = await _pendingStarOverrides('song');
-    await batch((batch) {
-      for (final song in songs) {
-        var canonicalSong = song.copyWith(
-          serverDeletedAt: const Value(null),
-          isProvisional: const Value(false),
-          isExternal: const Value(false),
-        );
-        final id = canonicalSong.id.present ? canonicalSong.id.value : null;
-        if (id != null && pendingStars.containsKey(id)) {
-          canonicalSong = canonicalSong.copyWith(
-            starred: Value(pendingStars[id]),
+  Future<void> upsertSongs(
+    List<SongsTableCompanion> songs, {
+    DateTime? snapshotStartedAt,
+  }) async {
+    await transaction(() async {
+      final guard = await SnapshotWriteGuard.read(
+        attachedDatabase,
+        snapshotStartedAt,
+      );
+      if (songs.isEmpty) {
+        return;
+      }
+      final external = songs
+          .where(
+            (row) => isExternalCatalogSource(
+              id: row.id.value,
+              apiIsExternal: row.isExternal.present
+                  ? row.isExternal.value
+                  : null,
+            ),
+          )
+          .toList(growable: false);
+      await upsertProvisionalSongs(
+        external
+            .map((row) => row.copyWith(isExternal: const Value(true)))
+            .toList(growable: false),
+        snapshotStartedAt: snapshotStartedAt,
+      );
+      final externalIds = external.map((row) => row.id.value).toSet();
+      await batch((batch) {
+        for (final song in songs) {
+          if (externalIds.contains(song.id.value)) continue;
+          var canonicalSong = song.copyWith(
+            serverDeletedAt: const Value(null),
+            isProvisional: const Value(false),
+            isExternal: const Value(false),
+          );
+          canonicalSong = guard.song(canonicalSong);
+          batch.insert(
+            songsTable,
+            canonicalSong,
+            onConflict: DoUpdate(
+              (old) => canonicalSong.copyWith(id: const Value.absent()),
+              target: [songsTable.id],
+            ),
           );
         }
-        batch.insert(
-          songsTable,
-          canonicalSong,
+      });
+    });
+  }
+
+  Future<void> upsertProvisionalSongs(
+    List<SongsTableCompanion> songs, {
+    DateTime? snapshotStartedAt,
+  }) async {
+    await transaction(() async {
+      final guard = await SnapshotWriteGuard.read(
+        attachedDatabase,
+        snapshotStartedAt,
+      );
+      for (final song in songs) {
+        if (!song.id.present) {
+          continue;
+        }
+        final existing = await getSongById(song.id.value);
+        if (existing != null && !existing.isProvisional) {
+          continue;
+        }
+        final provisionalSong = guard
+            .song(song)
+            .copyWith(
+              serverDeletedAt: const Value(null),
+              isProvisional: Value(existing?.isProvisional ?? true),
+            );
+        await into(songsTable).insert(
+          provisionalSong,
           onConflict: DoUpdate(
-            (old) => canonicalSong,
+            (old) => provisionalSong.copyWith(id: const Value.absent()),
             target: [songsTable.id],
           ),
         );
       }
     });
-  }
-
-  Future<void> upsertProvisionalSongs(
-    List<SongsTableCompanion> songs,
-  ) async {
-    for (final song in songs) {
-      if (!song.id.present) {
-        continue;
-      }
-      final existing = await getSongById(song.id.value);
-      if (existing != null && !existing.isProvisional) {
-        continue;
-      }
-      final provisionalSong = song.copyWith(
-        serverDeletedAt: const Value(null),
-        isProvisional: Value(existing?.isProvisional ?? true),
-      );
-      await into(songsTable).insert(
-        provisionalSong,
-        onConflict: DoUpdate(
-          (old) => provisionalSong,
-          target: [songsTable.id],
-        ),
-      );
-    }
   }
 
   Future<void> replaceGenres(List<GenresTableCompanion> genres) async {
@@ -1339,10 +1603,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Stream<List<SongsTableData>> watchStarredSongs({int limit = 5}) {
     final query = select(songsTable)
       ..where(
-        (t) =>
-            t.starred.isNotNull() &
-            t.serverDeletedAt.isNull() &
-            t.isProvisional.equals(false),
+        (t) => t.starred.isNotNull() & t.serverDeletedAt.isNull(),
       )
       ..orderBy([(t) => OrderingTerm.desc(t.starred)])
       ..limit(limit);
@@ -1353,10 +1614,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Stream<List<SongsTableData>> watchAllStarredSongs() {
     final query = select(songsTable)
       ..where(
-        (t) =>
-            t.starred.isNotNull() &
-            t.serverDeletedAt.isNull() &
-            t.isProvisional.equals(false),
+        (t) => t.starred.isNotNull() & t.serverDeletedAt.isNull(),
       )
       ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
     return query.watch();
@@ -1374,8 +1632,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       INNER JOIN albums al ON al.id = s.album_id
       WHERE ${_likedAlbumPredicate('al')}
         AND s.server_deleted_at IS NULL
-        AND al.is_provisional = 0
-        AND s.is_provisional = 0
       ORDER BY
         al.starred DESC NULLS LAST,
         LOWER(COALESCE(al.name, '')) ASC,
@@ -1592,8 +1848,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       '''
       SELECT albums.*
       FROM albums
-      WHERE albums.is_provisional = 0
-        AND ${_likedAlbumPredicate('albums')}
+      WHERE ${_likedAlbumPredicate('albums')}
       ORDER BY albums.year DESC, albums.name ASC, albums.id ASC
       ''',
       readsFrom: {albumsTable, songsTable},
@@ -1606,7 +1861,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> getAllStarredSongs() {
     final query = select(songsTable)
       ..where(
-        (t) => t.starred.isNotNull() & t.isProvisional.equals(false),
+        (t) => t.starred.isNotNull() & t.serverDeletedAt.isNull(),
       )
       ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
     return query.get();
@@ -2025,18 +2280,6 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
   }
 
-  Future<Map<String, DateTime?>> _pendingStarOverrides(String itemType) async {
-    final rows =
-        await (select(starSyncQueueTable)..where(
-              (table) => table.itemType.equals(itemType),
-            ))
-            .get();
-    return <String, DateTime?>{
-      for (final row in rows)
-        row.itemId: row.action == 'star' ? row.queuedAt : null,
-    };
-  }
-
   Future<List<String>> _handleRemovedServerSongs(
     Iterable<SongsTableData> removedRows, {
     bool deferCacheFileDeletion = false,
@@ -2311,7 +2554,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     required int limit,
   }) {
     final query = _orderedAlbumsQuery(AlbumSortOrder.newest)
-      ..where((table) => table.songsHydrated.equals(false))
+      ..where(
+        (table) =>
+            table.songsHydrated.equals(false) &
+            table.isProvisional.equals(false) &
+            table.isExternal.equals(false),
+      )
       ..limit(limit < 1 ? 1 : limit);
     return query.get();
   }
@@ -2319,7 +2567,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<String>> getPendingHydrationAlbumIds() async {
     final query = selectOnly(albumsTable)
       ..addColumns([albumsTable.id])
-      ..where(albumsTable.songsHydrated.equals(false));
+      ..where(
+        albumsTable.songsHydrated.equals(false) &
+            albumsTable.isProvisional.equals(false) &
+            albumsTable.isExternal.equals(false),
+      );
     final rows = await query.get();
     return rows
         .map((row) => row.read(albumsTable.id))
@@ -2332,25 +2584,31 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     required int limit,
   }) async {
     final ids = albumIds.map((id) => id.trim()).where((id) => id.isNotEmpty);
-    final idList = ids.toList(growable: false);
+    final idList = ids.toSet().toList(growable: false);
     if (idList.isEmpty) {
       return const <AlbumsTableData>[];
     }
 
-    final query = select(albumsTable)
-      ..where(
-        (table) => table.songsHydrated.equals(false) & table.id.isIn(idList),
-      )
-      ..limit(limit < 1 ? 1 : limit);
-    final rows = await query.get();
-    final byId = <String, AlbumsTableData>{
-      for (final row in rows) row.id: row,
-    };
+    final boundedLimit = limit.clamp(1, 500);
     final ordered = <AlbumsTableData>[];
-    for (final id in idList) {
-      final row = byId[id];
-      if (row != null) {
-        ordered.add(row);
+    // Select bounded slices in caller priority order. SQL LIMIT on an IN set
+    // can choose different IDs before Dart gets a chance to restore ordering.
+    for (var offset = 0; offset < idList.length; offset += boundedLimit) {
+      final slice = idList.skip(offset).take(boundedLimit).toList();
+      final rows =
+          await (select(albumsTable)..where(
+                (table) =>
+                    table.songsHydrated.equals(false) &
+                    table.isProvisional.equals(false) &
+                    table.isExternal.equals(false) &
+                    table.id.isIn(slice),
+              ))
+              .get();
+      final byId = {for (final row in rows) row.id: row};
+      for (final id in slice) {
+        final row = byId[id];
+        if (row != null) ordered.add(row);
+        if (ordered.length == boundedLimit) return ordered;
       }
     }
     return ordered;
@@ -2360,7 +2618,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final countExpression = albumsTable.id.count();
     final query = selectOnly(albumsTable)
       ..addColumns([countExpression])
-      ..where(albumsTable.songsHydrated.equals(false));
+      ..where(
+        albumsTable.songsHydrated.equals(false) &
+            albumsTable.isProvisional.equals(false) &
+            albumsTable.isExternal.equals(false),
+      );
     final row = await query.getSingle();
     return row.read(countExpression) ?? 0;
   }
@@ -2454,12 +2716,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     int? offset,
     bool includeUnknownYearsLast = false,
   }) {
-    final sql = StringBuffer(
-      'SELECT albums.* FROM albums '
-      'WHERE albums.is_provisional = 0 AND albums.is_external = 0',
-    );
+    final sql = StringBuffer('SELECT albums.* FROM albums WHERE ');
     if (likedOnly) {
-      sql.write(' AND ${_likedAlbumPredicate('albums')}');
+      sql.write(_likedAlbumPredicate('albums'));
+    } else {
+      sql.write('albums.is_provisional = 0 AND albums.is_external = 0');
     }
     sql.write(' ORDER BY ${_albumOrderSql(sort, includeUnknownYearsLast)}');
     final variables = <Variable<Object>>[];

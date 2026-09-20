@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -2081,67 +2080,30 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   Future<void> _toggleStar({required bool isStarred}) async {
-    final l10n = AppLocalizations.of(context)!;
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) {
-      return;
-    }
-
-    // Optimistic local update — flip the icon immediately, block re-taps.
     setState(() {
       _isStarred = !isStarred;
       _isStarring = true;
     });
-
-    // Optimistic DB update BEFORE the API call — fires Drift stream
-    // immediately so library/home screens watching liked albums/songs update
-    // without waiting ~300 ms for the server round-trip.
-    final dao = ref.read(navisDatabaseProvider).libraryDao;
-    await dao.updateAlbumStarred(
-      widget.albumId,
-      isStarred ? null : DateTime.now(),
-    );
-
     try {
-      if (isStarred) {
-        await api.unstar(widget.albumId);
-      } else {
-        await api.star(widget.albumId);
-      }
-      if (!mounted) {
-        return;
-      }
-      // DB already updated above — nothing more to do on success.
-    } on SubsonicConnectionException {
-      // Offline — the optimistic DB state is kept; just queue for server sync.
-      if (!mounted) return;
       await ref
           .read(navisDatabaseProvider)
           .starSyncDao
-          .queueStarAction(
+          .setStarred(
             itemId: widget.albumId,
             itemType: 'album',
-            action: isStarred ? 'unstar' : 'star',
+            liked: !isStarred,
           );
     } on Object {
-      // API error — rollback both the optimistic local and DB state.
-      if (!mounted) {
-        return;
-      }
-      await dao.updateAlbumStarred(
-        widget.albumId,
-        isStarred ? DateTime.now() : null,
-      );
+      // A local persistence failure means the intent was not saved.
+      if (!mounted) return;
       setState(() => _isStarred = isStarred);
       showAppNotice(
         context,
-        message: l10n.albumDetailStarFailure,
+        message: AppLocalizations.of(context)!.albumDetailStarFailure,
         level: AppNoticeLevel.error,
       );
     } finally {
-      if (mounted) {
-        setState(() => _isStarring = false);
-      }
+      if (mounted) setState(() => _isStarring = false);
     }
   }
 

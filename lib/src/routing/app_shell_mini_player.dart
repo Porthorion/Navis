@@ -2,15 +2,22 @@ part of 'app_shell.dart';
 
 Widget _remoteLoadingPlayPauseIcon({
   required bool isExternalSource,
-  required bool isLoading,
+  required PlaybackSnapshot playback,
   required bool isPlaying,
+  required Color loadingColor,
   double? size,
 }) {
-  if (isExternalSource && isLoading) {
+  if (shouldShowRemotePlaybackLoading(
+    playback: playback,
+    currentIsExternal: isExternalSource,
+  )) {
     final dimension = size ?? 22.0;
     return SizedBox.square(
       dimension: dimension,
-      child: const CircularProgressIndicator(strokeWidth: 2.4),
+      child: CircularProgressIndicator(
+        color: loadingColor,
+        strokeWidth: 2.4,
+      ),
     );
   }
   return Icon(
@@ -352,8 +359,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                     },
                                     icon: _remoteLoadingPlayPauseIcon(
                                       isExternalSource: widget.isExternalSource,
-                                      isLoading: playback.isLoading,
+                                      playback: playback,
                                       isPlaying: isPlaying,
+                                      loadingColor: cs.onPrimaryContainer,
                                     ),
                                   ),
                                   IconButton(
@@ -793,8 +801,9 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                           },
                           icon: _remoteLoadingPlayPauseIcon(
                             isExternalSource: widget.isExternalSource,
-                            isLoading: playback.isLoading,
+                            playback: playback,
                             isPlaying: isPlaying,
+                            loadingColor: cs.onPrimaryContainer,
                             size: 28,
                           ),
                         ),
@@ -970,8 +979,9 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               },
                               icon: _remoteLoadingPlayPauseIcon(
                                 isExternalSource: widget.isExternalSource,
-                                isLoading: playback.isLoading,
+                                playback: playback,
                                 isPlaying: isPlaying,
+                                loadingColor: cs.onPrimaryContainer,
                                 size: 22,
                               ),
                             ),

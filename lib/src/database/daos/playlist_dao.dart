@@ -106,33 +106,18 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
   Future<void> replaceHydratedPlaylist(
     PlaylistsTableCompanion playlist,
     List<SongsTableCompanion> songs,
-    List<PlaylistSongsTableCompanion> joins,
-  ) async {
+    List<PlaylistSongsTableCompanion> joins, {
+    DateTime? snapshotStartedAt,
+  }) async {
     await transaction(() async {
       await into(playlistsTable).insert(
         playlist,
         onConflict: DoUpdate((old) => playlist, target: [playlistsTable.id]),
       );
-      if (songs.isNotEmpty) {
-        await batch((batch) {
-          for (final song in songs) {
-            final canonical = song.copyWith(
-              serverDeletedAt: const Value(null),
-              isProvisional: Value(
-                song.isExternal.present && song.isExternal.value,
-              ),
-            );
-            batch.insert(
-              songsTable,
-              canonical,
-              onConflict: DoUpdate(
-                (old) => canonical,
-                target: [songsTable.id],
-              ),
-            );
-          }
-        });
-      }
+      await attachedDatabase.libraryDao.upsertSongs(
+        songs,
+        snapshotStartedAt: snapshotStartedAt,
+      );
       await (delete(
         playlistSongsTable,
       )..where((table) => table.playlistId.equals(playlist.id.value))).go();

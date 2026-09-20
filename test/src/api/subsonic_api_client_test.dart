@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/api/models/server_capabilities.dart';
 
 void main() {
   SubsonicApiClient createClient({
@@ -31,6 +34,136 @@ void main() {
   }
 
   group('SubsonicApiClient', () {
+    test('playlist mutations accept an empty success envelope', () async {
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) => handler.resolve(
+            Response<dynamic>(
+              requestOptions: options,
+              statusCode: 200,
+              data: ok({}),
+            ),
+          ),
+        ),
+      );
+      final client = createClient(dio: dio);
+      final updated = await client.updatePlaylist(id: 'p1', name: 'Renamed');
+      expect(updated.id, 'p1');
+      expect(updated.name, 'Renamed');
+      final created = await client.createPlaylist('Legacy server playlist');
+      expect(created.name, 'Legacy server playlist');
+      // A mutation acknowledgement is not an authoritative membership snapshot.
+      await expectLater(
+        client.getPlaylist('p1'),
+        throwsA(isA<SubsonicIncompleteResponseException>()),
+      );
+    });
+    test('stars and unstars use entity-specific ID3 parameters', () async {
+      final dio = Dio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok({}),
+              ),
+            );
+          },
+        ),
+      );
+      final client = createClient(dio: dio);
+      for (final type in ['song', 'album', 'artist']) {
+        await client.star('same-id', itemType: type);
+        await client.unstar('same-id', itemType: type);
+      }
+      expect(requests, hasLength(6));
+      for (var i = 0; i < requests.length; i++) {
+        final parameter = ['id', 'albumId', 'artistId'][i ~/ 2];
+        final ids = Map<String, dynamic>.fromEntries(
+          requests[i].queryParameters.entries.where(
+            (entry) => ['id', 'albumId', 'artistId'].contains(entry.key),
+          ),
+        );
+        expect(ids, {parameter: 'same-id'});
+      }
+    });
+    for (final payload in <Map<String, dynamic>>[
+      {},
+      {'playlists': null},
+      {'playlists': <Object?>[]},
+      {
+        'playlists': {
+          'playlist': ['invalid'],
+        },
+      },
+    ]) {
+      test(
+        'rejects malformed authoritative playlist snapshot $payload',
+        () async {
+          final dio = Dio();
+          dio.interceptors.add(
+            InterceptorsWrapper(
+              onRequest: (options, handler) {
+                handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: ok(payload),
+                  ),
+                );
+              },
+            ),
+          );
+          await expectLater(
+            createClient(dio: dio).getPlaylists(),
+            throwsA(isA<SubsonicException>()),
+          );
+        },
+      );
+    }
+
+    test(
+      'decodes protocol genre value and permits explicit empty snapshots',
+      () async {
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: ok(
+                    options.path.contains('Genres')
+                        ? {
+                            'genres': {
+                              'genre': [
+                                {
+                                  'value': ' Rock ',
+                                  'songCount': 2,
+                                  'albumCount': 1,
+                                },
+                              ],
+                            },
+                          }
+                        : {'playlists': <String, dynamic>{}},
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+        final client = createClient(dio: dio);
+        expect((await client.getGenres()).single.name, 'Rock');
+        expect(await client.getPlaylists(), isEmpty);
+      },
+    );
+
     test('ping succeeds and returns server api version', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
       late RequestOptions captured;
@@ -113,6 +246,82 @@ void main() {
       final capabilities = await client.getOpenSubsonicExtensions();
       expect(capabilities.extensions, hasLength(1));
       expect(capabilities.extensions.first.name, 'transcodeOffset');
+    });
+
+    test('parses standard extension array with numeric versions', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) => handler.resolve(
+            Response<dynamic>(
+              requestOptions: options,
+              statusCode: 200,
+              data: ok(<String, dynamic>{
+                'openSubsonicExtensions': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    'name': 'sonicSimilarity',
+                    'versions': <int>[1],
+                  },
+                ],
+              }),
+            ),
+          ),
+        ),
+      );
+
+      final capabilities = await client.getOpenSubsonicExtensions();
+      expect(capabilities.extensions.single.name, 'sonicSimilarity');
+      expect(capabilities.extensions.single.versions, <String>['1']);
+      expect(
+        ServerCapabilities.fromJson(
+          jsonDecode(jsonEncode(capabilities.toJson())) as Map<String, dynamic>,
+        ),
+        capabilities,
+      );
+    });
+
+    test('keeps saved legacy capability JSON readable', () {
+      final saved = ServerCapabilities.fromJson(<String, dynamic>{
+        'extensions': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'transcodeOffset',
+            'versions': <String>['1'],
+          },
+        ],
+      });
+      expect(saved.extensions.single.name, 'transcodeOffset');
+    });
+
+    test('parses original standard similarSongs response', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+      late RequestOptions captured;
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok(<String, dynamic>{
+                  'similarSongs': <String, dynamic>{
+                    'song': <Map<String, dynamic>>[
+                      <String, dynamic>{'id': 'similar-1', 'title': 'One'},
+                    ],
+                  },
+                }),
+              ),
+            );
+          },
+        ),
+      );
+
+      final songs = await client.getLegacySimilarSongs('seed', count: 3);
+      expect(captured.path, '/rest/getSimilarSongs.view');
+      expect(captured.queryParameters['id'], 'seed');
+      expect(songs.single.id, 'similar-1');
     });
 
     test('normalizes standard artist album entries for hydration', () async {

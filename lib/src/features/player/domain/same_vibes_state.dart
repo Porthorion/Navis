@@ -7,6 +7,12 @@ enum SameVibesError {
 
   /// A network or unexpected error occurred during a refill fetch.
   networkError,
+
+  /// Last.fm rejected the configured API key.
+  invalidKey,
+
+  /// Last.fm limited further requests.
+  rateLimited,
 }
 
 /// Immutable state for the Same Vibes auto-refill mode.

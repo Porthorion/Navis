@@ -267,6 +267,7 @@ bool navisPlaybackSnapshotsStructurallyEqual(
       _radioStationsEqual(previous.radioStation, next.radioStation) &&
       previous.isLoading == next.isLoading &&
       previous.hasPendingLogicalQueue == next.hasPendingLogicalQueue &&
+      previous.pendingQueueIndex == next.pendingQueueIndex &&
       previous.loadingSongId == next.loadingSongId &&
       previous.lastFailedSongId == next.lastFailedSongId;
 }

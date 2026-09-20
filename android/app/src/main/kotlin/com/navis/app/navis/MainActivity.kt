@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
-import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -30,7 +29,6 @@ class MainActivity : AudioServiceActivity() {
     private val distributionChannelName = "com.navis.app/distribution"
     private val powerChannelName = "com.navis.app/power"
     private val deviceChannelName = "com.navis.app/device"
-    private val networkCostChannelName = "com.navis.app/network_cost"
     private val backgroundSyncChannelName = "com.navis.app/background_sync"
     private val diagnosticsHandshakeChannelName = "com.navis.app/diagnostics_handshake"
     private val permanentDownloadStorageChannelName = "com.navis.app/permanent_download_storage"
@@ -108,17 +106,7 @@ class MainActivity : AudioServiceActivity() {
             }
         }
 
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            networkCostChannelName
-        ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "isActiveNetworkMetered" -> {
-                    result.success(isActiveNetworkMetered())
-                }
-                else -> result.notImplemented()
-            }
-        }
+        registerNetworkCostChannel(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
 
         val backgroundScheduler = AndroidBackgroundSyncScheduler(applicationContext)
         MethodChannel(
@@ -568,12 +556,6 @@ class MainActivity : AudioServiceActivity() {
         if (target.exists() && !target.delete()) {
             throw IllegalStateException("Could not clear diagnostics handshake")
         }
-    }
-
-    private fun isActiveNetworkMetered(): Boolean {
-        val connectivityManager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        return connectivityManager.isActiveNetworkMetered
     }
 
     private fun respondWithBackgroundSchedule(

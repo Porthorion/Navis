@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 
-/// Queue for star/unstar operations that failed due to connectivity.
-/// Flushed when the server becomes reachable again.
+/// Latest unacknowledged annotation per entity and field.
 class StarSyncQueueTable extends Table {
   @override
   String get tableName => 'star_sync_queue';
@@ -16,6 +15,13 @@ class StarSyncQueueTable extends Table {
 
   /// The action to perform: 'star' or 'unstar'.
   TextColumn get action => text()();
+
+  /// 'star' or 'rating'; ratings use action '0' through '5'.
+  TextColumn get operation => text().withDefault(const Constant('star'))();
+
+  IntColumn get attemptCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get notBefore => dateTime().nullable()();
+  TextColumn get lastErrorType => text().nullable()();
 
   /// When the action was queued.
   DateTimeColumn get queuedAt => dateTime()();

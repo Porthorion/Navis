@@ -94,6 +94,18 @@ The script fails fast when `/tmp` is critically low to avoid misleading test han
 
 ## Mandatory Runtime Validation
 
+For exploratory Linux setup and sync routing, `./tool/dev_app.sh run -d linux`
+accepts the isolated presets documented in
+[Dev Testing Builds](dev-testing-builds.md). `--first-setup`, `--bad-cache`,
+`--force-setup`, the full-screen repair entries, and deterministic
+`--partial-album`/`--server-error` fixtures create disposable profiles under
+`build/dev-sync-scenarios/`. The launcher uses profile-mode clone diagnostics,
+so the normal local database and both rolling and cover-art caches are outside
+the reset path. Network gates can be seeded at process start with `--offline`
+or `--metered` and changed through `dev_app.sh scenario` while it runs. These
+interactive presets complement, rather than replace, bounded authenticated
+diagnostics scripts and their assertions.
+
 `./tool/check.sh` does not by itself prove that a runtime-affecting change is
 complete. Agents must also run the built app, exercise the changed behavior
 through an app-owned control surface, inspect the result, fix any gap, and
@@ -115,6 +127,18 @@ proven not to affect runtime behavior are exempt.
    observable provider/domain state, persisted side effects, relevant logs, and
    the absence of new errors. Use status endpoints or bounded polling instead
    of fixed sleeps for asynchronous work.
+   For remote playback startup, inspect `startupAttempts` in
+   `GET /v1/playback/status`. Its monotonic elapsed stages distinguish
+   provisional persistence, source resolution, player apply, readiness, and
+   first advancing position. The source kind and external flag are included;
+   song identity and stream URLs are omitted. Compare the client timeline to
+   server time-to-first-byte and download stages before attributing a delay.
+   For rapid navigation, inspect the redacted `navigation` field in
+   `GET /v1/playback/status`. Clone-only `POST /v1/playback/next` and
+   `POST /v1/playback/previous` call the production handler and may be sent
+   concurrently. Confirm desired and final indexes, pending state, timeout
+   count, at most one pending queue mutation, and an advancing position after
+   the last input.
 6. For a visible Flutter change, call `POST /v1/presentation/screenshot`, open
    the resulting PNG with image-viewing capability, inspect the affected
    region, and record the result. Merely creating a PNG is not confirmation.
@@ -142,8 +166,8 @@ controller and persistence path.
 The same gate reads the bounded redacted `GET /v1/sync/ledger` trace. Its
 `durableRuns` field is the cross-restart typed history (origin, intent, target
 kind, plan kind, terminal outcome/reason, aggregate request/byte counts, and
-timestamp only); it must never contain credentials, URLs, IDs, titles, or
-paths. The temporary `events` field is a bounded isolated-fixture compatibility
+timestamps and local request/attempt IDs); it must never contain credentials,
+URLs, media/entity IDs, titles, or paths. The temporary `events` field is a bounded isolated-fixture compatibility
 mirror and is not a scheduler input. Use `durableOperations` for the separate
 atomic destructive-mutation audit.
 
@@ -336,11 +360,24 @@ the tree remains otherwise usable.
 - Song-row presentation exposes the read-only
   `GET /v1/presentation/song-indicator?songId=<id>` endpoint. It reports only
   production indicator and presentation roles; it never returns song metadata.
+- Mix validation uses clone-only, authenticated `GET /v1/mix/status` and
+  `POST /v1/mix/start`, `/v1/mix/stop`, and `/v1/mix/retry`. Start accepts
+  `mode` (`server`, `lastfm`, `radio`, or `selected`), a `seedId` for song modes,
+  and optional `likedOnly`/`downloadedOnly` booleans for radio. Status reports
+  mode, operation generation, seed, request stage, source, candidate and actual
+  inserted counts, error category, and retry state, without credentials or
+  server URLs. The clone has no Last.fm key by default. Set
+  `NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE` to an owned regular mode-600 key file
+  only for an isolated authenticated Last.fm run. The diagnostics launcher
+  rejects symlinks and permissive file modes.
+  Clone-only `POST /v1/playback/queue-index` accepts a bounded zero-based
+  index to advance the production handler and exercise recommendation refills.
 
 Authentication lifecycle work uses:
 
 ```bash
 ./tool/auth_lifecycle_diagnostics.sh clone
+./tool/auth_lifecycle_diagnostics.sh partial
 ```
 
 The script creates isolated database/cache profiles, uses the authenticated
@@ -357,6 +394,24 @@ and personalized discovery services are outside the run. Direct database
 changes are limited to pointing the isolated
 fixture profile at that loopback process; lifecycle actions run through the
 production app API and services.
+The `partial` mode uses a second fixture album whose advertised count exceeds
+the returned song list. It verifies that a safely promoted first catalog opens
+Home with a separate usable marker and pending hydration, remains ready after
+clean restart, then fills the missing tracks through the production automatic
+sync path after the fixture response is corrected. It captures an app-owned Home
+screenshot and keeps the full-sync timestamp null until verification completes.
+With the incomplete response restored, it then visits all four full-screen
+rebuild routes and verifies each partial catalog reaches Home with the album
+still pending, using the durable run ledger for completion evidence.
+The clone-only `POST /v1/diagnostics/sync-foreground` control sets the same
+foreground admission provider as Flutter lifecycle events, allowing the
+headless desktop fixture to exercise automatic work even when the window is not
+focused. `POST /v1/diagnostics/automatic-sync-due` advances only the isolated
+profile's durable check deadline so the production automatic entry point can
+run immediately. Primary certification rejects both controls.
+`GET /v1/sync/status` chooses the newer production-controller run when a UI
+rebuild follows an older diagnostics-API run, and reports UI-triggered running
+work as active. The durable ledger remains the cross-restart run history.
 Session status is deliberately bounded to route/sync phases, queue counts, and
 playback/activity flags; URLs, usernames, credentials, and tokens are forbidden.
 
@@ -442,7 +497,20 @@ For a Search scenario, set `NAVIS_PRESENTATION_SEARCH_QUERY`, navigate to
 persisting display labels, and captures the settled result list on both runs.
 With the songs filter and `NAVIS_PRESENTATION_SEARCH_PLAY_REMOTE=1`, it also
 uses `POST /v1/presentation/search/play` plus the player-overlay controller to
-capture the selected remote result in Now Playing.
+capture the selected remote result in Now Playing. When the selected song
+remains loading long enough, it captures a separate app-owned
+`*-remote-loading-screenshot` before playback completes. The playback check requires
+a ready player and an advancing position recorded in the startup timeline;
+`playing: true` with an idle player or zero progress is not successful audio
+startup. A terminal `queueLoadFailed` stage ends the diagnostic immediately
+instead of waiting for the full polling window.
+For paired or repeated runs, set `NAVIS_PRESENTATION_REMOTE_SONG_ID` to a remote
+ID returned by the search result. The script requires that exact remote result
+to be present on both runs, preventing a changing result order from silently
+turning a warm replay into a cold test of another song.
+Set `NAVIS_PRESENTATION_REMOTE_SEEK=1` with remote playback to seek the selected
+track to 30 seconds on both the initial and restarted runs. The script then
+requires a ready player with an advancing position at or beyond that point.
 For a recoverable Search-failure capture, use an intentionally unmatched query
 with `NAVIS_PRESENTATION_FORCE_SEARCH_REMOTE_FAILURE=1`. The clone-only
 launcher applies the authenticated diagnostics override before submitting the
@@ -787,6 +855,8 @@ The command installs only the `.dev` sidecar, force-stops it, then uses an
 external MediaBrowser client to start the canonical audio service without ever
 launching `MainActivity`. It is intentionally not an AAOS test and does not
 replace DHU projection validation.
+The sidecar install permits replacing a newer dev build with the diagnostics
+build while retaining sidecar app data.
 
 When Android SDK/device is not available locally, you can still verify app startup behavior with Linux desktop:
 
@@ -882,3 +952,88 @@ scheduling, cancellation, or other mutation.
 For complete MacBook test procedures (quick smoke, full regression, release/notarization validation), use:
 
 `docs/macos-testing-playbook.md`
+
+The manual discovery gate also calls `GET /v1/library/album?verifySongs=true`
+(with the fixture album `id`) and requires `persistedSongCount` before and after
+restart. A hydration flag or declared server count alone is insufficient proof
+that an album's tracks were actually stored.
+
+Set `NAVIS_ANNOTATION_FIXTURE=true` when running
+`tool/manual_discovery_diagnostics.sh` to also queue offline song/album/artist
+favorites and a rating, then verify exact protocol parameters and a drained
+outbox after reconnect. This explicitly enables
+`NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE` only for an HTTP loopback server with the
+fixture username; ordinary diagnostics still refuse annotation delivery. The
+fixture clears copied outbox entries before launch. Its copied catalog is marked
+recently track-verified so the one-album fixture does not pretend to serve the
+unrelated live library's historical metadata.
+
+Clone-only `POST /v1/presentation/library-scroll` accepts `pixels` (0–100000)
+and animates the mounted Albums view through its real scroll controller, returning
+the actual position. `POST /v1/diagnostics/metrics/reset` clears frame/canary samples
+and playback-failure counts between timed scenarios. Reports include current and
+process-lifetime peak RSS. These support controlled sync/playback/scroll trials;
+API action latency and build+raster samples are not hardware input-latency or
+hardware dropped-frame measurements.
+Reports retain `frames` as build-plus-raster for comparison with earlier traces,
+and expose `frameBuild`, `frameRaster` and `frameSpan` separately using the same
+latest-5,000-sample window. `frameSpan` is Flutter's vsync-to-raster-finish duration;
+none of these fields measures presentation by the compositor or audible gaps.
+The reset endpoint clears all four windows together. Use the separate phases to
+locate UI-thread versus raster cost before choosing a performance change.
+
+
+### Isolated Android worker fixture
+
+A profile **clone** sidecar with a nonempty `NAVIS_APP_ID_SUFFIX` may opt into
+`NAVIS_DIAGNOSTICS_ANDROID_WORKER_FIXTURE=true`. This uses that sidecar's real
+Android secure storage so a separate headless Flutter engine can read the
+fixture session after process death. Normal clone diagnostics keep credential
+changes in memory. Connect a loopback fixture through authenticated
+`POST /v1/session/connect`; never pass real credentials in Dart defines or ADB.
+Use a fresh sidecar package and its own `app_flutter/navis.sqlite.sqlite` path
+for both foreground and worker access. Observe WorkManager through Android's
+JobScheduler service API, and inspect results through authenticated Navis status
+and durable history. Primary certification remains read-only.
+
+For a metering/process-death worker check, constrain the emulator fixture Wi-Fi
+through Android's network-policy API, enqueue the production catch-up schedule
+via a diagnostics background-policy change, close the sidecar activity, and kill
+only that background sidecar process. Restoring unmetered Wi-Fi lets WorkManager
+start a new process; inspect the persisted worker result and actual song counts
+after reopening the sidecar. Restore the emulator's original network policy.
+Forcing a periodic JobScheduler job early is insufficient because WorkManager
+still enforces its own next-run timestamp.
+
+Diagnostics reports label persisted promotion statistics with
+`promotionScope: lastCommittedCatalogPromotion` and `promotionGeneration`.
+Those statistics may predate the current incremental check; current endpoint
+counts and pending counts come from the active/terminal operation state.
+
+For a large first-sync benchmark, compile the isolated diagnostic with
+`--dart-define=NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS=600` to use the production
+lease duration. The default six-second diagnostic lease is deliberately short
+for interrupted-owner tests and can expire while a large atomic promotion holds
+the database writer. The override is bounded to 1–600 seconds and has no effect
+outside diagnostics builds; it does not disable ownership checks.
+
+
+Authenticated `GET /v1/sync/attempts` returns up to 20 recent active, recovered or
+terminal attempts for the active server, including their bounded telemetry.
+The `reportedAttempt` field of `GET /v1/diagnostics/report` selects the exact `sync.runAttemptId`,
+not the most recent auxiliary attempt; it is null when that status has no attempt.
+Sync status and durable outcomes expose request/attempt IDs and start timestamps.
+`workSummary` groups durable work by safe target kind, status, cooldown and next
+retry time. Work-row, pending-album and pending-artist counts are separate axes
+and must not be added together as an operation count.
+
+Inspect `captureComplete`, omitted phase/attempt counts and checkpoint failures
+before interpreting a trace. A complete capture is not a durable completion
+claim; consult the attempt status and outcome. Request ordinals link retries,
+while endpoint totals survive trace truncation. Phase elapsed times include
+awaited network/database work; applying-to-cleaning covers publication including
+commit, and should not be confused with the narrower persisted reported-apply
+counter. Capture evidence before its opportunistic seven-day detail pruning;
+aggregate terminal history lasts 90 days. API tests cover redaction, migration,
+recovery and correlation; runtime certification should compare the same attempt
+before and after a clean restart.

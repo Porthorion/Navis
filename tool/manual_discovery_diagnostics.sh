@@ -32,7 +32,7 @@ trap cleanup EXIT INT TERM
 
 printf '%s\n' 'navis-manual-discovery-fixture' > "$CREDENTIAL_FILE"
 chmod 600 "$CREDENTIAL_FILE"
-fixture_args=()
+fixture_args=(--annotation-log "$OUTPUT_ROOT/annotations.jsonl")
 if [[ "${NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING:-0}" == "1" ]]; then
   fixture_args+=(--omit-existing-artist-album)
 fi
@@ -72,6 +72,10 @@ state_columns = {row[1] for row in target.execute("PRAGMA table_info(library_syn
 if "next_automatic_check_at" not in state_columns:
     target.execute("ALTER TABLE library_sync_state ADD COLUMN next_automatic_check_at INTEGER")
 target.execute("DELETE FROM library_sync_work")
+target.execute("DELETE FROM star_sync_queue")
+album_columns = {row[1] for row in target.execute("PRAGMA table_info(albums)")}
+if "songs_verified_at" not in album_columns:
+    target.execute("ALTER TABLE albums ADD COLUMN songs_verified_at INTEGER")
 for table in ("library_sync_candidate_artists", "library_sync_candidate_albums", "library_sync_candidate_songs"):
     target.execute(f"DELETE FROM {table}")
 target.execute("UPDATE server_config SET name=?, url=?, username=?, api_version=?, capabilities=?, last_synced=?, last_full_synced=?, is_authenticated=1 WHERE id=?", ("Navis manual discovery fixture", f"http://127.0.0.1:{fixture['port']}", "diagnostics", "1.16.1", json.dumps(capabilities, separators=(",", ":")), now, now, server_id))
@@ -80,11 +84,11 @@ target.execute("UPDATE library_sync_state SET last_checked_at=?, last_catalog_sy
 # This fixture certifies one new album discovery. The copied primary catalog is
 # otherwise intentionally already hydrated so unrelated historical song work
 # cannot mask the terminal result of the app-owned manual check.
-target.execute("UPDATE albums SET songs_hydrated=1")
+target.execute("UPDATE albums SET songs_hydrated=1, songs_verified_at=?", (now,))
 target.execute("INSERT OR REPLACE INTO artists (id, name, album_count, cover_art, is_provisional, is_external) VALUES (?, ?, ?, ?, 0, 0)", ("fixture-existing-artist", "Fixture Existing Artist", 2, "fixture-cover"))
 target.execute("INSERT OR REPLACE INTO albums (id, name, artist_id, artist_name, song_count, duration, year, genre, cover_art, songs_hydrated, server_created_at, is_provisional, is_external) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, 0)", ("fixture-existing-album", "Fixture Existing Album", "fixture-existing-artist", "Fixture Existing Artist", 1, 4, 2025, "Diagnostics", "fixture-cover", int(datetime.datetime(2025, 1, 1, tzinfo=datetime.timezone.utc).timestamp())))
 target.execute("INSERT OR REPLACE INTO songs (id, title, album_id, artist_id, artist_name, album_name, track, duration, is_provisional, is_external) VALUES (?, ?, ?, ?, ?, ?, 1, 4, 0, 0)", ("fixture-existing-song", "Fixture Existing Tone", "fixture-existing-album", "fixture-existing-artist", "Fixture Existing Artist", "Fixture Existing Album"))
-target.execute("UPDATE albums SET songs_hydrated=1 WHERE id='fixture-existing-album'")
+target.execute("UPDATE albums SET songs_hydrated=1, songs_verified_at=? WHERE id='fixture-existing-album'", (now,))
 target.commit()
 assert target.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
 assert not target.execute("PRAGMA foreign_key_check").fetchall()
@@ -106,6 +110,7 @@ launch() {
       --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
       --dart-define=NAVIS_APP_NAME='Navis Manual Discovery Diagnostics' \
       --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
+      --dart-define="NAVIS_DIAGNOSTICS_ANNOTATION_FIXTURE=${NAVIS_ANNOTATION_FIXTURE:-false}" \
       --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone \
       --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
       --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
@@ -194,8 +199,8 @@ launch
 api GET /v1/health > "$OUTPUT_ROOT/health.json"
 wait_for_presentation
 wait_for_idle "$OUTPUT_ROOT/status-before.json"
-api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/album-before.json"
-api GET '/v1/library/album?id=fixture-existing-album' > "$OUTPUT_ROOT/existing-album-before.json"
+api GET '/v1/library/album?id=fixture-new-album&verifySongs=true' > "$OUTPUT_ROOT/album-before.json"
+api GET '/v1/library/album?id=fixture-existing-album&verifySongs=true' > "$OUTPUT_ROOT/existing-album-before.json"
 python3 - "$OUTPUT_ROOT/album-before.json" "$OUTPUT_ROOT/existing-album-before.json" <<'PY'
 import json, sys
 assert json.load(open(sys.argv[1])) == {"id": "fixture-new-album", "exists": False}
@@ -204,10 +209,23 @@ PY
 api POST /v1/diagnostics/overrides \
   '{"networkType":"offline","requestReporting":true}' \
   > "$OUTPUT_ROOT/offline-overrides.json"
+if [[ "${NAVIS_ANNOTATION_FIXTURE:-false}" == "true" ]]; then
+  for entry in 'song fixture-existing-song' 'album fixture-existing-album' 'artist fixture-existing-artist'; do
+    read -r item_type item_id <<< "$entry"
+    api POST /v1/diagnostics/local-mutation "{\"type\":\"$item_type\",\"id\":\"$item_id\",\"field\":\"starred\",\"value\":true}" > /dev/null
+  done
+  api POST /v1/diagnostics/local-mutation '{"type":"song","id":"fixture-existing-song","field":"rating","value":4}' > /dev/null
+  python3 - "$CLONE_DB" <<'VERIFY_QUEUE'
+import sqlite3, sys
+with sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True) as db:
+    assert db.execute("SELECT COUNT(*) FROM star_sync_queue").fetchone()[0] == 4
+VERIFY_QUEUE
+fi
+
 api POST /v1/sync/check '{}' > "$OUTPUT_ROOT/offline-check-start.json"
 wait_for_idle "$OUTPUT_ROOT/offline-check-status.json"
 api GET /v1/sync/ledger > "$OUTPUT_ROOT/offline-sync-ledger.json"
-api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/offline-album.json"
+api GET '/v1/library/album?id=fixture-new-album&verifySongs=true' > "$OUTPUT_ROOT/offline-album.json"
 python3 - "$OUTPUT_ROOT/offline-check-status.json" \
   "$OUTPUT_ROOT/offline-sync-ledger.json" "$OUTPUT_ROOT/offline-album.json" <<'PY'
 import json, sys
@@ -252,18 +270,46 @@ if [[ "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" == "1" ]]; then
 fi
 api POST "$resume_path" "$resume_body" > "$OUTPUT_ROOT/reconnect-resume-start.json"
 wait_for_idle "$OUTPUT_ROOT/status-after.json"
-api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/album-after.json"
-api GET '/v1/library/album?id=fixture-existing-album' > "$OUTPUT_ROOT/existing-album-after.json"
+api GET '/v1/library/album?id=fixture-new-album&verifySongs=true' > "$OUTPUT_ROOT/album-after.json"
+api GET '/v1/library/album?id=fixture-existing-album&verifySongs=true' > "$OUTPUT_ROOT/existing-album-after.json"
 api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
+if [[ "${NAVIS_ANNOTATION_FIXTURE:-false}" == "true" ]]; then
+  delivery_verified=0
+  for _ in $(seq 1 45); do
+    if python3 - "$CLONE_DB" "$OUTPUT_ROOT/annotations.jsonl" <<'VERIFY_DELIVERY'
+import json, os, sqlite3, sys
+with sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True) as db:
+    if db.execute("SELECT COUNT(*) FROM star_sync_queue").fetchone()[0]:
+        raise SystemExit(1)
+rows = [json.loads(line) for line in open(sys.argv[2])] if os.path.exists(sys.argv[2]) else []
+expected = [
+    {"endpoint":"star","parameters":{"id":["fixture-existing-song"]}},
+    {"endpoint":"star","parameters":{"albumId":["fixture-existing-album"]}},
+    {"endpoint":"star","parameters":{"artistId":["fixture-existing-artist"]}},
+    {"endpoint":"setRating","parameters":{"id":["fixture-existing-song"],"rating":["4"]}},
+]
+assert all(row in rows for row in expected), rows
+VERIFY_DELIVERY
+    then delivery_verified=1; break; fi
+    sleep 1
+  done
+  [[ "$delivery_verified" == "1" ]] || { echo "Annotation delivery verification failed" >&2; exit 1; }
+  python3 - "$CLONE_DB" <<'VERIFY_EMPTY'
+import sqlite3, sys
+with sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True) as db:
+    assert db.execute("SELECT COUNT(*) FROM star_sync_queue").fetchone()[0] == 0
+VERIFY_EMPTY
+fi
+
 python3 - "$resume_cause" "${NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME:-0}" "$OUTPUT_ROOT/status-after.json" "$OUTPUT_ROOT/album-after.json" "$OUTPUT_ROOT/existing-album-after.json" "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
 import json, sys
 resume_cause = sys.argv[1]
 queued_target = sys.argv[2] == "1"
 status = json.load(open(sys.argv[3]))
 album = json.load(open(sys.argv[4]))
-assert album == {"id": "fixture-new-album", "exists": True, "songsHydrated": True, "songCount": 1}, album
+assert album == {"id": "fixture-new-album", "exists": True, "songsHydrated": True, "songCount": 1, "persistedSongCount": 1}, album
 existing = json.load(open(sys.argv[5]))
-assert existing.get("exists") and existing.get("songsHydrated"), existing
+assert existing.get("exists") and existing.get("songsHydrated") and existing.get("persistedSongCount") == 1, existing
 events = json.load(open(sys.argv[6]))["events"]
 terminal = next(event for event in reversed(events) if event.get("cause") == resume_cause and event.get("phase") == "terminal")
 assert terminal["planKind"] == "deltaReconcile" and terminal["planReason"] == "resumeDeltaReconcile", terminal
@@ -297,14 +343,14 @@ FLUTTER_PID=0
 launch
 wait_for_presentation
 wait_for_idle "$OUTPUT_ROOT/restart-status.json"
-api GET '/v1/library/album?id=fixture-new-album' > "$OUTPUT_ROOT/restart-album.json"
-api GET '/v1/library/album?id=fixture-existing-album' > "$OUTPUT_ROOT/restart-existing-album.json"
+api GET '/v1/library/album?id=fixture-new-album&verifySongs=true' > "$OUTPUT_ROOT/restart-album.json"
+api GET '/v1/library/album?id=fixture-existing-album&verifySongs=true' > "$OUTPUT_ROOT/restart-existing-album.json"
 python3 - "$OUTPUT_ROOT/restart-album.json" "$OUTPUT_ROOT/restart-existing-album.json" <<'PY'
 import json, sys
 album = json.load(open(sys.argv[1]))
-assert album.get("exists") and album.get("songsHydrated"), album
+assert album.get("exists") and album.get("songsHydrated") and album.get("persistedSongCount") == 1, album
 existing = json.load(open(sys.argv[2]))
-assert existing.get("exists") and existing.get("songsHydrated"), existing
+assert existing.get("exists") and existing.get("songsHydrated") and existing.get("persistedSongCount") == 1, existing
 PY
 api POST /v1/presentation/navigate '{"location":"/library/albums/fixture-new-album"}' > "$OUTPUT_ROOT/restart-navigation.json"
 sleep 5

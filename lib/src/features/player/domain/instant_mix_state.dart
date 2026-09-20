@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 
 /// Possible error conditions surfaced by `InstantMixNotifier`.
 enum InstantMixError {
-  /// The connected Subsonic server does not support `getSimilarSongs2` or
-  /// `getInstantMix`.
+  /// The connected server supports neither standard Subsonic similarity
+  /// endpoint nor Navidrome's compatibility fallback.
   unsupported,
 
   /// A network or unexpected error occurred during a refill fetch.

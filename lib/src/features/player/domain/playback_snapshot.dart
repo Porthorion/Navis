@@ -1,6 +1,9 @@
 import 'package:audio_service/audio_service.dart';
 export 'package:audio_service/audio_service.dart' show AudioProcessingState;
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/utils/catalog_source.dart';
+
+const Object _unmodifiedPendingQueueIndex = Object();
 
 enum ManualTrackChangeDirection { next, previous }
 
@@ -130,6 +133,7 @@ class PlaybackSnapshot {
     this.radioStation,
     this.isLoading = false,
     this.hasPendingLogicalQueue = false,
+    this.pendingQueueIndex,
     this.loadingSongId,
     this.lastFailedSongId,
   });
@@ -149,6 +153,7 @@ class PlaybackSnapshot {
       radioStation = null,
       isLoading = false,
       hasPendingLogicalQueue = false,
+      pendingQueueIndex = null,
       loadingSongId = null,
       lastFailedSongId = null;
 
@@ -173,6 +178,9 @@ class PlaybackSnapshot {
   /// True when `queueSongIds` represents the requested logical queue while
   /// the transport queue is still preparing audio sources.
   final bool hasPendingLogicalQueue;
+
+  /// Latest requested queue entry while the player confirms a transition.
+  final int? pendingQueueIndex;
 
   /// Song id currently being loaded, if known.
   final String? loadingSongId;
@@ -203,6 +211,7 @@ class PlaybackSnapshot {
     RadioStationMetadata? radioStation,
     bool? isLoading,
     bool? hasPendingLogicalQueue,
+    Object? pendingQueueIndex = _unmodifiedPendingQueueIndex,
     String? loadingSongId,
     String? lastFailedSongId,
   }) {
@@ -222,6 +231,13 @@ class PlaybackSnapshot {
       isLoading: isLoading ?? this.isLoading,
       hasPendingLogicalQueue:
           hasPendingLogicalQueue ?? this.hasPendingLogicalQueue,
+      pendingQueueIndex:
+          identical(
+            pendingQueueIndex,
+            _unmodifiedPendingQueueIndex,
+          )
+          ? this.pendingQueueIndex
+          : pendingQueueIndex as int?,
       loadingSongId: loadingSongId ?? this.loadingSongId,
       lastFailedSongId: lastFailedSongId ?? this.lastFailedSongId,
     );
@@ -247,4 +263,44 @@ class PlaybackSnapshot {
       lastFailedSongId: lastFailedSongId,
     );
   }
+}
+
+/// Whether a remote source is actually preventing the active song from playing.
+/// Queue fill may continue after the selected source is already ready.
+bool shouldShowRemotePlaybackLoading({
+  required PlaybackSnapshot playback,
+  required bool currentIsExternal,
+}) {
+  if (playback.isRadioMode) {
+    return false;
+  }
+
+  final loadingSongId = playback.loadingSongId;
+  final loadingTargetIsExternal = loadingSongId == playback.currentSongId
+      ? currentIsExternal ||
+            (loadingSongId != null &&
+                isExternalCatalogSource(id: loadingSongId))
+      : loadingSongId != null && isExternalCatalogSource(id: loadingSongId);
+  if (playback.isLoading &&
+      loadingSongId != null &&
+      playback.currentSongId != loadingSongId) {
+    // A new selection owns the button even while the previous song's metadata
+    // and buffering state are still on screen.
+    return loadingTargetIsExternal;
+  }
+  if (playback.isLoading && loadingTargetIsExternal) {
+    if (playback.currentSongId != loadingSongId ||
+        playback.processingState != AudioProcessingState.ready) {
+      return true;
+    }
+  }
+
+  final currentSongId = playback.currentSongId;
+  final activeIsExternal =
+      currentIsExternal ||
+      (currentSongId != null && isExternalCatalogSource(id: currentSongId));
+  return activeIsExternal &&
+      playback.playing &&
+      (playback.processingState == AudioProcessingState.loading ||
+          playback.processingState == AudioProcessingState.buffering);
 }

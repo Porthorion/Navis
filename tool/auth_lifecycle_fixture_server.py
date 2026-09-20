@@ -69,6 +69,8 @@ SONG = {
 ARTIST_ALBUMS = [ALBUM]
 INDEX_LAST_MODIFIED = 1780000000000
 FAILURE_FLAG = ""
+PARTIAL_ALBUM_FLAG = ""
+PARTIAL_ALBUM_ID = "fixture-incomplete-album"
 
 
 def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
@@ -128,6 +130,20 @@ def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
     ARTIST_ALBUMS = [ALBUM] if omit_existing_artist_album else [existing_album, ALBUM]
 
 
+def _configure_partial_album_fixture():
+    global ARTIST, ARTIST_ALBUMS
+    ARTIST = {**ARTIST, "albumCount": 2}
+    ARTIST_ALBUMS = [
+        ALBUM,
+        {
+            **ALBUM,
+            "id": PARTIAL_ALBUM_ID,
+            "name": "Incomplete Fixture Album",
+            "songCount": 2,
+        },
+    ]
+
+
 def _root(**content):
     return {
         "subsonic-response": {
@@ -138,6 +154,9 @@ def _root(**content):
             **content,
         }
     }
+
+
+ANNOTATION_LOG = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -200,6 +219,14 @@ class Handler(BaseHTTPRequestHandler):
         if endpoint == "getCoverArt":
             self._bytes(PNG, "image/png")
             return
+        if endpoint in {"star", "unstar", "setRating"}:
+            if ANNOTATION_LOG:
+                with open(ANNOTATION_LOG, "a", encoding="utf-8") as output:
+                    output.write(json.dumps({"endpoint": endpoint, "parameters": {
+                        key: query[key] for key in ("id", "albumId", "artistId", "rating") if key in query
+                    }}) + "\n")
+            self._json(_root())
+            return
         if endpoint == "ping":
             self._json(_root())
             return
@@ -216,11 +243,23 @@ class Handler(BaseHTTPRequestHandler):
         if endpoint == "getAlbumList2":
             time.sleep(0.8)
             offset = int(query.get("offset", ["0"])[0])
-            self._json(_root(albumList2={"album": [ALBUM] if offset == 0 else []}))
+            albums = ARTIST_ALBUMS if PARTIAL_ALBUM_FLAG else [ALBUM]
+            self._json(_root(albumList2={"album": albums if offset == 0 else []}))
             return
         if endpoint == "getAlbum":
             time.sleep(0.8)
-            self._json(_root(album={**ALBUM, "song": [SONG]}))
+            album_id = query.get("id", [""])[0]
+            album = next((item for item in ARTIST_ALBUMS if item["id"] == album_id), None)
+            if album is None:
+                self._json(_root(status="failed", error={"code": 70, "message": "Album not found"}))
+                return
+            song = SONG if album_id == ALBUM["id"] else {
+                **SONG, "id": f"{album_id}-song", "albumId": album_id, "album": album["name"],
+            }
+            songs = [song]
+            if album_id == PARTIAL_ALBUM_ID and not os.path.exists(PARTIAL_ALBUM_FLAG):
+                songs.append({**song, "id": f"{album_id}-song-2", "track": 2})
+            self._json(_root(album={**album, "song": songs}))
             return
         if endpoint == "getSong":
             self._json(_root(song=SONG))
@@ -276,13 +315,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global FAILURE_FLAG
+    global FAILURE_FLAG, PARTIAL_ALBUM_FLAG
     parser = argparse.ArgumentParser()
     parser.add_argument("--handshake", required=True)
     parser.add_argument("--failure-flag", required=True)
     parser.add_argument(
         "--scenario",
-        choices=("auth-lifecycle", "manual-discovery"),
+        choices=("auth-lifecycle", "manual-discovery", "partial-album"),
         default="auth-lifecycle",
     )
     parser.add_argument(
@@ -290,10 +329,23 @@ def main():
         action="store_true",
         help="Return a partial getArtist album list in manual-discovery mode.",
     )
+    parser.add_argument("--annotation-log")
+    parser.add_argument("--partial-album-flag")
     args = parser.parse_args()
+    global ANNOTATION_LOG
+    ANNOTATION_LOG = args.annotation_log
     FAILURE_FLAG = os.path.realpath(args.failure_flag)
+    PARTIAL_ALBUM_FLAG = (
+        os.path.realpath(args.partial_album_flag)
+        if args.partial_album_flag is not None
+        else ""
+    )
     if args.scenario == "manual-discovery":
         _configure_manual_discovery_fixture(args.omit_existing_artist_album)
+    if args.scenario == "partial-album":
+        if not PARTIAL_ALBUM_FLAG:
+            parser.error("--partial-album-flag is required for partial-album")
+        _configure_partial_album_fixture()
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     os.makedirs(os.path.dirname(os.path.realpath(args.handshake)), exist_ok=True)
     with open(args.handshake, "w", encoding="utf-8") as output:

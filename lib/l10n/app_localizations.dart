@@ -1539,19 +1539,31 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsLegacyInstantMixTitle.
   ///
   /// In en, this message translates to:
-  /// **'Legacy Instant Mix'**
+  /// **'Server mix'**
   String get playbackSettingsLegacyInstantMixTitle;
 
   /// No description provided for @playbackSettingsLegacyInstantMixSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Use local-only similar songs instead of Last.fm recommendations.'**
+  /// **'Use your server\'s song recommendations. Turn off for Last.fm · Same Vibes.'**
   String get playbackSettingsLegacyInstantMixSubtitle;
+
+  /// No description provided for @playbackSettingsLastFmSameVibesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm · Same Vibes'**
+  String get playbackSettingsLastFmSameVibesTitle;
+
+  /// No description provided for @playbackSettingsLastFmSameVibesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Match Last.fm recommendations to your library. Turn on for Server mix.'**
+  String get playbackSettingsLastFmSameVibesSubtitle;
 
   /// No description provided for @playbackSettingsLegacyInstantMixLocked.
   ///
   /// In en, this message translates to:
-  /// **'This build has no Last.fm API key, so Legacy Instant Mix is required.'**
+  /// **'This build has no Last.fm API key, so Server mix is required.'**
   String get playbackSettingsLegacyInstantMixLocked;
 
   /// No description provided for @playbackSettingsShowRadioPageTitle.
@@ -4102,6 +4114,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instant Radio'**
   String get instantRadioAction;
+
+  /// No description provided for @instantRadioLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting radio…'**
+  String get instantRadioLoading;
+
+  /// No description provided for @instantRadioStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop radio'**
+  String get instantRadioStop;
+
+  /// No description provided for @instantRadioEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No playable songs match these filters.'**
+  String get instantRadioEmpty;
+
+  /// No description provided for @instantRadioError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t start radio. Check your connection or try again.'**
+  String get instantRadioError;
+
+  /// No description provided for @instantRadioFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio is using music from your library.'**
+  String get instantRadioFallback;
+
+  /// No description provided for @instantRadioRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry radio'**
+  String get instantRadioRetry;
+
+  /// No description provided for @sameVibesInvalidKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm rejected the API key. Update it in Settings and retry.'**
+  String get sameVibesInvalidKey;
+
+  /// No description provided for @sameVibesRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm is limiting requests. Try again later.'**
+  String get sameVibesRateLimited;
 
   /// No description provided for @searchRecentTitle.
   ///

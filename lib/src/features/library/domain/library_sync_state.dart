@@ -44,6 +44,8 @@ class LibrarySyncState {
     required this.status,
     required this.stage,
     this.mode,
+    this.runRequestId,
+    this.runAttemptId,
     this.metadataReady = false,
     this.isHydrating = false,
     this.fastPathActive = false,
@@ -52,6 +54,8 @@ class LibrarySyncState {
     this.total,
     this.hydratedAlbums,
     this.pendingHydrationCount,
+    this.onlyIncompleteAlbumDetails = false,
+    this.catalogPublishedThisRun = false,
     this.startedAt,
     this.completedAt,
     this.errorMessage,
@@ -66,6 +70,7 @@ class LibrarySyncState {
     this.playlistHeadersSynchronized = false,
     this.genresSynchronized = false,
     this.apiRequests = 0,
+    this.endpointRequests = const <String, int>{},
     this.apiRetries = 0,
     this.apiFailures = 0,
     this.averageLatencyMs,
@@ -86,6 +91,7 @@ class LibrarySyncState {
     this.carriedForwardEntityCount = 0,
     this.lastApplyDurationMs,
     this.probeIndexChanged,
+    this.probeEvidenceVersion,
     this.probeIndexesUnsupported = false,
     this.updatesAvailable = false,
   });
@@ -103,6 +109,7 @@ class LibrarySyncState {
   final LibrarySyncStatus status;
   final LibrarySyncStage stage;
   final LibrarySyncMode? mode;
+  final int? runRequestId, runAttemptId;
   final bool metadataReady;
   final bool isHydrating;
   final bool fastPathActive;
@@ -116,6 +123,13 @@ class LibrarySyncState {
   final int? total;
   final int? hydratedAlbums;
   final int? pendingHydrationCount;
+
+  /// Every still-pending canonical album was attempted in this run and its
+  /// detail response was incomplete. Transport and other failures never set it.
+  final bool onlyIncompleteAlbumDetails;
+
+  /// A validated full candidate became the committed catalog during this run.
+  final bool catalogPublishedThisRun;
   final DateTime? startedAt;
   final DateTime? completedAt;
   final String? errorMessage;
@@ -136,6 +150,7 @@ class LibrarySyncState {
   final bool playlistHeadersSynchronized;
   final bool genresSynchronized;
   final int apiRequests;
+  final Map<String, int> endpointRequests;
   final int apiRetries;
   final int apiFailures;
   final int? averageLatencyMs;
@@ -158,6 +173,7 @@ class LibrarySyncState {
   final int carriedForwardEntityCount;
   final int? lastApplyDurationMs;
   final bool? probeIndexChanged;
+  final String? probeEvidenceVersion;
   final bool probeIndexesUnsupported;
   final bool updatesAvailable;
 
@@ -167,6 +183,9 @@ class LibrarySyncState {
     LibrarySyncStatus? status,
     LibrarySyncStage? stage,
     LibrarySyncMode? mode,
+    int? runRequestId,
+    int? runAttemptId,
+    bool clearRunIdentity = false,
     bool clearMode = false,
     bool? metadataReady,
     bool? isHydrating,
@@ -179,6 +198,8 @@ class LibrarySyncState {
     int? hydratedAlbums,
     bool clearHydratedAlbums = false,
     int? pendingHydrationCount,
+    bool? onlyIncompleteAlbumDetails,
+    bool? catalogPublishedThisRun,
     bool clearPendingHydrationCount = false,
     DateTime? startedAt,
     bool clearStartedAt = false,
@@ -204,6 +225,7 @@ class LibrarySyncState {
     bool? playlistHeadersSynchronized,
     bool? genresSynchronized,
     int? apiRequests,
+    Map<String, int>? endpointRequests,
     int? apiRetries,
     int? apiFailures,
     int? averageLatencyMs,
@@ -232,12 +254,15 @@ class LibrarySyncState {
     int? lastApplyDurationMs,
     bool clearLastApplyDuration = false,
     bool? probeIndexChanged,
+    String? probeEvidenceVersion,
     bool clearProbeIndexChanged = false,
     bool? probeIndexesUnsupported,
     bool? updatesAvailable,
   }) {
     return LibrarySyncState(
       status: status ?? this.status,
+      runRequestId: clearRunIdentity ? null : runRequestId ?? this.runRequestId,
+      runAttemptId: clearRunIdentity ? null : runAttemptId ?? this.runAttemptId,
       stage: stage ?? this.stage,
       mode: clearMode ? null : mode ?? this.mode,
       metadataReady: metadataReady ?? this.metadataReady,
@@ -253,6 +278,10 @@ class LibrarySyncState {
       pendingHydrationCount: clearPendingHydrationCount
           ? null
           : pendingHydrationCount ?? this.pendingHydrationCount,
+      onlyIncompleteAlbumDetails:
+          onlyIncompleteAlbumDetails ?? this.onlyIncompleteAlbumDetails,
+      catalogPublishedThisRun:
+          catalogPublishedThisRun ?? this.catalogPublishedThisRun,
       startedAt: clearStartedAt ? null : startedAt ?? this.startedAt,
       completedAt: clearCompletedAt ? null : completedAt ?? this.completedAt,
       errorMessage: clearErrorMessage
@@ -282,6 +311,7 @@ class LibrarySyncState {
           playlistHeadersSynchronized ?? this.playlistHeadersSynchronized,
       genresSynchronized: genresSynchronized ?? this.genresSynchronized,
       apiRequests: apiRequests ?? this.apiRequests,
+      endpointRequests: endpointRequests ?? this.endpointRequests,
       apiRetries: apiRetries ?? this.apiRetries,
       apiFailures: apiFailures ?? this.apiFailures,
       averageLatencyMs: clearAverageLatencyMs
@@ -321,6 +351,7 @@ class LibrarySyncState {
       probeIndexChanged: clearProbeIndexChanged
           ? null
           : probeIndexChanged ?? this.probeIndexChanged,
+      probeEvidenceVersion: probeEvidenceVersion ?? this.probeEvidenceVersion,
       probeIndexesUnsupported:
           probeIndexesUnsupported ?? this.probeIndexesUnsupported,
       updatesAvailable: updatesAvailable ?? this.updatesAvailable,

@@ -33,6 +33,71 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.4.0',
+    entries: [
+      ChangelogEntry(
+        'Rapid Next, Previous, and queue selections now settle on the requested track without leaving playback stuck or resuming after Pause',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library sync preserves tracks and newer local edits when server responses are incomplete, and keeps external results out of the server catalog',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Likes and ratings sync through a durable retry queue, including album and artist favorites and offline rating changes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Automatic checks discover new releases, refresh older track metadata in bounded batches, and resume interrupted sync work',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Full-screen setup and library repairs now open the safely rebuilt library when only incomplete server album details remain, then retry those albums during later syncs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Playlist sync preserves repeated tracks and detects changed playlist contents even when the track count stays the same',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android background sync correctly reads Wi-Fi metering when the app is closed',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Cancelling sync also cancels waiting repairs, while mixed local and remote album responses preserve their correct library membership',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library metadata and Recently Added updates avoid unnecessary database work during checks and repairs',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Cover artwork respects its memory decode limits for cached and downloaded images while preserving shared hero artwork',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Sync diagnostics retain bounded phase, retry and pending-work evidence across restarts to help explain incomplete checks and repairs',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'The full-screen player now shows a visible loading indicator while a remote song starts',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Instant Radio now blends your likes, recent listening, and server recommendations, with playable local music when offline',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Server mix and Last.fm Same Vibes now keep useful partial results and report failed queue additions accurately',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android Auto Instant Radio now uses the same personal radio as Home',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.3.1',
     entries: [
       ChangelogEntry(

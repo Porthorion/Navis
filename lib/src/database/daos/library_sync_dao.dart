@@ -21,6 +21,9 @@ part 'library_sync_dao.g.dart';
 /// The redacted record exposed by settings and the diagnostics API.
 class LibrarySyncRunHistoryEntry {
   const LibrarySyncRunHistoryEntry({
+    required this.requestId,
+    required this.attemptId,
+    required this.startedAt,
     required this.origin,
     required this.intent,
     required this.targetKind,
@@ -33,6 +36,9 @@ class LibrarySyncRunHistoryEntry {
   });
 
   final SyncRunOrigin origin;
+  final int requestId;
+  final int? attemptId;
+  final DateTime? startedAt;
   final SyncRunIntent intent;
   final LibrarySyncTargetKind targetKind;
   final SyncExecutionPlanKind planKind;
@@ -190,6 +196,47 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  Future<void> writeAttemptTelemetry(
+    int attemptId,
+    Map<String, Object?> telemetry,
+  ) async {
+    await (update(librarySyncRunAttemptTable)..where(
+          (row) =>
+              row.id.equals(attemptId) & row.status.equals(_attemptRunning),
+        ))
+        .write(
+          LibrarySyncRunAttemptTableCompanion(
+            telemetryJson: Value(jsonEncode(telemetry)),
+          ),
+        );
+  }
+
+  /// Includes active and recovered attempts, which have no terminal outcome yet.
+  Future<List<LibrarySyncRunAttemptTableData>> getRecentSyncAttempts(
+    int serverId, {
+    int limit = 20,
+    int? attemptId,
+  }) async {
+    final query =
+        select(librarySyncRunAttemptTable).join([
+            innerJoin(
+              librarySyncRunRequestTable,
+              librarySyncRunRequestTable.id.equalsExp(
+                librarySyncRunAttemptTable.requestId,
+              ),
+            ),
+          ])
+          ..where(librarySyncRunRequestTable.serverId.equals(serverId))
+          ..orderBy([OrderingTerm.desc(librarySyncRunAttemptTable.id)])
+          ..limit(limit.clamp(1, 20));
+    if (attemptId != null) {
+      query.where(librarySyncRunAttemptTable.id.equals(attemptId));
+    }
+    return (await query.get())
+        .map((row) => row.readTable(librarySyncRunAttemptTable))
+        .toList();
+  }
+
   /// Converts abandoned in-process attempts back to their request queue. The
   /// attempt remains durable evidence that a restart recovery occurred.
   Future<void> recoverInterruptedSyncRuns(int serverId, {DateTime? now}) {
@@ -240,7 +287,15 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
                     librarySyncRunOutcomeTable.requestId,
                   ),
                 ),
+                leftOuterJoin(
+                  librarySyncRunAttemptTable,
+                  librarySyncRunAttemptTable.id.equalsExp(
+                    librarySyncRunOutcomeTable.attemptId,
+                  ),
+                  useColumns: false,
+                ),
               ])
+              ..addColumns([librarySyncRunAttemptTable.startedAt])
               ..where(librarySyncRunRequestTable.serverId.equals(serverId))
               ..orderBy([
                 OrderingTerm.desc(librarySyncRunOutcomeTable.completedAt),
@@ -251,6 +306,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     return rows
         .map(
           (row) => LibrarySyncRunHistoryEntry(
+            requestId: row.readTable(librarySyncRunRequestTable).id,
+            attemptId: row.readTable(librarySyncRunOutcomeTable).attemptId,
+            startedAt: row.read(librarySyncRunAttemptTable.startedAt),
             origin: SyncRunOrigin
                 .values[row.readTable(librarySyncRunRequestTable).origin],
             intent: SyncRunIntent
@@ -287,6 +345,63 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           ))
           .go();
     });
+  }
+
+  Future<void> pruneAttemptTelemetryBefore(DateTime cutoff) async {
+    await (update(librarySyncRunAttemptTable)..where(
+          (row) =>
+              row.status.equals(_attemptRunning).not() &
+              row.startedAt.isSmallerThanValue(cutoff) &
+              row.telemetryJson.isNotNull(),
+        ))
+        .write(
+          const LibrarySyncRunAttemptTableCompanion(telemetryJson: Value(null)),
+        );
+  }
+
+  /// Work rows are one backlog axis, not a count of albums or artists.
+  Future<List<Map<String, Object?>>> getWorkSummary(
+    int serverId,
+    DateTime now,
+  ) async {
+    final rows = await customSelect(
+      '''
+      SELECT CASE
+        WHEN entity_id = '@starred' THEN 'starred'
+        WHEN entity_id = '@playlistHeaders' THEN 'playlistHeaders'
+        WHEN entity_id = '@genres' THEN 'genres'
+        WHEN entity_id LIKE 'album:%' THEN 'album'
+        WHEN entity_id LIKE 'artist:%' THEN 'artist'
+        WHEN entity_id LIKE 'playlist:%' THEN 'playlist'
+        WHEN entity_id = '' THEN 'catalog'
+        ELSE 'legacyTarget' END AS target,
+        CASE WHEN status IN ('queued','running','failed','cancelled','completed','awaitingConfirmation')
+          THEN status ELSE 'unknown' END AS safe_status,
+        CASE WHEN status IN ('queued','failed') AND not_before > ?1 THEN 1 ELSE 0 END AS cooling_down,
+        MIN(CASE WHEN status IN ('queued','failed') AND not_before > ?1 THEN not_before END) AS next_retry_at,
+        COUNT(*) AS count
+      FROM library_sync_work WHERE server_id = ?2
+      GROUP BY target, safe_status, cooling_down
+      ORDER BY target, safe_status, cooling_down
+    ''',
+      variables: [Variable.withDateTime(now), Variable.withInt(serverId)],
+      readsFrom: {librarySyncWorkTable},
+    ).get();
+    return [
+      for (final row in rows)
+        {
+          'target': row.read<String>('target'),
+          'status': row.read<String>('safe_status'),
+          'coolingDown': row.read<int>('cooling_down') == 1,
+          'nextRetryAt': row.readNullable<int>('next_retry_at') == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(
+                  row.read<int>('next_retry_at') * 1000,
+                  isUtc: true,
+                ).toIso8601String(),
+          'count': row.read<int>('count'),
+        },
+    ];
   }
 
   Future<void> writeSyncProviderProfile({
@@ -984,6 +1099,27 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  Future<List<LibrarySyncWorkTableData>> getCatalogPageBoundaries({
+    required int serverId,
+    required int generation,
+  }) async {
+    final rows =
+        await (select(librarySyncWorkTable)..where(
+              (table) =>
+                  table.serverId.equals(serverId) &
+                  table.kind.equals('catalogAlbumPage') &
+                  table.entityId.like('$generation:%') &
+                  table.status.equals('completed'),
+            ))
+            .get();
+    rows.sort(
+      (a, b) => (int.tryParse(a.entityId.split(':').last) ?? 0).compareTo(
+        int.tryParse(b.entityId.split(':').last) ?? 0,
+      ),
+    );
+    return rows.length <= 1 ? rows : [rows.first, rows.last];
+  }
+
   Future<void> clearCatalogPageWork({
     required int serverId,
     required int generation,
@@ -1092,8 +1228,37 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     String? checkpointJson,
     bool releaseCooldown = false,
     bool reactivateTerminal = false,
+    String? evidenceVersion,
     DateTime? now,
-  }) async {
+  }) => transaction(() async {
+    if (evidenceVersion != null) {
+      final previous = await getWork(
+        serverId: serverId,
+        kind: kind,
+        entityId: entityId,
+      );
+      Map<String, dynamic> decode(String? raw) {
+        try {
+          final value = jsonDecode(raw ?? '{}');
+          if (value is Map<String, dynamic>) return value;
+        } on FormatException {
+          /* Legacy work has no evidence version. */
+        }
+        return {};
+      }
+
+      final previousCheckpoint = decode(previous?.checkpointJson);
+      if (previous != null &&
+          previousCheckpoint['evidenceVersion'] != evidenceVersion) {
+        reactivateTerminal = true;
+        releaseCooldown = true;
+      }
+      checkpointJson = jsonEncode({
+        ...previousCheckpoint,
+        ...decode(checkpointJson),
+        'evidenceVersion': evidenceVersion,
+      });
+    }
     final timestamp = now ?? DateTime.now();
     final normalizedClass = workClass == 'interactive'
         ? 'interactive'
@@ -1151,6 +1316,28 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
         releaseCooldownValue,
       ],
     );
+  });
+
+  /// Cancel only work still waiting for admission; never mutate another owner.
+  Future<void> cancelQueuedWork({
+    required int serverId,
+    required String kind,
+    required String entityId,
+    required DateTime now,
+  }) async {
+    await (update(librarySyncWorkTable)..where(
+          (row) =>
+              row.serverId.equals(serverId) &
+              row.kind.equals(kind) &
+              row.entityId.equals(entityId) &
+              row.status.equals('queued'),
+        ))
+        .write(
+          LibrarySyncWorkTableCompanion(
+            status: const Value('cancelled'),
+            updatedAt: Value(now),
+          ),
+        );
   }
 
   Future<List<LibrarySyncWorkTableData>> getRunnableWork({

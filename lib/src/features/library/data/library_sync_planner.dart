@@ -171,6 +171,17 @@ class LibrarySyncPlanner {
       );
     }
 
+    // A due discovery interval must not wait for an older hydration backlog.
+    // The bounded delta pass also hydrates pending albums, with new arrivals
+    // prioritized by the executor.
+    if (context.isCatalogCheckDue && context.pendingHydrationCount > 0) {
+      return _broadPlan(
+        context,
+        kind: LibrarySyncPlanKind.deltaReconcile,
+        reason: 'automaticDiscoveryBeforeBacklog',
+      );
+    }
+
     if (context.pendingHydrationCount > 0) {
       return const LibrarySyncPlan(
         kind: LibrarySyncPlanKind.targetedHydration,
@@ -220,9 +231,16 @@ class LibrarySyncPlanner {
       );
     }
 
-    return LibrarySyncPlan(
+    if (context.isCatalogCheckDue) {
+      return _broadPlan(
+        context,
+        kind: LibrarySyncPlanKind.deltaReconcile,
+        reason: 'automaticCatalogDiscovery',
+      );
+    }
+    return const LibrarySyncPlan(
       kind: LibrarySyncPlanKind.probe,
-      reason: context.auxiliaryDue ? 'auxiliaryDue' : 'catalogProbeDue',
+      reason: 'auxiliaryDue',
     );
   }
 

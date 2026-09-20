@@ -195,8 +195,9 @@ Once the DHU is running, use these commands in the DHU terminal:
 - [ ] Tapping a download keeps the downloaded-song collection order
 - [ ] Genre songs load in artist/album/track order
 - [ ] Tapping a genre song keeps the genre collection order
-- [ ] Tapping "Instant Mix" starts a seed-based mix when a current/known song is available
-- [ ] Tapping "Instant Radio" starts playback from liked songs, server random songs, or local fallback
+- [ ] Tapping "Instant Mix" starts the saved Server mix or Last.fm Same Vibes choice from the current song, or a library seed on cold start
+- [ ] Tapping "Instant Radio" starts the same balanced personal radio used by Home, including eligible local fallback
+- [ ] Preparing Instant Radio queues playable tracks without starting playback; an empty eligible library reports failure
 
 ### Playback Controls
 

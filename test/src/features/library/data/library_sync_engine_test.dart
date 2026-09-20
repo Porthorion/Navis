@@ -1,3 +1,5 @@
+import '../../../../helpers/library_sync_fakes.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -9,7 +11,6 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
@@ -46,247 +47,6 @@ const _meteredManualDiscoveryPlan = SyncExecutionPlan(
   ),
 );
 
-class _FakeCredentialStore implements SecureCredentialStore {
-  String? _password;
-
-  @override
-  Future<void> clearPassword() async {
-    _password = null;
-  }
-
-  @override
-  Future<String?> readPassword() async => _password;
-
-  @override
-  Future<void> savePassword(String password) async {
-    _password = password;
-  }
-}
-
-class _FakeLibrarySyncApi implements LibrarySyncApi {
-  static final DateTime defaultIndexesCursor = DateTime.utc(2026, 1, 1);
-  final List<String> calls = <String>[];
-  final List<DateTime?> requestedIndexesCursors = <DateTime?>[];
-  final List<Artist> artists = <Artist>[];
-  final Map<String, Artist> artistDetails = <String, Artist>{};
-  final Map<String, Album> albumDetails = <String, Album>{};
-  final Map<String, Playlist> playlistDetails = <String, Playlist>{};
-  final Map<int, List<Album>> fastPathPages = <int, List<Album>>{};
-  final Map<int, Object> fastPathErrors = <int, Object>{};
-  final Map<int, List<Song>> bulkSongPages = <int, List<Song>>{};
-  StarredContent starredContent = const StarredContent();
-  List<Genre> genres = <Genre>[];
-  List<Playlist> playlists = <Playlist>[];
-  Indexes indexes = const Indexes();
-  Completer<List<Artist>>? artistsCompleter;
-
-  Exception? throwOnFastPath;
-  Exception? throwOnIndexes;
-  Exception? throwOnSongSearch;
-  Exception? throwOnStarred;
-  Exception? throwOnGenres;
-  Exception? throwOnPlaylists;
-  final Map<String, Object> albumErrors = <String, Object>{};
-  final Map<String, Object> artistErrors = <String, Object>{};
-  final Set<String> notFoundAlbumIds = <String>{};
-  final Set<String> notFoundArtistIds = <String>{};
-  final Set<String> permanentTransientAlbumIds = <String>{};
-  Object? getArtistsError;
-  final Map<String, int> transientAlbumFailures = <String, int>{};
-  Duration albumDelay = Duration.zero;
-  Completer<Album>? albumCompleter;
-  bool activeRequestsCancelled = false;
-  int currentAlbumRequests = 0;
-  int maxConcurrentAlbumRequests = 0;
-
-  @override
-  void beginRun() {
-    activeRequestsCancelled = false;
-  }
-
-  @override
-  void cancelActiveRequests() {
-    activeRequestsCancelled = true;
-    final completer = albumCompleter;
-    if (completer != null && !completer.isCompleted) {
-      completer.completeError(
-        const SubsonicConnectionException('cancelled'),
-      );
-    }
-  }
-
-  @override
-  Future<Album> getAlbum(String id, {int? maxResponseBytes}) async {
-    calls.add('getAlbum:$id');
-    currentAlbumRequests++;
-    if (currentAlbumRequests > maxConcurrentAlbumRequests) {
-      maxConcurrentAlbumRequests = currentAlbumRequests;
-    }
-    final transientFailures = transientAlbumFailures[id];
-    if (transientFailures != null && transientFailures > 0) {
-      transientAlbumFailures[id] = transientFailures - 1;
-      currentAlbumRequests--;
-      throw const SubsonicConnectionException('transient');
-    }
-    if (permanentTransientAlbumIds.contains(id)) {
-      currentAlbumRequests--;
-      throw const SubsonicConnectionException('transient');
-    }
-    if (notFoundAlbumIds.contains(id)) {
-      currentAlbumRequests--;
-      throw const SubsonicNotFoundException(message: 'Album not found');
-    }
-    final albumError = albumErrors[id];
-    if (albumError != null) {
-      currentAlbumRequests--;
-      throw albumError;
-    }
-    if (albumDelay > Duration.zero) {
-      await Future<void>.delayed(albumDelay);
-    }
-    final completer = albumCompleter;
-    if (completer != null) {
-      try {
-        return await completer.future;
-      } finally {
-        currentAlbumRequests--;
-      }
-    }
-    final album = albumDetails[id];
-    currentAlbumRequests--;
-    if (album == null) {
-      throw StateError('Missing fake album for id: $id');
-    }
-    return album;
-  }
-
-  @override
-  Future<Playlist> getPlaylist(String id, {int? maxResponseBytes}) async {
-    calls.add('getPlaylist:$id');
-    final playlist = playlistDetails[id];
-    if (playlist == null) {
-      throw StateError('Missing fake playlist for id: $id');
-    }
-    return playlist;
-  }
-
-  @override
-  Future<StarredContent> getStarredContent() async {
-    calls.add('getStarredContent');
-    final error = throwOnStarred;
-    if (error != null) {
-      throw error;
-    }
-    return starredContent;
-  }
-
-  @override
-  Future<List<Album>> getAlbumListPage({
-    required int size,
-    required int offset,
-  }) async {
-    calls.add('getAlbumListPage:$offset:$size');
-    final pageError = fastPathErrors[offset];
-    if (pageError != null) {
-      throw pageError;
-    }
-    final error = throwOnFastPath;
-    if (error != null) {
-      throw error;
-    }
-    return fastPathPages[offset] ?? const <Album>[];
-  }
-
-  @override
-  Future<List<Album>> getNewestAlbumListPage({
-    required int size,
-    required int offset,
-  }) {
-    return getAlbumListPage(size: size, offset: offset);
-  }
-
-  @override
-  Future<Artist> getArtist(String id, {int? maxResponseBytes}) async {
-    calls.add('getArtist:$id');
-    if (notFoundArtistIds.contains(id)) {
-      throw const SubsonicNotFoundException(message: 'Artist not found');
-    }
-    final artistError = artistErrors[id];
-    if (artistError != null) {
-      throw artistError;
-    }
-    final artist = artistDetails[id];
-    if (artist == null) {
-      throw StateError('Missing fake artist for id: $id');
-    }
-    return artist;
-  }
-
-  @override
-  Future<List<Artist>> getArtists() async {
-    calls.add('getArtists');
-    final error = getArtistsError;
-    if (error != null) {
-      throw error;
-    }
-    final completer = artistsCompleter;
-    if (completer != null) {
-      return completer.future;
-    }
-    return artists;
-  }
-
-  @override
-  Future<List<Genre>> getGenres() async {
-    calls.add('getGenres');
-    final error = throwOnGenres;
-    if (error != null) {
-      throw error;
-    }
-    return genres;
-  }
-
-  @override
-  Future<Indexes> getIndexes({
-    DateTime? ifModifiedSince,
-    bool disableRetry = false,
-  }) async {
-    calls.add('getIndexes');
-    requestedIndexesCursors.add(ifModifiedSince);
-    final error = throwOnIndexes;
-    if (error != null) {
-      throw error;
-    }
-    return indexes.lastModified == null
-        ? indexes.copyWith(lastModified: defaultIndexesCursor)
-        : indexes;
-  }
-
-  @override
-  Future<List<Playlist>> getPlaylists() async {
-    calls.add('getPlaylists');
-    final error = throwOnPlaylists;
-    if (error != null) {
-      throw error;
-    }
-    return playlists;
-  }
-
-  @override
-  Future<SearchResult3> searchSongsPage({
-    required String query,
-    required int size,
-    required int offset,
-  }) async {
-    calls.add('searchSongsPage:$query:$offset:$size');
-    final error = throwOnSongSearch;
-    if (error != null) {
-      throw error;
-    }
-    return SearchResult3(songs: bulkSongPages[offset] ?? const <Song>[]);
-  }
-}
-
 String _testIndexesFingerprint(Iterable<String> artistIds) {
   final normalized = artistIds.toList(growable: false)..sort();
   return sha1.convert(utf8.encode(normalized.join('\n'))).toString();
@@ -296,8 +56,8 @@ void main() {
   group('DriftLibrarySyncEngine', () {
     late NavisDatabase database;
     late ServerConfigRepository serverConfigRepository;
-    late _FakeCredentialStore credentials;
-    late _FakeLibrarySyncApi api;
+    late FakeSyncCredentialStore credentials;
+    late FakeLibrarySyncApi api;
     late DriftLibrarySyncEngine engine;
 
     Future<void> saveSession({
@@ -320,12 +80,12 @@ void main() {
 
     setUp(() {
       database = NavisDatabase(NativeDatabase.memory());
-      credentials = _FakeCredentialStore();
+      credentials = FakeSyncCredentialStore();
       serverConfigRepository = ServerConfigRepository(
         database,
         credentials: credentials,
       );
-      api = _FakeLibrarySyncApi();
+      api = FakeLibrarySyncApi();
       engine = DriftLibrarySyncEngine(
         api: api,
         database: database,
@@ -342,6 +102,161 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    for (final invalid in <String, Album>{
+      'partial count': const Album(
+        id: 'a',
+        name: 'A',
+        songCount: 2,
+        songs: [Song(id: 's1', title: 'One', albumId: 'a')],
+      ),
+      'duplicate identity': const Album(
+        id: 'a',
+        name: 'A',
+        songCount: 2,
+        songs: [
+          Song(id: 's1', title: 'One'),
+          Song(id: 's1', title: 'One'),
+        ],
+      ),
+      'wrong parent': const Album(
+        id: 'a',
+        name: 'A',
+        songCount: 1,
+        songs: [Song(id: 's1', title: 'One', albumId: 'other')],
+      ),
+      'wrong album': const Album(
+        id: 'other',
+        name: 'A',
+        songCount: 1,
+        songs: [Song(id: 's1', title: 'One')],
+      ),
+    }.entries) {
+      test('target preserves committed tracks on ${invalid.key}', () async {
+        await saveSession();
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'a',
+            name: 'A',
+            songCount: const Value(2),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 's1',
+            title: 'One',
+            albumId: const Value('a'),
+          ),
+          SongsTableCompanion.insert(
+            id: 's2',
+            title: 'Two',
+            albumId: const Value('a'),
+          ),
+        ]);
+        api.albumDetails['a'] = invalid.value;
+        final result = await engine.hydrateAlbum('a');
+        expect(result.status, LibrarySyncStatus.partial);
+        expect(result.pendingHydrationCount, 1);
+        expect(await database.libraryDao.getSongById('s2'), isNotNull);
+        expect((await database.libraryDao.getAlbumById('a'))!.songCount, 2);
+      });
+    }
+
+    test(
+      'target retains a successful local like newer than its response',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'a', name: 'A'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 's1',
+            title: 'One',
+            albumId: const Value('a'),
+          ),
+        ]);
+        api.albumCompleter = Completer<Album>();
+        final run = engine.hydrateAlbum('a');
+        while (api.currentAlbumRequests == 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        await database.libraryDao.updateSongStarred('s1', DateTime.now());
+        api.albumCompleter!.complete(
+          const Album(
+            id: 'a',
+            name: 'A',
+            songCount: 1,
+            songs: [Song(id: 's1', title: 'One', albumId: 'a')],
+          ),
+        );
+        expect((await run).status, LibrarySyncStatus.succeeded);
+        expect(await database.libraryDao.getSongStarred('s1'), isNotNull);
+      },
+    );
+
+    test(
+      'starred snapshot materializes unseen external references only',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final starredAt = DateTime.utc(2026);
+        api.starredContent = StarredContent(
+          artists: [
+            Artist(
+              id: 'remote-artist',
+              name: 'Remote',
+              isExternal: true,
+              starred: starredAt,
+            ),
+          ],
+          albums: [
+            Album(
+              id: 'remote-album',
+              name: 'Remote',
+              artistId: 'remote-artist',
+              isExternal: true,
+              starred: starredAt,
+            ),
+          ],
+          songs: [
+            Song(
+              id: 'remote-song',
+              title: 'Remote',
+              artistId: 'remote-artist',
+              albumId: 'remote-album',
+              isExternal: true,
+              starred: starredAt,
+            ),
+          ],
+        );
+        expect(
+          (await engine.syncStarredContent()).status,
+          LibrarySyncStatus.succeeded,
+        );
+        expect(
+          await database.libraryDao.getStarredSongIds(),
+          contains('remote-song'),
+        );
+        expect(
+          await database.libraryDao.getStarredAlbumIds(),
+          contains('remote-album'),
+        );
+        expect(
+          await database.libraryDao.getStarredArtistIds(),
+          contains('remote-artist'),
+        );
+        expect(
+          (await database.libraryDao.getSongById('remote-song'))!.isExternal,
+          isTrue,
+        );
+        expect(
+          (await database.libraryDao.getSongById('remote-song'))!.isProvisional,
+          isTrue,
+        );
+        expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
+        expect(await database.libraryDao.watchAllSongs().first, isEmpty);
+      },
+    );
 
     test(
       'full sync writes metadata and songs using album-list fast path',
@@ -874,7 +789,7 @@ void main() {
     );
 
     test(
-      'playlist header sync preserves memberships and queues only changed contents',
+      'playlist headers preserve membership and queue unversioned or changed content',
       () async {
         await saveSession(lastSynced: DateTime.now());
         final serverId = (await serverConfigRepository.getActiveServer())!.id!;
@@ -946,7 +861,7 @@ void main() {
               const LibrarySyncTarget.playlist('stable'),
             ),
           ),
-          isNull,
+          isNotNull,
         );
         expect(
           await database.librarySyncDao.getWork(
@@ -1792,7 +1707,7 @@ void main() {
     );
 
     test(
-      'album detail hydration binds child songs to the fetched album id',
+      'album detail with conflicting parent remains unresolved',
       () async {
         await saveSession();
         api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
@@ -1828,7 +1743,12 @@ void main() {
         final songRows = await database.select(database.songsTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
-        expect(songRows.single.albumId, 'album-1');
+        expect(songRows, isEmpty);
+        expect(
+          (await database.libraryDao.getAlbumById('album-1'))!.songsHydrated,
+          isFalse,
+        );
+        expect(state.freshness, LibrarySyncFreshness.verificationPending);
       },
       skip: !sqliteAvailable,
     );
@@ -1968,7 +1888,7 @@ void main() {
     );
 
     test(
-      'catalog snapshot resumes after its last committed page',
+      'catalog snapshot revalidates its boundary before resuming committed pages',
       () async {
         await saveSession();
         api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
@@ -1999,7 +1919,7 @@ void main() {
         );
 
         final interrupted = await localEngine.forceFullSync();
-        expect(interrupted.status, LibrarySyncStatus.skipped);
+        expect(interrupted.status, LibrarySyncStatus.failed);
         expect(
           (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
           0,
@@ -2014,7 +1934,7 @@ void main() {
         expect(resumed.status, LibrarySyncStatus.succeeded);
         expect(
           api.calls.where((call) => call == 'getAlbumListPage:0:2'),
-          hasLength(1),
+          hasLength(2),
         );
         expect(
           api.calls.where((call) => call == 'getAlbumListPage:2:2'),
@@ -2027,6 +1947,53 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    for (final boundary in [0, 2]) {
+      test(
+        'changed saved boundary $boundary rebuilds the interrupted candidate',
+        () async {
+          await saveSession();
+          api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+          Album header(String id) =>
+              Album(id: id, name: id, artistId: 'artist-1');
+          api.fastPathPages[0] = [header('a'), header('b')];
+          api.fastPathPages[2] = [header('c'), header('d')];
+          api.fastPathErrors[4] = const SubsonicConnectionException('offline');
+          for (final id in ['a', 'b', 'c', 'd', 'e', 'replacement']) {
+            api.albumDetails[id] = header(id);
+          }
+          final localEngine = DriftLibrarySyncEngine(
+            api: api,
+            database: database,
+            serverConfigRepository: serverConfigRepository,
+            fastPathPageSize: 2,
+            isolateThreshold: 1000,
+          );
+          expect(
+            (await localEngine.forceFullSync()).status,
+            LibrarySyncStatus.failed,
+          );
+          final removed = api.fastPathPages[boundary]!.first.id;
+          api.fastPathPages[boundary] = [
+            header('replacement'),
+            api.fastPathPages[boundary]!.last,
+          ];
+          api.fastPathErrors.clear();
+          api.fastPathPages[4] = [header('e')];
+          expect(
+            (await localEngine.forceFullSync()).status,
+            LibrarySyncStatus.succeeded,
+          );
+          final ids = (await database.libraryDao.getAllAlbums())
+              .map((row) => row.id)
+              .toSet();
+          expect(ids, hasLength(5));
+          expect(ids, contains('replacement'));
+          expect(ids, isNot(contains(removed)));
+        },
+        skip: !sqliteAvailable,
+      );
+    }
 
     test(
       'fresh candidate discards stale checkpoints for a reused generation',
@@ -3178,7 +3145,7 @@ void main() {
         expect(state.freshness, LibrarySyncFreshness.verificationPending);
         expect(state.remainingVerificationCount, 1);
         expect(navis['libraryIndexesCursor'], isNull);
-        expect(config.lastSynced, isNot(storedLastSynced));
+        expect(config.lastSynced, storedLastSynced);
         expect(
           diagnostics.single,
           containsPair('entityId', 'missing-detail'),
@@ -3270,7 +3237,7 @@ void main() {
     test(
       'manual check discovers a new album under an existing artist despite a fresh unchanged index',
       () async {
-        final cursor = _FakeLibrarySyncApi.defaultIndexesCursor;
+        final cursor = FakeLibrarySyncApi.defaultIndexesCursor;
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
           lastFullSyncedAt: DateTime.now(),
@@ -3331,7 +3298,7 @@ void main() {
     test(
       'manual check scans beyond the first newest-album page',
       () async {
-        final cursor = _FakeLibrarySyncApi.defaultIndexesCursor;
+        final cursor = FakeLibrarySyncApi.defaultIndexesCursor;
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
           lastFullSyncedAt: DateTime.now(),
@@ -3791,7 +3758,7 @@ void main() {
               'libraryIndexesFingerprint': _testIndexesFingerprint(
                 noisyArtistIds,
               ),
-              'libraryIndexesCursor': _FakeLibrarySyncApi.defaultIndexesCursor
+              'libraryIndexesCursor': FakeLibrarySyncApi.defaultIndexesCursor
                   .toIso8601String(),
               'libraryHealthCheckedAt': DateTime.now()
                   .toUtc()
@@ -3826,7 +3793,7 @@ void main() {
     );
 
     test(
-      'incremental sync marks run skipped after exhausted transient index failures',
+      'incremental sync reports exhausted transient index failures for durable retry',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
@@ -3839,7 +3806,7 @@ void main() {
 
         final state = await engine.syncIfStale();
 
-        expect(state.status, LibrarySyncStatus.skipped);
+        expect(state.status, LibrarySyncStatus.failed);
         expect(state.mode, LibrarySyncMode.incremental);
         expect(state.stage, LibrarySyncStage.completed);
         expect(
@@ -3977,6 +3944,7 @@ void main() {
               artistId: const Value('artist-1'),
               artistName: const Value('Artist 1'),
               songsHydrated: const Value(true),
+              songsVerifiedAt: Value(DateTime.now()),
             ),
           ],
         );
@@ -4182,6 +4150,62 @@ void main() {
           1,
         );
         expect(state.pendingHydrationCount, 1);
+        expect(state.onlyIncompleteAlbumDetails, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'only incomplete server albums are classified for usable sync',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'complete',
+            name: 'Complete',
+            artistId: 'artist-1',
+            songCount: 1,
+          ),
+          Album(
+            id: 'partial',
+            name: 'Partial',
+            artistId: 'artist-1',
+            songCount: 2,
+          ),
+        ];
+        api.albumDetails['complete'] = const Album(
+          id: 'complete',
+          name: 'Complete',
+          songCount: 1,
+          songs: [Song(id: 'one', title: 'One', albumId: 'complete')],
+        );
+        api.albumDetails['partial'] = const Album(
+          id: 'partial',
+          name: 'Partial',
+          songCount: 2,
+          songs: [Song(id: 'two', title: 'Two', albumId: 'partial')],
+        );
+
+        final first = await engine.forceFullSync();
+        expect(first.status, LibrarySyncStatus.succeeded);
+        expect(first.pendingHydrationCount, 1);
+        expect(first.onlyIncompleteAlbumDetails, isTrue);
+        expect((await database.libraryDao.getCatalogCounts()).songs, 1);
+
+        api.albumDetails['partial'] = const Album(
+          id: 'partial',
+          name: 'Partial',
+          songCount: 2,
+          songs: [
+            Song(id: 'two', title: 'Two', albumId: 'partial'),
+            Song(id: 'three', title: 'Three', albumId: 'partial'),
+          ],
+        );
+        final recovered = await engine.continueVerification();
+        expect(recovered.pendingHydrationCount, 0);
+        expect(recovered.onlyIncompleteAlbumDetails, isFalse);
+        expect((await database.libraryDao.getCatalogCounts()).songs, 3);
       },
       skip: !sqliteAvailable,
     );

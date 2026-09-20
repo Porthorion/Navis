@@ -58,6 +58,71 @@ String _label(_EntryType t) {
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
   _Version(
+    '1.4.0',
+    [
+      _Entry(
+        'Rapid Next, Previous, and queue selections now settle on the requested track without leaving playback stuck or resuming after Pause',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Library sync preserves tracks and newer local edits when server responses are incomplete, and keeps external results out of the server catalog',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Likes and ratings sync through a durable retry queue, including album and artist favorites and offline rating changes',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Automatic checks discover new releases, refresh older track metadata in bounded batches, and resume interrupted sync work',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Full-screen setup and library repairs now open the safely rebuilt library when only incomplete server album details remain, then retry those albums during later syncs',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Playlist sync preserves repeated tracks and detects changed playlist contents even when the track count stays the same',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Android background sync correctly reads Wi-Fi metering when the app is closed',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Cancelling sync also cancels waiting repairs, while mixed local and remote album responses preserve their correct library membership',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Library metadata and Recently Added updates avoid unnecessary database work during checks and repairs',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Cover artwork respects its memory decode limits for cached and downloaded images while preserving shared hero artwork',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Sync diagnostics retain bounded phase, retry and pending-work evidence across restarts to help explain incomplete checks and repairs',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'The full-screen player now shows a visible loading indicator while a remote song starts',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Instant Radio now blends your likes, recent listening, and server recommendations, with playable local music when offline',
+        type: _EntryType.newFeature,
+      ),
+      _Entry(
+        'Server mix and Last.fm Same Vibes now keep useful partial results and report failed queue additions accurately',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Android Auto Instant Radio now uses the same personal radio as Home',
+        type: _EntryType.improvement,
+      ),
+    ],
+  ),
+  _Version(
     '1.3.1',
     [
       _Entry(

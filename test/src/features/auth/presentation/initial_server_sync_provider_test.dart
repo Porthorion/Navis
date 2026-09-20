@@ -283,6 +283,7 @@ void main() {
         LibrarySyncStateTableCompanion(
           serverId: Value(server!.id),
           currentGeneration: const Value(1),
+          lastCatalogSyncedAt: Value(DateTime.now()),
         ),
       );
       final gate = Completer<void>();
@@ -344,4 +345,48 @@ void main() {
       );
     },
   );
+  test('router readiness requires complete catalog evidence, not partial generation', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await database.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'https://example.com',
+        username: 'fixture',
+        apiVersion: '1.16.1',
+      ),
+    );
+    final server = (await database.serverDao.getActiveServer())!;
+    await database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(server.id),
+        currentGeneration: const Value(1),
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        navisDatabaseProvider.overrideWithValue(database),
+        serverConfigStateProvider.overrideWithValue(
+          AsyncData(
+            ServerConfigModel(
+              id: server.id,
+              url: server.url,
+              username: server.username,
+              password: 'fixture',
+              apiVersion: server.apiVersion,
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    expect(await container.read(initialSyncRequiredProvider.future), isTrue);
+    await database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(server.id),
+        lastCatalogSyncedAt: Value(DateTime.now()),
+      ),
+    );
+    container.invalidate(initialSyncRequiredProvider);
+    expect(await container.read(initialSyncRequiredProvider.future), isFalse);
+  });
 }

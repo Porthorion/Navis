@@ -151,25 +151,25 @@ class InitialServerSyncController extends Notifier<InitialServerSyncState> {
         state.status == InitialServerSyncStatus.cancelling) {
       return;
     }
-    final config = ref.read(serverConfigStateProvider).asData?.value;
-    final serverId = config?.id;
-    final persisted = serverId == null
-        ? null
-        : await ref
-              .read(navisDatabaseProvider)
-              .librarySyncDao
-              .getOrCreateState(serverId);
-    final safelyPromoted =
-        (config?.lastSynced != null ||
-            (persisted?.currentGeneration ?? 0) > 0) &&
-        persisted?.candidateStatus != 'applying';
-    final acceptedStatus = result.status == LibrarySyncStatus.succeeded;
-    if (safelyPromoted && acceptedStatus) {
+    final serverId = ref.read(serverConfigStateProvider).asData?.value?.id;
+    final ready =
+        serverId != null &&
+        await recordInitialCatalogReadiness(
+          database: ref.read(navisDatabaseProvider),
+          serverId: serverId,
+          result: result,
+        );
+    if (runEpoch != _epoch ||
+        state.status == InitialServerSyncStatus.cancelling) {
+      return;
+    }
+    if (ready) {
+      final withWarnings = isUsableIncompleteAlbumSyncRun(result);
       state = InitialServerSyncState(
         status: InitialServerSyncStatus.complete,
-        completedWithWarnings: result.status == LibrarySyncStatus.partial,
+        completedWithWarnings: withWarnings,
       );
-      if (result.status == LibrarySyncStatus.partial) {
+      if (withWarnings) {
         ref.read(initialSyncCompletionWarningProvider.notifier).show();
       }
       ref.invalidate(initialSyncRequiredProvider);

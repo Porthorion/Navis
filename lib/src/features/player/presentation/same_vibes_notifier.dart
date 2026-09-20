@@ -10,6 +10,7 @@ import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
@@ -55,6 +56,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   int? _mixSegmentEndIndex;
   bool _activationInProgress = false;
   bool _suppressActivationSeedSnapshot = false;
+  RecommendationSession? _session;
 
   @override
   SameVibesState build() {
@@ -64,6 +66,15 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         deactivate();
       }
     });
+    ref.listen<RecommendationSessionStatus>(
+      recommendationSessionProvider,
+      (previous, next) {
+        final session = _session;
+        if (session != null && next.generation != session.generation) {
+          deactivate();
+        }
+      },
+    );
     ref.onDispose(() {
       _retryTimer?.cancel();
       _retryTimer = null;
@@ -77,6 +88,12 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     _mixSegmentEndIndex = null;
+    _session = ref
+        .read(recommendationSessionProvider.notifier)
+        .start(
+          RecommendationMode.sameVibes,
+          seedId: normalizedSeedSongId,
+        );
     _activationInProgress = true;
     _suppressActivationSeedSnapshot = true;
     state = SameVibesState(
@@ -84,29 +101,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       seedSongId: normalizedSeedSongId,
     );
     try {
-      await ref
-          .read(queueProvider.notifier)
-          .retainCurrentAsQueue(normalizedSeedSongId);
-    } on Object catch (error, stackTrace) {
-      AppLogger.debug(
-        'SameVibes seed queue reset failed: $error\n$stackTrace',
-      );
-      _retryTimer?.cancel();
-      _retryTimer = null;
-      _nextRefillAllowedAt = DateTime.now().add(_kRetryBackoffBase);
+      await _refill(isInitial: true);
+    } finally {
       _activationInProgress = false;
-      _suppressActivationSeedSnapshot = false;
-      state = const SameVibesState(error: SameVibesError.networkError);
-      return;
     }
-    _activationInProgress = false;
-    if (!state.active) {
-      return;
-    }
-    await _refill(isInitial: true);
   }
 
   void deactivate() {
+    final session = _session;
+    if (session != null) {
+      ref.read(recommendationSessionProvider.notifier).stop(session);
+    }
+    _session = null;
     _retryTimer?.cancel();
     _retryTimer = null;
     _nextRefillAllowedAt = null;
@@ -200,6 +206,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     final normalizedSeedSongId = seedSongId.trim();
+    final session = _session;
+    if (session == null ||
+        !ref.read(recommendationSessionProvider.notifier).owns(session)) {
+      return;
+    }
     _nextRefillAllowedAt = now.add(_kMinimumRefillInterval);
     _retryTimer?.cancel();
     _retryTimer = null;
@@ -211,6 +222,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     );
     const targetBatch = _kTargetQueueBatchSize;
     const searchAttemptLimit = _kMaxSearchAttempts;
+    var initialQueueChangeAttempted = false;
     AppLogger.debug(
       'SameVibes diagnostics: refill start '
       'seedSongId=$normalizedSeedSongId '
@@ -241,6 +253,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         api: api,
         seedSongId: normalizedSeedSongId,
       );
+      if (!ref.read(recommendationSessionProvider.notifier).owns(session)) {
+        return;
+      }
       final candidatePreferences = _CandidatePreferenceContext(
         downloadedSongIds: await _readPreferenceSongIds(
           downloadedSongIdsProvider,
@@ -307,6 +322,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         );
       }
       final mappedBeforeFallback = mappedSongCount;
+      if (!ref.read(recommendationSessionProvider.notifier).owns(session)) {
+        return;
+      }
       AppLogger.debug(
         'SameVibes diagnostics: mappedBeforeFallback=$mappedBeforeFallback',
       );
@@ -418,7 +436,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               'code=${error.code} message="${error.message}" '
               'endpointUnsupported=$endpointUnsupported',
             );
-            if (endpointUnsupported) {
+            if (endpointUnsupported && mappedSongs.isEmpty) {
               state = const SameVibesState(error: SameVibesError.unsupported);
               return;
             }
@@ -457,22 +475,59 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       final songsToQueue = <Song>[...mappedSongs, ...fallbackSongs];
       var totalQueued = 0;
       if (songsToQueue.isNotEmpty) {
+        if (isInitial) {
+          initialQueueChangeAttempted = true;
+          await ref
+              .read(queueProvider.notifier)
+              .retainCurrentAsQueue(normalizedSeedSongId);
+        }
+        if (!ref.read(recommendationSessionProvider.notifier).owns(session)) {
+          return;
+        }
         final queueLengthBeforeAppend = ref
             .read(playerStateProvider)
             .queueSongIds
             .length;
-        totalQueued = await ref
+        final result = await ref
             .read(queueProvider.notifier)
-            .appendMixTracks(
+            .appendRecommendationTracks(
               songsToQueue,
               expandMatchFlows: false,
+              isCurrent: () =>
+                  ref.mounted &&
+                  ref
+                      .read(recommendationSessionProvider.notifier)
+                      .owns(session),
             );
+        totalQueued = result.count;
         if (totalQueued > 0) {
           _mixSegmentEndIndex = queueLengthBeforeAppend + totalQueued;
         }
       }
 
       if (totalQueued <= 0) {
+        if (isInitial && initialQueueChangeAttempted) {
+          await _restorePreviousQueue(snapshot, session);
+        }
+        final terminalError =
+            lastFmResult.apiErrorCode == 10 || lastFmResult.apiErrorCode == 26
+            ? SameVibesError.invalidKey
+            : lastFmResult.statusCode == 429 || lastFmResult.apiErrorCode == 29
+            ? SameVibesError.rateLimited
+            : null;
+        if (terminalError != null) {
+          _retryTimer?.cancel();
+          _retryTimer = null;
+          state = SameVibesState(error: terminalError);
+          ref
+              .read(recommendationSessionProvider.notifier)
+              .report(
+                session,
+                stage: 'failed',
+                errorCategory: terminalError.name,
+              );
+          return;
+        }
         AppLogger.debug(
           'SameVibes diagnostics: no tracks queued (empty result after fallback)',
         );
@@ -496,7 +551,19 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         refilling: false,
         pendingSnackbar: isInitial ? '$totalQueued' : null,
       );
+      ref
+          .read(recommendationSessionProvider.notifier)
+          .report(
+            session,
+            stage: totalQueued > 0 ? 'active' : 'failed',
+            source: mappedSongs.isNotEmpty ? 'lastFm' : 'server',
+            candidateCount: songsToQueue.length,
+            insertedCount: totalQueued,
+          );
     } on Exception catch (error) {
+      if (isInitial && initialQueueChangeAttempted) {
+        await _restorePreviousQueue(snapshot, session);
+      }
       AppLogger.debug('SameVibes refill error: $error');
       if (isInitial) {
         _retryTimer?.cancel();
@@ -511,6 +578,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         error: SameVibesError.networkError,
       );
     } on Object catch (error, stackTrace) {
+      if (isInitial && initialQueueChangeAttempted) {
+        await _restorePreviousQueue(snapshot, session);
+      }
       AppLogger.debug('SameVibes refill error: $error\n$stackTrace');
       if (isInitial) {
         _retryTimer?.cancel();
@@ -533,6 +603,26 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     }
   }
 
+  Future<void> _restorePreviousQueue(
+    PlaybackSnapshot snapshot,
+    RecommendationSession session,
+  ) async {
+    if (!ref.read(recommendationSessionProvider.notifier).owns(session)) return;
+    try {
+      await ref
+          .read(queueProvider.notifier)
+          .replace(
+            snapshot.queueSongIds,
+            startIndex: snapshot.currentIndex ?? 0,
+            autoPlay: snapshot.playing,
+            expandMatchFlows: false,
+            notifyMixSessionReset: false,
+          );
+    } on Object {
+      // Keep the original recommendation failure as the reported result.
+    }
+  }
+
   Future<_SeedMetadata?> _resolveSeedMetadata({
     required SubsonicApiClient api,
     required String seedSongId,
@@ -540,7 +630,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     final mediaItem = ref.read(currentMediaItemProvider).asData?.value;
     final mediaTitle = mediaItem?.title.trim() ?? '';
     final mediaArtist = mediaItem?.artist?.trim() ?? '';
-    if (mediaTitle.isNotEmpty && mediaArtist.isNotEmpty) {
+    if (mediaItem?.id == seedSongId &&
+        mediaTitle.isNotEmpty &&
+        mediaArtist.isNotEmpty) {
       return _SeedMetadata(title: mediaTitle, artist: mediaArtist);
     }
 
@@ -747,6 +839,22 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     _consecutiveTransientFailures += 1;
+    if (_consecutiveTransientFailures >= 5) {
+      _retryTimer?.cancel();
+      _retryTimer = null;
+      final session = _session;
+      if (session != null) {
+        ref
+            .read(recommendationSessionProvider.notifier)
+            .report(
+              session,
+              stage: 'retryExhausted',
+              errorCategory: reason,
+              retryCount: _consecutiveTransientFailures,
+            );
+      }
+      return;
+    }
     final delay = _computeRetryDelay();
     final nextAt = DateTime.now().add(delay);
     _nextRefillAllowedAt = nextAt;
@@ -757,6 +865,17 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       }
       unawaited(_refill());
     });
+    final session = _session;
+    if (session != null) {
+      ref
+          .read(recommendationSessionProvider.notifier)
+          .report(
+            session,
+            stage: 'retryPending',
+            errorCategory: reason,
+            retryCount: _consecutiveTransientFailures,
+          );
+    }
     AppLogger.debug(
       'SameVibes diagnostics: retry scheduled '
       'reason=$reason failures=$_consecutiveTransientFailures '

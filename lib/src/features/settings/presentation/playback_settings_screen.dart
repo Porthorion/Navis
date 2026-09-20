@@ -378,11 +378,17 @@ class _PlaybackSettingsScreenState
                             _autosaveDebounce?.cancel();
                             unawaited(_persistAutosave(_formSignature()));
                           },
-                    title: Text(l10n.playbackSettingsLegacyInstantMixTitle),
+                    title: Text(
+                      effectiveLegacyInstantMix
+                          ? l10n.playbackSettingsLegacyInstantMixTitle
+                          : l10n.playbackSettingsLastFmSameVibesTitle,
+                    ),
                     subtitle: Text(
                       legacyInstantMixLocked
                           ? l10n.playbackSettingsLegacyInstantMixLocked
-                          : l10n.playbackSettingsLegacyInstantMixSubtitle,
+                          : effectiveLegacyInstantMix
+                          ? l10n.playbackSettingsLegacyInstantMixSubtitle
+                          : l10n.playbackSettingsLastFmSameVibesSubtitle,
                     ),
                   ),
                   SwitchListTile(

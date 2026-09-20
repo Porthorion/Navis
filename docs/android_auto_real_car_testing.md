@@ -125,7 +125,9 @@ With the Play-installed build and Unknown sources off:
 - Navis appears in Android Auto launcher or Customize launcher.
 - Tapping Navis opens the browse tree.
 - Liked, Recent, Playlists, and Library load as the four root destinations.
-- Liked exposes Instant Mix, Instant Radio, Songs, and Albums, plus Shuffle
+- Liked exposes Instant Mix, Instant Radio, Songs, and Albums, plus Shuffle.
+  Instant Mix follows the saved song-mix choice; Instant Radio starts the same
+  balanced personal radio as Home without Home-only filters.
   Liked when liked songs exist.
 - Recent conditionally exposes Resume Queue before recent songs.
 - Library exposes Downloads when present, followed by Albums, Artists, and

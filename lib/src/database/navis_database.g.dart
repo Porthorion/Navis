@@ -5725,6 +5725,18 @@ class $AlbumsTableTable extends AlbumsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _songsVerifiedAtMeta = const VerificationMeta(
+    'songsVerifiedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> songsVerifiedAt =
+      GeneratedColumn<DateTime>(
+        'songs_verified_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _starredMeta = const VerificationMeta(
     'starred',
   );
@@ -5846,6 +5858,7 @@ class $AlbumsTableTable extends AlbumsTable
     genre,
     coverArt,
     songsHydrated,
+    songsVerifiedAt,
     starred,
     userRating,
     playCount,
@@ -5929,6 +5942,15 @@ class $AlbumsTableTable extends AlbumsTable
         songsHydrated.isAcceptableOrUnknown(
           data['songs_hydrated']!,
           _songsHydratedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('songs_verified_at')) {
+      context.handle(
+        _songsVerifiedAtMeta,
+        songsVerifiedAt.isAcceptableOrUnknown(
+          data['songs_verified_at']!,
+          _songsVerifiedAtMeta,
         ),
       );
     }
@@ -6053,6 +6075,10 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.bool,
         data['${effectivePrefix}songs_hydrated'],
       )!,
+      songsVerifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}songs_verified_at'],
+      ),
       starred: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
@@ -6119,6 +6145,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   final String? genre;
   final String? coverArt;
   final bool songsHydrated;
+
+  /// Last complete track snapshot, independent of album-header/index changes.
+  final DateTime? songsVerifiedAt;
   final DateTime? starred;
   final int? userRating;
   final int? playCount;
@@ -6160,6 +6189,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.genre,
     this.coverArt,
     required this.songsHydrated,
+    this.songsVerifiedAt,
     this.starred,
     this.userRating,
     this.playCount,
@@ -6202,6 +6232,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       map['cover_art'] = Variable<String>(coverArt);
     }
     map['songs_hydrated'] = Variable<bool>(songsHydrated);
+    if (!nullToAbsent || songsVerifiedAt != null) {
+      map['songs_verified_at'] = Variable<DateTime>(songsVerifiedAt);
+    }
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
     }
@@ -6253,6 +6286,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ? const Value.absent()
           : Value(coverArt),
       songsHydrated: Value(songsHydrated),
+      songsVerifiedAt: songsVerifiedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(songsVerifiedAt),
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
@@ -6296,6 +6332,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       genre: serializer.fromJson<String?>(json['genre']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       songsHydrated: serializer.fromJson<bool>(json['songsHydrated']),
+      songsVerifiedAt: serializer.fromJson<DateTime?>(json['songsVerifiedAt']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
       userRating: serializer.fromJson<int?>(json['userRating']),
       playCount: serializer.fromJson<int?>(json['playCount']),
@@ -6322,6 +6359,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'genre': serializer.toJson<String?>(genre),
       'coverArt': serializer.toJson<String?>(coverArt),
       'songsHydrated': serializer.toJson<bool>(songsHydrated),
+      'songsVerifiedAt': serializer.toJson<DateTime?>(songsVerifiedAt),
       'starred': serializer.toJson<DateTime?>(starred),
       'userRating': serializer.toJson<int?>(userRating),
       'playCount': serializer.toJson<int?>(playCount),
@@ -6346,6 +6384,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<String?> genre = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
     bool? songsHydrated,
+    Value<DateTime?> songsVerifiedAt = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
     Value<int?> userRating = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
@@ -6367,6 +6406,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     genre: genre.present ? genre.value : this.genre,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     songsHydrated: songsHydrated ?? this.songsHydrated,
+    songsVerifiedAt: songsVerifiedAt.present
+        ? songsVerifiedAt.value
+        : this.songsVerifiedAt,
     starred: starred.present ? starred.value : this.starred,
     userRating: userRating.present ? userRating.value : this.userRating,
     playCount: playCount.present ? playCount.value : this.playCount,
@@ -6400,6 +6442,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       songsHydrated: data.songsHydrated.present
           ? data.songsHydrated.value
           : this.songsHydrated,
+      songsVerifiedAt: data.songsVerifiedAt.present
+          ? data.songsVerifiedAt.value
+          : this.songsVerifiedAt,
       starred: data.starred.present ? data.starred.value : this.starred,
       userRating: data.userRating.present
           ? data.userRating.value
@@ -6438,6 +6483,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
           ..write('songsHydrated: $songsHydrated, ')
+          ..write('songsVerifiedAt: $songsVerifiedAt, ')
           ..write('starred: $starred, ')
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
@@ -6452,7 +6498,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     name,
     artistId,
@@ -6464,6 +6510,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     genre,
     coverArt,
     songsHydrated,
+    songsVerifiedAt,
     starred,
     userRating,
     playCount,
@@ -6473,7 +6520,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     isProvisional,
     isExternal,
     catalogGeneration,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -6489,6 +6536,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.genre == this.genre &&
           other.coverArt == this.coverArt &&
           other.songsHydrated == this.songsHydrated &&
+          other.songsVerifiedAt == this.songsVerifiedAt &&
           other.starred == this.starred &&
           other.userRating == this.userRating &&
           other.playCount == this.playCount &&
@@ -6512,6 +6560,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<String?> genre;
   final Value<String?> coverArt;
   final Value<bool> songsHydrated;
+  final Value<DateTime?> songsVerifiedAt;
   final Value<DateTime?> starred;
   final Value<int?> userRating;
   final Value<int?> playCount;
@@ -6534,6 +6583,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.songsHydrated = const Value.absent(),
+    this.songsVerifiedAt = const Value.absent(),
     this.starred = const Value.absent(),
     this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
@@ -6557,6 +6607,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.songsHydrated = const Value.absent(),
+    this.songsVerifiedAt = const Value.absent(),
     this.starred = const Value.absent(),
     this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
@@ -6581,6 +6632,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<String>? genre,
     Expression<String>? coverArt,
     Expression<bool>? songsHydrated,
+    Expression<DateTime>? songsVerifiedAt,
     Expression<DateTime>? starred,
     Expression<int>? userRating,
     Expression<int>? playCount,
@@ -6604,6 +6656,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (genre != null) 'genre': genre,
       if (coverArt != null) 'cover_art': coverArt,
       if (songsHydrated != null) 'songs_hydrated': songsHydrated,
+      if (songsVerifiedAt != null) 'songs_verified_at': songsVerifiedAt,
       if (starred != null) 'starred': starred,
       if (userRating != null) 'user_rating': userRating,
       if (playCount != null) 'play_count': playCount,
@@ -6629,6 +6682,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<String?>? genre,
     Value<String?>? coverArt,
     Value<bool>? songsHydrated,
+    Value<DateTime?>? songsVerifiedAt,
     Value<DateTime?>? starred,
     Value<int?>? userRating,
     Value<int?>? playCount,
@@ -6652,6 +6706,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       genre: genre ?? this.genre,
       coverArt: coverArt ?? this.coverArt,
       songsHydrated: songsHydrated ?? this.songsHydrated,
+      songsVerifiedAt: songsVerifiedAt ?? this.songsVerifiedAt,
       starred: starred ?? this.starred,
       userRating: userRating ?? this.userRating,
       playCount: playCount ?? this.playCount,
@@ -6703,6 +6758,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     if (songsHydrated.present) {
       map['songs_hydrated'] = Variable<bool>(songsHydrated.value);
     }
+    if (songsVerifiedAt.present) {
+      map['songs_verified_at'] = Variable<DateTime>(songsVerifiedAt.value);
+    }
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
     }
@@ -6750,6 +6808,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
           ..write('songsHydrated: $songsHydrated, ')
+          ..write('songsVerifiedAt: $songsVerifiedAt, ')
           ..write('starred: $starred, ')
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
@@ -10337,7 +10396,7 @@ class $PlaylistSongsTableTable extends PlaylistSongsTable
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {playlistId, songId};
+  Set<GeneratedColumn> get $primaryKey => {playlistId, sortOrder};
   @override
   PlaylistSongsTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -14706,6 +14765,52 @@ class $StarSyncQueueTableTable extends StarSyncQueueTable
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _operationMeta = const VerificationMeta(
+    'operation',
+  );
+  @override
+  late final GeneratedColumn<String> operation = GeneratedColumn<String>(
+    'operation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('star'),
+  );
+  static const VerificationMeta _attemptCountMeta = const VerificationMeta(
+    'attemptCount',
+  );
+  @override
+  late final GeneratedColumn<int> attemptCount = GeneratedColumn<int>(
+    'attempt_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _notBeforeMeta = const VerificationMeta(
+    'notBefore',
+  );
+  @override
+  late final GeneratedColumn<DateTime> notBefore = GeneratedColumn<DateTime>(
+    'not_before',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastErrorTypeMeta = const VerificationMeta(
+    'lastErrorType',
+  );
+  @override
+  late final GeneratedColumn<String> lastErrorType = GeneratedColumn<String>(
+    'last_error_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _queuedAtMeta = const VerificationMeta(
     'queuedAt',
   );
@@ -14723,6 +14828,10 @@ class $StarSyncQueueTableTable extends StarSyncQueueTable
     itemId,
     itemType,
     action,
+    operation,
+    attemptCount,
+    notBefore,
+    lastErrorType,
     queuedAt,
   ];
   @override
@@ -14764,6 +14873,36 @@ class $StarSyncQueueTableTable extends StarSyncQueueTable
     } else if (isInserting) {
       context.missing(_actionMeta);
     }
+    if (data.containsKey('operation')) {
+      context.handle(
+        _operationMeta,
+        operation.isAcceptableOrUnknown(data['operation']!, _operationMeta),
+      );
+    }
+    if (data.containsKey('attempt_count')) {
+      context.handle(
+        _attemptCountMeta,
+        attemptCount.isAcceptableOrUnknown(
+          data['attempt_count']!,
+          _attemptCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('not_before')) {
+      context.handle(
+        _notBeforeMeta,
+        notBefore.isAcceptableOrUnknown(data['not_before']!, _notBeforeMeta),
+      );
+    }
+    if (data.containsKey('last_error_type')) {
+      context.handle(
+        _lastErrorTypeMeta,
+        lastErrorType.isAcceptableOrUnknown(
+          data['last_error_type']!,
+          _lastErrorTypeMeta,
+        ),
+      );
+    }
     if (data.containsKey('queued_at')) {
       context.handle(
         _queuedAtMeta,
@@ -14797,6 +14936,22 @@ class $StarSyncQueueTableTable extends StarSyncQueueTable
         DriftSqlType.string,
         data['${effectivePrefix}action'],
       )!,
+      operation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation'],
+      )!,
+      attemptCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempt_count'],
+      )!,
+      notBefore: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}not_before'],
+      ),
+      lastErrorType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error_type'],
+      ),
       queuedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}queued_at'],
@@ -14823,6 +14978,12 @@ class StarSyncQueueTableData extends DataClass
   /// The action to perform: 'star' or 'unstar'.
   final String action;
 
+  /// 'star' or 'rating'; ratings use action '0' through '5'.
+  final String operation;
+  final int attemptCount;
+  final DateTime? notBefore;
+  final String? lastErrorType;
+
   /// When the action was queued.
   final DateTime queuedAt;
   const StarSyncQueueTableData({
@@ -14830,6 +14991,10 @@ class StarSyncQueueTableData extends DataClass
     required this.itemId,
     required this.itemType,
     required this.action,
+    required this.operation,
+    required this.attemptCount,
+    this.notBefore,
+    this.lastErrorType,
     required this.queuedAt,
   });
   @override
@@ -14839,6 +15004,14 @@ class StarSyncQueueTableData extends DataClass
     map['item_id'] = Variable<String>(itemId);
     map['item_type'] = Variable<String>(itemType);
     map['action'] = Variable<String>(action);
+    map['operation'] = Variable<String>(operation);
+    map['attempt_count'] = Variable<int>(attemptCount);
+    if (!nullToAbsent || notBefore != null) {
+      map['not_before'] = Variable<DateTime>(notBefore);
+    }
+    if (!nullToAbsent || lastErrorType != null) {
+      map['last_error_type'] = Variable<String>(lastErrorType);
+    }
     map['queued_at'] = Variable<DateTime>(queuedAt);
     return map;
   }
@@ -14849,6 +15022,14 @@ class StarSyncQueueTableData extends DataClass
       itemId: Value(itemId),
       itemType: Value(itemType),
       action: Value(action),
+      operation: Value(operation),
+      attemptCount: Value(attemptCount),
+      notBefore: notBefore == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notBefore),
+      lastErrorType: lastErrorType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorType),
       queuedAt: Value(queuedAt),
     );
   }
@@ -14863,6 +15044,10 @@ class StarSyncQueueTableData extends DataClass
       itemId: serializer.fromJson<String>(json['itemId']),
       itemType: serializer.fromJson<String>(json['itemType']),
       action: serializer.fromJson<String>(json['action']),
+      operation: serializer.fromJson<String>(json['operation']),
+      attemptCount: serializer.fromJson<int>(json['attemptCount']),
+      notBefore: serializer.fromJson<DateTime?>(json['notBefore']),
+      lastErrorType: serializer.fromJson<String?>(json['lastErrorType']),
       queuedAt: serializer.fromJson<DateTime>(json['queuedAt']),
     );
   }
@@ -14874,6 +15059,10 @@ class StarSyncQueueTableData extends DataClass
       'itemId': serializer.toJson<String>(itemId),
       'itemType': serializer.toJson<String>(itemType),
       'action': serializer.toJson<String>(action),
+      'operation': serializer.toJson<String>(operation),
+      'attemptCount': serializer.toJson<int>(attemptCount),
+      'notBefore': serializer.toJson<DateTime?>(notBefore),
+      'lastErrorType': serializer.toJson<String?>(lastErrorType),
       'queuedAt': serializer.toJson<DateTime>(queuedAt),
     };
   }
@@ -14883,12 +15072,22 @@ class StarSyncQueueTableData extends DataClass
     String? itemId,
     String? itemType,
     String? action,
+    String? operation,
+    int? attemptCount,
+    Value<DateTime?> notBefore = const Value.absent(),
+    Value<String?> lastErrorType = const Value.absent(),
     DateTime? queuedAt,
   }) => StarSyncQueueTableData(
     id: id ?? this.id,
     itemId: itemId ?? this.itemId,
     itemType: itemType ?? this.itemType,
     action: action ?? this.action,
+    operation: operation ?? this.operation,
+    attemptCount: attemptCount ?? this.attemptCount,
+    notBefore: notBefore.present ? notBefore.value : this.notBefore,
+    lastErrorType: lastErrorType.present
+        ? lastErrorType.value
+        : this.lastErrorType,
     queuedAt: queuedAt ?? this.queuedAt,
   );
   StarSyncQueueTableData copyWithCompanion(StarSyncQueueTableCompanion data) {
@@ -14897,6 +15096,14 @@ class StarSyncQueueTableData extends DataClass
       itemId: data.itemId.present ? data.itemId.value : this.itemId,
       itemType: data.itemType.present ? data.itemType.value : this.itemType,
       action: data.action.present ? data.action.value : this.action,
+      operation: data.operation.present ? data.operation.value : this.operation,
+      attemptCount: data.attemptCount.present
+          ? data.attemptCount.value
+          : this.attemptCount,
+      notBefore: data.notBefore.present ? data.notBefore.value : this.notBefore,
+      lastErrorType: data.lastErrorType.present
+          ? data.lastErrorType.value
+          : this.lastErrorType,
       queuedAt: data.queuedAt.present ? data.queuedAt.value : this.queuedAt,
     );
   }
@@ -14908,13 +15115,27 @@ class StarSyncQueueTableData extends DataClass
           ..write('itemId: $itemId, ')
           ..write('itemType: $itemType, ')
           ..write('action: $action, ')
+          ..write('operation: $operation, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('notBefore: $notBefore, ')
+          ..write('lastErrorType: $lastErrorType, ')
           ..write('queuedAt: $queuedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, itemId, itemType, action, queuedAt);
+  int get hashCode => Object.hash(
+    id,
+    itemId,
+    itemType,
+    action,
+    operation,
+    attemptCount,
+    notBefore,
+    lastErrorType,
+    queuedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -14923,6 +15144,10 @@ class StarSyncQueueTableData extends DataClass
           other.itemId == this.itemId &&
           other.itemType == this.itemType &&
           other.action == this.action &&
+          other.operation == this.operation &&
+          other.attemptCount == this.attemptCount &&
+          other.notBefore == this.notBefore &&
+          other.lastErrorType == this.lastErrorType &&
           other.queuedAt == this.queuedAt);
 }
 
@@ -14932,12 +15157,20 @@ class StarSyncQueueTableCompanion
   final Value<String> itemId;
   final Value<String> itemType;
   final Value<String> action;
+  final Value<String> operation;
+  final Value<int> attemptCount;
+  final Value<DateTime?> notBefore;
+  final Value<String?> lastErrorType;
   final Value<DateTime> queuedAt;
   const StarSyncQueueTableCompanion({
     this.id = const Value.absent(),
     this.itemId = const Value.absent(),
     this.itemType = const Value.absent(),
     this.action = const Value.absent(),
+    this.operation = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.notBefore = const Value.absent(),
+    this.lastErrorType = const Value.absent(),
     this.queuedAt = const Value.absent(),
   });
   StarSyncQueueTableCompanion.insert({
@@ -14945,6 +15178,10 @@ class StarSyncQueueTableCompanion
     required String itemId,
     required String itemType,
     required String action,
+    this.operation = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.notBefore = const Value.absent(),
+    this.lastErrorType = const Value.absent(),
     required DateTime queuedAt,
   }) : itemId = Value(itemId),
        itemType = Value(itemType),
@@ -14955,6 +15192,10 @@ class StarSyncQueueTableCompanion
     Expression<String>? itemId,
     Expression<String>? itemType,
     Expression<String>? action,
+    Expression<String>? operation,
+    Expression<int>? attemptCount,
+    Expression<DateTime>? notBefore,
+    Expression<String>? lastErrorType,
     Expression<DateTime>? queuedAt,
   }) {
     return RawValuesInsertable({
@@ -14962,6 +15203,10 @@ class StarSyncQueueTableCompanion
       if (itemId != null) 'item_id': itemId,
       if (itemType != null) 'item_type': itemType,
       if (action != null) 'action': action,
+      if (operation != null) 'operation': operation,
+      if (attemptCount != null) 'attempt_count': attemptCount,
+      if (notBefore != null) 'not_before': notBefore,
+      if (lastErrorType != null) 'last_error_type': lastErrorType,
       if (queuedAt != null) 'queued_at': queuedAt,
     });
   }
@@ -14971,6 +15216,10 @@ class StarSyncQueueTableCompanion
     Value<String>? itemId,
     Value<String>? itemType,
     Value<String>? action,
+    Value<String>? operation,
+    Value<int>? attemptCount,
+    Value<DateTime?>? notBefore,
+    Value<String?>? lastErrorType,
     Value<DateTime>? queuedAt,
   }) {
     return StarSyncQueueTableCompanion(
@@ -14978,6 +15227,10 @@ class StarSyncQueueTableCompanion
       itemId: itemId ?? this.itemId,
       itemType: itemType ?? this.itemType,
       action: action ?? this.action,
+      operation: operation ?? this.operation,
+      attemptCount: attemptCount ?? this.attemptCount,
+      notBefore: notBefore ?? this.notBefore,
+      lastErrorType: lastErrorType ?? this.lastErrorType,
       queuedAt: queuedAt ?? this.queuedAt,
     );
   }
@@ -14997,6 +15250,18 @@ class StarSyncQueueTableCompanion
     if (action.present) {
       map['action'] = Variable<String>(action.value);
     }
+    if (operation.present) {
+      map['operation'] = Variable<String>(operation.value);
+    }
+    if (attemptCount.present) {
+      map['attempt_count'] = Variable<int>(attemptCount.value);
+    }
+    if (notBefore.present) {
+      map['not_before'] = Variable<DateTime>(notBefore.value);
+    }
+    if (lastErrorType.present) {
+      map['last_error_type'] = Variable<String>(lastErrorType.value);
+    }
     if (queuedAt.present) {
       map['queued_at'] = Variable<DateTime>(queuedAt.value);
     }
@@ -15010,7 +15275,274 @@ class StarSyncQueueTableCompanion
           ..write('itemId: $itemId, ')
           ..write('itemType: $itemType, ')
           ..write('action: $action, ')
+          ..write('operation: $operation, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('notBefore: $notBefore, ')
+          ..write('lastErrorType: $lastErrorType, ')
           ..write('queuedAt: $queuedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AnnotationDispatchLeaseTableTable extends AnnotationDispatchLeaseTable
+    with
+        TableInfo<
+          $AnnotationDispatchLeaseTableTable,
+          AnnotationDispatchLeaseTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AnnotationDispatchLeaseTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ownerTokenMeta = const VerificationMeta(
+    'ownerToken',
+  );
+  @override
+  late final GeneratedColumn<String> ownerToken = GeneratedColumn<String>(
+    'owner_token',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, ownerToken, expiresAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'annotation_dispatch_lease';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AnnotationDispatchLeaseTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('owner_token')) {
+      context.handle(
+        _ownerTokenMeta,
+        ownerToken.isAcceptableOrUnknown(data['owner_token']!, _ownerTokenMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ownerTokenMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AnnotationDispatchLeaseTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AnnotationDispatchLeaseTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      ownerToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_token'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AnnotationDispatchLeaseTableTable createAlias(String alias) {
+    return $AnnotationDispatchLeaseTableTable(attachedDatabase, alias);
+  }
+}
+
+class AnnotationDispatchLeaseTableData extends DataClass
+    implements Insertable<AnnotationDispatchLeaseTableData> {
+  final int id;
+  final String ownerToken;
+  final DateTime expiresAt;
+  const AnnotationDispatchLeaseTableData({
+    required this.id,
+    required this.ownerToken,
+    required this.expiresAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['owner_token'] = Variable<String>(ownerToken);
+    map['expires_at'] = Variable<DateTime>(expiresAt);
+    return map;
+  }
+
+  AnnotationDispatchLeaseTableCompanion toCompanion(bool nullToAbsent) {
+    return AnnotationDispatchLeaseTableCompanion(
+      id: Value(id),
+      ownerToken: Value(ownerToken),
+      expiresAt: Value(expiresAt),
+    );
+  }
+
+  factory AnnotationDispatchLeaseTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AnnotationDispatchLeaseTableData(
+      id: serializer.fromJson<int>(json['id']),
+      ownerToken: serializer.fromJson<String>(json['ownerToken']),
+      expiresAt: serializer.fromJson<DateTime>(json['expiresAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'ownerToken': serializer.toJson<String>(ownerToken),
+      'expiresAt': serializer.toJson<DateTime>(expiresAt),
+    };
+  }
+
+  AnnotationDispatchLeaseTableData copyWith({
+    int? id,
+    String? ownerToken,
+    DateTime? expiresAt,
+  }) => AnnotationDispatchLeaseTableData(
+    id: id ?? this.id,
+    ownerToken: ownerToken ?? this.ownerToken,
+    expiresAt: expiresAt ?? this.expiresAt,
+  );
+  AnnotationDispatchLeaseTableData copyWithCompanion(
+    AnnotationDispatchLeaseTableCompanion data,
+  ) {
+    return AnnotationDispatchLeaseTableData(
+      id: data.id.present ? data.id.value : this.id,
+      ownerToken: data.ownerToken.present
+          ? data.ownerToken.value
+          : this.ownerToken,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AnnotationDispatchLeaseTableData(')
+          ..write('id: $id, ')
+          ..write('ownerToken: $ownerToken, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, ownerToken, expiresAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AnnotationDispatchLeaseTableData &&
+          other.id == this.id &&
+          other.ownerToken == this.ownerToken &&
+          other.expiresAt == this.expiresAt);
+}
+
+class AnnotationDispatchLeaseTableCompanion
+    extends UpdateCompanion<AnnotationDispatchLeaseTableData> {
+  final Value<int> id;
+  final Value<String> ownerToken;
+  final Value<DateTime> expiresAt;
+  const AnnotationDispatchLeaseTableCompanion({
+    this.id = const Value.absent(),
+    this.ownerToken = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+  });
+  AnnotationDispatchLeaseTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String ownerToken,
+    required DateTime expiresAt,
+  }) : ownerToken = Value(ownerToken),
+       expiresAt = Value(expiresAt);
+  static Insertable<AnnotationDispatchLeaseTableData> custom({
+    Expression<int>? id,
+    Expression<String>? ownerToken,
+    Expression<DateTime>? expiresAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (ownerToken != null) 'owner_token': ownerToken,
+      if (expiresAt != null) 'expires_at': expiresAt,
+    });
+  }
+
+  AnnotationDispatchLeaseTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? ownerToken,
+    Value<DateTime>? expiresAt,
+  }) {
+    return AnnotationDispatchLeaseTableCompanion(
+      id: id ?? this.id,
+      ownerToken: ownerToken ?? this.ownerToken,
+      expiresAt: expiresAt ?? this.expiresAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (ownerToken.present) {
+      map['owner_token'] = Variable<String>(ownerToken.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AnnotationDispatchLeaseTableCompanion(')
+          ..write('id: $id, ')
+          ..write('ownerToken: $ownerToken, ')
+          ..write('expiresAt: $expiresAt')
           ..write(')'))
         .toString();
   }
@@ -17407,6 +17939,17 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _initialCatalogUsableAtMeta =
+      const VerificationMeta('initialCatalogUsableAt');
+  @override
+  late final GeneratedColumn<DateTime> initialCatalogUsableAt =
+      GeneratedColumn<DateTime>(
+        'initial_catalog_usable_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastAuxiliarySyncedAtMeta =
       const VerificationMeta('lastAuxiliarySyncedAt');
   @override
@@ -17704,6 +18247,7 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
     lastPromotionDiagnosticsJson,
     lastCheckedAt,
     lastCatalogSyncedAt,
+    initialCatalogUsableAt,
     lastAuxiliarySyncedAt,
     lastGenresSyncedAt,
     lastAuditAt,
@@ -17924,6 +18468,15 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         lastCatalogSyncedAt.isAcceptableOrUnknown(
           data['last_catalog_synced_at']!,
           _lastCatalogSyncedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('initial_catalog_usable_at')) {
+      context.handle(
+        _initialCatalogUsableAtMeta,
+        initialCatalogUsableAt.isAcceptableOrUnknown(
+          data['initial_catalog_usable_at']!,
+          _initialCatalogUsableAtMeta,
         ),
       );
     }
@@ -18239,6 +18792,10 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_catalog_synced_at'],
       ),
+      initialCatalogUsableAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}initial_catalog_usable_at'],
+      ),
       lastAuxiliarySyncedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_auxiliary_synced_at'],
@@ -18367,6 +18924,10 @@ class LibrarySyncStateTableData extends DataClass
   final String? lastPromotionDiagnosticsJson;
   final DateTime? lastCheckedAt;
   final DateTime? lastCatalogSyncedAt;
+
+  /// First setup may leave a safely promoted catalog with only incomplete
+  /// server album details pending. This is readiness, not full freshness.
+  final DateTime? initialCatalogUsableAt;
   final DateTime? lastAuxiliarySyncedAt;
   final DateTime? lastGenresSyncedAt;
   final DateTime? lastAuditAt;
@@ -18426,6 +18987,7 @@ class LibrarySyncStateTableData extends DataClass
     this.lastPromotionDiagnosticsJson,
     this.lastCheckedAt,
     this.lastCatalogSyncedAt,
+    this.initialCatalogUsableAt,
     this.lastAuxiliarySyncedAt,
     this.lastGenresSyncedAt,
     this.lastAuditAt,
@@ -18504,6 +19066,11 @@ class LibrarySyncStateTableData extends DataClass
     }
     if (!nullToAbsent || lastCatalogSyncedAt != null) {
       map['last_catalog_synced_at'] = Variable<DateTime>(lastCatalogSyncedAt);
+    }
+    if (!nullToAbsent || initialCatalogUsableAt != null) {
+      map['initial_catalog_usable_at'] = Variable<DateTime>(
+        initialCatalogUsableAt,
+      );
     }
     if (!nullToAbsent || lastAuxiliarySyncedAt != null) {
       map['last_auxiliary_synced_at'] = Variable<DateTime>(
@@ -18634,6 +19201,9 @@ class LibrarySyncStateTableData extends DataClass
       lastCatalogSyncedAt: lastCatalogSyncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastCatalogSyncedAt),
+      initialCatalogUsableAt: initialCatalogUsableAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(initialCatalogUsableAt),
       lastAuxiliarySyncedAt: lastAuxiliarySyncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastAuxiliarySyncedAt),
@@ -18745,6 +19315,9 @@ class LibrarySyncStateTableData extends DataClass
       lastCatalogSyncedAt: serializer.fromJson<DateTime?>(
         json['lastCatalogSyncedAt'],
       ),
+      initialCatalogUsableAt: serializer.fromJson<DateTime?>(
+        json['initialCatalogUsableAt'],
+      ),
       lastAuxiliarySyncedAt: serializer.fromJson<DateTime?>(
         json['lastAuxiliarySyncedAt'],
       ),
@@ -18830,6 +19403,9 @@ class LibrarySyncStateTableData extends DataClass
       ),
       'lastCheckedAt': serializer.toJson<DateTime?>(lastCheckedAt),
       'lastCatalogSyncedAt': serializer.toJson<DateTime?>(lastCatalogSyncedAt),
+      'initialCatalogUsableAt': serializer.toJson<DateTime?>(
+        initialCatalogUsableAt,
+      ),
       'lastAuxiliarySyncedAt': serializer.toJson<DateTime?>(
         lastAuxiliarySyncedAt,
       ),
@@ -18901,6 +19477,7 @@ class LibrarySyncStateTableData extends DataClass
     Value<String?> lastPromotionDiagnosticsJson = const Value.absent(),
     Value<DateTime?> lastCheckedAt = const Value.absent(),
     Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
+    Value<DateTime?> initialCatalogUsableAt = const Value.absent(),
     Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
     Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
     Value<DateTime?> lastAuditAt = const Value.absent(),
@@ -18975,6 +19552,9 @@ class LibrarySyncStateTableData extends DataClass
     lastCatalogSyncedAt: lastCatalogSyncedAt.present
         ? lastCatalogSyncedAt.value
         : this.lastCatalogSyncedAt,
+    initialCatalogUsableAt: initialCatalogUsableAt.present
+        ? initialCatalogUsableAt.value
+        : this.initialCatalogUsableAt,
     lastAuxiliarySyncedAt: lastAuxiliarySyncedAt.present
         ? lastAuxiliarySyncedAt.value
         : this.lastAuxiliarySyncedAt,
@@ -19098,6 +19678,9 @@ class LibrarySyncStateTableData extends DataClass
       lastCatalogSyncedAt: data.lastCatalogSyncedAt.present
           ? data.lastCatalogSyncedAt.value
           : this.lastCatalogSyncedAt,
+      initialCatalogUsableAt: data.initialCatalogUsableAt.present
+          ? data.initialCatalogUsableAt.value
+          : this.initialCatalogUsableAt,
       lastAuxiliarySyncedAt: data.lastAuxiliarySyncedAt.present
           ? data.lastAuxiliarySyncedAt.value
           : this.lastAuxiliarySyncedAt,
@@ -19202,6 +19785,7 @@ class LibrarySyncStateTableData extends DataClass
           )
           ..write('lastCheckedAt: $lastCheckedAt, ')
           ..write('lastCatalogSyncedAt: $lastCatalogSyncedAt, ')
+          ..write('initialCatalogUsableAt: $initialCatalogUsableAt, ')
           ..write('lastAuxiliarySyncedAt: $lastAuxiliarySyncedAt, ')
           ..write('lastGenresSyncedAt: $lastGenresSyncedAt, ')
           ..write('lastAuditAt: $lastAuditAt, ')
@@ -19259,6 +19843,7 @@ class LibrarySyncStateTableData extends DataClass
     lastPromotionDiagnosticsJson,
     lastCheckedAt,
     lastCatalogSyncedAt,
+    initialCatalogUsableAt,
     lastAuxiliarySyncedAt,
     lastGenresSyncedAt,
     lastAuditAt,
@@ -19311,6 +19896,7 @@ class LibrarySyncStateTableData extends DataClass
               this.lastPromotionDiagnosticsJson &&
           other.lastCheckedAt == this.lastCheckedAt &&
           other.lastCatalogSyncedAt == this.lastCatalogSyncedAt &&
+          other.initialCatalogUsableAt == this.initialCatalogUsableAt &&
           other.lastAuxiliarySyncedAt == this.lastAuxiliarySyncedAt &&
           other.lastGenresSyncedAt == this.lastGenresSyncedAt &&
           other.lastAuditAt == this.lastAuditAt &&
@@ -19364,6 +19950,7 @@ class LibrarySyncStateTableCompanion
   final Value<String?> lastPromotionDiagnosticsJson;
   final Value<DateTime?> lastCheckedAt;
   final Value<DateTime?> lastCatalogSyncedAt;
+  final Value<DateTime?> initialCatalogUsableAt;
   final Value<DateTime?> lastAuxiliarySyncedAt;
   final Value<DateTime?> lastGenresSyncedAt;
   final Value<DateTime?> lastAuditAt;
@@ -19410,6 +19997,7 @@ class LibrarySyncStateTableCompanion
     this.lastPromotionDiagnosticsJson = const Value.absent(),
     this.lastCheckedAt = const Value.absent(),
     this.lastCatalogSyncedAt = const Value.absent(),
+    this.initialCatalogUsableAt = const Value.absent(),
     this.lastAuxiliarySyncedAt = const Value.absent(),
     this.lastGenresSyncedAt = const Value.absent(),
     this.lastAuditAt = const Value.absent(),
@@ -19457,6 +20045,7 @@ class LibrarySyncStateTableCompanion
     this.lastPromotionDiagnosticsJson = const Value.absent(),
     this.lastCheckedAt = const Value.absent(),
     this.lastCatalogSyncedAt = const Value.absent(),
+    this.initialCatalogUsableAt = const Value.absent(),
     this.lastAuxiliarySyncedAt = const Value.absent(),
     this.lastGenresSyncedAt = const Value.absent(),
     this.lastAuditAt = const Value.absent(),
@@ -19504,6 +20093,7 @@ class LibrarySyncStateTableCompanion
     Expression<String>? lastPromotionDiagnosticsJson,
     Expression<DateTime>? lastCheckedAt,
     Expression<DateTime>? lastCatalogSyncedAt,
+    Expression<DateTime>? initialCatalogUsableAt,
     Expression<DateTime>? lastAuxiliarySyncedAt,
     Expression<DateTime>? lastGenresSyncedAt,
     Expression<DateTime>? lastAuditAt,
@@ -19560,6 +20150,8 @@ class LibrarySyncStateTableCompanion
       if (lastCheckedAt != null) 'last_checked_at': lastCheckedAt,
       if (lastCatalogSyncedAt != null)
         'last_catalog_synced_at': lastCatalogSyncedAt,
+      if (initialCatalogUsableAt != null)
+        'initial_catalog_usable_at': initialCatalogUsableAt,
       if (lastAuxiliarySyncedAt != null)
         'last_auxiliary_synced_at': lastAuxiliarySyncedAt,
       if (lastGenresSyncedAt != null)
@@ -19623,6 +20215,7 @@ class LibrarySyncStateTableCompanion
     Value<String?>? lastPromotionDiagnosticsJson,
     Value<DateTime?>? lastCheckedAt,
     Value<DateTime?>? lastCatalogSyncedAt,
+    Value<DateTime?>? initialCatalogUsableAt,
     Value<DateTime?>? lastAuxiliarySyncedAt,
     Value<DateTime?>? lastGenresSyncedAt,
     Value<DateTime?>? lastAuditAt,
@@ -19673,6 +20266,8 @@ class LibrarySyncStateTableCompanion
           lastPromotionDiagnosticsJson ?? this.lastPromotionDiagnosticsJson,
       lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
       lastCatalogSyncedAt: lastCatalogSyncedAt ?? this.lastCatalogSyncedAt,
+      initialCatalogUsableAt:
+          initialCatalogUsableAt ?? this.initialCatalogUsableAt,
       lastAuxiliarySyncedAt:
           lastAuxiliarySyncedAt ?? this.lastAuxiliarySyncedAt,
       lastGenresSyncedAt: lastGenresSyncedAt ?? this.lastGenresSyncedAt,
@@ -19788,6 +20383,11 @@ class LibrarySyncStateTableCompanion
     if (lastCatalogSyncedAt.present) {
       map['last_catalog_synced_at'] = Variable<DateTime>(
         lastCatalogSyncedAt.value,
+      );
+    }
+    if (initialCatalogUsableAt.present) {
+      map['initial_catalog_usable_at'] = Variable<DateTime>(
+        initialCatalogUsableAt.value,
       );
     }
     if (lastAuxiliarySyncedAt.present) {
@@ -19921,6 +20521,7 @@ class LibrarySyncStateTableCompanion
           )
           ..write('lastCheckedAt: $lastCheckedAt, ')
           ..write('lastCatalogSyncedAt: $lastCatalogSyncedAt, ')
+          ..write('initialCatalogUsableAt: $initialCatalogUsableAt, ')
           ..write('lastAuxiliarySyncedAt: $lastAuxiliarySyncedAt, ')
           ..write('lastGenresSyncedAt: $lastGenresSyncedAt, ')
           ..write('lastAuditAt: $lastAuditAt, ')
@@ -26604,6 +27205,17 @@ class $LibrarySyncRunAttemptTableTable extends LibrarySyncRunAttemptTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _telemetryJsonMeta = const VerificationMeta(
+    'telemetryJson',
+  );
+  @override
+  late final GeneratedColumn<String> telemetryJson = GeneratedColumn<String>(
+    'telemetry_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -26612,6 +27224,7 @@ class $LibrarySyncRunAttemptTableTable extends LibrarySyncRunAttemptTable
     ownerKind,
     startedAt,
     completedAt,
+    telemetryJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -26665,6 +27278,15 @@ class $LibrarySyncRunAttemptTableTable extends LibrarySyncRunAttemptTable
         ),
       );
     }
+    if (data.containsKey('telemetry_json')) {
+      context.handle(
+        _telemetryJsonMeta,
+        telemetryJson.isAcceptableOrUnknown(
+          data['telemetry_json']!,
+          _telemetryJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -26701,6 +27323,10 @@ class $LibrarySyncRunAttemptTableTable extends LibrarySyncRunAttemptTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}completed_at'],
       ),
+      telemetryJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}telemetry_json'],
+      ),
     );
   }
 
@@ -26720,6 +27346,9 @@ class LibrarySyncRunAttemptTableData extends DataClass
   final int ownerKind;
   final DateTime startedAt;
   final DateTime? completedAt;
+
+  /// Bounded versioned diagnostics; no target identifiers or response payloads.
+  final String? telemetryJson;
   const LibrarySyncRunAttemptTableData({
     required this.id,
     required this.requestId,
@@ -26727,6 +27356,7 @@ class LibrarySyncRunAttemptTableData extends DataClass
     required this.ownerKind,
     required this.startedAt,
     this.completedAt,
+    this.telemetryJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -26738,6 +27368,9 @@ class LibrarySyncRunAttemptTableData extends DataClass
     map['started_at'] = Variable<DateTime>(startedAt);
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    if (!nullToAbsent || telemetryJson != null) {
+      map['telemetry_json'] = Variable<String>(telemetryJson);
     }
     return map;
   }
@@ -26752,6 +27385,9 @@ class LibrarySyncRunAttemptTableData extends DataClass
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAt),
+      telemetryJson: telemetryJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(telemetryJson),
     );
   }
 
@@ -26767,6 +27403,7 @@ class LibrarySyncRunAttemptTableData extends DataClass
       ownerKind: serializer.fromJson<int>(json['ownerKind']),
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
       completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+      telemetryJson: serializer.fromJson<String?>(json['telemetryJson']),
     );
   }
   @override
@@ -26779,6 +27416,7 @@ class LibrarySyncRunAttemptTableData extends DataClass
       'ownerKind': serializer.toJson<int>(ownerKind),
       'startedAt': serializer.toJson<DateTime>(startedAt),
       'completedAt': serializer.toJson<DateTime?>(completedAt),
+      'telemetryJson': serializer.toJson<String?>(telemetryJson),
     };
   }
 
@@ -26789,6 +27427,7 @@ class LibrarySyncRunAttemptTableData extends DataClass
     int? ownerKind,
     DateTime? startedAt,
     Value<DateTime?> completedAt = const Value.absent(),
+    Value<String?> telemetryJson = const Value.absent(),
   }) => LibrarySyncRunAttemptTableData(
     id: id ?? this.id,
     requestId: requestId ?? this.requestId,
@@ -26796,6 +27435,9 @@ class LibrarySyncRunAttemptTableData extends DataClass
     ownerKind: ownerKind ?? this.ownerKind,
     startedAt: startedAt ?? this.startedAt,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    telemetryJson: telemetryJson.present
+        ? telemetryJson.value
+        : this.telemetryJson,
   );
   LibrarySyncRunAttemptTableData copyWithCompanion(
     LibrarySyncRunAttemptTableCompanion data,
@@ -26809,6 +27451,9 @@ class LibrarySyncRunAttemptTableData extends DataClass
       completedAt: data.completedAt.present
           ? data.completedAt.value
           : this.completedAt,
+      telemetryJson: data.telemetryJson.present
+          ? data.telemetryJson.value
+          : this.telemetryJson,
     );
   }
 
@@ -26820,14 +27465,22 @@ class LibrarySyncRunAttemptTableData extends DataClass
           ..write('status: $status, ')
           ..write('ownerKind: $ownerKind, ')
           ..write('startedAt: $startedAt, ')
-          ..write('completedAt: $completedAt')
+          ..write('completedAt: $completedAt, ')
+          ..write('telemetryJson: $telemetryJson')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, requestId, status, ownerKind, startedAt, completedAt);
+  int get hashCode => Object.hash(
+    id,
+    requestId,
+    status,
+    ownerKind,
+    startedAt,
+    completedAt,
+    telemetryJson,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -26837,7 +27490,8 @@ class LibrarySyncRunAttemptTableData extends DataClass
           other.status == this.status &&
           other.ownerKind == this.ownerKind &&
           other.startedAt == this.startedAt &&
-          other.completedAt == this.completedAt);
+          other.completedAt == this.completedAt &&
+          other.telemetryJson == this.telemetryJson);
 }
 
 class LibrarySyncRunAttemptTableCompanion
@@ -26848,6 +27502,7 @@ class LibrarySyncRunAttemptTableCompanion
   final Value<int> ownerKind;
   final Value<DateTime> startedAt;
   final Value<DateTime?> completedAt;
+  final Value<String?> telemetryJson;
   const LibrarySyncRunAttemptTableCompanion({
     this.id = const Value.absent(),
     this.requestId = const Value.absent(),
@@ -26855,6 +27510,7 @@ class LibrarySyncRunAttemptTableCompanion
     this.ownerKind = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.completedAt = const Value.absent(),
+    this.telemetryJson = const Value.absent(),
   });
   LibrarySyncRunAttemptTableCompanion.insert({
     this.id = const Value.absent(),
@@ -26863,6 +27519,7 @@ class LibrarySyncRunAttemptTableCompanion
     this.ownerKind = const Value.absent(),
     required DateTime startedAt,
     this.completedAt = const Value.absent(),
+    this.telemetryJson = const Value.absent(),
   }) : requestId = Value(requestId),
        startedAt = Value(startedAt);
   static Insertable<LibrarySyncRunAttemptTableData> custom({
@@ -26872,6 +27529,7 @@ class LibrarySyncRunAttemptTableCompanion
     Expression<int>? ownerKind,
     Expression<DateTime>? startedAt,
     Expression<DateTime>? completedAt,
+    Expression<String>? telemetryJson,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -26880,6 +27538,7 @@ class LibrarySyncRunAttemptTableCompanion
       if (ownerKind != null) 'owner_kind': ownerKind,
       if (startedAt != null) 'started_at': startedAt,
       if (completedAt != null) 'completed_at': completedAt,
+      if (telemetryJson != null) 'telemetry_json': telemetryJson,
     });
   }
 
@@ -26890,6 +27549,7 @@ class LibrarySyncRunAttemptTableCompanion
     Value<int>? ownerKind,
     Value<DateTime>? startedAt,
     Value<DateTime?>? completedAt,
+    Value<String?>? telemetryJson,
   }) {
     return LibrarySyncRunAttemptTableCompanion(
       id: id ?? this.id,
@@ -26898,6 +27558,7 @@ class LibrarySyncRunAttemptTableCompanion
       ownerKind: ownerKind ?? this.ownerKind,
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,
+      telemetryJson: telemetryJson ?? this.telemetryJson,
     );
   }
 
@@ -26922,6 +27583,9 @@ class LibrarySyncRunAttemptTableCompanion
     if (completedAt.present) {
       map['completed_at'] = Variable<DateTime>(completedAt.value);
     }
+    if (telemetryJson.present) {
+      map['telemetry_json'] = Variable<String>(telemetryJson.value);
+    }
     return map;
   }
 
@@ -26933,7 +27597,8 @@ class LibrarySyncRunAttemptTableCompanion
           ..write('status: $status, ')
           ..write('ownerKind: $ownerKind, ')
           ..write('startedAt: $startedAt, ')
-          ..write('completedAt: $completedAt')
+          ..write('completedAt: $completedAt, ')
+          ..write('telemetryJson: $telemetryJson')
           ..write(')'))
         .toString();
   }
@@ -28465,6 +29130,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $ScrobbleQueueTableTable(this);
   late final $StarSyncQueueTableTable starSyncQueueTable =
       $StarSyncQueueTableTable(this);
+  late final $AnnotationDispatchLeaseTableTable annotationDispatchLeaseTable =
+      $AnnotationDispatchLeaseTableTable(this);
   late final $ListenBrainzFeedbackQueueTableTable
   listenBrainzFeedbackQueueTable = $ListenBrainzFeedbackQueueTableTable(this);
   late final $ListenBrainzWeeklyCacheTableTable listenBrainzWeeklyCacheTable =
@@ -28560,6 +29227,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     matchFlowSongsTable,
     scrobbleQueueTable,
     starSyncQueueTable,
+    annotationDispatchLeaseTable,
     listenBrainzFeedbackQueueTable,
     listenBrainzWeeklyCacheTable,
     networkUsageTable,
@@ -32088,6 +32756,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<String?> genre,
       Value<String?> coverArt,
       Value<bool> songsHydrated,
+      Value<DateTime?> songsVerifiedAt,
       Value<DateTime?> starred,
       Value<int?> userRating,
       Value<int?> playCount,
@@ -32112,6 +32781,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<String?> genre,
       Value<String?> coverArt,
       Value<bool> songsHydrated,
+      Value<DateTime?> songsVerifiedAt,
       Value<DateTime?> starred,
       Value<int?> userRating,
       Value<int?> playCount,
@@ -32222,6 +32892,11 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<bool> get songsHydrated => $composableBuilder(
     column: $table.songsHydrated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get songsVerifiedAt => $composableBuilder(
+    column: $table.songsVerifiedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -32378,6 +33053,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get songsVerifiedAt => $composableBuilder(
+    column: $table.songsVerifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get starred => $composableBuilder(
     column: $table.starred,
     builder: (column) => ColumnOrderings(column),
@@ -32487,6 +33167,11 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get songsHydrated => $composableBuilder(
     column: $table.songsHydrated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get songsVerifiedAt => $composableBuilder(
+    column: $table.songsVerifiedAt,
     builder: (column) => column,
   );
 
@@ -32617,6 +33302,7 @@ class $$AlbumsTableTableTableManager
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
+                Value<DateTime?> songsVerifiedAt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
@@ -32639,6 +33325,7 @@ class $$AlbumsTableTableTableManager
                 genre: genre,
                 coverArt: coverArt,
                 songsHydrated: songsHydrated,
+                songsVerifiedAt: songsVerifiedAt,
                 starred: starred,
                 userRating: userRating,
                 playCount: playCount,
@@ -32663,6 +33350,7 @@ class $$AlbumsTableTableTableManager
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
+                Value<DateTime?> songsVerifiedAt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
@@ -32685,6 +33373,7 @@ class $$AlbumsTableTableTableManager
                 genre: genre,
                 coverArt: coverArt,
                 songsHydrated: songsHydrated,
+                songsVerifiedAt: songsVerifiedAt,
                 starred: starred,
                 userRating: userRating,
                 playCount: playCount,
@@ -38729,6 +39418,10 @@ typedef $$StarSyncQueueTableTableCreateCompanionBuilder =
       required String itemId,
       required String itemType,
       required String action,
+      Value<String> operation,
+      Value<int> attemptCount,
+      Value<DateTime?> notBefore,
+      Value<String?> lastErrorType,
       required DateTime queuedAt,
     });
 typedef $$StarSyncQueueTableTableUpdateCompanionBuilder =
@@ -38737,6 +39430,10 @@ typedef $$StarSyncQueueTableTableUpdateCompanionBuilder =
       Value<String> itemId,
       Value<String> itemType,
       Value<String> action,
+      Value<String> operation,
+      Value<int> attemptCount,
+      Value<DateTime?> notBefore,
+      Value<String?> lastErrorType,
       Value<DateTime> queuedAt,
     });
 
@@ -38766,6 +39463,26 @@ class $$StarSyncQueueTableTableFilterComposer
 
   ColumnFilters<String> get action => $composableBuilder(
     column: $table.action,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get notBefore => $composableBuilder(
+    column: $table.notBefore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastErrorType => $composableBuilder(
+    column: $table.lastErrorType,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38804,6 +39521,26 @@ class $$StarSyncQueueTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get notBefore => $composableBuilder(
+    column: $table.notBefore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastErrorType => $composableBuilder(
+    column: $table.lastErrorType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get queuedAt => $composableBuilder(
     column: $table.queuedAt,
     builder: (column) => ColumnOrderings(column),
@@ -38830,6 +39567,22 @@ class $$StarSyncQueueTableTableAnnotationComposer
 
   GeneratedColumn<String> get action =>
       $composableBuilder(column: $table.action, builder: (column) => column);
+
+  GeneratedColumn<String> get operation =>
+      $composableBuilder(column: $table.operation, builder: (column) => column);
+
+  GeneratedColumn<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get notBefore =>
+      $composableBuilder(column: $table.notBefore, builder: (column) => column);
+
+  GeneratedColumn<String> get lastErrorType => $composableBuilder(
+    column: $table.lastErrorType,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get queuedAt =>
       $composableBuilder(column: $table.queuedAt, builder: (column) => column);
@@ -38879,12 +39632,20 @@ class $$StarSyncQueueTableTableTableManager
                 Value<String> itemId = const Value.absent(),
                 Value<String> itemType = const Value.absent(),
                 Value<String> action = const Value.absent(),
+                Value<String> operation = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<DateTime?> notBefore = const Value.absent(),
+                Value<String?> lastErrorType = const Value.absent(),
                 Value<DateTime> queuedAt = const Value.absent(),
               }) => StarSyncQueueTableCompanion(
                 id: id,
                 itemId: itemId,
                 itemType: itemType,
                 action: action,
+                operation: operation,
+                attemptCount: attemptCount,
+                notBefore: notBefore,
+                lastErrorType: lastErrorType,
                 queuedAt: queuedAt,
               ),
           createCompanionCallback:
@@ -38893,12 +39654,20 @@ class $$StarSyncQueueTableTableTableManager
                 required String itemId,
                 required String itemType,
                 required String action,
+                Value<String> operation = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<DateTime?> notBefore = const Value.absent(),
+                Value<String?> lastErrorType = const Value.absent(),
                 required DateTime queuedAt,
               }) => StarSyncQueueTableCompanion.insert(
                 id: id,
                 itemId: itemId,
                 itemType: itemType,
                 action: action,
+                operation: operation,
+                attemptCount: attemptCount,
+                notBefore: notBefore,
+                lastErrorType: lastErrorType,
                 queuedAt: queuedAt,
               ),
           withReferenceMapper: (p0) => p0
@@ -38928,6 +39697,183 @@ typedef $$StarSyncQueueTableTableProcessedTableManager =
         >,
       ),
       StarSyncQueueTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$AnnotationDispatchLeaseTableTableCreateCompanionBuilder =
+    AnnotationDispatchLeaseTableCompanion Function({
+      Value<int> id,
+      required String ownerToken,
+      required DateTime expiresAt,
+    });
+typedef $$AnnotationDispatchLeaseTableTableUpdateCompanionBuilder =
+    AnnotationDispatchLeaseTableCompanion Function({
+      Value<int> id,
+      Value<String> ownerToken,
+      Value<DateTime> expiresAt,
+    });
+
+class $$AnnotationDispatchLeaseTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $AnnotationDispatchLeaseTableTable> {
+  $$AnnotationDispatchLeaseTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerToken => $composableBuilder(
+    column: $table.ownerToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AnnotationDispatchLeaseTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $AnnotationDispatchLeaseTableTable> {
+  $$AnnotationDispatchLeaseTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerToken => $composableBuilder(
+    column: $table.ownerToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AnnotationDispatchLeaseTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $AnnotationDispatchLeaseTableTable> {
+  $$AnnotationDispatchLeaseTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerToken => $composableBuilder(
+    column: $table.ownerToken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+}
+
+class $$AnnotationDispatchLeaseTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $AnnotationDispatchLeaseTableTable,
+          AnnotationDispatchLeaseTableData,
+          $$AnnotationDispatchLeaseTableTableFilterComposer,
+          $$AnnotationDispatchLeaseTableTableOrderingComposer,
+          $$AnnotationDispatchLeaseTableTableAnnotationComposer,
+          $$AnnotationDispatchLeaseTableTableCreateCompanionBuilder,
+          $$AnnotationDispatchLeaseTableTableUpdateCompanionBuilder,
+          (
+            AnnotationDispatchLeaseTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $AnnotationDispatchLeaseTableTable,
+              AnnotationDispatchLeaseTableData
+            >,
+          ),
+          AnnotationDispatchLeaseTableData,
+          PrefetchHooks Function()
+        > {
+  $$AnnotationDispatchLeaseTableTableTableManager(
+    _$NavisDatabase db,
+    $AnnotationDispatchLeaseTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AnnotationDispatchLeaseTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AnnotationDispatchLeaseTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AnnotationDispatchLeaseTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> ownerToken = const Value.absent(),
+                Value<DateTime> expiresAt = const Value.absent(),
+              }) => AnnotationDispatchLeaseTableCompanion(
+                id: id,
+                ownerToken: ownerToken,
+                expiresAt: expiresAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String ownerToken,
+                required DateTime expiresAt,
+              }) => AnnotationDispatchLeaseTableCompanion.insert(
+                id: id,
+                ownerToken: ownerToken,
+                expiresAt: expiresAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AnnotationDispatchLeaseTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $AnnotationDispatchLeaseTableTable,
+      AnnotationDispatchLeaseTableData,
+      $$AnnotationDispatchLeaseTableTableFilterComposer,
+      $$AnnotationDispatchLeaseTableTableOrderingComposer,
+      $$AnnotationDispatchLeaseTableTableAnnotationComposer,
+      $$AnnotationDispatchLeaseTableTableCreateCompanionBuilder,
+      $$AnnotationDispatchLeaseTableTableUpdateCompanionBuilder,
+      (
+        AnnotationDispatchLeaseTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $AnnotationDispatchLeaseTableTable,
+          AnnotationDispatchLeaseTableData
+        >,
+      ),
+      AnnotationDispatchLeaseTableData,
       PrefetchHooks Function()
     >;
 typedef $$ListenBrainzFeedbackQueueTableTableCreateCompanionBuilder =
@@ -40193,6 +41139,7 @@ typedef $$LibrarySyncStateTableTableCreateCompanionBuilder =
       Value<String?> lastPromotionDiagnosticsJson,
       Value<DateTime?> lastCheckedAt,
       Value<DateTime?> lastCatalogSyncedAt,
+      Value<DateTime?> initialCatalogUsableAt,
       Value<DateTime?> lastAuxiliarySyncedAt,
       Value<DateTime?> lastGenresSyncedAt,
       Value<DateTime?> lastAuditAt,
@@ -40241,6 +41188,7 @@ typedef $$LibrarySyncStateTableTableUpdateCompanionBuilder =
       Value<String?> lastPromotionDiagnosticsJson,
       Value<DateTime?> lastCheckedAt,
       Value<DateTime?> lastCatalogSyncedAt,
+      Value<DateTime?> initialCatalogUsableAt,
       Value<DateTime?> lastAuxiliarySyncedAt,
       Value<DateTime?> lastGenresSyncedAt,
       Value<DateTime?> lastAuditAt,
@@ -40405,6 +41353,11 @@ class $$LibrarySyncStateTableTableFilterComposer
 
   ColumnFilters<DateTime> get lastCatalogSyncedAt => $composableBuilder(
     column: $table.lastCatalogSyncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get initialCatalogUsableAt => $composableBuilder(
+    column: $table.initialCatalogUsableAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -40659,6 +41612,11 @@ class $$LibrarySyncStateTableTableOrderingComposer
 
   ColumnOrderings<DateTime> get lastCatalogSyncedAt => $composableBuilder(
     column: $table.lastCatalogSyncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get initialCatalogUsableAt => $composableBuilder(
+    column: $table.initialCatalogUsableAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -40919,6 +41877,11 @@ class $$LibrarySyncStateTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<DateTime> get initialCatalogUsableAt => $composableBuilder(
+    column: $table.initialCatalogUsableAt,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get lastAuxiliarySyncedAt => $composableBuilder(
     column: $table.lastAuxiliarySyncedAt,
     builder: (column) => column,
@@ -41128,6 +42091,7 @@ class $$LibrarySyncStateTableTableTableManager
                     const Value.absent(),
                 Value<DateTime?> lastCheckedAt = const Value.absent(),
                 Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
+                Value<DateTime?> initialCatalogUsableAt = const Value.absent(),
                 Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
                 Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
                 Value<DateTime?> lastAuditAt = const Value.absent(),
@@ -41178,6 +42142,7 @@ class $$LibrarySyncStateTableTableTableManager
                 lastPromotionDiagnosticsJson: lastPromotionDiagnosticsJson,
                 lastCheckedAt: lastCheckedAt,
                 lastCatalogSyncedAt: lastCatalogSyncedAt,
+                initialCatalogUsableAt: initialCatalogUsableAt,
                 lastAuxiliarySyncedAt: lastAuxiliarySyncedAt,
                 lastGenresSyncedAt: lastGenresSyncedAt,
                 lastAuditAt: lastAuditAt,
@@ -41228,6 +42193,7 @@ class $$LibrarySyncStateTableTableTableManager
                     const Value.absent(),
                 Value<DateTime?> lastCheckedAt = const Value.absent(),
                 Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
+                Value<DateTime?> initialCatalogUsableAt = const Value.absent(),
                 Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
                 Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
                 Value<DateTime?> lastAuditAt = const Value.absent(),
@@ -41278,6 +42244,7 @@ class $$LibrarySyncStateTableTableTableManager
                 lastPromotionDiagnosticsJson: lastPromotionDiagnosticsJson,
                 lastCheckedAt: lastCheckedAt,
                 lastCatalogSyncedAt: lastCatalogSyncedAt,
+                initialCatalogUsableAt: initialCatalogUsableAt,
                 lastAuxiliarySyncedAt: lastAuxiliarySyncedAt,
                 lastGenresSyncedAt: lastGenresSyncedAt,
                 lastAuditAt: lastAuditAt,
@@ -45431,6 +46398,7 @@ typedef $$LibrarySyncRunAttemptTableTableCreateCompanionBuilder =
       Value<int> ownerKind,
       required DateTime startedAt,
       Value<DateTime?> completedAt,
+      Value<String?> telemetryJson,
     });
 typedef $$LibrarySyncRunAttemptTableTableUpdateCompanionBuilder =
     LibrarySyncRunAttemptTableCompanion Function({
@@ -45440,6 +46408,7 @@ typedef $$LibrarySyncRunAttemptTableTableUpdateCompanionBuilder =
       Value<int> ownerKind,
       Value<DateTime> startedAt,
       Value<DateTime?> completedAt,
+      Value<String?> telemetryJson,
     });
 
 final class $$LibrarySyncRunAttemptTableTableReferences
@@ -45536,6 +46505,11 @@ class $$LibrarySyncRunAttemptTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get telemetryJson => $composableBuilder(
+    column: $table.telemetryJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$LibrarySyncRunRequestTableTableFilterComposer get requestId {
     final $$LibrarySyncRunRequestTableTableFilterComposer composer =
         $composerBuilder(
@@ -45622,6 +46596,11 @@ class $$LibrarySyncRunAttemptTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get telemetryJson => $composableBuilder(
+    column: $table.telemetryJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$LibrarySyncRunRequestTableTableOrderingComposer get requestId {
     final $$LibrarySyncRunRequestTableTableOrderingComposer composer =
         $composerBuilder(
@@ -45670,6 +46649,11 @@ class $$LibrarySyncRunAttemptTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get completedAt => $composableBuilder(
     column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get telemetryJson => $composableBuilder(
+    column: $table.telemetryJson,
     builder: (column) => column,
   );
 
@@ -45778,6 +46762,7 @@ class $$LibrarySyncRunAttemptTableTableTableManager
                 Value<int> ownerKind = const Value.absent(),
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
+                Value<String?> telemetryJson = const Value.absent(),
               }) => LibrarySyncRunAttemptTableCompanion(
                 id: id,
                 requestId: requestId,
@@ -45785,6 +46770,7 @@ class $$LibrarySyncRunAttemptTableTableTableManager
                 ownerKind: ownerKind,
                 startedAt: startedAt,
                 completedAt: completedAt,
+                telemetryJson: telemetryJson,
               ),
           createCompanionCallback:
               ({
@@ -45794,6 +46780,7 @@ class $$LibrarySyncRunAttemptTableTableTableManager
                 Value<int> ownerKind = const Value.absent(),
                 required DateTime startedAt,
                 Value<DateTime?> completedAt = const Value.absent(),
+                Value<String?> telemetryJson = const Value.absent(),
               }) => LibrarySyncRunAttemptTableCompanion.insert(
                 id: id,
                 requestId: requestId,
@@ -45801,6 +46788,7 @@ class $$LibrarySyncRunAttemptTableTableTableManager
                 ownerKind: ownerKind,
                 startedAt: startedAt,
                 completedAt: completedAt,
+                telemetryJson: telemetryJson,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -47211,6 +48199,12 @@ class $NavisDatabaseManager {
       $$ScrobbleQueueTableTableTableManager(_db, _db.scrobbleQueueTable);
   $$StarSyncQueueTableTableTableManager get starSyncQueueTable =>
       $$StarSyncQueueTableTableTableManager(_db, _db.starSyncQueueTable);
+  $$AnnotationDispatchLeaseTableTableTableManager
+  get annotationDispatchLeaseTable =>
+      $$AnnotationDispatchLeaseTableTableTableManager(
+        _db,
+        _db.annotationDispatchLeaseTable,
+      );
   $$ListenBrainzFeedbackQueueTableTableTableManager
   get listenBrainzFeedbackQueueTable =>
       $$ListenBrainzFeedbackQueueTableTableTableManager(

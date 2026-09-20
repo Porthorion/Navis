@@ -91,4 +91,67 @@ void main() {
     expect(completed, isFalse);
     expect(cacheFile.existsSync(), isFalse);
   });
+
+  test('old A cleanup cannot remove a new A download after A-B-A', () async {
+    final delayedServer = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    addTearDown(() => delayedServer.close(force: true));
+    final firstAReceived = Completer<void>();
+    final releaseFirstA = Completer<void>();
+    var aRequests = 0;
+    unawaited(
+      delayedServer.forEach((request) async {
+        try {
+          if (request.uri.path == '/a') {
+            aRequests++;
+            if (aRequests == 1) {
+              firstAReceived.complete();
+              await releaseFirstA.future;
+            }
+            request.response.add(<int>[aRequests == 1 ? 1 : 3]);
+          } else {
+            request.response.add(<int>[2]);
+          }
+          await request.response.close();
+        } on HttpException {
+          // The first request is intentionally aborted by the downloader.
+        }
+      }),
+    );
+
+    final downloader = RollingCacheSidecarDownloader();
+    addTearDown(downloader.dispose);
+    final aFile = File(p.join(tempDir.path, 'a.bin'));
+    final bFile = File(p.join(tempDir.path, 'b.bin'));
+    final aUri = Uri.parse('http://127.0.0.1:${delayedServer.port}/a');
+    final bUri = Uri.parse('http://127.0.0.1:${delayedServer.port}/b');
+    final completions = <int>[];
+    Future<void> start(String songId, Uri uri, File file, int completion) {
+      return downloader.start(
+        songId: songId,
+        uri: uri,
+        cacheFilePath: file.path,
+        onProgress: (_) {},
+        onComplete: (_) async => completions.add(completion),
+      );
+    }
+
+    final firstA = start('a', aUri, aFile, 1);
+    await firstAReceived.future.timeout(const Duration(seconds: 5));
+    await start('b', bUri, bFile, 2);
+    await start('a', aUri, aFile, 3);
+    releaseFirstA.complete();
+    await firstA.timeout(const Duration(seconds: 5));
+
+    expect(aFile.readAsBytesSync(), <int>[3]);
+    expect(completions, <int>[2, 3]);
+    expect(
+      tempDir.listSync().whereType<File>().where(
+        (file) => file.path.contains('.part.'),
+      ),
+      isEmpty,
+    );
+  });
 }

@@ -9,6 +9,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:octo_image/octo_image.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 // Re-export constants so that files which import cover_art_image.dart continue
@@ -217,7 +218,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     final child = networkAllowed
         ? _buildNetworkImageChild(context, resolvedSize, api, cacheManager)
         : cachedFile != null
-        ? _buildFileImageChild(context, cachedFile)
+        ? _buildFileImageChild(context, cachedFile, resolvedSize)
         : (widget.showLoadingPlaceholder
               ? _fallback(context)
               : _emptyPlaceholder());
@@ -396,42 +397,35 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     CacheManager cacheManager,
   ) {
     final cacheKey = coverArtImageCacheKey(widget.coverArtId!, resolvedSize);
-    final image = CachedNetworkImage(
-      imageUrl: api
-          .getCoverArtUrl(id: widget.coverArtId!.trim(), size: resolvedSize)
-          .toString(),
-      cacheKey: cacheKey,
+    final image = OctoImage(
+      image: _boundedImageProvider(
+        CachedNetworkImageProvider(
+          api
+              .getCoverArtUrl(id: widget.coverArtId!.trim(), size: resolvedSize)
+              .toString(),
+          cacheKey: cacheKey,
+          cacheManager: cacheManager,
+        ),
+        resolvedSize,
+      ),
       fit: widget.fit,
       width: widget.width,
       height: widget.height,
-      cacheManager: cacheManager,
+      filterQuality: FilterQuality.medium,
+      gaplessPlayback: widget.gaplessPlayback,
       fadeInDuration: widget.fadeInDuration,
       fadeOutDuration: Duration.zero,
-      memCacheWidth: _memCacheSize(
-        widget.width,
-        resolvedSize,
-        preferRequestedSize: widget.useRequestedMemCacheSize,
-      ),
-      memCacheHeight: _memCacheSize(
-        widget.height,
-        resolvedSize,
-        preferRequestedSize: widget.useRequestedMemCacheSize,
-      ),
-      imageBuilder: (context, imageProvider) {
+      imageBuilder: (context, child) {
         _renderedNetworkCacheKey = cacheKey;
         _reportImageReady(cacheKey);
-        return Image(
-          image: imageProvider,
-          fit: widget.fit,
-          width: widget.width,
-          height: widget.height,
-          gaplessPlayback: widget.gaplessPlayback,
-        );
+        // Keep the decoded child. Rebuilding an Image from the original
+        // network provider bypasses its resize limit and decodes it twice.
+        return child;
       },
-      placeholder: (_, _) => widget.showLoadingPlaceholder
+      placeholderBuilder: (_) => widget.showLoadingPlaceholder
           ? _fallback(context)
           : _emptyPlaceholder(),
-      errorWidget: (_, _, _) => widget.showErrorPlaceholder
+      errorBuilder: (_, _, _) => widget.showErrorPlaceholder
           ? _fallback(context)
           : _emptyPlaceholder(),
     );
@@ -451,9 +445,13 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     });
   }
 
-  Widget _buildFileImageChild(BuildContext context, File file) {
-    final image = Image.file(
-      file,
+  Widget _buildFileImageChild(
+    BuildContext context,
+    File file,
+    int? resolvedSize,
+  ) {
+    final image = Image(
+      image: _boundedImageProvider(FileImage(file), resolvedSize),
       fit: widget.fit,
       width: widget.width,
       height: widget.height,
@@ -463,6 +461,29 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
           : _emptyPlaceholder(),
     );
     return _clip(image);
+  }
+
+  ImageProvider _boundedImageProvider(
+    ImageProvider provider,
+    int? resolvedSize,
+  ) {
+    final width = _memCacheSize(
+      widget.width,
+      resolvedSize,
+      preferRequestedSize: widget.useRequestedMemCacheSize,
+    );
+    final height = _memCacheSize(
+      widget.height,
+      resolvedSize,
+      preferRequestedSize: widget.useRequestedMemCacheSize,
+    );
+    if (width == null && height == null) return provider;
+    return ResizeImage(
+      provider,
+      width: width,
+      height: height,
+      policy: ResizeImagePolicy.fit,
+    );
   }
 
   Widget _clip(Widget child) {

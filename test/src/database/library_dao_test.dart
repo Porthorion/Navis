@@ -23,6 +23,221 @@ void main() {
       await database.close();
     });
 
+    test('metadata upserts never execute primary-key updates', () async {
+      // UPDATE OF observes column assignment even when the value is unchanged.
+      // Rejecting it guards against expensive foreign-key rechecks while the
+      // normal foreign-key constraints still validate metadata relationships.
+      for (final table in ['artists', 'albums', 'songs']) {
+        await database.customStatement('''
+          CREATE TEMP TRIGGER reject_${table}_identity_update
+          BEFORE UPDATE OF id ON $table
+          BEGIN SELECT RAISE(ABORT, 'metadata must not update identity'); END;
+        ''');
+      }
+      for (final provisional in [false, true]) {
+        final prefix = provisional ? 'reference' : 'local';
+        for (final revision in [1, 2]) {
+          final artist = ArtistsTableCompanion.insert(
+            id: '$prefix-artist',
+            name: 'Artist $revision',
+          );
+          final album = AlbumsTableCompanion.insert(
+            id: '$prefix-album',
+            name: 'Album $revision',
+            artistId: Value('$prefix-artist'),
+          );
+          final song = SongsTableCompanion.insert(
+            id: '$prefix-song',
+            title: 'Song $revision',
+            artistId: Value('$prefix-artist'),
+            albumId: Value('$prefix-album'),
+          );
+          if (provisional) {
+            await database.libraryDao.upsertProvisionalArtists([artist]);
+            await database.libraryDao.upsertProvisionalAlbums([album]);
+            await database.libraryDao.upsertProvisionalSongs([song]);
+          } else {
+            await database.libraryDao.upsertArtists([artist]);
+            await database.libraryDao.upsertAlbums([album]);
+            await database.libraryDao.upsertSongs([song]);
+          }
+        }
+        expect(
+          (await database.libraryDao.getArtistById('$prefix-artist'))!.name,
+          'Artist 2',
+        );
+        expect(
+          (await database.libraryDao.getAlbumById('$prefix-album'))!.name,
+          'Album 2',
+        );
+        final song = (await database.libraryDao.getSongById('$prefix-song'))!;
+        expect(song.title, 'Song 2');
+        expect(song.isProvisional, provisional);
+        expect(song.albumId, '$prefix-album');
+        expect(song.artistId, '$prefix-artist');
+      }
+      await database.libraryDao.reconcileSongsForAlbumsChunk(
+        {
+          'local-album': [
+            SongsTableCompanion.insert(
+              id: 'local-song',
+              title: 'Verified detail',
+              albumId: const Value('local-album'),
+              artistId: const Value('local-artist'),
+            ),
+          ],
+        },
+        albumMetadata: [
+          AlbumsTableCompanion.insert(
+            id: 'local-album',
+            name: 'Verified album',
+          ),
+        ],
+        markAlbumsHydrated: true,
+      );
+      expect(
+        (await database.libraryDao.getAlbumById('local-album'))!.name,
+        'Verified album',
+      );
+      expect(
+        (await database.libraryDao.getSongById('local-song'))!.title,
+        'Verified detail',
+      );
+      expect(
+        await database.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
+    });
+
+    test(
+      'outer rollback keeps cache files and deleted membership intact',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis_sync_rollback_',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final file = File(p.join(directory.path, 'track.mp3'));
+        await file.writeAsBytes([1, 2, 3]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'a', name: 'Album'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 's',
+            title: 'Song',
+            albumId: const Value('a'),
+          ),
+        ]);
+        await database
+            .into(database.cachedTracksTable)
+            .insert(
+              CachedTracksTableCompanion.insert(
+                songId: 's',
+                filePath: file.path,
+                fileSize: 3,
+                format: 'mp3',
+                lastAccessedAt: DateTime.now(),
+                cacheType: CacheType.rolling,
+                downloadStatus: DownloadStatus.complete,
+              ),
+            );
+        final deferred = <String>[];
+        await expectLater(
+          database.transaction(() async {
+            await database.libraryDao.reconcileSongsForAlbumsChunk({
+              'a': [],
+            }, deferredCacheFiles: deferred);
+            throw StateError('failure after nested reconciliation');
+          }),
+          throwsStateError,
+        );
+        expect(await file.exists(), isTrue);
+        expect(await database.libraryDao.getSongById('s'), isNotNull);
+        expect(
+          await database.select(database.cachedTracksTable).get(),
+          hasLength(1),
+        );
+        expect(deferred, contains(file.path));
+      },
+    );
+
+    test('canonical write boundary routes external rows and respects explicit local evidence', () async {
+      await database.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'external',
+          name: 'External',
+          isExternal: const Value(true),
+        ),
+        AlbumsTableCompanion.insert(
+          id: 'remote-local',
+          name: 'Local',
+          isExternal: const Value(false),
+        ),
+      ]);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'ext-song', title: 'External'),
+      ]);
+      expect(
+        (await database.libraryDao.getAlbumById('external'))!.isProvisional,
+        isTrue,
+      );
+      expect(
+        (await database.libraryDao.getAlbumById('external'))!.isExternal,
+        isTrue,
+      );
+      expect(
+        (await database.libraryDao.getAlbumById('remote-local'))!.isProvisional,
+        isFalse,
+      );
+      expect(
+        (await database.libraryDao.getSongById('ext-song'))!.isExternal,
+        isTrue,
+      );
+      expect(
+        (await database.libraryDao.getSongById('ext-song'))!.isProvisional,
+        isTrue,
+      );
+    });
+
+    test('older metadata cannot overwrite a newer unlike or rating after acknowledgement', () async {
+      final star = DateTime.utc(2020);
+      await database.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(id: 'a', name: 'A', starred: Value(star)),
+      ]);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 's', title: 'S', starred: Value(star)),
+      ]);
+      final started = DateTime.now();
+      await database.libraryDao.updateAlbumStarred('a', null);
+      await database.libraryDao.updateAlbumRating('a', 5);
+      await database.libraryDao.updateSongStarred('s', null);
+      await database.libraryDao.updateSongRating('s', 4);
+      await database.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'a',
+          name: 'Updated',
+          starred: Value(star),
+          userRating: const Value(1),
+        ),
+      ], snapshotStartedAt: started);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 's',
+          title: 'Updated',
+          starred: Value(star),
+          userRating: const Value(1),
+        ),
+      ], snapshotStartedAt: started);
+      final album = (await database.libraryDao.getAlbumById('a'))!;
+      final song = (await database.libraryDao.getSongById('s'))!;
+      expect(album.name, 'Updated');
+      expect(album.starred, isNull);
+      expect(album.userRating, 5);
+      expect(song.title, 'Updated');
+      expect(song.starred, isNull);
+      expect(song.userRating, 4);
+    });
+
     test(
       'deleteArtistsByIds removes a large stale artist batch',
       () async {

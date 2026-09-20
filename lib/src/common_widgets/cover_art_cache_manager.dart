@@ -608,6 +608,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
 /// block slots.
 CacheManager createCoverArtCacheManager({
   int maxNrOfCacheObjects = 0,
+  String cacheKey = coverArtCacheKey,
   CoverArtHttpFileService? fileService,
   CoverArtLoadCoordinator? loadCoordinator,
   NetworkUsageReporter? reportNetworkUsage,
@@ -617,7 +618,7 @@ CacheManager createCoverArtCacheManager({
       : maxNrOfCacheObjects;
   return CacheManager(
     Config(
-      coverArtCacheKey,
+      cacheKey,
       stalePeriod: const Duration(days: 30),
       maxNrOfCacheObjects: cap,
       fileService:

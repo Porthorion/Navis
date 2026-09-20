@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
-import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
+import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -41,6 +44,9 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   DateTime? _nextRefillAllowedAt;
   bool _activationInProgress = false;
   bool _suppressActivationSeedSnapshot = false;
+  RecommendationSession? _session;
+  Timer? _retryTimer;
+  int _transientFailures = 0;
 
   @override
   InstantMixState build() {
@@ -53,6 +59,16 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         deactivate();
       }
     });
+    ref.listen<RecommendationSessionStatus>(
+      recommendationSessionProvider,
+      (previous, next) {
+        final session = _session;
+        if (session != null && next.generation != session.generation) {
+          deactivate();
+        }
+      },
+    );
+    ref.onDispose(() => _retryTimer?.cancel());
     return const InstantMixState.inactive();
   }
 
@@ -63,6 +79,14 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     }
     _mixSegmentEndIndex = null;
     _nextRefillAllowedAt = null;
+    _transientFailures = 0;
+    _retryTimer?.cancel();
+    final coordinator = ref.read(recommendationSessionProvider.notifier);
+    final session = coordinator.start(
+      RecommendationMode.serverMix,
+      seedId: normalizedSeedSongId,
+    );
+    _session = session;
     _activationInProgress = true;
     _suppressActivationSeedSnapshot = true;
     state = InstantMixState(
@@ -70,26 +94,21 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       seedSongId: normalizedSeedSongId,
     );
     try {
-      await ref
-          .read(queueProvider.notifier)
-          .retainCurrentAsQueue(normalizedSeedSongId);
-    } on Object catch (error, stackTrace) {
-      AppLogger.debug(
-        'InstantMix seed queue reset failed: $error\n$stackTrace',
-      );
+      await _refill(normalizedSeedSongId, isInitial: true);
+    } finally {
       _activationInProgress = false;
-      _suppressActivationSeedSnapshot = false;
-      state = const InstantMixState(error: InstantMixError.networkError);
-      return;
     }
-    _activationInProgress = false;
-    if (!state.active) {
-      return;
-    }
-    await _refill(normalizedSeedSongId, isInitial: true);
   }
 
   void deactivate() {
+    final session = _session;
+    if (session != null) {
+      ref.read(recommendationSessionProvider.notifier).stop(session);
+    }
+    _session = null;
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _transientFailures = 0;
     _mixSegmentEndIndex = null;
     _nextRefillAllowedAt = null;
     _activationInProgress = false;
@@ -182,14 +201,20 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       await _doRefill(seedSongId, isInitial: isInitial).timeout(
         _kRefillTimeout,
         onTimeout: () {
+          if (!ref.mounted) return;
           AppLogger.debug(
             'InstantMix: refill timed out after ${_kRefillTimeout.inSeconds}s '
             '— resetting',
           );
-          state = state.copyWith(refilling: false);
+          final session = _session;
+          if (session != null) {
+            ref.read(recommendationSessionProvider.notifier).stop(session);
+          }
+          state = const InstantMixState(error: InstantMixError.networkError);
         },
       );
     } on Object catch (error, stackTrace) {
+      if (!ref.mounted) return;
       AppLogger.debug(
         'InstantMix refill failed: $error\n$stackTrace',
       );
@@ -198,133 +223,161 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         return;
       }
       if (state.active) {
-        state = state.copyWith(
-          refilling: false,
-          error: InstantMixError.networkError,
-        );
+        _scheduleTransientRetry(seedSongId, 'networkFailure');
       }
     } finally {
       _isRefilling = false;
-      if (state.active && state.refilling) {
+      if (ref.mounted && state.active && state.refilling) {
         state = state.copyWith(refilling: false);
       }
     }
   }
 
   Future<void> _doRefill(String seedSongId, {bool isInitial = false}) async {
+    final session = _session;
+    if (session == null) return;
+    final coordinator = ref.read(recommendationSessionProvider.notifier);
+    final previousQueue = isInitial ? ref.read(playerStateProvider) : null;
+    var queueChangeAttempted = false;
     try {
-      final legacyMode =
-          ref.read(preferredMixModeProvider) ==
-          PreferredMixMode.legacyInstantMix;
-
-      if (!legacyMode) {
-        final audioMuseRepo = ref.read(audioMuseRepositoryProvider);
-        if (audioMuseRepo != null) {
-          try {
-            final recs = await audioMuseRepo.getRecommendations(
-              seedSongId: seedSongId,
-            );
-            if (recs.isNotEmpty && state.active) {
-              final songs = _songsFromAudioMuse(recs);
-              final queuedCount = await _queueMixSongs(songs);
-              if (queuedCount <= 0) {
-                state = isInitial
-                    ? const InstantMixState(error: InstantMixError.networkError)
-                    : state.copyWith(
-                        refilling: false,
-                        error: InstantMixError.networkError,
-                      );
-                return;
-              }
-              AppLogger.debug(
-                'InstantMix: queued $queuedCount tracks via AudioMuse',
-              );
-              state = state.copyWith(
-                refilling: false,
-                pendingSnackbar: isInitial ? '$queuedCount' : null,
-              );
-              return;
-            }
-          } on Object catch (e) {
-            AppLogger.debug('AudioMuse refill failed, falling back: $e');
-          }
-        }
-      }
-
-      if (!state.active) {
-        state = state.copyWith(refilling: false);
+      final batch = await ref
+          .read(recommendationServiceProvider)
+          .serverMix(
+            seedSongId,
+            count: 50,
+            cancelToken: session.cancelToken,
+          );
+      if (!ref.mounted) return;
+      if (!coordinator.owns(session)) return;
+      coordinator.report(
+        session,
+        stage: 'prepared',
+        source: batch.source.name,
+        candidateCount: batch.songs.length,
+      );
+      if (batch.songs.isEmpty) {
+        state = InstantMixState(
+          error: batch.issue == RecommendationIssue.unsupported
+              ? InstantMixError.unsupported
+              : InstantMixError.networkError,
+        );
+        coordinator.report(
+          session,
+          stage: 'failed',
+          errorCategory: batch.issue.name,
+        );
         return;
       }
-
-      final api = ref.read(subsonicApiProvider);
-      if (api == null) {
-        state = state.copyWith(refilling: false);
-        return;
+      if (isInitial) {
+        queueChangeAttempted = true;
+        await ref.read(queueProvider.notifier).retainCurrentAsQueue(seedSongId);
+        if (!ref.mounted) return;
+        if (!coordinator.owns(session)) return;
       }
-
-      late final List<Song> songs;
-      if (legacyMode) {
-        try {
-          songs = await api.getInstantMix(seedSongId, count: 50);
-        } on SubsonicNotFoundException {
-          songs = await api.getSimilarSongs(seedSongId, count: 50);
-        }
-      } else {
-        songs = await api.getSimilarSongs(seedSongId, count: 50);
-      }
-      if (!state.active) {
-        state = state.copyWith(refilling: false);
-        return;
-      }
-
-      final queuedCount = await _queueMixSongs(songs);
+      final queuedCount = await _queueMixSongs(batch.songs, session);
+      if (!ref.mounted) return;
+      if (!coordinator.owns(session)) return;
       if (queuedCount <= 0) {
-        state = isInitial
-            ? const InstantMixState(error: InstantMixError.networkError)
-            : state.copyWith(
-                refilling: false,
-                error: InstantMixError.networkError,
-              );
+        if (previousQueue != null) {
+          await _restorePreviousQueue(previousQueue, session);
+        }
+        if (isInitial) {
+          state = const InstantMixState(error: InstantMixError.networkError);
+        } else {
+          _scheduleTransientRetry(seedSongId, 'zeroInsertion');
+        }
         return;
       }
+      _transientFailures = 0;
+      _retryTimer?.cancel();
       state = state.copyWith(
         refilling: false,
         pendingSnackbar: isInitial ? '$queuedCount' : null,
       );
+      coordinator.report(
+        session,
+        stage: 'active',
+        insertedCount: queuedCount,
+      );
     } on SubsonicNotFoundException {
+      if (!ref.mounted) return;
       state = const InstantMixState(
         error: InstantMixError.unsupported,
       );
     } on Object catch (error, stackTrace) {
+      if (!ref.mounted) return;
+      if (queueChangeAttempted && previousQueue != null) {
+        await _restorePreviousQueue(previousQueue, session);
+      }
       AppLogger.debug('InstantMix _doRefill error: $error\n$stackTrace');
       if (isInitial) {
         state = const InstantMixState(error: InstantMixError.networkError);
         return;
       }
       if (state.active) {
-        state = state.copyWith(
-          refilling: false,
-          error: InstantMixError.networkError,
-        );
+        _scheduleTransientRetry(seedSongId, 'networkFailure');
       }
     }
   }
 
-  List<Song> _songsFromAudioMuse(List<AudioMuseRecommendation> recs) {
-    return recs
-        .map(
-          (rec) => Song(
-            id: rec.id,
-            title: rec.title,
-            artist: rec.artist,
-            album: rec.album,
-            coverArt: rec.coverArtId,
-          ),
-        )
-        .toList(growable: false);
+  void _scheduleTransientRetry(String seedSongId, String reason) {
+    final session = _session;
+    if (session == null || !state.active) return;
+    _transientFailures++;
+    final exhausted = _transientFailures >= 5;
+    final delay = Duration(
+      seconds: 3 * (1 << (_transientFailures - 1).clamp(0, 4)),
+    );
+    _nextRefillAllowedAt = DateTime.now().add(delay);
+    state = exhausted
+        ? state.copyWith(
+            refilling: false,
+            error: InstantMixError.networkError,
+          )
+        : state.copyWith(refilling: false, clearError: true);
+    ref
+        .read(recommendationSessionProvider.notifier)
+        .report(
+          session,
+          stage: exhausted ? 'retryExhausted' : 'retryPending',
+          errorCategory: reason,
+          retryCount: _transientFailures,
+        );
+    _retryTimer?.cancel();
+    if (!exhausted) {
+      _retryTimer = Timer(delay, () {
+        if (ref.mounted &&
+            ref.read(recommendationSessionProvider.notifier).owns(session)) {
+          unawaited(_refill(seedSongId));
+        }
+      });
+    }
   }
 
-  Future<int> _queueMixSongs(List<Song> songs) async {
+  Future<void> _restorePreviousQueue(
+    PlaybackSnapshot snapshot,
+    RecommendationSession session,
+  ) async {
+    if (!ref.read(recommendationSessionProvider.notifier).owns(session)) return;
+    try {
+      await ref
+          .read(queueProvider.notifier)
+          .replace(
+            snapshot.queueSongIds,
+            startIndex: snapshot.currentIndex ?? 0,
+            autoPlay: snapshot.playing,
+            expandMatchFlows: false,
+            notifyMixSessionReset: false,
+          );
+    } on Object {
+      // The original insertion failure remains the surfaced result.
+    }
+  }
+
+  Future<int> _queueMixSongs(
+    List<Song> songs,
+    RecommendationSession session,
+  ) async {
     if (songs.isEmpty) {
       return 0;
     }
@@ -333,12 +386,16 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         .queueSongIds
         .length;
     try {
-      final queuedCount = await ref
+      final result = await ref
           .read(queueProvider.notifier)
-          .appendMixTracks(
+          .appendRecommendationTracks(
             songs,
             expandMatchFlows: false,
+            isCurrent: () =>
+                ref.mounted &&
+                ref.read(recommendationSessionProvider.notifier).owns(session),
           );
+      final queuedCount = result.count;
       if (queuedCount > 0) {
         _mixSegmentEndIndex = queueLengthBeforeAppend + queuedCount;
         _nextRefillAllowedAt = DateTime.now().add(_kMinimumRefillInterval);

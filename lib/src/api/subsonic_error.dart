@@ -10,10 +10,14 @@ sealed class SubsonicException implements Exception {
 
 /// Base class for errors returned by the Subsonic API payload.
 class SubsonicApiException extends SubsonicException {
-  const SubsonicApiException({required this.code, required String message})
-    : super(message);
+  const SubsonicApiException({
+    required this.code,
+    required String message,
+    this.retryAt,
+  }) : super(message);
 
   final int? code;
+  final DateTime? retryAt;
 }
 
 /// Authentication failed (`error.code == 40`).
@@ -33,12 +37,27 @@ class SubsonicNotFoundException extends SubsonicApiException {
 
 /// Catch-all Subsonic API error.
 class SubsonicGenericException extends SubsonicApiException {
-  const SubsonicGenericException({required super.message, super.code});
+  const SubsonicGenericException({
+    required super.message,
+    super.code,
+    super.retryAt,
+  });
 }
 
 /// Transport-layer connectivity failure (DNS, timeout, etc.).
 class SubsonicConnectionException extends SubsonicException {
   const SubsonicConnectionException(super.message);
+}
+
+class SubsonicSyncLimitException extends SubsonicException {
+  const SubsonicSyncLimitException(this.reason)
+    : super('Sync paused at its execution limit.');
+  final String reason;
+}
+
+/// A successful envelope did not contain a trustworthy scoped snapshot.
+class SubsonicIncompleteResponseException extends SubsonicException {
+  const SubsonicIncompleteResponseException(super.message);
 }
 
 /// A Subsonic response exceeded the configured byte budget.

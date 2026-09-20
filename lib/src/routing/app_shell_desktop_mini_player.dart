@@ -325,8 +325,9 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
           onPressed: () => unawaited(playPause()),
           icon: _remoteLoadingPlayPauseIcon(
             isExternalSource: isExternalSource,
-            isLoading: playback.isLoading,
+            playback: playback,
             isPlaying: playback.playing,
+            loadingColor: Theme.of(context).colorScheme.onPrimary,
           ),
         ),
         IconButton(

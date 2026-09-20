@@ -39,8 +39,9 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/data/recommendation_service.dart';
+import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
-import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
@@ -4382,6 +4383,22 @@ class _SongListSection extends ConsumerWidget {
 
 enum _HomeActionRowVariant { mobile, desktop, compactWide }
 
+final _homeRadioCatalogProvider = FutureProvider<List<SongsTableData>>((
+  ref,
+) async {
+  ref.watch(likedSongsProvider);
+  final db = ref.read(navisDatabaseProvider);
+  final catalog = await db.libraryDao.getAllSongs();
+  final cached = await db.cacheDao.getCachedTracks();
+  final localOnly = await db.libraryDao.getSongsByIds(
+    cached.map((entry) => entry.songId),
+  );
+  return <String, SongsTableData>{
+    for (final song in catalog) song.id: song,
+    for (final song in localOnly) song.id: song,
+  }.values.toList(growable: false);
+});
+
 class _HomeActionRow extends ConsumerWidget {
   const _HomeActionRow({required this.variant});
 
@@ -4393,18 +4410,21 @@ class _HomeActionRow extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
-    final downloadedSongIds = downloadedOnly
+    final radioState = ref.watch(personalRadioProvider);
+    final catalog =
+        ref.watch(_homeRadioCatalogProvider).asData?.value ??
+        const <SongsTableData>[];
+    final downloadedIds = downloadedOnly
         ? (ref.watch(downloadedSongIdsProvider).asData?.value ??
               const <String>{})
         : const <String>{};
-    final likedSongs =
-        ref.watch(likedSongsProvider).asData?.value ?? const <SongsTableData>[];
-    final likedIds =
-        (downloadedOnly
-                ? likedSongs.where((s) => downloadedSongIds.contains(s.id))
-                : likedSongs)
-            .map((s) => s.id)
-            .toList(growable: false);
+    final radioAvailable = catalog.any(
+      (song) =>
+          !song.isExternal &&
+          !song.isProvisional &&
+          (!likedOnly || song.starred != null) &&
+          (!downloadedOnly || downloadedIds.contains(song.id)),
+    );
 
     void toggleLikedOnly() {
       ref.read(homeLikedOnlyFilterProvider.notifier).enabled = !likedOnly;
@@ -4414,16 +4434,39 @@ class _HomeActionRow extends ConsumerWidget {
       ref.read(downloadedOnlyFilterProvider.notifier).enabled = !downloadedOnly;
     }
 
-    void startInstantRadio() {
-      final seedSongId = likedIds[math.Random().nextInt(likedIds.length)];
-      ref
-          .read(queueProvider.notifier)
-          .replace(<String>[seedSongId], autoPlay: true)
-          .then((_) async {
-            await activatePreferredMixMode(ref, seedSongId: seedSongId);
-            ref.read(playerOverlayStackProvider.notifier).expand();
-          })
-          .ignore();
+    Future<void> startInstantRadio() async {
+      if (radioState.busy) return;
+      if (radioState.retryCount >= 5) {
+        final result = await ref.read(personalRadioProvider.notifier).retry();
+        if (context.mounted && result.succeeded) {
+          ref.read(playerOverlayStackProvider.notifier).expand();
+        }
+        return;
+      }
+      if (radioState.active) {
+        ref.read(personalRadioProvider.notifier).stop();
+        return;
+      }
+      final result = await ref
+          .read(personalRadioProvider.notifier)
+          .start(
+            filters: RadioFilters(
+              likedOnly: likedOnly,
+              downloadedOnly: downloadedOnly,
+            ),
+          );
+      if (!context.mounted) return;
+      if (result.succeeded) {
+        ref.read(playerOverlayStackProvider.notifier).expand();
+      } else {
+        showAppNotice(
+          context,
+          message: result.issue == RecommendationIssue.empty
+              ? l10n.instantRadioEmpty
+              : l10n.instantRadioError,
+          level: AppNoticeLevel.error,
+        );
+      }
     }
 
     // Icon button constraints: pin to 40×40 so the extra 48×48 tap-target
@@ -4465,12 +4508,30 @@ class _HomeActionRow extends ConsumerWidget {
             onPressed: toggleDownloadedOnly,
           ),
           IconButton(
-            tooltip: l10n.instantRadioAction,
+            tooltip: radioState.retryCount >= 5
+                ? l10n.instantRadioRetry
+                : radioState.active
+                ? l10n.instantRadioStop
+                : l10n.instantRadioAction,
             constraints: variant == _HomeActionRowVariant.compactWide
                 ? iconConstraints
                 : null,
-            icon: const Icon(Icons.radio_rounded),
-            onPressed: likedIds.isEmpty ? null : startInstantRadio,
+            icon: radioState.busy
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    radioState.retryCount >= 5
+                        ? Icons.refresh_rounded
+                        : radioState.active
+                        ? Icons.stop_rounded
+                        : Icons.radio_rounded,
+                  ),
+            onPressed: (radioAvailable || radioState.active) && !radioState.busy
+                ? startInstantRadio
+                : null,
           ),
         ],
       );
@@ -4516,10 +4577,32 @@ class _HomeActionRow extends ConsumerWidget {
                       ),
                       iconSize: 18,
                     ),
-                    onPressed: likedIds.isEmpty ? null : startInstantRadio,
-                    icon: const Icon(Icons.radio_rounded),
+                    onPressed:
+                        (radioAvailable || radioState.active) &&
+                            !radioState.busy
+                        ? startInstantRadio
+                        : null,
+                    icon: radioState.busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            radioState.retryCount >= 5
+                                ? Icons.refresh_rounded
+                                : radioState.active
+                                ? Icons.stop_rounded
+                                : Icons.radio_rounded,
+                          ),
                     label: Text(
-                      l10n.instantRadioAction,
+                      radioState.busy
+                          ? l10n.instantRadioLoading
+                          : radioState.retryCount >= 5
+                          ? l10n.instantRadioRetry
+                          : radioState.active
+                          ? l10n.instantRadioStop
+                          : l10n.instantRadioAction,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

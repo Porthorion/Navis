@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 import 'package:sqlite3/sqlite3.dart';
 
-NavisDatabase createTestDatabase() {
-  return NavisDatabase(NativeDatabase.memory());
+NavisDatabase createTestDatabase({File? file}) {
+  return NavisDatabase(
+    file == null ? NativeDatabase.memory() : NativeDatabase(file),
+  );
 }
 
 List<Override> withTestDatabase(

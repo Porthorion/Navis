@@ -721,6 +721,51 @@ void main() {
       expect(engine.forceFullCalls.last, isFalse);
     });
 
+    test(
+      'cancellation prevents a queued stronger repair from starting',
+      () async {
+        final active = Completer<LibrarySyncState>();
+        final engine = _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState.idle(),
+          ({forceFull = false, onProgress}) => active.future,
+        );
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.checking,
+                ),
+              ),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        final check = controller.syncNow();
+        await Future<void>.delayed(Duration.zero);
+        final repair = controller.repairLibrary();
+        controller.cancelSync();
+        active.complete(
+          const LibrarySyncState(
+            status: LibrarySyncStatus.cancelled,
+            stage: LibrarySyncStage.completed,
+          ),
+        );
+        await check;
+        expect((await repair).status, LibrarySyncStatus.cancelled);
+        expect(engine.forceFullCalls, [false]);
+        // A subsequent explicit command is new intent and remains allowed.
+        await controller.repairLibrary();
+        expect(engine.forceFullCalls, [false, true]);
+      },
+    );
+
     test('overlapping sync callers await one terminal result', () async {
       final completer = Completer<LibrarySyncState>();
       final engine = _FakeLibrarySyncEngine(
@@ -1037,7 +1082,17 @@ void main() {
             status: LibrarySyncStatus.skipped,
             stage: LibrarySyncStage.completed,
           ),
-          ({forceFull = false, onProgress}) async => completer.future,
+          ({forceFull = false, onProgress}) async => forceFull
+              ? completer.future
+              : const LibrarySyncState(
+                  status: LibrarySyncStatus.succeeded,
+                  stage: LibrarySyncStage.completed,
+                  runRequestId: 12,
+                  runAttemptId: 34,
+                  apiRequests: 9,
+                  endpointRequests: {'getAlbum': 9},
+                  lastRunBytes: 1024,
+                ),
         );
         final container = ProviderContainer(
           overrides: [
@@ -1055,6 +1110,8 @@ void main() {
         );
         addTearDown(container.dispose);
 
+        await container.read(librarySyncControllerProvider.notifier).syncNow();
+        expect(container.read(librarySyncControllerProvider).runAttemptId, 34);
         final future = container
             .read(librarySyncControllerProvider.notifier)
             .forceFullSync();
@@ -1064,6 +1121,11 @@ void main() {
         expect(preparing.status, LibrarySyncStatus.running);
         expect(preparing.stage, LibrarySyncStage.preparing);
         expect(preparing.mode, LibrarySyncMode.forceFull);
+        expect(preparing.runRequestId, isNull);
+        expect(preparing.runAttemptId, isNull);
+        expect(preparing.apiRequests, 0);
+        expect(preparing.endpointRequests, isEmpty);
+        expect(preparing.lastRunBytes, 0);
         expect(preparing.planKind, LibrarySyncPlanKind.fullRepair);
 
         completer.complete(

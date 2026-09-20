@@ -33,7 +33,7 @@ Minimum tested versions:
   preference and never promises an exact run time; this capability is enabled
   gradually for internal testing.
 - Gapless/background playback and lock-screen controls
-- Queue management, instant mix, and smart queue behaviors
+- Queue management, portable Subsonic server mix, Last.fm Same Vibes, balanced Instant Radio, and smart queue behaviors
 - Synced/unsynced lyrics with full-screen now playing
 - Offline cache plus permanent download modes
 - Adaptive phone/tablet layouts plus a desktop-only 800×600 workspace whose persistent bottom player keeps Favorite, Lyrics, Queue, Mini Player, and volume directly visible, alongside a centered same-window Mini Player that opens at 720×405, embeds volume beneath its controls, and resizes down to 560×360
