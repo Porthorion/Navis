@@ -32,12 +32,29 @@ readiness documents describe maintained workflows or explicit current gaps.
 
 ### Plans, audits, and evidence
 
+[Sync Improvement Plan — 1.4.0](../Sync_Improvement_Plan_1-4-0.md) records the
+2026-09-19 sync audit, tested defects, live-server measurements, and phased
+acceptance criteria. Its [reproduction appendix](audits/sync-1-4-0-reproductions.md)
+preserves sanitized characterization fixtures; their passing assertions describe
+the audited defects, not the desired post-fix behavior.
+
+[Rapid Playback Navigation Fix Plan](../Rapid_Playback_Navigation_Fix_Plan.md)
+records the cross-platform playback burst investigation, repair contracts, and
+runtime acceptance matrix. Keep it at the root until all listed validation is
+complete.
+
 `DEVELOPMENT_PLAN.md`, `PROGRESS.md`, `design-ux-audit.md`,
+`../Remote_Song_Handling_Plan.md`,
 `issue-43-implementation-plan.md`, `android-background-sync-recovery-plan.md`,
 `sync-reliability-recovery-plan.md`, `sync-stability-validation.md`, and
 `multi-os-release-implementation-progress.md` preserve intent, findings, and
 completion evidence. They must be verified against the implementation before
 use as a current contract. Do not erase them merely because work progressed.
+
+[Completed implementation plans](completed-plans/README.md) are kept in their
+own folder. Move a root plan there only after its implementation and required
+in-repository validation are complete; leave plans with open implementation
+work or blockers at the root.
 
 ### History and decisions
 
