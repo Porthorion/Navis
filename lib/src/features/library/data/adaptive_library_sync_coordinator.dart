@@ -13,6 +13,7 @@ import 'package:navis/src/features/library/data/library_sync_planner.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
@@ -1226,6 +1227,30 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         }
       });
     } on SyncLeaseLostException {
+      // Capture who holds the execution lease now so certification can
+      // explain the contention instead of only observing a safe rollback.
+      final holder = await _database.librarySyncDao.getExecutionLease(serverId);
+      await _database.librarySyncDao.recordOperationLedgerEntry(
+        serverId: serverId,
+        operation: 'executionLeaseLost',
+        reason: plan.kind.name,
+        details: <String, Object?>{
+          'holder': holder == null
+              ? null
+              : <String, Object?>{
+                  'ownerKind': holder.ownerKind,
+                  'startedAt': holder.startedAt.toUtc().toIso8601String(),
+                  'heartbeatAt': holder.heartbeatAt.toUtc().toIso8601String(),
+                  'expiresAt': holder.expiresAt.toUtc().toIso8601String(),
+                },
+        },
+      );
+      AppLogger.warning(
+        'Sync execution lease lost during ${plan.kind.name}: '
+        '${holder == null ? 'lease row absent' : 'held by ${holder.ownerKind} '
+                  'since ${holder.startedAt.toUtc().toIso8601String()} '
+                  '(expires ${holder.expiresAt.toUtc().toIso8601String()})'}',
+      );
       return LibrarySyncState(
         runRequestId: durableRunId,
         runAttemptId: activeAttemptId,
