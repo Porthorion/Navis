@@ -3920,6 +3920,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           await identitySession.reconcile(canonicalSongs);
           afterCanonicalId = page.last.id;
         }
+        // Claims apply only after the complete replacement set has been
+        // observed, so candidates contended for by several canonical rows
+        // resolve as review cases instead of honoring page order.
+        await identitySession.finalize();
         final identitySummary = identitySession.summary;
         metrics.canonicalizedSongCount +=
             identitySummary.canonicalizedSongCount;
@@ -6325,6 +6329,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     ).startSession();
     final before = session.summary;
     await session.reconcile(canonicalSongs);
+    // Targeted hydration resolves claims per batch: the album's complete
+    // song set has been observed, so two-sided uniqueness is enforced and
+    // buffered claims apply before the next hydration batch runs.
+    await session.finalize();
     final summary = session.summary;
     metrics.canonicalizedSongCount +=
         summary.canonicalizedSongCount -

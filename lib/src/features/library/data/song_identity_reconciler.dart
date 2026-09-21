@@ -181,6 +181,7 @@ class SongIdentityReconciler {
   ) async {
     final session = await startSession();
     await session.reconcile(canonicalSongs);
+    await session.finalize();
     return session.summary;
   }
 
@@ -225,6 +226,12 @@ class SongIdentityReconciler {
 /// Retains a bounded provisional-song index while canonical rows are streamed
 /// in pages. This avoids rescanning every provisional row for every catalog
 /// song and keeps ambiguity decisions stable across page boundaries.
+///
+/// Matched claims are buffered until [SongIdentityReconciliationSession.finalize]
+/// so uniqueness can be established across the complete replacement set: a
+/// candidate contended for by more than one canonical row resolves as
+/// ambiguous for every claimant regardless of page arrival order, instead of
+/// silently honoring whichever row streamed first.
 class SongIdentityReconciliationSession {
   SongIdentityReconciliationSession._(this._reconciler, this._index);
 
@@ -232,6 +239,7 @@ class SongIdentityReconciliationSession {
   final _ProvisionalIdentityIndex _index;
   final List<SongIdentityAlias> _aliases = <SongIdentityAlias>[];
   final List<SongIdentityAmbiguous> _ambiguousCases = <SongIdentityAmbiguous>[];
+  final List<_ClaimDecision> _claims = <_ClaimDecision>[];
   var _canonicalized = 0;
   var _ambiguous = 0;
   var _restoredLikes = 0;
@@ -253,27 +261,13 @@ class SongIdentityReconciliationSession {
       final result = _index.match(canonicalSong);
       switch (result) {
         case SongIdentityMatched():
-          if (result.reason == SongIdentityMatchReason.sameId) {
-            await _reconciler._identityDao.markCanonical(canonicalSong.id);
-          } else {
-            final oldSongId = result.provisionalSong.id;
-            final wasActive = _reconciler.readActiveSongId?.call() == oldSongId;
-            await _reconciler.onBeforeRemap?.call(<String, String>{
-              oldSongId: canonicalSong.id,
-            });
-            final remap = await _reconciler._identityDao.remapSongIdentity(
-              oldSongId: oldSongId,
-              canonicalSongId: canonicalSong.id,
-              matchReason: result.reason.name,
-              retainOldCacheFile: wasActive,
-            );
-            _aliases.add(remap.alias);
-            if (remap.restoredLike) {
-              _restoredLikes++;
-            }
-          }
-          _index.remove(result.provisionalSong);
-          _canonicalized++;
+          _claims.add(
+            _ClaimDecision(
+              canonical: canonicalSong,
+              provisional: result.provisionalSong,
+              reason: result.reason,
+            ),
+          );
         case SongIdentityAmbiguous():
           _ambiguous++;
           _ambiguousCases.add(result);
@@ -282,6 +276,92 @@ class SongIdentityReconciliationSession {
       }
     }
   }
+
+  /// Applies the buffered claims once every canonical row has been streamed.
+  ///
+  /// Two-sided uniqueness: candidates claimed by exactly one canonical row
+  /// remap through the same transaction as before; a candidate claimed by
+  /// more than one canonical row is uncertain under the complete replacement
+  /// set, so every claimant becomes a review case and nothing is remapped.
+  /// A same-identity claim is authoritative evidence that the provisional row
+  /// belongs to that canonical song and keeps precedence over contested
+  /// weaker claims.
+  Future<void> finalize() async {
+    final claimsByCandidate = <String, List<_ClaimDecision>>{};
+    for (final claim in _claims) {
+      claimsByCandidate.putIfAbsent(claim.provisional.id, () => []).add(claim);
+    }
+    for (final entry in claimsByCandidate.entries) {
+      final claims = entry.value;
+      if (claims.length == 1) {
+        await _applyDecision(claims.single);
+        continue;
+      }
+      final sameIdClaims = claims
+          .where((claim) => claim.reason == SongIdentityMatchReason.sameId)
+          .toList(growable: false);
+      final sameIdClaim = sameIdClaims.length == 1 ? sameIdClaims.single : null;
+      if (sameIdClaim != null) {
+        await _applyDecision(sameIdClaim);
+      }
+      for (final claim in claims) {
+        if (identical(claim, sameIdClaim)) {
+          continue;
+        }
+        _recordContestedClaim(claim);
+      }
+    }
+    _claims.clear();
+  }
+
+  Future<void> _applyDecision(_ClaimDecision decision) async {
+    final canonicalSong = decision.canonical;
+    if (decision.reason == SongIdentityMatchReason.sameId) {
+      await _reconciler._identityDao.markCanonical(canonicalSong.id);
+    } else {
+      final oldSongId = decision.provisional.id;
+      final wasActive = _reconciler.readActiveSongId?.call() == oldSongId;
+      await _reconciler.onBeforeRemap?.call(<String, String>{
+        oldSongId: canonicalSong.id,
+      });
+      final remap = await _reconciler._identityDao.remapSongIdentity(
+        oldSongId: oldSongId,
+        canonicalSongId: canonicalSong.id,
+        matchReason: decision.reason.name,
+        retainOldCacheFile: wasActive,
+      );
+      _aliases.add(remap.alias);
+      if (remap.restoredLike) {
+        _restoredLikes++;
+      }
+    }
+    _index.remove(decision.provisional);
+    _canonicalized++;
+  }
+
+  void _recordContestedClaim(_ClaimDecision claim) {
+    _ambiguous++;
+    _ambiguousCases.add(
+      SongIdentityAmbiguous(
+        candidateCount: 1,
+        reason: claim.reason,
+        canonicalSongId: claim.canonical.id,
+        candidateIds: <String>[claim.provisional.id],
+      ),
+    );
+  }
+}
+
+class _ClaimDecision {
+  const _ClaimDecision({
+    required this.canonical,
+    required this.provisional,
+    required this.reason,
+  });
+
+  final SongsTableData canonical;
+  final SongsTableData provisional;
+  final SongIdentityMatchReason reason;
 }
 
 class _ProvisionalIdentityIndex {

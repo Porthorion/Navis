@@ -1655,6 +1655,90 @@ void main() {
     );
 
     test(
+      'promotion sends contested duplicate-MBID claims to recovery review',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(true),
+          ),
+        ]);
+        await database.libraryDao.upsertProvisionalSongs(
+          <SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'cached-remote-song',
+              title: 'Track',
+              albumId: const Value('album-1'),
+              artistId: const Value('artist-1'),
+              recordingMbid: const Value('shared-mbid'),
+            ),
+          ],
+        );
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album',
+            artistId: 'artist-1',
+            songCount: 2,
+          ),
+        ];
+        // Two server songs claim the same recording MBID: uniqueness across
+        // the complete replacement set is impossible, so neither remap may
+        // apply silently and both canonical rows become review cases.
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album',
+          artistId: 'artist-1',
+          songCount: 2,
+          songs: <Song>[
+            Song(
+              id: 'server-song-a',
+              title: 'Track A',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+              musicBrainzId: 'shared-mbid',
+            ),
+            Song(
+              id: 'server-song-b',
+              title: 'Track B',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+              musicBrainzId: 'shared-mbid',
+            ),
+          ],
+        );
+
+        final result = await engine.forceFullSync();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(await database.songIdentityDao.getAliases(), isEmpty);
+        final review = await database.librarySyncDao.getPendingRecoveryReview(
+          1,
+        );
+        final contested = review
+            .where((entry) => entry.reason == 'ambiguousMatch')
+            .toList();
+        expect(
+          contested.map((entry) => entry.oldId).toSet(),
+          <String>{'server-song-a', 'server-song-b'},
+        );
+        for (final entry in contested) {
+          final details =
+              jsonDecode(entry.candidateJson!) as Map<String, dynamic>;
+          expect(details['candidateIds'], <String>['cached-remote-song']);
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'compatibility audit rotates at most 24 artists per run',
       () async {
         final cursor = DateTime.utc(2026, 1, 1);
