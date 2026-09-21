@@ -1891,6 +1891,63 @@ void main() {
     );
 
     test(
+      'promotion clears absence evidence when the server re-lists a retained song',
+      () async {
+        await saveSession();
+        // A song the previous catalog validated as absent: retained with
+        // typed confirmed-missing evidence.
+        await database.libraryDao.upsertProvisionalSongs([
+          SongsTableCompanion.insert(id: 'song-return', title: 'Track'),
+        ]);
+        await (database.update(
+          database.songsTable,
+        )..where((t) => t.id.equals('song-return'))).write(
+          SongsTableCompanion(
+            serverDeletedAt: Value(DateTime.utc(2026, 9, 6)),
+            catalogAvailability: const Value('confirmedMissing'),
+          ),
+        );
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album',
+            artistId: 'artist-1',
+            artist: 'Artist',
+            songCount: 1,
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album',
+          artistId: 'artist-1',
+          songCount: 1,
+          songs: <Song>[
+            Song(
+              id: 'song-return',
+              title: 'Track',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+            ),
+          ],
+        );
+
+        final result = await engine.forceFullSync();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        final song = await database.libraryDao.getSongById('song-return');
+        expect(song, isNotNull);
+        // Snapshot observation proves presence: absence markers clear and
+        // the row rejoins its album.
+        expect(song!.serverDeletedAt, isNull);
+        expect(song.catalogAvailability, isNull);
+        expect(song.isProvisional, isFalse);
+        expect(song.albumId, 'album-1');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'compatibility audit rotates at most 24 artists per run',
       () async {
         final cursor = DateTime.utc(2026, 1, 1);

@@ -955,6 +955,88 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test(
+      'bulk selection keeps suspected rows and confirmed rows with local copies',
+      () async {
+        Future<void> setAvailability(
+          String songId, {
+          String? availability,
+          bool serverDeleted = false,
+          DateTime? starred,
+        }) async {
+          await (database.update(
+            database.songsTable,
+          )..where((t) => t.id.equals(songId))).write(
+            SongsTableCompanion(
+              catalogAvailability: Value(availability),
+              serverDeletedAt: serverDeleted
+                  ? Value(DateTime.utc(2026, 9, 6))
+                  : const Value.absent(),
+              starred: starred == null ? const Value.absent() : Value(starred),
+            ),
+          );
+        }
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'song-present', title: 'Present'),
+          SongsTableCompanion.insert(id: 'song-suspect', title: 'Suspect'),
+          SongsTableCompanion.insert(id: 'song-gone', title: 'Gone'),
+          SongsTableCompanion.insert(id: 'song-kept', title: 'Kept'),
+        ]);
+        // A favorite absent from the validated catalog with no local copy:
+        // excluded from bulk selection.
+        await setAvailability(
+          'song-gone',
+          availability: 'confirmedMissing',
+          serverDeleted: true,
+          starred: DateTime.utc(2026, 9, 1),
+        );
+        // A favorite absent from the catalog but holding a complete local
+        // copy stays selectable; offline copies remain playable.
+        await setAvailability(
+          'song-kept',
+          availability: 'confirmedMissing',
+          serverDeleted: true,
+          starred: DateTime.utc(2026, 9, 1),
+        );
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-kept',
+            filePath: '/tmp/song-kept.audio',
+            fileSize: 1024,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        final selectable = await database.libraryDao.getAllStarredSongs();
+        expect(
+          selectable.map((song) => song.id).toSet(),
+          <String>{'song-kept'},
+        );
+
+        // Suspicion is recorded only on rows still reading as present.
+        await database.libraryDao.markSongsSuspectedMissing(<String>[
+          'song-present',
+          'song-gone',
+          'missing-id',
+        ]);
+        expect(
+          (await database.libraryDao.getSongById('song-present'))!
+              .catalogAvailability,
+          'suspectedMissing',
+        );
+        expect(
+          (await database.libraryDao.getSongById('song-gone'))!
+              .catalogAvailability,
+          'confirmedMissing',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'markAlbumsSongsHydratedByIds updates only targeted albums',
       () async {
         await database.libraryDao.replaceAlbums(

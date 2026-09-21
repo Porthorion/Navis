@@ -72,14 +72,14 @@ scan-status endpoint".
 
 ## Stage 5 — suspectedMissing wiring + availability-aware selection (plan E2/E4)
 
-- [ ] Isolated media/detail 404s on an otherwise healthy connection set
+- [x] Isolated media/detail 404s on an otherwise healthy connection set
       `CatalogAvailability.suspectedMissing`. Network/auth/rate-limit/decode failures never
       prove deletion; confirmed absence still only via validated catalog evidence.
-- [ ] Read-path exclusion: `confirmedMissing` without a local source excluded from Play All
+- [x] Read-path exclusion: `confirmedMissing` without a local source excluded from Play All
       / shuffle / auto-download selection; `suspectedMissing` stays included; offline copies
       remain playable.
-- [ ] Review screen shows suspected entries with a distinct label; no auto-dismiss.
-- [ ] Tests: DAO transitions; engine 404 → suspected; selection exclusion; offline
+- [x] Review screen shows suspected entries with a distinct label; no auto-dismiss.
+- [x] Tests: DAO transitions; engine 404 → suspected; selection exclusion; offline
       playability.
 
 ## Stage 6 — Relink preview dialog + review hardening (plan E7/E8)

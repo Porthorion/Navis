@@ -1639,7 +1639,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Stream<List<SongsTableData>> watchAllStarredSongs() {
     final query = select(songsTable)
       ..where(
-        (t) => t.starred.isNotNull() & t.serverDeletedAt.isNull(),
+        (t) => t.starred.isNotNull() & _selectableForBulkUse,
       )
       ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
     return query.watch();
@@ -1874,6 +1874,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       SELECT albums.*
       FROM albums
       WHERE ${_likedAlbumPredicate('albums')}
+        AND (albums.catalog_availability IS NULL OR
+             albums.catalog_availability != 'confirmedMissing')
       ORDER BY albums.year DESC, albums.name ASC, albums.id ASC
       ''',
       readsFrom: {albumsTable, songsTable},
@@ -1886,10 +1888,61 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> getAllStarredSongs() {
     final query = select(songsTable)
       ..where(
-        (t) => t.starred.isNotNull() & t.serverDeletedAt.isNull(),
+        (t) => t.starred.isNotNull() & _selectableForBulkUse,
       )
       ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
     return query.get();
+  }
+
+  /// Whether a song may appear in bulk/automatic selection (shuffle, Play
+  /// All, auto-download): anything the catalog still lists, plus absent rows
+  /// that hold a complete local copy so offline favorites stay playable
+  /// (plan E4/E5). Suspicion alone never hides content.
+  Expression<bool> get _selectableForBulkUse {
+    final hasCompleteLocalCopy = const CustomExpression<bool>(
+      "EXISTS (SELECT 1 FROM cached_tracks c "
+      "WHERE c.song_id = songs.id AND c.download_status = 'complete')",
+    );
+    // COALESCE keeps legacy NULL rows selectable; drift's NOT on a compound
+    // expression does not parenthesize, so absence is spelled out directly.
+    final listed = songsTable.serverDeletedAt.isNull() &
+        const CustomExpression<bool>(
+          "COALESCE(songs.catalog_availability, 'present') "
+          "!= 'confirmedMissing'",
+        );
+    return listed | hasCompleteLocalCopy;
+  }
+
+  /// Records an isolated media-fetch 404 as suspicion (plan E2).
+  ///
+  /// Suspicion never hides content: the row stays selectable and playable
+  /// from any local source, and only validated catalog evidence may confirm
+  /// absence. Only rows still reading as present advance to suspicion; a
+  /// later successful server observation clears it during promotion.
+  Future<void> markSongsSuspectedMissing(Iterable<String> songIds) async {
+    final ids = songIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (ids.isEmpty) {
+      return;
+    }
+    await (update(songsTable)..where(
+          (t) =>
+              t.id.isIn(ids) &
+              (t.catalogAvailability.isNull() |
+                  t.catalogAvailability.equals(
+                    CatalogAvailability.present.name,
+                  )),
+        ))
+        .write(
+          SongsTableCompanion(
+            catalogAvailability: Value(
+              CatalogAvailability.suspectedMissing.name,
+            ),
+          ),
+        );
   }
 
   Future<SongsTableData?> findOneExactNormalizedSongByTitle(

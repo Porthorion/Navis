@@ -3787,6 +3787,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                   : Value(artist.starred),
               artistMbid: Value(artist.artistMbid),
               catalogGeneration: Value(generation),
+              catalogAvailability: const Value(null),
             ),
         ]);
         afterArtistId = page.last.id;
@@ -3829,6 +3830,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                 recentlyAddedRank: Value(album.recentlyAddedRank),
                 releaseMbid: Value(album.releaseMbid),
                 catalogGeneration: Value(generation),
+                catalogAvailability: const Value(null),
               ),
           ],
           preserveHydrationState: false,
@@ -3875,6 +3877,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               playCount: Value(song.playCount),
               createdAt: Value(song.createdAt),
               catalogGeneration: Value(generation),
+              // The snapshot re-observes this row: legacy absence markers
+              // clear because validated server evidence proves presence.
+              serverDeletedAt: const Value(null),
+              catalogAvailability: const Value(null),
               replayGainTrackGain: Value(song.replayGainTrackGain),
               replayGainAlbumGain: Value(song.replayGainAlbumGain),
               replayGainTrackPeak: Value(song.replayGainTrackPeak),

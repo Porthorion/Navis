@@ -224,7 +224,10 @@ class LibraryCatalogDiffAnalyzer {
         existing.name != candidate.name ||
         existing.albumCount != candidate.albumCount ||
         existing.coverArt != candidate.coverArt ||
-        existing.artistMbid != candidate.artistMbid;
+        existing.artistMbid != candidate.artistMbid ||
+        // A previously absent row the server re-lists must be rewritten so
+        // the stale availability marker clears with snapshot evidence.
+        existing.catalogAvailability != null;
   }
 
   static bool albumNeedsApply(
@@ -245,6 +248,7 @@ class LibraryCatalogDiffAnalyzer {
         existing.songsHydrated != candidate.songsHydrated ||
         existing.playCount != candidate.playCount ||
         existing.releaseMbid != candidate.releaseMbid ||
+        existing.catalogAvailability != null ||
         (candidate.serverCreatedAt != null &&
             existing.serverCreatedAt != candidate.serverCreatedAt);
   }
@@ -256,6 +260,7 @@ class LibraryCatalogDiffAnalyzer {
     return existing == null ||
         existing.isProvisional ||
         existing.serverDeletedAt != null ||
+        existing.catalogAvailability != null ||
         existing.title != candidate.title ||
         existing.albumId != candidate.albumId ||
         existing.artistId != candidate.artistId ||
