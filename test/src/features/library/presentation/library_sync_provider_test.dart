@@ -1455,6 +1455,88 @@ void main() {
       },
     );
 
+    test(
+      'the post-upgrade reconciliation completes only after promotion',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        // The previous release's model version: this startup must schedule
+        // exactly one recovery reconciliation.
+        await database.appSettingsDao.setLastFullSyncAppBuild('57');
+        var forceFullCalls = 0;
+        LibrarySyncStatus forcedStatus = LibrarySyncStatus.failed;
+        LibrarySyncEngine buildEngine() => _FakeLibrarySyncEngine(
+          ({onProgress}) async => const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          ),
+          ({forceFull = false, onProgress}) async {
+            forceFullCalls++;
+            return LibrarySyncState(
+              status: forcedStatus,
+              stage: LibrarySyncStage.completed,
+              mode: LibrarySyncMode.forceFull,
+              completedAt: DateTime.now(),
+            );
+          },
+        );
+        ProviderContainer buildContainer(LibrarySyncEngine engine) {
+          return ProviderContainer(
+            overrides: [
+              _manualSyncInterval,
+              networkTypeProvider.overrideWithValue(NetworkType.wifi),
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(
+                  ServerConfigModel(
+                    url: 'https://example.com',
+                    username: 'alice',
+                    password: 'secret',
+                    apiVersion: '1.16.1',
+                  ),
+                ),
+              ),
+              serverReachabilityControllerProvider.overrideWith(
+                () => _StaticReachabilityController(
+                  const ServerReachabilityState(
+                    status: ServerReachabilityStatus.online,
+                  ),
+                ),
+              ),
+              navisDatabaseProvider.overrideWithValue(database),
+              librarySyncEngineProvider.overrideWithValue(engine),
+            ],
+          );
+        }
+
+        // First launch: the forced repair fails (no promotion). The model
+        // version must stay unstamped so a later run reconciles again.
+        final failedContainer = buildContainer(buildEngine());
+        addTearDown(failedContainer.dispose);
+        failedContainer.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(forceFullCalls, 1);
+        expect(
+          await database.appSettingsDao.getLastFullSyncAppBuild(),
+          '57',
+        );
+        failedContainer.dispose();
+
+        // Second launch (app restart): the reconciliation is resumable and
+        // the version is stamped only once the repair promoted successfully.
+        final recoveredContainer = buildContainer(buildEngine());
+        addTearDown(recoveredContainer.dispose);
+        forcedStatus = LibrarySyncStatus.succeeded;
+        recoveredContainer.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(forceFullCalls, 2);
+        expect(
+          await database.appSettingsDao.getLastFullSyncAppBuild(),
+          currentLibrarySyncModelVersion,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('unauthenticated state does not trigger startup sync', () async {
       final engine = _FakeLibrarySyncEngine(
         ({

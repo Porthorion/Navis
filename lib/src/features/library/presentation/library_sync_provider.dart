@@ -146,7 +146,11 @@ final requiredLibrarySyncModelVersionProvider = Provider<String?>((ref) {
 
 // v57 rebuilds the complete newest feed so every persisted library receives
 // authoritative Recently Added ranks after the v73 repair.
-const currentLibrarySyncModelVersion = '57';
+/// Bumped for the stale-cache recovery release: the difference against a
+/// stored value schedules exactly one post-upgrade recovery reconciliation
+/// (a resumable full repair) per installation, and the new version is
+/// stamped only after that repair's catalog promotion completed (plan §5).
+const currentLibrarySyncModelVersion = '58';
 
 const bool _syncDiagnosticsEnabled = bool.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS',

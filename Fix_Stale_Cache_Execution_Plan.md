@@ -121,10 +121,10 @@ scan-status endpoint".
 
 ## Stage 9 — Post-upgrade one-shot recovery reconciliation (plan §5)
 
-- [ ] Persisted pending-recovery marker written by the upgrade migration; admission schedules
+- [x] Persisted pending-recovery marker written by the upgrade migration; admission schedules
       exactly one eligible recovery reconciliation; marked complete only after successful
       promotion; survives restart until complete; never rescheduled afterward.
-- [ ] Tests: upgrade schedules it; completes only post-promotion; no reschedule; restart
+- [x] Tests: upgrade schedules it; completes only post-promotion; no reschedule; restart
       mid-flow resumes; provider-level regression beside the existing "upgrading forces full
       repair" test.
 
