@@ -130,10 +130,14 @@ scan-status endpoint".
 
 ## Stage 10 — 56k promotion measurement
 
-- [ ] Synthetic ~56k-song in-memory engine fixture: assert `lastApplyDurationMs` /
-      `lastPromotionDiagnosticsJson` recorded, generous duration bound, indexed matching via
-      `api.calls` request counts.
-- [ ] Runtime: `tool/sync_diagnostics.sh full-rescan` against a live-server clone; gate on
+- [x] Synthetic ~56k-song in-memory engine fixture
+      (`library_promotion_measurement_test.dart`, scale via
+      `--dart-define=NAVIS_PERF_SONG_COUNT=56000 --dart-define=NAVIS_PERF_ALBUM_COUNT=1000`):
+      assert `lastApplyDurationMs` / `lastPromotionDiagnosticsJson` recorded, generous duration
+      bound, indexed matching via `api.calls` request counts. Measured 2026-09-21:
+      56,166-track-equivalent fixture (1000 albums / 56,000 songs) promoted in apply 2.0s,
+      analysis 0.4s, wall 4.4s; exactly 1000 album detail requests (indexed, no all-pairs).
+- [x] Runtime: `tool/sync_diagnostics.sh full-rescan` against a live-server clone; gate on
       promotion timings from `/v1/diagnostics/report`; numbers recorded in the plan doc.
 
 ## Stage 11 — Live-server runtime certification (Linux)
