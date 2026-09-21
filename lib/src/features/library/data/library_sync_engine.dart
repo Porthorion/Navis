@@ -3782,6 +3782,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               starred: pendingStars['artist']!.contains(artist.id)
                   ? const Value.absent()
                   : Value(artist.starred),
+              artistMbid: Value(artist.artistMbid),
               catalogGeneration: Value(generation),
             ),
         ]);
@@ -3823,6 +3824,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                 playCount: Value(album.playCount),
                 serverCreatedAt: Value(album.serverCreatedAt),
                 recentlyAddedRank: Value(album.recentlyAddedRank),
+                releaseMbid: Value(album.releaseMbid),
                 catalogGeneration: Value(generation),
               ),
           ],
@@ -6472,6 +6474,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             albumCount: Value(artist.albumCount),
             coverArt: Value(artist.coverArt),
             starred: Value(artist.starred),
+            artistMbid: Value(artist.musicBrainzId),
             isExternal: Value(
               isExternalCatalogSource(
                 id: artist.id,
@@ -6519,6 +6522,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             userRating: Value(row.userRating),
             playCount: Value(row.playCount),
             serverCreatedAt: Value(row.created),
+            releaseMbid: Value(row.releaseMbid),
             recentlyAddedRank: newestRanks.containsKey(row.id)
                 ? Value(newestRanks[row.id]!)
                 : const Value.absent(),
@@ -6821,6 +6825,7 @@ class _AlbumRow {
     this.userRating,
     this.playCount,
     this.created,
+    this.releaseMbid,
     this.apiIsExternal,
   });
 
@@ -6843,6 +6848,9 @@ class _AlbumRow {
 
   /// When the album was added to the server library (`created` from the API).
   final DateTime? created;
+
+  /// OpenSubsonic MusicBrainz release ID. Null on standard Subsonic servers.
+  final String? releaseMbid;
   final bool? apiIsExternal;
 }
 
@@ -6941,6 +6949,7 @@ List<_AlbumRow> _albumRowsFromJson(List<Map<String, dynamic>> payload) {
             userRating: json['userRating'] as int?,
             playCount: json['playCount'] as int?,
             created: _parseIsoDate(json['created'] as String?),
+            releaseMbid: json['musicBrainzId'] as String?,
             apiIsExternal: json['isExternal'] as bool?,
           );
         },

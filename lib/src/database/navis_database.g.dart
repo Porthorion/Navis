@@ -21983,6 +21983,17 @@ class $LibrarySyncCandidateArtistsTableTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _artistMbidMeta = const VerificationMeta(
+    'artistMbid',
+  );
+  @override
+  late final GeneratedColumn<String> artistMbid = GeneratedColumn<String>(
+    'artist_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _starredMeta = const VerificationMeta(
     'starred',
   );
@@ -22013,6 +22024,7 @@ class $LibrarySyncCandidateArtistsTableTable
     name,
     albumCount,
     coverArt,
+    artistMbid,
     starred,
     applyState,
   ];
@@ -22069,6 +22081,12 @@ class $LibrarySyncCandidateArtistsTableTable
         coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
       );
     }
+    if (data.containsKey('artist_mbid')) {
+      context.handle(
+        _artistMbidMeta,
+        artistMbid.isAcceptableOrUnknown(data['artist_mbid']!, _artistMbidMeta),
+      );
+    }
     if (data.containsKey('starred')) {
       context.handle(
         _starredMeta,
@@ -22117,6 +22135,10 @@ class $LibrarySyncCandidateArtistsTableTable
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
       ),
+      artistMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_mbid'],
+      ),
       starred: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
@@ -22142,6 +22164,10 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
   final String name;
   final int? albumCount;
   final String? coverArt;
+
+  /// MusicBrainz artist ID supplied by OpenSubsonic responses, promoted
+  /// into the committed artist row for stable-identifier remapping.
+  final String? artistMbid;
   final DateTime? starred;
 
   /// Null while the candidate still needs comparison, zero when it matches
@@ -22154,6 +22180,7 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
     required this.name,
     this.albumCount,
     this.coverArt,
+    this.artistMbid,
     this.starred,
     this.applyState,
   });
@@ -22169,6 +22196,9 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
     }
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
+    }
+    if (!nullToAbsent || artistMbid != null) {
+      map['artist_mbid'] = Variable<String>(artistMbid);
     }
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
@@ -22191,6 +22221,9 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
+      artistMbid: artistMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artistMbid),
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
@@ -22212,6 +22245,7 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
       name: serializer.fromJson<String>(json['name']),
       albumCount: serializer.fromJson<int?>(json['albumCount']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
+      artistMbid: serializer.fromJson<String?>(json['artistMbid']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
       applyState: serializer.fromJson<int?>(json['applyState']),
     );
@@ -22226,6 +22260,7 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
       'name': serializer.toJson<String>(name),
       'albumCount': serializer.toJson<int?>(albumCount),
       'coverArt': serializer.toJson<String?>(coverArt),
+      'artistMbid': serializer.toJson<String?>(artistMbid),
       'starred': serializer.toJson<DateTime?>(starred),
       'applyState': serializer.toJson<int?>(applyState),
     };
@@ -22238,6 +22273,7 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
     String? name,
     Value<int?> albumCount = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
+    Value<String?> artistMbid = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
     Value<int?> applyState = const Value.absent(),
   }) => LibrarySyncCandidateArtistsTableData(
@@ -22247,6 +22283,7 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
     name: name ?? this.name,
     albumCount: albumCount.present ? albumCount.value : this.albumCount,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    artistMbid: artistMbid.present ? artistMbid.value : this.artistMbid,
     starred: starred.present ? starred.value : this.starred,
     applyState: applyState.present ? applyState.value : this.applyState,
   );
@@ -22264,6 +22301,9 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
           ? data.albumCount.value
           : this.albumCount,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      artistMbid: data.artistMbid.present
+          ? data.artistMbid.value
+          : this.artistMbid,
       starred: data.starred.present ? data.starred.value : this.starred,
       applyState: data.applyState.present
           ? data.applyState.value
@@ -22280,6 +22320,7 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
           ..write('name: $name, ')
           ..write('albumCount: $albumCount, ')
           ..write('coverArt: $coverArt, ')
+          ..write('artistMbid: $artistMbid, ')
           ..write('starred: $starred, ')
           ..write('applyState: $applyState')
           ..write(')'))
@@ -22294,6 +22335,7 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
     name,
     albumCount,
     coverArt,
+    artistMbid,
     starred,
     applyState,
   );
@@ -22307,6 +22349,7 @@ class LibrarySyncCandidateArtistsTableData extends DataClass
           other.name == this.name &&
           other.albumCount == this.albumCount &&
           other.coverArt == this.coverArt &&
+          other.artistMbid == this.artistMbid &&
           other.starred == this.starred &&
           other.applyState == this.applyState);
 }
@@ -22319,6 +22362,7 @@ class LibrarySyncCandidateArtistsTableCompanion
   final Value<String> name;
   final Value<int?> albumCount;
   final Value<String?> coverArt;
+  final Value<String?> artistMbid;
   final Value<DateTime?> starred;
   final Value<int?> applyState;
   final Value<int> rowid;
@@ -22329,6 +22373,7 @@ class LibrarySyncCandidateArtistsTableCompanion
     this.name = const Value.absent(),
     this.albumCount = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.artistMbid = const Value.absent(),
     this.starred = const Value.absent(),
     this.applyState = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -22340,6 +22385,7 @@ class LibrarySyncCandidateArtistsTableCompanion
     required String name,
     this.albumCount = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.artistMbid = const Value.absent(),
     this.starred = const Value.absent(),
     this.applyState = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -22354,6 +22400,7 @@ class LibrarySyncCandidateArtistsTableCompanion
     Expression<String>? name,
     Expression<int>? albumCount,
     Expression<String>? coverArt,
+    Expression<String>? artistMbid,
     Expression<DateTime>? starred,
     Expression<int>? applyState,
     Expression<int>? rowid,
@@ -22365,6 +22412,7 @@ class LibrarySyncCandidateArtistsTableCompanion
       if (name != null) 'name': name,
       if (albumCount != null) 'album_count': albumCount,
       if (coverArt != null) 'cover_art': coverArt,
+      if (artistMbid != null) 'artist_mbid': artistMbid,
       if (starred != null) 'starred': starred,
       if (applyState != null) 'apply_state': applyState,
       if (rowid != null) 'rowid': rowid,
@@ -22378,6 +22426,7 @@ class LibrarySyncCandidateArtistsTableCompanion
     Value<String>? name,
     Value<int?>? albumCount,
     Value<String?>? coverArt,
+    Value<String?>? artistMbid,
     Value<DateTime?>? starred,
     Value<int?>? applyState,
     Value<int>? rowid,
@@ -22389,6 +22438,7 @@ class LibrarySyncCandidateArtistsTableCompanion
       name: name ?? this.name,
       albumCount: albumCount ?? this.albumCount,
       coverArt: coverArt ?? this.coverArt,
+      artistMbid: artistMbid ?? this.artistMbid,
       starred: starred ?? this.starred,
       applyState: applyState ?? this.applyState,
       rowid: rowid ?? this.rowid,
@@ -22416,6 +22466,9 @@ class LibrarySyncCandidateArtistsTableCompanion
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
     }
+    if (artistMbid.present) {
+      map['artist_mbid'] = Variable<String>(artistMbid.value);
+    }
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
     }
@@ -22437,6 +22490,7 @@ class LibrarySyncCandidateArtistsTableCompanion
           ..write('name: $name, ')
           ..write('albumCount: $albumCount, ')
           ..write('coverArt: $coverArt, ')
+          ..write('artistMbid: $artistMbid, ')
           ..write('starred: $starred, ')
           ..write('applyState: $applyState, ')
           ..write('rowid: $rowid')
@@ -22581,6 +22635,17 @@ class $LibrarySyncCandidateAlbumsTableTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _releaseMbidMeta = const VerificationMeta(
+    'releaseMbid',
+  );
+  @override
+  late final GeneratedColumn<String> releaseMbid = GeneratedColumn<String>(
+    'release_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _songsHydratedMeta = const VerificationMeta(
     'songsHydrated',
   );
@@ -22703,6 +22768,7 @@ class $LibrarySyncCandidateAlbumsTableTable
     year,
     genre,
     coverArt,
+    releaseMbid,
     songsHydrated,
     carriedForward,
     starred,
@@ -22794,6 +22860,15 @@ class $LibrarySyncCandidateAlbumsTableTable
       context.handle(
         _coverArtMeta,
         coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
+      );
+    }
+    if (data.containsKey('release_mbid')) {
+      context.handle(
+        _releaseMbidMeta,
+        releaseMbid.isAcceptableOrUnknown(
+          data['release_mbid']!,
+          _releaseMbidMeta,
+        ),
       );
     }
     if (data.containsKey('songs_hydrated')) {
@@ -22924,6 +22999,10 @@ class $LibrarySyncCandidateAlbumsTableTable
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
       ),
+      releaseMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}release_mbid'],
+      ),
       songsHydrated: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}songs_hydrated'],
@@ -22986,6 +23065,10 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
   final int? year;
   final String? genre;
   final String? coverArt;
+
+  /// MusicBrainz release ID supplied by OpenSubsonic responses, promoted
+  /// into the committed album row for stable-identifier remapping.
+  final String? releaseMbid;
   final bool songsHydrated;
   final bool carriedForward;
   final DateTime? starred;
@@ -23014,6 +23097,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     this.year,
     this.genre,
     this.coverArt,
+    this.releaseMbid,
     required this.songsHydrated,
     required this.carriedForward,
     this.starred,
@@ -23056,6 +23140,9 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     }
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
+    }
+    if (!nullToAbsent || releaseMbid != null) {
+      map['release_mbid'] = Variable<String>(releaseMbid);
     }
     map['songs_hydrated'] = Variable<bool>(songsHydrated);
     map['carried_forward'] = Variable<bool>(carriedForward);
@@ -23109,6 +23196,9 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
+      releaseMbid: releaseMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(releaseMbid),
       songsHydrated: Value(songsHydrated),
       carriedForward: Value(carriedForward),
       starred: starred == null && nullToAbsent
@@ -23153,6 +23243,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       year: serializer.fromJson<int?>(json['year']),
       genre: serializer.fromJson<String?>(json['genre']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
+      releaseMbid: serializer.fromJson<String?>(json['releaseMbid']),
       songsHydrated: serializer.fromJson<bool>(json['songsHydrated']),
       carriedForward: serializer.fromJson<bool>(json['carriedForward']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
@@ -23180,6 +23271,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       'year': serializer.toJson<int?>(year),
       'genre': serializer.toJson<String?>(genre),
       'coverArt': serializer.toJson<String?>(coverArt),
+      'releaseMbid': serializer.toJson<String?>(releaseMbid),
       'songsHydrated': serializer.toJson<bool>(songsHydrated),
       'carriedForward': serializer.toJson<bool>(carriedForward),
       'starred': serializer.toJson<DateTime?>(starred),
@@ -23205,6 +23297,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     Value<int?> year = const Value.absent(),
     Value<String?> genre = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
+    Value<String?> releaseMbid = const Value.absent(),
     bool? songsHydrated,
     bool? carriedForward,
     Value<DateTime?> starred = const Value.absent(),
@@ -23227,6 +23320,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     year: year.present ? year.value : this.year,
     genre: genre.present ? genre.value : this.genre,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    releaseMbid: releaseMbid.present ? releaseMbid.value : this.releaseMbid,
     songsHydrated: songsHydrated ?? this.songsHydrated,
     carriedForward: carriedForward ?? this.carriedForward,
     starred: starred.present ? starred.value : this.starred,
@@ -23261,6 +23355,9 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       year: data.year.present ? data.year.value : this.year,
       genre: data.genre.present ? data.genre.value : this.genre,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      releaseMbid: data.releaseMbid.present
+          ? data.releaseMbid.value
+          : this.releaseMbid,
       songsHydrated: data.songsHydrated.present
           ? data.songsHydrated.value
           : this.songsHydrated,
@@ -23300,6 +23397,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
           ..write('year: $year, ')
           ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
+          ..write('releaseMbid: $releaseMbid, ')
           ..write('songsHydrated: $songsHydrated, ')
           ..write('carriedForward: $carriedForward, ')
           ..write('starred: $starred, ')
@@ -23327,6 +23425,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     year,
     genre,
     coverArt,
+    releaseMbid,
     songsHydrated,
     carriedForward,
     starred,
@@ -23353,6 +23452,7 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
           other.year == this.year &&
           other.genre == this.genre &&
           other.coverArt == this.coverArt &&
+          other.releaseMbid == this.releaseMbid &&
           other.songsHydrated == this.songsHydrated &&
           other.carriedForward == this.carriedForward &&
           other.starred == this.starred &&
@@ -23378,6 +23478,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
   final Value<int?> year;
   final Value<String?> genre;
   final Value<String?> coverArt;
+  final Value<String?> releaseMbid;
   final Value<bool> songsHydrated;
   final Value<bool> carriedForward;
   final Value<DateTime?> starred;
@@ -23401,6 +23502,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
     this.year = const Value.absent(),
     this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.releaseMbid = const Value.absent(),
     this.songsHydrated = const Value.absent(),
     this.carriedForward = const Value.absent(),
     this.starred = const Value.absent(),
@@ -23425,6 +23527,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
     this.year = const Value.absent(),
     this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.releaseMbid = const Value.absent(),
     this.songsHydrated = const Value.absent(),
     this.carriedForward = const Value.absent(),
     this.starred = const Value.absent(),
@@ -23452,6 +23555,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
     Expression<int>? year,
     Expression<String>? genre,
     Expression<String>? coverArt,
+    Expression<String>? releaseMbid,
     Expression<bool>? songsHydrated,
     Expression<bool>? carriedForward,
     Expression<DateTime>? starred,
@@ -23476,6 +23580,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
       if (year != null) 'year': year,
       if (genre != null) 'genre': genre,
       if (coverArt != null) 'cover_art': coverArt,
+      if (releaseMbid != null) 'release_mbid': releaseMbid,
       if (songsHydrated != null) 'songs_hydrated': songsHydrated,
       if (carriedForward != null) 'carried_forward': carriedForward,
       if (starred != null) 'starred': starred,
@@ -23502,6 +23607,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
     Value<int?>? year,
     Value<String?>? genre,
     Value<String?>? coverArt,
+    Value<String?>? releaseMbid,
     Value<bool>? songsHydrated,
     Value<bool>? carriedForward,
     Value<DateTime?>? starred,
@@ -23526,6 +23632,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
       year: year ?? this.year,
       genre: genre ?? this.genre,
       coverArt: coverArt ?? this.coverArt,
+      releaseMbid: releaseMbid ?? this.releaseMbid,
       songsHydrated: songsHydrated ?? this.songsHydrated,
       carriedForward: carriedForward ?? this.carriedForward,
       starred: starred ?? this.starred,
@@ -23582,6 +23689,9 @@ class LibrarySyncCandidateAlbumsTableCompanion
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
     }
+    if (releaseMbid.present) {
+      map['release_mbid'] = Variable<String>(releaseMbid.value);
+    }
     if (songsHydrated.present) {
       map['songs_hydrated'] = Variable<bool>(songsHydrated.value);
     }
@@ -23630,6 +23740,7 @@ class LibrarySyncCandidateAlbumsTableCompanion
           ..write('year: $year, ')
           ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
+          ..write('releaseMbid: $releaseMbid, ')
           ..write('songsHydrated: $songsHydrated, ')
           ..write('carriedForward: $carriedForward, ')
           ..write('starred: $starred, ')
@@ -45788,6 +45899,7 @@ typedef $$LibrarySyncCandidateArtistsTableTableCreateCompanionBuilder =
       required String name,
       Value<int?> albumCount,
       Value<String?> coverArt,
+      Value<String?> artistMbid,
       Value<DateTime?> starred,
       Value<int?> applyState,
       Value<int> rowid,
@@ -45800,6 +45912,7 @@ typedef $$LibrarySyncCandidateArtistsTableTableUpdateCompanionBuilder =
       Value<String> name,
       Value<int?> albumCount,
       Value<String?> coverArt,
+      Value<String?> artistMbid,
       Value<DateTime?> starred,
       Value<int?> applyState,
       Value<int> rowid,
@@ -45841,6 +45954,11 @@ class $$LibrarySyncCandidateArtistsTableTableFilterComposer
 
   ColumnFilters<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -45894,6 +46012,11 @@ class $$LibrarySyncCandidateArtistsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get starred => $composableBuilder(
     column: $table.starred,
     builder: (column) => ColumnOrderings(column),
@@ -45935,6 +46058,11 @@ class $$LibrarySyncCandidateArtistsTableTableAnnotationComposer
 
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
+
+  GeneratedColumn<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get starred =>
       $composableBuilder(column: $table.starred, builder: (column) => column);
@@ -45997,6 +46125,7 @@ class $$LibrarySyncCandidateArtistsTableTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<int?> albumCount = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<String?> artistMbid = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> applyState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -46007,6 +46136,7 @@ class $$LibrarySyncCandidateArtistsTableTableTableManager
                 name: name,
                 albumCount: albumCount,
                 coverArt: coverArt,
+                artistMbid: artistMbid,
                 starred: starred,
                 applyState: applyState,
                 rowid: rowid,
@@ -46019,6 +46149,7 @@ class $$LibrarySyncCandidateArtistsTableTableTableManager
                 required String name,
                 Value<int?> albumCount = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<String?> artistMbid = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> applyState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -46029,6 +46160,7 @@ class $$LibrarySyncCandidateArtistsTableTableTableManager
                 name: name,
                 albumCount: albumCount,
                 coverArt: coverArt,
+                artistMbid: artistMbid,
                 starred: starred,
                 applyState: applyState,
                 rowid: rowid,
@@ -46076,6 +46208,7 @@ typedef $$LibrarySyncCandidateAlbumsTableTableCreateCompanionBuilder =
       Value<int?> year,
       Value<String?> genre,
       Value<String?> coverArt,
+      Value<String?> releaseMbid,
       Value<bool> songsHydrated,
       Value<bool> carriedForward,
       Value<DateTime?> starred,
@@ -46101,6 +46234,7 @@ typedef $$LibrarySyncCandidateAlbumsTableTableUpdateCompanionBuilder =
       Value<int?> year,
       Value<String?> genre,
       Value<String?> coverArt,
+      Value<String?> releaseMbid,
       Value<bool> songsHydrated,
       Value<bool> carriedForward,
       Value<DateTime?> starred,
@@ -46180,6 +46314,11 @@ class $$LibrarySyncCandidateAlbumsTableTableFilterComposer
 
   ColumnFilters<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get releaseMbid => $composableBuilder(
+    column: $table.releaseMbid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -46298,6 +46437,11 @@ class $$LibrarySyncCandidateAlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get releaseMbid => $composableBuilder(
+    column: $table.releaseMbid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get songsHydrated => $composableBuilder(
     column: $table.songsHydrated,
     builder: (column) => ColumnOrderings(column),
@@ -46392,6 +46536,11 @@ class $$LibrarySyncCandidateAlbumsTableTableAnnotationComposer
 
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
+
+  GeneratedColumn<String> get releaseMbid => $composableBuilder(
+    column: $table.releaseMbid,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get songsHydrated => $composableBuilder(
     column: $table.songsHydrated,
@@ -46491,6 +46640,7 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 Value<int?> year = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<String?> releaseMbid = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
                 Value<bool> carriedForward = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
@@ -46514,6 +46664,7 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 year: year,
                 genre: genre,
                 coverArt: coverArt,
+                releaseMbid: releaseMbid,
                 songsHydrated: songsHydrated,
                 carriedForward: carriedForward,
                 starred: starred,
@@ -46539,6 +46690,7 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 Value<int?> year = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<String?> releaseMbid = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
                 Value<bool> carriedForward = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
@@ -46562,6 +46714,7 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 year: year,
                 genre: genre,
                 coverArt: coverArt,
+                releaseMbid: releaseMbid,
                 songsHydrated: songsHydrated,
                 carriedForward: carriedForward,
                 starred: starred,

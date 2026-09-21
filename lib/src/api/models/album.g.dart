@@ -27,6 +27,7 @@ _Album _$AlbumFromJson(Map<String, dynamic> json) => _Album(
   userRating: (json['userRating'] as num?)?.toInt(),
   playCount: (json['playCount'] as num?)?.toInt(),
   isExternal: json['isExternal'] as bool?,
+  musicBrainzId: json['musicBrainzId'] as String?,
   created: json['created'] == null
       ? null
       : DateTime.parse(json['created'] as String),
@@ -52,6 +53,7 @@ Map<String, dynamic> _$AlbumToJson(_Album instance) => <String, dynamic>{
   'userRating': instance.userRating,
   'playCount': instance.playCount,
   'isExternal': instance.isExternal,
+  'musicBrainzId': instance.musicBrainzId,
   'created': instance.created?.toIso8601String(),
   'songs': instance.songs.map((e) => e.toJson()).toList(),
 };

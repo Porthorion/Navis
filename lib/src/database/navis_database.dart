@@ -169,7 +169,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 79;
+  int get schemaVersion => 80;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -428,6 +428,9 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 79 && to >= 79) {
       await from78To79(migrator);
     }
+    if (from < 80 && to >= 80) {
+      await from79To80(migrator);
+    }
   }
 
   /// Adds scan observation, typed availability, recovery review, typed
@@ -486,6 +489,30 @@ class NavisDatabase extends _$NavisDatabase {
       SELECT NULL, 'song', old_song_id, canonical_song_id, match_reason, matched_at
       FROM song_identity_aliases;
     ''');
+  }
+
+  /// Adds MusicBrainz release/artist identifiers to the candidate staging
+  /// tables so OpenSubsonic stable IDs survive promotion into the committed
+  /// catalog rows, enabling album/artist relinking.
+  Future<void> from79To80(Migrator migrator) async {
+    if (!await _columnExists(
+      'library_sync_candidate_albums',
+      'release_mbid',
+    )) {
+      await migrator.addColumn(
+        librarySyncCandidateAlbumsTable,
+        librarySyncCandidateAlbumsTable.releaseMbid,
+      );
+    }
+    if (!await _columnExists(
+      'library_sync_candidate_artists',
+      'artist_mbid',
+    )) {
+      await migrator.addColumn(
+        librarySyncCandidateArtistsTable,
+        librarySyncCandidateArtistsTable.artistMbid,
+      );
+    }
   }
 
   Future<void> from77To78(Migrator migrator) async {

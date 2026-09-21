@@ -223,7 +223,8 @@ class LibraryCatalogDiffAnalyzer {
         existing.isProvisional ||
         existing.name != candidate.name ||
         existing.albumCount != candidate.albumCount ||
-        existing.coverArt != candidate.coverArt;
+        existing.coverArt != candidate.coverArt ||
+        existing.artistMbid != candidate.artistMbid;
   }
 
   static bool albumNeedsApply(
@@ -243,6 +244,7 @@ class LibraryCatalogDiffAnalyzer {
         existing.coverArt != candidate.coverArt ||
         existing.songsHydrated != candidate.songsHydrated ||
         existing.playCount != candidate.playCount ||
+        existing.releaseMbid != candidate.releaseMbid ||
         (candidate.serverCreatedAt != null &&
             existing.serverCreatedAt != candidate.serverCreatedAt);
   }

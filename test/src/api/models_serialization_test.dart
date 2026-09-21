@@ -69,5 +69,33 @@ void main() {
       expect(minimal.count, isNull);
       expect(minimal.lastScan, isNull);
     });
+
+    test('round-trips album and artist MusicBrainz identifiers', () {
+      const album = Album(
+        id: 'al-1',
+        name: 'Album',
+        musicBrainzId: 'release-mbid',
+      );
+      final decodedAlbum = Album.fromJson(album.toJson());
+      expect(decodedAlbum.musicBrainzId, 'release-mbid');
+      expect(
+        Album.fromJson(<String, dynamic>{'id': 'al-2', 'name': 'B'})
+            .musicBrainzId,
+        isNull,
+      );
+
+      const artist = Artist(
+        id: 'ar-1',
+        name: 'Artist',
+        musicBrainzId: 'artist-mbid',
+      );
+      final decodedArtist = Artist.fromJson(artist.toJson());
+      expect(decodedArtist.musicBrainzId, 'artist-mbid');
+      expect(
+        Artist.fromJson(<String, dynamic>{'id': 'ar-2', 'name': 'B'})
+            .musicBrainzId,
+        isNull,
+      );
+    });
   });
 }

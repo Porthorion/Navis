@@ -16,6 +16,10 @@ class LibrarySyncCandidateArtistsTable extends Table {
 
   TextColumn get coverArt => text().nullable()();
 
+  /// MusicBrainz artist ID supplied by OpenSubsonic responses, promoted
+  /// into the committed artist row for stable-identifier remapping.
+  TextColumn get artistMbid => text().nullable()();
+
   DateTimeColumn get starred => dateTime().nullable()();
 
   /// Null while the candidate still needs comparison, zero when it matches

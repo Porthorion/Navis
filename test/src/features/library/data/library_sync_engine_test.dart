@@ -1655,6 +1655,70 @@ void main() {
     );
 
     test(
+      'full promotion persists album and artist MusicBrainz identifiers',
+      () async {
+        await saveSession();
+        api.artists.addAll(const <Artist>[
+          Artist(
+            id: 'artist-1',
+            name: 'Artist 1',
+            musicBrainzId: 'artist-mbid-1',
+          ),
+          Artist(
+            id: 'artist-2',
+            name: 'Artist 2',
+            musicBrainzId: 'artist-mbid-2',
+          ),
+        ]);
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+            musicBrainzId: 'release-mbid-1',
+          ),
+          Album(
+            id: 'album-2',
+            name: 'Album 2',
+            artist: 'Artist 2',
+            artistId: 'artist-2',
+            musicBrainzId: 'release-mbid-2',
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          musicBrainzId: 'release-mbid-1',
+          songs: <Song>[
+            Song(id: 'song-1', title: 'Song 1', albumId: 'album-1'),
+          ],
+        );
+        api.albumDetails['album-2'] = const Album(
+          id: 'album-2',
+          name: 'Album 2',
+          musicBrainzId: 'release-mbid-2',
+          songs: <Song>[
+            Song(id: 'song-2', title: 'Song 2', albumId: 'album-2'),
+          ],
+        );
+
+        final state = await engine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        final album1 = await database.libraryDao.getAlbumById('album-1');
+        expect(album1!.releaseMbid, 'release-mbid-1');
+        final album2 = await database.libraryDao.getAlbumById('album-2');
+        expect(album2!.releaseMbid, 'release-mbid-2');
+        final artist1 = await database.libraryDao.getArtistById('artist-1');
+        expect(artist1!.artistMbid, 'artist-mbid-1');
+        final artist2 = await database.libraryDao.getArtistById('artist-2');
+        expect(artist2!.artistMbid, 'artist-mbid-2');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'promotion sends contested duplicate-MBID claims to recovery review',
       () async {
         await saveSession();

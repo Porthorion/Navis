@@ -31,6 +31,10 @@ class LibrarySyncCandidateAlbumsTable extends Table {
 
   TextColumn get coverArt => text().nullable()();
 
+  /// MusicBrainz release ID supplied by OpenSubsonic responses, promoted
+  /// into the committed album row for stable-identifier remapping.
+  TextColumn get releaseMbid => text().nullable()();
+
   BoolColumn get songsHydrated =>
       boolean().withDefault(const Constant(false))();
 

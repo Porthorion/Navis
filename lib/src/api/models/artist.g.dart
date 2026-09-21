@@ -15,6 +15,7 @@ _Artist _$ArtistFromJson(Map<String, dynamic> json) => _Artist(
       ? null
       : DateTime.parse(json['starred'] as String),
   isExternal: json['isExternal'] as bool?,
+  musicBrainzId: json['musicBrainzId'] as String?,
   albums:
       (json['albums'] as List<dynamic>?)
           ?.map((e) => Album.fromJson(e as Map<String, dynamic>))
@@ -29,5 +30,6 @@ Map<String, dynamic> _$ArtistToJson(_Artist instance) => <String, dynamic>{
   'coverArt': instance.coverArt,
   'starred': instance.starred?.toIso8601String(),
   'isExternal': instance.isExternal,
+  'musicBrainzId': instance.musicBrainzId,
   'albums': instance.albums,
 };

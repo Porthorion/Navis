@@ -13,6 +13,10 @@ abstract class Artist with _$Artist {
     String? coverArt,
     DateTime? starred,
     bool? isExternal,
+
+    /// OpenSubsonic extension: MusicBrainz artist ID.
+    /// Absent on standard Subsonic responses.
+    String? musicBrainzId,
     @Default(<Album>[]) List<Album> albums,
   }) = _Artist;
 

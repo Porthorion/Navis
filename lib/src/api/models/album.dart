@@ -27,6 +27,10 @@ abstract class Album with _$Album {
     int? playCount,
     bool? isExternal,
 
+    /// OpenSubsonic extension: MusicBrainz release ID for the album.
+    /// Absent on standard Subsonic responses.
+    String? musicBrainzId,
+
     /// When the album was added to the Subsonic server library.
     /// Maps to the `created` field in the Subsonic API response.
     DateTime? created,

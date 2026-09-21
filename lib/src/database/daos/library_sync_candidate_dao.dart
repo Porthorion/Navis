@@ -152,6 +152,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
               albumCount: artist.albumCount,
               coverArt: artist.coverArt,
               starred: artist.starred,
+              artistMbid: artist.artistMbid,
             ),
           );
         }
@@ -202,6 +203,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
             year: album.year,
             genre: album.genre,
             coverArt: album.coverArt,
+            releaseMbid: album.releaseMbid,
             songsHydrated: album.songsHydrated,
             starred: album.starred,
             userRating: album.userRating,
