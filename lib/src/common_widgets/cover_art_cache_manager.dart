@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
@@ -362,6 +363,7 @@ class CoverArtHttpFileService implements FileService {
   CoverArtHttpFileService({
     CoverArtLoadCoordinator? loadCoordinator,
     NetworkUsageReporter? reportNetworkUsage,
+    this.onMissingCover,
     Duration connectionTimeout = const Duration(seconds: 15),
     Duration responseTimeout = const Duration(seconds: 20),
     Duration bodyReadTimeout = const Duration(seconds: 20),
@@ -374,6 +376,12 @@ class CoverArtHttpFileService implements FileService {
   late HttpClient _client = _createClient();
   final CoverArtLoadCoordinator _loadCoordinator;
   final NetworkUsageReporter? _reportNetworkUsage;
+
+  /// Invoked when the server answers that a cover-art reference does not
+  /// exist so the caller can schedule one coalesced entity-metadata refresh
+  /// (plan F7).
+  final void Function(String coverArtId)? onMissingCover;
+
   final Duration _connectionTimeout;
   final Duration _responseTimeout;
   final Duration _bodyReadTimeout;
@@ -410,6 +418,42 @@ class CoverArtHttpFileService implements FileService {
         'length=${response.contentLength} uri=$diagnosticUri',
       );
       final contentType = response.headers.contentType;
+      // Typed failure taxonomy (plan F5): a missing reference and an
+      // authentication rejection are distinguishable surface conditions.
+      final missingCover =
+          response.statusCode == HttpStatus.notFound ||
+          response.statusCode == HttpStatus.gone;
+      final authRejected =
+          response.statusCode == HttpStatus.unauthorized ||
+          response.statusCode == HttpStatus.forbidden;
+      if (missingCover || authRejected) {
+        lease.release();
+        final category = classifyCoverArtFailure(
+          null,
+          statusCode: response.statusCode,
+        );
+        AppLogger.info(
+          'Cover art $category for $diagnosticUri '
+          '(status ${response.statusCode})',
+        );
+        if (missingCover) {
+          final coverId = uri.queryParameters['id'];
+          if (coverId != null && coverId.isNotEmpty) {
+            onMissingCover?.call(coverId);
+          }
+        }
+        // Drain so the keep-alive connection is not poisoned for the next
+        // queued request before the typed failure propagates.
+        try {
+          await response.drain<void>().timeout(_bodyReadTimeout);
+        } on Object {
+          // The rejection itself must not be masked by a drain failure.
+        }
+        throw CoverArtFetchException(
+          category,
+          statusCode: response.statusCode,
+        );
+      }
       if ((response.statusCode == HttpStatus.ok ||
               response.statusCode == HttpStatus.accepted) &&
           contentType != null &&

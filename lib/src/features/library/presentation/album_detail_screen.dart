@@ -408,6 +408,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     showCoverArtViewer(
                                       context,
                                       coverArtId: details.coverArt,
+                                      revision: details.coverArtRevision ?? 0,
                                       heroTag: coverArtHeroTag,
                                       previewSize: 300,
                                       isExternalSource: details.isExternal,
@@ -415,6 +416,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   ),
                                   child: HeroCoverArt(
                                     coverArtId: details.coverArt,
+                                    revision: details.coverArtRevision ?? 0,
                                     heroTag: coverArtHeroTag,
                                     // Keep the same cache key as album cards
                                     // after the Hero lands. The logical layout
@@ -1051,6 +1053,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           showCoverArtViewer(
                                             context,
                                             coverArtId: details.coverArt,
+                                            revision:
+                                                details.coverArtRevision ?? 0,
                                             heroTag: coverArtHeroTag,
                                             previewSize: 160,
                                             isExternalSource:
@@ -1059,6 +1063,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         ),
                                         child: HeroCoverArt(
                                           coverArtId: details.coverArt,
+                                          revision:
+                                              details.coverArtRevision ?? 0,
                                           heroTag: coverArtHeroTag,
                                           size: kCoverArtStandardSize,
                                           width: artSize,
@@ -1236,6 +1242,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           // flight independently of the fade-only route.
                           CoverArtImage(
                             coverArtId: details.coverArt,
+                            revision: details.coverArtRevision ?? 0,
                             size: kCoverArtStandardSize,
                             width: double.infinity,
                             height: double.infinity,
@@ -2404,6 +2411,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         showCoverArtViewer(
                           context,
                           coverArtId: details.coverArt,
+                          revision: details.coverArtRevision ?? 0,
                           heroTag: coverArtHeroTag,
                           previewSize: 200,
                           isExternalSource: details.isExternal,

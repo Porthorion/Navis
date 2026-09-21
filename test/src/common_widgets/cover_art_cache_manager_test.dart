@@ -1,9 +1,15 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/common_widgets/cover_art_recovery.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
+
+import '../../helpers/test_database.dart';
 
 void main() {
   group('coverArtImageCacheKey', () {
@@ -345,15 +351,23 @@ void main() {
         unawaited(request.response.close());
       });
 
+      // A typed missing-reference failure surfaces for every 404 while all
+      // coordinator slots are released.
       final missing = await Future.wait(
-        List<Future<FileServiceResponse>>.generate(8, (index) {
-          return service.get(_coverArtUrl(server, id: 'cover-missing-$index'));
+        List<Future<Object?>>.generate(8, (index) {
+          return service
+              .get(_coverArtUrl(server, id: 'cover-missing-$index'))
+              .then<Object?>((response) => response)
+              .catchError((Object error) => error);
         }),
       );
 
+      expect(missing.whereType<CoverArtFetchException>(), hasLength(8));
       expect(
-        missing.map((response) => response.statusCode),
-        everyElement(HttpStatus.notFound),
+        missing.whereType<CoverArtFetchException>().map(
+          (error) => error.category,
+        ),
+        everyElement(CoverArtFailureCategory.missingCoverReference),
       );
       expect(coordinator.activeCount, 0);
 
@@ -495,4 +509,162 @@ String _coverArtUrl(HttpServer server, {required String id}) {
       't': 'redacted',
     },
   ).toString();
+
+  group('CoverArtRecoveryCoordinator', () {
+    test(
+      'corrupt entries are evicted exactly once per key and never loop',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final coordinator = CoverArtRecoveryCoordinator();
+        final manager = createCoverArtCacheManager();
+        addTearDown(manager.dispose);
+
+        final first = await coordinator.handleInvalidCacheEntry(
+          cacheKey: 'al-1:r2:600',
+          cacheManager: manager,
+        );
+        final second = await coordinator.handleInvalidCacheEntry(
+          cacheKey: 'al-1:r2:600',
+          cacheManager: manager,
+        );
+
+        expect(first, isTrue);
+        // The repeated build is bounded: no second eviction, no refetch loop.
+        expect(second, isFalse);
+        expect(
+          coverArtImageCacheKey('al-1', 600, revision: 2),
+          'al-1:r2:600',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'missing cover references coalesce into one refresh with a cooldown',
+      () async {
+        var refreshes = 0;
+        final coordinator = CoverArtRecoveryCoordinator(
+          refreshEntityForCover: (coverArtId) async {
+            refreshes++;
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+          },
+        );
+
+        // Repeated builds of the same cover share one in-flight refresh and
+        // are cooldown-bounded to a single refresh per session.
+        await Future.wait(<Future<void>>[
+          coordinator.handleMissingCover('al-nier-a'),
+          coordinator.handleMissingCover('al-nier-a'),
+          coordinator.handleMissingCover('al-nier-a'),
+        ]);
+        await coordinator.handleMissingCover('al-nier-a');
+
+        expect(refreshes, 1);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'failure taxonomy classifies the five plan categories',
+      () {
+        expect(
+          classifyCoverArtFailure(
+            const CoverArtFetchException(
+              CoverArtFailureCategory.missingCoverReference,
+              statusCode: 404,
+            ),
+          ),
+          CoverArtFailureCategory.missingCoverReference,
+        );
+        expect(
+          classifyCoverArtFailure(
+            const CoverArtFetchException(
+              CoverArtFailureCategory.authRejection,
+              statusCode: 403,
+            ),
+          ),
+          CoverArtFailureCategory.authRejection,
+        );
+        expect(
+          classifyCoverArtFailure(
+            TimeoutException('timed out'),
+          ),
+          CoverArtFailureCategory.networkTimeout,
+        );
+        expect(
+          classifyCoverArtFailure(
+            const CoverArtInvalidResponseException('text/html'),
+          ),
+          CoverArtFailureCategory.invalidPayload,
+        );
+        expect(
+          classifyCoverArtFailure(
+            const FormatException('cannot decode'),
+          ),
+          CoverArtFailureCategory.transport,
+        );
+        expect(
+          classifyCoverArtFailure(
+            const CoverArtFetchException(
+              CoverArtFailureCategory.decodeFailure,
+            ),
+          ),
+          CoverArtFailureCategory.decodeFailure,
+        );
+      },
+    );
+  });
+
+  group('NieR shared-title artwork identity (plan F9)', () {
+    test(
+      'two releases sharing a title keep distinct artwork identities',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        await database.serverDao.saveServer(
+          ServerConfigTableCompanion.insert(
+            url: 'https://example.test',
+            username: 'fixture',
+            apiVersion: '1.16.1',
+          ),
+        );
+        // Two distinct releases with the identical album title.
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'al-nier-a',
+            name: 'NieR:Automata Original Soundtrack',
+            coverArt: const Value('al-nier-a'),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'al-nier-b',
+            name: 'NieR:Automata Original Soundtrack',
+            coverArt: const Value('al-nier-b'),
+          ),
+        ]);
+
+        // Distinct cover IDs produce distinct cache keys, so neither
+        // release's artwork can satisfy the other's request.
+        final keyA = coverArtImageCacheKey('al-nier-a', 600);
+        final keyB = coverArtImageCacheKey('al-nier-b', 600);
+        expect(keyA, isNot(keyB));
+
+        // A targeted revision bump on one release cannot leak into the
+        // other: the revision is scoped between the ID and the size.
+        final keyA2 = coverArtImageCacheKey('al-nier-a', 600, revision: 1);
+        expect(keyA2, isNot(keyA));
+        expect(keyA2, isNot(keyB));
+
+        // Row-level distinctness survives: no identity merge occurred.
+        final rows = await database
+            .customSelect(
+              "SELECT id FROM albums WHERE name = "
+              "'NieR:Automata Original Soundtrack';",
+            )
+            .get();
+        expect(rows, hasLength(2));
+      },
+      skip: !sqliteAvailable,
+    );
+  });
 }

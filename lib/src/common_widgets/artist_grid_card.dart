@@ -54,6 +54,7 @@ class ArtistGridCard extends ConsumerWidget {
                       height: side,
                       child: CoverArtImage(
                         coverArtId: artist.coverArt,
+                        revision: artist.coverArtRevision ?? 0,
                         size: kCoverArtStandardSize,
                         width: side,
                         height: side,

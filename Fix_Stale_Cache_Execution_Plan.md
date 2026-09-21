@@ -104,19 +104,19 @@ scan-status endpoint".
 
 ## Stage 8 — Artwork failure taxonomy, recovery, revision plumbing (F2/F3/F5–F9)
 
-- [ ] Wire `coverArtRevision` from DB rows through providers to `CoverArtImage(revision:)`
+- [x] Wire `coverArtRevision` from DB rows through providers to `CoverArtImage(revision:)`
       call sites so a bumped revision triggers exactly one targeted refetch.
-- [ ] Typed failure categories: missing/stale cover reference; auth/proxy rejection; network
+- [x] Typed failure categories: missing/stale cover reference; auth/proxy rejection; network
       timeout; invalid bytes / cached error payload; image decode failure.
       `CoverArtInvalidResponseException` now caught and classified.
-- [ ] F6: on confirmed invalid cached image, evict only that entry from disk + decoded-image
+- [x] F6: on confirmed invalid cached image, evict only that entry from disk + decoded-image
       cache, one bounded refetch.
-- [ ] F7: on missing cover reference, one coalesced entity-metadata refresh, retry the
+- [x] F7: on missing cover reference, one coalesced entity-metadata refresh, retry the
       resulting cover ID; repeated builds must not loop (cooldown/pending set).
-- [ ] F8: never cache HTTP-success error/HTML (content-type guard).
-- [ ] F9: manager-level NieR test — two releases sharing "NieR:Automata Original Soundtrack"
+- [x] F8: never cache HTTP-success error/HTML (content-type guard).
+- [x] F9: manager-level NieR test — two releases sharing "NieR:Automata Original Soundtrack"
       keep distinct artwork identities.
-- [ ] Tests: classification; eviction + single refetch; coalesced refresh no-loop;
+- [x] Tests: classification; eviction + single refetch; coalesced refresh no-loop;
       shared-title distinctness.
 
 ## Stage 9 — Post-upgrade one-shot recovery reconciliation (plan §5)

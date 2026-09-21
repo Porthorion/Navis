@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
+import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,8 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/features/library/data/library_sync_engine.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
@@ -54,6 +57,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_cost_bridge.dart';
@@ -125,6 +129,55 @@ final coverArtLoadCoordinatorProvider = Provider<CoverArtLoadCoordinator>((
   return CoverArtLoadCoordinator();
 });
 
+/// Cover art recovery orchestration (plan F6/F7): targeted eviction of
+/// corrupt entries and one coalesced entity-metadata refresh per missing
+/// cover reference, routed into the sync engine's targeted hydration.
+final coverArtRecoveryProvider = Provider<CoverArtRecoveryCoordinator>((ref) {
+  return CoverArtRecoveryCoordinator(
+    refreshEntityForCover: (String coverArtId) async {
+      final database = ref.read(navisDatabaseProvider);
+      final engineOrNull = ref.read(librarySyncEngineProvider);
+      if (engineOrNull == null) {
+        return;
+      }
+      final engine = engineOrNull as TargetedLibrarySyncExecutor;
+      // Route by which entity currently owns this cover reference: the
+      // refresh may change the cover ID or bump its revision, after which
+      // widgets retry the resulting cover identity.
+      final albumRow = await database
+          .customSelect(
+            'SELECT id FROM albums WHERE cover_art = ? LIMIT 1;',
+            variables: <Variable<Object>>[Variable<String>(coverArtId)],
+          )
+          .getSingleOrNull();
+      if (albumRow != null) {
+        await engine.hydrateAlbum(albumRow.read<String>('id'));
+        return;
+      }
+      final artistRow = await database
+          .customSelect(
+            'SELECT id FROM artists WHERE cover_art = ? LIMIT 1;',
+            variables: <Variable<Object>>[Variable<String>(coverArtId)],
+          )
+          .getSingleOrNull();
+      if (artistRow != null) {
+        await engine.hydrateArtist(artistRow.read<String>('id'));
+        return;
+      }
+      final songAlbumRow = await database
+          .customSelect(
+            'SELECT album_id FROM songs WHERE cover_art = ? '
+            'AND album_id IS NOT NULL LIMIT 1;',
+            variables: <Variable<Object>>[Variable<String>(coverArtId)],
+          )
+          .getSingleOrNull();
+      if (songAlbumRow != null) {
+        await engine.hydrateAlbum(songAlbumRow.read<String>('album_id'));
+      }
+    },
+  );
+});
+
 final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   // ref.read, not ref.watch — prevents reactive rebuilds caused by the
   // settings stream emitting at startup (AsyncLoading → AsyncData), which
@@ -135,6 +188,13 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   final service = CoverArtHttpFileService(
     loadCoordinator: coordinator,
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
+    onMissingCover: (coverArtId) {
+      // One coalesced metadata refresh per missing reference (plan F7);
+      // failures land in logs and the cooldown prevents loops.
+      unawaited(
+        ref.read(coverArtRecoveryProvider).handleMissingCover(coverArtId),
+      );
+    },
   );
   final manager = createCoverArtCacheManager(
     maxNrOfCacheObjects: maxObjects,

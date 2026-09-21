@@ -5,8 +5,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'dart:io' as io show File;
+
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:octo_image/octo_image.dart';
@@ -228,7 +232,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     final child = networkAllowed
         ? _buildNetworkImageChild(context, resolvedSize, api, cacheManager)
         : cachedFile != null
-        ? _buildFileImageChild(context, cachedFile, resolvedSize)
+        ? _buildFileImageChild(context, cachedFile, resolvedSize, cacheManager)
         : (widget.showLoadingPlaceholder
               ? _fallback(context)
               : _emptyPlaceholder());
@@ -463,6 +467,7 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     BuildContext context,
     File file,
     int? resolvedSize,
+    CacheManager cacheManager,
   ) {
     final image = Image(
       image: _boundedImageProvider(FileImage(file), resolvedSize),
@@ -470,9 +475,33 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       width: widget.width,
       height: widget.height,
       gaplessPlayback: widget.gaplessPlayback,
-      errorBuilder: (_, _, _) => widget.showErrorPlaceholder
-          ? _fallback(context)
-          : _emptyPlaceholder(),
+      errorBuilder: (_, _, _) {
+        // Decode failure of a cached file (plan F6): evict the entry once
+        // so the next build performs one bounded network refetch.
+        final cacheKey = _cacheProbeKey;
+        if (cacheKey != null) {
+          unawaited(
+            ref
+                .read(coverArtRecoveryProvider)
+                .handleInvalidCacheEntry(
+                  cacheKey: cacheKey,
+                  cacheManager: cacheManager,
+                  cachedFile: io.File(file.path),
+                )
+                .then((evicted) {
+                  if (evicted && mounted) {
+                    setState(() {
+                      _cachedFileInfo = null;
+                      _cacheProbeKey = null;
+                    });
+                  }
+                }),
+          );
+        }
+        return widget.showErrorPlaceholder
+            ? _fallback(context)
+            : _emptyPlaceholder();
+      },
     );
     return _clip(image);
   }

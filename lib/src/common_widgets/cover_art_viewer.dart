@@ -119,6 +119,7 @@ Future<void> showCoverArtViewer(
   required String heroTag,
   int previewSize = 320,
   bool isExternalSource = false,
+  int revision = 0,
 }) {
   final id = coverArtId?.trim() ?? '';
   if (id.isEmpty) {

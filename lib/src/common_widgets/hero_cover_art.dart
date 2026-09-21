@@ -22,9 +22,13 @@ class HeroCoverArt extends StatelessWidget {
     this.loadPriority = CoverArtLoadPriority.visible,
     this.isExternalSource = false,
     this.remoteSourceIndicatorPolicy = RemoteSourceIndicatorPolicy.automatic,
+    this.revision = 0,
   });
 
   final String? coverArtId;
+
+  /// Targeted artwork refresh revision from the owning row (plan F2/F3).
+  final int revision;
   final String heroTag;
   final int? size;
   final double? width;
@@ -119,6 +123,7 @@ class HeroCoverArt extends StatelessWidget {
               },
               child: CoverArtImage(
                 coverArtId: sourceCoverArt?.coverArtId ?? coverArtId,
+                revision: revision,
                 size: lockedSize,
                 fit: sourceCoverArt?.fit ?? fit,
                 placeholderIcon:
@@ -136,6 +141,7 @@ class HeroCoverArt extends StatelessWidget {
           },
       child: CoverArtImage(
         coverArtId: coverArtId,
+        revision: revision,
         size: size,
         width: width,
         height: height,

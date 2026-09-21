@@ -30,6 +30,7 @@ class ArtistCard extends StatelessWidget {
     final tile = ListTile(
       leading: CoverArtImage(
         coverArtId: artist.coverArt,
+        revision: artist.coverArtRevision ?? 0,
         size: 96,
         width: 40,
         height: 40,

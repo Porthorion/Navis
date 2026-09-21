@@ -431,6 +431,7 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
                 state: widget.indicatorState,
                 child: CoverArtImage(
                   coverArtId: song.coverArt,
+                  revision: song.coverArtRevision ?? 0,
                   size: kCoverArtStandardSize,
                   width: 48,
                   height: 48,

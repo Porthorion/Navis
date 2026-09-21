@@ -84,6 +84,7 @@ class AlbumCard extends ConsumerWidget {
                 if (heroTag != null)
                   HeroCoverArt(
                     coverArtId: album.coverArt,
+                    revision: album.coverArtRevision ?? 0,
                     heroTag: heroTag!,
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
@@ -94,6 +95,7 @@ class AlbumCard extends ConsumerWidget {
                 else
                   CoverArtImage(
                     coverArtId: album.coverArt,
+                    revision: album.coverArtRevision ?? 0,
                     size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,

@@ -238,6 +238,7 @@ class _QueueItem extends ConsumerWidget {
                 state: indicatorState,
                 child: CoverArtImage(
                   coverArtId: song.coverArt,
+                  revision: song.coverArtRevision ?? 0,
                   size: kCoverArtStandardSize,
                   width: 48,
                   height: 48,

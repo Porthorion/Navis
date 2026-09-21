@@ -58,6 +58,7 @@ class TrackListTile extends ConsumerWidget {
             height: 48,
             child: CoverArtImage(
               coverArtId: song.coverArt,
+              revision: song.coverArtRevision ?? 0,
               size: 80,
               borderRadius: BorderRadius.circular(6),
               isExternalSource: song.isExternal,
