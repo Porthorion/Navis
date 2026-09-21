@@ -53,5 +53,21 @@ void main() {
       expect(lyrics.structuredLyrics, hasLength(1));
       expect(lyrics.structuredLyrics.first.line.first.value, 'line');
     });
+
+    test('deserializes ScanStatus including a missing lastScan', () {
+      final complete = ScanStatus.fromJson(<String, dynamic>{
+        'scanning': false,
+        'count': 56166,
+        'lastScan': '2026-09-20T07:13:38.721Z',
+      });
+      expect(complete.scanning, isFalse);
+      expect(complete.count, 56166);
+      expect(complete.lastScan, isNotNull);
+
+      final minimal = ScanStatus.fromJson(<String, dynamic>{});
+      expect(minimal.scanning, isFalse);
+      expect(minimal.count, isNull);
+      expect(minimal.lastScan, isNull);
+    });
   });
 }

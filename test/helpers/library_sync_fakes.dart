@@ -37,6 +37,12 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   List<Playlist> playlists = <Playlist>[];
   Indexes indexes = const Indexes();
   ScanStatus? scanStatus;
+
+  /// Consumed one entry per `getScanStatusOrNull` call so tests can vary the
+  /// observation between collection time and promotion time. Falls back to
+  /// [scanStatus] when empty. [onGetScanStatus] takes precedence over both.
+  final List<ScanStatus?> scanStatusQueue = <ScanStatus?>[];
+  Future<ScanStatus?> Function()? onGetScanStatus;
   Completer<List<Artist>>? artistsCompleter;
 
   Exception? throwOnFastPath;
@@ -141,6 +147,13 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   @override
   Future<ScanStatus?> getScanStatusOrNull() async {
     calls.add('getScanStatus');
+    final onCall = onGetScanStatus;
+    if (onCall != null) {
+      return onCall();
+    }
+    if (scanStatusQueue.isNotEmpty) {
+      return scanStatusQueue.removeAt(0);
+    }
     return scanStatus;
   }
 

@@ -34,6 +34,55 @@ void main() {
   }
 
   group('SubsonicApiClient', () {
+    test(
+      'parses the typed scan status node with an optional lastScan',
+      () async {
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) => handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok(<String, dynamic>{
+                  'scanStatus': <String, dynamic>{
+                    'scanning': false,
+                    'count': 56166,
+                    'lastScan': '2026-09-20T07:13:38.721Z',
+                  },
+                }),
+              ),
+            ),
+          ),
+        );
+        final client = createClient(dio: dio);
+        final status = await client.getScanStatus();
+        expect(status.scanning, isFalse);
+        expect(status.count, 56166);
+        expect(status.lastScan, DateTime.utc(2026, 9, 20, 7, 13, 38, 721));
+      },
+    );
+    test('scan status parses servers that omit lastScan and count', () async {
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) => handler.resolve(
+            Response<dynamic>(
+              requestOptions: options,
+              statusCode: 200,
+              data: ok(<String, dynamic>{
+                'scanStatus': <String, dynamic>{'scanning': true},
+              }),
+            ),
+          ),
+        ),
+      );
+      final client = createClient(dio: dio);
+      final status = await client.getScanStatus();
+      expect(status.scanning, isTrue);
+      expect(status.count, isNull);
+      expect(status.lastScan, isNull);
+    });
     test('playlist mutations accept an empty success envelope', () async {
       final dio = Dio();
       dio.interceptors.add(
