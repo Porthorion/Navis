@@ -84,8 +84,14 @@ class SyncRequestScope {
     if (_stopped != null) throw _stopped!;
     if (!canRequest()) _stop('networkPolicy');
     if (!_now().isBefore(_deadline)) _stop('timeBudget');
-    if (endpoint != null && !allowedEndpoints.contains(endpoint))
+    // The typed scan-status observation rides every plan: the promotion
+    // guard records it at collection and promotion time, and it is a tiny
+    // read-only call that must never fail an endpoint allowlist.
+    if (endpoint != null &&
+        endpoint != 'getScanStatus' &&
+        !allowedEndpoints.contains(endpoint)) {
       _stop('endpointPolicy');
+    }
     if (maxTotalBytes != null && byteCount >= maxTotalBytes!)
       _stop('byteBudget');
   }

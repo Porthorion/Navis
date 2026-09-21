@@ -167,6 +167,18 @@ void main() {
     expect(called, isFalse);
   });
 
+  test('the scan-status observation is permitted inside every plan', () async {
+    final budget = scope();
+    var called = false;
+    await budget.run(
+      () => budget.request('getScanStatus', () async {
+        called = true;
+      }),
+    );
+    expect(called, isTrue);
+    expect(budget.stopped, isNull);
+  });
+
   test(
     'response bytes are attributed only inside the operation and enforce a cap',
     () async {
