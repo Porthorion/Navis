@@ -14,7 +14,10 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_catalog_diff_analyzer.dart';
+import 'package:navis/src/database/daos/library_sync_dao.dart';
+import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/features/library/data/library_sync_response_validation.dart';
+import 'package:navis/src/features/library/data/entity_identity_reconciler.dart';
 import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -3999,6 +4002,28 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         );
       }
 
+      // Album/artist relinking runs after rows are preserved as provisional
+      // and the retained song set is final, but before removable stale rows
+      // are deleted: unresolved entities must still be reviewable from their
+      // recorded metadata, and remapped entities delete their own rows.
+      final entityIdentitySummary = await EntityIdentityReconciler(_database)
+          .reconcile(
+            serverId: serverId,
+            generation: generation,
+            songAliases:
+                identitySession?.summary.aliases ?? const <SongIdentityAlias>[],
+            provisionalSongs: provisionalSongs,
+          );
+      if (entityIdentitySummary.aliases > 0 ||
+          entityIdentitySummary.reviewCount > 0) {
+        AppLogger.info(
+          'Album/artist identity reconciliation: '
+          'albumAliases=${entityIdentitySummary.albumAliases} '
+          'artistAliases=${entityIdentitySummary.artistAliases} '
+          'review=${entityIdentitySummary.reviewCount}.',
+        );
+      }
+
       final removableAlbumIds = staleAlbumIds
           .where((id) => !preserved.albumIds.contains(id))
           .toList(growable: false);
@@ -4009,6 +4034,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         await _database.libraryDao.deleteAlbumsByIds(removableAlbumIds);
       }
       await _database.libraryDao.deleteArtistsByIds(removableArtistIds);
+
       final afterCatalog = await _database.libraryDao.getCatalogCounts();
       await _database.librarySyncDao.writeState(
         LibrarySyncStateTableCompanion(
@@ -4036,6 +4062,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
                   analysis.maximumPageLatency.inMilliseconds,
               'rssGrowthBytes': analysis.rssGrowthBytes,
               'aliases': identitySession?.summary.aliases.length ?? 0,
+              'albumAliases': entityIdentitySummary.albumAliases,
+              'artistAliases': entityIdentitySummary.artistAliases,
             }),
           ),
         ),
@@ -4075,6 +4103,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           },
           'retainedUnavailable': retainedUnavailableCount,
           'aliases': identitySession?.summary.aliases.length ?? 0,
+          'albumAliases': entityIdentitySummary.albumAliases,
+          'artistAliases': entityIdentitySummary.artistAliases,
+          'reviewEntries': entityIdentitySummary.reviewCount,
         },
       );
     });

@@ -6731,6 +6731,36 @@ abstract class AppLocalizations {
   /// **'No longer on the server. Favorites, ratings, history, and downloads are kept until you decide.'**
   String get unavailableReviewReasonMissing;
 
+  /// No description provided for @unavailableReviewReasonAmbiguous.
+  ///
+  /// In en, this message translates to:
+  /// **'Several possible replacements were found. Decide which one is correct before anything is relinked.'**
+  String get unavailableReviewReasonAmbiguous;
+
+  /// No description provided for @unavailableReviewReasonConflicting.
+  ///
+  /// In en, this message translates to:
+  /// **'Conflicting identifiers were found in the catalog. Review before anything is relinked.'**
+  String get unavailableReviewReasonConflicting;
+
+  /// No description provided for @unavailableReviewTypeSong.
+  ///
+  /// In en, this message translates to:
+  /// **'Song'**
+  String get unavailableReviewTypeSong;
+
+  /// No description provided for @unavailableReviewTypeAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get unavailableReviewTypeAlbum;
+
+  /// No description provided for @unavailableReviewTypeArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist'**
+  String get unavailableReviewTypeArtist;
+
   /// No description provided for @unavailableReviewFindMatch.
   ///
   /// In en, this message translates to:

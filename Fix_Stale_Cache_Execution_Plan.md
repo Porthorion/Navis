@@ -62,13 +62,13 @@ scan-status endpoint".
 
 ## Stage 4 — Album/artist automatic mapping (plan D4 matching)
 
-- [ ] At promotion, auto-map albums/artists only from a unique stable identifier
+- [x] At promotion, auto-map albums/artists only from a unique stable identifier
       (releaseMbid/artistMbid) or an unambiguous complete replacement set with compatible
       metadata; everything else → typed review rows.
-- [ ] Extend the remap transaction to merge album/artist user state (starred album/artist).
-- [ ] Review UI renders album/artist entries with typed reason labels; relink via the same
+- [x] Extend the remap transaction to merge album/artist user state (starred album/artist).
+- [x] Review UI renders album/artist entries with typed reason labels; relink via the same
       transaction.
-- [ ] Tests: unique-MBID auto-map; ambiguous → review; user-state merge; UI listing.
+- [x] Tests: unique-MBID auto-map; ambiguous → review; user-state merge; UI listing.
 
 ## Stage 5 — suspectedMissing wiring + availability-aware selection (plan E2/E4)
 

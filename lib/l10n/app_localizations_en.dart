@@ -3841,6 +3841,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'No longer on the server. Favorites, ratings, history, and downloads are kept until you decide.';
 
   @override
+  String get unavailableReviewReasonAmbiguous =>
+      'Several possible replacements were found. Decide which one is correct before anything is relinked.';
+
+  @override
+  String get unavailableReviewReasonConflicting =>
+      'Conflicting identifiers were found in the catalog. Review before anything is relinked.';
+
+  @override
+  String get unavailableReviewTypeSong => 'Song';
+
+  @override
+  String get unavailableReviewTypeAlbum => 'Album';
+
+  @override
+  String get unavailableReviewTypeArtist => 'Artist';
+
+  @override
   String get unavailableReviewFindMatch => 'Find match';
 
   @override

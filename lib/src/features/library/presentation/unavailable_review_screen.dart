@@ -133,15 +133,24 @@ class _ReviewCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              entry.savedTitle ?? l10n.unavailableReviewUnknownTitle,
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: <Widget>[
+                Text(
+                  entry.savedTitle ?? l10n.unavailableReviewUnknownTitle,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _typeLabel(l10n),
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
             ),
             if (subtitle != null && subtitle.isNotEmpty)
               Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 4),
             Text(
-              l10n.unavailableReviewReasonMissing,
+              _reasonLabel(l10n),
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -169,6 +178,22 @@ class _ReviewCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _typeLabel(AppLocalizations l10n) {
+    return switch (entry.entityType) {
+      'album' => l10n.unavailableReviewTypeAlbum,
+      'artist' => l10n.unavailableReviewTypeArtist,
+      _ => l10n.unavailableReviewTypeSong,
+    };
+  }
+
+  String _reasonLabel(AppLocalizations l10n) {
+    return switch (entry.reason) {
+      'ambiguousMatch' => l10n.unavailableReviewReasonAmbiguous,
+      'conflictingMbid' => l10n.unavailableReviewReasonConflicting,
+      _ => l10n.unavailableReviewReasonMissing,
+    };
   }
 
   Future<void> _findMatch(BuildContext context, WidgetRef ref) async {

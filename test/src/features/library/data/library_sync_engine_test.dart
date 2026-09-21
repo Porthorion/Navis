@@ -368,6 +368,9 @@ void main() {
             },
             'retainedUnavailable': 0,
             'aliases': 0,
+            'albumAliases': 0,
+            'artistAliases': 0,
+            'reviewEntries': 0,
           },
         );
       },
@@ -1798,6 +1801,91 @@ void main() {
               jsonDecode(entry.candidateJson!) as Map<String, dynamic>;
           expect(details['candidateIds'], <String>['cached-remote-song']);
         }
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'promotion relinks a stale album through its song alias and carries the favorite',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertProvisionalAlbums([
+          AlbumsTableCompanion.insert(
+            id: 'album-stale',
+            name: 'Stale Album',
+            starred: Value(DateTime.utc(2026, 9, 5)),
+          ),
+        ]);
+        await database.libraryDao.upsertProvisionalSongs([
+          SongsTableCompanion.insert(
+            id: 'song-old',
+            title: 'Track',
+            albumId: const Value('album-stale'),
+            recordingMbid: const Value('rec-1'),
+          ),
+        ]);
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-new',
+            name: 'Stale Album',
+            artistId: 'artist-1',
+            artist: 'Artist',
+            songCount: 1,
+          ),
+        ];
+        api.albumDetails['album-new'] = const Album(
+          id: 'album-new',
+          name: 'Stale Album',
+          artistId: 'artist-1',
+          songCount: 1,
+          songs: <Song>[
+            Song(
+              id: 'song-new',
+              title: 'Track',
+              albumId: 'album-new',
+              artistId: 'artist-1',
+              musicBrainzId: 'rec-1',
+            ),
+          ],
+        );
+
+        final result = await engine.forceFullSync();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        // The old album identity is gone, replaced under the new server ID.
+        expect(await database.libraryDao.getAlbumById('album-stale'), isNull);
+        final album = await database.libraryDao.getAlbumById('album-new');
+        expect(album, isNotNull);
+        // The album favorite carries forward through the remap.
+        expect(album!.starred, isNotNull);
+        final aliasRows = await database
+            .customSelect(
+              "SELECT old_id, new_id FROM entity_identity_aliases "
+              "WHERE entity_type = 'album';",
+            )
+            .get();
+        expect(aliasRows, hasLength(1));
+        expect(aliasRows.single.read<String>('old_id'), 'album-stale');
+        expect(aliasRows.single.read<String>('new_id'), 'album-new');
+        // The song relinked through its recording MBID.
+        expect(await database.libraryDao.getSongById('song-old'), isNull);
+        expect(
+          await database.libraryDao.getSongById('song-new'),
+          isNotNull,
+        );
+        // The restored album favorite is queued so the server restores it
+        // for other clients.
+        final pending = await database.starSyncDao.getPendingActions();
+        expect(
+          pending.where(
+            (action) =>
+                action.itemType == 'album' &&
+                action.itemId == 'album-new' &&
+                action.operation == 'star',
+          ),
+          isNotEmpty,
+        );
       },
       skip: !sqliteAvailable,
     );
