@@ -8,6 +8,7 @@ export 'indexes.dart';
 export 'internet_radio_station.dart';
 export 'lyrics.dart';
 export 'playlist.dart';
+export 'scan_status.dart';
 export 'search_result3.dart';
 export 'server_capabilities.dart';
 export 'song.dart';

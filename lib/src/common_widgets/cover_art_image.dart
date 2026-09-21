@@ -39,6 +39,7 @@ class CoverArtImage extends ConsumerStatefulWidget {
     this.gaplessPlayback = false,
     this.lockedSize,
     this.useRequestedMemCacheSize = false,
+    this.revision = 0,
     this.loadPriority = CoverArtLoadPriority.visible,
     this.preloadScreens = 1.0,
     this.isExternalSource = false,
@@ -71,6 +72,11 @@ class CoverArtImage extends ConsumerStatefulWidget {
   /// of the layout size. Hero source, shuttle, and destination artwork use
   /// this so a flight cannot land on a separately decoded image variant.
   final bool useRequestedMemCacheSize;
+
+  /// Targeted artwork refresh revision. Zero keeps the legacy cache-key
+  /// layout; a bumped revision loads refetched bytes without any global cache
+  /// clearing.
+  final int revision;
 
   /// Controls whether this image may start network work immediately or should
   /// wait for viewport visibility.
@@ -204,7 +210,11 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     required CoverArtLoadCoordinator coordinator,
   }) {
     final id = widget.coverArtId!.trim();
-    final cacheKey = coverArtImageCacheKey(id, resolvedSize);
+    final cacheKey = coverArtImageCacheKey(
+      id,
+      resolvedSize,
+      revision: widget.revision,
+    );
     _scheduleLoadWindowCheck();
     _startCacheProbe(cacheManager, cacheKey);
     _syncInterest(coordinator, cacheKey, _activePriority);
@@ -396,7 +406,11 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     SubsonicApiClient api,
     CacheManager cacheManager,
   ) {
-    final cacheKey = coverArtImageCacheKey(widget.coverArtId!, resolvedSize);
+    final cacheKey = coverArtImageCacheKey(
+      widget.coverArtId!,
+      resolvedSize,
+      revision: widget.revision,
+    );
     final image = OctoImage(
       image: _boundedImageProvider(
         CachedNetworkImageProvider(

@@ -1,15 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
-import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
+import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -345,16 +345,6 @@ class SyncSettingsScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      ListTile(
-                        title: Text(l10n.syncSettingsLastGenresUpdateLabel),
-                        subtitle: Text(
-                          _formatTimestamp(
-                            context,
-                            l10n,
-                            syncState.lastGenresSyncedAt,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -583,6 +573,8 @@ class SyncSettingsScreen extends ConsumerWidget {
                     label: Text(l10n.commonRetry),
                   ),
                 ],
+                const SizedBox(height: 8),
+                UnavailableReviewEntry(serverId: serverConfig?.id),
               ],
             ),
           ),
@@ -655,11 +647,13 @@ class SyncSettingsScreen extends ConsumerWidget {
       allowMeteredBroadOverride = true;
     }
     if (!context.mounted) return;
-    context.go(
-      requiredLibraryRebuildRoute(
-        RequiredLibraryRebuildReason.repairLibrary,
-        allowMeteredBroadOverride: allowMeteredBroadOverride,
-      ),
+    // Ordinary repair runs in the background from here: the persistent status
+    // card below reports progress and offers Retry/Cancel, so the user stays
+    // in control and is never forced out to a blocking rebuild screen.
+    unawaited(
+      ref
+          .read(librarySyncControllerProvider.notifier)
+          .repairLibrary(allowMeteredBroadOverride: allowMeteredBroadOverride),
     );
   }
 
@@ -946,4 +940,31 @@ class _OperationCounts {
   final int songs;
 
   int get total => artists + albums + songs;
+}
+
+/// Entry point for the unavailable-items review list with a live count.
+class UnavailableReviewEntry extends ConsumerWidget {
+  const UnavailableReviewEntry({super.key, required this.serverId});
+
+  final int? serverId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final pendingCount = ref
+        .watch(pendingUnavailableCountProvider)
+        .asData
+        ?.value;
+    return TextButton.icon(
+      onPressed: serverId == null
+          ? null
+          : () => NavService.openUnavailableItems(context, ref),
+      icon: const Icon(Icons.playlist_remove),
+      label: Text(
+        pendingCount != null && pendingCount > 0
+            ? l10n.unavailableReviewEntryWithCount(pendingCount)
+            : l10n.unavailableReviewEntry,
+      ),
+    );
+  }
 }

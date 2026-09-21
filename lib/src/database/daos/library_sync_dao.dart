@@ -12,6 +12,9 @@ import 'package:navis/src/database/tables/library_sync_repair_session_table.dart
 import 'package:navis/src/database/tables/library_sync_run_attempt_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_outcome_table.dart';
 import 'package:navis/src/database/tables/library_sync_run_request_table.dart';
+import 'package:navis/src/database/tables/library_scan_observation_table.dart';
+import 'package:navis/src/database/tables/library_recovery_review_table.dart';
+import 'package:navis/src/database/tables/entity_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
@@ -62,6 +65,9 @@ class LibrarySyncRunHistoryEntry {
     LibrarySyncRunOutcomeTable,
     LibrarySyncProviderProfileTable,
     LibrarySyncRepairSessionTable,
+    LibraryScanObservationTable,
+    LibraryRecoveryReviewTable,
+    EntityIdentityAliasTable,
   ],
 )
 class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
@@ -1568,5 +1574,250 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
               table.updatedAt.isSmallerThanValue(cutoff),
         ))
         .go();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Scan observation
+  // ---------------------------------------------------------------------------
+
+  Future<LibraryScanObservationTableData?> getScanObservation(int serverId) {
+    return (select(
+      libraryScanObservationTable,
+    )..where((table) => table.serverId.equals(serverId))).getSingleOrNull();
+  }
+
+  /// Records a `getScanStatus` observation.
+  ///
+  /// A scan still in progress never produces a token: only a completed scan
+  /// with a changed provider token marks the candidate evidence stale and
+  /// opens a pending reconciliation. Unsupported servers are recorded once so
+  /// sync admission stops probing them on every run.
+  Future<void> recordScanObservation({
+    required int serverId,
+    required bool scanInProgress,
+    required bool supported,
+    String? providerScanToken,
+    DateTime? observedAt,
+  }) async {
+    final now = observedAt ?? DateTime.now();
+    final existing = await getScanObservation(serverId);
+    if (!supported) {
+      if (existing == null) {
+        await into(libraryScanObservationTable).insert(
+          LibraryScanObservationTableCompanion.insert(
+            serverId: Value(serverId),
+            scanSupported: const Value(false),
+          ),
+        );
+      }
+      return;
+    }
+    if (scanInProgress) {
+      return;
+    }
+    final token = providerScanToken?.trim();
+    if (token == null || token.isEmpty) {
+      return;
+    }
+    final tokenChanged = existing?.observedToken != token;
+    if (existing == null) {
+      await into(libraryScanObservationTable).insert(
+        LibraryScanObservationTableCompanion.insert(
+          serverId: Value(serverId),
+          observedToken: Value(token),
+          observedAt: Value(now),
+          pendingReconciliation: const Value(true),
+        ),
+      );
+      return;
+    }
+    if (!tokenChanged) {
+      return;
+    }
+    await (update(libraryScanObservationTable)..where(
+          (table) => table.serverId.equals(serverId),
+        ))
+        .write(
+          LibraryScanObservationTableCompanion(
+            scanSupported: const Value(true),
+            observedToken: Value(token),
+            observedAt: Value(now),
+            pendingReconciliation: const Value(true),
+          ),
+        );
+  }
+
+  /// Closes the reconciliation window for [token] after a catalog snapshot
+  /// collected under it was promoted.
+  Future<void> markScanReconciled({
+    required int serverId,
+    required String token,
+    DateTime? reconciledAt,
+  }) async {
+    final now = reconciledAt ?? DateTime.now();
+    await (update(libraryScanObservationTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.observedToken.equals(token),
+        ))
+        .write(
+          LibraryScanObservationTableCompanion(
+            reconciledToken: Value(token),
+            reconciledAt: Value(now),
+            pendingReconciliation: const Value(false),
+          ),
+        );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Recovery review
+  // ---------------------------------------------------------------------------
+
+  /// Creates or refreshes a review entry for an item recovery could not relink
+  /// automatically. Existing pending entries are refreshed in place; a user
+  /// disposition is never overwritten by later sync evidence.
+  Future<void> recordRecoveryReview({
+    required int serverId,
+    required String entityType,
+    required String oldId,
+    String? savedTitle,
+    String? savedSubtitle,
+    required String reason,
+    int? evidenceGeneration,
+    String? candidateJson,
+    DateTime? createdAt,
+  }) async {
+    final now = DateTime.now();
+    final existing =
+        await (select(libraryRecoveryReviewTable)..where(
+              (table) =>
+                  table.serverId.equals(serverId) &
+                  table.entityType.equals(entityType) &
+                  table.oldId.equals(oldId),
+            ))
+            .getSingleOrNull();
+    if (existing != null && existing.disposition != 'pending') {
+      return;
+    }
+    final companion = LibraryRecoveryReviewTableCompanion.insert(
+      serverId: serverId,
+      entityType: entityType,
+      oldId: oldId,
+      savedTitle: Value(savedTitle),
+      savedSubtitle: Value(savedSubtitle),
+      reason: reason,
+      evidenceGeneration: Value(evidenceGeneration),
+      candidateJson: Value(candidateJson),
+      createdAt: existing?.createdAt ?? createdAt ?? now,
+      updatedAt: now,
+    );
+    if (existing == null) {
+      await into(libraryRecoveryReviewTable).insert(companion);
+      return;
+    }
+    await (update(libraryRecoveryReviewTable)..where(
+          (table) => table.id.equals(existing.id),
+        ))
+        .write(
+          LibraryRecoveryReviewTableCompanion(
+            savedTitle: Value(savedTitle),
+            savedSubtitle: Value(savedSubtitle),
+            reason: Value(reason),
+            evidenceGeneration: Value(evidenceGeneration),
+            candidateJson: Value(candidateJson),
+            updatedAt: Value(now),
+          ),
+        );
+  }
+
+  /// Bulk-creates review entries for retained unavailable rows.
+  ///
+  /// `INSERT OR IGNORE` on the (server, type, old-id) key keeps existing
+  /// entries — and their user dispositions — untouched; promotion replays are
+  /// therefore idempotent and cheap even for large libraries.
+  Future<void> recordRecoveryReviewBatch({
+    required int serverId,
+    required List<SongsTableData> retainedSongs,
+    required int? evidenceGeneration,
+  }) async {
+    if (retainedSongs.isEmpty) {
+      return;
+    }
+    final now = DateTime.now();
+    await batch((batch) {
+      for (final song in retainedSongs) {
+        batch.insert(
+          libraryRecoveryReviewTable,
+          LibraryRecoveryReviewTableCompanion.insert(
+            serverId: serverId,
+            entityType: 'song',
+            oldId: song.id,
+            savedTitle: Value(song.title),
+            savedSubtitle: Value(song.artistName),
+            reason: 'missingFromCatalog',
+            evidenceGeneration: Value(evidenceGeneration),
+            createdAt: now,
+            updatedAt: now,
+          ),
+          onConflict: DoUpdate(
+            (_) => const LibraryRecoveryReviewTableCompanion(),
+            target: [
+              libraryRecoveryReviewTable.serverId,
+              libraryRecoveryReviewTable.entityType,
+              libraryRecoveryReviewTable.oldId,
+            ],
+          ),
+        );
+      }
+    });
+  }
+
+  Future<List<LibraryRecoveryReviewTableData>> getPendingRecoveryReview(
+    int serverId,
+  ) {
+    return (select(libraryRecoveryReviewTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.disposition.equals('pending'),
+        ))
+        .get();
+  }
+
+  /// Review entries awaiting a decision, oldest first.
+  Stream<List<LibraryRecoveryReviewTableData>> watchPendingRecoveryReview(
+    int serverId,
+  ) {
+    return (select(libraryRecoveryReviewTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.disposition.equals('pending'),
+        ))
+        .watch();
+  }
+
+  Stream<int> watchPendingRecoveryReviewCount(int serverId) {
+    final countExpr = libraryRecoveryReviewTable.id.count();
+    final query = selectOnly(libraryRecoveryReviewTable)
+      ..addColumns([countExpr])
+      ..where(
+        libraryRecoveryReviewTable.serverId.equals(serverId) &
+            libraryRecoveryReviewTable.disposition.equals('pending'),
+      );
+    return query.map((row) => row.read(countExpr) ?? 0).watchSingle();
+  }
+
+  Future<void> setRecoveryReviewDisposition({
+    required int id,
+    required String disposition,
+  }) async {
+    await (update(libraryRecoveryReviewTable)..where(
+          (table) => table.id.equals(id),
+        ))
+        .write(
+          LibraryRecoveryReviewTableCompanion(
+            disposition: Value(disposition),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
   }
 }

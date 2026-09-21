@@ -374,6 +374,163 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test(
+    'carries a like forward and queues server restoration when the replacement lacks it',
+    () async {
+      final likedAt = DateTime.utc(2026, 8, 1, 12);
+      await database.customStatement(
+        'UPDATE songs SET starred = ? WHERE id = ?;',
+        <Object?>[likedAt.millisecondsSinceEpoch ~/ 1000, 'remote-song'],
+      );
+
+      final result = await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+      );
+
+      expect(result.restoredLike, isTrue);
+      final merged = await database.libraryDao.getSongById('server-song');
+      expect(merged!.starred!.isAtSameMomentAs(likedAt), isTrue);
+      final starRows = await database
+          .customSelect(
+            "SELECT action FROM star_sync_queue WHERE item_type = 'song' "
+            "AND item_id = 'server-song';",
+          )
+          .get();
+      expect(starRows, hasLength(1));
+      expect(starRows.single.read<String>('action'), 'star');
+      expect(
+        await database.songIdentityDao.resolveCanonicalId('remote-song'),
+        'server-song',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'keeps an explicit canonical like and does not queue a duplicate star',
+    () async {
+      final canonicalLikedAt = DateTime.utc(2026, 8, 15, 8);
+      final oldLikedAt = DateTime.utc(2026, 8, 1, 12);
+      await database.customStatement(
+        'UPDATE songs SET starred = ? WHERE id = ?;',
+        <Object?>[oldLikedAt.millisecondsSinceEpoch ~/ 1000, 'remote-song'],
+      );
+      await database.customStatement(
+        'UPDATE songs SET starred = ? WHERE id = ?;',
+        <Object?>[
+          canonicalLikedAt.millisecondsSinceEpoch ~/ 1000,
+          'server-song',
+        ],
+      );
+
+      final result = await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+      );
+
+      expect(result.restoredLike, isFalse);
+      final merged = await database.libraryDao.getSongById('server-song');
+      expect(merged!.starred!.isAtSameMomentAs(canonicalLikedAt), isTrue);
+      final starRows = await database
+          .customSelect(
+            "SELECT action FROM star_sync_queue WHERE item_type = 'song' "
+            "AND item_id = 'server-song';",
+          )
+          .get();
+      expect(starRows, isEmpty);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'merges an old rating into an unrated replacement',
+    () async {
+      await database.customStatement(
+        'UPDATE songs SET user_rating = 4 WHERE id = ?;',
+        <Object?>['remote-song'],
+      );
+
+      await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+      );
+
+      final merged = await database.libraryDao.getSongById('server-song');
+      expect(merged!.userRating, 4);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'transfers absence evidence and mutation journal to the replacement identity',
+    () async {
+      final now = DateTime.now();
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await database
+          .into(database.starredAbsenceCandidatesTable)
+          .insert(
+            StarredAbsenceCandidatesTableCompanion.insert(
+              serverId: 1,
+              entityType: 'song',
+              entityId: 'remote-song',
+              firstObservedAt: now,
+              lastObservedAt: now,
+            ),
+          );
+      await database
+          .into(database.librarySyncLocalMutationsTable)
+          .insert(
+            LibrarySyncLocalMutationsTableCompanion.insert(
+              entityType: 'song',
+              entityId: 'remote-song',
+              operation: 'rating',
+              createdAt: now,
+            ),
+          );
+
+      await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+      );
+
+      final absenceRows = await database
+          .customSelect(
+            'SELECT entity_id FROM starred_absence_candidates '
+            "WHERE entity_type = 'song';",
+          )
+          .get();
+      expect(absenceRows.single.read<String>('entity_id'), 'server-song');
+      final mutationRows = await database
+          .customSelect(
+            'SELECT entity_id FROM library_sync_local_mutations '
+            "WHERE entity_type = 'song';",
+          )
+          .get();
+      expect(mutationRows.single.read<String>('entity_id'), 'server-song');
+      final typedAliases = await database
+          .customSelect(
+            "SELECT old_id, new_id FROM entity_identity_aliases "
+            "WHERE entity_type = 'song';",
+          )
+          .get();
+      expect(typedAliases, hasLength(1));
+      expect(typedAliases.single.read<String>('old_id'), 'remote-song');
+      expect(typedAliases.single.read<String>('new_id'), 'server-song');
+    },
+    skip: !sqliteAvailable,
+  );
 }
 
 Future<int> _count(

@@ -240,3 +240,32 @@ class AndroidSafDocument {
   final int size;
   final String? mimeType;
 }
+
+/// Validates a stored-audio locator according to its storage kind.
+///
+/// Android SAF documents are content URIs: `File.exists()` is always false for
+/// them, which would make a valid permanent download look deleted. SAF rows
+/// are validated through the platform bridge; filesystem rows stay on
+/// `dart:io`.
+Future<bool> storedAudioExists({
+  required String locator,
+  required String? storageKind,
+}) async {
+  final isSaf = storageKind == 'androidSaf' || locator.startsWith('content://');
+  if (!isSaf) {
+    try {
+      final file = File(locator);
+      return await file.exists() && await file.length() > 0;
+    } on FileSystemException {
+      return false;
+    }
+  }
+  if (!AndroidSafStorage.isSafLocator) {
+    return false;
+  }
+  try {
+    return await const AndroidSafStorage().exists(locator);
+  } on FileSystemException {
+    return false;
+  }
+}

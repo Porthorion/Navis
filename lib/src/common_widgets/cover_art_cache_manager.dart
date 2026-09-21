@@ -18,8 +18,17 @@ const int kCoverArtStandardSize = 600;
 ///
 /// Subsonic token auth embeds a fresh salt in every media URL, so the URL is
 /// not a stable cache identity. Key by cover-art ID and requested size instead.
-String coverArtImageCacheKey(String coverArtId, int? size) {
-  return '${coverArtId.trim()}:${size ?? 0}';
+///
+/// [revision] is the targeted refresh revision: zero/null keeps the legacy
+/// key layout so existing offline artwork survives cache-key migration, and a
+/// bumped revision loads the refetched bytes without clearing any other cache
+/// entry.
+String coverArtImageCacheKey(String coverArtId, int? size, {int? revision}) {
+  final normalizedRevision = revision ?? 0;
+  if (normalizedRevision <= 0) {
+    return '${coverArtId.trim()}:${size ?? 0}';
+  }
+  return '${coverArtId.trim()}:r$normalizedRevision:${size ?? 0}';
 }
 
 /// Sentinel value meaning «no object-count cap» — enough covers even for a
@@ -54,6 +63,19 @@ class CoverArtLoadCanceledException implements Exception {
 
   @override
   String toString() => 'Cover art load canceled before network start: $key';
+}
+
+/// The server answered an artwork request with an HTTP success whose body is
+/// not an image (a Subsonic XML error, a proxy login page, or HTML). The
+/// bytes are rejected before the cache manager can persist them.
+class CoverArtInvalidResponseException implements Exception {
+  const CoverArtInvalidResponseException(this.contentType);
+
+  final String contentType;
+
+  @override
+  String toString() =>
+      'Cover art response was not an image (content-type: $contentType)';
 }
 
 class CoverArtLoadInterest {
@@ -387,6 +409,22 @@ class CoverArtHttpFileService implements FileService {
         'Cover art response: status=${response.statusCode} '
         'length=${response.contentLength} uri=$diagnosticUri',
       );
+      final contentType = response.headers.contentType;
+      if ((response.statusCode == HttpStatus.ok ||
+              response.statusCode == HttpStatus.accepted) &&
+          contentType != null &&
+          contentType.primaryType != 'image') {
+        // HTTP-success but not artwork: a Subsonic error document, a proxy
+        // login page, or HTML. Drain and reject so nothing invalid is cached.
+        lease.release();
+        final description = contentType.toString();
+        try {
+          await response.drain<void>().timeout(_bodyReadTimeout);
+        } on Object {
+          // The rejection itself must not be masked by a drain failure.
+        }
+        throw CoverArtInvalidResponseException(description);
+      }
       return _CoverArtHttpFileServiceResponse(
         response,
         bodyReadTimeout: _bodyReadTimeout,

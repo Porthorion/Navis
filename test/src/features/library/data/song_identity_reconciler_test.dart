@@ -137,6 +137,80 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test('conflicting recording MBIDs prohibit metadata-only matching', () {
+    final canonical = _song(
+      id: 'canonical',
+      provisional: false,
+      recordingMbid: 'mbid-a',
+    );
+    final result = reconciler.matchCanonicalSong(
+      canonicalSong: canonical,
+      provisionalSongs: <SongsTableData>[
+        _song(
+          id: 'remote',
+          provisional: true,
+          recordingMbid: 'mbid-b',
+        ),
+      ],
+    );
+
+    expect(result, isA<SongIdentityUnmatched>());
+  }, skip: !sqliteAvailable);
+
+  test('matching does not depend on candidate or canonical page order', () {
+    final canonical = _song(
+      id: 'canonical-b',
+      provisional: false,
+      title: 'Song B',
+      recordingMbid: 'shared-mbid',
+    );
+    final candidates = <SongsTableData>[
+      _song(
+        id: 'remote-b',
+        provisional: true,
+        title: 'Song B',
+        recordingMbid: 'shared-mbid',
+      ),
+      _song(
+        id: 'remote-a',
+        provisional: true,
+        title: 'Song A',
+        recordingMbid: 'other-mbid',
+      ),
+    ];
+
+    final forward = reconciler.matchCanonicalSong(
+      canonicalSong: canonical,
+      provisionalSongs: candidates,
+    );
+    final reversed = reconciler.matchCanonicalSong(
+      canonicalSong: canonical,
+      provisionalSongs: candidates.reversed.toList(),
+    );
+
+    expect((forward as SongIdentityMatched).provisionalSong.id, 'remote-b');
+    expect((reversed as SongIdentityMatched).provisionalSong.id, 'remote-b');
+  }, skip: !sqliteAvailable);
+
+  test('session captures ambiguity with involved IDs for review', () async {
+    final canonical = _song(id: 'canonical', provisional: false, title: 'Twin');
+    final session = await reconciler.startSession(
+      provisionalSongs: <SongsTableData>[
+        _song(id: 'remote-a', provisional: true, title: 'Twin'),
+        _song(id: 'remote-b', provisional: true, title: 'Twin'),
+      ],
+    );
+    await session.reconcile(<SongsTableData>[canonical]);
+
+    final summary = session.summary;
+    expect(summary.ambiguousMatchCount, 1);
+    expect(summary.ambiguousCases.single.canonicalSongId, 'canonical');
+    expect(summary.ambiguousCases.single.candidateIds, <String>[
+      'remote-a',
+      'remote-b',
+    ]);
+  }, skip: !sqliteAvailable);
+
   test('retains ambiguous exact candidates', () {
     final canonical = _song(id: 'canonical', provisional: false);
     final result = reconciler.matchCanonicalSong(

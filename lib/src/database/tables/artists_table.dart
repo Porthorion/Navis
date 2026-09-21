@@ -12,6 +12,19 @@ class ArtistsTable extends Table {
 
   TextColumn get coverArt => text().nullable()();
 
+  /// Incremented on targeted artwork recovery. Zero keeps the legacy
+  /// cache-key layout so existing offline artwork stays valid.
+  /// Nullable so rows never refreshed keep legacy data-class behavior;
+  /// treat null as revision zero when composing cache keys.
+  IntColumn get coverArtRevision => integer().nullable()();
+
+  /// MusicBrainz artist identifier, when the server supplies one. Used to
+  /// map artists across server ID changes without metadata guessing.
+  TextColumn get artistMbid => text().nullable()();
+
+  /// Typed catalog availability. Null reads as present for legacy rows.
+  TextColumn get catalogAvailability => text().nullable()();
+
   DateTimeColumn get starred => dateTime().nullable()();
 
   /// True for lightweight parent rows created from online search/playback

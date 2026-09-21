@@ -38,6 +38,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show quickSearchOverlayVisibleProvider;
+import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -2172,6 +2173,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       );
                     }, childCount: filteredSongs.length),
                   ),
+                _UnavailableReviewSliver(),
               ],
             ],
           );
@@ -2763,5 +2765,33 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     Offset? anchor,
   }) {
     unawaited(showArtistContextMenu(context, ref, artistId, anchor: anchor));
+  }
+}
+
+/// Liked-tab entry to the unavailable-items review list, shown only when at
+/// least one item is awaiting review.
+class _UnavailableReviewSliver extends ConsumerWidget {
+  const _UnavailableReviewSliver();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pendingCount = ref
+        .watch(pendingUnavailableCountProvider)
+        .asData
+        ?.value;
+    if (pendingCount == null || pendingCount == 0) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    final l10n = AppLocalizations.of(context)!;
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: ActionChip(
+          avatar: const Icon(Icons.playlist_remove),
+          label: Text(l10n.unavailableReviewEntryWithCount(pendingCount)),
+          onPressed: () => context.push('/settings/unavailable-items'),
+        ),
+      ),
+    );
   }
 }

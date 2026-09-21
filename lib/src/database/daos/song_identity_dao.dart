@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
 import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
+import 'package:navis/src/database/tables/entity_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_feedback_queue_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_weekly_cache_table.dart';
@@ -39,10 +41,16 @@ class SongIdentityRemapResult {
   const SongIdentityRemapResult({
     required this.alias,
     this.deletedFilePaths = const <String>[],
+    this.restoredLike = false,
   });
 
   final SongIdentityAlias alias;
   final List<String> deletedFilePaths;
+
+  /// True when the replacement row lacked the old row's like and the like was
+  /// carried forward with its original local timestamp plus a server star
+  /// action, so other clients receive the recovered favorite.
+  final bool restoredLike;
 }
 
 class ProvisionalGarbageCollectionResult {
@@ -63,6 +71,7 @@ class ProvisionalGarbageCollectionResult {
     AlbumsTable,
     SongsTable,
     SongIdentityAliasesTable,
+    EntityIdentityAliasTable,
     CachedTracksTable,
     DownloadQueueTable,
     PlayHistoryTable,
@@ -80,11 +89,19 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     with _$SongIdentityDaoMixin {
   SongIdentityDao(super.attachedDatabase);
 
+  /// Provisional candidates for identity reconciliation.
+  ///
+  /// Includes rows retained after disappearing from the server
+  /// (`serverDeletedAt` set, typically because a permanent download or local
+  /// references survived) so a later server scan that re-issues their content
+  /// under a new ID can still relink them.
   Future<List<SongsTableData>> getProvisionalSongs() {
     final query = select(songsTable)
       ..where(
         (table) =>
-            table.isProvisional.equals(true) & table.serverDeletedAt.isNull(),
+            (table.isProvisional.equals(true) &
+                table.serverDeletedAt.isNull()) |
+            table.serverDeletedAt.isNotNull(),
       );
     return query.get();
   }
@@ -161,29 +178,6 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       throw ArgumentError('Song identity remapping requires two distinct IDs.');
     }
 
-    final canonicalSong =
-        await (select(songsTable)
-              ..where((table) => table.id.equals(canonicalId))
-              ..limit(1))
-            .getSingleOrNull();
-    if (canonicalSong == null) {
-      throw StateError('Canonical song $canonicalId does not exist.');
-    }
-    final oldSong =
-        await (select(songsTable)
-              ..where((table) => table.id.equals(oldId))
-              ..limit(1))
-            .getSingleOrNull();
-    if (oldSong == null) {
-      throw StateError('Provisional song $oldId does not exist.');
-    }
-
-    final oldCache = await _cacheRow(oldId);
-    final canonicalCache = await _cacheRow(canonicalId);
-    final cacheChoice = await _chooseCacheWinner(
-      oldCache: oldCache,
-      canonicalCache: canonicalCache,
-    );
     final timestamp = matchedAt ?? DateTime.now();
     final alias = SongIdentityAlias(
       oldSongId: oldId,
@@ -192,7 +186,34 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       matchedAt: timestamp,
     );
 
+    var restoredLike = false;
+    final oldCache = await _cacheRow(oldId);
+    final canonicalCache = await _cacheRow(canonicalId);
+    final cacheChoice = await _chooseCacheWinner(
+      oldCache: oldCache,
+      canonicalCache: canonicalCache,
+    );
+
     await transaction(() async {
+      // Read both rows inside the transaction so the merge below observes the
+      // same state the reference remaps commit against.
+      final canonicalSong =
+          await (select(songsTable)
+                ..where((table) => table.id.equals(canonicalId))
+                ..limit(1))
+              .getSingleOrNull();
+      if (canonicalSong == null) {
+        throw StateError('Canonical song $canonicalId does not exist.');
+      }
+      final oldSong =
+          await (select(songsTable)
+                ..where((table) => table.id.equals(oldId))
+                ..limit(1))
+              .getSingleOrNull();
+      if (oldSong == null) {
+        throw StateError('Provisional song $oldId does not exist.');
+      }
+
       await _remapCache(
         oldSongId: oldId,
         canonicalSongId: canonicalId,
@@ -300,10 +321,70 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         ''',
         <Object?>[canonicalId, oldId],
       );
+      // Absence evidence attached to the old identity transfers to the
+      // replacement; leftover rows for the canonical ID would only double-count
+      // observations, so they are replaced by the remapped evidence.
+      await customStatement(
+        'UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? '
+        "WHERE entity_type = 'song' AND entity_id = ?;",
+        <Object?>[canonicalId, oldId],
+      );
+      await customStatement(
+        "DELETE FROM starred_absence_candidates "
+        "WHERE entity_type = 'song' AND entity_id = ?;",
+        <Object?>[oldId],
+      );
+      await customStatement(
+        "UPDATE library_sync_local_mutations SET entity_id = ? "
+        "WHERE entity_type = 'song' AND entity_id = ?;",
+        <Object?>[canonicalId, oldId],
+      );
+      // Merge user state with local precedence: an explicit canonical value
+      // from the server snapshot wins; otherwise the old row's favorite or
+      // rating carries forward. A carried like keeps its original local
+      // timestamp and is queued so the server restores it for other clients.
+      final carriedStarredAt = canonicalSong.starred == null
+          ? oldSong.starred
+          : null;
+      final carriedRating = canonicalSong.userRating == null
+          ? oldSong.userRating
+          : null;
+      if (carriedStarredAt != null || carriedRating != null) {
+        await (update(songsTable)..where(
+              (table) => table.id.equals(canonicalId),
+            ))
+            .write(
+              SongsTableCompanion(
+                starred: carriedStarredAt != null
+                    ? Value(carriedStarredAt)
+                    : const Value.absent(),
+                userRating: carriedRating != null
+                    ? Value(carriedRating)
+                    : const Value.absent(),
+              ),
+            );
+      }
+      if (carriedStarredAt != null) {
+        await attachedDatabase.starSyncDao.queueStarAction(
+          itemId: canonicalId,
+          itemType: 'song',
+          action: 'star',
+        );
+        restoredLike = true;
+      }
       await into(songIdentityAliasesTable).insertOnConflictUpdate(
         SongIdentityAliasesTableCompanion.insert(
           oldSongId: oldId,
           canonicalSongId: canonicalId,
+          matchReason: matchReason,
+          matchedAt: timestamp,
+        ),
+      );
+      await into(entityIdentityAliasTable).insertOnConflictUpdate(
+        EntityIdentityAliasTableCompanion.insert(
+          entityType: 'song',
+          oldId: oldId,
+          newId: canonicalId,
           matchReason: matchReason,
           matchedAt: timestamp,
         ),
@@ -343,6 +424,7 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     return SongIdentityRemapResult(
       alias: alias,
       deletedFilePaths: deletedPaths,
+      restoredLike: restoredLike,
     );
   }
 
@@ -475,12 +557,12 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         row.fileSize <= 0) {
       return false;
     }
-    try {
-      final file = File(row.filePath);
-      return await file.exists() && await file.length() > 0;
-    } on FileSystemException {
-      return false;
-    }
+    // SAF document URIs must be validated through the platform bridge;
+    // File.exists() cannot see them.
+    return storedAudioExists(
+      locator: row.filePath,
+      storageKind: row.storageKind,
+    );
   }
 
   Future<void> _remapCache({

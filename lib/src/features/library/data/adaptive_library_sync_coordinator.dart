@@ -91,6 +91,67 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   Future<void>? _auxiliaryDrain;
   int _cancellationGeneration = 0;
 
+  // In-memory repair-session state. The mobile-data grant deliberately never
+  // reaches persistence: a process restart, sign-out, account change, or
+  // explicit cancel always starts from "no consent".
+  int? _repairSessionServerId;
+  String? _repairSessionId;
+  bool _repairSessionMeteredGrant = false;
+
+  /// Opens a repair session and returns its stable identity.
+  ///
+  /// The session owns the mobile-data grant for all retry and reconnect
+  /// attempts until [endRepairSession] clears it, so a consented repair never
+  /// loses its grant to an automatic resume that re-enters without the
+  /// original flag.
+  String beginRepairSession({
+    required int serverId,
+    bool allowMetered = false,
+  }) {
+    _repairSessionServerId = serverId;
+    _repairSessionId = _newLeaseToken();
+    _repairSessionMeteredGrant = allowMetered;
+    return _repairSessionId!;
+  }
+
+  /// Clears the session and its grant. Safe to call for any server.
+  void endRepairSession({int? serverId}) {
+    if (serverId != null && _repairSessionServerId != serverId) {
+      return;
+    }
+    _repairSessionServerId = null;
+    _repairSessionId = null;
+    _repairSessionMeteredGrant = false;
+  }
+
+  String? get repairSessionId {
+    final serverId = _repairSessionServerId;
+    if (serverId == null) {
+      return null;
+    }
+    return _repairSessionId;
+  }
+
+  /// Applies the in-session mobile-data grant to [request] and reports whether
+  /// the repair is admitted to start or join work at all.
+  ///
+  /// Consent is resolved here — before planning or durable work is joined — so
+  /// an automatic controller startup cannot race the user's consent action.
+  (LibrarySyncRequest, bool) _admitRepairConsent(
+    LibrarySyncRequest request,
+    int serverId,
+    SyncNetworkPolicy policy,
+  ) {
+    final sessionGrant =
+        _repairSessionServerId == serverId && _repairSessionMeteredGrant;
+    var effective = request;
+    if (sessionGrant && !request.allowMeteredBroadOverride) {
+      effective = request.copyWithMeteredBroadOverride();
+    }
+    final consented = effective.allowMeteredBroadOverride || !policy.isMetered;
+    return (effective, consented);
+  }
+
   static const Duration _defaultExecutionLeaseTtl = Duration(minutes: 10);
   static const Duration _defaultExecutionLeaseHeartbeatInterval = Duration(
     minutes: 1,
@@ -145,7 +206,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     if (running != null) {
       await running;
     } else {
-      final drain = _refreshDueAuxiliary(serverId, cancellationGeneration);
+      final drain = _refreshAuxiliary(
+        serverId,
+        cancellationGeneration,
+        sourceRequest: request,
+      );
       _auxiliaryDrain = drain;
       try {
         await drain;
@@ -168,7 +233,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   static const _auxiliaryTargets = <LibrarySyncTarget>[
     LibrarySyncTarget.starred(),
     LibrarySyncTarget.playlistHeaders(),
-    LibrarySyncTarget.genres(),
   ];
 
   Future<bool> _auxiliaryIsDue(int serverId, LibrarySyncTarget target) async {
@@ -180,32 +244,41 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     if (work == null) return true;
     if (work.status == 'cancelled' || work.status == 'running') return false;
     if (work.notBefore?.isAfter(_now()) == true) return false;
-    final interval = target.kind == LibrarySyncTargetKind.genres
-        ? const Duration(days: 7)
-        : const Duration(hours: 12);
     return work.status != 'completed' ||
-        _now().difference(work.updatedAt) >= interval;
+        _now().difference(work.updatedAt) >= const Duration(hours: 12);
   }
 
-  Future<void> _refreshDueAuxiliary(
+  Future<void> _refreshAuxiliary(
     int serverId,
-    int cancellationGeneration,
-  ) async {
+    int cancellationGeneration, {
+    required LibrarySyncRequest sourceRequest,
+  }) async {
+    final isExplicit = sourceRequest.intent != LibrarySyncIntent.automatic;
     for (final target in _auxiliaryTargets) {
       if (cancellationGeneration != _cancellationGeneration ||
           (await _serverConfigRepository.getActiveServer())?.id != serverId) {
         return;
       }
-      if (!await _auxiliaryIsDue(serverId, target)) continue;
+      if (!isExplicit && !await _auxiliaryIsDue(serverId, target)) continue;
       if (cancellationGeneration != _cancellationGeneration) return;
-      // Each domain owns its durable checkpoint and retry schedule. A failed
-      // domain must not roll back a catalog commit or starve the other domains.
+      // Explicit catalog sync includes the user-facing companion domains.
+      // Scheduled sync keeps their separate freshness interval, retry queue,
+      // playback gate, and unmetered-only background policy.
       try {
         await _requestSync(
           LibrarySyncRequest(
-            trigger: LibrarySyncTrigger.interval,
-            intent: LibrarySyncIntent.automatic,
+            trigger: isExplicit
+                ? sourceRequest.trigger
+                : LibrarySyncTrigger.interval,
+            intent: isExplicit
+                ? LibrarySyncIntent.checkForUpdates
+                : LibrarySyncIntent.automatic,
             target: target,
+            allowMeteredBroadOverride:
+                isExplicit && sourceRequest.allowMeteredBroadOverride,
+            caller: isExplicit
+                ? sourceRequest.caller
+                : LibrarySyncRequestCaller.unspecified,
           ),
         );
       } on Object {
@@ -214,8 +287,21 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     }
   }
 
+  /// Genre metadata is no longer synchronized. Finish any durable work left
+  /// by an older app version so it cannot keep the sync backlog non-empty.
+  Future<void> _retireDisabledGenreWork(int serverId) async {
+    final work = await _database.librarySyncDao.getWork(
+      serverId: serverId,
+      kind: LibrarySyncPlanKind.targetedHydration.name,
+      entityId: librarySyncTargetWorkKey(const LibrarySyncTarget.genres()),
+    );
+    if (work?.status == 'queued' || work?.status == 'failed') {
+      await _database.librarySyncDao.markCompleted(work!.id, now: _now());
+    }
+  }
+
   Future<LibrarySyncState> _requestSync(
-    LibrarySyncRequest request, {
+    LibrarySyncRequest requestInput, {
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -224,10 +310,38 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final serverId = config?.id;
     if (config == null || serverId == null) {
       return _executor.requestSync(
-        request,
+        requestInput,
         priorityAlbumIds: priorityAlbumIds,
         onProgress: onProgress,
       );
+    }
+
+    // Resolve the repair-session consent before any planning, durable run, or
+    // queued work is joined, so a consented request can never be satisfied by
+    // a weaker deferred one and an automatic start cannot race the consent
+    // dialog. A session bound to another server is stale by definition.
+    if (_repairSessionServerId != null && _repairSessionServerId != serverId) {
+      endRepairSession();
+    }
+    final policy = _syncPolicy;
+    var request = requestInput;
+    if (requestInput.intent == LibrarySyncIntent.repair) {
+      final (admittedRequest, consented) = _admitRepairConsent(
+        requestInput,
+        serverId,
+        policy,
+      );
+      request = admittedRequest;
+      if (!consented) {
+        return LibrarySyncState(
+          status: LibrarySyncStatus.deferred,
+          stage: LibrarySyncStage.completed,
+          completedAt: _now(),
+          planKind: LibrarySyncPlanKind.fullRepair,
+          planReason: 'waitingForMobileConsent',
+          failureCategory: 'consent',
+        );
+      }
     }
 
     var persisted = await _database.librarySyncDao.getOrCreateState(serverId);
@@ -321,6 +435,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       }
       persisted = await _database.librarySyncDao.getOrCreateState(serverId);
     }
+    await _retireDisabledGenreWork(serverId);
     final canProbeCircuitEarly = switch (request.trigger) {
       LibrarySyncTrigger.user ||
       LibrarySyncTrigger.interaction ||
@@ -396,7 +511,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final auditDue =
         persisted.lastAuditAt == null ||
         timestamp.difference(persisted.lastAuditAt!) >= auditInterval;
-    final policy = _syncPolicy;
     final runnableBeforePlanning = await _database.librarySyncDao
         .getRunnableWork(serverId: serverId, now: timestamp, limit: 8);
     final resumedWork =
@@ -753,14 +867,18 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               now: startedAt,
             );
         activeAttemptId = durableAttempt.id;
-        final runnable = await _database.librarySyncDao.getRunnableWork(
+        final matchingWork = await _database.librarySyncDao.getWork(
           serverId: serverId,
-          now: startedAt,
+          kind: plan.kind.name,
+          entityId: targetWorkKey,
         );
-        final work = runnable.where(
-          (row) => row.kind == plan.kind.name && row.entityId == targetWorkKey,
-        );
-        final activeWork = work.isEmpty ? null : work.first;
+        final activeWork =
+            matchingWork != null &&
+                (matchingWork.status == 'queued' ||
+                    matchingWork.status == 'failed') &&
+                matchingWork.notBefore?.isAfter(startedAt) != true
+            ? matchingWork
+            : null;
         if (activeWork != null) {
           await _database.librarySyncDao.markRunning(
             activeWork.id,
@@ -803,6 +921,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         );
         try {
           LibrarySyncState result;
+          var explicitBudgetPartial = false;
           try {
             result = await scope.run(
               () => _executeDelegate(
@@ -820,10 +939,23 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 },
               ),
             );
-            if (scope.stopped != null) {
+            final stoppedReason = scope.stopped?.reason;
+            // A user-initiated check can make useful, committed progress
+            // before reaching its deliberately bounded discovery budget. Keep
+            // the remaining work queued, but report that truth as a partial
+            // completion instead of a policy deferral. The latter is reserved
+            // for work that did not receive permission to run (offline,
+            // backgrounded, metered, and so on), and was making an explicit
+            // refresh look like it did nothing.
+            explicitBudgetPartial =
+                request.intent == LibrarySyncIntent.checkForUpdates &&
+                _isResumableBudgetStop(stoppedReason);
+            if (stoppedReason != null) {
               result = result.copyWith(
-                status: LibrarySyncStatus.deferred,
-                failureCategory: scope.stopped!.reason,
+                status: explicitBudgetPartial
+                    ? LibrarySyncStatus.partial
+                    : LibrarySyncStatus.deferred,
+                failureCategory: stoppedReason,
               );
             }
           } on Object catch (error) {
@@ -885,7 +1017,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           if (activeWork != null && !(await _workIsCompleted(activeWork))) {
             if (cancelled) {
               await _database.librarySyncDao.markCancelled(activeWork.id);
-            } else if (deferred) {
+            } else if (deferred || explicitBudgetPartial) {
               // Preserve checkpoints; return the row to the queue for later.
               await _database.librarySyncDao.requeue(
                 activeWork.id,
@@ -966,9 +1098,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                     ? starredWork.updatedAt
                     : playlistsWork.updatedAt)
               : persisted.lastAuxiliarySyncedAt;
-          final genresUpdated =
-              result.status == LibrarySyncStatus.succeeded &&
-              result.genresSynchronized;
           final nextRetryAt = circuitRelevant && failed
               ? _laterRetry(
                   _cooldownUntil(persisted.failureStreak + 1),
@@ -988,9 +1117,6 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               ),
               lastAuxiliarySyncedAt: Value(
                 auxiliaryCompletedAt,
-              ),
-              lastGenresSyncedAt: Value(
-                genresUpdated ? completedAt : persisted.lastGenresSyncedAt,
               ),
               failureStreak: Value(
                 circuitRelevant
@@ -1048,15 +1174,13 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 ? completedAt
                 : persisted.lastCatalogSyncedAt,
             lastAuxiliarySyncedAt: auxiliaryCompletedAt,
-            lastGenresSyncedAt: genresUpdated
-                ? completedAt
-                : persisted.lastGenresSyncedAt,
             failureCategory: failed
                 ? (result.failureCategory ?? 'sync')
-                : deferred
+                : deferred || explicitBudgetPartial
                 ? result.failureCategory
                 : null,
-            clearFailureCategory: !failed && !deferred,
+            clearFailureCategory:
+                !failed && !deferred && !explicitBudgetPartial,
             nextRetryAt: nextRetryAt,
             clearNextRetryAt: nextRetryAt == null,
             candidateGeneration:
@@ -1174,10 +1298,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         SyncEndpoint.artist,
         SyncEndpoint.album,
       },
-      SyncExecutionPlanKind.auxiliaryRefresh => const <SyncEndpoint>{
-        SyncEndpoint.starred,
-        SyncEndpoint.playlists,
-        SyncEndpoint.genres,
+      SyncExecutionPlanKind.auxiliaryRefresh => switch (request.target.kind) {
+        LibrarySyncTargetKind.starred => const <SyncEndpoint>{
+          SyncEndpoint.starred,
+        },
+        LibrarySyncTargetKind.playlistHeaders => const <SyncEndpoint>{
+          SyncEndpoint.playlists,
+        },
+        _ => const <SyncEndpoint>{},
       },
       SyncExecutionPlanKind.targetHydration => const <SyncEndpoint>{
         SyncEndpoint.artist,
@@ -1259,6 +1387,17 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     return SyncSafeReason.none;
   }
 
+  bool _isResumableBudgetStop(String? reason) {
+    return switch (reason) {
+      'byteBudget' ||
+      'entityBudget' ||
+      'pageBudget' ||
+      'requestBudget' ||
+      'timeBudget' => true,
+      _ => false,
+    };
+  }
+
   SyncRunOutcome _typedOutcomeFor({
     required LibrarySyncStatus status,
     required LibrarySyncState result,
@@ -1281,6 +1420,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     };
     final reason = switch (kind) {
       SyncRunOutcomeKind.deferred
+          when result.failureCategory?.endsWith('Budget') == true =>
+        SyncSafeReason.responseBudgetExceeded,
+      SyncRunOutcomeKind.partial
           when result.failureCategory?.endsWith('Budget') == true =>
         SyncSafeReason.responseBudgetExceeded,
       SyncRunOutcomeKind.deferred when deferred && _syncPolicy.isOffline =>

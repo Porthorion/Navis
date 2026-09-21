@@ -36,7 +36,23 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
-        'Rapid Next, Previous, and queue selections now settle on the requested track without leaving playback stuck or resuming after Pause',
+        'Repair Library now runs from Sync Settings without leaving your library, keeps its mobile-data approval across retries, and can always be cancelled',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Navis now detects server library rescans and refreshes changed metadata automatically on the next check',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Songs whose server IDs change after a rescan are relinked automatically when evidence is unambiguous; ambiguous cases stay in a new Unavailable Items review list instead of disappearing',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Recovered favorites keep their original like time and are restored to the server so other clients see them; missing-but-favorited items keep their likes and downloads',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Cover art refreshes are targeted: changed covers reload without clearing the whole artwork cache, and server error pages are never saved as artwork',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -45,6 +61,14 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Likes and ratings sync through a durable retry queue, including album and artist favorites and offline rating changes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Check for updates and Repair Library now refresh Likes and playlist headers even while music is playing, while scheduled sync remains conservative and unused genre metadata is no longer fetched or offered in Android Auto',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Check for updates now reports work completed within its safe sync limit and keeps the remaining library refresh queued',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

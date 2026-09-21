@@ -184,10 +184,6 @@ abstract interface class TargetedLibrarySyncExecutor {
   Future<LibrarySyncState> syncStarredContent({
     LibrarySyncProgressCallback? onProgress,
   });
-
-  Future<LibrarySyncState> syncGenres({
-    LibrarySyncProgressCallback? onProgress,
-  });
 }
 
 /// Compatibility boundary for the typed scheduler. Implementations receive
@@ -255,8 +251,12 @@ extension LibrarySyncExecutionPlanAdapter on LibrarySyncEngine {
           targetExecutor.syncPlaylistHeaders(onProgress: onProgress),
         LibrarySyncTargetKind.starred when targetExecutor != null =>
           targetExecutor.syncStarredContent(onProgress: onProgress),
-        LibrarySyncTargetKind.genres when targetExecutor != null =>
-          targetExecutor.syncGenres(onProgress: onProgress),
+        // Genre metadata is not part of Navis's library sync contract. Keep
+        // this compatibility branch for a persisted pre-1.4 target, but do
+        // not turn it into an unrelated catalog verification pass.
+        LibrarySyncTargetKind.genres => _genresSyncDisabled(
+          onProgress: onProgress,
+        ),
         _ => continueVerification(
           priorityAlbumIds: priorityAlbumIds,
           onProgress: onProgress,
@@ -264,6 +264,19 @@ extension LibrarySyncExecutionPlanAdapter on LibrarySyncEngine {
       },
     };
   }
+}
+
+Future<LibrarySyncState> _genresSyncDisabled({
+  LibrarySyncProgressCallback? onProgress,
+}) {
+  final state = LibrarySyncState(
+    status: LibrarySyncStatus.skipped,
+    stage: LibrarySyncStage.completed,
+    completedAt: DateTime.now(),
+    metadataReady: true,
+  );
+  onProgress?.call(state);
+  return Future<LibrarySyncState>.value(state);
 }
 
 abstract class LibrarySyncApi {
@@ -277,6 +290,13 @@ abstract class LibrarySyncApi {
   }
 
   Future<StarredContent> getStarredContent();
+
+  /// Best-effort scan-status probe. Returns null when the server does not
+  /// implement `getScanStatus`; unsupported providers must not block sync.
+  Future<ScanStatus?> getScanStatusOrNull() async {
+    return null;
+  }
+
   Future<SearchResult3> searchSongsPage({
     required String query,
     required int size,
@@ -297,7 +317,6 @@ abstract class LibrarySyncApi {
     DateTime? ifModifiedSince,
     bool disableRetry = false,
   });
-  Future<List<Genre>> getGenres();
   Future<List<Playlist>> getPlaylists();
 }
 
@@ -348,6 +367,22 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
 
   final SubsonicApiClient _api;
   CancelToken _cancelToken = CancelToken();
+
+  @override
+  Future<ScanStatus?> getScanStatusOrNull() async {
+    try {
+      return await _api.getScanStatus(cancelToken: _cancelToken);
+    } on SubsonicApiException catch (error) {
+      // Servers without the endpoint typically answer with the not-found
+      // error code. Record that through the caller's observation handling
+      // and keep synchronization on its existing discovery path; auth and
+      // transport failures keep their normal retry semantics.
+      if (error.code == 70) {
+        return null;
+      }
+      rethrow;
+    }
+  }
 
   @override
   void beginRun() {
@@ -447,9 +482,6 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
   );
 
   @override
-  Future<List<Genre>> getGenres() => _api.getGenres(cancelToken: _cancelToken);
-
-  @override
   Future<List<Playlist>> getPlaylists() =>
       _api.getPlaylists(cancelToken: _cancelToken);
 }
@@ -471,9 +503,7 @@ const _librarySyncFailureDiagnosticsCapabilityKey =
 const _librarySyncFailureRecordedAtCapabilityKey =
     'librarySyncFailureRecordedAt';
 const _auxiliarySyncLastSyncedAtCapabilityKey = 'auxiliarySyncLastSyncedAt';
-const _genresSyncLastSyncedAtCapabilityKey = 'genresSyncLastSyncedAt';
 const _defaultAuxiliarySyncStaleAfter = Duration(hours: 12);
-const _defaultGenresSyncStaleAfter = Duration(days: 7);
 const _defaultHealthProbeStaleAfter = Duration(hours: 12);
 const _indexesCapabilityRetryAfter = Duration(days: 1);
 const _normalArtistVerificationLimit = 48;
@@ -500,13 +530,6 @@ DateTime? _readStoredAuxiliarySyncedAt(String? capabilitiesJson) {
     return null;
   }
   return DateTime.tryParse(raw);
-}
-
-DateTime? _readStoredGenresSyncedAt(String? capabilitiesJson) {
-  return _readNavisDateCapability(
-    capabilitiesJson,
-    _genresSyncLastSyncedAtCapabilityKey,
-  );
 }
 
 LibrarySyncFreshness _readStoredLibraryFreshness(String? capabilitiesJson) {
@@ -583,17 +606,6 @@ String? _mergeStoredAuxiliarySyncedAt(
   return _mergeNavisStringCapability(
     capabilitiesJson,
     _auxiliarySyncLastSyncedAtCapabilityKey,
-    syncedAt?.toUtc().toIso8601String(),
-  );
-}
-
-String? _mergeStoredGenresSyncedAt(
-  String? capabilitiesJson,
-  DateTime? syncedAt,
-) {
-  return _mergeNavisStringCapability(
-    capabilitiesJson,
-    _genresSyncLastSyncedAtCapabilityKey,
     syncedAt?.toUtc().toIso8601String(),
   );
 }
@@ -1595,17 +1607,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     );
   }
 
-  @override
-  Future<LibrarySyncState> syncGenres({
-    LibrarySyncProgressCallback? onProgress,
-  }) {
-    return _runAuxiliaryTarget(
-      stage: LibrarySyncStage.fetchingGenres,
-      operation: _syncGenresStrict,
-      onProgress: onProgress,
-    );
-  }
-
   Future<LibrarySyncState> _runAuxiliaryTarget({
     required LibrarySyncStage stage,
     required Future<void> Function(_SyncRunMetrics metrics) operation,
@@ -1808,7 +1809,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         LibrarySyncTargetKind.starred => syncStarredContent(
           onProgress: onProgress,
         ),
-        LibrarySyncTargetKind.genres => syncGenres(onProgress: onProgress),
+        LibrarySyncTargetKind.genres => _genresSyncDisabled(
+          onProgress: onProgress,
+        ),
         _ => _runWithLock(
           force: true,
           forceFull: false,
@@ -1894,6 +1897,17 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           rethrow;
         }
         indexesUnsupported = true;
+      }
+
+      // Scan-aware admission rides the existing scheduled probe: a newly
+      // completed server scan opens one resumable snapshot through the same
+      // coordinator path as an index change. No separate polling loop.
+      final scanChanged = await _observeScanStatusAndDetectChange(
+        serverId: serverConfig.id!,
+        metrics: metrics,
+      );
+      if (scanChanged) {
+        indexChanged = true;
       }
 
       // Never advance the committed cursor from a probe. Evidence is returned
@@ -2654,15 +2668,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         auxiliarySyncStaleAfter;
   }
 
-  bool _shouldSyncGenres(String? capabilitiesJson) {
-    final lastGenresSync = _readStoredGenresSyncedAt(capabilitiesJson);
-    if (lastGenresSync == null) {
-      return true;
-    }
-    return DateTime.now().difference(lastGenresSync) >=
-        _defaultGenresSyncStaleAfter;
-  }
-
   Future<void> _updateStoredIndexesFingerprint(
     String fingerprint,
     _SyncRunMetrics metrics,
@@ -2687,23 +2692,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     final serverConfig = await _serverConfigRepository.getActiveServer();
     final currentCapabilitiesJson = serverConfig?.capabilitiesJson;
     final nextCapabilitiesJson = _mergeStoredAuxiliarySyncedAt(
-      currentCapabilitiesJson,
-      syncedAt,
-    );
-    if (nextCapabilitiesJson == currentCapabilitiesJson) {
-      return;
-    }
-    await _serverConfigRepository.updateCapabilitiesJson(nextCapabilitiesJson);
-    metrics.addDbWriteBatch();
-  }
-
-  Future<void> _markGenresSynced(
-    DateTime syncedAt,
-    _SyncRunMetrics metrics,
-  ) async {
-    final serverConfig = await _serverConfigRepository.getActiveServer();
-    final currentCapabilitiesJson = serverConfig?.capabilitiesJson;
-    final nextCapabilitiesJson = _mergeStoredGenresSyncedAt(
       currentCapabilitiesJson,
       syncedAt,
     );
@@ -3159,6 +3147,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       ),
     );
     metrics.metadataChanged = true;
+    final scanTokenAtCollection = await _recordScanObservation(
+      serverId: serverId,
+      metrics: metrics,
+    );
     var current = _withMetrics(
       state.copyWith(
         stage: LibrarySyncStage.fetchingArtists,
@@ -3468,9 +3460,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       metrics,
     );
     onProgress?.call(current);
-    await _promoteFullSyncCandidate(
+    final promoted = await _promoteFullSyncCandidate(
       serverId: serverId,
       generation: catalogGeneration,
+      scanTokenAtCollection: scanTokenAtCollection,
+      explicitRepair: mode == LibrarySyncMode.forceFull,
       staleArtistIds: staleArtistIds,
       staleAlbumIds: staleAlbumIds,
       metrics: metrics,
@@ -3488,14 +3482,24 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         onProgress?.call(current);
       },
     );
+    if (!promoted) {
+      current = _withMetrics(
+        current.copyWith(
+          stage: LibrarySyncStage.collectingCandidate,
+          candidateStatus: 'collecting',
+          freshness: LibrarySyncFreshness.repairRecommended,
+        ),
+        metrics,
+      );
+      onProgress?.call(current);
+      return current;
+    }
 
     current = current.copyWith(catalogPublishedThisRun: true);
 
     if (syncAuxiliary) {
-      current = await _syncGenresAndPlaylistsBestEffort(
+      current = await _syncPlaylistHeadersBestEffort(
         current: current,
-        syncGenres: true,
-        syncPlaylists: true,
         metrics: metrics,
         onProgress: onProgress,
       );
@@ -3533,9 +3537,127 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     return current;
   }
 
-  Future<void> _promoteFullSyncCandidate({
+  /// Observes the server scan state and reports whether a completed scan has
+  /// not been reconciled yet.
+  ///
+  /// Servers without `getScanStatus` are recorded once as unsupported and
+  /// never re-probed into repeated failures; in-progress scans produce no
+  /// token, so collection that overlaps a scan cannot claim completeness.
+  Future<bool> _observeScanStatusAndDetectChange({
+    required int serverId,
+    required _SyncRunMetrics metrics,
+  }) async {
+    String? token;
+    var supported = true;
+    var scanning = false;
+    try {
+      final status = await _api.getScanStatusOrNull();
+      metrics.recordApiAttempt(
+        elapsed: Duration.zero,
+        isRetryAttempt: false,
+        endpoint: 'getScanStatus',
+      );
+      if (status == null) {
+        supported = false;
+      } else if (status.scanning) {
+        scanning = true;
+      } else {
+        token = status.lastScan?.toIso8601String();
+      }
+    } on SubsonicException catch (error) {
+      AppLogger.warning('Scan status unavailable: $error');
+      return false;
+    }
+    await _database.librarySyncDao.recordScanObservation(
+      serverId: serverId,
+      scanInProgress: scanning,
+      supported: supported,
+      providerScanToken: token,
+    );
+    if (token == null) {
+      return false;
+    }
+    final observation = await _database.librarySyncDao.getScanObservation(
+      serverId,
+    );
+    return observation != null &&
+        observation.pendingReconciliation &&
+        observation.observedToken == token &&
+        observation.reconciledToken != token;
+  }
+
+  /// Observes the server scan state once and records it.
+  ///
+  /// Returns the completed-scan token (null while a scan is running or when
+  /// the provider exposes no token field) and whether `getScanStatus` is
+  /// supported at all.
+  Future<(String?, bool)> _recordScanObservation({
+    required int serverId,
+    required _SyncRunMetrics metrics,
+  }) async {
+    try {
+      final status = await _api.getScanStatusOrNull();
+      metrics.recordApiAttempt(
+        elapsed: Duration.zero,
+        isRetryAttempt: false,
+        endpoint: 'getScanStatus',
+      );
+      if (status == null) {
+        await _database.librarySyncDao.recordScanObservation(
+          serverId: serverId,
+          scanInProgress: false,
+          supported: false,
+        );
+        return (null, false);
+      }
+      if (status.scanning) {
+        await _database.librarySyncDao.recordScanObservation(
+          serverId: serverId,
+          scanInProgress: true,
+          supported: true,
+        );
+        return (null, true);
+      }
+      final token = status.lastScan?.toIso8601String();
+      await _database.librarySyncDao.recordScanObservation(
+        serverId: serverId,
+        scanInProgress: false,
+        supported: true,
+        providerScanToken: token,
+      );
+      return (token, true);
+    } on SubsonicException catch (error) {
+      AppLogger.warning('Scan status unavailable: $error');
+      return (null, false);
+    }
+  }
+
+  /// True when a scan landed between the two observations and the candidate's
+  /// completeness evidence can no longer be trusted.
+  bool _scanInvalidatedCollection(
+    (String?, bool) atCollection,
+    (String?, bool) atPromotion,
+  ) {
+    final (collectionToken, collectionSupported) = atCollection;
+    final (promotionToken, promotionSupported) = atPromotion;
+    if (!collectionSupported || !promotionSupported) {
+      // Unsupported scan status must not block synchronization; providers
+      // without tokens stay on their existing discovery/audit mechanisms.
+      return false;
+    }
+    // A scan running at collection start, or a changed completed token at
+    // promotion time, both mean the candidate may miss post-scan content.
+    return collectionToken != promotionToken;
+  }
+
+  /// Returns true when the candidate was promoted; false when a scan landed
+  /// during collection and the candidate's completeness evidence was withheld
+  /// for a safe recollect.
+  Future<bool> _promoteFullSyncCandidate({
     required int serverId,
     required int generation,
+    required (String?, bool) scanTokenAtCollection,
+    required bool explicitRepair,
     required List<String> staleArtistIds,
     required List<String> staleAlbumIds,
     required _SyncRunMetrics metrics,
@@ -3544,6 +3666,35 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     final syncState = await _database.librarySyncDao.getOrCreateState(serverId);
     final candidateStartedAt =
         syncState.candidateStartedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final scanAtPromotion = await _recordScanObservation(
+      serverId: serverId,
+      metrics: metrics,
+    );
+    if (_scanInvalidatedCollection(scanTokenAtCollection, scanAtPromotion)) {
+      // The server scanned while this candidate was collected. Promoting it
+      // would commit incomplete evidence; keep the committed catalog visible
+      // and let the resumable planner recollect missing work.
+      await _database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          candidateStatus: const Value('collecting'),
+        ),
+      );
+      await _database.librarySyncDao.recordOperationLedgerEntry(
+        serverId: serverId,
+        operation: 'catalogPromotion',
+        reason: 'scanChangedDuringCollection',
+        details: <String, Object?>{
+          'generation': generation,
+          'tokenAtCollection': scanTokenAtCollection.$1,
+          'tokenAtPromotion': scanAtPromotion.$1,
+        },
+      );
+      AppLogger.warning(
+        'Deferred catalog promotion: server scan changed during collection.',
+      );
+      return false;
+    }
     final provisionalSongs = await _database.songIdentityDao
         .getProvisionalSongs();
     final identitySession = provisionalSongs.isEmpty
@@ -3570,6 +3721,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     final stopwatch = Stopwatch()..start();
     final deferredCacheFiles = <String>[];
     var removedSongCount = 0;
+    var retainedUnavailableCount = 0;
     await _database.librarySyncDao.writeState(
       LibrarySyncStateTableCompanion(
         serverId: Value(serverId),
@@ -3606,6 +3758,9 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       for (final entry in localStarMutations.entries) {
         pendingStars[entry.key]?.addAll(entry.value);
       }
+      final changedArtistIds = <String>[];
+      final changedAlbumIds = <String>[];
+      final changedSongIds = <String>[];
       var afterArtistId = '';
       while (true) {
         final page = await _database.librarySyncCandidateDao
@@ -3616,6 +3771,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               limit: writeChunkSize,
             );
         if (page.isEmpty) break;
+        changedArtistIds.addAll(page.map((artist) => artist.id));
         await _database.libraryDao.upsertArtists([
           for (final artist in page)
             ArtistsTableCompanion.insert(
@@ -3642,6 +3798,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               limit: writeChunkSize,
             );
         if (page.isEmpty) break;
+        changedAlbumIds.addAll(page.map((album) => album.id));
         await _database.libraryDao.upsertAlbums(
           [
             for (final album in page)
@@ -3684,6 +3841,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
               limit: writeChunkSize,
             );
         if (page.isEmpty) break;
+        changedSongIds.addAll(page.map((song) => song.id));
         await _database.libraryDao.upsertSongs([
           for (final song in page)
             SongsTableCompanion.insert(
@@ -3721,6 +3879,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         afterSongId = page.last.id;
       }
 
+      // Explicit repairs may carry new cover bytes behind unchanged cover-art
+      // IDs. A targeted revision bump refetches exactly the changed entries.
+      if (explicitRepair) {
+        await _database.libraryDao.bumpCoverArtRevisions(
+          songIds: changedSongIds,
+          albumIds: changedAlbumIds,
+          artistIds: changedArtistIds,
+        );
+      }
+
       // Verified candidate tracks include bulk snapshots, but never locally
       // carried-forward content. Refresh the evidence even for no-op diffs.
       await _database.customUpdate(
@@ -3756,6 +3924,23 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics.canonicalizedSongCount +=
             identitySummary.canonicalizedSongCount;
         metrics.ambiguousMatchCount += identitySummary.ambiguousMatchCount;
+        for (final ambiguous in identitySummary.ambiguousCases) {
+          final canonicalId = ambiguous.canonicalSongId;
+          if (canonicalId == null) {
+            continue;
+          }
+          await _database.librarySyncDao.recordRecoveryReview(
+            serverId: serverId,
+            entityType: 'song',
+            oldId: canonicalId,
+            reason: 'ambiguousMatch',
+            evidenceGeneration: generation,
+            candidateJson: jsonEncode(<String, Object?>{
+              'candidateIds': ambiguous.candidateIds,
+              'matchReason': ambiguous.reason.name,
+            }),
+          );
+        }
         if (identitySummary.aliases.isNotEmpty ||
             identitySummary.ambiguousMatchCount > 0 ||
             identitySummary.retainedProvisionalCount > 0) {
@@ -3787,9 +3972,24 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             );
         if (staleSongs.isEmpty) break;
         afterStaleSongId = staleSongs.last.id;
-        removedSongCount += staleSongs.length;
-        deferredCacheFiles.addAll(
-          await _database.libraryDao.removeServerSongsForPromotion(staleSongs),
+        final removal = await _database.libraryDao.retainOrRemoveServerSongs(
+          staleSongs,
+        );
+        removedSongCount +=
+            staleSongs.length - removal.retainedUnavailableIds.length;
+        deferredCacheFiles.addAll(removal.deferredCacheFiles);
+        retainedUnavailableCount += removal.retainedUnavailableIds.length;
+        final retainedById = <String, SongsTableData>{
+          for (final song in staleSongs) song.id: song,
+        };
+        final retainedSongs = <SongsTableData>[
+          for (final retainedId in removal.retainedUnavailableIds)
+            if (retainedById[retainedId] case final retainedSong?) retainedSong,
+        ];
+        await _database.librarySyncDao.recordRecoveryReviewBatch(
+          serverId: serverId,
+          retainedSongs: retainedSongs,
+          evidenceGeneration: generation,
         );
       }
 
@@ -3867,6 +4067,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             'albums': preserved.albumIds.length,
             'songs': preserved.songIds.length,
           },
+          'retainedUnavailable': retainedUnavailableCount,
+          'aliases': identitySession?.summary.aliases.length ?? 0,
         },
       );
     });
@@ -3882,6 +4084,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       serverId: serverId,
       generation: generation,
     );
+    if (scanAtPromotion.$1 != null) {
+      // The promoted snapshot covered this scan's server state.
+      await _database.librarySyncDao.markScanReconciled(
+        serverId: serverId,
+        token: scanAtPromotion.$1!,
+      );
+    }
+    return true;
   }
 
   Future<bool> _confirmSnapshotDeletion({
@@ -4558,13 +4768,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         (_activeExecutionPlan == null &&
             metrics.metadataChanged &&
             !metrics.verificationContinuation)) {
-      current = await _syncGenresAndPlaylistsBestEffort(
+      current = await _syncPlaylistHeadersBestEffort(
         current: current,
-        syncGenres:
-            manual ||
-            metrics.metadataChanged ||
-            _shouldSyncGenres(serverConfig.capabilitiesJson),
-        syncPlaylists: true,
         metrics: metrics,
         onProgress: onProgress,
       );
@@ -4747,37 +4952,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       ..addDbWriteBatch();
   }
 
-  Future<LibrarySyncState> _syncGenresAndPlaylistsBestEffort({
+  Future<LibrarySyncState> _syncPlaylistHeadersBestEffort({
     required LibrarySyncState current,
-    required bool syncGenres,
-    required bool syncPlaylists,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
-    var state = current;
-    if (syncGenres) {
-      state = _withMetrics(
-        current.copyWith(stage: LibrarySyncStage.fetchingGenres),
-        metrics,
-      );
-      onProgress?.call(state);
-      try {
-        await _syncGenresStrict(metrics);
-      } on Object catch (error, stackTrace) {
-        if (_isFatalEntityError(error)) {
-          rethrow;
-        }
-        AppLogger.warning(
-          'Genre sync skipped after failure: $error\n$stackTrace',
-        );
-      }
-    }
-
-    if (!syncPlaylists) {
-      return state;
-    }
-    state = _withMetrics(
-      state.copyWith(stage: LibrarySyncStage.fetchingPlaylists),
+    var state = _withMetrics(
+      current.copyWith(stage: LibrarySyncStage.fetchingPlaylists),
       metrics,
     );
     onProgress?.call(state);
@@ -4793,19 +4974,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     }
 
     return state;
-  }
-
-  Future<void> _syncGenresStrict(_SyncRunMetrics metrics) async {
-    final genres = await _withRetry(
-      _api.getGenres,
-      metrics: metrics,
-      endpoint: 'getGenres',
-    );
-    await _database.libraryDao.replaceGenres(_toGenreCompanions(genres));
-    metrics
-      ..addDbWriteBatch()
-      ..genresSynchronized = true;
-    await _markGenresSynced(DateTime.now(), metrics);
   }
 
   Future<void> _syncPlaylistHeadersStrict(_SyncRunMetrics metrics) async {
@@ -6436,41 +6604,6 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     return null;
   }
 
-  List<GenresTableCompanion> _toGenreCompanions(List<Genre> genres) {
-    if (genres.isEmpty) {
-      return const <GenresTableCompanion>[];
-    }
-
-    final deduped = <String, Genre>{};
-    for (final genre in genres) {
-      final name = genre.name.trim();
-      if (name.isEmpty) {
-        continue;
-      }
-      final existing = deduped[name];
-      if (existing == null) {
-        deduped[name] = genre.copyWith(name: name);
-        continue;
-      }
-
-      deduped[name] = Genre(
-        name: name,
-        songCount: _maxNullable(existing.songCount, genre.songCount),
-        albumCount: _maxNullable(existing.albumCount, genre.albumCount),
-      );
-    }
-
-    return deduped.values
-        .map(
-          (genre) => GenresTableCompanion.insert(
-            name: genre.name,
-            songCount: Value(genre.songCount),
-            albumCount: Value(genre.albumCount),
-          ),
-        )
-        .toList(growable: false);
-  }
-
   List<PlaylistsTableCompanion> _toPlaylistCompanions(
     List<Playlist> playlists,
   ) {
@@ -6863,14 +6996,4 @@ String _toSafeErrorMessage(Object error) {
     SubsonicApiException(:final message) => message,
     _ => 'Metadata sync failed.',
   };
-}
-
-int? _maxNullable(int? left, int? right) {
-  if (left == null) {
-    return right;
-  }
-  if (right == null) {
-    return left;
-  }
-  return left > right ? left : right;
 }

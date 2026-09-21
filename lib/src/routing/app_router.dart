@@ -28,6 +28,7 @@ import 'package:navis/src/features/settings/presentation/playback_settings_scree
 import 'package:navis/src/features/settings/presentation/privacy_screen.dart';
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
+import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
 import 'package:navis/src/routing/app_shell.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -366,6 +367,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       context: context,
                       key: state.pageKey,
                       child: const ServerSettingsScreen(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'unavailable-items',
+                    pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
+                      key: state.pageKey,
+                      child: const UnavailableReviewScreen(),
                     ),
                   ),
                   GoRoute(

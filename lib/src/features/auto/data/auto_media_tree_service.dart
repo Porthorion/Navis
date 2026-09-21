@@ -124,7 +124,6 @@ class AutoMediaTreeService {
       AutoMediaRoot.likedSongs => _getLikedSongs(),
       AutoMediaRoot.likedAlbums => _getLikedAlbums(),
       AutoMediaRoot.downloads => _getDownloadedSongs(),
-      AutoMediaRoot.genres => _getGenres(),
       _ => _getEntityChildren(parentMediaId),
     };
   }
@@ -218,11 +217,6 @@ class AutoMediaTreeService {
         id: AutoMediaRoot.artists,
         title: 'Artists',
         extras: AutoContentStyle.gridBrowsableListPlayable,
-      ),
-      _browsableItem(
-        id: AutoMediaRoot.genres,
-        title: 'Genres',
-        extras: AutoContentStyle.listBrowsableListPlayable,
       ),
     ];
   }
@@ -373,23 +367,6 @@ class AutoMediaTreeService {
         : items;
   }
 
-  Future<List<MediaItem>> _getGenres() async {
-    final genres = await _libraryDao.watchGenres().first;
-    final items = genres
-        .take(_kMaxBrowseItems)
-        .map(
-          (genre) => _browsableItem(
-            id: AutoMediaId.genre(genre.name),
-            title: genre.name,
-            extras: AutoContentStyle.listBrowsableListPlayable,
-          ),
-        )
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaRoot.genres, 'No genres')
-        : items;
-  }
-
   Future<List<MediaItem>> _getResumableQueueFallback({
     required Set<String> downloadedSongIds,
   }) async {
@@ -418,7 +395,6 @@ class AutoMediaTreeService {
     return switch (parsed.type) {
       AutoMediaIdType.artist => _getArtistAlbums(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumSongs(parsed.entityId!),
-      AutoMediaIdType.genre => _getGenreSongs(parsed.entityId!),
       AutoMediaIdType.playlist => _getPlaylistSongs(parsed.entityId!),
       _ => _emptyItems(parentMediaId, 'No content'),
     };
@@ -469,25 +445,6 @@ class AutoMediaTreeService {
         : items;
   }
 
-  Future<List<MediaItem>> _getGenreSongs(String genre) async {
-    final songs = await _libraryDao.watchSongsByGenre(genre).first;
-    final downloadedSongIds = await _readDownloadedSongIdsSafe();
-    final items = songs
-        .take(_kMaxBrowseItems)
-        .map(
-          (song) => _songToMediaItem(
-            song,
-            downloadedSongIds: downloadedSongIds,
-            contextType: AutoMediaContextType.genre,
-            contextId: genre,
-          ),
-        )
-        .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaId.genre(genre), 'No songs')
-        : items;
-  }
-
   // ── getMediaItem ──────────────────────────────────────────────────────────
 
   /// Resolves a single [MediaItem] by its media ID.
@@ -519,7 +476,6 @@ class AutoMediaTreeService {
       AutoMediaIdType.song => _getSongMediaItem(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumMediaItem(parsed.entityId!),
       AutoMediaIdType.artist => _getArtistMediaItem(parsed.entityId!),
-      AutoMediaIdType.genre => null,
       AutoMediaIdType.playlist => _getPlaylistMediaItem(parsed.entityId!),
       _ => null,
     };

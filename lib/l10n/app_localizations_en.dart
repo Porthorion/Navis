@@ -3822,4 +3822,42 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cacheSystemUpgradeFailure =>
       'Could not update the library cache. Please try again.';
+
+  @override
+  String get unavailableReviewTitle => 'Unavailable Items';
+
+  @override
+  String get unavailableReviewEmpty =>
+      'No unavailable items are waiting for review.';
+
+  @override
+  String get unavailableReviewLoadError => 'Could not load the review list.';
+
+  @override
+  String get unavailableReviewUnknownTitle => 'Unknown item';
+
+  @override
+  String get unavailableReviewReasonMissing =>
+      'No longer on the server. Favorites, ratings, history, and downloads are kept until you decide.';
+
+  @override
+  String get unavailableReviewFindMatch => 'Find match';
+
+  @override
+  String get unavailableReviewKeepForLater => 'Keep for later';
+
+  @override
+  String get unavailableReviewRemoveFromLiked => 'Remove from Liked';
+
+  @override
+  String get unavailableReviewNoMatchFound =>
+      'No matching song found in the current library.';
+
+  @override
+  String get unavailableReviewEntry => 'Unavailable items';
+
+  @override
+  String unavailableReviewEntryWithCount(Object count) {
+    return 'Unavailable items ($count)';
+  }
 }

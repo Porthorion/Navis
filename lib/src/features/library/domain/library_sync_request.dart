@@ -153,6 +153,21 @@ class LibrarySyncRequest {
 
   /// Preserved only while adapting legacy callers to the typed sync request.
   final LibrarySyncRequestCaller caller;
+
+  /// Returns the same request with the broad metered override applied.
+  ///
+  /// Used by the coordinator to decorate an admission with an in-session
+  /// repair consent; the grant itself stays in controller memory.
+  LibrarySyncRequest copyWithMeteredBroadOverride() {
+    return LibrarySyncRequest(
+      trigger: trigger,
+      intent: intent,
+      target: target,
+      allowMeteredBroadOverride: true,
+      allowMeteredLimitedDiscovery: allowMeteredLimitedDiscovery,
+      caller: caller,
+    );
+  }
 }
 
 enum LibrarySyncPlanKind {

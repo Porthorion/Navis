@@ -37,6 +37,20 @@ class AlbumsTable extends Table {
 
   TextColumn get coverArt => text().nullable()();
 
+  /// Incremented on targeted artwork recovery so cached cover bytes keyed to
+  /// the previous revision stop satisfying new requests. Zero keeps the
+  /// legacy cache-key layout so existing offline artwork stays valid.
+  /// Nullable so rows never refreshed keep legacy data-class behavior;
+  /// treat null as revision zero when composing cache keys.
+  IntColumn get coverArtRevision => integer().nullable()();
+
+  /// MusicBrainz release identifier, when the server supplies one. Used to
+  /// map albums across server ID changes without metadata guessing.
+  TextColumn get releaseMbid => text().nullable()();
+
+  /// Typed catalog availability. Null reads as present for legacy rows.
+  TextColumn get catalogAvailability => text().nullable()();
+
   BoolColumn get songsHydrated =>
       boolean().withDefault(const Constant(false))();
 

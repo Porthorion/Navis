@@ -6,7 +6,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tool.dev_sync_scenario import _scenario_args, prepare_database
+from tool.dev_sync_scenario import (
+    _clone_diagnostic_defines,
+    _scenario_args,
+    prepare_database,
+)
 
 
 class DevSyncScenarioTest(unittest.TestCase):
@@ -128,6 +132,16 @@ class DevSyncScenarioTest(unittest.TestCase):
             _scenario_args(["-d", "android", "--first-setup"])
         with self.assertRaises(SystemExit):
             _scenario_args(["-d", "linux", "--first-setup", "--dart-define=BAD=1"])
+
+    def test_interactive_clone_uses_the_production_lease_duration(self):
+        options, _ = _scenario_args(["-d", "linux", "--first-setup"])
+        defines = _clone_diagnostic_defines(
+            options,
+            root=self.root / "run",
+            database=self.root / "run" / "navis.sqlite",
+            handshake_path=self.root / "run" / "handshake.json",
+        )
+        self.assertEqual(defines["NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS"], "600")
 
 
 if __name__ == "__main__":

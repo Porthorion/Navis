@@ -6700,6 +6700,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not update the library cache. Please try again.'**
   String get cacheSystemUpgradeFailure;
+
+  /// No description provided for @unavailableReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable Items'**
+  String get unavailableReviewTitle;
+
+  /// No description provided for @unavailableReviewEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No unavailable items are waiting for review.'**
+  String get unavailableReviewEmpty;
+
+  /// No description provided for @unavailableReviewLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the review list.'**
+  String get unavailableReviewLoadError;
+
+  /// No description provided for @unavailableReviewUnknownTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown item'**
+  String get unavailableReviewUnknownTitle;
+
+  /// No description provided for @unavailableReviewReasonMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No longer on the server. Favorites, ratings, history, and downloads are kept until you decide.'**
+  String get unavailableReviewReasonMissing;
+
+  /// No description provided for @unavailableReviewFindMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Find match'**
+  String get unavailableReviewFindMatch;
+
+  /// No description provided for @unavailableReviewKeepForLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep for later'**
+  String get unavailableReviewKeepForLater;
+
+  /// No description provided for @unavailableReviewRemoveFromLiked.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Liked'**
+  String get unavailableReviewRemoveFromLiked;
+
+  /// No description provided for @unavailableReviewNoMatchFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching song found in the current library.'**
+  String get unavailableReviewNoMatchFound;
+
+  /// No description provided for @unavailableReviewEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable items'**
+  String get unavailableReviewEntry;
+
+  /// No description provided for @unavailableReviewEntryWithCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable items ({count})'**
+  String unavailableReviewEntryWithCount(Object count);
 }
 
 class _AppLocalizationsDelegate

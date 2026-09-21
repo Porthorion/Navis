@@ -1010,11 +1010,12 @@ Diagnostics reports label persisted promotion statistics with
 Those statistics may predate the current incremental check; current endpoint
 counts and pending counts come from the active/terminal operation state.
 
-For a large first-sync benchmark, compile the isolated diagnostic with
-`--dart-define=NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS=600` to use the production
-lease duration. The default six-second diagnostic lease is deliberately short
-for interrupted-owner tests and can expire while a large atomic promotion holds
-the database writer. The override is bounded to 1–600 seconds and has no effect
+`./tool/dev_app.sh run -d linux --first-setup` and the other interactive clone
+presets compile with `NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS=600`, the production
+lease duration. For a direct large first-sync benchmark, pass that same define.
+The default six-second diagnostic lease is deliberately short for
+interrupted-owner tests and can expire while a large atomic promotion holds the
+database writer. The override is bounded to 1–600 seconds and has no effect
 outside diagnostics builds; it does not disable ownership checks.
 
 

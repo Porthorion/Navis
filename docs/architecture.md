@@ -79,11 +79,11 @@ Located in `lib/src/providers/app_providers.dart`:
   - `AutoMediaTreeService` builds the local database-backed browse tree. Its
     four root tabs are Liked, Recent, Playlists, and Library. Liked exposes
     quick-play actions plus liked songs/albums; Library contains Downloads
-    when available, followed by Albums, Artists, and Genres.
+    when available, followed by Albums and Artists.
   - Song browse IDs are opaque and retain album, playlist, liked, recent,
-    download, or genre context. `NavisAudioHandler` uses that context to build
-    the expected collection queue while keeping raw Subsonic IDs in playback
-    and persisted queues.
+    or download context. `NavisAudioHandler` uses that context to build the
+    expected collection queue while keeping raw Subsonic IDs in playback and
+    persisted queues.
   - Search merges server artists/albums/songs with local playlists, prioritizes
     songs and playlists with exact matches first, times out server work after
     eight seconds, and falls back to local results.
@@ -230,8 +230,8 @@ Located in `lib/src/providers/app_providers.dart`:
   provider `Ref` when connectivity rebuilds the Subsonic client mid-request.
 
 **library_providers.dart**:
-- Artist, album, song, genre, and album-list providers shared by Library
-  presentation screens.
+- Artist, album, song, and album-list providers shared by Library presentation
+  screens.
 - Route-local state and scroll/section coordination remain in the dedicated
   presentation providers beside their owning screens; do not recreate this
   former planned-file boundary in `app_providers.dart`.
@@ -1040,7 +1040,11 @@ states without starting audio or modifying a queue.
    startup pass. A startup or
    periodic caller also treats a not-yet-constructed credential-backed engine
    as pending rather than failure, then restarts its startup pass once the
-   engine is available.
+   engine is available. When an explicit Check for updates reaches a deliberate
+   page, entity, request, byte, or duration limit after doing work, it returns
+   `partial` and preserves its checkpoint for the next pass. The same limit on
+   automatic work remains `deferred`; offline, metered, playback, and
+   background policy gates always remain `deferred`.
 3. Reliable providers use conditional `getIndexes(ifModifiedSince)` as a cheap
    automatic check. The response is a conditional artist index, not a change
    feed, so its cursor advances only after every candidate and hydration
@@ -1183,20 +1187,27 @@ states without starting audio or modifying a queue.
 9. Metered automation is a true hard probe: one conditional `getIndexes`
    request with retries disabled. Interactive artist/album/playlist hydration
    remains allowed with 16 MiB/response and 32 MiB/interaction budgets.
-   Enumeration, audits, starred/genres/playlist-header sync, pending broad
+   Enumeration, audits, starred and playlist-header sync, pending broad
    hydration, and Repair Library stay deferred unless the user grants an
    ephemeral one-time mobile-data override. Live network policy is re-checked
    at page and hydration boundaries; unmetered-to-metered transitions
    checkpoint and return `deferred`. Cancellation returns work to the queue.
-10. Starred content, playlist headers, and genres are independent auxiliary
-    targets. Typed catalog checks and repairs do not update them as incidental
-    work; their user-facing states are **Updating liked items** and
-    **Updating playlists**, not catalog-sync progress. After a catalog request,
-    the coordinator drains separately due starred and playlist-header targets
-    (12 hours) and genres (7 days), including first setup. Durable per-target
-    completion and backoff control freshness independently; a failed auxiliary
-    target neither repeats a committed catalog nor suppresses the other targets.
-    The catalog circuit breaker does not suppress these independent endpoints.
+10. Starred content and playlist headers are independent auxiliary targets.
+    Typed catalog checks and repairs do not update them as incidental work;
+    their user-facing states are **Updating liked items** and
+    **Updating playlists**, not catalog-sync progress. A scheduled catalog
+    check drains each due target (12 hours), preserving its separate playback,
+    foreground, offline, metered-network, retry, and backoff policy. An
+    explicit Check for updates or Repair Library always drains both companion
+    targets with explicit intent, including while playback is active, but still
+    respects offline and metered-network limits. Durable per-target completion
+    and backoff control freshness independently; a failed auxiliary target
+    neither repeats a committed catalog nor suppresses the other target. The
+    catalog circuit breaker does not suppress these independent endpoints.
+    Genre metadata is not a synchronized domain because Navis has no consumer
+    for it. A legacy queued genre target is marked complete during recovery;
+    cached genre rows remain untouched for compatibility and no `getGenres`
+    request is scheduled.
     Starred reconciliation
     excludes queued local star/unstar actions until they reach the server.
     Playlist headers upsert without replacing parent rows, so an unchanged
@@ -1224,7 +1235,68 @@ the public principles documented by
 and its
 [Subsonic compatibility modes](https://docs.symfonium.app/wiki/providers/subsonic-opensubsonic-media-provider-configuration/).
 OpenSubsonic documents the conditional full-index semantics of
-[`getIndexes`](https://opensubsonic.netlify.app/docs/endpoints/getindexes/).
+[`getIndexes`](https://opensubsonic.netlify.app/docs/endpoints/getindexes/) and
+the [`getScanStatus`](https://opensubsonic.netlify.app/docs/endpoints/getscanstatus/)
+contract.
+
+#### Scan awareness, catalog availability, and identity recovery
+
+- **Scan detection.** The scheduled probe reads `getScanStatus` once per
+  eligible check (no separate polling loop) through the typed
+  `SubsonicApiClient.getScanStatus`. Standard `scanning`/`count` fields are
+  supported; Navidrome's optional `lastScan` supplies the scan token. A newly
+  completed token opens one pending reconciliation (`library_scan_observation`)
+  that flows through the existing probe → snapshot path, and collection
+  re-observes the token before promotion: if a scan landed mid-collection, the
+  candidate's completeness evidence is withheld, the ledger records
+  `scanChangedDuringCollection`, and the resumable planner recollects. Servers
+  without the endpoint are recorded once as unsupported and stay on the
+  existing discovery/audit mechanisms.
+- **Catalog availability.** Songs, albums, and artists carry a typed
+  `catalog_availability` (`present`/`suspectedMissing`/`confirmedMissing`).
+  Transport, authentication, rate-limit, and decoding failures never advance
+  availability toward missing; only validated catalog evidence does. Items
+  that disappear from a validated snapshot but still own user state —
+  favorites, ratings, history, queue/playlist references, download ownership,
+  or pending mutations — are retained as confirmed-missing instead of being
+  deleted (previously only permanent downloads survived). Their
+  `serverDeletedAt` marker keeps them out of normal Play All, shuffle, and
+  download selection while review entries in `library_recovery_review` keep
+  them recoverable; the legacy `removeServerSongsForPromotion` contract is now
+  `retainOrRemoveServerSongs`.
+- **Identity recovery.** `SongIdentityReconciler` matches on same ID, unique
+  recording MBID, then exact normalized title/artist/album with the existing
+  three-second duration tolerance — with two hard rules: contradictory
+  non-empty MBIDs prohibit metadata-only matching, and ambiguity never merges
+  regardless of page order. Candidate sets include retained confirmed-missing
+  rows so a later scan can relink them. `remapSongIdentity` merges user state
+  with local precedence (a carried like keeps its original timestamp and is
+  re-queued to the server through `star_sync_queue`), transfers absence
+  evidence, local mutation journals, and writes both the legacy and the typed
+  profile-scoped alias tables (`entity_identity_aliases`). Cache and download
+  ownership validation is storage-kind aware: Android SAF content URIs are
+  validated through the platform bridge, never `File.exists()`.
+- **Recovery review.** Pending entries (with evidence generation, reason, and
+  saved metadata) surface in Sync Settings → Unavailable items
+  (`/settings/unavailable-items`) with Find match (search current catalog and
+  relink through the same transaction as automatic recovery), Keep for later,
+  and Remove from Liked. Sync evidence never overwrites a user disposition.
+- **Repair sessions.** Ordinary Repair Library runs non-blocking from Sync
+  Settings. The coordinator owns an in-memory repair session whose
+  mobile-data grant is applied at admission — before planning or durable work
+  is joined — and survives retries and reconnects within the run. The grant is
+  never persisted: completion, cancellation, sign-out, account change, and app
+  restart all clear it. The blocking rebuild screen remains only for initial
+  login, destructive cache reset, cache upgrade, and playback recovery, where
+  no usable catalog exists.
+- **Artwork identity.** Cover-art cache keys compose cover ID, requested size,
+  and a per-entity targeted refresh revision
+  (`coverArtImageCacheKey(id, size, revision)`). Revision zero keeps the
+  legacy key layout, so existing offline artwork survives the migration.
+  Explicit repairs bump the revision only for entities whose server row
+  changed, refetching exactly those entries without global cache clearing, and
+  the cover-art file service rejects HTTP-success payloads whose content type
+  is not an image so error pages are never cached as artwork.
 
 ### Cache Flow
 

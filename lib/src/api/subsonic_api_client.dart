@@ -359,6 +359,18 @@ class SubsonicApiClient {
     );
   }
 
+  /// OpenSubsonic scan status. Servers without the endpoint report it through
+  /// the typed [SubsonicApiException] path, so callers can treat unsupported
+  /// scan status as a capability result rather than a sync failure.
+  Future<ScanStatus> getScanStatus({CancelToken? cancelToken}) async {
+    final root = await _readRoot(
+      '/rest/getScanStatus.view',
+      cancelToken: cancelToken,
+    );
+    final node = _asMap(root['scanStatus']);
+    return ScanStatus.fromJson(node);
+  }
+
   Future<List<Song>> getNowPlaying({CancelToken? cancelToken}) async {
     final root = await _readRoot(
       '/rest/getNowPlaying.view',

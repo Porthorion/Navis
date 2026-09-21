@@ -304,9 +304,6 @@ void main() {
             ),
           ],
         );
-        api.genres = const <Genre>[
-          Genre(name: 'Rock', albumCount: 2, songCount: 2),
-        ];
         api.playlists = const <Playlist>[
           Playlist(id: 'playlist-1', name: 'Favorites', songCount: 2),
         ];
@@ -333,8 +330,9 @@ void main() {
         expect(artistRows.length, 2);
         expect(albumRows.length, 2);
         expect(songRows.length, 2);
-        expect(genreRows.length, 1);
+        expect(genreRows, isEmpty);
         expect(playlistRows.length, 1);
+        expect(api.calls, isNot(contains('getGenres')));
         expect(serverConfig?.lastSynced, isNotNull);
         expect(serverConfig?.lastFullSyncedAt, isNotNull);
         final ledger = await database.librarySyncDao
@@ -368,6 +366,8 @@ void main() {
               'albums': 0,
               'songs': 0,
             },
+            'retainedUnavailable': 0,
+            'aliases': 0,
           },
         );
       },
@@ -3845,7 +3845,7 @@ void main() {
     }, skip: !sqliteAvailable);
 
     test(
-      'manual normal sync refreshes liked content and playlist headers',
+      'manual normal sync refreshes liked content and playlist headers without genres',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
@@ -3853,9 +3853,6 @@ void main() {
           capabilitiesJson: jsonEncode(<String, Object?>{
             'navis': <String, Object?>{
               'auxiliarySyncLastSyncedAt': DateTime.now()
-                  .toUtc()
-                  .toIso8601String(),
-              'genresSyncLastSyncedAt': DateTime.now()
                   .toUtc()
                   .toIso8601String(),
             },
@@ -3866,17 +3863,16 @@ void main() {
         api.playlists = const <Playlist>[
           Playlist(id: 'playlist-1', name: 'Playlist 1'),
         ];
-        api.genres = const <Genre>[Genre(name: 'Rock', songCount: 1)];
 
         final state = await engine.syncNow();
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('getStarredContent'));
         expect(api.calls, contains('getPlaylists'));
-        expect(api.calls, contains('getGenres'));
+        expect(api.calls, isNot(contains('getGenres')));
         expect(state.starredSynchronized, isTrue);
         expect(state.playlistHeadersSynchronized, isTrue);
-        expect(state.genresSynchronized, isTrue);
+        expect(state.genresSynchronized, isFalse);
       },
       skip: !sqliteAvailable,
     );
@@ -4433,7 +4429,7 @@ void main() {
     );
 
     test(
-      'genre fetch failure after hydration still completes sync',
+      'catalog sync does not request the unused genre endpoint',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
@@ -4447,9 +4443,6 @@ void main() {
           name: 'Artist 1',
           albums: <Album>[],
         );
-        api.genres = <Genre>[const Genre(name: 'Rock', songCount: 1)];
-        api.throwOnGenres = const SubsonicConnectionException('genres down');
-
         final state = await engine.syncIfStale();
         final config = await serverConfigRepository.getActiveServer();
         final storedGenres = await database.select(database.genresTable).get();
@@ -4457,6 +4450,7 @@ void main() {
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(config?.lastSynced, isNotNull);
         expect(storedGenres, isEmpty);
+        expect(api.calls, isNot(contains('getGenres')));
       },
       skip: !sqliteAvailable,
     );

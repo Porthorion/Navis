@@ -1606,3 +1606,165 @@ as authoritative history. No production scheduling or deletion guard was
 relaxed. The supplied live server's four incomplete responses remain the
 real-world motivating observation; this decision's runtime acceptance used a
 deterministic isolated server and did not mutate the supplied account.
+
+## 21. F42 — Interactive first-setup launcher expired its diagnostic write lease (2026-09-20)
+
+**Observed failure:** A clean, cloned live-server first setup reached candidate
+promotion and returned to **Building Your Library** with “Metadata sync failed.”
+The durable attempt ran for 77.603 seconds, received 134 accepted server
+responses (76,909,874 bytes), and recorded `SyncLeaseLostException`. Its
+failure diagnostics also retained four incomplete album-detail responses, but
+none of the 134 transport responses failed. The candidate was deliberately not
+published: the write fence correctly rejected a run that no longer owned its
+lease.
+
+**Cause:** `tool/dev_sync_scenario.py` enabled clone diagnostics but omitted
+the existing long-run lease define. Diagnostics therefore used their six-second
+interruption-test lease. That short lease is useful for ownership-recovery
+tests, but can expire during a large live first setup before or during atomic
+promotion. Production already uses the longer lease; this was a false failure
+introduced by the interactive test launcher, not a relaxation of the production
+write fence.
+
+**Fix:** All interactive clone presets now pass
+`NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS=600`, matching the bounded production
+duration. The launcher unit test asserts the define, and the dev-build,
+workflow, and CI documentation distinguish this long-running interactive mode
+from the accelerated interruption-test default.
+
+**Validation:** The same live first-setup command was rerun from a new cloned
+profile. Its 100.377-second catalog pass ended `partial`, not failed, with 126
+accepted requests, 74,182,341 bytes, 1,777 artists, 5,645 albums, and 55,893
+tracks committed. The four known incomplete server album details remained
+pending without blocking setup. The app left **Building Your Library** for the
+four-step customization screen, then reached Home after setup completion and
+displayed the background-sync notice. A clean restart of that exact clone
+returned directly to Home with `phase: ready` and no first-setup redirect.
+The failed screen, customization screen, Home, and restarted Home were captured
+through the authenticated app API and inspected. The original account database,
+downloads, and server state were not modified.
+
+## 22. F43 — A manual library sync can leave liked songs stale (2026-09-20)
+
+**Verified behavior:** Liked songs are a separate auxiliary target, fetched
+through `getStarredContent`, rather than part of the catalog delta. After a
+catalog request, `AdaptiveLibrarySyncCoordinator` starts its auxiliary drain
+with an `automatic`/`interval` request. That classifies starred content as
+background work even when the user just selected a manual sync. The automatic
+request scope refuses its first network request while playback is active or
+the app is backgrounded, so the queue remains pending and no starred response
+is received.
+
+The live profile recorded four consecutive normal-sync `@starred` runs at
+09:02, 09:03, 09:05, and 09:06 UTC. Each durable run was deferred for active
+playback with zero network requests. The same evidence showed the starred
+checkpoint remained queued, which explains why the latest server likes were
+not present after the visible catalog sync.
+
+**Server and UI check:** A disposable authenticated clone was then kept
+foregrounded with no active playback and run against the same server. Its
+starred auxiliary run completed with one 311,764-byte response. The cloned
+database gained one liked album and one liked song. The liked-song provider
+watches the local database, so the normal Library and Home liked views update
+when this write succeeds. This rules out a malformed starred response and a
+non-reactive display path for this incident.
+
+**Second verified defect:** Auxiliary durable work is looked up from the
+first 64 runnable rows before it is marked running or completed. The live
+profile had 104 higher-priority rows ahead of `@starred`; the exact starred
+row was therefore absent from that bounded query. The auxiliary request still
+ran, but its work row could not be marked completed and
+`last_auxiliary_synced_at` could not advance. A successful response can thus
+leave its checkpoint queued, causing needless later refreshes and obscuring
+whether a pending row represents a failed request or a bookkeeping failure.
+
+**Implemented correction:** Scheduled auxiliary refresh remains conservative:
+the due starred and playlist-header targets retain their independent 12-hour
+freshness, retry, playback, foreground, offline, and metered-network guards.
+An explicit Check for updates or Repair Library now drains both targets with
+explicit intent, so a user-visible foreground action refreshes likes and
+playlist headers even while audio is playing. The companion drain runs after
+the catalog operation even when catalog discovery was partial or deferred,
+because those domains have independent authority. Offline and metered limits
+remain in force.
+
+Genre metadata is retired from the library-sync contract because Navis has no
+active consumer. New work never permits `getGenres`; a legacy queued or failed
+genre target is marked complete during recovery without deleting cached genre
+rows.
+
+The completion audit found a residual Android Auto genre consumer: its local
+Library branch, genre media IDs, genre-scoped queue construction, and
+genre-focused voice handling could still read rows that sync no longer
+maintained. Those paths are now removed. Android Auto exposes Downloads,
+Albums, and Artists; a cached `library/genres` ID returns no content, and a
+genre-focused search becomes ordinary text search. Cached rows and the schema
+remain for safe upgrades, but they cannot surface as a stale browse result.
+
+Target bookkeeping now reads the exact durable row by server, plan kind, and
+target key before it changes state. It preserves `not_before` and terminal
+state checks, then marks that exact row running and reaches its matching
+completion or retry outcome. Queue depth can therefore no longer hide a
+successful likes or playlist request behind the first 64 global runnable rows.
+
+**Automated validation:** Focused planner, coordinator, engine, regression,
+Sync Settings, Android Auto media-ID/tree, and audio-handler tests pass. The
+new regressions prove that an explicit sync
+refreshes likes and playlist headers during active playback, that an automatic
+refresh still defers there, that a later scheduled incremental pass refreshes
+both stale companion checkpoints, that more than 64 higher-priority hydration
+rows cannot prevent companion completion, and that legacy genre work makes no
+server request or stale Android Auto genre data.
+
+**Isolated authenticated runtime validation:** A new `--force-setup` clone
+ran against the configured server without changing the primary profile. Its
+manual catalog discovery reached the normal response budget (118 requests,
+3,021,029 bytes) and deferred independently. The following companion targets
+both completed: starred used one 311,764-byte response and playlist headers
+used one 46,469-byte response. The clone still had 107 pending hydration/work
+items, proving the target completion was not hidden by the deep backlog. The
+copied database recorded `@starred`, `@playlistHeaders`, and the retired
+`@genres` work rows as completed. An inspected app-owned Sync Settings capture
+showed the combined “Starred and Playlist Headers” timestamp and no genre
+freshness row. Earlier automatic companion attempts in the same clone were
+deferred while backgrounded with zero requests, confirming the scheduled
+guardrail remains intact.
+
+## 23. F44 — A bounded manual check can be reported as if it never ran (2026-09-20)
+
+**Verified behavior:** The primary profile contained an abandoned manual run
+from 14:20 local time while no Navis process owned it. A disposable clone
+recovered that run when explicitly checked. It made 118 server requests in
+53 seconds, reached its intentional entity budget, then refreshed starred
+content (311,764 bytes) and playlist headers (46,469 bytes). The catalog
+result was nevertheless `deferred` with `entityBudget`, so the controller
+dismissed progress and Sync Settings showed *Sync deferred*. This made a
+successful, resumable manual action appear to do nothing.
+
+**Truth:** A deliberate safety budget is not a network-policy deferral when a
+foreground user action already committed data. The unfinished checkpoint must
+remain queued, but the terminal state must acknowledge the work that completed.
+Automatic/background budget stops remain `deferred`: that state continues to
+mean the scheduler deliberately stopped and will resume when eligible.
+
+**Implemented correction:** A Check for updates that reaches the page, entity,
+request, byte, or duration budget now reports `partial`, retains the safe
+budget reason in diagnostics, records the typed partial outcome with
+`responseBudgetExceeded`, and requeues its exact work row without failure
+backoff. Offline, metered, background, playback, cancellation, endpoint-policy
+and lease conditions retain their existing terminal states. The same budget
+stop stays `deferred` for automatic work.
+
+**Validation:** The F44 regression seeds 65 pending albums. The first manual
+check hydrates the admitted 64, reports `partial` with `entityBudget`, records
+a partial response-budget outcome, and leaves its catalog checkpoint queued.
+The next manual check hydrates the final album and succeeds. The existing F07
+automatic-budget regression still requires `deferred`, proving the background
+contract did not change. A source-built authenticated Linux clone then resumed
+the same deep-backlog profile: its manual check made 118 requests (3,236,373
+bytes), reported `partial` with `entityBudget`, retained 106 queued items, and
+completed both companion targets. The inspected Sync Settings capture at
+`build/dev-sync-scenarios/manual-partial-KgDwmfDi/screenshots/20260920105012589272-manual-sync-partial.png`
+shows the truthful paused-with-work-remaining state, the 118-request/3.1 MiB
+result, the entity-budget reason, and the updated Starred and Playlist Headers
+timestamp.

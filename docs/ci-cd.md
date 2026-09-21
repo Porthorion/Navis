@@ -480,7 +480,8 @@ album without accidentally exercising an unrelated identity-mismatch failure.
 
 Large clone-mode first-sync certification can set
 `NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS=600` at compile time to retain production
-lease duration during atomic promotion. Keep the default accelerated lease for
+lease duration during atomic promotion. `tool/dev_app.sh` applies that value to
+its interactive sync presets. Keep the default accelerated lease for
 interrupted-owner scenarios; neither mode bypasses the write fence.
 
 

@@ -51,10 +51,16 @@ class LibrarySyncPlanner {
     final request = context.request;
     final target = request.target;
     if (target.kind != LibrarySyncTargetKind.catalog) {
+      if (target.kind == LibrarySyncTargetKind.genres) {
+        return const LibrarySyncPlan(
+          kind: LibrarySyncPlanKind.targetedHydration,
+          reason: 'genresDisabled',
+          shouldExecute: false,
+        );
+      }
       final isAuxiliaryTarget =
           target.kind == LibrarySyncTargetKind.starred ||
-          target.kind == LibrarySyncTargetKind.playlistHeaders ||
-          target.kind == LibrarySyncTargetKind.genres;
+          target.kind == LibrarySyncTargetKind.playlistHeaders;
       final isInteractiveEntity =
           target.kind == LibrarySyncTargetKind.artist ||
           target.kind == LibrarySyncTargetKind.album ||

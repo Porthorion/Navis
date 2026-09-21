@@ -128,11 +128,6 @@ class _ProbeLibrarySyncEngine
   }) async => _idle();
 
   @override
-  Future<LibrarySyncState> syncGenres({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _idle();
-
-  @override
   Future<LibrarySyncState> syncPlaylistHeaders({
     LibrarySyncProgressCallback? onProgress,
   }) async => _idle();
@@ -242,11 +237,6 @@ class _CompletedCatalogWithPendingAlbumEngine
     targetedCalls.add('playlist:$playlistId');
     return _targetResult();
   }
-
-  @override
-  Future<LibrarySyncState> syncGenres({
-    LibrarySyncProgressCallback? onProgress,
-  }) async => _targetResult();
 
   @override
   Future<LibrarySyncState> syncPlaylistHeaders({
@@ -386,7 +376,7 @@ void main() {
       expect(deferred, hasLength(1));
       expect(deferred.single.outcome, SyncRunOutcomeKind.deferred);
       // The catalog circuit does not suppress independent auxiliary domains.
-      expect(history, hasLength(4));
+      expect(history, hasLength(3));
     },
     skip: !sqliteAvailable,
   );
@@ -931,6 +921,65 @@ void main() {
       final persisted = await database.librarySyncDao.getOrCreateState(1);
       expect(persisted.endpointFailureJson, contains('collectingCandidate'));
       expect(persisted.endpointFailureJson, contains('TimeoutException'));
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'metered repair without consent defers before joining or starting work',
+    () async {
+      final meteredCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: executor,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.cellular,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+
+      final result = await meteredCoordinator.requestSync(
+        const LibrarySyncRequest.repair(),
+      );
+
+      expect(result.status, LibrarySyncStatus.deferred);
+      expect(result.planReason, 'waitingForMobileConsent');
+      // No durable repair work was enqueued while consent was absent.
+      final work = await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.fullRepair.name,
+        entityId: 'catalog',
+      );
+      expect(work, isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'session grant survives retries within the session and clears on cancel',
+    () async {
+      final meteredCoordinator = AdaptiveLibrarySyncCoordinator(
+        executor: executor,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.cellular,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+      meteredCoordinator.beginRepairSession(serverId: 1, allowMetered: true);
+
+      // A retry-style re-entry without the request-level flag keeps the grant.
+      final first = await meteredCoordinator.requestSync(
+        const LibrarySyncRequest.repair(),
+      );
+      expect(first.planReason, isNot('waitingForMobileConsent'));
+
+      meteredCoordinator.endRepairSession();
+      final afterClear = await meteredCoordinator.requestSync(
+        const LibrarySyncRequest.repair(),
+      );
+      expect(afterClear.planReason, 'waitingForMobileConsent');
     },
     skip: !sqliteAvailable,
   );

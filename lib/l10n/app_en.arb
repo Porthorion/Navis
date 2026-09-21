@@ -1681,5 +1681,16 @@
   "cacheSystemUpgradeAction": "Clear Library Cache",
   "cacheSystemUpgradeDismiss": "Not now",
   "cacheSystemUpgradeResetting": "Updating library cache…",
-  "cacheSystemUpgradeFailure": "Could not update the library cache. Please try again."
+  "cacheSystemUpgradeFailure": "Could not update the library cache. Please try again.",
+  "unavailableReviewTitle": "Unavailable Items",
+  "unavailableReviewEmpty": "No unavailable items are waiting for review.",
+  "unavailableReviewLoadError": "Could not load the review list.",
+  "unavailableReviewUnknownTitle": "Unknown item",
+  "unavailableReviewReasonMissing": "No longer on the server. Favorites, ratings, history, and downloads are kept until you decide.",
+  "unavailableReviewFindMatch": "Find match",
+  "unavailableReviewKeepForLater": "Keep for later",
+  "unavailableReviewRemoveFromLiked": "Remove from Liked",
+  "unavailableReviewNoMatchFound": "No matching song found in the current library.",
+  "unavailableReviewEntry": "Unavailable items",
+  "unavailableReviewEntryWithCount": "Unavailable items ({count})"
 }

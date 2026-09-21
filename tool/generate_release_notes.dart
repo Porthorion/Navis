@@ -61,6 +61,26 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Repair Library now runs from Sync Settings without leaving your library, keeps its mobile-data approval across retries, and can always be cancelled',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Navis now detects server library rescans and refreshes changed metadata automatically on the next check',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Songs whose server IDs change after a rescan are relinked automatically when evidence is unambiguous; ambiguous cases stay in a new Unavailable Items review list instead of disappearing',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Recovered favorites keep their original like time and are restored to the server so other clients see them; missing-but-favorited items keep their likes and downloads',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Cover art refreshes are targeted: changed covers reload without clearing the whole artwork cache, and server error pages are never saved as artwork',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'Rapid Next, Previous, and queue selections now settle on the requested track without leaving playback stuck or resuming after Pause',
         type: _EntryType.fix,
       ),
@@ -70,6 +90,14 @@ const List<_Version> _changelogs = [
       ),
       _Entry(
         'Likes and ratings sync through a durable retry queue, including album and artist favorites and offline rating changes',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Check for updates and Repair Library now refresh Likes and playlist headers even while music is playing, while scheduled sync remains conservative and unused genre metadata is no longer fetched or offered in Android Auto',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Check for updates now reports work completed within its safe sync limit and keeps the remaining library refresh queued',
         type: _EntryType.fix,
       ),
       _Entry(

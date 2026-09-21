@@ -45,7 +45,7 @@ Minimum tested versions:
 
 - Android: media session and notification metadata are handled through
   `audio_service`; Android Auto projects the phone app's Liked, Recent,
-  Playlists, and Library destinations plus search, downloads, genres, queue
+  Playlists, and Library destinations plus search, downloads, queue
   resume, and transport controls over a validated media browser connection.
 - Linux: desktop now-playing and media-key integration use the app-owned
   MPRIS bridge over `dbus`.

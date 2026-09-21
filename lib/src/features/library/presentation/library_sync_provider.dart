@@ -415,16 +415,35 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   ///
   /// Keep this separate from [resetCachesAndRebuildLibrary]: both collect a
   /// catalog, but only the latter has already erased local device caches.
+  ///
+  /// The mobile-data consent lives in a controller-owned session for the whole
+  /// run, so automatic retries and reconnects keep the grant, and the grant is
+  /// always cleared on completion, failure, or cancellation.
   Future<LibrarySyncState> repairLibrary({
     bool allowMeteredBroadOverride = false,
-  }) {
-    return _runSync(
-      force: true,
-      tolerateUnavailableEngine: false,
-      forceFull: true,
-      allowMeteredBroadOverride: allowMeteredBroadOverride,
-      caller: LibrarySyncRequestCaller.repairLibrary,
-    );
+  }) async {
+    final engine = ref.read(librarySyncEngineProvider);
+    final serverId = ref.read(serverConfigStateProvider).asData?.value?.id;
+    final coordinator = engine is AdaptiveLibrarySyncCoordinator
+        ? engine
+        : null;
+    if (coordinator != null && serverId != null) {
+      coordinator.beginRepairSession(
+        serverId: serverId,
+        allowMetered: allowMeteredBroadOverride,
+      );
+    }
+    try {
+      return await _runSync(
+        force: true,
+        tolerateUnavailableEngine: false,
+        forceFull: true,
+        allowMeteredBroadOverride: allowMeteredBroadOverride,
+        caller: LibrarySyncRequestCaller.repairLibrary,
+      );
+    } finally {
+      coordinator?.endRepairSession(serverId: serverId);
+    }
   }
 
   /// Starts a fresh catalog build after the device-storage reset flow.
@@ -479,6 +498,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final engine = ref.read(librarySyncEngineProvider);
     if (engine is AdaptiveLibrarySyncCoordinator) {
       engine.cancelSync();
+      // Cancellation always clears the in-session mobile-data grant.
+      engine.endRepairSession();
     } else if (engine is DriftLibrarySyncEngine) {
       engine.cancelSync();
     }

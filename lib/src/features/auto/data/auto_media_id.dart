@@ -25,7 +25,6 @@ abstract final class AutoMediaRoot {
   // Quick actions and sub-categories under "Recent" and "Library".
   static const String resumeQueue = 'recent/resume';
   static const String downloads = 'library/downloads';
-  static const String genres = 'library/genres';
 }
 
 /// Identifies the type of node a media ID represents.
@@ -34,14 +33,13 @@ enum AutoMediaIdType {
   rootCategory,
   artist,
   album,
-  genre,
   playlist,
   song,
   likedSubcategory,
 }
 
 /// Browse container that supplied a playable song leaf.
-enum AutoMediaContextType { album, playlist, genre, downloads, liked, recent }
+enum AutoMediaContextType { album, playlist, downloads, liked, recent }
 
 /// A parsed representation of a browse-tree media ID.
 final class ParsedMediaId {
@@ -75,7 +73,6 @@ abstract final class AutoMediaId {
 
   static String artist(String artistId) => 'artist/$artistId';
   static String album(String albumId) => 'album/$albumId';
-  static String genre(String genre) => 'genre/${Uri.encodeComponent(genre)}';
   static String playlist(String playlistId) => 'playlist/$playlistId';
   static String song(
     String songId, {
@@ -122,9 +119,8 @@ abstract final class AutoMediaId {
     if (slashIndex < 1 || slashIndex == path.length - 1) return null;
 
     final prefix = path.substring(0, slashIndex);
-    final rawId = path.substring(slashIndex + 1);
-    final id = prefix == 'genre' ? _decodeGenre(rawId) : rawId;
-    if (id == null || id.isEmpty) return null;
+    final id = path.substring(slashIndex + 1);
+    if (id.isEmpty) return null;
     final context = prefix == 'song' && queryIndex >= 0
         ? _parseSongContext(mediaId.substring(queryIndex + 1))
         : null;
@@ -136,10 +132,6 @@ abstract final class AutoMediaId {
       ),
       'album' => ParsedMediaId(
         type: AutoMediaIdType.album,
-        entityId: id,
-      ),
-      'genre' => ParsedMediaId(
-        type: AutoMediaIdType.genre,
         entityId: id,
       ),
       'playlist' => ParsedMediaId(
@@ -186,7 +178,6 @@ abstract final class AutoMediaId {
     AutoMediaRoot.shuffleLiked,
     AutoMediaRoot.resumeQueue,
     AutoMediaRoot.downloads,
-    AutoMediaRoot.genres,
   };
 
   static ({AutoMediaContextType type, String id})? _parseSongContext(
@@ -204,7 +195,6 @@ abstract final class AutoMediaId {
     final type = switch (parameters['context']) {
       'album' => AutoMediaContextType.album,
       'playlist' => AutoMediaContextType.playlist,
-      'genre' => AutoMediaContextType.genre,
       'downloads' => AutoMediaContextType.downloads,
       'liked' => AutoMediaContextType.liked,
       'recent' => AutoMediaContextType.recent,
@@ -215,16 +205,5 @@ abstract final class AutoMediaId {
       return null;
     }
     return (type: type, id: id);
-  }
-
-  static String? _decodeGenre(String rawGenre) {
-    if (_invalidPercentEncoding.hasMatch(rawGenre)) {
-      return null;
-    }
-    try {
-      return Uri.decodeComponent(rawGenre);
-    } on FormatException {
-      return null;
-    }
   }
 }

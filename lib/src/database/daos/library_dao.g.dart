@@ -23,6 +23,18 @@ mixin _$LibraryDaoMixin on DatabaseAccessor<NavisDatabase> {
       attachedDatabase.librarySyncLocalMutationsTable;
   $StarSyncQueueTableTable get starSyncQueueTable =>
       attachedDatabase.starSyncQueueTable;
+  $PlayHistoryTableTable get playHistoryTable =>
+      attachedDatabase.playHistoryTable;
+  $PlayQueueTableTable get playQueueTable => attachedDatabase.playQueueTable;
+  $PlayQueueItemsTableTable get playQueueItemsTable =>
+      attachedDatabase.playQueueItemsTable;
+  $PlaylistsTableTable get playlistsTable => attachedDatabase.playlistsTable;
+  $PlaylistSongsTableTable get playlistSongsTable =>
+      attachedDatabase.playlistSongsTable;
+  $ScrobbleQueueTableTable get scrobbleQueueTable =>
+      attachedDatabase.scrobbleQueueTable;
+  $ListenBrainzFeedbackQueueTableTable get listenBrainzFeedbackQueueTable =>
+      attachedDatabase.listenBrainzFeedbackQueueTable;
   LibraryDaoManager get managers => LibraryDaoManager(this);
 }
 
@@ -77,5 +89,41 @@ class LibraryDaoManager {
       $$StarSyncQueueTableTableTableManager(
         _db.attachedDatabase,
         _db.starSyncQueueTable,
+      );
+  $$PlayHistoryTableTableTableManager get playHistoryTable =>
+      $$PlayHistoryTableTableTableManager(
+        _db.attachedDatabase,
+        _db.playHistoryTable,
+      );
+  $$PlayQueueTableTableTableManager get playQueueTable =>
+      $$PlayQueueTableTableTableManager(
+        _db.attachedDatabase,
+        _db.playQueueTable,
+      );
+  $$PlayQueueItemsTableTableTableManager get playQueueItemsTable =>
+      $$PlayQueueItemsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.playQueueItemsTable,
+      );
+  $$PlaylistsTableTableTableManager get playlistsTable =>
+      $$PlaylistsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.playlistsTable,
+      );
+  $$PlaylistSongsTableTableTableManager get playlistSongsTable =>
+      $$PlaylistSongsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.playlistSongsTable,
+      );
+  $$ScrobbleQueueTableTableTableManager get scrobbleQueueTable =>
+      $$ScrobbleQueueTableTableTableManager(
+        _db.attachedDatabase,
+        _db.scrobbleQueueTable,
+      );
+  $$ListenBrainzFeedbackQueueTableTableTableManager
+  get listenBrainzFeedbackQueueTable =>
+      $$ListenBrainzFeedbackQueueTableTableTableManager(
+        _db.attachedDatabase,
+        _db.listenBrainzFeedbackQueueTable,
       );
 }

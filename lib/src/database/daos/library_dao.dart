@@ -13,11 +13,17 @@ import 'package:navis/src/database/tables/artists_table.dart';
 import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
+import 'package:navis/src/database/tables/listenbrainz_feedback_queue_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/library_sync_local_mutations_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
+import 'package:navis/src/database/tables/play_history_table.dart';
+import 'package:navis/src/database/tables/play_queue_items_table.dart';
+import 'package:navis/src/database/tables/playlist_songs_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
+import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 import 'package:navis/src/utils/file_utils.dart';
 
@@ -49,6 +55,20 @@ class PreservedProvisionalTree {
   final Set<String> artistIds;
   final Set<String> albumIds;
   final Set<String> songIds;
+}
+
+/// Outcome of applying a validated server absence to local song rows.
+class RetainedServerSongsResult {
+  const RetainedServerSongsResult({
+    this.deferredCacheFiles = const <String>[],
+    this.retainedUnavailableIds = const <String>[],
+  });
+
+  final List<String> deferredCacheFiles;
+
+  /// Rows kept because they own user state or references; candidates for
+  /// recovery review rather than silent deletion.
+  final List<String> retainedUnavailableIds;
 }
 
 class LibraryCatalogCounts {
@@ -94,6 +114,11 @@ class DownloadReconciliationSong {
     MatchFlowSongsTable,
     LibrarySyncLocalMutationsTable,
     StarSyncQueueTable,
+    PlayHistoryTable,
+    PlayQueueItemsTable,
+    PlaylistSongsTable,
+    ScrobbleQueueTable,
+    ListenBrainzFeedbackQueueTable,
   ],
 )
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
@@ -2203,17 +2228,33 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<String>> removeServerSongsForPromotion(
     Iterable<SongsTableData> songs,
   ) async {
+    final result = await retainOrRemoveServerSongs(songs);
+    return result.deferredCacheFiles;
+  }
+
+  /// Removes songs that disappeared from a validated server snapshot.
+  ///
+  /// Songs with a valid permanent download keep their local row (the classic
+  /// retention contract). Songs that still own user state — favorites,
+  /// ratings, history, queue/playlist references, pending mutations, or
+  /// download ownership — are retained as confirmed-missing so recovery review
+  /// can offer replacements instead of silently destroying user data. Only
+  /// unowned rows are deleted outright.
+  Future<RetainedServerSongsResult> retainOrRemoveServerSongs(
+    Iterable<SongsTableData> songs,
+  ) async {
     final ids = songs
         .where((song) => song.serverDeletedAt == null)
         .map((song) => song.id)
         .toSet()
         .toList(growable: false);
     if (ids.isEmpty) {
-      return const <String>[];
+      return const RetainedServerSongsResult();
     }
 
     final now = DateTime.now();
     final deferredCacheFiles = <String>[];
+    final retainedUnavailableIds = <String>[];
     const chunkSize = 500;
     for (var start = 0; start < ids.length; start += chunkSize) {
       final end = (start + chunkSize).clamp(0, ids.length);
@@ -2226,16 +2267,23 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         final preserve =
             cache.cacheType == CacheType.permanent &&
             cache.downloadStatus == DownloadStatus.complete &&
-            File(cache.filePath).existsSync();
+            await storedAudioExists(
+              locator: cache.filePath,
+              storageKind: cache.storageKind,
+            );
         if (preserve) {
           preservedIds.add(cache.songId);
         } else {
           deferredCacheFiles.add(cache.filePath);
         }
       }
-      final removableIds = chunk
+      final ownedIds = await _ownedSongIds(
+        chunk.where((id) => !preservedIds.contains(id)).toList(),
+      );
+      final retainedUnavailableIdsForChunk = ownedIds
           .where((id) => !preservedIds.contains(id))
           .toList(growable: false);
+      retainedUnavailableIds.addAll(retainedUnavailableIdsForChunk);
       if (preservedIds.isNotEmpty) {
         await (update(songsTable)..where(
               (table) => table.id.isIn(preservedIds.toList()),
@@ -2245,9 +2293,34 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
                 albumId: const Value(null),
                 artistId: const Value(null),
                 serverDeletedAt: Value(now),
+                catalogAvailability: Value(
+                  CatalogAvailability.confirmedMissing.name,
+                ),
               ),
             );
       }
+      if (retainedUnavailableIdsForChunk.isNotEmpty) {
+        await (update(songsTable)..where(
+              (table) => table.id.isIn(retainedUnavailableIdsForChunk),
+            ))
+            .write(
+              SongsTableCompanion(
+                albumId: const Value(null),
+                artistId: const Value(null),
+                serverDeletedAt: Value(now),
+                catalogAvailability: Value(
+                  CatalogAvailability.confirmedMissing.name,
+                ),
+              ),
+            );
+      }
+      final removableIds = chunk
+          .where(
+            (id) =>
+                !preservedIds.contains(id) &&
+                !retainedUnavailableIdsForChunk.contains(id),
+          )
+          .toList(growable: false);
       if (removableIds.isEmpty) {
         continue;
       }
@@ -2271,13 +2344,139 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         songsTable,
       )..where((table) => table.id.isIn(removableIds))).go();
     }
-    return deferredCacheFiles;
+    return RetainedServerSongsResult(
+      deferredCacheFiles: deferredCacheFiles,
+      retainedUnavailableIds: retainedUnavailableIds,
+    );
+  }
+
+  /// Song IDs among [ids] that still own local user state or references and
+  /// must survive a validated server absence for recovery review.
+  Future<Set<String>> _ownedSongIds(List<String> ids) async {
+    if (ids.isEmpty) {
+      return const <String>{};
+    }
+    final owned = <String>{};
+    final metadataRows =
+        await (select(songsTable)..where(
+              (table) =>
+                  table.id.isIn(ids) &
+                  (table.starred.isNotNull() | table.userRating.isNotNull()),
+            ))
+            .get();
+    owned.addAll(metadataRows.map((row) => row.id));
+    final existsChecks = <String, String>{
+      'play_history': 'SELECT 1 FROM play_history h WHERE h.song_id = s.id',
+      'play_queue_items':
+          'SELECT 1 FROM play_queue_items q WHERE q.song_id = s.id',
+      'playlist_songs': 'SELECT 1 FROM playlist_songs p WHERE p.song_id = s.id',
+      'download_queue': 'SELECT 1 FROM download_queue d WHERE d.song_id = s.id',
+      'match_flow_songs':
+          'SELECT 1 FROM match_flow_songs m WHERE m.song_id = s.id',
+      'scrobble_queue':
+          'SELECT 1 FROM scrobble_queue sq WHERE sq.song_id = s.id',
+      'listenbrainz_feedback_queue':
+          'SELECT 1 FROM listenbrainz_feedback_queue f WHERE f.song_id = s.id',
+      'star_sync_queue':
+          "SELECT 1 FROM star_sync_queue st "
+          "WHERE st.item_type = 'song' AND st.item_id = s.id",
+      'library_sync_local_mutations':
+          "SELECT 1 FROM library_sync_local_mutations lm "
+          "WHERE lm.entity_type = 'song' AND lm.entity_id = s.id",
+    };
+    final predicate = existsChecks.values
+        .map((exists) => 'EXISTS ($exists)')
+        .join(' OR ');
+    for (var start = 0; start < ids.length; start += 100) {
+      final chunk = ids.sublist(start, (start + 100).clamp(0, ids.length));
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      final rows = await customSelect(
+        'SELECT DISTINCT s.id FROM songs s '
+        'WHERE s.id IN ($placeholders) AND ($predicate);',
+        variables: <Variable<Object>>[
+          for (final id in chunk) Variable<String>(id),
+        ],
+        readsFrom: {
+          songsTable,
+          playHistoryTable,
+          playQueueItemsTable,
+          playlistSongsTable,
+          downloadQueueTable,
+          matchFlowSongsTable,
+          scrobbleQueueTable,
+          listenBrainzFeedbackQueueTable,
+          starSyncQueueTable,
+        },
+      ).get();
+      owned.addAll(rows.map((row) => row.read<String>('id')));
+    }
+    return owned;
   }
 
   Future<void> cleanupRemovedCacheFiles(Iterable<String> paths) async {
     for (final path in paths.toSet()) {
       await _deleteCacheFileBestEffort(path);
     }
+  }
+
+  /// Bumps the targeted artwork refresh revision for the given entities.
+  ///
+  /// Used by explicit repairs: rows whose server metadata changed may also
+  /// have new cover bytes behind an unchanged cover-art ID, and a bumped
+  /// revision refetches exactly those entries without clearing any other
+  /// cached artwork.
+  Future<void> bumpCoverArtRevisions({
+    Iterable<String> songIds = const <String>[],
+    Iterable<String> albumIds = const <String>[],
+    Iterable<String> artistIds = const <String>[],
+  }) async {
+    final songs = songIds.where((id) => id.isNotEmpty).toSet().toList();
+    final albums = albumIds.where((id) => id.isNotEmpty).toSet().toList();
+    final artists = artistIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (songs.isEmpty && albums.isEmpty && artists.isEmpty) {
+      return;
+    }
+    await transaction(() async {
+      for (var start = 0; start < songs.length; start += 500) {
+        final chunk = songs.sublist(
+          start,
+          (start + 500).clamp(0, songs.length),
+        );
+        await customUpdate(
+          'UPDATE songs SET cover_art_revision = '
+          'COALESCE(cover_art_revision, 0) + 1 WHERE id IN '
+          '(${List.filled(chunk.length, '?').join(',')});',
+          variables: [for (final id in chunk) Variable.withString(id)],
+          updates: {songsTable},
+        );
+      }
+      for (var start = 0; start < albums.length; start += 500) {
+        final chunk = albums.sublist(
+          start,
+          (start + 500).clamp(0, albums.length),
+        );
+        await customUpdate(
+          'UPDATE albums SET cover_art_revision = '
+          'COALESCE(cover_art_revision, 0) + 1 WHERE id IN '
+          '(${List.filled(chunk.length, '?').join(',')});',
+          variables: [for (final id in chunk) Variable.withString(id)],
+          updates: {albumsTable},
+        );
+      }
+      for (var start = 0; start < artists.length; start += 500) {
+        final chunk = artists.sublist(
+          start,
+          (start + 500).clamp(0, artists.length),
+        );
+        await customUpdate(
+          'UPDATE artists SET cover_art_revision = '
+          'COALESCE(cover_art_revision, 0) + 1 WHERE id IN '
+          '(${List.filled(chunk.length, '?').join(',')});',
+          variables: [for (final id in chunk) Variable.withString(id)],
+          updates: {artistsTable},
+        );
+      }
+    });
   }
 
   Future<List<String>> _handleRemovedServerSongs(
@@ -2297,7 +2496,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           cache != null &&
           cache.cacheType == CacheType.permanent &&
           cache.downloadStatus == DownloadStatus.complete &&
-          File(cache.filePath).existsSync();
+          await storedAudioExists(
+            locator: cache.filePath,
+            storageKind: cache.storageKind,
+          );
 
       if (preserve) {
         await (update(
@@ -2307,6 +2509,29 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             albumId: const Value(null),
             artistId: const Value(null),
             serverDeletedAt: Value(now),
+            catalogAvailability: Value(
+              CatalogAvailability.confirmedMissing.name,
+            ),
+          ),
+        );
+        continue;
+      }
+
+      // A row that still owns user state survives as confirmed-missing so a
+      // later scan or manual review can relink it; only unowned rows are
+      // destroyed with their references.
+      final owned = (await _ownedSongIds(<String>[song.id])).isNotEmpty;
+      if (owned) {
+        await (update(
+          songsTable,
+        )..where((table) => table.id.equals(song.id))).write(
+          SongsTableCompanion(
+            albumId: const Value(null),
+            artistId: const Value(null),
+            serverDeletedAt: Value(now),
+            catalogAvailability: Value(
+              CatalogAvailability.confirmedMissing.name,
+            ),
           ),
         );
         continue;

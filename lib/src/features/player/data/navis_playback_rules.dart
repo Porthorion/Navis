@@ -6,7 +6,6 @@ enum NavisAndroidAutoSearchType {
   artist,
   album,
   playlist,
-  genre,
   title,
 }
 
@@ -93,7 +92,7 @@ NavisAndroidAutoSearchRequest navisAndroidAutoSearchRequest(
     case AndroidAutoConstants.mediaFocusPlaylist:
       return request(NavisAndroidAutoSearchType.playlist, playlist);
     case AndroidAutoConstants.mediaFocusGenre:
-      return request(NavisAndroidAutoSearchType.genre, genre);
+      return request(NavisAndroidAutoSearchType.general, genre);
     case AndroidAutoConstants.mediaFocusSong:
       return request(NavisAndroidAutoSearchType.title, title);
   }
@@ -104,7 +103,7 @@ NavisAndroidAutoSearchRequest navisAndroidAutoSearchRequest(
   if (playlist != null) {
     return request(NavisAndroidAutoSearchType.playlist, playlist);
   }
-  if (genre != null) return request(NavisAndroidAutoSearchType.genre, genre);
+  if (genre != null) return request(NavisAndroidAutoSearchType.general, genre);
   return request(NavisAndroidAutoSearchType.general, fallback);
 }
 

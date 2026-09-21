@@ -85,6 +85,10 @@ catalog. Use `--scenario-source /absolute/path/to/navis.sqlite.sqlite` to
 choose another source. Each invocation creates a new copy; its directory can be
 deleted after the app exits.
 
+The presets use the production 600-second sync lease duration. This keeps a
+large first catalog fenced through its atomic promotion; the diagnostics default
+of six seconds remains reserved for interruption-owner tests.
+
 For desktop targets, use channel-aware release assets and run from extracted bundles.
 
 Example:

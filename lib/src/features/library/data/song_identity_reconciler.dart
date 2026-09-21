@@ -30,10 +30,17 @@ class SongIdentityAmbiguous extends SongIdentityMatchResult {
   const SongIdentityAmbiguous({
     required this.candidateCount,
     required this.reason,
+    this.canonicalSongId,
+    this.candidateIds = const <String>[],
   });
 
   final int candidateCount;
   final SongIdentityMatchReason reason;
+
+  /// Set when ambiguity was observed while streaming canonical rows, so the
+  /// caller can persist a review entry instead of only counting the case.
+  final String? canonicalSongId;
+  final List<String> candidateIds;
 }
 
 class SongIdentityUnmatched extends SongIdentityMatchResult {
@@ -46,12 +53,20 @@ class SongIdentityReconciliationSummary {
     this.canonicalizedSongCount = 0,
     this.ambiguousMatchCount = 0,
     this.retainedProvisionalCount = 0,
+    this.restoredLikeCount = 0,
+    this.ambiguousCases = const <SongIdentityAmbiguous>[],
   });
 
   final List<SongIdentityAlias> aliases;
   final int canonicalizedSongCount;
   final int ambiguousMatchCount;
   final int retainedProvisionalCount;
+
+  /// Recovered likes that were re-queued for server dispatch.
+  final int restoredLikeCount;
+
+  /// Observed ambiguity with the involved IDs, for recovery review entries.
+  final List<SongIdentityAmbiguous> ambiguousCases;
 }
 
 class SongIdentityReconciler {
@@ -119,6 +134,12 @@ class SongIdentityReconciler {
 
     final metadataMatches = provisionalSongs
         .where((candidate) {
+          if (_mbidsConflict(
+            canonicalSong.recordingMbid,
+            candidate.recordingMbid,
+          )) {
+            return false;
+          }
           final duration = candidate.duration;
           if (duration == null || (duration - canonicalDuration).abs() > 3) {
             return false;
@@ -179,6 +200,14 @@ class SongIdentityReconciler {
     return normalized == null || normalized.isEmpty ? null : normalized;
   }
 
+  /// Two nonempty but different recording MBIDs are contradictory evidence:
+  /// metadata similarity alone must never merge such rows automatically.
+  bool _mbidsConflict(String? a, String? b) {
+    final left = _normalizeMbid(a);
+    final right = _normalizeMbid(b);
+    return left != null && right != null && left != right;
+  }
+
   bool _positionsCompatible(int? canonical, int? provisional) {
     return canonical == null || provisional == null || canonical == provisional;
   }
@@ -202,8 +231,10 @@ class SongIdentityReconciliationSession {
   final SongIdentityReconciler _reconciler;
   final _ProvisionalIdentityIndex _index;
   final List<SongIdentityAlias> _aliases = <SongIdentityAlias>[];
+  final List<SongIdentityAmbiguous> _ambiguousCases = <SongIdentityAmbiguous>[];
   var _canonicalized = 0;
   var _ambiguous = 0;
+  var _restoredLikes = 0;
 
   SongIdentityReconciliationSummary get summary =>
       SongIdentityReconciliationSummary(
@@ -211,6 +242,10 @@ class SongIdentityReconciliationSession {
         canonicalizedSongCount: _canonicalized,
         ambiguousMatchCount: _ambiguous,
         retainedProvisionalCount: _index.remainingCount,
+        restoredLikeCount: _restoredLikes,
+        ambiguousCases: List<SongIdentityAmbiguous>.unmodifiable(
+          _ambiguousCases,
+        ),
       );
 
   Future<void> reconcile(Iterable<SongsTableData> canonicalSongs) async {
@@ -233,11 +268,15 @@ class SongIdentityReconciliationSession {
               retainOldCacheFile: wasActive,
             );
             _aliases.add(remap.alias);
+            if (remap.restoredLike) {
+              _restoredLikes++;
+            }
           }
           _index.remove(result.provisionalSong);
           _canonicalized++;
         case SongIdentityAmbiguous():
           _ambiguous++;
+          _ambiguousCases.add(result);
         case SongIdentityUnmatched():
           break;
       }
@@ -304,6 +343,10 @@ class _ProvisionalIdentityIndex {
     final matches = _active(_byMetadata[key])
         .where(
           (candidate) =>
+              !_reconciler._mbidsConflict(
+                canonicalSong.recordingMbid,
+                candidate.recordingMbid,
+              ) &&
               candidate.duration != null &&
               (candidate.duration! - duration).abs() <= 3 &&
               _reconciler._positionsCompatible(
@@ -326,6 +369,8 @@ class _ProvisionalIdentityIndex {
       return SongIdentityAmbiguous(
         candidateCount: matches.length,
         reason: SongIdentityMatchReason.exactMetadata,
+        canonicalSongId: canonicalSong.id,
+        candidateIds: matches.map((song) => song.id).toList(growable: false),
       );
     }
     return const SongIdentityUnmatched();

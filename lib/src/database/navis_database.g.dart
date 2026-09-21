@@ -5104,6 +5104,39 @@ class $ArtistsTableTable extends ArtistsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _coverArtRevisionMeta = const VerificationMeta(
+    'coverArtRevision',
+  );
+  @override
+  late final GeneratedColumn<int> coverArtRevision = GeneratedColumn<int>(
+    'cover_art_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _artistMbidMeta = const VerificationMeta(
+    'artistMbid',
+  );
+  @override
+  late final GeneratedColumn<String> artistMbid = GeneratedColumn<String>(
+    'artist_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _catalogAvailabilityMeta =
+      const VerificationMeta('catalogAvailability');
+  @override
+  late final GeneratedColumn<String> catalogAvailability =
+      GeneratedColumn<String>(
+        'catalog_availability',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _starredMeta = const VerificationMeta(
     'starred',
   );
@@ -5162,6 +5195,9 @@ class $ArtistsTableTable extends ArtistsTable
     name,
     albumCount,
     coverArt,
+    coverArtRevision,
+    artistMbid,
+    catalogAvailability,
     starred,
     isProvisional,
     isExternal,
@@ -5202,6 +5238,30 @@ class $ArtistsTableTable extends ArtistsTable
       context.handle(
         _coverArtMeta,
         coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
+      );
+    }
+    if (data.containsKey('cover_art_revision')) {
+      context.handle(
+        _coverArtRevisionMeta,
+        coverArtRevision.isAcceptableOrUnknown(
+          data['cover_art_revision']!,
+          _coverArtRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('artist_mbid')) {
+      context.handle(
+        _artistMbidMeta,
+        artistMbid.isAcceptableOrUnknown(data['artist_mbid']!, _artistMbidMeta),
+      );
+    }
+    if (data.containsKey('catalog_availability')) {
+      context.handle(
+        _catalogAvailabilityMeta,
+        catalogAvailability.isAcceptableOrUnknown(
+          data['catalog_availability']!,
+          _catalogAvailabilityMeta,
+        ),
       );
     }
     if (data.containsKey('starred')) {
@@ -5259,6 +5319,18 @@ class $ArtistsTableTable extends ArtistsTable
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
       ),
+      coverArtRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cover_art_revision'],
+      ),
+      artistMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_mbid'],
+      ),
+      catalogAvailability: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}catalog_availability'],
+      ),
       starred: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
@@ -5290,6 +5362,19 @@ class ArtistsTableData extends DataClass
   final String name;
   final int? albumCount;
   final String? coverArt;
+
+  /// Incremented on targeted artwork recovery. Zero keeps the legacy
+  /// cache-key layout so existing offline artwork stays valid.
+  /// Nullable so rows never refreshed keep legacy data-class behavior;
+  /// treat null as revision zero when composing cache keys.
+  final int? coverArtRevision;
+
+  /// MusicBrainz artist identifier, when the server supplies one. Used to
+  /// map artists across server ID changes without metadata guessing.
+  final String? artistMbid;
+
+  /// Typed catalog availability. Null reads as present for legacy rows.
+  final String? catalogAvailability;
   final DateTime? starred;
 
   /// True for lightweight parent rows created from online search/playback
@@ -5308,6 +5393,9 @@ class ArtistsTableData extends DataClass
     required this.name,
     this.albumCount,
     this.coverArt,
+    this.coverArtRevision,
+    this.artistMbid,
+    this.catalogAvailability,
     this.starred,
     required this.isProvisional,
     required this.isExternal,
@@ -5323,6 +5411,15 @@ class ArtistsTableData extends DataClass
     }
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
+    }
+    if (!nullToAbsent || coverArtRevision != null) {
+      map['cover_art_revision'] = Variable<int>(coverArtRevision);
+    }
+    if (!nullToAbsent || artistMbid != null) {
+      map['artist_mbid'] = Variable<String>(artistMbid);
+    }
+    if (!nullToAbsent || catalogAvailability != null) {
+      map['catalog_availability'] = Variable<String>(catalogAvailability);
     }
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
@@ -5345,6 +5442,15 @@ class ArtistsTableData extends DataClass
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
+      coverArtRevision: coverArtRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverArtRevision),
+      artistMbid: artistMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artistMbid),
+      catalogAvailability: catalogAvailability == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogAvailability),
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
@@ -5366,6 +5472,11 @@ class ArtistsTableData extends DataClass
       name: serializer.fromJson<String>(json['name']),
       albumCount: serializer.fromJson<int?>(json['albumCount']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
+      coverArtRevision: serializer.fromJson<int?>(json['coverArtRevision']),
+      artistMbid: serializer.fromJson<String?>(json['artistMbid']),
+      catalogAvailability: serializer.fromJson<String?>(
+        json['catalogAvailability'],
+      ),
       starred: serializer.fromJson<DateTime?>(json['starred']),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
       isExternal: serializer.fromJson<bool>(json['isExternal']),
@@ -5380,6 +5491,9 @@ class ArtistsTableData extends DataClass
       'name': serializer.toJson<String>(name),
       'albumCount': serializer.toJson<int?>(albumCount),
       'coverArt': serializer.toJson<String?>(coverArt),
+      'coverArtRevision': serializer.toJson<int?>(coverArtRevision),
+      'artistMbid': serializer.toJson<String?>(artistMbid),
+      'catalogAvailability': serializer.toJson<String?>(catalogAvailability),
       'starred': serializer.toJson<DateTime?>(starred),
       'isProvisional': serializer.toJson<bool>(isProvisional),
       'isExternal': serializer.toJson<bool>(isExternal),
@@ -5392,6 +5506,9 @@ class ArtistsTableData extends DataClass
     String? name,
     Value<int?> albumCount = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
+    Value<int?> coverArtRevision = const Value.absent(),
+    Value<String?> artistMbid = const Value.absent(),
+    Value<String?> catalogAvailability = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
     bool? isProvisional,
     bool? isExternal,
@@ -5401,6 +5518,13 @@ class ArtistsTableData extends DataClass
     name: name ?? this.name,
     albumCount: albumCount.present ? albumCount.value : this.albumCount,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    coverArtRevision: coverArtRevision.present
+        ? coverArtRevision.value
+        : this.coverArtRevision,
+    artistMbid: artistMbid.present ? artistMbid.value : this.artistMbid,
+    catalogAvailability: catalogAvailability.present
+        ? catalogAvailability.value
+        : this.catalogAvailability,
     starred: starred.present ? starred.value : this.starred,
     isProvisional: isProvisional ?? this.isProvisional,
     isExternal: isExternal ?? this.isExternal,
@@ -5416,6 +5540,15 @@ class ArtistsTableData extends DataClass
           ? data.albumCount.value
           : this.albumCount,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      coverArtRevision: data.coverArtRevision.present
+          ? data.coverArtRevision.value
+          : this.coverArtRevision,
+      artistMbid: data.artistMbid.present
+          ? data.artistMbid.value
+          : this.artistMbid,
+      catalogAvailability: data.catalogAvailability.present
+          ? data.catalogAvailability.value
+          : this.catalogAvailability,
       starred: data.starred.present ? data.starred.value : this.starred,
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
@@ -5436,6 +5569,9 @@ class ArtistsTableData extends DataClass
           ..write('name: $name, ')
           ..write('albumCount: $albumCount, ')
           ..write('coverArt: $coverArt, ')
+          ..write('coverArtRevision: $coverArtRevision, ')
+          ..write('artistMbid: $artistMbid, ')
+          ..write('catalogAvailability: $catalogAvailability, ')
           ..write('starred: $starred, ')
           ..write('isProvisional: $isProvisional, ')
           ..write('isExternal: $isExternal, ')
@@ -5450,6 +5586,9 @@ class ArtistsTableData extends DataClass
     name,
     albumCount,
     coverArt,
+    coverArtRevision,
+    artistMbid,
+    catalogAvailability,
     starred,
     isProvisional,
     isExternal,
@@ -5463,6 +5602,9 @@ class ArtistsTableData extends DataClass
           other.name == this.name &&
           other.albumCount == this.albumCount &&
           other.coverArt == this.coverArt &&
+          other.coverArtRevision == this.coverArtRevision &&
+          other.artistMbid == this.artistMbid &&
+          other.catalogAvailability == this.catalogAvailability &&
           other.starred == this.starred &&
           other.isProvisional == this.isProvisional &&
           other.isExternal == this.isExternal &&
@@ -5474,6 +5616,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
   final Value<String> name;
   final Value<int?> albumCount;
   final Value<String?> coverArt;
+  final Value<int?> coverArtRevision;
+  final Value<String?> artistMbid;
+  final Value<String?> catalogAvailability;
   final Value<DateTime?> starred;
   final Value<bool> isProvisional;
   final Value<bool> isExternal;
@@ -5484,6 +5629,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     this.name = const Value.absent(),
     this.albumCount = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.coverArtRevision = const Value.absent(),
+    this.artistMbid = const Value.absent(),
+    this.catalogAvailability = const Value.absent(),
     this.starred = const Value.absent(),
     this.isProvisional = const Value.absent(),
     this.isExternal = const Value.absent(),
@@ -5495,6 +5643,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     required String name,
     this.albumCount = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.coverArtRevision = const Value.absent(),
+    this.artistMbid = const Value.absent(),
+    this.catalogAvailability = const Value.absent(),
     this.starred = const Value.absent(),
     this.isProvisional = const Value.absent(),
     this.isExternal = const Value.absent(),
@@ -5507,6 +5658,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     Expression<String>? name,
     Expression<int>? albumCount,
     Expression<String>? coverArt,
+    Expression<int>? coverArtRevision,
+    Expression<String>? artistMbid,
+    Expression<String>? catalogAvailability,
     Expression<DateTime>? starred,
     Expression<bool>? isProvisional,
     Expression<bool>? isExternal,
@@ -5518,6 +5672,10 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
       if (name != null) 'name': name,
       if (albumCount != null) 'album_count': albumCount,
       if (coverArt != null) 'cover_art': coverArt,
+      if (coverArtRevision != null) 'cover_art_revision': coverArtRevision,
+      if (artistMbid != null) 'artist_mbid': artistMbid,
+      if (catalogAvailability != null)
+        'catalog_availability': catalogAvailability,
       if (starred != null) 'starred': starred,
       if (isProvisional != null) 'is_provisional': isProvisional,
       if (isExternal != null) 'is_external': isExternal,
@@ -5531,6 +5689,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     Value<String>? name,
     Value<int?>? albumCount,
     Value<String?>? coverArt,
+    Value<int?>? coverArtRevision,
+    Value<String?>? artistMbid,
+    Value<String?>? catalogAvailability,
     Value<DateTime?>? starred,
     Value<bool>? isProvisional,
     Value<bool>? isExternal,
@@ -5542,6 +5703,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
       name: name ?? this.name,
       albumCount: albumCount ?? this.albumCount,
       coverArt: coverArt ?? this.coverArt,
+      coverArtRevision: coverArtRevision ?? this.coverArtRevision,
+      artistMbid: artistMbid ?? this.artistMbid,
+      catalogAvailability: catalogAvailability ?? this.catalogAvailability,
       starred: starred ?? this.starred,
       isProvisional: isProvisional ?? this.isProvisional,
       isExternal: isExternal ?? this.isExternal,
@@ -5564,6 +5728,15 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
     }
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
+    }
+    if (coverArtRevision.present) {
+      map['cover_art_revision'] = Variable<int>(coverArtRevision.value);
+    }
+    if (artistMbid.present) {
+      map['artist_mbid'] = Variable<String>(artistMbid.value);
+    }
+    if (catalogAvailability.present) {
+      map['catalog_availability'] = Variable<String>(catalogAvailability.value);
     }
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
@@ -5590,6 +5763,9 @@ class ArtistsTableCompanion extends UpdateCompanion<ArtistsTableData> {
           ..write('name: $name, ')
           ..write('albumCount: $albumCount, ')
           ..write('coverArt: $coverArt, ')
+          ..write('coverArtRevision: $coverArtRevision, ')
+          ..write('artistMbid: $artistMbid, ')
+          ..write('catalogAvailability: $catalogAvailability, ')
           ..write('starred: $starred, ')
           ..write('isProvisional: $isProvisional, ')
           ..write('isExternal: $isExternal, ')
@@ -5710,6 +5886,39 @@ class $AlbumsTableTable extends AlbumsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _coverArtRevisionMeta = const VerificationMeta(
+    'coverArtRevision',
+  );
+  @override
+  late final GeneratedColumn<int> coverArtRevision = GeneratedColumn<int>(
+    'cover_art_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _releaseMbidMeta = const VerificationMeta(
+    'releaseMbid',
+  );
+  @override
+  late final GeneratedColumn<String> releaseMbid = GeneratedColumn<String>(
+    'release_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _catalogAvailabilityMeta =
+      const VerificationMeta('catalogAvailability');
+  @override
+  late final GeneratedColumn<String> catalogAvailability =
+      GeneratedColumn<String>(
+        'catalog_availability',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _songsHydratedMeta = const VerificationMeta(
     'songsHydrated',
   );
@@ -5857,6 +6066,9 @@ class $AlbumsTableTable extends AlbumsTable
     year,
     genre,
     coverArt,
+    coverArtRevision,
+    releaseMbid,
+    catalogAvailability,
     songsHydrated,
     songsVerifiedAt,
     starred,
@@ -5934,6 +6146,33 @@ class $AlbumsTableTable extends AlbumsTable
       context.handle(
         _coverArtMeta,
         coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
+      );
+    }
+    if (data.containsKey('cover_art_revision')) {
+      context.handle(
+        _coverArtRevisionMeta,
+        coverArtRevision.isAcceptableOrUnknown(
+          data['cover_art_revision']!,
+          _coverArtRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('release_mbid')) {
+      context.handle(
+        _releaseMbidMeta,
+        releaseMbid.isAcceptableOrUnknown(
+          data['release_mbid']!,
+          _releaseMbidMeta,
+        ),
+      );
+    }
+    if (data.containsKey('catalog_availability')) {
+      context.handle(
+        _catalogAvailabilityMeta,
+        catalogAvailability.isAcceptableOrUnknown(
+          data['catalog_availability']!,
+          _catalogAvailabilityMeta,
+        ),
       );
     }
     if (data.containsKey('songs_hydrated')) {
@@ -6071,6 +6310,18 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
       ),
+      coverArtRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cover_art_revision'],
+      ),
+      releaseMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}release_mbid'],
+      ),
+      catalogAvailability: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}catalog_availability'],
+      ),
       songsHydrated: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}songs_hydrated'],
@@ -6144,6 +6395,20 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   final int? year;
   final String? genre;
   final String? coverArt;
+
+  /// Incremented on targeted artwork recovery so cached cover bytes keyed to
+  /// the previous revision stop satisfying new requests. Zero keeps the
+  /// legacy cache-key layout so existing offline artwork stays valid.
+  /// Nullable so rows never refreshed keep legacy data-class behavior;
+  /// treat null as revision zero when composing cache keys.
+  final int? coverArtRevision;
+
+  /// MusicBrainz release identifier, when the server supplies one. Used to
+  /// map albums across server ID changes without metadata guessing.
+  final String? releaseMbid;
+
+  /// Typed catalog availability. Null reads as present for legacy rows.
+  final String? catalogAvailability;
   final bool songsHydrated;
 
   /// Last complete track snapshot, independent of album-header/index changes.
@@ -6188,6 +6453,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.year,
     this.genre,
     this.coverArt,
+    this.coverArtRevision,
+    this.releaseMbid,
+    this.catalogAvailability,
     required this.songsHydrated,
     this.songsVerifiedAt,
     this.starred,
@@ -6230,6 +6498,15 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     }
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
+    }
+    if (!nullToAbsent || coverArtRevision != null) {
+      map['cover_art_revision'] = Variable<int>(coverArtRevision);
+    }
+    if (!nullToAbsent || releaseMbid != null) {
+      map['release_mbid'] = Variable<String>(releaseMbid);
+    }
+    if (!nullToAbsent || catalogAvailability != null) {
+      map['catalog_availability'] = Variable<String>(catalogAvailability);
     }
     map['songs_hydrated'] = Variable<bool>(songsHydrated);
     if (!nullToAbsent || songsVerifiedAt != null) {
@@ -6285,6 +6562,15 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
+      coverArtRevision: coverArtRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverArtRevision),
+      releaseMbid: releaseMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(releaseMbid),
+      catalogAvailability: catalogAvailability == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogAvailability),
       songsHydrated: Value(songsHydrated),
       songsVerifiedAt: songsVerifiedAt == null && nullToAbsent
           ? const Value.absent()
@@ -6331,6 +6617,11 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       year: serializer.fromJson<int?>(json['year']),
       genre: serializer.fromJson<String?>(json['genre']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
+      coverArtRevision: serializer.fromJson<int?>(json['coverArtRevision']),
+      releaseMbid: serializer.fromJson<String?>(json['releaseMbid']),
+      catalogAvailability: serializer.fromJson<String?>(
+        json['catalogAvailability'],
+      ),
       songsHydrated: serializer.fromJson<bool>(json['songsHydrated']),
       songsVerifiedAt: serializer.fromJson<DateTime?>(json['songsVerifiedAt']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
@@ -6358,6 +6649,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'year': serializer.toJson<int?>(year),
       'genre': serializer.toJson<String?>(genre),
       'coverArt': serializer.toJson<String?>(coverArt),
+      'coverArtRevision': serializer.toJson<int?>(coverArtRevision),
+      'releaseMbid': serializer.toJson<String?>(releaseMbid),
+      'catalogAvailability': serializer.toJson<String?>(catalogAvailability),
       'songsHydrated': serializer.toJson<bool>(songsHydrated),
       'songsVerifiedAt': serializer.toJson<DateTime?>(songsVerifiedAt),
       'starred': serializer.toJson<DateTime?>(starred),
@@ -6383,6 +6677,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<int?> year = const Value.absent(),
     Value<String?> genre = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
+    Value<int?> coverArtRevision = const Value.absent(),
+    Value<String?> releaseMbid = const Value.absent(),
+    Value<String?> catalogAvailability = const Value.absent(),
     bool? songsHydrated,
     Value<DateTime?> songsVerifiedAt = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
@@ -6405,6 +6702,13 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     year: year.present ? year.value : this.year,
     genre: genre.present ? genre.value : this.genre,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    coverArtRevision: coverArtRevision.present
+        ? coverArtRevision.value
+        : this.coverArtRevision,
+    releaseMbid: releaseMbid.present ? releaseMbid.value : this.releaseMbid,
+    catalogAvailability: catalogAvailability.present
+        ? catalogAvailability.value
+        : this.catalogAvailability,
     songsHydrated: songsHydrated ?? this.songsHydrated,
     songsVerifiedAt: songsVerifiedAt.present
         ? songsVerifiedAt.value
@@ -6439,6 +6743,15 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       year: data.year.present ? data.year.value : this.year,
       genre: data.genre.present ? data.genre.value : this.genre,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      coverArtRevision: data.coverArtRevision.present
+          ? data.coverArtRevision.value
+          : this.coverArtRevision,
+      releaseMbid: data.releaseMbid.present
+          ? data.releaseMbid.value
+          : this.releaseMbid,
+      catalogAvailability: data.catalogAvailability.present
+          ? data.catalogAvailability.value
+          : this.catalogAvailability,
       songsHydrated: data.songsHydrated.present
           ? data.songsHydrated.value
           : this.songsHydrated,
@@ -6482,6 +6795,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('year: $year, ')
           ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
+          ..write('coverArtRevision: $coverArtRevision, ')
+          ..write('releaseMbid: $releaseMbid, ')
+          ..write('catalogAvailability: $catalogAvailability, ')
           ..write('songsHydrated: $songsHydrated, ')
           ..write('songsVerifiedAt: $songsVerifiedAt, ')
           ..write('starred: $starred, ')
@@ -6509,6 +6825,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     year,
     genre,
     coverArt,
+    coverArtRevision,
+    releaseMbid,
+    catalogAvailability,
     songsHydrated,
     songsVerifiedAt,
     starred,
@@ -6535,6 +6854,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.year == this.year &&
           other.genre == this.genre &&
           other.coverArt == this.coverArt &&
+          other.coverArtRevision == this.coverArtRevision &&
+          other.releaseMbid == this.releaseMbid &&
+          other.catalogAvailability == this.catalogAvailability &&
           other.songsHydrated == this.songsHydrated &&
           other.songsVerifiedAt == this.songsVerifiedAt &&
           other.starred == this.starred &&
@@ -6559,6 +6881,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<int?> year;
   final Value<String?> genre;
   final Value<String?> coverArt;
+  final Value<int?> coverArtRevision;
+  final Value<String?> releaseMbid;
+  final Value<String?> catalogAvailability;
   final Value<bool> songsHydrated;
   final Value<DateTime?> songsVerifiedAt;
   final Value<DateTime?> starred;
@@ -6582,6 +6907,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.year = const Value.absent(),
     this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.coverArtRevision = const Value.absent(),
+    this.releaseMbid = const Value.absent(),
+    this.catalogAvailability = const Value.absent(),
     this.songsHydrated = const Value.absent(),
     this.songsVerifiedAt = const Value.absent(),
     this.starred = const Value.absent(),
@@ -6606,6 +6934,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.year = const Value.absent(),
     this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.coverArtRevision = const Value.absent(),
+    this.releaseMbid = const Value.absent(),
+    this.catalogAvailability = const Value.absent(),
     this.songsHydrated = const Value.absent(),
     this.songsVerifiedAt = const Value.absent(),
     this.starred = const Value.absent(),
@@ -6631,6 +6962,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<int>? year,
     Expression<String>? genre,
     Expression<String>? coverArt,
+    Expression<int>? coverArtRevision,
+    Expression<String>? releaseMbid,
+    Expression<String>? catalogAvailability,
     Expression<bool>? songsHydrated,
     Expression<DateTime>? songsVerifiedAt,
     Expression<DateTime>? starred,
@@ -6655,6 +6989,10 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (year != null) 'year': year,
       if (genre != null) 'genre': genre,
       if (coverArt != null) 'cover_art': coverArt,
+      if (coverArtRevision != null) 'cover_art_revision': coverArtRevision,
+      if (releaseMbid != null) 'release_mbid': releaseMbid,
+      if (catalogAvailability != null)
+        'catalog_availability': catalogAvailability,
       if (songsHydrated != null) 'songs_hydrated': songsHydrated,
       if (songsVerifiedAt != null) 'songs_verified_at': songsVerifiedAt,
       if (starred != null) 'starred': starred,
@@ -6681,6 +7019,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<int?>? year,
     Value<String?>? genre,
     Value<String?>? coverArt,
+    Value<int?>? coverArtRevision,
+    Value<String?>? releaseMbid,
+    Value<String?>? catalogAvailability,
     Value<bool>? songsHydrated,
     Value<DateTime?>? songsVerifiedAt,
     Value<DateTime?>? starred,
@@ -6705,6 +7046,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       year: year ?? this.year,
       genre: genre ?? this.genre,
       coverArt: coverArt ?? this.coverArt,
+      coverArtRevision: coverArtRevision ?? this.coverArtRevision,
+      releaseMbid: releaseMbid ?? this.releaseMbid,
+      catalogAvailability: catalogAvailability ?? this.catalogAvailability,
       songsHydrated: songsHydrated ?? this.songsHydrated,
       songsVerifiedAt: songsVerifiedAt ?? this.songsVerifiedAt,
       starred: starred ?? this.starred,
@@ -6754,6 +7098,15 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     }
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
+    }
+    if (coverArtRevision.present) {
+      map['cover_art_revision'] = Variable<int>(coverArtRevision.value);
+    }
+    if (releaseMbid.present) {
+      map['release_mbid'] = Variable<String>(releaseMbid.value);
+    }
+    if (catalogAvailability.present) {
+      map['catalog_availability'] = Variable<String>(catalogAvailability.value);
     }
     if (songsHydrated.present) {
       map['songs_hydrated'] = Variable<bool>(songsHydrated.value);
@@ -6807,6 +7160,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('year: $year, ')
           ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
+          ..write('coverArtRevision: $coverArtRevision, ')
+          ..write('releaseMbid: $releaseMbid, ')
+          ..write('catalogAvailability: $catalogAvailability, ')
           ..write('songsHydrated: $songsHydrated, ')
           ..write('songsVerifiedAt: $songsVerifiedAt, ')
           ..write('starred: $starred, ')
@@ -6991,6 +7347,17 @@ class $SongsTableTable extends SongsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _coverArtRevisionMeta = const VerificationMeta(
+    'coverArtRevision',
+  );
+  @override
+  late final GeneratedColumn<int> coverArtRevision = GeneratedColumn<int>(
+    'cover_art_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _starredMeta = const VerificationMeta(
     'starred',
   );
@@ -7008,6 +7375,28 @@ class $SongsTableTable extends SongsTable
   @override
   late final GeneratedColumn<String> recordingMbid = GeneratedColumn<String>(
     'recording_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _albumMbidMeta = const VerificationMeta(
+    'albumMbid',
+  );
+  @override
+  late final GeneratedColumn<String> albumMbid = GeneratedColumn<String>(
+    'album_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _artistMbidMeta = const VerificationMeta(
+    'artistMbid',
+  );
+  @override
+  late final GeneratedColumn<String> artistMbid = GeneratedColumn<String>(
+    'artist_mbid',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -7056,6 +7445,17 @@ class $SongsTableTable extends SongsTable
         aliasedName,
         true,
         type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _catalogAvailabilityMeta =
+      const VerificationMeta('catalogAvailability');
+  @override
+  late final GeneratedColumn<String> catalogAvailability =
+      GeneratedColumn<String>(
+        'catalog_availability',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
   static const VerificationMeta _isProvisionalMeta = const VerificationMeta(
@@ -7160,12 +7560,16 @@ class $SongsTableTable extends SongsTable
     suffix,
     size,
     coverArt,
+    coverArtRevision,
     starred,
     recordingMbid,
+    albumMbid,
+    artistMbid,
     userRating,
     playCount,
     createdAt,
     serverDeletedAt,
+    catalogAvailability,
     isProvisional,
     isExternal,
     catalogGeneration,
@@ -7280,6 +7684,15 @@ class $SongsTableTable extends SongsTable
         coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
       );
     }
+    if (data.containsKey('cover_art_revision')) {
+      context.handle(
+        _coverArtRevisionMeta,
+        coverArtRevision.isAcceptableOrUnknown(
+          data['cover_art_revision']!,
+          _coverArtRevisionMeta,
+        ),
+      );
+    }
     if (data.containsKey('starred')) {
       context.handle(
         _starredMeta,
@@ -7293,6 +7706,18 @@ class $SongsTableTable extends SongsTable
           data['recording_mbid']!,
           _recordingMbidMeta,
         ),
+      );
+    }
+    if (data.containsKey('album_mbid')) {
+      context.handle(
+        _albumMbidMeta,
+        albumMbid.isAcceptableOrUnknown(data['album_mbid']!, _albumMbidMeta),
+      );
+    }
+    if (data.containsKey('artist_mbid')) {
+      context.handle(
+        _artistMbidMeta,
+        artistMbid.isAcceptableOrUnknown(data['artist_mbid']!, _artistMbidMeta),
       );
     }
     if (data.containsKey('user_rating')) {
@@ -7319,6 +7744,15 @@ class $SongsTableTable extends SongsTable
         serverDeletedAt.isAcceptableOrUnknown(
           data['server_deleted_at']!,
           _serverDeletedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('catalog_availability')) {
+      context.handle(
+        _catalogAvailabilityMeta,
+        catalogAvailability.isAcceptableOrUnknown(
+          data['catalog_availability']!,
+          _catalogAvailabilityMeta,
         ),
       );
     }
@@ -7451,6 +7885,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
       ),
+      coverArtRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cover_art_revision'],
+      ),
       starred: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
@@ -7458,6 +7896,14 @@ class $SongsTableTable extends SongsTable
       recordingMbid: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}recording_mbid'],
+      ),
+      albumMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album_mbid'],
+      ),
+      artistMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_mbid'],
       ),
       userRating: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -7474,6 +7920,10 @@ class $SongsTableTable extends SongsTable
       serverDeletedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}server_deleted_at'],
+      ),
+      catalogAvailability: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}catalog_availability'],
       ),
       isProvisional: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -7528,8 +7978,22 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   final String? suffix;
   final int? size;
   final String? coverArt;
+
+  /// Incremented on targeted artwork recovery so cached cover bytes keyed to
+  /// the previous revision stop satisfying new requests. Zero keeps the
+  /// legacy cache-key layout so existing offline artwork stays valid.
+  /// Nullable so rows never refreshed keep legacy data-class behavior;
+  /// treat null as revision zero when composing cache keys.
+  final int? coverArtRevision;
   final DateTime? starred;
   final String? recordingMbid;
+
+  /// MusicBrainz release identifier for the containing album, when the server
+  /// supplies one. Stable across server ID changes and never matched fuzzily.
+  final String? albumMbid;
+
+  /// MusicBrainz artist identifier, when the server supplies one.
+  final String? artistMbid;
   final int? userRating;
   final int? playCount;
   final DateTime? createdAt;
@@ -7537,6 +8001,12 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   /// Local-only retention marker for songs deleted from the server but kept
   /// because a complete permanent download still exists on disk.
   final DateTime? serverDeletedAt;
+
+  /// Typed availability beyond the legacy [serverDeletedAt] marker. Null
+  /// reads as present for rows written before typed availability existed.
+  /// Confirmed-missing rows with favorites or references are retained for
+  /// recovery review instead of being deleted.
+  final String? catalogAvailability;
 
   /// True when the row was persisted only to make an online search result
   /// playable and has not yet been confirmed by authoritative library sync.
@@ -7576,12 +8046,16 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.suffix,
     this.size,
     this.coverArt,
+    this.coverArtRevision,
     this.starred,
     this.recordingMbid,
+    this.albumMbid,
+    this.artistMbid,
     this.userRating,
     this.playCount,
     this.createdAt,
     this.serverDeletedAt,
+    this.catalogAvailability,
     required this.isProvisional,
     required this.isExternal,
     this.catalogGeneration,
@@ -7634,11 +8108,20 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
     }
+    if (!nullToAbsent || coverArtRevision != null) {
+      map['cover_art_revision'] = Variable<int>(coverArtRevision);
+    }
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
     }
     if (!nullToAbsent || recordingMbid != null) {
       map['recording_mbid'] = Variable<String>(recordingMbid);
+    }
+    if (!nullToAbsent || albumMbid != null) {
+      map['album_mbid'] = Variable<String>(albumMbid);
+    }
+    if (!nullToAbsent || artistMbid != null) {
+      map['artist_mbid'] = Variable<String>(artistMbid);
     }
     if (!nullToAbsent || userRating != null) {
       map['user_rating'] = Variable<int>(userRating);
@@ -7651,6 +8134,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     }
     if (!nullToAbsent || serverDeletedAt != null) {
       map['server_deleted_at'] = Variable<DateTime>(serverDeletedAt);
+    }
+    if (!nullToAbsent || catalogAvailability != null) {
+      map['catalog_availability'] = Variable<String>(catalogAvailability);
     }
     map['is_provisional'] = Variable<bool>(isProvisional);
     map['is_external'] = Variable<bool>(isExternal);
@@ -7713,12 +8199,21 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
+      coverArtRevision: coverArtRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverArtRevision),
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
       recordingMbid: recordingMbid == null && nullToAbsent
           ? const Value.absent()
           : Value(recordingMbid),
+      albumMbid: albumMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumMbid),
+      artistMbid: artistMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artistMbid),
       userRating: userRating == null && nullToAbsent
           ? const Value.absent()
           : Value(userRating),
@@ -7731,6 +8226,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       serverDeletedAt: serverDeletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(serverDeletedAt),
+      catalogAvailability: catalogAvailability == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogAvailability),
       isProvisional: Value(isProvisional),
       isExternal: Value(isExternal),
       catalogGeneration: catalogGeneration == null && nullToAbsent
@@ -7772,12 +8270,18 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       suffix: serializer.fromJson<String?>(json['suffix']),
       size: serializer.fromJson<int?>(json['size']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
+      coverArtRevision: serializer.fromJson<int?>(json['coverArtRevision']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
       recordingMbid: serializer.fromJson<String?>(json['recordingMbid']),
+      albumMbid: serializer.fromJson<String?>(json['albumMbid']),
+      artistMbid: serializer.fromJson<String?>(json['artistMbid']),
       userRating: serializer.fromJson<int?>(json['userRating']),
       playCount: serializer.fromJson<int?>(json['playCount']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       serverDeletedAt: serializer.fromJson<DateTime?>(json['serverDeletedAt']),
+      catalogAvailability: serializer.fromJson<String?>(
+        json['catalogAvailability'],
+      ),
       isProvisional: serializer.fromJson<bool>(json['isProvisional']),
       isExternal: serializer.fromJson<bool>(json['isExternal']),
       catalogGeneration: serializer.fromJson<int?>(json['catalogGeneration']),
@@ -7814,12 +8318,16 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'suffix': serializer.toJson<String?>(suffix),
       'size': serializer.toJson<int?>(size),
       'coverArt': serializer.toJson<String?>(coverArt),
+      'coverArtRevision': serializer.toJson<int?>(coverArtRevision),
       'starred': serializer.toJson<DateTime?>(starred),
       'recordingMbid': serializer.toJson<String?>(recordingMbid),
+      'albumMbid': serializer.toJson<String?>(albumMbid),
+      'artistMbid': serializer.toJson<String?>(artistMbid),
       'userRating': serializer.toJson<int?>(userRating),
       'playCount': serializer.toJson<int?>(playCount),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'serverDeletedAt': serializer.toJson<DateTime?>(serverDeletedAt),
+      'catalogAvailability': serializer.toJson<String?>(catalogAvailability),
       'isProvisional': serializer.toJson<bool>(isProvisional),
       'isExternal': serializer.toJson<bool>(isExternal),
       'catalogGeneration': serializer.toJson<int?>(catalogGeneration),
@@ -7846,12 +8354,16 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<String?> suffix = const Value.absent(),
     Value<int?> size = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
+    Value<int?> coverArtRevision = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
     Value<String?> recordingMbid = const Value.absent(),
+    Value<String?> albumMbid = const Value.absent(),
+    Value<String?> artistMbid = const Value.absent(),
     Value<int?> userRating = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
     Value<DateTime?> serverDeletedAt = const Value.absent(),
+    Value<String?> catalogAvailability = const Value.absent(),
     bool? isProvisional,
     bool? isExternal,
     Value<int?> catalogGeneration = const Value.absent(),
@@ -7875,16 +8387,24 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     suffix: suffix.present ? suffix.value : this.suffix,
     size: size.present ? size.value : this.size,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    coverArtRevision: coverArtRevision.present
+        ? coverArtRevision.value
+        : this.coverArtRevision,
     starred: starred.present ? starred.value : this.starred,
     recordingMbid: recordingMbid.present
         ? recordingMbid.value
         : this.recordingMbid,
+    albumMbid: albumMbid.present ? albumMbid.value : this.albumMbid,
+    artistMbid: artistMbid.present ? artistMbid.value : this.artistMbid,
     userRating: userRating.present ? userRating.value : this.userRating,
     playCount: playCount.present ? playCount.value : this.playCount,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
     serverDeletedAt: serverDeletedAt.present
         ? serverDeletedAt.value
         : this.serverDeletedAt,
+    catalogAvailability: catalogAvailability.present
+        ? catalogAvailability.value
+        : this.catalogAvailability,
     isProvisional: isProvisional ?? this.isProvisional,
     isExternal: isExternal ?? this.isExternal,
     catalogGeneration: catalogGeneration.present
@@ -7928,10 +8448,17 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       suffix: data.suffix.present ? data.suffix.value : this.suffix,
       size: data.size.present ? data.size.value : this.size,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      coverArtRevision: data.coverArtRevision.present
+          ? data.coverArtRevision.value
+          : this.coverArtRevision,
       starred: data.starred.present ? data.starred.value : this.starred,
       recordingMbid: data.recordingMbid.present
           ? data.recordingMbid.value
           : this.recordingMbid,
+      albumMbid: data.albumMbid.present ? data.albumMbid.value : this.albumMbid,
+      artistMbid: data.artistMbid.present
+          ? data.artistMbid.value
+          : this.artistMbid,
       userRating: data.userRating.present
           ? data.userRating.value
           : this.userRating,
@@ -7940,6 +8467,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       serverDeletedAt: data.serverDeletedAt.present
           ? data.serverDeletedAt.value
           : this.serverDeletedAt,
+      catalogAvailability: data.catalogAvailability.present
+          ? data.catalogAvailability.value
+          : this.catalogAvailability,
       isProvisional: data.isProvisional.present
           ? data.isProvisional.value
           : this.isProvisional,
@@ -7982,12 +8512,16 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('suffix: $suffix, ')
           ..write('size: $size, ')
           ..write('coverArt: $coverArt, ')
+          ..write('coverArtRevision: $coverArtRevision, ')
           ..write('starred: $starred, ')
           ..write('recordingMbid: $recordingMbid, ')
+          ..write('albumMbid: $albumMbid, ')
+          ..write('artistMbid: $artistMbid, ')
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
           ..write('serverDeletedAt: $serverDeletedAt, ')
+          ..write('catalogAvailability: $catalogAvailability, ')
           ..write('isProvisional: $isProvisional, ')
           ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration, ')
@@ -8016,12 +8550,16 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     suffix,
     size,
     coverArt,
+    coverArtRevision,
     starred,
     recordingMbid,
+    albumMbid,
+    artistMbid,
     userRating,
     playCount,
     createdAt,
     serverDeletedAt,
+    catalogAvailability,
     isProvisional,
     isExternal,
     catalogGeneration,
@@ -8049,12 +8587,16 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.suffix == this.suffix &&
           other.size == this.size &&
           other.coverArt == this.coverArt &&
+          other.coverArtRevision == this.coverArtRevision &&
           other.starred == this.starred &&
           other.recordingMbid == this.recordingMbid &&
+          other.albumMbid == this.albumMbid &&
+          other.artistMbid == this.artistMbid &&
           other.userRating == this.userRating &&
           other.playCount == this.playCount &&
           other.createdAt == this.createdAt &&
           other.serverDeletedAt == this.serverDeletedAt &&
+          other.catalogAvailability == this.catalogAvailability &&
           other.isProvisional == this.isProvisional &&
           other.isExternal == this.isExternal &&
           other.catalogGeneration == this.catalogGeneration &&
@@ -8080,12 +8622,16 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<String?> suffix;
   final Value<int?> size;
   final Value<String?> coverArt;
+  final Value<int?> coverArtRevision;
   final Value<DateTime?> starred;
   final Value<String?> recordingMbid;
+  final Value<String?> albumMbid;
+  final Value<String?> artistMbid;
   final Value<int?> userRating;
   final Value<int?> playCount;
   final Value<DateTime?> createdAt;
   final Value<DateTime?> serverDeletedAt;
+  final Value<String?> catalogAvailability;
   final Value<bool> isProvisional;
   final Value<bool> isExternal;
   final Value<int?> catalogGeneration;
@@ -8110,12 +8656,16 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.suffix = const Value.absent(),
     this.size = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.coverArtRevision = const Value.absent(),
     this.starred = const Value.absent(),
     this.recordingMbid = const Value.absent(),
+    this.albumMbid = const Value.absent(),
+    this.artistMbid = const Value.absent(),
     this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.serverDeletedAt = const Value.absent(),
+    this.catalogAvailability = const Value.absent(),
     this.isProvisional = const Value.absent(),
     this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
@@ -8141,12 +8691,16 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.suffix = const Value.absent(),
     this.size = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.coverArtRevision = const Value.absent(),
     this.starred = const Value.absent(),
     this.recordingMbid = const Value.absent(),
+    this.albumMbid = const Value.absent(),
+    this.artistMbid = const Value.absent(),
     this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.serverDeletedAt = const Value.absent(),
+    this.catalogAvailability = const Value.absent(),
     this.isProvisional = const Value.absent(),
     this.isExternal = const Value.absent(),
     this.catalogGeneration = const Value.absent(),
@@ -8173,12 +8727,16 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<String>? suffix,
     Expression<int>? size,
     Expression<String>? coverArt,
+    Expression<int>? coverArtRevision,
     Expression<DateTime>? starred,
     Expression<String>? recordingMbid,
+    Expression<String>? albumMbid,
+    Expression<String>? artistMbid,
     Expression<int>? userRating,
     Expression<int>? playCount,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? serverDeletedAt,
+    Expression<String>? catalogAvailability,
     Expression<bool>? isProvisional,
     Expression<bool>? isExternal,
     Expression<int>? catalogGeneration,
@@ -8204,12 +8762,17 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (suffix != null) 'suffix': suffix,
       if (size != null) 'size': size,
       if (coverArt != null) 'cover_art': coverArt,
+      if (coverArtRevision != null) 'cover_art_revision': coverArtRevision,
       if (starred != null) 'starred': starred,
       if (recordingMbid != null) 'recording_mbid': recordingMbid,
+      if (albumMbid != null) 'album_mbid': albumMbid,
+      if (artistMbid != null) 'artist_mbid': artistMbid,
       if (userRating != null) 'user_rating': userRating,
       if (playCount != null) 'play_count': playCount,
       if (createdAt != null) 'created_at': createdAt,
       if (serverDeletedAt != null) 'server_deleted_at': serverDeletedAt,
+      if (catalogAvailability != null)
+        'catalog_availability': catalogAvailability,
       if (isProvisional != null) 'is_provisional': isProvisional,
       if (isExternal != null) 'is_external': isExternal,
       if (catalogGeneration != null) 'catalog_generation': catalogGeneration,
@@ -8241,12 +8804,16 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<String?>? suffix,
     Value<int?>? size,
     Value<String?>? coverArt,
+    Value<int?>? coverArtRevision,
     Value<DateTime?>? starred,
     Value<String?>? recordingMbid,
+    Value<String?>? albumMbid,
+    Value<String?>? artistMbid,
     Value<int?>? userRating,
     Value<int?>? playCount,
     Value<DateTime?>? createdAt,
     Value<DateTime?>? serverDeletedAt,
+    Value<String?>? catalogAvailability,
     Value<bool>? isProvisional,
     Value<bool>? isExternal,
     Value<int?>? catalogGeneration,
@@ -8272,12 +8839,16 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       suffix: suffix ?? this.suffix,
       size: size ?? this.size,
       coverArt: coverArt ?? this.coverArt,
+      coverArtRevision: coverArtRevision ?? this.coverArtRevision,
       starred: starred ?? this.starred,
       recordingMbid: recordingMbid ?? this.recordingMbid,
+      albumMbid: albumMbid ?? this.albumMbid,
+      artistMbid: artistMbid ?? this.artistMbid,
       userRating: userRating ?? this.userRating,
       playCount: playCount ?? this.playCount,
       createdAt: createdAt ?? this.createdAt,
       serverDeletedAt: serverDeletedAt ?? this.serverDeletedAt,
+      catalogAvailability: catalogAvailability ?? this.catalogAvailability,
       isProvisional: isProvisional ?? this.isProvisional,
       isExternal: isExternal ?? this.isExternal,
       catalogGeneration: catalogGeneration ?? this.catalogGeneration,
@@ -8337,11 +8908,20 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
     }
+    if (coverArtRevision.present) {
+      map['cover_art_revision'] = Variable<int>(coverArtRevision.value);
+    }
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
     }
     if (recordingMbid.present) {
       map['recording_mbid'] = Variable<String>(recordingMbid.value);
+    }
+    if (albumMbid.present) {
+      map['album_mbid'] = Variable<String>(albumMbid.value);
+    }
+    if (artistMbid.present) {
+      map['artist_mbid'] = Variable<String>(artistMbid.value);
     }
     if (userRating.present) {
       map['user_rating'] = Variable<int>(userRating.value);
@@ -8354,6 +8934,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     }
     if (serverDeletedAt.present) {
       map['server_deleted_at'] = Variable<DateTime>(serverDeletedAt.value);
+    }
+    if (catalogAvailability.present) {
+      map['catalog_availability'] = Variable<String>(catalogAvailability.value);
     }
     if (isProvisional.present) {
       map['is_provisional'] = Variable<bool>(isProvisional.value);
@@ -8408,12 +8991,16 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('suffix: $suffix, ')
           ..write('size: $size, ')
           ..write('coverArt: $coverArt, ')
+          ..write('coverArtRevision: $coverArtRevision, ')
           ..write('starred: $starred, ')
           ..write('recordingMbid: $recordingMbid, ')
+          ..write('albumMbid: $albumMbid, ')
+          ..write('artistMbid: $artistMbid, ')
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
           ..write('serverDeletedAt: $serverDeletedAt, ')
+          ..write('catalogAvailability: $catalogAvailability, ')
           ..write('isProvisional: $isProvisional, ')
           ..write('isExternal: $isExternal, ')
           ..write('catalogGeneration: $catalogGeneration, ')
@@ -29088,6 +29675,1816 @@ class LibrarySyncRepairSessionTableCompanion
   }
 }
 
+class $LibraryScanObservationTableTable extends LibraryScanObservationTable
+    with
+        TableInfo<
+          $LibraryScanObservationTableTable,
+          LibraryScanObservationTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibraryScanObservationTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _scanSupportedMeta = const VerificationMeta(
+    'scanSupported',
+  );
+  @override
+  late final GeneratedColumn<bool> scanSupported = GeneratedColumn<bool>(
+    'scan_supported',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("scan_supported" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _providerScanTokenMeta = const VerificationMeta(
+    'providerScanToken',
+  );
+  @override
+  late final GeneratedColumn<String> providerScanToken =
+      GeneratedColumn<String>(
+        'provider_scan_token',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _observedTokenMeta = const VerificationMeta(
+    'observedToken',
+  );
+  @override
+  late final GeneratedColumn<String> observedToken = GeneratedColumn<String>(
+    'observed_token',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _observedAtMeta = const VerificationMeta(
+    'observedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> observedAt = GeneratedColumn<DateTime>(
+    'observed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _reconciledTokenMeta = const VerificationMeta(
+    'reconciledToken',
+  );
+  @override
+  late final GeneratedColumn<String> reconciledToken = GeneratedColumn<String>(
+    'reconciled_token',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _reconciledAtMeta = const VerificationMeta(
+    'reconciledAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> reconciledAt = GeneratedColumn<DateTime>(
+    'reconciled_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pendingReconciliationMeta =
+      const VerificationMeta('pendingReconciliation');
+  @override
+  late final GeneratedColumn<bool> pendingReconciliation =
+      GeneratedColumn<bool>(
+        'pending_reconciliation',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("pending_reconciliation" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    serverId,
+    scanSupported,
+    providerScanToken,
+    observedToken,
+    observedAt,
+    reconciledToken,
+    reconciledAt,
+    pendingReconciliation,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_scan_observation';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibraryScanObservationTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('scan_supported')) {
+      context.handle(
+        _scanSupportedMeta,
+        scanSupported.isAcceptableOrUnknown(
+          data['scan_supported']!,
+          _scanSupportedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('provider_scan_token')) {
+      context.handle(
+        _providerScanTokenMeta,
+        providerScanToken.isAcceptableOrUnknown(
+          data['provider_scan_token']!,
+          _providerScanTokenMeta,
+        ),
+      );
+    }
+    if (data.containsKey('observed_token')) {
+      context.handle(
+        _observedTokenMeta,
+        observedToken.isAcceptableOrUnknown(
+          data['observed_token']!,
+          _observedTokenMeta,
+        ),
+      );
+    }
+    if (data.containsKey('observed_at')) {
+      context.handle(
+        _observedAtMeta,
+        observedAt.isAcceptableOrUnknown(data['observed_at']!, _observedAtMeta),
+      );
+    }
+    if (data.containsKey('reconciled_token')) {
+      context.handle(
+        _reconciledTokenMeta,
+        reconciledToken.isAcceptableOrUnknown(
+          data['reconciled_token']!,
+          _reconciledTokenMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reconciled_at')) {
+      context.handle(
+        _reconciledAtMeta,
+        reconciledAt.isAcceptableOrUnknown(
+          data['reconciled_at']!,
+          _reconciledAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('pending_reconciliation')) {
+      context.handle(
+        _pendingReconciliationMeta,
+        pendingReconciliation.isAcceptableOrUnknown(
+          data['pending_reconciliation']!,
+          _pendingReconciliationMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {serverId};
+  @override
+  LibraryScanObservationTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibraryScanObservationTableData(
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      scanSupported: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}scan_supported'],
+      )!,
+      providerScanToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_scan_token'],
+      ),
+      observedToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}observed_token'],
+      ),
+      observedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}observed_at'],
+      ),
+      reconciledToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reconciled_token'],
+      ),
+      reconciledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}reconciled_at'],
+      ),
+      pendingReconciliation: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pending_reconciliation'],
+      )!,
+    );
+  }
+
+  @override
+  $LibraryScanObservationTableTable createAlias(String alias) {
+    return $LibraryScanObservationTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibraryScanObservationTableData extends DataClass
+    implements Insertable<LibraryScanObservationTableData> {
+  final int serverId;
+  final bool scanSupported;
+
+  /// Provider-supplied scan identity, such as Navidrome's `lastScan` value.
+  final String? providerScanToken;
+
+  /// Scan identity whose changes have been observed but not yet reconciled.
+  final String? observedToken;
+  final DateTime? observedAt;
+
+  /// Scan identity that a successfully promoted catalog snapshot covered.
+  final String? reconciledToken;
+  final DateTime? reconciledAt;
+  final bool pendingReconciliation;
+  const LibraryScanObservationTableData({
+    required this.serverId,
+    required this.scanSupported,
+    this.providerScanToken,
+    this.observedToken,
+    this.observedAt,
+    this.reconciledToken,
+    this.reconciledAt,
+    required this.pendingReconciliation,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['server_id'] = Variable<int>(serverId);
+    map['scan_supported'] = Variable<bool>(scanSupported);
+    if (!nullToAbsent || providerScanToken != null) {
+      map['provider_scan_token'] = Variable<String>(providerScanToken);
+    }
+    if (!nullToAbsent || observedToken != null) {
+      map['observed_token'] = Variable<String>(observedToken);
+    }
+    if (!nullToAbsent || observedAt != null) {
+      map['observed_at'] = Variable<DateTime>(observedAt);
+    }
+    if (!nullToAbsent || reconciledToken != null) {
+      map['reconciled_token'] = Variable<String>(reconciledToken);
+    }
+    if (!nullToAbsent || reconciledAt != null) {
+      map['reconciled_at'] = Variable<DateTime>(reconciledAt);
+    }
+    map['pending_reconciliation'] = Variable<bool>(pendingReconciliation);
+    return map;
+  }
+
+  LibraryScanObservationTableCompanion toCompanion(bool nullToAbsent) {
+    return LibraryScanObservationTableCompanion(
+      serverId: Value(serverId),
+      scanSupported: Value(scanSupported),
+      providerScanToken: providerScanToken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerScanToken),
+      observedToken: observedToken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(observedToken),
+      observedAt: observedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(observedAt),
+      reconciledToken: reconciledToken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reconciledToken),
+      reconciledAt: reconciledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reconciledAt),
+      pendingReconciliation: Value(pendingReconciliation),
+    );
+  }
+
+  factory LibraryScanObservationTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibraryScanObservationTableData(
+      serverId: serializer.fromJson<int>(json['serverId']),
+      scanSupported: serializer.fromJson<bool>(json['scanSupported']),
+      providerScanToken: serializer.fromJson<String?>(
+        json['providerScanToken'],
+      ),
+      observedToken: serializer.fromJson<String?>(json['observedToken']),
+      observedAt: serializer.fromJson<DateTime?>(json['observedAt']),
+      reconciledToken: serializer.fromJson<String?>(json['reconciledToken']),
+      reconciledAt: serializer.fromJson<DateTime?>(json['reconciledAt']),
+      pendingReconciliation: serializer.fromJson<bool>(
+        json['pendingReconciliation'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'serverId': serializer.toJson<int>(serverId),
+      'scanSupported': serializer.toJson<bool>(scanSupported),
+      'providerScanToken': serializer.toJson<String?>(providerScanToken),
+      'observedToken': serializer.toJson<String?>(observedToken),
+      'observedAt': serializer.toJson<DateTime?>(observedAt),
+      'reconciledToken': serializer.toJson<String?>(reconciledToken),
+      'reconciledAt': serializer.toJson<DateTime?>(reconciledAt),
+      'pendingReconciliation': serializer.toJson<bool>(pendingReconciliation),
+    };
+  }
+
+  LibraryScanObservationTableData copyWith({
+    int? serverId,
+    bool? scanSupported,
+    Value<String?> providerScanToken = const Value.absent(),
+    Value<String?> observedToken = const Value.absent(),
+    Value<DateTime?> observedAt = const Value.absent(),
+    Value<String?> reconciledToken = const Value.absent(),
+    Value<DateTime?> reconciledAt = const Value.absent(),
+    bool? pendingReconciliation,
+  }) => LibraryScanObservationTableData(
+    serverId: serverId ?? this.serverId,
+    scanSupported: scanSupported ?? this.scanSupported,
+    providerScanToken: providerScanToken.present
+        ? providerScanToken.value
+        : this.providerScanToken,
+    observedToken: observedToken.present
+        ? observedToken.value
+        : this.observedToken,
+    observedAt: observedAt.present ? observedAt.value : this.observedAt,
+    reconciledToken: reconciledToken.present
+        ? reconciledToken.value
+        : this.reconciledToken,
+    reconciledAt: reconciledAt.present ? reconciledAt.value : this.reconciledAt,
+    pendingReconciliation: pendingReconciliation ?? this.pendingReconciliation,
+  );
+  LibraryScanObservationTableData copyWithCompanion(
+    LibraryScanObservationTableCompanion data,
+  ) {
+    return LibraryScanObservationTableData(
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      scanSupported: data.scanSupported.present
+          ? data.scanSupported.value
+          : this.scanSupported,
+      providerScanToken: data.providerScanToken.present
+          ? data.providerScanToken.value
+          : this.providerScanToken,
+      observedToken: data.observedToken.present
+          ? data.observedToken.value
+          : this.observedToken,
+      observedAt: data.observedAt.present
+          ? data.observedAt.value
+          : this.observedAt,
+      reconciledToken: data.reconciledToken.present
+          ? data.reconciledToken.value
+          : this.reconciledToken,
+      reconciledAt: data.reconciledAt.present
+          ? data.reconciledAt.value
+          : this.reconciledAt,
+      pendingReconciliation: data.pendingReconciliation.present
+          ? data.pendingReconciliation.value
+          : this.pendingReconciliation,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibraryScanObservationTableData(')
+          ..write('serverId: $serverId, ')
+          ..write('scanSupported: $scanSupported, ')
+          ..write('providerScanToken: $providerScanToken, ')
+          ..write('observedToken: $observedToken, ')
+          ..write('observedAt: $observedAt, ')
+          ..write('reconciledToken: $reconciledToken, ')
+          ..write('reconciledAt: $reconciledAt, ')
+          ..write('pendingReconciliation: $pendingReconciliation')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    serverId,
+    scanSupported,
+    providerScanToken,
+    observedToken,
+    observedAt,
+    reconciledToken,
+    reconciledAt,
+    pendingReconciliation,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibraryScanObservationTableData &&
+          other.serverId == this.serverId &&
+          other.scanSupported == this.scanSupported &&
+          other.providerScanToken == this.providerScanToken &&
+          other.observedToken == this.observedToken &&
+          other.observedAt == this.observedAt &&
+          other.reconciledToken == this.reconciledToken &&
+          other.reconciledAt == this.reconciledAt &&
+          other.pendingReconciliation == this.pendingReconciliation);
+}
+
+class LibraryScanObservationTableCompanion
+    extends UpdateCompanion<LibraryScanObservationTableData> {
+  final Value<int> serverId;
+  final Value<bool> scanSupported;
+  final Value<String?> providerScanToken;
+  final Value<String?> observedToken;
+  final Value<DateTime?> observedAt;
+  final Value<String?> reconciledToken;
+  final Value<DateTime?> reconciledAt;
+  final Value<bool> pendingReconciliation;
+  const LibraryScanObservationTableCompanion({
+    this.serverId = const Value.absent(),
+    this.scanSupported = const Value.absent(),
+    this.providerScanToken = const Value.absent(),
+    this.observedToken = const Value.absent(),
+    this.observedAt = const Value.absent(),
+    this.reconciledToken = const Value.absent(),
+    this.reconciledAt = const Value.absent(),
+    this.pendingReconciliation = const Value.absent(),
+  });
+  LibraryScanObservationTableCompanion.insert({
+    this.serverId = const Value.absent(),
+    this.scanSupported = const Value.absent(),
+    this.providerScanToken = const Value.absent(),
+    this.observedToken = const Value.absent(),
+    this.observedAt = const Value.absent(),
+    this.reconciledToken = const Value.absent(),
+    this.reconciledAt = const Value.absent(),
+    this.pendingReconciliation = const Value.absent(),
+  });
+  static Insertable<LibraryScanObservationTableData> custom({
+    Expression<int>? serverId,
+    Expression<bool>? scanSupported,
+    Expression<String>? providerScanToken,
+    Expression<String>? observedToken,
+    Expression<DateTime>? observedAt,
+    Expression<String>? reconciledToken,
+    Expression<DateTime>? reconciledAt,
+    Expression<bool>? pendingReconciliation,
+  }) {
+    return RawValuesInsertable({
+      if (serverId != null) 'server_id': serverId,
+      if (scanSupported != null) 'scan_supported': scanSupported,
+      if (providerScanToken != null) 'provider_scan_token': providerScanToken,
+      if (observedToken != null) 'observed_token': observedToken,
+      if (observedAt != null) 'observed_at': observedAt,
+      if (reconciledToken != null) 'reconciled_token': reconciledToken,
+      if (reconciledAt != null) 'reconciled_at': reconciledAt,
+      if (pendingReconciliation != null)
+        'pending_reconciliation': pendingReconciliation,
+    });
+  }
+
+  LibraryScanObservationTableCompanion copyWith({
+    Value<int>? serverId,
+    Value<bool>? scanSupported,
+    Value<String?>? providerScanToken,
+    Value<String?>? observedToken,
+    Value<DateTime?>? observedAt,
+    Value<String?>? reconciledToken,
+    Value<DateTime?>? reconciledAt,
+    Value<bool>? pendingReconciliation,
+  }) {
+    return LibraryScanObservationTableCompanion(
+      serverId: serverId ?? this.serverId,
+      scanSupported: scanSupported ?? this.scanSupported,
+      providerScanToken: providerScanToken ?? this.providerScanToken,
+      observedToken: observedToken ?? this.observedToken,
+      observedAt: observedAt ?? this.observedAt,
+      reconciledToken: reconciledToken ?? this.reconciledToken,
+      reconciledAt: reconciledAt ?? this.reconciledAt,
+      pendingReconciliation:
+          pendingReconciliation ?? this.pendingReconciliation,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (scanSupported.present) {
+      map['scan_supported'] = Variable<bool>(scanSupported.value);
+    }
+    if (providerScanToken.present) {
+      map['provider_scan_token'] = Variable<String>(providerScanToken.value);
+    }
+    if (observedToken.present) {
+      map['observed_token'] = Variable<String>(observedToken.value);
+    }
+    if (observedAt.present) {
+      map['observed_at'] = Variable<DateTime>(observedAt.value);
+    }
+    if (reconciledToken.present) {
+      map['reconciled_token'] = Variable<String>(reconciledToken.value);
+    }
+    if (reconciledAt.present) {
+      map['reconciled_at'] = Variable<DateTime>(reconciledAt.value);
+    }
+    if (pendingReconciliation.present) {
+      map['pending_reconciliation'] = Variable<bool>(
+        pendingReconciliation.value,
+      );
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibraryScanObservationTableCompanion(')
+          ..write('serverId: $serverId, ')
+          ..write('scanSupported: $scanSupported, ')
+          ..write('providerScanToken: $providerScanToken, ')
+          ..write('observedToken: $observedToken, ')
+          ..write('observedAt: $observedAt, ')
+          ..write('reconciledToken: $reconciledToken, ')
+          ..write('reconciledAt: $reconciledAt, ')
+          ..write('pendingReconciliation: $pendingReconciliation')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LibraryRecoveryReviewTableTable extends LibraryRecoveryReviewTable
+    with
+        TableInfo<
+          $LibraryRecoveryReviewTableTable,
+          LibraryRecoveryReviewTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LibraryRecoveryReviewTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _entityTypeMeta = const VerificationMeta(
+    'entityType',
+  );
+  @override
+  late final GeneratedColumn<String> entityType = GeneratedColumn<String>(
+    'entity_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _oldIdMeta = const VerificationMeta('oldId');
+  @override
+  late final GeneratedColumn<String> oldId = GeneratedColumn<String>(
+    'old_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _savedTitleMeta = const VerificationMeta(
+    'savedTitle',
+  );
+  @override
+  late final GeneratedColumn<String> savedTitle = GeneratedColumn<String>(
+    'saved_title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _savedSubtitleMeta = const VerificationMeta(
+    'savedSubtitle',
+  );
+  @override
+  late final GeneratedColumn<String> savedSubtitle = GeneratedColumn<String>(
+    'saved_subtitle',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _evidenceGenerationMeta =
+      const VerificationMeta('evidenceGeneration');
+  @override
+  late final GeneratedColumn<int> evidenceGeneration = GeneratedColumn<int>(
+    'evidence_generation',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _candidateJsonMeta = const VerificationMeta(
+    'candidateJson',
+  );
+  @override
+  late final GeneratedColumn<String> candidateJson = GeneratedColumn<String>(
+    'candidate_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dispositionMeta = const VerificationMeta(
+    'disposition',
+  );
+  @override
+  late final GeneratedColumn<String> disposition = GeneratedColumn<String>(
+    'disposition',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    serverId,
+    entityType,
+    oldId,
+    savedTitle,
+    savedSubtitle,
+    evidenceGeneration,
+    reason,
+    candidateJson,
+    disposition,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'library_recovery_review';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LibraryRecoveryReviewTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('entity_type')) {
+      context.handle(
+        _entityTypeMeta,
+        entityType.isAcceptableOrUnknown(data['entity_type']!, _entityTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityTypeMeta);
+    }
+    if (data.containsKey('old_id')) {
+      context.handle(
+        _oldIdMeta,
+        oldId.isAcceptableOrUnknown(data['old_id']!, _oldIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_oldIdMeta);
+    }
+    if (data.containsKey('saved_title')) {
+      context.handle(
+        _savedTitleMeta,
+        savedTitle.isAcceptableOrUnknown(data['saved_title']!, _savedTitleMeta),
+      );
+    }
+    if (data.containsKey('saved_subtitle')) {
+      context.handle(
+        _savedSubtitleMeta,
+        savedSubtitle.isAcceptableOrUnknown(
+          data['saved_subtitle']!,
+          _savedSubtitleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('evidence_generation')) {
+      context.handle(
+        _evidenceGenerationMeta,
+        evidenceGeneration.isAcceptableOrUnknown(
+          data['evidence_generation']!,
+          _evidenceGenerationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reasonMeta);
+    }
+    if (data.containsKey('candidate_json')) {
+      context.handle(
+        _candidateJsonMeta,
+        candidateJson.isAcceptableOrUnknown(
+          data['candidate_json']!,
+          _candidateJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('disposition')) {
+      context.handle(
+        _dispositionMeta,
+        disposition.isAcceptableOrUnknown(
+          data['disposition']!,
+          _dispositionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {serverId, entityType, oldId},
+  ];
+  @override
+  LibraryRecoveryReviewTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LibraryRecoveryReviewTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      )!,
+      entityType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_type'],
+      )!,
+      oldId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}old_id'],
+      )!,
+      savedTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}saved_title'],
+      ),
+      savedSubtitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}saved_subtitle'],
+      ),
+      evidenceGeneration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}evidence_generation'],
+      ),
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      )!,
+      candidateJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}candidate_json'],
+      ),
+      disposition: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}disposition'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LibraryRecoveryReviewTableTable createAlias(String alias) {
+    return $LibraryRecoveryReviewTableTable(attachedDatabase, alias);
+  }
+}
+
+class LibraryRecoveryReviewTableData extends DataClass
+    implements Insertable<LibraryRecoveryReviewTableData> {
+  final int id;
+  final int serverId;
+
+  /// 'song', 'album', or 'artist'.
+  final String entityType;
+  final String oldId;
+
+  /// Saved metadata so the row stays presentable after the live row is gone.
+  final String? savedTitle;
+  final String? savedSubtitle;
+
+  /// Catalog generation whose validated snapshot proved the absence.
+  final int? evidenceGeneration;
+
+  /// Typed reason, e.g. 'missingFromCatalog', 'ambiguousMatch',
+  /// 'conflictingMbid'.
+  final String reason;
+
+  /// JSON-encoded replacement candidates for the review screen.
+  final String? candidateJson;
+
+  /// 'pending', 'relinked', 'keptForLater', or 'removedFromLiked'.
+  final String disposition;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const LibraryRecoveryReviewTableData({
+    required this.id,
+    required this.serverId,
+    required this.entityType,
+    required this.oldId,
+    this.savedTitle,
+    this.savedSubtitle,
+    this.evidenceGeneration,
+    required this.reason,
+    this.candidateJson,
+    required this.disposition,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['server_id'] = Variable<int>(serverId);
+    map['entity_type'] = Variable<String>(entityType);
+    map['old_id'] = Variable<String>(oldId);
+    if (!nullToAbsent || savedTitle != null) {
+      map['saved_title'] = Variable<String>(savedTitle);
+    }
+    if (!nullToAbsent || savedSubtitle != null) {
+      map['saved_subtitle'] = Variable<String>(savedSubtitle);
+    }
+    if (!nullToAbsent || evidenceGeneration != null) {
+      map['evidence_generation'] = Variable<int>(evidenceGeneration);
+    }
+    map['reason'] = Variable<String>(reason);
+    if (!nullToAbsent || candidateJson != null) {
+      map['candidate_json'] = Variable<String>(candidateJson);
+    }
+    map['disposition'] = Variable<String>(disposition);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LibraryRecoveryReviewTableCompanion toCompanion(bool nullToAbsent) {
+    return LibraryRecoveryReviewTableCompanion(
+      id: Value(id),
+      serverId: Value(serverId),
+      entityType: Value(entityType),
+      oldId: Value(oldId),
+      savedTitle: savedTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(savedTitle),
+      savedSubtitle: savedSubtitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(savedSubtitle),
+      evidenceGeneration: evidenceGeneration == null && nullToAbsent
+          ? const Value.absent()
+          : Value(evidenceGeneration),
+      reason: Value(reason),
+      candidateJson: candidateJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(candidateJson),
+      disposition: Value(disposition),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LibraryRecoveryReviewTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LibraryRecoveryReviewTableData(
+      id: serializer.fromJson<int>(json['id']),
+      serverId: serializer.fromJson<int>(json['serverId']),
+      entityType: serializer.fromJson<String>(json['entityType']),
+      oldId: serializer.fromJson<String>(json['oldId']),
+      savedTitle: serializer.fromJson<String?>(json['savedTitle']),
+      savedSubtitle: serializer.fromJson<String?>(json['savedSubtitle']),
+      evidenceGeneration: serializer.fromJson<int?>(json['evidenceGeneration']),
+      reason: serializer.fromJson<String>(json['reason']),
+      candidateJson: serializer.fromJson<String?>(json['candidateJson']),
+      disposition: serializer.fromJson<String>(json['disposition']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'serverId': serializer.toJson<int>(serverId),
+      'entityType': serializer.toJson<String>(entityType),
+      'oldId': serializer.toJson<String>(oldId),
+      'savedTitle': serializer.toJson<String?>(savedTitle),
+      'savedSubtitle': serializer.toJson<String?>(savedSubtitle),
+      'evidenceGeneration': serializer.toJson<int?>(evidenceGeneration),
+      'reason': serializer.toJson<String>(reason),
+      'candidateJson': serializer.toJson<String?>(candidateJson),
+      'disposition': serializer.toJson<String>(disposition),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LibraryRecoveryReviewTableData copyWith({
+    int? id,
+    int? serverId,
+    String? entityType,
+    String? oldId,
+    Value<String?> savedTitle = const Value.absent(),
+    Value<String?> savedSubtitle = const Value.absent(),
+    Value<int?> evidenceGeneration = const Value.absent(),
+    String? reason,
+    Value<String?> candidateJson = const Value.absent(),
+    String? disposition,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => LibraryRecoveryReviewTableData(
+    id: id ?? this.id,
+    serverId: serverId ?? this.serverId,
+    entityType: entityType ?? this.entityType,
+    oldId: oldId ?? this.oldId,
+    savedTitle: savedTitle.present ? savedTitle.value : this.savedTitle,
+    savedSubtitle: savedSubtitle.present
+        ? savedSubtitle.value
+        : this.savedSubtitle,
+    evidenceGeneration: evidenceGeneration.present
+        ? evidenceGeneration.value
+        : this.evidenceGeneration,
+    reason: reason ?? this.reason,
+    candidateJson: candidateJson.present
+        ? candidateJson.value
+        : this.candidateJson,
+    disposition: disposition ?? this.disposition,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LibraryRecoveryReviewTableData copyWithCompanion(
+    LibraryRecoveryReviewTableCompanion data,
+  ) {
+    return LibraryRecoveryReviewTableData(
+      id: data.id.present ? data.id.value : this.id,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      entityType: data.entityType.present
+          ? data.entityType.value
+          : this.entityType,
+      oldId: data.oldId.present ? data.oldId.value : this.oldId,
+      savedTitle: data.savedTitle.present
+          ? data.savedTitle.value
+          : this.savedTitle,
+      savedSubtitle: data.savedSubtitle.present
+          ? data.savedSubtitle.value
+          : this.savedSubtitle,
+      evidenceGeneration: data.evidenceGeneration.present
+          ? data.evidenceGeneration.value
+          : this.evidenceGeneration,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      candidateJson: data.candidateJson.present
+          ? data.candidateJson.value
+          : this.candidateJson,
+      disposition: data.disposition.present
+          ? data.disposition.value
+          : this.disposition,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibraryRecoveryReviewTableData(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('entityType: $entityType, ')
+          ..write('oldId: $oldId, ')
+          ..write('savedTitle: $savedTitle, ')
+          ..write('savedSubtitle: $savedSubtitle, ')
+          ..write('evidenceGeneration: $evidenceGeneration, ')
+          ..write('reason: $reason, ')
+          ..write('candidateJson: $candidateJson, ')
+          ..write('disposition: $disposition, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    serverId,
+    entityType,
+    oldId,
+    savedTitle,
+    savedSubtitle,
+    evidenceGeneration,
+    reason,
+    candidateJson,
+    disposition,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LibraryRecoveryReviewTableData &&
+          other.id == this.id &&
+          other.serverId == this.serverId &&
+          other.entityType == this.entityType &&
+          other.oldId == this.oldId &&
+          other.savedTitle == this.savedTitle &&
+          other.savedSubtitle == this.savedSubtitle &&
+          other.evidenceGeneration == this.evidenceGeneration &&
+          other.reason == this.reason &&
+          other.candidateJson == this.candidateJson &&
+          other.disposition == this.disposition &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LibraryRecoveryReviewTableCompanion
+    extends UpdateCompanion<LibraryRecoveryReviewTableData> {
+  final Value<int> id;
+  final Value<int> serverId;
+  final Value<String> entityType;
+  final Value<String> oldId;
+  final Value<String?> savedTitle;
+  final Value<String?> savedSubtitle;
+  final Value<int?> evidenceGeneration;
+  final Value<String> reason;
+  final Value<String?> candidateJson;
+  final Value<String> disposition;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const LibraryRecoveryReviewTableCompanion({
+    this.id = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.entityType = const Value.absent(),
+    this.oldId = const Value.absent(),
+    this.savedTitle = const Value.absent(),
+    this.savedSubtitle = const Value.absent(),
+    this.evidenceGeneration = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.candidateJson = const Value.absent(),
+    this.disposition = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  LibraryRecoveryReviewTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int serverId,
+    required String entityType,
+    required String oldId,
+    this.savedTitle = const Value.absent(),
+    this.savedSubtitle = const Value.absent(),
+    this.evidenceGeneration = const Value.absent(),
+    required String reason,
+    this.candidateJson = const Value.absent(),
+    this.disposition = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) : serverId = Value(serverId),
+       entityType = Value(entityType),
+       oldId = Value(oldId),
+       reason = Value(reason),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<LibraryRecoveryReviewTableData> custom({
+    Expression<int>? id,
+    Expression<int>? serverId,
+    Expression<String>? entityType,
+    Expression<String>? oldId,
+    Expression<String>? savedTitle,
+    Expression<String>? savedSubtitle,
+    Expression<int>? evidenceGeneration,
+    Expression<String>? reason,
+    Expression<String>? candidateJson,
+    Expression<String>? disposition,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (serverId != null) 'server_id': serverId,
+      if (entityType != null) 'entity_type': entityType,
+      if (oldId != null) 'old_id': oldId,
+      if (savedTitle != null) 'saved_title': savedTitle,
+      if (savedSubtitle != null) 'saved_subtitle': savedSubtitle,
+      if (evidenceGeneration != null) 'evidence_generation': evidenceGeneration,
+      if (reason != null) 'reason': reason,
+      if (candidateJson != null) 'candidate_json': candidateJson,
+      if (disposition != null) 'disposition': disposition,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  LibraryRecoveryReviewTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? serverId,
+    Value<String>? entityType,
+    Value<String>? oldId,
+    Value<String?>? savedTitle,
+    Value<String?>? savedSubtitle,
+    Value<int?>? evidenceGeneration,
+    Value<String>? reason,
+    Value<String?>? candidateJson,
+    Value<String>? disposition,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return LibraryRecoveryReviewTableCompanion(
+      id: id ?? this.id,
+      serverId: serverId ?? this.serverId,
+      entityType: entityType ?? this.entityType,
+      oldId: oldId ?? this.oldId,
+      savedTitle: savedTitle ?? this.savedTitle,
+      savedSubtitle: savedSubtitle ?? this.savedSubtitle,
+      evidenceGeneration: evidenceGeneration ?? this.evidenceGeneration,
+      reason: reason ?? this.reason,
+      candidateJson: candidateJson ?? this.candidateJson,
+      disposition: disposition ?? this.disposition,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (entityType.present) {
+      map['entity_type'] = Variable<String>(entityType.value);
+    }
+    if (oldId.present) {
+      map['old_id'] = Variable<String>(oldId.value);
+    }
+    if (savedTitle.present) {
+      map['saved_title'] = Variable<String>(savedTitle.value);
+    }
+    if (savedSubtitle.present) {
+      map['saved_subtitle'] = Variable<String>(savedSubtitle.value);
+    }
+    if (evidenceGeneration.present) {
+      map['evidence_generation'] = Variable<int>(evidenceGeneration.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (candidateJson.present) {
+      map['candidate_json'] = Variable<String>(candidateJson.value);
+    }
+    if (disposition.present) {
+      map['disposition'] = Variable<String>(disposition.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LibraryRecoveryReviewTableCompanion(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('entityType: $entityType, ')
+          ..write('oldId: $oldId, ')
+          ..write('savedTitle: $savedTitle, ')
+          ..write('savedSubtitle: $savedSubtitle, ')
+          ..write('evidenceGeneration: $evidenceGeneration, ')
+          ..write('reason: $reason, ')
+          ..write('candidateJson: $candidateJson, ')
+          ..write('disposition: $disposition, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EntityIdentityAliasTableTable extends EntityIdentityAliasTable
+    with
+        TableInfo<
+          $EntityIdentityAliasTableTable,
+          EntityIdentityAliasTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EntityIdentityAliasTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES server_config (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _entityTypeMeta = const VerificationMeta(
+    'entityType',
+  );
+  @override
+  late final GeneratedColumn<String> entityType = GeneratedColumn<String>(
+    'entity_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _oldIdMeta = const VerificationMeta('oldId');
+  @override
+  late final GeneratedColumn<String> oldId = GeneratedColumn<String>(
+    'old_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _newIdMeta = const VerificationMeta('newId');
+  @override
+  late final GeneratedColumn<String> newId = GeneratedColumn<String>(
+    'new_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _matchReasonMeta = const VerificationMeta(
+    'matchReason',
+  );
+  @override
+  late final GeneratedColumn<String> matchReason = GeneratedColumn<String>(
+    'match_reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _matchedAtMeta = const VerificationMeta(
+    'matchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> matchedAt = GeneratedColumn<DateTime>(
+    'matched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    serverId,
+    entityType,
+    oldId,
+    newId,
+    matchReason,
+    matchedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'entity_identity_aliases';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EntityIdentityAliasTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('entity_type')) {
+      context.handle(
+        _entityTypeMeta,
+        entityType.isAcceptableOrUnknown(data['entity_type']!, _entityTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityTypeMeta);
+    }
+    if (data.containsKey('old_id')) {
+      context.handle(
+        _oldIdMeta,
+        oldId.isAcceptableOrUnknown(data['old_id']!, _oldIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_oldIdMeta);
+    }
+    if (data.containsKey('new_id')) {
+      context.handle(
+        _newIdMeta,
+        newId.isAcceptableOrUnknown(data['new_id']!, _newIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_newIdMeta);
+    }
+    if (data.containsKey('match_reason')) {
+      context.handle(
+        _matchReasonMeta,
+        matchReason.isAcceptableOrUnknown(
+          data['match_reason']!,
+          _matchReasonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_matchReasonMeta);
+    }
+    if (data.containsKey('matched_at')) {
+      context.handle(
+        _matchedAtMeta,
+        matchedAt.isAcceptableOrUnknown(data['matched_at']!, _matchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_matchedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {serverId, entityType, oldId},
+  ];
+  @override
+  EntityIdentityAliasTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EntityIdentityAliasTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      ),
+      entityType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_type'],
+      )!,
+      oldId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}old_id'],
+      )!,
+      newId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}new_id'],
+      )!,
+      matchReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}match_reason'],
+      )!,
+      matchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}matched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $EntityIdentityAliasTableTable createAlias(String alias) {
+    return $EntityIdentityAliasTableTable(attachedDatabase, alias);
+  }
+}
+
+class EntityIdentityAliasTableData extends DataClass
+    implements Insertable<EntityIdentityAliasTableData> {
+  final int id;
+
+  /// Null for legacy rows imported from `song_identity_aliases`.
+  final int? serverId;
+
+  /// 'song', 'album', or 'artist'.
+  final String entityType;
+  final String oldId;
+  final String newId;
+  final String matchReason;
+  final DateTime matchedAt;
+  const EntityIdentityAliasTableData({
+    required this.id,
+    this.serverId,
+    required this.entityType,
+    required this.oldId,
+    required this.newId,
+    required this.matchReason,
+    required this.matchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || serverId != null) {
+      map['server_id'] = Variable<int>(serverId);
+    }
+    map['entity_type'] = Variable<String>(entityType);
+    map['old_id'] = Variable<String>(oldId);
+    map['new_id'] = Variable<String>(newId);
+    map['match_reason'] = Variable<String>(matchReason);
+    map['matched_at'] = Variable<DateTime>(matchedAt);
+    return map;
+  }
+
+  EntityIdentityAliasTableCompanion toCompanion(bool nullToAbsent) {
+    return EntityIdentityAliasTableCompanion(
+      id: Value(id),
+      serverId: serverId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverId),
+      entityType: Value(entityType),
+      oldId: Value(oldId),
+      newId: Value(newId),
+      matchReason: Value(matchReason),
+      matchedAt: Value(matchedAt),
+    );
+  }
+
+  factory EntityIdentityAliasTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EntityIdentityAliasTableData(
+      id: serializer.fromJson<int>(json['id']),
+      serverId: serializer.fromJson<int?>(json['serverId']),
+      entityType: serializer.fromJson<String>(json['entityType']),
+      oldId: serializer.fromJson<String>(json['oldId']),
+      newId: serializer.fromJson<String>(json['newId']),
+      matchReason: serializer.fromJson<String>(json['matchReason']),
+      matchedAt: serializer.fromJson<DateTime>(json['matchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'serverId': serializer.toJson<int?>(serverId),
+      'entityType': serializer.toJson<String>(entityType),
+      'oldId': serializer.toJson<String>(oldId),
+      'newId': serializer.toJson<String>(newId),
+      'matchReason': serializer.toJson<String>(matchReason),
+      'matchedAt': serializer.toJson<DateTime>(matchedAt),
+    };
+  }
+
+  EntityIdentityAliasTableData copyWith({
+    int? id,
+    Value<int?> serverId = const Value.absent(),
+    String? entityType,
+    String? oldId,
+    String? newId,
+    String? matchReason,
+    DateTime? matchedAt,
+  }) => EntityIdentityAliasTableData(
+    id: id ?? this.id,
+    serverId: serverId.present ? serverId.value : this.serverId,
+    entityType: entityType ?? this.entityType,
+    oldId: oldId ?? this.oldId,
+    newId: newId ?? this.newId,
+    matchReason: matchReason ?? this.matchReason,
+    matchedAt: matchedAt ?? this.matchedAt,
+  );
+  EntityIdentityAliasTableData copyWithCompanion(
+    EntityIdentityAliasTableCompanion data,
+  ) {
+    return EntityIdentityAliasTableData(
+      id: data.id.present ? data.id.value : this.id,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      entityType: data.entityType.present
+          ? data.entityType.value
+          : this.entityType,
+      oldId: data.oldId.present ? data.oldId.value : this.oldId,
+      newId: data.newId.present ? data.newId.value : this.newId,
+      matchReason: data.matchReason.present
+          ? data.matchReason.value
+          : this.matchReason,
+      matchedAt: data.matchedAt.present ? data.matchedAt.value : this.matchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntityIdentityAliasTableData(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('entityType: $entityType, ')
+          ..write('oldId: $oldId, ')
+          ..write('newId: $newId, ')
+          ..write('matchReason: $matchReason, ')
+          ..write('matchedAt: $matchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    serverId,
+    entityType,
+    oldId,
+    newId,
+    matchReason,
+    matchedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EntityIdentityAliasTableData &&
+          other.id == this.id &&
+          other.serverId == this.serverId &&
+          other.entityType == this.entityType &&
+          other.oldId == this.oldId &&
+          other.newId == this.newId &&
+          other.matchReason == this.matchReason &&
+          other.matchedAt == this.matchedAt);
+}
+
+class EntityIdentityAliasTableCompanion
+    extends UpdateCompanion<EntityIdentityAliasTableData> {
+  final Value<int> id;
+  final Value<int?> serverId;
+  final Value<String> entityType;
+  final Value<String> oldId;
+  final Value<String> newId;
+  final Value<String> matchReason;
+  final Value<DateTime> matchedAt;
+  const EntityIdentityAliasTableCompanion({
+    this.id = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.entityType = const Value.absent(),
+    this.oldId = const Value.absent(),
+    this.newId = const Value.absent(),
+    this.matchReason = const Value.absent(),
+    this.matchedAt = const Value.absent(),
+  });
+  EntityIdentityAliasTableCompanion.insert({
+    this.id = const Value.absent(),
+    this.serverId = const Value.absent(),
+    required String entityType,
+    required String oldId,
+    required String newId,
+    required String matchReason,
+    required DateTime matchedAt,
+  }) : entityType = Value(entityType),
+       oldId = Value(oldId),
+       newId = Value(newId),
+       matchReason = Value(matchReason),
+       matchedAt = Value(matchedAt);
+  static Insertable<EntityIdentityAliasTableData> custom({
+    Expression<int>? id,
+    Expression<int>? serverId,
+    Expression<String>? entityType,
+    Expression<String>? oldId,
+    Expression<String>? newId,
+    Expression<String>? matchReason,
+    Expression<DateTime>? matchedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (serverId != null) 'server_id': serverId,
+      if (entityType != null) 'entity_type': entityType,
+      if (oldId != null) 'old_id': oldId,
+      if (newId != null) 'new_id': newId,
+      if (matchReason != null) 'match_reason': matchReason,
+      if (matchedAt != null) 'matched_at': matchedAt,
+    });
+  }
+
+  EntityIdentityAliasTableCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? serverId,
+    Value<String>? entityType,
+    Value<String>? oldId,
+    Value<String>? newId,
+    Value<String>? matchReason,
+    Value<DateTime>? matchedAt,
+  }) {
+    return EntityIdentityAliasTableCompanion(
+      id: id ?? this.id,
+      serverId: serverId ?? this.serverId,
+      entityType: entityType ?? this.entityType,
+      oldId: oldId ?? this.oldId,
+      newId: newId ?? this.newId,
+      matchReason: matchReason ?? this.matchReason,
+      matchedAt: matchedAt ?? this.matchedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (entityType.present) {
+      map['entity_type'] = Variable<String>(entityType.value);
+    }
+    if (oldId.present) {
+      map['old_id'] = Variable<String>(oldId.value);
+    }
+    if (newId.present) {
+      map['new_id'] = Variable<String>(newId.value);
+    }
+    if (matchReason.present) {
+      map['match_reason'] = Variable<String>(matchReason.value);
+    }
+    if (matchedAt.present) {
+      map['matched_at'] = Variable<DateTime>(matchedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntityIdentityAliasTableCompanion(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('entityType: $entityType, ')
+          ..write('oldId: $oldId, ')
+          ..write('newId: $newId, ')
+          ..write('matchReason: $matchReason, ')
+          ..write('matchedAt: $matchedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -29170,6 +31567,12 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   librarySyncProviderProfileTable = $LibrarySyncProviderProfileTableTable(this);
   late final $LibrarySyncRepairSessionTableTable librarySyncRepairSessionTable =
       $LibrarySyncRepairSessionTableTable(this);
+  late final $LibraryScanObservationTableTable libraryScanObservationTable =
+      $LibraryScanObservationTableTable(this);
+  late final $LibraryRecoveryReviewTableTable libraryRecoveryReviewTable =
+      $LibraryRecoveryReviewTableTable(this);
+  late final $EntityIdentityAliasTableTable entityIdentityAliasTable =
+      $EntityIdentityAliasTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -29246,6 +31649,9 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     librarySyncRunOutcomeTable,
     librarySyncProviderProfileTable,
     librarySyncRepairSessionTable,
+    libraryScanObservationTable,
+    libraryRecoveryReviewTable,
+    entityIdentityAliasTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -29422,6 +31828,29 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       result: [
         TableUpdate('library_sync_repair_session', kind: UpdateKind.delete),
       ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('library_scan_observation', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('library_recovery_review', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'server_config',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('entity_identity_aliases', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -29660,6 +32089,81 @@ final class $$ServerConfigTableTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _librarySyncRepairSessionTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibraryScanObservationTableTable,
+    List<LibraryScanObservationTableData>
+  >
+  _libraryScanObservationTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.libraryScanObservationTable,
+        aliasName: 'server_config__id__library_scan_observation__server_id',
+      );
+
+  $$LibraryScanObservationTableTableProcessedTableManager
+  get libraryScanObservationTableRefs {
+    final manager = $$LibraryScanObservationTableTableTableManager(
+      $_db,
+      $_db.libraryScanObservationTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _libraryScanObservationTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LibraryRecoveryReviewTableTable,
+    List<LibraryRecoveryReviewTableData>
+  >
+  _libraryRecoveryReviewTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.libraryRecoveryReviewTable,
+        aliasName: 'server_config__id__library_recovery_review__server_id',
+      );
+
+  $$LibraryRecoveryReviewTableTableProcessedTableManager
+  get libraryRecoveryReviewTableRefs {
+    final manager = $$LibraryRecoveryReviewTableTableTableManager(
+      $_db,
+      $_db.libraryRecoveryReviewTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _libraryRecoveryReviewTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $EntityIdentityAliasTableTable,
+    List<EntityIdentityAliasTableData>
+  >
+  _entityIdentityAliasTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.entityIdentityAliasTable,
+        aliasName: 'server_config__id__entity_identity_aliases__server_id',
+      );
+
+  $$EntityIdentityAliasTableTableProcessedTableManager
+  get entityIdentityAliasTableRefs {
+    final manager = $$EntityIdentityAliasTableTableTableManager(
+      $_db,
+      $_db.entityIdentityAliasTable,
+    ).filter((f) => f.serverId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _entityIdentityAliasTableRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -29935,6 +32439,89 @@ class $$ServerConfigTableTableFilterComposer
               }) => $$LibrarySyncRepairSessionTableTableFilterComposer(
                 $db: $db,
                 $table: $db.librarySyncRepairSessionTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> libraryScanObservationTableRefs(
+    Expression<bool> Function(
+      $$LibraryScanObservationTableTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$LibraryScanObservationTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.libraryScanObservationTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibraryScanObservationTableTableFilterComposer(
+                $db: $db,
+                $table: $db.libraryScanObservationTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> libraryRecoveryReviewTableRefs(
+    Expression<bool> Function($$LibraryRecoveryReviewTableTableFilterComposer f)
+    f,
+  ) {
+    final $$LibraryRecoveryReviewTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.libraryRecoveryReviewTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibraryRecoveryReviewTableTableFilterComposer(
+                $db: $db,
+                $table: $db.libraryRecoveryReviewTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> entityIdentityAliasTableRefs(
+    Expression<bool> Function($$EntityIdentityAliasTableTableFilterComposer f)
+    f,
+  ) {
+    final $$EntityIdentityAliasTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.entityIdentityAliasTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$EntityIdentityAliasTableTableFilterComposer(
+                $db: $db,
+                $table: $db.entityIdentityAliasTable,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -30271,6 +32858,91 @@ class $$ServerConfigTableTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> libraryScanObservationTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibraryScanObservationTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibraryScanObservationTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.libraryScanObservationTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibraryScanObservationTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.libraryScanObservationTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> libraryRecoveryReviewTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$LibraryRecoveryReviewTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$LibraryRecoveryReviewTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.libraryRecoveryReviewTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LibraryRecoveryReviewTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.libraryRecoveryReviewTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> entityIdentityAliasTableRefs<T extends Object>(
+    Expression<T> Function($$EntityIdentityAliasTableTableAnnotationComposer a)
+    f,
+  ) {
+    final $$EntityIdentityAliasTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.entityIdentityAliasTable,
+          getReferencedColumn: (t) => t.serverId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$EntityIdentityAliasTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.entityIdentityAliasTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ServerConfigTableTableTableManager
@@ -30295,6 +32967,9 @@ class $$ServerConfigTableTableTableManager
             bool librarySyncRunRequestTableRefs,
             bool librarySyncProviderProfileTableRefs,
             bool librarySyncRepairSessionTableRefs,
+            bool libraryScanObservationTableRefs,
+            bool libraryRecoveryReviewTableRefs,
+            bool entityIdentityAliasTableRefs,
           })
         > {
   $$ServerConfigTableTableTableManager(
@@ -30375,6 +33050,9 @@ class $$ServerConfigTableTableTableManager
                 librarySyncRunRequestTableRefs = false,
                 librarySyncProviderProfileTableRefs = false,
                 librarySyncRepairSessionTableRefs = false,
+                libraryScanObservationTableRefs = false,
+                libraryRecoveryReviewTableRefs = false,
+                entityIdentityAliasTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -30393,6 +33071,12 @@ class $$ServerConfigTableTableTableManager
                       db.librarySyncProviderProfileTable,
                     if (librarySyncRepairSessionTableRefs)
                       db.librarySyncRepairSessionTable,
+                    if (libraryScanObservationTableRefs)
+                      db.libraryScanObservationTable,
+                    if (libraryRecoveryReviewTableRefs)
+                      db.libraryRecoveryReviewTable,
+                    if (entityIdentityAliasTableRefs)
+                      db.entityIdentityAliasTable,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -30565,6 +33249,69 @@ class $$ServerConfigTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (libraryScanObservationTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibraryScanObservationTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._libraryScanObservationTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).libraryScanObservationTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (libraryRecoveryReviewTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          LibraryRecoveryReviewTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._libraryRecoveryReviewTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).libraryRecoveryReviewTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (entityIdentityAliasTableRefs)
+                        await $_getPrefetchedData<
+                          ServerConfigTableData,
+                          $ServerConfigTableTable,
+                          EntityIdentityAliasTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ServerConfigTableTableReferences
+                              ._entityIdentityAliasTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ServerConfigTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).entityIdentityAliasTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.serverId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -30594,6 +33341,9 @@ typedef $$ServerConfigTableTableProcessedTableManager =
         bool librarySyncRunRequestTableRefs,
         bool librarySyncProviderProfileTableRefs,
         bool librarySyncRepairSessionTableRefs,
+        bool libraryScanObservationTableRefs,
+        bool libraryRecoveryReviewTableRefs,
+        bool entityIdentityAliasTableRefs,
       })
     >;
 typedef $$AppSettingsTableTableCreateCompanionBuilder =
@@ -32287,6 +35037,9 @@ typedef $$ArtistsTableTableCreateCompanionBuilder =
       required String name,
       Value<int?> albumCount,
       Value<String?> coverArt,
+      Value<int?> coverArtRevision,
+      Value<String?> artistMbid,
+      Value<String?> catalogAvailability,
       Value<DateTime?> starred,
       Value<bool> isProvisional,
       Value<bool> isExternal,
@@ -32299,6 +35052,9 @@ typedef $$ArtistsTableTableUpdateCompanionBuilder =
       Value<String> name,
       Value<int?> albumCount,
       Value<String?> coverArt,
+      Value<int?> coverArtRevision,
+      Value<String?> artistMbid,
+      Value<String?> catalogAvailability,
       Value<DateTime?> starred,
       Value<bool> isProvisional,
       Value<bool> isExternal,
@@ -32374,6 +35130,21 @@ class $$ArtistsTableTableFilterComposer
 
   ColumnFilters<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -32477,6 +35248,21 @@ class $$ArtistsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get starred => $composableBuilder(
     column: $table.starred,
     builder: (column) => ColumnOrderings(column),
@@ -32520,6 +35306,21 @@ class $$ArtistsTableTableAnnotationComposer
 
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
+
+  GeneratedColumn<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get starred =>
       $composableBuilder(column: $table.starred, builder: (column) => column);
@@ -32622,6 +35423,9 @@ class $$ArtistsTableTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<int?> albumCount = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<int?> coverArtRevision = const Value.absent(),
+                Value<String?> artistMbid = const Value.absent(),
+                Value<String?> catalogAvailability = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
                 Value<bool> isExternal = const Value.absent(),
@@ -32632,6 +35436,9 @@ class $$ArtistsTableTableTableManager
                 name: name,
                 albumCount: albumCount,
                 coverArt: coverArt,
+                coverArtRevision: coverArtRevision,
+                artistMbid: artistMbid,
+                catalogAvailability: catalogAvailability,
                 starred: starred,
                 isProvisional: isProvisional,
                 isExternal: isExternal,
@@ -32644,6 +35451,9 @@ class $$ArtistsTableTableTableManager
                 required String name,
                 Value<int?> albumCount = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<int?> coverArtRevision = const Value.absent(),
+                Value<String?> artistMbid = const Value.absent(),
+                Value<String?> catalogAvailability = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
                 Value<bool> isExternal = const Value.absent(),
@@ -32654,6 +35464,9 @@ class $$ArtistsTableTableTableManager
                 name: name,
                 albumCount: albumCount,
                 coverArt: coverArt,
+                coverArtRevision: coverArtRevision,
+                artistMbid: artistMbid,
+                catalogAvailability: catalogAvailability,
                 starred: starred,
                 isProvisional: isProvisional,
                 isExternal: isExternal,
@@ -32755,6 +35568,9 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<int?> year,
       Value<String?> genre,
       Value<String?> coverArt,
+      Value<int?> coverArtRevision,
+      Value<String?> releaseMbid,
+      Value<String?> catalogAvailability,
       Value<bool> songsHydrated,
       Value<DateTime?> songsVerifiedAt,
       Value<DateTime?> starred,
@@ -32780,6 +35596,9 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<int?> year,
       Value<String?> genre,
       Value<String?> coverArt,
+      Value<int?> coverArtRevision,
+      Value<String?> releaseMbid,
+      Value<String?> catalogAvailability,
       Value<bool> songsHydrated,
       Value<DateTime?> songsVerifiedAt,
       Value<DateTime?> starred,
@@ -32887,6 +35706,21 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get releaseMbid => $composableBuilder(
+    column: $table.releaseMbid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -33048,6 +35882,21 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get releaseMbid => $composableBuilder(
+    column: $table.releaseMbid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get songsHydrated => $composableBuilder(
     column: $table.songsHydrated,
     builder: (column) => ColumnOrderings(column),
@@ -33164,6 +36013,21 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
+
+  GeneratedColumn<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get releaseMbid => $composableBuilder(
+    column: $table.releaseMbid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get songsHydrated => $composableBuilder(
     column: $table.songsHydrated,
@@ -33301,6 +36165,9 @@ class $$AlbumsTableTableTableManager
                 Value<int?> year = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<int?> coverArtRevision = const Value.absent(),
+                Value<String?> releaseMbid = const Value.absent(),
+                Value<String?> catalogAvailability = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
                 Value<DateTime?> songsVerifiedAt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
@@ -33324,6 +36191,9 @@ class $$AlbumsTableTableTableManager
                 year: year,
                 genre: genre,
                 coverArt: coverArt,
+                coverArtRevision: coverArtRevision,
+                releaseMbid: releaseMbid,
+                catalogAvailability: catalogAvailability,
                 songsHydrated: songsHydrated,
                 songsVerifiedAt: songsVerifiedAt,
                 starred: starred,
@@ -33349,6 +36219,9 @@ class $$AlbumsTableTableTableManager
                 Value<int?> year = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<int?> coverArtRevision = const Value.absent(),
+                Value<String?> releaseMbid = const Value.absent(),
+                Value<String?> catalogAvailability = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
                 Value<DateTime?> songsVerifiedAt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
@@ -33372,6 +36245,9 @@ class $$AlbumsTableTableTableManager
                 year: year,
                 genre: genre,
                 coverArt: coverArt,
+                coverArtRevision: coverArtRevision,
+                releaseMbid: releaseMbid,
+                catalogAvailability: catalogAvailability,
                 songsHydrated: songsHydrated,
                 songsVerifiedAt: songsVerifiedAt,
                 starred: starred,
@@ -33486,12 +36362,16 @@ typedef $$SongsTableTableCreateCompanionBuilder = SongsTableCompanion Function({
   Value<String?> suffix,
   Value<int?> size,
   Value<String?> coverArt,
+  Value<int?> coverArtRevision,
   Value<DateTime?> starred,
   Value<String?> recordingMbid,
+  Value<String?> albumMbid,
+  Value<String?> artistMbid,
   Value<int?> userRating,
   Value<int?> playCount,
   Value<DateTime?> createdAt,
   Value<DateTime?> serverDeletedAt,
+  Value<String?> catalogAvailability,
   Value<bool> isProvisional,
   Value<bool> isExternal,
   Value<int?> catalogGeneration,
@@ -33517,12 +36397,16 @@ typedef $$SongsTableTableUpdateCompanionBuilder = SongsTableCompanion Function({
   Value<String?> suffix,
   Value<int?> size,
   Value<String?> coverArt,
+  Value<int?> coverArtRevision,
   Value<DateTime?> starred,
   Value<String?> recordingMbid,
+  Value<String?> albumMbid,
+  Value<String?> artistMbid,
   Value<int?> userRating,
   Value<int?> playCount,
   Value<DateTime?> createdAt,
   Value<DateTime?> serverDeletedAt,
+  Value<String?> catalogAvailability,
   Value<bool> isProvisional,
   Value<bool> isExternal,
   Value<int?> catalogGeneration,
@@ -33764,6 +36648,11 @@ class $$SongsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get starred => $composableBuilder(
     column: $table.starred,
     builder: (column) => ColumnFilters(column),
@@ -33771,6 +36660,16 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<String> get recordingMbid => $composableBuilder(
     column: $table.recordingMbid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get albumMbid => $composableBuilder(
+    column: $table.albumMbid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -33791,6 +36690,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<DateTime> get serverDeletedAt => $composableBuilder(
     column: $table.serverDeletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -34079,6 +36983,11 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get starred => $composableBuilder(
     column: $table.starred,
     builder: (column) => ColumnOrderings(column),
@@ -34086,6 +36995,16 @@ class $$SongsTableTableOrderingComposer
 
   ColumnOrderings<String> get recordingMbid => $composableBuilder(
     column: $table.recordingMbid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get albumMbid => $composableBuilder(
+    column: $table.albumMbid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -34106,6 +37025,11 @@ class $$SongsTableTableOrderingComposer
 
   ColumnOrderings<DateTime> get serverDeletedAt => $composableBuilder(
     column: $table.serverDeletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -34247,11 +37171,24 @@ class $$SongsTableTableAnnotationComposer
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
 
+  GeneratedColumn<int> get coverArtRevision => $composableBuilder(
+    column: $table.coverArtRevision,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get starred =>
       $composableBuilder(column: $table.starred, builder: (column) => column);
 
   GeneratedColumn<String> get recordingMbid => $composableBuilder(
     column: $table.recordingMbid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get albumMbid =>
+      $composableBuilder(column: $table.albumMbid, builder: (column) => column);
+
+  GeneratedColumn<String> get artistMbid => $composableBuilder(
+    column: $table.artistMbid,
     builder: (column) => column,
   );
 
@@ -34268,6 +37205,11 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get serverDeletedAt => $composableBuilder(
     column: $table.serverDeletedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get catalogAvailability => $composableBuilder(
+    column: $table.catalogAvailability,
     builder: (column) => column,
   );
 
@@ -34536,12 +37478,16 @@ class $$SongsTableTableTableManager
                 Value<String?> suffix = const Value.absent(),
                 Value<int?> size = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<int?> coverArtRevision = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<String?> recordingMbid = const Value.absent(),
+                Value<String?> albumMbid = const Value.absent(),
+                Value<String?> artistMbid = const Value.absent(),
                 Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> serverDeletedAt = const Value.absent(),
+                Value<String?> catalogAvailability = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
                 Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
@@ -34566,12 +37512,16 @@ class $$SongsTableTableTableManager
                 suffix: suffix,
                 size: size,
                 coverArt: coverArt,
+                coverArtRevision: coverArtRevision,
                 starred: starred,
                 recordingMbid: recordingMbid,
+                albumMbid: albumMbid,
+                artistMbid: artistMbid,
                 userRating: userRating,
                 playCount: playCount,
                 createdAt: createdAt,
                 serverDeletedAt: serverDeletedAt,
+                catalogAvailability: catalogAvailability,
                 isProvisional: isProvisional,
                 isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
@@ -34598,12 +37548,16 @@ class $$SongsTableTableTableManager
                 Value<String?> suffix = const Value.absent(),
                 Value<int?> size = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<int?> coverArtRevision = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<String?> recordingMbid = const Value.absent(),
+                Value<String?> albumMbid = const Value.absent(),
+                Value<String?> artistMbid = const Value.absent(),
                 Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> serverDeletedAt = const Value.absent(),
+                Value<String?> catalogAvailability = const Value.absent(),
                 Value<bool> isProvisional = const Value.absent(),
                 Value<bool> isExternal = const Value.absent(),
                 Value<int?> catalogGeneration = const Value.absent(),
@@ -34628,12 +37582,16 @@ class $$SongsTableTableTableManager
                 suffix: suffix,
                 size: size,
                 coverArt: coverArt,
+                coverArtRevision: coverArtRevision,
                 starred: starred,
                 recordingMbid: recordingMbid,
+                albumMbid: albumMbid,
+                artistMbid: artistMbid,
                 userRating: userRating,
                 playCount: playCount,
                 createdAt: createdAt,
                 serverDeletedAt: serverDeletedAt,
+                catalogAvailability: catalogAvailability,
                 isProvisional: isProvisional,
                 isExternal: isExternal,
                 catalogGeneration: catalogGeneration,
@@ -48150,6 +51108,1278 @@ typedef $$LibrarySyncRepairSessionTableTableProcessedTableManager =
       LibrarySyncRepairSessionTableData,
       PrefetchHooks Function({bool serverId})
     >;
+typedef $$LibraryScanObservationTableTableCreateCompanionBuilder =
+    LibraryScanObservationTableCompanion Function({
+      Value<int> serverId,
+      Value<bool> scanSupported,
+      Value<String?> providerScanToken,
+      Value<String?> observedToken,
+      Value<DateTime?> observedAt,
+      Value<String?> reconciledToken,
+      Value<DateTime?> reconciledAt,
+      Value<bool> pendingReconciliation,
+    });
+typedef $$LibraryScanObservationTableTableUpdateCompanionBuilder =
+    LibraryScanObservationTableCompanion Function({
+      Value<int> serverId,
+      Value<bool> scanSupported,
+      Value<String?> providerScanToken,
+      Value<String?> observedToken,
+      Value<DateTime?> observedAt,
+      Value<String?> reconciledToken,
+      Value<DateTime?> reconciledAt,
+      Value<bool> pendingReconciliation,
+    });
+
+final class $$LibraryScanObservationTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibraryScanObservationTableTable,
+          LibraryScanObservationTableData
+        > {
+  $$LibraryScanObservationTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) => db
+      .serverConfigTable
+      .createAlias('library_scan_observation__server_id__server_config__id');
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibraryScanObservationTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibraryScanObservationTableTable> {
+  $$LibraryScanObservationTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<bool> get scanSupported => $composableBuilder(
+    column: $table.scanSupported,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerScanToken => $composableBuilder(
+    column: $table.providerScanToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get observedToken => $composableBuilder(
+    column: $table.observedToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get observedAt => $composableBuilder(
+    column: $table.observedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reconciledToken => $composableBuilder(
+    column: $table.reconciledToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get reconciledAt => $composableBuilder(
+    column: $table.reconciledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pendingReconciliation => $composableBuilder(
+    column: $table.pendingReconciliation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibraryScanObservationTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibraryScanObservationTableTable> {
+  $$LibraryScanObservationTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<bool> get scanSupported => $composableBuilder(
+    column: $table.scanSupported,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerScanToken => $composableBuilder(
+    column: $table.providerScanToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get observedToken => $composableBuilder(
+    column: $table.observedToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get observedAt => $composableBuilder(
+    column: $table.observedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reconciledToken => $composableBuilder(
+    column: $table.reconciledToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get reconciledAt => $composableBuilder(
+    column: $table.reconciledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pendingReconciliation => $composableBuilder(
+    column: $table.pendingReconciliation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibraryScanObservationTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibraryScanObservationTableTable> {
+  $$LibraryScanObservationTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<bool> get scanSupported => $composableBuilder(
+    column: $table.scanSupported,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get providerScanToken => $composableBuilder(
+    column: $table.providerScanToken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get observedToken => $composableBuilder(
+    column: $table.observedToken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get observedAt => $composableBuilder(
+    column: $table.observedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reconciledToken => $composableBuilder(
+    column: $table.reconciledToken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get reconciledAt => $composableBuilder(
+    column: $table.reconciledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get pendingReconciliation => $composableBuilder(
+    column: $table.pendingReconciliation,
+    builder: (column) => column,
+  );
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibraryScanObservationTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibraryScanObservationTableTable,
+          LibraryScanObservationTableData,
+          $$LibraryScanObservationTableTableFilterComposer,
+          $$LibraryScanObservationTableTableOrderingComposer,
+          $$LibraryScanObservationTableTableAnnotationComposer,
+          $$LibraryScanObservationTableTableCreateCompanionBuilder,
+          $$LibraryScanObservationTableTableUpdateCompanionBuilder,
+          (
+            LibraryScanObservationTableData,
+            $$LibraryScanObservationTableTableReferences,
+          ),
+          LibraryScanObservationTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$LibraryScanObservationTableTableTableManager(
+    _$NavisDatabase db,
+    $LibraryScanObservationTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibraryScanObservationTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibraryScanObservationTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibraryScanObservationTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<bool> scanSupported = const Value.absent(),
+                Value<String?> providerScanToken = const Value.absent(),
+                Value<String?> observedToken = const Value.absent(),
+                Value<DateTime?> observedAt = const Value.absent(),
+                Value<String?> reconciledToken = const Value.absent(),
+                Value<DateTime?> reconciledAt = const Value.absent(),
+                Value<bool> pendingReconciliation = const Value.absent(),
+              }) => LibraryScanObservationTableCompanion(
+                serverId: serverId,
+                scanSupported: scanSupported,
+                providerScanToken: providerScanToken,
+                observedToken: observedToken,
+                observedAt: observedAt,
+                reconciledToken: reconciledToken,
+                reconciledAt: reconciledAt,
+                pendingReconciliation: pendingReconciliation,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> serverId = const Value.absent(),
+                Value<bool> scanSupported = const Value.absent(),
+                Value<String?> providerScanToken = const Value.absent(),
+                Value<String?> observedToken = const Value.absent(),
+                Value<DateTime?> observedAt = const Value.absent(),
+                Value<String?> reconciledToken = const Value.absent(),
+                Value<DateTime?> reconciledAt = const Value.absent(),
+                Value<bool> pendingReconciliation = const Value.absent(),
+              }) => LibraryScanObservationTableCompanion.insert(
+                serverId: serverId,
+                scanSupported: scanSupported,
+                providerScanToken: providerScanToken,
+                observedToken: observedToken,
+                observedAt: observedAt,
+                reconciledToken: reconciledToken,
+                reconciledAt: reconciledAt,
+                pendingReconciliation: pendingReconciliation,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibraryScanObservationTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable:
+                            $$LibraryScanObservationTableTableReferences
+                                ._serverIdTable(db),
+                        referencedColumn:
+                            $$LibraryScanObservationTableTableReferences
+                                ._serverIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibraryScanObservationTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibraryScanObservationTableTable,
+      LibraryScanObservationTableData,
+      $$LibraryScanObservationTableTableFilterComposer,
+      $$LibraryScanObservationTableTableOrderingComposer,
+      $$LibraryScanObservationTableTableAnnotationComposer,
+      $$LibraryScanObservationTableTableCreateCompanionBuilder,
+      $$LibraryScanObservationTableTableUpdateCompanionBuilder,
+      (
+        LibraryScanObservationTableData,
+        $$LibraryScanObservationTableTableReferences,
+      ),
+      LibraryScanObservationTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
+typedef $$LibraryRecoveryReviewTableTableCreateCompanionBuilder =
+    LibraryRecoveryReviewTableCompanion Function({
+      Value<int> id,
+      required int serverId,
+      required String entityType,
+      required String oldId,
+      Value<String?> savedTitle,
+      Value<String?> savedSubtitle,
+      Value<int?> evidenceGeneration,
+      required String reason,
+      Value<String?> candidateJson,
+      Value<String> disposition,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+    });
+typedef $$LibraryRecoveryReviewTableTableUpdateCompanionBuilder =
+    LibraryRecoveryReviewTableCompanion Function({
+      Value<int> id,
+      Value<int> serverId,
+      Value<String> entityType,
+      Value<String> oldId,
+      Value<String?> savedTitle,
+      Value<String?> savedSubtitle,
+      Value<int?> evidenceGeneration,
+      Value<String> reason,
+      Value<String?> candidateJson,
+      Value<String> disposition,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$LibraryRecoveryReviewTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $LibraryRecoveryReviewTableTable,
+          LibraryRecoveryReviewTableData
+        > {
+  $$LibraryRecoveryReviewTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) => db
+      .serverConfigTable
+      .createAlias('library_recovery_review__server_id__server_config__id');
+
+  $$ServerConfigTableTableProcessedTableManager get serverId {
+    final $_column = $_itemColumn<int>('server_id')!;
+
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LibraryRecoveryReviewTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $LibraryRecoveryReviewTableTable> {
+  $$LibraryRecoveryReviewTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get oldId => $composableBuilder(
+    column: $table.oldId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get savedTitle => $composableBuilder(
+    column: $table.savedTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get savedSubtitle => $composableBuilder(
+    column: $table.savedSubtitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get evidenceGeneration => $composableBuilder(
+    column: $table.evidenceGeneration,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get candidateJson => $composableBuilder(
+    column: $table.candidateJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get disposition => $composableBuilder(
+    column: $table.disposition,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibraryRecoveryReviewTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $LibraryRecoveryReviewTableTable> {
+  $$LibraryRecoveryReviewTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get oldId => $composableBuilder(
+    column: $table.oldId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get savedTitle => $composableBuilder(
+    column: $table.savedTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get savedSubtitle => $composableBuilder(
+    column: $table.savedSubtitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get evidenceGeneration => $composableBuilder(
+    column: $table.evidenceGeneration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get candidateJson => $composableBuilder(
+    column: $table.candidateJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get disposition => $composableBuilder(
+    column: $table.disposition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LibraryRecoveryReviewTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $LibraryRecoveryReviewTableTable> {
+  $$LibraryRecoveryReviewTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get oldId =>
+      $composableBuilder(column: $table.oldId, builder: (column) => column);
+
+  GeneratedColumn<String> get savedTitle => $composableBuilder(
+    column: $table.savedTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get savedSubtitle => $composableBuilder(
+    column: $table.savedSubtitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get evidenceGeneration => $composableBuilder(
+    column: $table.evidenceGeneration,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<String> get candidateJson => $composableBuilder(
+    column: $table.candidateJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get disposition => $composableBuilder(
+    column: $table.disposition,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$LibraryRecoveryReviewTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $LibraryRecoveryReviewTableTable,
+          LibraryRecoveryReviewTableData,
+          $$LibraryRecoveryReviewTableTableFilterComposer,
+          $$LibraryRecoveryReviewTableTableOrderingComposer,
+          $$LibraryRecoveryReviewTableTableAnnotationComposer,
+          $$LibraryRecoveryReviewTableTableCreateCompanionBuilder,
+          $$LibraryRecoveryReviewTableTableUpdateCompanionBuilder,
+          (
+            LibraryRecoveryReviewTableData,
+            $$LibraryRecoveryReviewTableTableReferences,
+          ),
+          LibraryRecoveryReviewTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$LibraryRecoveryReviewTableTableTableManager(
+    _$NavisDatabase db,
+    $LibraryRecoveryReviewTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LibraryRecoveryReviewTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$LibraryRecoveryReviewTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LibraryRecoveryReviewTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> serverId = const Value.absent(),
+                Value<String> entityType = const Value.absent(),
+                Value<String> oldId = const Value.absent(),
+                Value<String?> savedTitle = const Value.absent(),
+                Value<String?> savedSubtitle = const Value.absent(),
+                Value<int?> evidenceGeneration = const Value.absent(),
+                Value<String> reason = const Value.absent(),
+                Value<String?> candidateJson = const Value.absent(),
+                Value<String> disposition = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LibraryRecoveryReviewTableCompanion(
+                id: id,
+                serverId: serverId,
+                entityType: entityType,
+                oldId: oldId,
+                savedTitle: savedTitle,
+                savedSubtitle: savedSubtitle,
+                evidenceGeneration: evidenceGeneration,
+                reason: reason,
+                candidateJson: candidateJson,
+                disposition: disposition,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int serverId,
+                required String entityType,
+                required String oldId,
+                Value<String?> savedTitle = const Value.absent(),
+                Value<String?> savedSubtitle = const Value.absent(),
+                Value<int?> evidenceGeneration = const Value.absent(),
+                required String reason,
+                Value<String?> candidateJson = const Value.absent(),
+                Value<String> disposition = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+              }) => LibraryRecoveryReviewTableCompanion.insert(
+                id: id,
+                serverId: serverId,
+                entityType: entityType,
+                oldId: oldId,
+                savedTitle: savedTitle,
+                savedSubtitle: savedSubtitle,
+                evidenceGeneration: evidenceGeneration,
+                reason: reason,
+                candidateJson: candidateJson,
+                disposition: disposition,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LibraryRecoveryReviewTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable:
+                            $$LibraryRecoveryReviewTableTableReferences
+                                ._serverIdTable(db),
+                        referencedColumn:
+                            $$LibraryRecoveryReviewTableTableReferences
+                                ._serverIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LibraryRecoveryReviewTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $LibraryRecoveryReviewTableTable,
+      LibraryRecoveryReviewTableData,
+      $$LibraryRecoveryReviewTableTableFilterComposer,
+      $$LibraryRecoveryReviewTableTableOrderingComposer,
+      $$LibraryRecoveryReviewTableTableAnnotationComposer,
+      $$LibraryRecoveryReviewTableTableCreateCompanionBuilder,
+      $$LibraryRecoveryReviewTableTableUpdateCompanionBuilder,
+      (
+        LibraryRecoveryReviewTableData,
+        $$LibraryRecoveryReviewTableTableReferences,
+      ),
+      LibraryRecoveryReviewTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
+typedef $$EntityIdentityAliasTableTableCreateCompanionBuilder =
+    EntityIdentityAliasTableCompanion Function({
+      Value<int> id,
+      Value<int?> serverId,
+      required String entityType,
+      required String oldId,
+      required String newId,
+      required String matchReason,
+      required DateTime matchedAt,
+    });
+typedef $$EntityIdentityAliasTableTableUpdateCompanionBuilder =
+    EntityIdentityAliasTableCompanion Function({
+      Value<int> id,
+      Value<int?> serverId,
+      Value<String> entityType,
+      Value<String> oldId,
+      Value<String> newId,
+      Value<String> matchReason,
+      Value<DateTime> matchedAt,
+    });
+
+final class $$EntityIdentityAliasTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $EntityIdentityAliasTableTable,
+          EntityIdentityAliasTableData
+        > {
+  $$EntityIdentityAliasTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ServerConfigTableTable _serverIdTable(_$NavisDatabase db) => db
+      .serverConfigTable
+      .createAlias('entity_identity_aliases__server_id__server_config__id');
+
+  $$ServerConfigTableTableProcessedTableManager? get serverId {
+    final $_column = $_itemColumn<int>('server_id');
+    if ($_column == null) return null;
+    final manager = $$ServerConfigTableTableTableManager(
+      $_db,
+      $_db.serverConfigTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_serverIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EntityIdentityAliasTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $EntityIdentityAliasTableTable> {
+  $$EntityIdentityAliasTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get oldId => $composableBuilder(
+    column: $table.oldId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get newId => $composableBuilder(
+    column: $table.newId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get matchReason => $composableBuilder(
+    column: $table.matchReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get matchedAt => $composableBuilder(
+    column: $table.matchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ServerConfigTableTableFilterComposer get serverId {
+    final $$ServerConfigTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableFilterComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EntityIdentityAliasTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $EntityIdentityAliasTableTable> {
+  $$EntityIdentityAliasTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get oldId => $composableBuilder(
+    column: $table.oldId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get newId => $composableBuilder(
+    column: $table.newId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get matchReason => $composableBuilder(
+    column: $table.matchReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get matchedAt => $composableBuilder(
+    column: $table.matchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ServerConfigTableTableOrderingComposer get serverId {
+    final $$ServerConfigTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.serverId,
+      referencedTable: $db.serverConfigTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ServerConfigTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.serverConfigTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EntityIdentityAliasTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $EntityIdentityAliasTableTable> {
+  $$EntityIdentityAliasTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get oldId =>
+      $composableBuilder(column: $table.oldId, builder: (column) => column);
+
+  GeneratedColumn<String> get newId =>
+      $composableBuilder(column: $table.newId, builder: (column) => column);
+
+  GeneratedColumn<String> get matchReason => $composableBuilder(
+    column: $table.matchReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get matchedAt =>
+      $composableBuilder(column: $table.matchedAt, builder: (column) => column);
+
+  $$ServerConfigTableTableAnnotationComposer get serverId {
+    final $$ServerConfigTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.serverId,
+          referencedTable: $db.serverConfigTable,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ServerConfigTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.serverConfigTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$EntityIdentityAliasTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $EntityIdentityAliasTableTable,
+          EntityIdentityAliasTableData,
+          $$EntityIdentityAliasTableTableFilterComposer,
+          $$EntityIdentityAliasTableTableOrderingComposer,
+          $$EntityIdentityAliasTableTableAnnotationComposer,
+          $$EntityIdentityAliasTableTableCreateCompanionBuilder,
+          $$EntityIdentityAliasTableTableUpdateCompanionBuilder,
+          (
+            EntityIdentityAliasTableData,
+            $$EntityIdentityAliasTableTableReferences,
+          ),
+          EntityIdentityAliasTableData,
+          PrefetchHooks Function({bool serverId})
+        > {
+  $$EntityIdentityAliasTableTableTableManager(
+    _$NavisDatabase db,
+    $EntityIdentityAliasTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EntityIdentityAliasTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$EntityIdentityAliasTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$EntityIdentityAliasTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> serverId = const Value.absent(),
+                Value<String> entityType = const Value.absent(),
+                Value<String> oldId = const Value.absent(),
+                Value<String> newId = const Value.absent(),
+                Value<String> matchReason = const Value.absent(),
+                Value<DateTime> matchedAt = const Value.absent(),
+              }) => EntityIdentityAliasTableCompanion(
+                id: id,
+                serverId: serverId,
+                entityType: entityType,
+                oldId: oldId,
+                newId: newId,
+                matchReason: matchReason,
+                matchedAt: matchedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> serverId = const Value.absent(),
+                required String entityType,
+                required String oldId,
+                required String newId,
+                required String matchReason,
+                required DateTime matchedAt,
+              }) => EntityIdentityAliasTableCompanion.insert(
+                id: id,
+                serverId: serverId,
+                entityType: entityType,
+                oldId: oldId,
+                newId: newId,
+                matchReason: matchReason,
+                matchedAt: matchedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$EntityIdentityAliasTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({serverId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (serverId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.serverId,
+                        referencedTable:
+                            $$EntityIdentityAliasTableTableReferences
+                                ._serverIdTable(db),
+                        referencedColumn:
+                            $$EntityIdentityAliasTableTableReferences
+                                ._serverIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EntityIdentityAliasTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $EntityIdentityAliasTableTable,
+      EntityIdentityAliasTableData,
+      $$EntityIdentityAliasTableTableFilterComposer,
+      $$EntityIdentityAliasTableTableOrderingComposer,
+      $$EntityIdentityAliasTableTableAnnotationComposer,
+      $$EntityIdentityAliasTableTableCreateCompanionBuilder,
+      $$EntityIdentityAliasTableTableUpdateCompanionBuilder,
+      (EntityIdentityAliasTableData, $$EntityIdentityAliasTableTableReferences),
+      EntityIdentityAliasTableData,
+      PrefetchHooks Function({bool serverId})
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -48299,5 +52529,22 @@ class $NavisDatabaseManager {
       $$LibrarySyncRepairSessionTableTableTableManager(
         _db,
         _db.librarySyncRepairSessionTable,
+      );
+  $$LibraryScanObservationTableTableTableManager
+  get libraryScanObservationTable =>
+      $$LibraryScanObservationTableTableTableManager(
+        _db,
+        _db.libraryScanObservationTable,
+      );
+  $$LibraryRecoveryReviewTableTableTableManager
+  get libraryRecoveryReviewTable =>
+      $$LibraryRecoveryReviewTableTableTableManager(
+        _db,
+        _db.libraryRecoveryReviewTable,
+      );
+  $$EntityIdentityAliasTableTableTableManager get entityIdentityAliasTable =>
+      $$EntityIdentityAliasTableTableTableManager(
+        _db,
+        _db.entityIdentityAliasTable,
       );
 }

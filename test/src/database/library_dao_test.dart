@@ -768,7 +768,7 @@ void main() {
     );
 
     test(
-      'reconcileSongsForAlbumsChunk removes non-preserved stale state',
+      'reconcileSongsForAlbumsChunk retains owned stale state as confirmed missing',
       () async {
         final tempDir = Directory.systemTemp.createTempSync(
           'navis_library_dao_',
@@ -839,21 +839,120 @@ void main() {
           const <String, List<SongsTableCompanion>>{'album-1': []},
         );
 
-        expect(await database.libraryDao.getSongById('stale-song'), isNull);
-        expect(await database.cacheDao.getCachedTrack('stale-song'), isNull);
-        expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
+        // Download ownership and match-flow references keep the row alive as
+        // confirmed-missing so recovery review can still relink it.
+        final retained = await database.libraryDao.getSongById('stale-song');
+        expect(retained, isNotNull);
+        expect(retained!.serverDeletedAt, isNotNull);
+        expect(
+          retained.catalogAvailability,
+          CatalogAvailability.confirmedMissing.name,
+        );
+        expect(retained.albumId, isNull);
+        expect(
+          await database.cacheDao.getCachedTrack('stale-song'),
+          isNotNull,
+        );
+        expect(
+          await database.downloadQueueDao.watchQueue().first,
+          isNotEmpty,
+        );
         expect(
           await database.libraryDao.getExternalLyricsCache('stale-song'),
-          isNull,
+          isNotNull,
         );
         expect(
           await database.select(database.matchFlowSongsTable).get(),
-          isEmpty,
+          isNotEmpty,
         );
+        expect(audioFile.existsSync(), isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'reconcileSongsForAlbumsChunk deletes unowned stale rows',
+      () async {
+        final tempDir = Directory.systemTemp.createTempSync(
+          'navis_library_dao_unowned_',
+        );
+        addTearDown(() {
+          if (tempDir.existsSync()) {
+            tempDir.deleteSync(recursive: true);
+          }
+        });
+
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(id: 'album-2', name: 'Album 2'),
+        ]);
+        final audioFile = File(p.join(tempDir.path, 'plain-song.mp3'));
+        await audioFile.writeAsBytes(<int>[1, 2, 3]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'plain-song',
+            title: 'Plain Song',
+            albumId: const Value('album-2'),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'plain-song',
+            filePath: audioFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await database.libraryDao.reconcileSongsForAlbumsChunk(
+          const <String, List<SongsTableCompanion>>{'album-2': []},
+        );
+
+        expect(await database.libraryDao.getSongById('plain-song'), isNull);
+        expect(await database.cacheDao.getCachedTrack('plain-song'), isNull);
         expect(audioFile.existsSync(), isFalse);
       },
       skip: !sqliteAvailable,
     );
+
+    test('bumpCoverArtRevisions targets only listed entities', () async {
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+      ]);
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(id: 'album-1', name: 'Album'),
+      ]);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'Song',
+          albumId: const Value('album-1'),
+        ),
+        SongsTableCompanion.insert(
+          id: 'song-2',
+          title: 'Song 2',
+          albumId: const Value('album-1'),
+        ),
+      ]);
+
+      await database.libraryDao.bumpCoverArtRevisions(
+        songIds: <String>['song-1'],
+        albumIds: <String>['album-1'],
+      );
+
+      expect(
+        (await database.libraryDao.getSongById('song-1'))!.coverArtRevision,
+        1,
+      );
+      expect(
+        (await database.libraryDao.getSongById('song-2'))!.coverArtRevision,
+        isNull,
+      );
+      final album = await database.libraryDao.getAlbumById('album-1');
+      expect(album!.coverArtRevision, 1);
+    }, skip: !sqliteAvailable);
 
     test(
       'markAlbumsSongsHydratedByIds updates only targeted albums',

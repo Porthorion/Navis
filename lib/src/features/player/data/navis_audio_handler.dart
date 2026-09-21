@@ -553,8 +553,6 @@ class NavisAudioHandler extends BaseAudioHandler
         if (songs.isEmpty) return false;
         final song = songs.first;
         final contextualSongs = await switch (parsed.contextType) {
-          AutoMediaContextType.genre when parsed.contextId != null =>
-            _libraryDao.watchSongsByGenre(parsed.contextId!).first,
           AutoMediaContextType.downloads => () async {
             final downloadedSongIds = await _rollingCacheManager
                 .getPermanentlyCachedSongIds();
@@ -650,17 +648,6 @@ class NavisAudioHandler extends BaseAudioHandler
         if (allSongs.isEmpty) return false;
         await replaceQueueWithData(allSongs, autoPlay: autoPlay);
         return _queueItems.isNotEmpty;
-      case AutoMediaIdType.genre:
-        final songs = await _libraryDao
-            .watchSongsByGenre(parsed.entityId!)
-            .first;
-        if (songs.isEmpty) return false;
-        await replaceQueueWithData(
-          songs,
-          autoPlay: autoPlay,
-          expandMatchFlows: false,
-        );
-        return _queueItems.isNotEmpty;
       case AutoMediaIdType.root:
       case AutoMediaIdType.rootCategory:
       case AutoMediaIdType.likedSubcategory:
@@ -733,12 +720,6 @@ class NavisAudioHandler extends BaseAudioHandler
             ),
             autoPlay: autoPlay,
           );
-        }
-      case NavisAndroidAutoSearchType.genre:
-        final songs = await _libraryDao.watchSongsByGenre(request.term).first;
-        if (songs.isNotEmpty) {
-          await replaceQueueWithData(songs, autoPlay: autoPlay);
-          return _queueItems.isNotEmpty;
         }
       case NavisAndroidAutoSearchType.title:
         final songs = await _libraryDao.searchSongsLocal(

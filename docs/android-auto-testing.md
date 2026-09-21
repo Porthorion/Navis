@@ -145,7 +145,6 @@ Once the DHU is running, use these commands in the DHU terminal:
 - [ ] Library shows Downloads first when permanent downloads exist
 - [ ] Library → Albums opens the album grid
 - [ ] Library → Artists opens the artist list
-- [ ] Library → Genres opens the genre list
 - [ ] Artist list loads with names
 - [ ] Artists with cover art show thumbnails
 - [ ] Tapping an artist shows their albums
@@ -189,12 +188,10 @@ Once the DHU is running, use these commands in the DHU terminal:
 - [ ] Most recent plays appear first
 - [ ] Tapping a song keeps the recent collection order
 
-### Browse Tree — Downloads and Genres
+### Browse Tree — Downloads
 
 - [ ] Downloaded songs are available without a network connection
 - [ ] Tapping a download keeps the downloaded-song collection order
-- [ ] Genre songs load in artist/album/track order
-- [ ] Tapping a genre song keeps the genre collection order
 - [ ] Tapping "Instant Mix" starts the saved Server mix or Last.fm Same Vibes choice from the current song, or a library seed on cold start
 - [ ] Tapping "Instant Radio" starts the same balanced personal radio used by Home, including eligible local fallback
 - [ ] Preparing Instant Radio queues playable tracks without starting playback; an empty eligible library reports failure
@@ -226,7 +223,7 @@ Once the DHU is running, use these commands in the DHU terminal:
 - [ ] Empty search / "play music" starts Instant Radio (no crash)
 - [ ] Playlist search works while the server is connected
 - [ ] An unavailable server falls back to local search within 10 seconds
-- [ ] Voice search via `mic` DHU command works for artist, album, playlist, genre, and title requests (requires Google Assistant)
+- [ ] Voice search via `mic` DHU command works for artist, album, playlist, and title requests (requires Google Assistant)
 
 ### Day/Night Mode
 

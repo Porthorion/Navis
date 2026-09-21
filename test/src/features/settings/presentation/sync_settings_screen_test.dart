@@ -26,6 +26,8 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   final LibrarySyncState stateValue;
   final void Function({required bool allowMeteredBroadOverride})? onSyncNow;
   final Future<bool> Function()? onDiscardRepairCandidate;
+  var repairCalls = 0;
+  bool? lastRepairMeteredOverride;
 
   @override
   LibrarySyncState build() => stateValue;
@@ -54,6 +56,15 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   @override
   Future<bool> discardAwaitingRepairCandidate() async {
     return onDiscardRepairCandidate?.call() ?? false;
+  }
+
+  @override
+  Future<LibrarySyncState> repairLibrary({
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    repairCalls++;
+    lastRepairMeteredOverride = allowMeteredBroadOverride;
+    return stateValue;
   }
 }
 
@@ -454,11 +465,17 @@ void main() {
     await tester.tap(find.text('Repair Library'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Required library rebuild'), findsOneWidget);
-    expect(
-      router.routeInformationProvider.value.uri.queryParameters['reason'],
-      'repair-library',
-    );
+    // Ordinary repair starts in place; the user is never forced onto the
+    // blocking rebuild screen.
+    expect(find.text('Required library rebuild'), findsNothing);
+    expect(router.routeInformationProvider.value.uri.path, '/');
+    final controller =
+        ProviderScope.containerOf(
+              tester.element(find.byType(SyncSettingsScreen)),
+            ).read(librarySyncControllerProvider.notifier)
+            as _FakeLibrarySyncController;
+    expect(controller.repairCalls, 1);
+    expect(controller.lastRepairMeteredOverride, isFalse);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -695,11 +712,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Repair on Mobile Data'));
     await tester.pumpAndSettle();
-    expect(find.text('Required library rebuild'), findsOneWidget);
-    expect(router.routeInformationProvider.value.uri.queryParameters, {
-      'reason': 'repair-library',
-      'metered': '1',
-    });
+    expect(find.text('Required library rebuild'), findsNothing);
+    final controller =
+        ProviderScope.containerOf(
+              tester.element(find.byType(SyncSettingsScreen)),
+            ).read(librarySyncControllerProvider.notifier)
+            as _FakeLibrarySyncController;
+    expect(controller.repairCalls, 1);
+    expect(controller.lastRepairMeteredOverride, isTrue);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -810,11 +830,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Apply Library Repair'));
     await tester.pumpAndSettle();
-    expect(find.text('Required library rebuild'), findsOneWidget);
-    expect(
-      router.routeInformationProvider.value.uri.queryParameters['reason'],
-      'repair-library',
-    );
+    expect(find.text('Required library rebuild'), findsNothing);
+    final controller =
+        ProviderScope.containerOf(
+              tester.element(find.byType(SyncSettingsScreen)),
+            ).read(librarySyncControllerProvider.notifier)
+            as _FakeLibrarySyncController;
+    expect(controller.repairCalls, 1);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

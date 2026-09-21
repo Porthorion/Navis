@@ -251,19 +251,18 @@ void main() {
         expect(request.term, 'Blue');
       });
 
-      test('playlist, genre, and title extras are classified', () {
+      test('playlist and title extras use their scoped searches', () {
         expect(
           navisAndroidAutoSearchRequest('', {
             AndroidAutoConstants.mediaPlaylistKey: 'Road',
           }).type,
           NavisAndroidAutoSearchType.playlist,
         );
-        expect(
-          navisAndroidAutoSearchRequest('', {
-            AndroidAutoConstants.mediaGenreKey: 'Jazz',
-          }).type,
-          NavisAndroidAutoSearchType.genre,
-        );
+        final genreSearch = navisAndroidAutoSearchRequest('', {
+          AndroidAutoConstants.mediaGenreKey: 'Jazz',
+        });
+        expect(genreSearch.type, NavisAndroidAutoSearchType.general);
+        expect(genreSearch.term, 'Jazz');
         expect(
           navisAndroidAutoSearchRequest('', {
             AndroidAutoConstants.mediaTitleKey: 'Feeling Good',

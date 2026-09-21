@@ -15,6 +15,7 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -508,13 +509,13 @@ void main() {
         const LibrarySyncRequest(
           trigger: LibrarySyncTrigger.user,
           intent: LibrarySyncIntent.checkForUpdates,
-          target: LibrarySyncTarget.genres(),
+          target: LibrarySyncTarget.playlistHeaders(),
         ),
       );
       while (await db.librarySyncDao.getWork(
             serverId: id,
             kind: 'targetedHydration',
-            entityId: '@genres',
+            entityId: '@playlistHeaders',
           ) ==
           null) {
         await Future<void>.delayed(const Duration(milliseconds: 1));
@@ -523,19 +524,19 @@ void main() {
       api.starredGate!.complete(const StarredContent());
       await active;
       expect((await queued).status, LibrarySyncStatus.cancelled);
-      expect(api.calls, isNot(contains('getGenres')));
+      expect(api.calls, isNot(contains('getPlaylists')));
       expect(
         (await db.librarySyncDao.getWork(
           serverId: id,
           kind: 'targetedHydration',
-          entityId: '@genres',
+          entityId: '@playlistHeaders',
         ))!.status,
         'cancelled',
       );
     },
   );
 
-  test('policy-denied auxiliary work records zero network attempts', () async {
+  test('scheduled auxiliary work defers during playback', () async {
     final id = await session();
     await seed();
     final playing = AdaptiveLibrarySyncCoordinator(
@@ -546,15 +547,204 @@ void main() {
       staleAfter: const Duration(hours: 1),
       readHasActivePlayback: () => true,
     );
-    await playing.requestSync(const LibrarySyncRequest.checkForUpdates());
+    await playing.requestSync(const LibrarySyncRequest.automatic());
     final history = await db.librarySyncDao.getRecentSyncRunHistory(id);
     final auxiliary = history.where(
       (row) => row.intent.name == 'auxiliaryRefresh',
     );
-    expect(auxiliary, hasLength(3));
+    expect(auxiliary, hasLength(2));
     expect(auxiliary.every((row) => row.requestCount == 0), isTrue);
     expect(api.calls, isNot(contains('getStarredContent')));
+    expect(api.calls, isNot(contains('getPlaylists')));
+    expect(api.calls, isNot(contains('getGenres')));
   });
+
+  test(
+    'F43 manual sync refreshes likes and playlists during playback',
+    () async {
+      final id = await session();
+      await seed();
+      for (final target in const <LibrarySyncTarget>[
+        LibrarySyncTarget.starred(),
+        LibrarySyncTarget.playlistHeaders(),
+      ]) {
+        await db.librarySyncDao.enqueueWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(target),
+          priority: 20,
+        );
+        final work = await db.librarySyncDao.getWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(target),
+        );
+        await db.librarySyncDao.markCompleted(work!.id);
+      }
+      api.starredContent = const StarredContent(
+        songs: [
+          Song(
+            id: 'remote-favorite',
+            title: 'Favorite',
+            isExternal: true,
+          ),
+        ],
+      );
+      api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
+      final playing = AdaptiveLibrarySyncCoordinator(
+        executor: engine,
+        database: db,
+        serverConfigRepository: repo,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => true,
+      );
+
+      await playing.requestSync(const LibrarySyncRequest.checkForUpdates());
+
+      expect(api.calls, contains('getStarredContent'));
+      expect(api.calls, contains('getPlaylists'));
+      expect(api.calls, isNot(contains('getGenres')));
+      expect(
+        (await db.libraryDao.getSongById('remote-favorite'))?.starred,
+        isNotNull,
+      );
+      expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
+      expect(
+        (await db.librarySyncDao.getWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: '@starred',
+        ))?.status,
+        'completed',
+      );
+      expect(
+        (await db.librarySyncDao.getWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: '@playlistHeaders',
+        ))?.status,
+        'completed',
+      );
+    },
+  );
+
+  test(
+    'F43 auxiliary completion is not hidden behind hydration backlog',
+    () async {
+      final id = await session();
+      await seed();
+      for (var index = 0; index < 65; index++) {
+        await db.librarySyncDao.enqueueWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(
+            LibrarySyncTarget.album('backlog-$index'),
+          ),
+          priority: 100,
+          workClass: 'interactive',
+        );
+      }
+      api.starredContent = const StarredContent(
+        songs: [
+          Song(
+            id: 'remote-favorite',
+            title: 'Favorite',
+            isExternal: true,
+          ),
+        ],
+      );
+      api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
+
+      await coordinator.requestSync(const LibrarySyncRequest.checkForUpdates());
+
+      expect(
+        api.calls.where((call) => call == 'getStarredContent'),
+        hasLength(1),
+      );
+      expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
+      expect(api.calls, isNot(contains('getGenres')));
+      expect(
+        (await db.librarySyncDao.getWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: '@starred',
+        ))?.status,
+        'completed',
+      );
+      expect(
+        (await db.librarySyncDao.getWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: '@playlistHeaders',
+        ))?.status,
+        'completed',
+      );
+      expect(
+        (await db.librarySyncDao.getOrCreateState(id)).lastAuxiliarySyncedAt,
+        isNotNull,
+      );
+    },
+  );
+
+  test(
+    'F43 scheduled incremental sync refreshes each due companion domain',
+    () async {
+      final id = await session();
+      await seed();
+      final stale = DateTime.now().subtract(const Duration(hours: 13));
+      for (final target in const <LibrarySyncTarget>[
+        LibrarySyncTarget.starred(),
+        LibrarySyncTarget.playlistHeaders(),
+      ]) {
+        await db.librarySyncDao.enqueueWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(target),
+          priority: 20,
+        );
+        final work = await db.librarySyncDao.getWork(
+          serverId: id,
+          kind: LibrarySyncPlanKind.targetedHydration.name,
+          entityId: librarySyncTargetWorkKey(target),
+        );
+        await db.librarySyncDao.markCompleted(work!.id, now: stale);
+      }
+      api.starredContent = const StarredContent(
+        songs: [
+          Song(
+            id: 'scheduled-favorite',
+            title: 'Scheduled favorite',
+            isExternal: true,
+          ),
+        ],
+      );
+      api.playlists = const [
+        Playlist(id: 'scheduled-playlist', name: 'Scheduled', songCount: 0),
+      ];
+
+      await coordinator.requestSync(const LibrarySyncRequest.automatic());
+
+      expect(
+        api.calls.where((call) => call == 'getStarredContent'),
+        hasLength(1),
+      );
+      expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
+      expect(api.calls, isNot(contains('getGenres')));
+      expect(
+        (await db.libraryDao.getSongById('scheduled-favorite'))?.starred,
+        isNotNull,
+      );
+      expect(
+        (await db.playlistDao.getAllPlaylists()).single.id,
+        'scheduled-playlist',
+      );
+      expect(
+        (await db.librarySyncDao.getOrCreateState(id)).lastAuxiliarySyncedAt,
+        isNotNull,
+      );
+    },
+  );
 
   test(
     'F30 due discovery hydrates the new arrival ahead of an older backlog',
@@ -763,6 +953,84 @@ void main() {
   );
 
   test(
+    'F44 manual discovery reports committed budget-limited work as partial',
+    () async {
+      final serverId = await session();
+      await seed();
+      await db.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          currentGeneration: const Value(1),
+          lastCheckedAt: Value(DateTime.now()),
+          lastAuditAt: Value(DateTime.now()),
+        ),
+      );
+      for (var index = 0; index < 65; index++) {
+        final id = 'manual-pending-$index';
+        await db.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(
+            id: id,
+            name: id,
+            songCount: const Value(1),
+          ),
+        ]);
+        api.albumDetails[id] = Album(
+          id: id,
+          name: id,
+          songCount: 1,
+          songs: [Song(id: 'manual-song-$index', title: 'Track', albumId: id)],
+        );
+      }
+      await db.librarySyncDao.enqueueWork(
+        serverId: serverId,
+        kind: LibrarySyncPlanKind.targetedHydration.name,
+        priority: 30,
+      );
+      final work = await db.librarySyncDao.getWork(
+        serverId: serverId,
+        kind: LibrarySyncPlanKind.targetedHydration.name,
+      );
+      await db.librarySyncDao.markCompleted(work!.id);
+
+      final first = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
+
+      expect(first.status, LibrarySyncStatus.partial);
+      expect(first.failureCategory, 'entityBudget');
+      expect(
+        api.calls.where((call) => call.startsWith('getAlbum:')),
+        hasLength(64),
+      );
+      expect(await db.libraryDao.countPendingHydrationAlbums(), 1);
+      expect(
+        (await db.librarySyncDao.getWork(
+          serverId: serverId,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+        ))!.status,
+        'queued',
+      );
+      final history = await db.librarySyncDao.getRecentSyncRunHistory(serverId);
+      final firstHistory = history.singleWhere(
+        (entry) => entry.requestId == first.runRequestId,
+      );
+      expect(firstHistory.outcome, SyncRunOutcomeKind.partial);
+      expect(firstHistory.reason, SyncSafeReason.responseBudgetExceeded);
+
+      api.calls.clear();
+      final resumed = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
+      expect(resumed.status, LibrarySyncStatus.succeeded);
+      expect(await db.libraryDao.countPendingHydrationAlbums(), 0);
+      expect(
+        api.calls.where((call) => call.startsWith('getAlbum:')),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
     'F28 artist checkpoint survives a following hydration budget stop',
     () async {
       await session();
@@ -916,7 +1184,7 @@ void main() {
     expect(api.calls.where((call) => call.startsWith('newest:')), isEmpty);
   });
   test(
-    'F03 initial catalog independently initializes auxiliary domains',
+    'F03 initial catalog initializes likes and playlist headers without genres',
     () async {
       final serverId = await session(initial: true);
       api.starredContent = const StarredContent(
@@ -924,7 +1192,6 @@ void main() {
           Song(id: 'remote-favorite', title: 'Favorite', isExternal: true),
         ],
       );
-      api.genres = const [Genre(name: 'Jazz', songCount: 1)];
       api.playlists = const [Playlist(id: 'p', name: 'Playlist', songCount: 0)];
       final result = await coordinator.requestSync(
         const LibrarySyncRequest.automatic(),
@@ -934,7 +1201,7 @@ void main() {
         api.calls.where((call) => call == 'getStarredContent'),
         hasLength(1),
       );
-      expect(api.calls.where((call) => call == 'getGenres'), hasLength(1));
+      expect(api.calls, isNot(contains('getGenres')));
       expect(api.calls.where((call) => call == 'getPlaylists'), hasLength(1));
       expect(
         (await db.libraryDao.getSongById('remote-favorite'))?.starred,
@@ -948,7 +1215,7 @@ void main() {
       expect((await db.playlistDao.getAllPlaylists()).single.id, 'p');
       final state = await db.librarySyncDao.getOrCreateState(serverId);
       expect(state.lastAuxiliarySyncedAt, isNotNull);
-      expect(state.lastGenresSyncedAt, isNotNull);
+      expect(state.lastGenresSyncedAt, isNull);
       api.calls.clear();
       await coordinator.requestSync(const LibrarySyncRequest.automatic());
       expect(api.calls, isNot(contains('getStarredContent')));
@@ -965,7 +1232,6 @@ void main() {
         requestOptions: RequestOptions(path: '/getStarred2'),
         type: DioExceptionType.connectionError,
       );
-      api.genres = const [Genre(name: 'Jazz')];
       final result = await coordinator.requestSync(
         const LibrarySyncRequest.automatic(),
       );
@@ -981,10 +1247,6 @@ void main() {
         (await db.librarySyncDao.getOrCreateState(serverId))
             .lastAuxiliarySyncedAt,
         isNull,
-      );
-      expect(
-        (await db.librarySyncDao.getOrCreateState(serverId)).lastGenresSyncedAt,
-        isNotNull,
       );
       api.calls.clear();
       await coordinator.requestSync(const LibrarySyncRequest.automatic());
@@ -1008,6 +1270,28 @@ void main() {
       );
     },
   );
+  test('F43 retires queued genre work without a server request', () async {
+    final id = await session();
+    await seed();
+    await db.librarySyncDao.enqueueWork(
+      serverId: id,
+      kind: LibrarySyncPlanKind.targetedHydration.name,
+      entityId: '@genres',
+      priority: 20,
+    );
+
+    await coordinator.requestSync(const LibrarySyncRequest.checkForUpdates());
+
+    expect(api.calls, isNot(contains('getGenres')));
+    expect(
+      (await db.librarySyncDao.getWork(
+        serverId: id,
+        kind: LibrarySyncPlanKind.targetedHydration.name,
+        entityId: '@genres',
+      ))?.status,
+      'completed',
+    );
+  });
   test(
     'F05 resumed mixed external page uses the raw transport offset',
     () async {

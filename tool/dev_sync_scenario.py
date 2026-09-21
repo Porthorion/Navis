@@ -268,6 +268,45 @@ def _scenario_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     return options, flutter_args
 
 
+def _clone_diagnostic_defines(
+    options: argparse.Namespace,
+    *,
+    root: Path,
+    database: Path,
+    handshake_path: Path,
+    fixture_credential: Path | None = None,
+) -> dict[str, str]:
+    """Build diagnostics defines that keep a long catalog run fenced."""
+    defines = {
+        "NAVIS_UPDATE_CHANNEL": "dev",
+        "NAVIS_SELF_UPDATE": "true",
+        "NAVIS_AGENT_DEBUG": "true",
+        "NAVIS_APP_ID_SUFFIX": os.environ.get("NAVIS_APP_ID_SUFFIX", ".dev"),
+        "NAVIS_APP_NAME": os.environ.get("NAVIS_APP_NAME", "Navis Dev"),
+        "NAVIS_SYNC_DIAGNOSTICS": "true",
+        "NAVIS_SYNC_DIAGNOSTICS_MODE": "clone",
+        "NAVIS_SYNC_DIAGNOSTICS_ROOT": str(root),
+        "NAVIS_SYNC_DIAGNOSTICS_DB_PATH": str(database),
+        "NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE": str(handshake_path),
+        "NAVIS_SYNC_DIAGNOSTICS_MUTED": "true",
+        # These interactive presets can collect a large live catalog. Keep the
+        # production lease duration so the write fence remains valid during
+        # atomic promotion; the short default is only for interruption tests.
+        "NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS": "600",
+    }
+    if options.scenario == "bad-cache":
+        defines["NAVIS_SYNC_DIAGNOSTICS_ALLOW_CACHE_UPGRADE"] = "true"
+    if options.offline:
+        defines["NAVIS_SYNC_DIAGNOSTICS_INITIAL_NETWORK"] = "offline"
+    elif options.metered:
+        defines["NAVIS_SYNC_DIAGNOSTICS_INITIAL_NETWORK"] = "metered"
+    if fixture_credential is not None:
+        defines["NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH"] = str(
+            fixture_credential
+        )
+    return defines
+
+
 def launch(argv: list[str]) -> int:
     options, flutter_args = _scenario_args(argv)
     RUNS_ROOT.mkdir(parents=True, exist_ok=True)
@@ -311,27 +350,15 @@ def launch(argv: list[str]) -> int:
             options.scenario_source.expanduser(), database, options.scenario,
             fixture_url=fixture_url,
         )
-        defines = {
-            "NAVIS_UPDATE_CHANNEL": "dev",
-            "NAVIS_SELF_UPDATE": "true",
-            "NAVIS_AGENT_DEBUG": "true",
-            "NAVIS_APP_ID_SUFFIX": os.environ.get("NAVIS_APP_ID_SUFFIX", ".dev"),
-            "NAVIS_APP_NAME": os.environ.get("NAVIS_APP_NAME", "Navis Dev"),
-            "NAVIS_SYNC_DIAGNOSTICS": "true",
-            "NAVIS_SYNC_DIAGNOSTICS_MODE": "clone",
-            "NAVIS_SYNC_DIAGNOSTICS_ROOT": str(root),
-            "NAVIS_SYNC_DIAGNOSTICS_DB_PATH": str(database),
-            "NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE": str(handshake_path),
-            "NAVIS_SYNC_DIAGNOSTICS_MUTED": "true",
-        }
-        if options.scenario == "bad-cache":
-            defines["NAVIS_SYNC_DIAGNOSTICS_ALLOW_CACHE_UPGRADE"] = "true"
-        if options.offline:
-            defines["NAVIS_SYNC_DIAGNOSTICS_INITIAL_NETWORK"] = "offline"
-        elif options.metered:
-            defines["NAVIS_SYNC_DIAGNOSTICS_INITIAL_NETWORK"] = "metered"
-        if fixture_url is not None:
-            defines["NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH"] = str(root / "fixture-credential")
+        defines = _clone_diagnostic_defines(
+            options,
+            root=root,
+            database=database,
+            handshake_path=handshake_path,
+            fixture_credential=(root / "fixture-credential")
+            if fixture_url is not None
+            else None,
+        )
         command = ["flutter", "run", "-d", "linux", "--profile"]
         command += [f"--dart-define={key}={value}" for key, value in defines.items()]
         command += flutter_args

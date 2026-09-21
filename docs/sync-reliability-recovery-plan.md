@@ -21,6 +21,26 @@ Navis must have one committed local catalog that remains browsable offline. Netw
 
 Every operation needs one owner, a durable cause, start and end time, result, and bounded endpoint/request counts. An HTTP response or a visible spinner is not success; a manual check is successful only after required observations have been evaluated and discovered changes committed, deferred, or failed explicitly.
 
+### Companion library domains
+
+Liked content and playlist headers have their own durable targets because they
+are not implied by a catalog delta. A scheduled run refreshes a due companion
+target only when its conservative background policy allows it. An explicit
+Check for updates or Repair Library also refreshes both companion targets with
+explicit intent, so a foreground user action can update Likes and playlist
+headers while audio is playing. Offline and metered-network limits continue to
+apply.
+
+Each target execution resolves its exact durable work row by kind and target
+key. It must not depend on a globally bounded queue read, because a successful
+target request must record completion even when a large interactive hydration
+backlog is ahead of it.
+
+Genre metadata is not a Navis sync domain: the client has no active consumer
+for it, including Android Auto. No catalog, auxiliary, first-time, incremental,
+scheduled, or repair run calls `getGenres`. Legacy queued genre work is retired
+as completed without deleting previously cached rows.
+
 ## Sync cohesion migration (schema v71)
 
 Schema v71 begins the reversible typed-lifecycle migration without weakening

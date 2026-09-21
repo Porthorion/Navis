@@ -38,6 +38,9 @@ import 'package:navis/src/database/tables/listenbrainz_feedback_queue_table.dart
 import 'package:navis/src/database/tables/listenbrainz_weekly_cache_table.dart';
 import 'package:navis/src/database/tables/library_sync_state_table.dart';
 import 'package:navis/src/database/tables/library_sync_work_table.dart';
+import 'package:navis/src/database/tables/library_scan_observation_table.dart';
+import 'package:navis/src/database/tables/library_recovery_review_table.dart';
+import 'package:navis/src/database/tables/entity_identity_aliases_table.dart';
 import 'package:navis/src/database/tables/library_sync_candidate_albums_table.dart';
 import 'package:navis/src/database/tables/library_sync_candidate_artists_table.dart';
 import 'package:navis/src/database/tables/library_sync_candidate_songs_table.dart';
@@ -113,6 +116,9 @@ part 'navis_database.g.dart';
     LibrarySyncRunOutcomeTable,
     LibrarySyncProviderProfileTable,
     LibrarySyncRepairSessionTable,
+    LibraryScanObservationTable,
+    LibraryRecoveryReviewTable,
+    EntityIdentityAliasTable,
   ],
   daos: [
     AppSettingsDao,
@@ -163,7 +169,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 78;
+  int get schemaVersion => 79;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -419,6 +425,67 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 78 && to >= 78) {
       await from77To78(migrator);
     }
+    if (from < 79 && to >= 79) {
+      await from78To79(migrator);
+    }
+  }
+
+  /// Adds scan observation, typed availability, recovery review, typed
+  /// aliases, MusicBrainz identity metadata, and artwork revisions.
+  Future<void> from78To79(Migrator migrator) async {
+    if (!await _tableExists('library_scan_observation')) {
+      await migrator.createTable(libraryScanObservationTable);
+    }
+    if (!await _tableExists('library_recovery_review')) {
+      await migrator.createTable(libraryRecoveryReviewTable);
+    }
+    if (!await _tableExists('entity_identity_aliases')) {
+      await migrator.createTable(entityIdentityAliasTable);
+    }
+    if (!await _columnExists('songs', 'cover_art_revision')) {
+      await migrator.addColumn(songsTable, songsTable.coverArtRevision);
+    }
+    if (!await _columnExists('songs', 'album_mbid')) {
+      await migrator.addColumn(songsTable, songsTable.albumMbid);
+    }
+    if (!await _columnExists('songs', 'artist_mbid')) {
+      await migrator.addColumn(songsTable, songsTable.artistMbid);
+    }
+    if (!await _columnExists('songs', 'catalog_availability')) {
+      await migrator.addColumn(songsTable, songsTable.catalogAvailability);
+    }
+    if (!await _columnExists('albums', 'cover_art_revision')) {
+      await migrator.addColumn(albumsTable, albumsTable.coverArtRevision);
+    }
+    if (!await _columnExists('albums', 'release_mbid')) {
+      await migrator.addColumn(albumsTable, albumsTable.releaseMbid);
+    }
+    if (!await _columnExists('albums', 'catalog_availability')) {
+      await migrator.addColumn(albumsTable, albumsTable.catalogAvailability);
+    }
+    if (!await _columnExists('artists', 'cover_art_revision')) {
+      await migrator.addColumn(artistsTable, artistsTable.coverArtRevision);
+    }
+    if (!await _columnExists('artists', 'artist_mbid')) {
+      await migrator.addColumn(artistsTable, artistsTable.artistMbid);
+    }
+    if (!await _columnExists('artists', 'catalog_availability')) {
+      await migrator.addColumn(artistsTable, artistsTable.catalogAvailability);
+    }
+    // Existing local-only rows keep their serverDeletedAt marker and local
+    // download semantics; typed availability mirrors the same evidence.
+    await customStatement(
+      "UPDATE songs SET catalog_availability = 'confirmedMissing' "
+      'WHERE server_deleted_at IS NOT NULL;',
+    );
+    // Legacy song aliases stay in song_identity_aliases; copy them into the
+    // typed table with a null profile so resolution behavior is unchanged.
+    await customStatement('''
+      INSERT OR IGNORE INTO entity_identity_aliases
+        (server_id, entity_type, old_id, new_id, match_reason, matched_at)
+      SELECT NULL, 'song', old_song_id, canonical_song_id, match_reason, matched_at
+      FROM song_identity_aliases;
+    ''');
   }
 
   Future<void> from77To78(Migrator migrator) async {

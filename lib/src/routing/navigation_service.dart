@@ -168,6 +168,13 @@ abstract final class NavService {
     context.go('/settings');
   }
 
+  /// Open the unavailable-items review screen from Sync Settings.
+  static void openUnavailableItems(BuildContext context, WidgetRef ref) {
+    clearExitPrompt();
+    _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
+    unawaited(context.push<void>('/settings/unavailable-items'));
+  }
+
   /// Open Appearance settings from a recovery state.
   static void openAppearanceSettings(BuildContext context, WidgetRef ref) {
     clearExitPrompt();

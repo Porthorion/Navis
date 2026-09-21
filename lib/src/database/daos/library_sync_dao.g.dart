@@ -28,6 +28,12 @@ mixin _$LibrarySyncDaoMixin on DatabaseAccessor<NavisDatabase> {
       attachedDatabase.librarySyncProviderProfileTable;
   $LibrarySyncRepairSessionTableTable get librarySyncRepairSessionTable =>
       attachedDatabase.librarySyncRepairSessionTable;
+  $LibraryScanObservationTableTable get libraryScanObservationTable =>
+      attachedDatabase.libraryScanObservationTable;
+  $LibraryRecoveryReviewTableTable get libraryRecoveryReviewTable =>
+      attachedDatabase.libraryRecoveryReviewTable;
+  $EntityIdentityAliasTableTable get entityIdentityAliasTable =>
+      attachedDatabase.entityIdentityAliasTable;
   LibrarySyncDaoManager get managers => LibrarySyncDaoManager(this);
 }
 
@@ -102,5 +108,22 @@ class LibrarySyncDaoManager {
       $$LibrarySyncRepairSessionTableTableTableManager(
         _db.attachedDatabase,
         _db.librarySyncRepairSessionTable,
+      );
+  $$LibraryScanObservationTableTableTableManager
+  get libraryScanObservationTable =>
+      $$LibraryScanObservationTableTableTableManager(
+        _db.attachedDatabase,
+        _db.libraryScanObservationTable,
+      );
+  $$LibraryRecoveryReviewTableTableTableManager
+  get libraryRecoveryReviewTable =>
+      $$LibraryRecoveryReviewTableTableTableManager(
+        _db.attachedDatabase,
+        _db.libraryRecoveryReviewTable,
+      );
+  $$EntityIdentityAliasTableTableTableManager get entityIdentityAliasTable =>
+      $$EntityIdentityAliasTableTableTableManager(
+        _db.attachedDatabase,
+        _db.entityIdentityAliasTable,
       );
 }

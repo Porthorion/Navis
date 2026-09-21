@@ -130,8 +130,7 @@ With the Play-installed build and Unknown sources off:
   balanced personal radio as Home without Home-only filters.
   Liked when liked songs exist.
 - Recent conditionally exposes Resume Queue before recent songs.
-- Library exposes Downloads when present, followed by Albums, Artists, and
-  Genres.
+- Library exposes Downloads when present, followed by Albums and Artists.
 - Tapping a playable item starts playback.
 - Selecting a playlist song preserves playlist order from the selected song.
 - Play, pause, next, previous, and seek work from the head unit.

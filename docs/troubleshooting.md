@@ -285,3 +285,36 @@ Radio track. Downloaded only requires a permanent file; ordinary offline
 radio can also use a valid rolling-cache file. If radio reports no eligible
 music, relax the filters or download more songs. A catalog listing by itself
 does not make an offline song playable.
+
+
+## Library content after a server rescan: scan, sync, repair, review, and cache reset
+
+Use the right tool for each failure mode:
+
+- **Server scan changed files or IDs.** Navis observes the server's scan
+  status during scheduled checks. After a completed scan, the next eligible
+  check collects and promotes a fresh snapshot automatically; no action is
+  required. If collection overlapped a scan, promotion is deferred and the
+  snapshot recollects safely.
+- **Navis synchronization stale or interrupted.** Use
+  Settings → Sync → Check for updates. It runs bounded discovery and reports
+  partial progress; the remainder stays queued for the next check.
+- **Repair Library.** Use Settings → Sync → Repair Library when the local
+  catalog looks structurally wrong (wrong albums, drifted metadata, repeated
+  failures). It runs in the background from Sync Settings, keeps downloads and
+  the committed library browsable, and relinks proven replacements while
+  preserving favorites and ratings. On mobile data it asks once per repair;
+  that approval covers its own retries and survives brief disconnects, and is
+  always cleared on completion, cancellation, sign-out, or restart.
+- **Unavailable items review.** Items the server no longer reports but that
+  still own favorites, history, or downloads appear in
+  Settings → Sync → Unavailable items. There you can find a replacement match
+  manually, keep an item for later, or remove it from Liked. Navis never
+  deletes these silently.
+- **Cache reset.** Destructive and last-resort: it erases recoverable caches
+  and rebuilds the library, and is only needed for the explicit
+  cache-upgrade/reset prompts. Ordinary repair does not clear artwork or
+  downloaded audio.
+
+If artwork looks wrong after a rescan, run Repair Library once: it refreshes
+covers whose entries changed without clearing the rest of the artwork cache.

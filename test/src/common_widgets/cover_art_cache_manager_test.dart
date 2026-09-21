@@ -11,6 +11,25 @@ void main() {
       expect(coverArtImageCacheKey(' cover-1 ', 600), 'cover-1:600');
       expect(coverArtImageCacheKey('cover-1', null), 'cover-1:0');
     });
+
+    test('revision zero keeps the legacy key layout', () {
+      expect(coverArtImageCacheKey('cover-1', 600, revision: 0), 'cover-1:600');
+      expect(
+        coverArtImageCacheKey('cover-1', 600, revision: null),
+        'cover-1:600',
+      );
+    });
+
+    test('a bumped revision produces a distinct targeted key', () {
+      expect(
+        coverArtImageCacheKey('cover-1', 600, revision: 1),
+        'cover-1:r1:600',
+      );
+      expect(
+        coverArtImageCacheKey('cover-1', 600, revision: 1),
+        isNot(coverArtImageCacheKey('cover-1', 600, revision: 2)),
+      );
+    });
   });
 
   group('CoverArtLoadCoordinator', () {

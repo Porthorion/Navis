@@ -146,7 +146,7 @@ void main() {
 
   group('getChildren - library', () {
     test(
-      'returns albums, artists, and genres when no downloads exist',
+      'returns albums and artists when no downloads exist',
       () async {
         final items = await service.getChildren(AutoMediaRoot.library);
         expect(
@@ -154,7 +154,6 @@ void main() {
           <String>[
             AutoMediaRoot.albums,
             AutoMediaRoot.artists,
-            AutoMediaRoot.genres,
           ],
         );
       },
@@ -167,7 +166,7 @@ void main() {
         final items = await service.getChildren(AutoMediaRoot.library);
         expect(
           items.map((item) => item.title),
-          <String>['Albums', 'Artists', 'Genres'],
+          <String>['Albums', 'Artists'],
         );
         expect(
           items.map(
@@ -177,7 +176,6 @@ void main() {
           <int>[
             AndroidAutoConstants.contentStyleGrid,
             AndroidAutoConstants.contentStyleGrid,
-            AndroidAutoConstants.contentStyleList,
           ],
         );
         expect(
@@ -726,7 +724,7 @@ void main() {
     );
   });
 
-  // ── Downloads and genres ──────────────────────────────────────────────────
+  // ── Downloads ─────────────────────────────────────────────────────────────
 
   group('getChildren - downloads', () {
     test(
@@ -756,42 +754,6 @@ void main() {
     );
   });
 
-  group('getChildren - genres', () {
-    test(
-      'returns genres and preserves genre order for song leaves',
-      () async {
-        await database.libraryDao.replaceGenres([
-          GenresTableCompanion.insert(name: 'R&B / Soul'),
-        ]);
-        await database.libraryDao.upsertAlbums([
-          AlbumsTableCompanion.insert(
-            id: 'al1',
-            name: 'Album One',
-            genre: const Value('R&B / Soul'),
-          ),
-        ]);
-        await database.libraryDao.upsertSongs([
-          SongsTableCompanion.insert(
-            id: 's1',
-            title: 'Song 1',
-            albumId: const Value('al1'),
-          ),
-        ]);
-
-        final genres = await service.getChildren(AutoMediaRoot.genres);
-        expect(genres.single.id, 'genre/R%26B%20%2F%20Soul');
-        expect(genres.single.title, 'R&B / Soul');
-
-        final songs = await service.getChildren(genres.single.id);
-        expect(songs, hasLength(1));
-        final parsed = AutoMediaId.parse(songs.single.id);
-        expect(parsed?.contextType, AutoMediaContextType.genre);
-        expect(parsed?.contextId, 'R&B / Soul');
-      },
-      skip: !sqliteAvailable,
-    );
-  });
-
   // ── Unknown parent ID ────────────────────────────────────────────────────
 
   group('getChildren - edge cases', () {
@@ -803,6 +765,17 @@ void main() {
         expect(items.single.id, 'empty/unknown/parent');
         expect(items.single.title, 'No content');
         expect(items.single.playable, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'does not serve stale Android Auto genre browse IDs',
+      () async {
+        final items = await service.getChildren('library/genres');
+        expect(items, hasLength(1));
+        expect(items.single.id, 'empty/library/genres');
+        expect(items.single.title, 'No content');
       },
       skip: !sqliteAvailable,
     );

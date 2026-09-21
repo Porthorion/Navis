@@ -34,16 +34,15 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   final Map<int, Object> fastPathErrors = <int, Object>{};
   final Map<int, List<Song>> bulkSongPages = <int, List<Song>>{};
   StarredContent starredContent = const StarredContent();
-  List<Genre> genres = <Genre>[];
   List<Playlist> playlists = <Playlist>[];
   Indexes indexes = const Indexes();
+  ScanStatus? scanStatus;
   Completer<List<Artist>>? artistsCompleter;
 
   Exception? throwOnFastPath;
   Exception? throwOnIndexes;
   Exception? throwOnSongSearch;
   Exception? throwOnStarred;
-  Exception? throwOnGenres;
   Exception? throwOnPlaylists;
   final Map<String, Object> albumErrors = <String, Object>{};
   final Map<String, Object> artistErrors = <String, Object>{};
@@ -140,6 +139,12 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
   }
 
   @override
+  Future<ScanStatus?> getScanStatusOrNull() async {
+    calls.add('getScanStatus');
+    return scanStatus;
+  }
+
+  @override
   Future<List<Album>> getAlbumListPage({
     required int size,
     required int offset,
@@ -193,16 +198,6 @@ class FakeLibrarySyncApi implements LibrarySyncApi {
       return completer.future;
     }
     return artists;
-  }
-
-  @override
-  Future<List<Genre>> getGenres() async {
-    calls.add('getGenres');
-    final error = throwOnGenres;
-    if (error != null) {
-      throw error;
-    }
-    return genres;
   }
 
   @override
