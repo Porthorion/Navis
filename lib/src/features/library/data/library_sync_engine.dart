@@ -11,6 +11,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_catalog_diff_analyzer.dart';
@@ -2298,6 +2299,29 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         error: error,
         attempts: 1,
       );
+      if (error is SyncLeaseLostException) {
+        // The coordinator's own handler never sees this error because the
+        // engine owns the run boundary; capture the current lease holder so
+        // the lost-lease race is explainable from persisted evidence.
+        final holder = await _database.librarySyncDao.getExecutionLease(
+          serverConfig.id ?? 0,
+        );
+        await _database.librarySyncDao.recordOperationLedgerEntry(
+          serverId: serverConfig.id ?? 0,
+          operation: 'executionLeaseLost',
+          reason: state.stage.name,
+          details: <String, Object?>{
+            'holder': holder == null
+                ? null
+                : <String, Object?>{
+                    'ownerKind': holder.ownerKind,
+                    'startedAt': holder.startedAt.toUtc().toIso8601String(),
+                    'heartbeatAt': holder.heartbeatAt.toUtc().toIso8601String(),
+                    'expiresAt': holder.expiresAt.toUtc().toIso8601String(),
+                  },
+          },
+        );
+      }
       await _persistFailureDiagnosticsBestEffort(
         metrics,
         clearWhenEmpty: false,
