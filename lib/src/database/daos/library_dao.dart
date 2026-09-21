@@ -758,6 +758,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<void> upsertProvisionalArtists(
     List<ArtistsTableCompanion> artists, {
     DateTime? snapshotStartedAt,
+    bool preserveKnownMetadata = false,
   }) async {
     await transaction(() async {
       final guard = await SnapshotWriteGuard.read(
@@ -770,6 +771,19 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         }
         final existing = await getArtistById(artist.id.value);
         if (existing != null && !existing.isProvisional) {
+          continue;
+        }
+        if (preserveKnownMetadata && existing != null) {
+          await (update(artistsTable)..where(
+                (t) => t.id.equals(artist.id.value),
+              ))
+              .write(
+                ArtistsTableCompanion(
+                  starred: artist.starred.present
+                      ? artist.starred
+                      : const Value.absent(),
+                ),
+              );
           continue;
         }
         final provisionalArtist = guard
@@ -955,6 +969,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<void> upsertProvisionalAlbums(
     List<AlbumsTableCompanion> albums, {
     DateTime? snapshotStartedAt,
+    bool preserveKnownMetadata = false,
   }) async {
     await transaction(() async {
       final guard = await SnapshotWriteGuard.read(
@@ -968,6 +983,22 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         }
         final existing = await getAlbumById(album.id.value);
         if (existing != null && !existing.isProvisional) {
+          continue;
+        }
+        if (preserveKnownMetadata && existing != null) {
+          await (update(albumsTable)..where(
+                (t) => t.id.equals(album.id.value),
+              ))
+              .write(
+                AlbumsTableCompanion(
+                  starred: album.starred.present
+                      ? album.starred
+                      : const Value.absent(),
+                  userRating: album.userRating.present
+                      ? album.userRating
+                      : const Value.absent(),
+                ),
+              );
           continue;
         }
         final provisionalAlbum = guard
@@ -1258,6 +1289,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<void> upsertProvisionalSongs(
     List<SongsTableCompanion> songs, {
     DateTime? snapshotStartedAt,
+    bool preserveKnownMetadata = false,
   }) async {
     await transaction(() async {
       final guard = await SnapshotWriteGuard.read(
@@ -1270,6 +1302,24 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         }
         final existing = await getSongById(song.id.value);
         if (existing != null && !existing.isProvisional) {
+          continue;
+        }
+        if (preserveKnownMetadata && existing != null) {
+          // Partial reference snapshot: only annotation fields are
+          // authoritative; richer known metadata stays untouched.
+          await (update(songsTable)..where(
+                (t) => t.id.equals(song.id.value),
+              ))
+              .write(
+                SongsTableCompanion(
+                  starred: song.starred.present
+                      ? song.starred
+                      : const Value.absent(),
+                  userRating: song.userRating.present
+                      ? song.userRating
+                      : const Value.absent(),
+                ),
+              );
           continue;
         }
         final provisionalSong = guard

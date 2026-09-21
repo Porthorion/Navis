@@ -93,13 +93,13 @@ scan-status endpoint".
 
 ## Stage 7 — Partial-response-aware starred refresh (plan C7)
 
-- [ ] Presence-aware upserts in `library_dao.dart`: update only supplied fields, preserve
+- [x] Presence-aware upserts in `library_dao.dart`: update only supplied fields, preserve
       richer known fields, keep external/provisional provenance until catalog-authoritative
       evidence changes it.
-- [ ] Schedule targeted hydration for incomplete starred entities via the existing work
+- [x] Schedule targeted hydration for incomplete starred entities via the existing work
       queue.
-- [ ] Fake upgrade: partial `getStarredContent` responses with per-field presence.
-- [ ] Tests: partial response preserves richer fields; hydration scheduled; provenance
+- [x] Fake upgrade: partial `getStarredContent` responses with per-field presence.
+- [x] Tests: partial response preserves richer fields; hydration scheduled; provenance
       preserved; absence-clearing frozen during recovery (C9).
 
 ## Stage 8 — Artwork failure taxonomy, recovery, revision plumbing (F2/F3/F5–F9)

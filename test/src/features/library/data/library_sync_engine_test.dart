@@ -259,6 +259,85 @@ void main() {
     );
 
     test(
+      'partial starred snapshot preserves richer known metadata',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        await database.libraryDao.upsertProvisionalSongs([
+          SongsTableCompanion.insert(
+            id: 'song-known',
+            title: 'Rich Title',
+            albumName: const Value('Rich Album'),
+          ),
+        ]);
+        await (database.update(
+          database.songsTable,
+        )..where((t) => t.id.equals('song-known'))).write(
+          const SongsTableCompanion(duration: Value(200)),
+        );
+        final starredAt = DateTime.utc(2026);
+        // The starred response supplies only an ID and the favorite stamp.
+        api.starredContent = StarredContent(
+          songs: <Song>[
+            Song(id: 'song-known', title: 'song-known', starred: starredAt),
+          ],
+        );
+
+        final result = await engine.syncStarredContent();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        final song = await database.libraryDao.getSongById('song-known');
+        expect(song!.starred, isNotNull);
+        // The favorite is recorded but the richer known fields survive.
+        expect(song.title, 'Rich Title');
+        expect(song.albumName, 'Rich Album');
+        expect(song.duration, 200);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'incomplete favorites schedule targeted album hydration',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final starredAt = DateTime.utc(2026);
+        api.starredContent = StarredContent(
+          songs: <Song>[
+            Song(
+              id: 'song-inc',
+              title: 'Incomplete',
+              albumId: 'album-inc',
+              album: 'Inc Album',
+              starred: starredAt,
+            ),
+          ],
+        );
+        api.albumDetails['album-inc'] = const Album(
+          id: 'album-inc',
+          name: 'Inc Album',
+          songs: <Song>[
+            Song(
+              id: 'song-inc',
+              title: 'Incomplete',
+              albumId: 'album-inc',
+              duration: 180,
+            ),
+          ],
+        );
+
+        final result = await engine.syncStarredContent();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        // The album of an incomplete favorite was hydrated so the favorite
+        // gains catalog-authoritative metadata.
+        expect(api.calls, contains('getAlbum:album-inc'));
+        final song = await database.libraryDao.getSongById('song-inc');
+        expect(song, isNotNull);
+        expect(song!.duration, 180);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'full sync writes metadata and songs using album-list fast path',
       () async {
         await saveSession();

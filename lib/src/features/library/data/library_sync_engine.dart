@@ -2410,6 +2410,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       metrics: metrics,
       endpoint: 'getStarredContent',
     );
+    final incompleteAlbumIds = <String>{};
     final albumStarredAt = <String, DateTime?>{
       for (final album in starred.albums)
         album.id: album.starred ?? snapshotStartedAt,
@@ -2444,9 +2445,13 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
       // Starred snapshots are reference metadata, not catalog enumeration.
       // Materialize unseen favorites without promoting them into Library.
+      // Field updates are partial-response-aware: only annotation fields the
+      // response actually supplies are written, richer known metadata and
+      // external/provisional provenance stay untouched (plan C7).
       await _database.libraryDao.upsertProvisionalArtists(
         _toArtistCompanions(starred.artists),
         snapshotStartedAt: snapshotStartedAt,
+        preserveKnownMetadata: true,
       );
       final referenceArtistIds = await _ensureReferenceParents(
         albums: starred.albums,
@@ -2459,6 +2464,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           pendingHydrationAlbumIds: starred.albums.map((album) => album.id),
         ),
         snapshotStartedAt: snapshotStartedAt,
+        preserveKnownMetadata: true,
       );
       await _database.libraryDao.upsertProvisionalSongs(
         await _toSongCompanions(
@@ -2466,6 +2472,23 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           validArtistIds: referenceArtistIds,
         ),
         snapshotStartedAt: snapshotStartedAt,
+        preserveKnownMetadata: true,
+      );
+      // Favorites whose rows lack core metadata came from a partial response
+      // or an earlier provisional materialization; their albums are targeted
+      // hydration candidates (plan C7).
+      final incompleteAlbumRows = await _database
+          .customSelect(
+            'SELECT DISTINCT s.album_id AS album_id '
+            'FROM songs s WHERE s.starred IS NOT NULL '
+            'AND s.album_id IS NOT NULL '
+            'AND (s.duration IS NULL OR s.album_name IS NULL);',
+          )
+          .get();
+      incompleteAlbumIds.addAll(
+        incompleteAlbumRows
+            .map((row) => row.readNullable<String>('album_id'))
+            .whereType<String>(),
       );
       final localAlbumIds = await _database.libraryDao.getStarredAlbumIds();
       final localArtistIds = await _database.libraryDao.getStarredArtistIds();
@@ -2541,6 +2564,23 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     metrics
       ..addDbWriteBatch()
       ..starredSynchronized = true;
+    // Bounded, best-effort hydration runs outside the starred transaction so
+    // a network failure cannot roll back the annotation snapshot.
+    const maxStarredHydrationsPerRun = 5;
+    for (final albumId in incompleteAlbumIds.take(maxStarredHydrationsPerRun)) {
+      if (_cancelled) {
+        break;
+      }
+      try {
+        await hydrateAlbum(albumId);
+      } on Object catch (error) {
+        AppLogger.info(
+          'Starred hydration deferred for album $albumId: '
+          '${_toSafeErrorMessage(error)}',
+        );
+        break;
+      }
+    }
   }
 
   /// Referenced favorites and playlist entries may arrive before their parents.
