@@ -308,3 +308,11 @@ existence as visual evidence.
   implementation plan for persistent Android scheduling, cross-engine
   serialization, and device certification lives in
   [android-background-sync-recovery-plan.md](android-background-sync-recovery-plan.md).
+
+## Stale-cache recovery (schema 79/80)
+
+The dedicated implementation and completion plan for scan-aware promotion,
+identity relinking, catalog availability, recovery review, starred refresh,
+and artwork failure recovery lives in
+[Fix_Stale_Cache_Execution_Plan.md](../Fix_Stale_Cache_Execution_Plan.md)
+(repo root) with its parent plan [Fix_Stale_Cache_Plan.md](../Fix_Stale_Cache_Plan.md).

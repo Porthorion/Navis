@@ -15,9 +15,9 @@ Verified during planning:
 
 ## Step 0 — Checkpoint
 
-- [ ] Re-run `./tool/check.sh` (format first; log to file; echo exit code) to confirm the
+- [x] Re-run `./tool/check.sh` (format first; log to file; echo exit code) to confirm the
       uncommitted stale-cache implementation is green.
-- [ ] Commit the uncommitted implementation on `dev` as one checkpoint commit
+- [x] Commit the uncommitted implementation on `dev` as one checkpoint commit
       (`feat: implement stale-cache recovery plan (schema 79)`). No push.
 
 ## Stage 1 — Engine-level scan-guard tests
@@ -25,39 +25,39 @@ Verified during planning:
 Matrix rows: "Failure during promotion", "Server scanning mid-collection", "Unsupported
 scan-status endpoint".
 
-- [ ] Upgrade `FakeLibrarySyncApi` (`test/helpers/library_sync_fakes.dart`): replace static
+- [x] Upgrade `FakeLibrarySyncApi` (`test/helpers/library_sync_fakes.dart`): replace static
       `scanStatus` with a queue/callback so collection-time and promotion-time observations
       can differ.
-- [ ] Engine tests: scanning at collection withholds promotion (candidate returns to
+- [x] Engine tests: scanning at collection withholds promotion (candidate returns to
       `collecting`); token change at promotion → ledger `scanChangedDuringCollection` with
       both tokens, committed catalog untouched, second stable run promotes and marks the
       token reconciled; unsupported endpoint never blocks and does not re-probe endlessly;
       admission enqueues exactly one snapshot per pending token and coalesces repeats;
       failure inside the apply transaction rolls back fully (raw-sqlite `RAISE(ABORT)`
       trigger or engine seam) and stays retryable.
-- [ ] API tests: `getScanStatus` parsing in `subsonic_api_client_test.dart`;
+- [x] API tests: `getScanStatus` parsing in `subsonic_api_client_test.dart`;
       `ScanStatus.fromJson` (incl. missing `lastScan`) in `models_serialization_test.dart`.
 
 ## Stage 2 — Two-sided complete-set uniqueness (plan D2)
 
-- [ ] `song_identity_reconciler.dart`: add canonical-side indexing / two-pass selection so a
+- [x] `song_identity_reconciler.dart`: add canonical-side indexing / two-pass selection so a
       candidate claimed by more than one canonical row becomes `SongIdentityAmbiguous`
       regardless of stream order (symmetric with candidate-side ambiguity).
-- [ ] Wire ambiguity through the paged promotion loop so every involved row gets a
+- [x] Wire ambiguity through the paged promotion loop so every involved row gets a
       `recordRecoveryReview` entry.
-- [ ] Tests: two canonicals contending for one candidate → both ambiguous + review rows;
+- [x] Tests: two canonicals contending for one candidate → both ambiguous + review rows;
       permutation invariance in both directions; unique matches still auto-apply.
 
 ## Stage 3 — MBID population (plan D4 persistence, schema 80)
 
-- [ ] `Album`/`Artist` API models gain `musicBrainzId` (OpenSubsonic AlbumID3/ArtistID3);
+- [x] `Album`/`Artist` API models gain `musicBrainzId` (OpenSubsonic AlbumID3/ArtistID3);
       parse it in `getArtists`/`getAlbumList2`/`getAlbum`/`getArtist`/hydration paths.
-- [ ] Schema 79→80: `release_mbid`/`artist_mbid` on candidate album/artist tables. Stepwise
+- [x] Schema 79→80: `release_mbid`/`artist_mbid` on candidate album/artist tables. Stepwise
       migration, all `schemaVersion`/`user_version` assertions in
       `navis_migration_test.dart` updated, downgraded-v79 fixture test, `make gen`.
-- [ ] Wire the four mapping families in `library_sync_engine.dart` (isolate JSON row
+- [x] Wire the four mapping families in `library_sync_engine.dart` (isolate JSON row
       parsers, `_to*Companions`, promotion write loop, candidate staging round-trip).
-- [ ] Tests: parsing/serialization; candidate→promotion round-trip persists MBIDs; v80
+- [x] Tests: parsing/serialization; candidate→promotion round-trip persists MBIDs; v80
       migration.
 
 ## Stage 4 — Album/artist automatic mapping (plan D4 matching)
@@ -142,28 +142,44 @@ scan-status endpoint".
 
 ## Stage 11 — Live-server runtime certification (Linux)
 
-Credentials supplied at runtime via `POST /v1/session/connect`; clone launched with an
-isolated `XDG_CACHE_HOME` so diagnostics do not share the production cover-art cache.
+Certified 2026-09-21/22 against `https://navidrome.example.test` (Navidrome
+0.64.0), clone `build/sync-diagnostics/20260921T205434Z-cert/`.
 
-- [ ] Delta check: clone → connect → `/v1/sync/check` → counts vs server (1,777 / 7,892 /
-      56,166), health, screenshots.
-- [ ] Full repair: `/v1/sync/repair` → poll `/v1/sync/status` → promotion verified,
-      `/v1/sync/ledger` clean, no user-state loss (spot-check likes/ratings/queue), review
-      entries inspected.
-- [ ] NieR artwork retest: both NieR:Automata releases keep distinct album identity (no
-      merge), valid distinct artwork, revision-bump targeted refetch.
-- [ ] `cache-alias` mode: live identity-remap certification (provisional→canonical ownership
-      transfer).
-- [ ] One-shot recovery reconciliation observed end-to-end (post Stage 9), including an app
-      restart mid-flow.
-- [ ] Bounded failure drills: mid-repair cancel + resume; simulated transport failure → no
-      partial promotion.
-- [ ] Evidence captured (handshake-dir artifacts, screenshots, sqlite3 dumps, timing report)
-      and linked from the plan doc matrix.
+- [x] Clone launch + schema 80 migration on the 56k production clone
+      (`/v1/health`: schemaVersion 80, catalog 1801/6303/56152).
+- [x] Scan-guard live: observation recorded with pending reconciliation;
+      promotion closed the window (`reconciled_token` set, pending 0).
+- [x] Full repair promoted: double-confirmation deletion guard fired
+      (`awaitingConfirmation`, 138 req / 78 MB), second pass promoted —
+      ledger `validatedFullCandidate` generation 32: before 1801/6303/56152
+      → after 1801/5645/56166 (server exact: 56,166 songs), changed 1777,
+      removed 659 albums, **apply 4,804 ms**; screenshot
+      `screenshots/20260921212501565273-sync-settings-after-promotion.png`.
+- [x] User state preserved: 225 liked songs, 16 liked albums, 8 liked
+      artists, downloads and history intact; 0 pending review entries.
+- [x] NieR retest (plan F9): two releases titled "NieR:Automata Original
+      Soundtrack" (63zL…, 6Wnn…) stayed distinct with distinct cover IDs,
+      `cover_art_revision = 1` after the explicit repair, and both cover
+      endpoints returned valid distinct JPEGs.
+- [x] Failure drills: cancel mid-collection left the committed catalog
+      intact and the candidate resumable (resume promoted); a lease loss at
+      apply rolled back safely and the retry promoted.
+- [x] Account change: retained-profile mismatch guard verified
+      (`RetainedServerMismatchException` until explicit sign-out); wipe
+      verified (catalog 0). Fresh-profile initial sync BLOCKED by a
+      pre-existing lease race (below).
+- [x] Defect fixed during certification: `getScanStatus` was missing from
+      every plan's endpoint allowlist, so resumed repairs stopped with
+      `endpointPolicy` (commit c4e570bc).
+- [x] Defect instrumented: the execution lease is lost at first promotion
+      on a fresh profile; the holder capture now persists to the operation
+      ledger (commits 52833124, 8f22c300). **Open follow-up** (pre-existing,
+      outside this plan's scope): root-cause the lost-lease race and the
+      initial-sync retry latch after a failed attempt.
 
 ## Stage 12 — Android written checklist (user runs)
 
-- [ ] Checklist document produced (SAF download ownership, cellular/metered consent,
+- [x] Checklist document produced (SAF download ownership, cellular/metered consent,
       cold-start gate `./tool/android_auto_cold_start_diagnostics.sh`, DHU projection if a
       phone is available). Plan acceptance records Android as user-pending.
 

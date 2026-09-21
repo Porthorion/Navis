@@ -10,7 +10,6 @@ import 'dart:io' as io show File;
 
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
-import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:octo_image/octo_image.dart';

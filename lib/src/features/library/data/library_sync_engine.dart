@@ -15,7 +15,6 @@ import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_catalog_diff_analyzer.dart';
-import 'package:navis/src/database/daos/library_sync_dao.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/features/library/data/library_sync_response_validation.dart';
 import 'package:navis/src/features/library/data/entity_identity_reconciler.dart';

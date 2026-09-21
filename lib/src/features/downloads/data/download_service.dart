@@ -866,7 +866,7 @@ class DownloadService {
           );
           // An isolated media 404 is suspicion evidence only (plan E2):
           // validated catalog evidence must confirm absence.
-          await _libraryDao?.markSongsSuspectedMissing(<String>[songId]);
+          await _libraryDao.markSongsSuspectedMissing(<String>[songId]);
           await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
           await DownloadNotifier.showFailed().catchError((_) {});
         } else {
@@ -889,7 +889,7 @@ class DownloadService {
         AppLogger.warning('DownloadService: Dio error for $songId: $e');
         await tryDeleteFile(destFile);
         if (statusCode == 404 || statusCode == 410) {
-          await _libraryDao?.markSongsSuspectedMissing(<String>[songId]);
+          await _libraryDao.markSongsSuspectedMissing(<String>[songId]);
         }
         await _handleFailure(item, e.toString());
       }

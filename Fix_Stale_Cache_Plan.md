@@ -278,3 +278,25 @@ Add a large fixture comparable to the observed 56,000-song library. Matching mus
 - Server PID/configuration changes, production missing-file deletion, and library-manager changes are not part of this implementation. Document evidence-backed upstream findings separately.
 - Previously erased metadata cannot be reconstructed reliably from nothing. Recover from surviving local rows, server metadata, aliases, or explicitly available backups; report unrecoverable history honestly.
 - The implementing agent’s final handoff must distinguish verified root causes, preventive fixes, unresolved live symptoms, executed tests, and missing device evidence.
+
+## Evidence addendum (2026-09-22)
+
+Per-row test and runtime evidence is tracked in
+[Fix_Stale_Cache_Execution_Plan.md](Fix_Stale_Cache_Execution_Plan.md).
+Headline results: engine scan-guard suite covers failure-during-promotion,
+mid-collection scan change, unsupported endpoints, admission coalescing, and
+transaction rollback; two-sided complete-set uniqueness is enforced in
+`SongIdentityReconciliationSession`; schema 80 promotes album/artist
+MusicBrainz identifiers and `EntityIdentityReconciler` relinks albums and
+artists inside promotion; `suspectedMissing` is wired with absence-aware bulk
+selection; the Relink preview gates manual recovery; starred refresh is
+partial-response-aware; artwork failures carry a typed taxonomy with
+targeted eviction/coalesced refresh and revision plumbing; the post-upgrade
+one-shot reconciliation rides the sync-model version bump; a scalable
+promotion fixture measured 56k songs at ~2 s apply. Live-server
+certification on Navidrome 0.64.0 promoted the 56k clone to the exact
+server count (56,166 tracks, 4.8 s apply), kept all user state, passed the
+NieR shared-title artwork retest, and survived cancel and lease-contention
+drills. Remaining before moving this plan to `docs/completed-plans/`:
+the recorded Android checklist (`docs/android-certification-checklist.md`)
+and the fresh-profile initial-sync lease-race follow-up.

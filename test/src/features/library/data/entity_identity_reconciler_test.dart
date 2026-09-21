@@ -17,7 +17,8 @@ void main() {
         apiVersion: '1.16.1',
       ),
     );
-    return (await database.serverDao.getActiveServer())!.id!;
+    final server = await database.serverDao.getActiveServer();
+    return server!.id;
   }
 
   setUp(() {

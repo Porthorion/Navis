@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:mocktail/mocktail.dart';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/database/tables/schema_enums.dart';
 
 import '../../helpers/test_database.dart';
+
+class _MockCacheManager extends Mock implements CacheManager {}
 
 void main() {
   group('coverArtImageCacheKey', () {
@@ -493,32 +496,16 @@ void main() {
       expect(requests, contains('background'));
     });
   });
-}
-
-const _tinyJpeg = <int>[0xff, 0xd8, 0xff, 0xd9];
-
-String _coverArtUrl(HttpServer server, {required String id}) {
-  return Uri(
-    scheme: 'http',
-    host: InternetAddress.loopbackIPv4.address,
-    port: server.port,
-    path: '/rest/getCoverArt.view',
-    queryParameters: <String, String>{
-      'id': id,
-      'size': '600',
-      't': 'redacted',
-    },
-  ).toString();
 
   group('CoverArtRecoveryCoordinator', () {
     test(
       'corrupt entries are evicted exactly once per key and never loop',
       () async {
-        final database = createTestDatabase();
-        addTearDown(database.close);
         final coordinator = CoverArtRecoveryCoordinator();
-        final manager = createCoverArtCacheManager();
-        addTearDown(manager.dispose);
+        final manager = _MockCacheManager();
+        var removals = 0;
+        when(() => manager.removeFile(any()))
+            .thenAnswer((_) async => removals++);
 
         final first = await coordinator.handleInvalidCacheEntry(
           cacheKey: 'al-1:r2:600',
@@ -532,6 +519,8 @@ String _coverArtUrl(HttpServer server, {required String id}) {
         expect(first, isTrue);
         // The repeated build is bounded: no second eviction, no refetch loop.
         expect(second, isFalse);
+        expect(removals, 1);
+        verify(() => manager.removeFile('al-1:r2:600')).called(1);
         expect(
           coverArtImageCacheKey('al-1', 600, revision: 2),
           'al-1:r2:600',
@@ -667,4 +656,20 @@ String _coverArtUrl(HttpServer server, {required String id}) {
       skip: !sqliteAvailable,
     );
   });
+}
+
+const _tinyJpeg = <int>[0xff, 0xd8, 0xff, 0xd9];
+
+String _coverArtUrl(HttpServer server, {required String id}) {
+  return Uri(
+    scheme: 'http',
+    host: InternetAddress.loopbackIPv4.address,
+    port: server.port,
+    path: '/rest/getCoverArt.view',
+    queryParameters: <String, String>{
+      'id': id,
+      'size': '600',
+      't': 'redacted',
+    },
+  ).toString();
 }

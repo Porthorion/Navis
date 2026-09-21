@@ -61,8 +61,24 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
-        'Repair Library now runs from Sync Settings without leaving your library, keeps its mobile-data approval across retries, and can always be cancelled',
+        'Albums and artists whose server IDs change after a rescan now relink automatically from stable MusicBrainz identifiers or their songs, keeping favorites and ratings; unclear cases join the Unavailable Items review list',
         type: _EntryType.improvement,
+      ),
+      _Entry(
+        'Relinking an item manually now shows a preview of the old and new metadata plus everything that carries over, and re-checks the selection before applying it',
+        type: _EntryType.newFeature,
+      ),
+      _Entry(
+        'Unavailable Items entries show why they need review (missing, ambiguous, or conflicting evidence) and whether they are songs, albums, or artists',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
+        'A single failed media fetch no longer hides a favorite from shuffle or Play All; only validated catalog evidence removes items from bulk selection, and offline copies always stay playable',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Corrupt cached cover art is evicted and refetched once automatically, missing covers trigger one targeted metadata refresh instead of repeated failures, and explicit repairs refetch changed artwork through targeted revisions',
+        type: _EntryType.fix,
       ),
       _Entry(
         'Navis now detects server library rescans and refreshes changed metadata automatically on the next check',

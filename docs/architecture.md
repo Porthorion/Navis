@@ -1263,12 +1263,23 @@ contract.
   `serverDeletedAt` marker keeps them out of normal Play All, shuffle, and
   download selection while review entries in `library_recovery_review` keep
   them recoverable; the legacy `removeServerSongsForPromotion` contract is now
-  `retainOrRemoveServerSongs`.
+  `retainOrRemoveServerSongs`. An isolated media-fetch 404/410 during a
+  download records `suspectedMissing` on rows still reading as present —
+  suspicion never hides content or advances toward confirmed absence.
+  Promotion rewrites re-observed rows with cleared absence markers, and bulk
+  selection excludes only validated-absent rows without a complete local
+  copy, so offline favorites stay selectable (`_selectableForBulkUse` in
+  `LibraryDao`).
 - **Identity recovery.** `SongIdentityReconciler` matches on same ID, unique
   recording MBID, then exact normalized title/artist/album with the existing
   three-second duration tolerance — with two hard rules: contradictory
   non-empty MBIDs prohibit metadata-only matching, and ambiguity never merges
-  regardless of page order. Candidate sets include retained confirmed-missing
+  regardless of page order. Matched claims buffer during canonical paging and
+  apply at `finalize()` only after the complete replacement set is observed:
+  a candidate contended for by several canonical rows is ambiguous for every
+  claimant, and a same-identity claim keeps precedence over contested weaker
+  claims (targeted hydration finalizes per album batch; promotion finalizes
+  across the full candidate set). Candidate sets include retained confirmed-missing
   rows so a later scan can relink them. `remapSongIdentity` merges user state
   with local precedence (a carried like keeps its original timestamp and is
   re-queued to the server through `star_sync_queue`), transfers absence
@@ -1276,11 +1287,29 @@ contract.
   profile-scoped alias tables (`entity_identity_aliases`). Cache and download
   ownership validation is storage-kind aware: Android SAF content URIs are
   validated through the platform bridge, never `File.exists()`.
+- **Album/artist relinking.** Candidate staging tables carry
+  `release_mbid`/`artist_mbid` (schema 80) promoted from OpenSubsonic
+  `musicBrainzId` fields; `EntityIdentityReconciler` runs inside the
+  promotion transaction after rows are preserved and before stale-row
+  deletion, and maps albums/artists only from a unique stable MBID on both
+  sides or an unambiguous song-membership mapping with compatible metadata.
+  `remapAlbumIdentity`/`remapArtistIdentity` move song and album references,
+  transfer star queue entries, absence evidence, and local mutations, merge
+  favorites and ratings with local precedence, and record typed aliases.
+  Evidence-less or contested rows keep their user state as provisional rows
+  and become review entries with typed reasons.
 - **Recovery review.** Pending entries (with evidence generation, reason, and
   saved metadata) surface in Sync Settings → Unavailable items
-  (`/settings/unavailable-items`) with Find match (search current catalog and
-  relink through the same transaction as automatic recovery), Keep for later,
-  and Remove from Liked. Sync evidence never overwrites a user disposition.
+  (`/settings/unavailable-items`) for songs, albums, and artists with typed
+  reason labels. Find match searches the current catalog for any entity type;
+  every selection opens a preview dialog showing old and new metadata plus
+  the exact references the remap carries over (downloads, playlists, history,
+  queue, pending annotations, following songs) before applying through the
+  same transaction as automatic recovery, and apply-time revalidation rejects
+  a selection whose replacement no longer exists. Entries with recorded
+  replacement candidates offer a possible-replacements action. Keep for later
+  and Remove from Liked are unchanged. Sync evidence never overwrites a user
+  disposition.
 - **Repair sessions.** Ordinary Repair Library runs non-blocking from Sync
   Settings. The coordinator owns an in-memory repair session whose
   mobile-data grant is applied at admission — before planning or durable work
@@ -1289,14 +1318,29 @@ contract.
   restart all clear it. The blocking rebuild screen remains only for initial
   login, destructive cache reset, cache upgrade, and playback recovery, where
   no usable catalog exists.
+- **Post-upgrade reconciliation.** Bumping `currentLibrarySyncModelVersion`
+  arms the startup reconciliation for upgrading installations: the next
+  launch schedules exactly one resumable full repair (deferred on cellular
+  per policy), and the new version is stamped only when the repair finished
+  with a promoted catalog, so a failed attempt retries on the next launch.
 - **Artwork identity.** Cover-art cache keys compose cover ID, requested size,
   and a per-entity targeted refresh revision
   (`coverArtImageCacheKey(id, size, revision)`). Revision zero keeps the
   legacy key layout, so existing offline artwork survives the migration.
   Explicit repairs bump the revision only for entities whose server row
-  changed, refetching exactly those entries without global cache clearing, and
-  the cover-art file service rejects HTTP-success payloads whose content type
-  is not an image so error pages are never cached as artwork.
+  changed — cards, queue surfaces, and the viewer pass the row's revision
+  into `CoverArtImage`, so a bump refetches exactly those entries without
+  global cache clearing — and the cover-art file service rejects
+  HTTP-success payloads whose content type is not an image so error pages
+  are never cached as artwork.
+- **Artwork failure recovery.** Fetch failures carry a typed category
+  (`CoverArtFailureCategory`): missing reference, auth rejection, network
+  timeout, invalid payload, or decode failure. `CoverArtRecoveryCoordinator`
+  evicts a corrupt or invalid cache entry exactly once per key for a single
+  bounded refetch, and coalesces one entity-metadata refresh per missing
+  cover reference (cooldown per cover identity per session) routed through
+  the sync engine's targeted hydration so widgets retry the resulting cover
+  identity.
 
 ### Cache Flow
 
