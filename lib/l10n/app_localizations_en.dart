@@ -3868,7 +3868,69 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unavailableReviewNoMatchFound =>
-      'No matching song found in the current library.';
+      'No matching item found in the current library.';
+
+  @override
+  String get unavailableReviewRelinkTitle => 'Relink item';
+
+  @override
+  String get unavailableReviewRelinkOld => 'Unavailable item';
+
+  @override
+  String get unavailableReviewRelinkNew => 'Selected replacement';
+
+  @override
+  String get unavailableReviewReferences => 'References carried over';
+
+  @override
+  String get unavailableReviewRelinkApply => 'Relink';
+
+  @override
+  String get unavailableReviewRelinkDismiss => 'Cancel';
+
+  @override
+  String get unavailableReviewPossibleReplacements => 'Possible replacements';
+
+  @override
+  String get unavailableReviewStaleSelection =>
+      'This selection is no longer current. Nothing was changed; the list was refreshed.';
+
+  @override
+  String get unavailableReviewAlreadyResolved =>
+      'This entry was already resolved.';
+
+  @override
+  String unavailableReviewRefCopies(int count) {
+    return 'Downloads and cached copies: $count';
+  }
+
+  @override
+  String unavailableReviewRefPlaylists(int count) {
+    return 'Playlist entries: $count';
+  }
+
+  @override
+  String unavailableReviewRefHistory(int count) {
+    return 'Played before: $count';
+  }
+
+  @override
+  String unavailableReviewRefQueue(int count) {
+    return 'Play queue entries: $count';
+  }
+
+  @override
+  String unavailableReviewRefLikes(int count) {
+    return 'Pending like or rating actions: $count';
+  }
+
+  @override
+  String unavailableReviewRefSongs(int count) {
+    return 'Songs that follow this item: $count';
+  }
+
+  @override
+  String get unavailableReviewRefNone => 'No local references to carry over.';
 
   @override
   String get unavailableReviewEntry => 'Unavailable items';

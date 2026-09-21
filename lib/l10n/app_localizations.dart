@@ -6782,8 +6782,104 @@ abstract class AppLocalizations {
   /// No description provided for @unavailableReviewNoMatchFound.
   ///
   /// In en, this message translates to:
-  /// **'No matching song found in the current library.'**
+  /// **'No matching item found in the current library.'**
   String get unavailableReviewNoMatchFound;
+
+  /// No description provided for @unavailableReviewRelinkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Relink item'**
+  String get unavailableReviewRelinkTitle;
+
+  /// No description provided for @unavailableReviewRelinkOld.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable item'**
+  String get unavailableReviewRelinkOld;
+
+  /// No description provided for @unavailableReviewRelinkNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected replacement'**
+  String get unavailableReviewRelinkNew;
+
+  /// No description provided for @unavailableReviewReferences.
+  ///
+  /// In en, this message translates to:
+  /// **'References carried over'**
+  String get unavailableReviewReferences;
+
+  /// No description provided for @unavailableReviewRelinkApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Relink'**
+  String get unavailableReviewRelinkApply;
+
+  /// No description provided for @unavailableReviewRelinkDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get unavailableReviewRelinkDismiss;
+
+  /// No description provided for @unavailableReviewPossibleReplacements.
+  ///
+  /// In en, this message translates to:
+  /// **'Possible replacements'**
+  String get unavailableReviewPossibleReplacements;
+
+  /// No description provided for @unavailableReviewStaleSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'This selection is no longer current. Nothing was changed; the list was refreshed.'**
+  String get unavailableReviewStaleSelection;
+
+  /// No description provided for @unavailableReviewAlreadyResolved.
+  ///
+  /// In en, this message translates to:
+  /// **'This entry was already resolved.'**
+  String get unavailableReviewAlreadyResolved;
+
+  /// No description provided for @unavailableReviewRefCopies.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads and cached copies: {count}'**
+  String unavailableReviewRefCopies(int count);
+
+  /// No description provided for @unavailableReviewRefPlaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist entries: {count}'**
+  String unavailableReviewRefPlaylists(int count);
+
+  /// No description provided for @unavailableReviewRefHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Played before: {count}'**
+  String unavailableReviewRefHistory(int count);
+
+  /// No description provided for @unavailableReviewRefQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Play queue entries: {count}'**
+  String unavailableReviewRefQueue(int count);
+
+  /// No description provided for @unavailableReviewRefLikes.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending like or rating actions: {count}'**
+  String unavailableReviewRefLikes(int count);
+
+  /// No description provided for @unavailableReviewRefSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Songs that follow this item: {count}'**
+  String unavailableReviewRefSongs(int count);
+
+  /// No description provided for @unavailableReviewRefNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No local references to carry over.'**
+  String get unavailableReviewRefNone;
 
   /// No description provided for @unavailableReviewEntry.
   ///

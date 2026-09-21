@@ -84,12 +84,12 @@ scan-status endpoint".
 
 ## Stage 6 — Relink preview dialog + review hardening (plan E7/E8)
 
-- [ ] Find match → preview dialog: old/new metadata side-by-side plus affected-references
+- [x] Find match → preview dialog: old/new metadata side-by-side plus affected-references
       list, Apply through `remapSongIdentity` (same transaction as automatic recovery).
-- [ ] Render stored `candidateJson` as possible replacements; differentiate reason labels
+- [x] Render stored `candidateJson` as possible replacements; differentiate reason labels
       (`ambiguousMatch`/`conflictingMbid`/missing).
-- [ ] Generation revalidation at apply time; stale selection rejected and entry refreshed.
-- [ ] Tests: preview contents, apply, cancel; revalidation.
+- [x] Generation revalidation at apply time; stale selection rejected and entry refreshed.
+- [x] Tests: preview contents, apply, cancel; revalidation.
 
 ## Stage 7 — Partial-response-aware starred refresh (plan C7)
 

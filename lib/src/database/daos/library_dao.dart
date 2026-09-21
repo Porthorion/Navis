@@ -1905,7 +1905,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
     // COALESCE keeps legacy NULL rows selectable; drift's NOT on a compound
     // expression does not parenthesize, so absence is spelled out directly.
-    final listed = songsTable.serverDeletedAt.isNull() &
+    final listed =
+        songsTable.serverDeletedAt.isNull() &
         const CustomExpression<bool>(
           "COALESCE(songs.catalog_availability, 'present') "
           "!= 'confirmedMissing'",

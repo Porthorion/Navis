@@ -227,9 +227,9 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
                 ..where((table) => table.id.equals(oldId))
                 ..limit(1))
               .getSingleOrNull();
-      if (oldSong == null) {
-        throw StateError('Provisional song $oldId does not exist.');
-      }
+      // A review-screen relink may target an entry whose live row is already
+      // gone; the reference moves below are WHERE-guarded no-ops in that
+      // case and only the alias recording remains meaningful.
 
       await _remapCache(
         oldSongId: oldId,
@@ -361,10 +361,10 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       // rating carries forward. A carried like keeps its original local
       // timestamp and is queued so the server restores it for other clients.
       final carriedStarredAt = canonicalSong.starred == null
-          ? oldSong.starred
+          ? oldSong?.starred
           : null;
       final carriedRating = canonicalSong.userRating == null
-          ? oldSong.userRating
+          ? oldSong?.userRating
           : null;
       if (carriedStarredAt != null || carriedRating != null) {
         await (update(songsTable)..where(
