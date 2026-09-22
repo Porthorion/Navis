@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Servers that report missing artwork with an HTTP 200 error page now trigger the same targeted refresh as a 404, and error documents are never saved as artwork even with a misleading content type',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Liked content and playlists now share one freshness clock with the rest of sync, so a completed sync can no longer leave favorites stale behind a hidden timestamp',
         type: ChangelogEntryType.fix,
       ),

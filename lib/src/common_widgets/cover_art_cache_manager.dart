@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
@@ -50,6 +51,76 @@ const int _coverArtMaxConnectionsPerHost = 4;
 /// coordinator below owns prioritisation and cancellation; the HTTP client
 /// remains the hard safety cap for actual sockets.
 const int _coverArtMaxScheduledFetches = 64;
+
+/// Bytes inspected from a successful response body to decide whether it is
+/// artwork or a server error document masquerading under HTTP success.
+const int _coverArtPayloadHeadBytes = 32;
+
+/// Upper bound on how much of a non-image success body is buffered for
+/// classification before it is rejected.
+const int _coverArtErrorDocumentSampleBytes = 64 * 1024;
+
+/// True when the payload head carries a known image signature (JPEG, PNG,
+/// GIF, WebP, BMP, ICO). Content types are untrusted: some servers answer
+/// missing artwork with HTTP 200 and a non-image body.
+bool _looksLikeImagePayload(List<int> head) {
+  if (head.length >= 2 && head[0] == 0xFF && head[1] == 0xD8) {
+    return true; // JPEG (SOI)
+  }
+  if (head.length >= 8 &&
+      head[0] == 0x89 &&
+      head[1] == 0x50 &&
+      head[2] == 0x4E &&
+      head[3] == 0x47 &&
+      head[4] == 0x0D &&
+      head[5] == 0x0A &&
+      head[6] == 0x1A &&
+      head[7] == 0x0A) {
+    return true; // PNG
+  }
+  if (head.length >= 6 &&
+      head[0] == 0x47 &&
+      head[1] == 0x49 &&
+      head[2] == 0x46 &&
+      head[3] == 0x38 &&
+      (head[4] == 0x37 || head[4] == 0x39) &&
+      head[5] == 0x61) {
+    return true; // GIF87a / GIF89a
+  }
+  if (head.length >= 12 &&
+      head[0] == 0x52 &&
+      head[1] == 0x49 &&
+      head[2] == 0x46 &&
+      head[3] == 0x46 &&
+      head[8] == 0x57 &&
+      head[9] == 0x45 &&
+      head[10] == 0x42 &&
+      head[11] == 0x50) {
+    return true; // WebP (RIFF....WEBP)
+  }
+  if (head.length >= 2 && head[0] == 0x42 && head[1] == 0x4D) {
+    return true; // BMP
+  }
+  if (head.length >= 4 &&
+      head[0] == 0x00 &&
+      head[1] == 0x00 &&
+      head[2] == 0x01 &&
+      head[3] == 0x00) {
+    return true; // ICO
+  }
+  return false;
+}
+
+/// True when the payload reads as a Subsonic error envelope. Navidrome
+/// answers missing artwork with HTTP 200 and this document instead of a
+/// 404, so it counts as missing-cover evidence rather than a generic
+/// invalid payload.
+bool _looksLikeSubsonicErrorDocument(List<int> bytes) {
+  final sample = String.fromCharCodes(
+    bytes.take(_coverArtPayloadHeadBytes * 8),
+  );
+  return sample.contains('subsonic-response') && sample.contains('failed');
+}
 
 enum CoverArtLoadPriority {
   background,
@@ -459,20 +530,38 @@ class CoverArtHttpFileService implements FileService {
           contentType != null &&
           contentType.primaryType != 'image') {
         // HTTP-success but not artwork: a Subsonic error document, a proxy
-        // login page, or HTML. Drain and reject so nothing invalid is cached.
+        // login page, or HTML. Classify a bounded body sample so a server
+        // that reports missing artwork through an error document (Navidrome)
+        // triggers the missing-cover recovery, then reject so nothing
+        // invalid is cached.
         lease.release();
-        final description = contentType.toString();
-        try {
-          await response.drain<void>().timeout(_bodyReadTimeout);
-        } on Object {
-          // The rejection itself must not be masked by a drain failure.
+        final sample = await _drainBoundedSample(
+          response,
+          timeout: _bodyReadTimeout,
+        );
+        if (_looksLikeSubsonicErrorDocument(sample)) {
+          final coverId = uri.queryParameters['id'];
+          if (coverId != null && coverId.isNotEmpty) {
+            onMissingCover?.call(coverId);
+          }
+          AppLogger.info(
+            'Cover art missingCoverReference reported through an error '
+            'document for $diagnosticUri',
+          );
+          throw CoverArtFetchException(
+            CoverArtFailureCategory.missingCoverReference,
+            statusCode: response.statusCode,
+          );
         }
+        final description = contentType.toString();
         throw CoverArtInvalidResponseException(description);
       }
       return _CoverArtHttpFileServiceResponse(
         response,
         bodyReadTimeout: _bodyReadTimeout,
         diagnosticUri: diagnosticUri,
+        coverArtId: uri.queryParameters['id'],
+        onMissingCover: onMissingCover,
         onTimeout: _resetClientAfterTimeout,
         onDone: lease.release,
         onBytesRead: (bytes) {
@@ -505,6 +594,32 @@ class CoverArtHttpFileService implements FileService {
     return HttpClient()
       ..maxConnectionsPerHost = _coverArtMaxConnectionsPerHost
       ..connectionTimeout = _connectionTimeout;
+  }
+
+  /// Reads the response body in a single pass, buffering at most
+  /// [_coverArtErrorDocumentSampleBytes] for classification while still
+  /// consuming the remainder so the keep-alive connection is not poisoned
+  /// for the next queued request. Body-read failures never mask the pending
+  /// classification.
+  static Future<List<int>> _drainBoundedSample(
+    HttpClientResponse response, {
+    required Duration timeout,
+  }) async {
+    final buffer = BytesBuilder(copy: false);
+    try {
+      await for (final chunk in response.timeout(
+        timeout,
+        onTimeout: (sink) => sink.close(),
+      )) {
+        if (buffer.length < _coverArtErrorDocumentSampleBytes) {
+          buffer.add(chunk);
+        }
+      }
+    } on Object {
+      // The caller's classification must not be masked by a body-read
+      // failure.
+    }
+    return buffer.takeBytes();
   }
 
   void _resetClientAfterTimeout() {
@@ -544,6 +659,8 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     required void Function() onTimeout,
     required void Function() onDone,
     required void Function(int bytes) onBytesRead,
+    this.coverArtId,
+    this.onMissingCover,
   }) : _bodyReadTimeout = bodyReadTimeout,
        _diagnosticUri = diagnosticUri,
        _onTimeout = onTimeout,
@@ -562,6 +679,13 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
   final void Function() _onDone;
   final void Function(int bytes) _onBytesRead;
 
+  /// Cover-art identity of the request, used to route missing-cover
+  /// evidence discovered while reading the body.
+  final String? coverArtId;
+
+  /// Missing-cover recovery hook, shared with [CoverArtHttpFileService].
+  final void Function(String coverArtId)? onMissingCover;
+
   @override
   int get statusCode => _response.statusCode;
 
@@ -571,6 +695,9 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
       return;
     }
     var bytesRead = 0;
+    var inspectedHead = false;
+    var headIsImage = false;
+    var headIsErrorDocument = false;
     try {
       await for (final chunk in _response.timeout(
         _bodyReadTimeout,
@@ -587,6 +714,18 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
         },
       )) {
         bytesRead += chunk.length;
+        if (!inspectedHead) {
+          inspectedHead = true;
+          headIsImage = _looksLikeImagePayload(chunk);
+          headIsErrorDocument =
+              !headIsImage && _looksLikeSubsonicErrorDocument(chunk);
+        }
+        if (!headIsImage) {
+          // Consume the remainder (keeps the connection reusable) but
+          // yield nothing, so the cache manager never persists a
+          // non-image payload.
+          continue;
+        }
         yield chunk;
       }
     } finally {
@@ -594,6 +733,26 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
         _onBytesRead(bytesRead);
       }
       _releaseOnce();
+    }
+    if (!inspectedHead) {
+      throw const CoverArtInvalidResponseException('empty body');
+    }
+    if (!headIsImage) {
+      if (headIsErrorDocument) {
+        final id = coverArtId;
+        if (id != null && id.isNotEmpty) {
+          onMissingCover?.call(id);
+        }
+        AppLogger.info(
+          'Cover art missingCoverReference reported through an error '
+          'document for $_diagnosticUri',
+        );
+        throw CoverArtFetchException(
+          CoverArtFailureCategory.missingCoverReference,
+          statusCode: _response.statusCode,
+        );
+      }
+      throw CoverArtInvalidResponseException('non-image payload bytes');
     }
   }
 

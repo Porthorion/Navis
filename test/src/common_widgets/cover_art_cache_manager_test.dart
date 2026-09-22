@@ -605,6 +605,170 @@ void main() {
     );
   });
 
+  group('HTTP 200 non-image payloads (Navidrome missing artwork)', () {
+    final recoveredIds = <String>[];
+    late CoverArtLoadCoordinator coordinator;
+    late CoverArtHttpFileService service;
+    late HttpServer server;
+
+    setUp(() async {
+      recoveredIds.clear();
+      coordinator = CoverArtLoadCoordinator();
+      service = CoverArtHttpFileService(
+        loadCoordinator: coordinator,
+        connectionTimeout: const Duration(milliseconds: 100),
+        responseTimeout: const Duration(milliseconds: 100),
+        bodyReadTimeout: const Duration(milliseconds: 100),
+        onMissingCover: recoveredIds.add,
+      );
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(service.close);
+      addTearDown(() => server.close(force: true));
+    });
+
+    void serve({
+      required String id,
+      required ContentType contentType,
+      required List<int> body,
+      int status = HttpStatus.ok,
+    }) {
+      server.listen((request) {
+        request.response.statusCode = status;
+        request.response.headers.contentType = contentType;
+        request.response.add(body);
+        unawaited(request.response.close());
+      });
+    }
+
+    final errorDocumentBody = <int>[
+      ...'{"subsonic-response":{"status":"failed","version":"1.16.1"},'
+              '"error":{"code":0,"message":"not found"}}'
+          .codeUnits,
+    ];
+
+    test(
+      'a Subsonic error document under HTTP 200 triggers missing-cover recovery',
+      () async {
+        serve(
+          id: 'cover-doc',
+          contentType: ContentType('application', 'json'),
+          body: errorDocumentBody,
+        );
+
+        await expectLater(
+          service.get(_coverArtUrl(server, id: 'cover-doc')),
+          throwsA(
+            isA<CoverArtFetchException>().having(
+              (error) => error.category,
+              'category',
+              CoverArtFailureCategory.missingCoverReference,
+            ),
+          ),
+        );
+        expect(recoveredIds, ['cover-doc']);
+        expect(coordinator.activeCount, 0);
+      },
+    );
+
+    test(
+      'a non-image success body without an error envelope stays invalidPayload',
+      () async {
+        serve(
+          id: 'cover-html',
+          contentType: ContentType.html,
+          body: '<html><body>proxy login</body></html>'.codeUnits,
+        );
+
+        await expectLater(
+          service.get(_coverArtUrl(server, id: 'cover-html')),
+          throwsA(isA<CoverArtInvalidResponseException>()),
+        );
+        expect(recoveredIds, isEmpty);
+        expect(coordinator.activeCount, 0);
+      },
+    );
+
+    test(
+      'a spoofed image content type with error-document bytes rejects on read',
+      () async {
+        serve(
+          id: 'cover-spoofed-error',
+          contentType: ContentType('image', 'jpeg'),
+          body: errorDocumentBody,
+        );
+
+        final response = await service
+            .get(_coverArtUrl(server, id: 'cover-spoofed-error'))
+            .timeout(const Duration(seconds: 1));
+        await expectLater(
+          response.content.expand((chunk) => chunk).toList(),
+          throwsA(
+            isA<CoverArtFetchException>().having(
+              (error) => error.category,
+              'category',
+              CoverArtFailureCategory.missingCoverReference,
+            ),
+          ),
+        );
+        expect(recoveredIds, ['cover-spoofed-error']);
+      },
+    );
+
+    test(
+      'a spoofed image content type with garbage bytes rejects without recovery',
+      () async {
+        serve(
+          id: 'cover-spoofed-garbage',
+          contentType: ContentType('image', 'jpeg'),
+          body: 'this is definitely not artwork'.codeUnits,
+        );
+
+        final response = await service
+            .get(_coverArtUrl(server, id: 'cover-spoofed-garbage'))
+            .timeout(const Duration(seconds: 1));
+        await expectLater(
+          response.content.expand((chunk) => chunk).toList(),
+          throwsA(isA<CoverArtInvalidResponseException>()),
+        );
+        expect(recoveredIds, isEmpty);
+      },
+    );
+
+    test('an empty success body rejects as an invalid payload', () async {
+      serve(
+        id: 'cover-empty',
+        contentType: ContentType('image', 'jpeg'),
+        body: const <int>[],
+      );
+
+      final response = await service
+          .get(_coverArtUrl(server, id: 'cover-empty'))
+          .timeout(const Duration(seconds: 1));
+      await expectLater(
+        response.content.expand((chunk) => chunk).toList(),
+        throwsA(isA<CoverArtInvalidResponseException>()),
+      );
+      expect(recoveredIds, isEmpty);
+    });
+
+    test('image bytes keep flowing to the consumer', () async {
+      serve(
+        id: 'cover-ok',
+        contentType: ContentType('image', 'jpeg'),
+        body: _tinyJpeg,
+      );
+
+      final response = await service
+          .get(_coverArtUrl(server, id: 'cover-ok'))
+          .timeout(const Duration(seconds: 1));
+      expect(
+        await response.content.expand((chunk) => chunk).toList(),
+        _tinyJpeg,
+      );
+      expect(recoveredIds, isEmpty);
+    });
+  });
+
   group('NieR shared-title artwork identity (plan F9)', () {
     test(
       'two releases sharing a title keep distinct artwork identities',
