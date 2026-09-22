@@ -625,6 +625,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String librarySyncBacklogBanner(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Library synced, $count albums are still loading details',
+      one: 'Library synced, 1 album is still loading details',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String syncSettingsCandidate(Object generation, Object status) {
     return 'Candidate generation $generation: $status';
   }

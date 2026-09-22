@@ -1188,6 +1188,12 @@ abstract class AppLocalizations {
   /// **'{count} resumable task(s) pending'**
   String syncSettingsPendingWork(Object count);
 
+  /// No description provided for @librarySyncBacklogBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Library synced, 1 album is still loading details} other{Library synced, {count} albums are still loading details}}'**
+  String librarySyncBacklogBanner(int count);
+
   /// No description provided for @syncSettingsCandidate.
   ///
   /// In en, this message translates to:

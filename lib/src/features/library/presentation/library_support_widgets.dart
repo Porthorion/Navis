@@ -67,6 +67,7 @@ class _SyncStatusBanner extends StatelessWidget {
   );
   static const Key cancelKey = ValueKey<String>('library-sync-status-cancel');
   static const Key retryKey = ValueKey<String>('library-sync-status-retry');
+  static const Key backlogKey = ValueKey<String>('library-sync-status-backlog');
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +197,44 @@ class _SyncStatusBanner extends StatelessWidget {
                   backgroundColor: colors.primary.withValues(alpha: 0.12),
                 ),
             ],
+          ),
+        ),
+      );
+    }
+
+    // A finished sync does not mean every album has details yet. Surface the
+    // durable hydration backlog between runs instead of reporting plain
+    // completion while metadata is still missing.
+    final hydrationBacklog = syncState.pendingHydrationCount ?? 0;
+    if (!syncState.isRunning && hydrationBacklog > 0) {
+      final theme = Theme.of(context);
+      final colors = theme.colorScheme;
+      return Semantics(
+        container: true,
+        label: l10n.librarySyncBacklogBanner(hydrationBacklog),
+        child: Material(
+          key: backlogKey,
+          color: colors.surfaceContainerHigh,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 8),
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  Icons.hourglass_bottom_rounded,
+                  size: 16,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.librarySyncBacklogBanner(hydrationBacklog),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );

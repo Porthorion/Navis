@@ -2974,6 +2974,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return row.read(countExpression) ?? 0;
   }
 
+  /// Live variant of [countPendingHydrationAlbums] so the UI can surface the
+  /// metadata backlog between sync runs.
+  Stream<int> watchPendingHydrationAlbums() {
+    final countExpression = albumsTable.id.count();
+    final query = selectOnly(albumsTable)
+      ..addColumns([countExpression])
+      ..where(
+        albumsTable.songsHydrated.equals(false) &
+            albumsTable.isProvisional.equals(false) &
+            albumsTable.isExternal.equals(false),
+      );
+    return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
+  }
+
   Future<void> markAlbumsPendingHydrationByIds(
     Iterable<String> albumIds,
   ) async {

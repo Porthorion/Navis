@@ -282,6 +282,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
   int _automaticScheduleEpoch = 0;
+  StreamSubscription<int>? _pendingWorkCountSub;
+  StreamSubscription<int>? _pendingHydrationCountSub;
 
   @override
   LibrarySyncState build() {
@@ -305,6 +307,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ref.onDispose(() {
       _lifecycleListener.dispose();
       _cancelPeriodicSync();
+      _cancelBacklogWatchers();
     });
 
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
@@ -745,12 +748,47 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
   }
 
+  /// Keeps run-independent backlog counters live between sync runs so the
+  /// UI can show queued work honestly. While a run is in flight the engine
+  /// owns these state fields and the stream defers to it.
+  void _watchBacklogCounts(NavisDatabase database, int serverId) {
+    _cancelBacklogWatchers();
+    _pendingWorkCountSub = database.librarySyncDao
+        .watchPendingWork(serverId)
+        .listen((count) {
+          if (!ref.mounted ||
+              state.isRunning ||
+              state.pendingWorkCount == count) {
+            return;
+          }
+          state = state.copyWith(pendingWorkCount: count);
+        });
+    _pendingHydrationCountSub = database.libraryDao
+        .watchPendingHydrationAlbums()
+        .listen((count) {
+          if (!ref.mounted ||
+              state.isRunning ||
+              state.pendingHydrationCount == count) {
+            return;
+          }
+          state = state.copyWith(pendingHydrationCount: count);
+        });
+  }
+
+  void _cancelBacklogWatchers() {
+    unawaited(_pendingWorkCountSub?.cancel());
+    unawaited(_pendingHydrationCountSub?.cancel());
+    _pendingWorkCountSub = null;
+    _pendingHydrationCountSub = null;
+  }
+
   Future<void> _loadPersistedSyncState(ServerConfigModel config) async {
     final serverId = config.id;
     if (serverId == null) {
       return;
     }
     final database = ref.read(navisDatabaseProvider);
+    _watchBacklogCounts(database, serverId);
     final persisted = await database.librarySyncDao.getOrCreateState(serverId);
     final pending = await database.librarySyncDao.countPendingWork(serverId);
     if (!ref.mounted ||

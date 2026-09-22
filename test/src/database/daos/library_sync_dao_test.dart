@@ -858,4 +858,49 @@ void main() {
       'Committed',
     );
   }, skip: !sqliteAvailable);
+
+  test('watchPendingWork streams live queued work counts', () async {
+    // Drift propagates table updates on later event-loop turns, so settle
+    // on the expected value with a bounded wait instead of fixed pumps.
+    Future<void> waitForCount(List<int> counts, int expected) async {
+      for (
+        var attempt = 0;
+        attempt < 100 && (counts.isEmpty || counts.last != expected);
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(counts, isNotEmpty);
+      expect(counts.last, expected);
+    }
+
+    final counts = <int>[];
+    final sub = database.librarySyncDao.watchPendingWork(1).listen(counts.add);
+    addTearDown(sub.cancel);
+    await waitForCount(counts, 0);
+
+    await database.librarySyncDao.enqueueWork(
+      serverId: 1,
+      kind: 'targetedHydration',
+      entityId: 'album:watch-a',
+      priority: 30,
+    );
+    await waitForCount(counts, 1);
+
+    await database.librarySyncDao.enqueueWork(
+      serverId: 1,
+      kind: 'targetedHydration',
+      entityId: 'album:watch-b',
+      priority: 30,
+    );
+    await waitForCount(counts, 2);
+
+    final row = (await database.librarySyncDao.getWork(
+      serverId: 1,
+      kind: 'targetedHydration',
+      entityId: 'album:watch-a',
+    ))!;
+    await database.librarySyncDao.markCompleted(row.id);
+    await waitForCount(counts, 1);
+  }, skip: !sqliteAvailable);
 }

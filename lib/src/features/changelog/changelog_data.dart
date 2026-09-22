@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'The library screen shows a backlog notice while album details are still loading after a sync, and pending task counts now update live instead of only after a run finishes',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Most Played Tracks now orders plays with the same count deterministically by how recently a song was played, so the section stops shuffling between refreshes',
         type: ChangelogEntryType.fix,
       ),

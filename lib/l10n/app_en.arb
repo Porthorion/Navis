@@ -241,6 +241,12 @@
       "count": {}
     }
   },
+  "librarySyncBacklogBanner": "{count, plural, =1{Library synced, 1 album is still loading details} other{Library synced, {count} albums are still loading details}}",
+  "@librarySyncBacklogBanner": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "syncSettingsCandidate": "Candidate generation {generation}: {status}",
   "@syncSettingsCandidate": {
     "placeholders": {

@@ -1256,93 +1256,100 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     bool reactivateTerminal = false,
     String? evidenceVersion,
     DateTime? now,
-  }) => transaction(() async {
-    if (evidenceVersion != null) {
-      final previous = await getWork(
-        serverId: serverId,
-        kind: kind,
-        entityId: entityId,
-      );
-      Map<String, dynamic> decode(String? raw) {
-        try {
-          final value = jsonDecode(raw ?? '{}');
-          if (value is Map<String, dynamic>) return value;
-        } on FormatException {
-          /* Legacy work has no evidence version. */
+  }) {
+    // The upsert below runs through customStatement, which bypasses drift's
+    // automatic stream notifications. Report the table explicitly once the
+    // transaction commits so watch queries see fresh enqueues.
+    return transaction(() async {
+      if (evidenceVersion != null) {
+        final previous = await getWork(
+          serverId: serverId,
+          kind: kind,
+          entityId: entityId,
+        );
+        Map<String, dynamic> decode(String? raw) {
+          try {
+            final value = jsonDecode(raw ?? '{}');
+            if (value is Map<String, dynamic>) return value;
+          } on FormatException {
+            /* Legacy work has no evidence version. */
+          }
+          return {};
         }
-        return {};
-      }
 
-      final previousCheckpoint = decode(previous?.checkpointJson);
-      if (previous != null &&
-          previousCheckpoint['evidenceVersion'] != evidenceVersion) {
-        reactivateTerminal = true;
-        releaseCooldown = true;
+        final previousCheckpoint = decode(previous?.checkpointJson);
+        if (previous != null &&
+            previousCheckpoint['evidenceVersion'] != evidenceVersion) {
+          reactivateTerminal = true;
+          releaseCooldown = true;
+        }
+        checkpointJson = jsonEncode({
+          ...previousCheckpoint,
+          ...decode(checkpointJson),
+          'evidenceVersion': evidenceVersion,
+        });
       }
-      checkpointJson = jsonEncode({
-        ...previousCheckpoint,
-        ...decode(checkpointJson),
-        'evidenceVersion': evidenceVersion,
-      });
-    }
-    final timestamp = now ?? DateTime.now();
-    final normalizedClass = workClass == 'interactive'
-        ? 'interactive'
-        : 'background';
-    final reactivateTerminalValue = reactivateTerminal ? 1 : 0;
-    final releaseCooldownValue = releaseCooldown ? 1 : 0;
-    await customStatement(
-      '''
-      INSERT INTO library_sync_work (
-        server_id, kind, entity_id, priority, work_class, status,
-        checkpoint_json, attempt_count, not_before, last_error_type,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'queued', ?, 0, NULL, NULL, ?, ?)
-      ON CONFLICT(server_id, kind, entity_id) DO UPDATE SET
-        priority = MAX(priority, excluded.priority),
-        work_class = CASE
-          WHEN excluded.work_class = 'interactive'
-            OR library_sync_work.work_class = 'interactive'
-          THEN 'interactive'
-          ELSE 'background'
-        END,
-        status = CASE
-          WHEN library_sync_work.status IN ('queued', 'running', 'failed')
-          THEN library_sync_work.status
-          WHEN ? = 1 THEN 'queued'
-          ELSE library_sync_work.status
-        END,
-        checkpoint_json = COALESCE(
-          excluded.checkpoint_json,
-          library_sync_work.checkpoint_json
-        ),
-        attempt_count = CASE
-          WHEN ? = 1 AND library_sync_work.status NOT IN
-            ('queued', 'running', 'failed') THEN 0
-          ELSE library_sync_work.attempt_count
-        END,
-        not_before = CASE
-          WHEN ? = 1 THEN NULL
-          ELSE library_sync_work.not_before
-        END,
-        last_error_type = NULL,
-        updated_at = excluded.updated_at;
-      ''',
-      <Object?>[
-        serverId,
-        kind,
-        entityId,
-        priority,
-        normalizedClass,
-        checkpointJson,
-        timestamp.millisecondsSinceEpoch ~/ 1000,
-        timestamp.millisecondsSinceEpoch ~/ 1000,
-        reactivateTerminalValue,
-        reactivateTerminalValue,
-        releaseCooldownValue,
-      ],
-    );
-  });
+      final timestamp = now ?? DateTime.now();
+      final normalizedClass = workClass == 'interactive'
+          ? 'interactive'
+          : 'background';
+      final reactivateTerminalValue = reactivateTerminal ? 1 : 0;
+      final releaseCooldownValue = releaseCooldown ? 1 : 0;
+      await customStatement(
+        '''
+        INSERT INTO library_sync_work (
+          server_id, kind, entity_id, priority, work_class, status,
+          checkpoint_json, attempt_count, not_before, last_error_type,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 'queued', ?, 0, NULL, NULL, ?, ?)
+        ON CONFLICT(server_id, kind, entity_id) DO UPDATE SET
+          priority = MAX(priority, excluded.priority),
+          work_class = CASE
+            WHEN excluded.work_class = 'interactive'
+              OR library_sync_work.work_class = 'interactive'
+            THEN 'interactive'
+            ELSE 'background'
+          END,
+          status = CASE
+            WHEN library_sync_work.status IN ('queued', 'running', 'failed')
+            THEN library_sync_work.status
+            WHEN ? = 1 THEN 'queued'
+            ELSE library_sync_work.status
+          END,
+          checkpoint_json = COALESCE(
+            excluded.checkpoint_json,
+            library_sync_work.checkpoint_json
+          ),
+          attempt_count = CASE
+            WHEN ? = 1 AND library_sync_work.status NOT IN
+              ('queued', 'running', 'failed') THEN 0
+            ELSE library_sync_work.attempt_count
+          END,
+          not_before = CASE
+            WHEN ? = 1 THEN NULL
+            ELSE library_sync_work.not_before
+          END,
+          last_error_type = NULL,
+          updated_at = excluded.updated_at;
+        ''',
+        <Object?>[
+          serverId,
+          kind,
+          entityId,
+          priority,
+          normalizedClass,
+          checkpointJson,
+          timestamp.millisecondsSinceEpoch ~/ 1000,
+          timestamp.millisecondsSinceEpoch ~/ 1000,
+          reactivateTerminalValue,
+          reactivateTerminalValue,
+          releaseCooldownValue,
+        ],
+      );
+    }).then<void>((_) {
+      notifyUpdates(<TableUpdate>{TableUpdate.onTable(librarySyncWorkTable)});
+    });
+  }
 
   /// Cancel only work still waiting for admission; never mutate another owner.
   Future<void> cancelQueuedWork({
@@ -1430,6 +1437,21 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       );
     final row = await query.getSingle();
     return row.read(countExpression) ?? 0;
+  }
+
+  /// Live variant of [countPendingWork] so the UI can reflect backlog
+  /// changes without waiting for the next sync run.
+  Stream<int> watchPendingWork(int serverId) {
+    final countExpression = librarySyncWorkTable.id.count();
+    final query = selectOnly(librarySyncWorkTable)
+      ..addColumns([countExpression])
+      ..where(
+        librarySyncWorkTable.serverId.equals(serverId) &
+            librarySyncWorkTable.status.isIn(
+              const <String>['queued', 'running', 'failed'],
+            ),
+      );
+    return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
   }
 
   Future<void> markRunning(int id, {DateTime? now}) {

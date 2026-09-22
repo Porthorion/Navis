@@ -893,6 +893,82 @@ void main() {
     );
 
     _testWidgetsWithCleanup(
+      'idle backlog renders a hydration pill while album details are missing',
+      (tester) async {
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(
+                LibrarySyncState(
+                  status: LibrarySyncStatus.idle,
+                  stage: LibrarySyncStage.idle,
+                  lastSyncedAt: DateTime(2026, 9, 21, 8),
+                  pendingHydrationCount: 3,
+                ),
+              ),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(
+          find.byKey(const ValueKey<String>('library-sync-status-backlog')),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Library synced, 3 albums are still loading details'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'idle state without backlog shows no hydration pill',
+      (tester) async {
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(
+                LibrarySyncState(
+                  status: LibrarySyncStatus.idle,
+                  stage: LibrarySyncStage.idle,
+                  lastSyncedAt: DateTime(2026, 9, 21, 8),
+                  pendingHydrationCount: 0,
+                ),
+              ),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
+            ),
+          ],
+        );
+
+        expect(
+          find.byKey(const ValueKey<String>('library-sync-status-backlog')),
+          findsNothing,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
       'sync banner keeps candidate discovery progress indeterminate',
       (tester) async {
         await _pumpLibraryScreen(

@@ -1240,5 +1240,33 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test(
+      'watchPendingHydrationAlbums tracks the metadata backlog live',
+      () async {
+        Future<int> currentCount() =>
+            database.libraryDao.watchPendingHydrationAlbums().first;
+
+        expect(await currentCount(), 0);
+
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'album-watch-a', name: 'A'),
+          AlbumsTableCompanion.insert(id: 'album-watch-b', name: 'B'),
+          AlbumsTableCompanion.insert(id: 'album-provisional', name: 'C'),
+        ]);
+        // upsertAlbums normalizes rows to the committed catalog, so mark the
+        // provisional row directly to exercise the query filter.
+        await (database.update(
+          database.albumsTable,
+        )..where((table) => table.id.equals('album-provisional'))).write(
+          const AlbumsTableCompanion(isProvisional: Value(true)),
+        );
+        expect(await currentCount(), 2);
+
+        await database.libraryDao.markAlbumSongsHydrated('album-watch-a');
+        expect(await currentCount(), 1);
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }
