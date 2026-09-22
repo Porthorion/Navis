@@ -21,14 +21,16 @@ product contracts.
 | Production symptom recovery | [troubleshooting.md](troubleshooting.md) |
 | Active platform-readiness work | [flathub-readiness.md](flathub-readiness.md) or [google-play-readiness.md](google-play-readiness.md) |
 | Current sync design, recovery boundaries, and certification evidence | [sync-reliability-recovery-plan.md](sync-reliability-recovery-plan.md), [sync-stability-validation.md](sync-stability-validation.md) |
+| Navidrome/SoulSync server operations, scan scheduling, and tag hygiene | [server-library-hygiene.md](server-library-hygiene.md) |
 
 ## Document status
 
 ### Active reference
 
 `architecture.md`, `development-workflow.md`, `ci-cd.md`, `dev-testing-builds.md`,
-`troubleshooting.md`, the Android Auto guides, release guides, and platform
-readiness documents describe maintained workflows or explicit current gaps.
+`troubleshooting.md`, `server-library-hygiene.md`, the Android Auto guides,
+release guides, and platform readiness documents describe maintained
+workflows or explicit current gaps.
 
 ### Plans, audits, and evidence
 

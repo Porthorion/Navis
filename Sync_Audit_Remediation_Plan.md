@@ -1,0 +1,321 @@
+# Sync audit remediation — discovery cadence, observability, cover recovery, and server churn
+
+Created: 2026-09-22
+Status: **in progress** (workstream A user-pending; workstream B implementation underway)
+Companion runbook: [docs/server-library-hygiene.md](docs/server-library-hygiene.md)
+Predecessor evidence: `Fix_Stale_Cache_Plan.md`, `Fix_Stale_Cache_Execution_Plan.md`
+(schema 80 baseline), `docs/sync-reliability-recovery-plan.md`.
+
+## 0. Verified during planning
+
+Three audit sources were cross-examined on 2026-09-21/22: the Navis codebase
+(sync engine, DAO queries, playback resolution, cover-art pipeline), the live
+Subsonic API on `navidrome.example.test` (Navidrome v0.64.0, 1,777 artists /
+7,892 albums / 56,166 tracks), and the device database
+(`~/Documents/navis.sqlite.sqlite`, read-only, schema 78).
+
+Reported symptoms and verdicts:
+
+1. **"Fleeting Words by Animuz wasn't acknowledged until I played it"** —
+   mostly Navis-side. The album existed server-side since 2026-09-01
+   (newest-feed position 73), but the device ledger shows no full catalog
+   promotion between 2026-08-28 and 2026-09-16, and the automatic
+   newest-feed probe window is too shallow to reach it. Playback-triggered
+   hydration inserted the row with `serverCreatedAt = 2026-09-01`, which then
+   surfaced near the top of "Recently added" as if newly added.
+2. **"Liked items took forever to load metadata even though sync was
+   complete"** — Navis-side. The device's auxiliary (starred) timestamp had
+   diverged from the sync-state record; Liked sat partially stale for up to
+   two weeks while runs reported success, and a hydration backlog (104
+   albums) drains at ~2 concurrent requests while status UI hides queued
+   work. The Subsonic starred feed itself is complete and rich.
+3. **"Hotel California / Hear the Wind Sing most-played weirdness"** —
+   mostly metadata-side. SoulSync wrote trailing-space album/title tags
+   (splitting Hotel California into three server albums) and a `•`-separated
+   multi-artist blob as a single artist tag. The play-count pipeline works
+   (verified by a single test scrobble on the disposable test account).
+   Navis contributes a missing Most Played tiebreaker.
+4. **Unreported findings**: 659 dead local albums (10.5% — server reissued
+   IDs after SoulSync rewrote content; schema-78 build cannot mark them
+   stale, schema 80's `catalogAvailability`/`serverDeletedAt` can, via Repair
+   Library); server media throughput collapses ~25x during Navidrome scans,
+   which recur roughly every 30 minutes because SoulSync keeps writing;
+   Navidrome answers missing cover art with HTTP 200 + a Subsonic error
+   document, which Navis's recovery path (HTTP 404/410 only) never treats as
+   a missing cover.
+
+Code verification during planning refined the audit:
+
+- `registerAlbumInteraction` lives at
+  `lib/src/features/library/presentation/library_sync_provider.dart:581`
+  (the audit's queue_provider.dart:407 pointer is
+  `_ensureSongsInDatabase`, which upserts provisional albums **without**
+  `serverCreatedAt`/`recentlyAddedRank`).
+- The automatic newest-feed probe is 1 page x 100 unconditional plus a
+  second page only when the first page is entirely newer-or-unknown
+  (`library_sync_engine.dart:2854-2900`); manual checks use 5 pages x 100.
+  `libraryHealthCheckedAt` is stamped even when the page cap is hit without
+  reaching known content, so a buried addition produces no signal at all.
+- The auxiliary-timestamp divergence is structural, not a missed write:
+  store A (`server_config.capabilities` JSON key `navis.auxiliarySyncLastSyncedAt`)
+  is written only by `_markAuxiliarySynced` (engine 2754-2769) on the legacy
+  combined-run path (`_activeExecutionPlan == null`), which the typed
+  coordinator never takes; store B
+  (`library_sync_state.last_auxiliary_synced_at`) is derived from
+  starred/playlist-header work-row completion (coordinator 1097-1123). A
+  one-time import (navis_database.dart:1185) copied A into B; they are never
+  re-synced.
+- The hydration backlog lives on `albums.songsHydrated = false`
+  (`countPendingHydrationAlbums`), not in `library_sync_work`. The work
+  table's `deltaReconcile`/`compatibilityAudit` rows appear perpetually
+  queued because `_planFromWork` (coordinator 1834-1869) defers broad kinds
+  unless the app is foreground and nothing is playing, and only
+  catalog-target sync attempts claim work.
+- The schema-80 scan guard (`_scanInvalidatedCollection`, engine
+  3703-3717) resets the full-sync candidate to `collecting` whenever the
+  scan token changed between collection and promotion, with **no cap on
+  consecutive deferrals** — a livelock risk on a server that rescans every
+  ~30 minutes.
+- Cover transport already rejects HTTP 200 with a non-image content type
+  (cover_art_cache_manager.dart:457-471) but never fires `onMissingCover`
+  there, never sniffs body bytes when the content type is null/spoofed, and
+  the missing-cover mark is session-memory only.
+
+## 1. Objective and decisions
+
+Restore trustworthy library freshness, honest sync status, and resilient
+cover handling on a high-churn Navidrome server, and give the operator a
+durable procedure for the server-side half (scan scheduling, SoulSync write
+behavior, tag hygiene).
+
+Decisions recorded 2026-09-22 (user-approved):
+
+1. **Scope**: all three workstreams (Navis code, server ops, tag cleanup);
+   the ops guidance becomes a permanent runbook at
+   `docs/server-library-hygiene.md`.
+2. **Discovery**: adaptive overlap paging plus a persisted discovery-debt
+   ledger with escalation to broader reconciliation.
+3. **Scan guard**: cap consecutive deferrals (3) and allow promotion once a
+   completed scan token is observed stable across the collection window;
+   record the streak in the ledger and surface it in sync status.
+4. No database schema migration is anticipated in any B stage; debt and
+   streak state ride existing stores (capabilities JSON, operation ledger).
+   If implementation proves otherwise, the stepwise-migration rules apply
+   (make gen + migration test update).
+
+## 2. Workstream A — Server and library hygiene (runbook; operator-run)
+
+Executed via [docs/server-library-hygiene.md](docs/server-library-hygiene.md).
+The Navis test account (`navis` on `navidrome.example.test`) is disposable and
+may be written freely; personal accounts are read-only.
+
+- [ ] **A1 Tame the rescan storm.** Replace the default scan schedule with a
+  fixed cadence (e.g. `@every 4h` or `0 */4 * * *`) via
+  `Scanner.Schedule`/`ND_SCANNER_SCHEDULE`; either disable the filesystem
+  watcher (`Scanner.WatcherEnabled=false`) or raise `Scanner.WatcherWait`
+  above SoulSync's write-burst length so writes coalesce. Verify key names
+  against the Navidrome v0.64.0 configuration reference before applying.
+  *Acceptance: getScanStatus shows ≤ 1 scan per scheduled window; the ~25x
+  mid-scan throughput collapse is confined to scheduled windows.*
+- [ ] **A2 Batch SoulSync writes.** Quiesce writes into quiet windows aligned
+  with the scan schedule; measure disk I/O during a scan (iostat/vmstat).
+  *Acceptance: media and cover-art throughput stays near the 22 KB/s
+  baseline outside scheduled scans.*
+- [ ] **A3 Tag hygiene.** Audit with mutagen for trailing whitespace in
+  album/title/artist tags and `•`-separated multi-artist blobs; back up;
+  retag (strip trailing/leading whitespace; convert `•` blobs to
+  Navidrome `;` multi-value artist fields); rescan. **Retagging changes
+  album identity/IDs — expect another dead-album wave; run Repair Library
+  (C3) after A3.** *Acceptance: Hotel California collapses 3 server albums
+  → 1; the Hear the Wind Sing artist blob splits into its three artists.*
+- [ ] **A4 Post-cleanup verification.** Server-side duplicate-album queries
+  and count reconciliation; record before/after in this plan.
+
+Blocker: A1-A3 require shell/config access to the server host and the
+SoulSync/music-library filesystem, which this workstation does not have. The
+runbook contains the exact commands for the operator. Navis-side
+certification (B2/B6) is executed against the live server as-is.
+
+## 3. Workstream B — Navis code fixes
+
+Each stage is one commit on `dev`, `./tool/check.sh` green before the
+commit, user-visible changes entered in both
+`lib/src/features/changelog/changelog_data.dart` and
+`tool/generate_release_notes.dart`. Runtime-affecting stages complete the
+development-workflow runtime loop (diagnostics API, screenshots for visible
+changes, clean restart).
+
+### Stage B1 — Unify auxiliary-sync timestamps
+
+`library_sync_state.lastAuxiliarySyncedAt` becomes the single source of
+truth. Remove the dead capabilities-JSON store A read/write
+(`navis.auxiliarySyncLastSyncedAt` reader/writer in the engine) and the
+`_shouldSyncAuxiliary` dependence on it; the typed coordinator's
+"advanced only when starred AND playlist-header work completed" semantics
+stay. The one-time import remains harmless. The UI (sync settings) needs no
+change — it already reads store B.
+
+- [ ] Implementation: engine (`_readStoredAuxiliarySyncedAt`,
+  `_markAuxiliarySynced`, `_shouldSyncAuxiliary`, capabilities key
+  constant), coordinator due-ness path, tests updated.
+- [ ] Tests: engine auxiliary gating cases; coordinator auxiliary-drain
+  case; no surviving reference to the retired key.
+- [ ] Evidence: `flutter test test/src/features/library/data/` focused run +
+  check.sh; commit hash: ______
+
+### Stage B4 — Cover-art recovery on 200 + error document
+
+In `CoverArtHttpFileService.get`, the existing 200-non-image branch
+(cover_art_cache_manager.dart:457-471) gains body inspection: if the drained
+body parses as a Subsonic error envelope (or is any non-image payload), fire
+`onMissingCover(coverId)` and classify as `missingCoverReference`. Add a
+magic-byte sniff (JPEG `FF D8 FF`, PNG `89 50 4E 47`, WebP `RIFF....WEBP`,
+GIF variants) so a null/spoofed `image/*` content type with garbage bytes is
+rejected and evicted instead of cached.
+
+- [ ] Implementation in `cover_art_cache_manager.dart` (drain-then-classify
+  rework; sniff before returning `_CoverArtHttpFileServiceResponse`).
+- [ ] Tests: loopback-server cases for (a) 200 + JSON error document →
+  recovery fires, (b) 200 + spoofed image content type + non-image bytes →
+  `CoverArtInvalidResponseException`, nothing cached; existing 404/410
+  cases stay green.
+- [ ] Evidence: `flutter test test/src/common_widgets/cover_art_cache_manager_test.dart`
+  + check.sh; commit hash: ______
+
+### Stage B5 — Most Played tiebreaker
+
+`watchMostPlayedSongs` (library_dao.dart:1728-1742) orders
+`playCount DESC` only. Add deterministic tiebreakers: recency via a
+`LEFT JOIN` on `MAX(play_history.playedAt)` per song, then `LOWER(title)`,
+then id. Add the first DAO-level test for this query.
+
+- [ ] Implementation + DAO test in `test/src/database/`.
+- [ ] Evidence: focused DAO test + check.sh; commit hash: ______
+
+### Stage B3 — Sync-status backlog observability
+
+Add `watchPendingWorkCount` (Drift stream over `library_sync_work`
+queued/running/failed) and `watchPendingHydrationAlbums` stream variants;
+keep `LibrarySyncState.pendingWorkCount` live and populate
+`pendingHydrationCount` from the stream; `_SyncStatusBanner` gains a backlog
+pill ("catalog synced - N albums awaiting metadata"); completion
+notification claims "complete" only when the backlog is 0. Sync Settings
+already renders `pendingWork`; wire the live stream to it.
+
+- [ ] Implementation: DAO streams, `library_sync_state.dart`,
+  `library_sync_provider.dart`, `library_support_widgets.dart`,
+  `sync_settings_screen.dart`, l10n ARBs.
+- [ ] Tests: DAO watch test; banner test via the fake-controller pattern;
+  provider state-machine test for the "complete only at 0" rule.
+- [ ] Runtime: `POST /v1/presentation/screenshot` of the banner + settings
+  screen; clean restart.
+- [ ] Evidence: focused tests + check.sh + screenshot paths; commit hash: ______
+
+### Stage B2 — Adaptive discovery paging + discovery-debt ledger
+
+Generalize the probe's look-ahead: automatic checks page until they reach
+known-and-unchanged content or a raised cap (5 pages x 100, matching the
+manual window); on a capped-without-overlap outcome, persist a discovery
+debt record in the server capabilities JSON (next to
+`libraryHealthCheckedAt`, no schema change): depth reached, timestamp,
+streak. The next probe starts at the debt depth; after 2 consecutive debts,
+enqueue `deltaReconcile` (broad reconciliation). Metered runs keep the
+shallow budget but record debt instead of silently dropping coverage.
+`libraryHealthCheckedAt` is stamped only on overlap or a clean cap below
+the budget.
+
+- [ ] Implementation: `_runNewestAlbumHealthProbe`, the
+  `healthProbeDue`/stamp path, coordinator `_enqueueProbeFollowUp`.
+- [ ] Tests: engine probe tests — overlap stop, debt on cap, resume-at-depth,
+  escalation enqueue, metered debt.
+- [ ] Live-server certification: `./tool/sync_diagnostics.sh clone` against
+  `navidrome.example.test` (disposable test account) + bounded probe run;
+  evidence under `build/sync-diagnostics/`.
+- [ ] Evidence: focused tests + check.sh + diagnostics artifacts; commit
+  hash: ______
+
+### Stage B6 — Scan-guard deferral cap + settle-wait
+
+Derive the consecutive `scanChangedDuringCollection` streak from the
+operation ledger (no schema change). After 3 consecutive deferrals, allow
+promotion when a completed scan token is observed and remains stable across
+the collection window (freshest completed snapshot wins). Record the
+cap-release decision in the ledger and surface the deferral streak in sync
+status. Depends on A1 in spirit (fewer scans make settle-wait trivially
+fast) but must remain correct without it.
+
+- [ ] Implementation: engine promotion path + scan-guard tests extended.
+- [ ] Live-server certification with the B2 diagnostics pass.
+- [ ] Evidence: focused tests + check.sh + diagnostics artifacts; commit
+  hash: ______
+
+### Stage B7 — Broad-work honesty (deltaReconcile / compatibilityAudit)
+
+Investigate the steady state that leaves broad work rows perpetually queued
+(deferred unless foreground + idle; only catalog-target runs claim work).
+Decide policy: allow `deltaReconcile` at background priority when discovery
+debt exists (pairs with B2), and either age out or document
+`compatibilityAudit`'s steady state. Output: short decision note in this
+plan, then implement or close with rationale.
+
+- [ ] Decision note: ______
+- [ ] Implementation or documented close; evidence: ______
+
+## 4. Workstream C — Device migration and repair (operator-run checklist)
+
+The audited device runs schema 78; dev is schema 80.
+
+- [ ] **C0** Install a current dev build (schema 80).
+- [ ] **C1** Run Repair Library once (clears the 659 dead albums via
+  `catalogAvailability`/`serverDeletedAt`; hydrates the backlog). Use
+  `./tool/repair_confirmation_diagnostics.sh` for a bounded gate.
+- [ ] **C2** Verify read-only against the device DB: dead-album count → 0,
+  hydration backlog trending to 0, Liked fully populated, auxiliary
+  timestamp advancing (post-B1 single store).
+- [ ] **C3** After A3 retagging, run Repair Library again (album IDs change).
+- [ ] **C4** Monitor cover recovery on the 200+error-document server
+  behavior and Most Played ordering after B4/B5.
+
+Blocker: C0/C1/C3 require the physical device; the operator performs these.
+C2 verification queries are provided in the runbook appendix.
+
+## 5. Validation and acceptance matrix
+
+| Stage | Focused tests | Full gate | Runtime loop | Live-server cert |
+|---|---|---|---|---|
+| B1 | engine + coordinator aux tests | check.sh | clean restart + sync run | n/a |
+| B4 | cover cache manager tests | check.sh | cover render + screenshot | missing-cover server behavior |
+| B5 | new DAO test | check.sh | home screen render | n/a |
+| B3 | DAO + provider + banner tests | check.sh | banner screenshot + clean restart | n/a |
+| B2 | engine probe tests | check.sh | diagnostics app API | clone suite + probe run |
+| B6 | scan-guard tests | check.sh | diagnostics app API | clone suite + promotion run |
+| B7 | per decision | check.sh | per decision | n/a |
+
+Runtime-affecting stages follow docs/development-workflow.md: acceptance
+scenario written before editing, authenticated health gate, bounded polling,
+inspected screenshots for visible changes, clean-restart repeat, completion
+evidence recorded per line 635. Never describe unexecuted validation as
+passing.
+
+## 6. Documentation, rollout, and remaining limits
+
+- `docs/architecture.md`: sync section updates for B1 (single auxiliary
+  store), B2 (debt ledger), B6 (settle-wait policy).
+- Changelog: both `changelog_data.dart` and `tool/generate_release_notes.dart`
+  for user-visible stages (B2, B3, B4, B5, B6).
+- `docs/server-library-hygiene.md` is the owning doc for workstream A;
+  `docs/README.md` maps it.
+- This plan moves to `docs/completed-plans/` only after all B stages are
+  implemented and validated and the C checklist is confirmed; A stages are
+  operator work tracked here with explicit blockers.
+
+## 7. Ordering and checkpoints
+
+1. Checkpoint 1 (docs): this plan + runbook + README map — commit before any
+   code.
+2. A1/A2 first for the operator (unblocks stable certification), but B1,
+   B4, B5 are safe against churn and go first in code.
+3. B3, then B2, then B6 (behavioral; certified on the live server).
+4. B7 last.
+5. One commit per stage; `./tool/check.sh` before each commit; stage only
+   the files the stage touched; no pushes without an explicit request.
