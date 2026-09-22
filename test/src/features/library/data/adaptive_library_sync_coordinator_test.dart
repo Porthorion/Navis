@@ -678,6 +678,63 @@ void main() {
   );
 
   test(
+    'escalated delta reconciliation is claimed by the next due automatic sync',
+    () async {
+      await repository.save(
+        ServerConfigModel(
+          url: 'https://music.example.test',
+          username: 'listener',
+          password: 'secret',
+          apiVersion: '1.16.1',
+          lastSynced: DateTime.utc(2026, 8, 1),
+        ),
+      );
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          currentGeneration: Value(1),
+        ),
+      );
+      // The discovery-debt escalation enqueues exactly this follow-up row.
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.deltaReconcile.name,
+        entityId: '',
+        priority: 50,
+        workClass: 'background',
+        releaseCooldown: true,
+      );
+      final probeEngine = _ProbeLibrarySyncEngine();
+      final coordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+
+      // Foreground, idle, unmetered: the due automatic catalog sync admits
+      // the broad reconciliation instead of leaving it queued forever.
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.automatic(),
+      );
+
+      expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(probeEngine.syncNowCalls, 1);
+      expect(
+        (await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.deltaReconcile.name,
+        ))?.status,
+        'completed',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'manual refresh preserves offline catalog discovery for eligible resume',
     () async {
       await database.librarySyncDao.writeState(

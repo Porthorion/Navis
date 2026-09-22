@@ -1,7 +1,9 @@
 # Sync audit remediation — discovery cadence, observability, cover recovery, and server churn
 
 Created: 2026-09-22
-Status: **in progress** (workstream A user-pending; workstream B implementation underway)
+Status: **in progress** — stages B1-B7 implemented and committed; consolidated
+runtime validation + live-server certification pending; workstream A and the
+device checklist (C) are operator-run and still open.
 Companion runbook: [docs/server-library-hygiene.md](docs/server-library-hygiene.md)
 Predecessor evidence: `Fix_Stale_Cache_Plan.md`, `Fix_Stale_Cache_Execution_Plan.md`
 (schema 80 baseline), `docs/sync-reliability-recovery-plan.md`.
@@ -158,10 +160,11 @@ change — it already reads store B.
 - [ ] Implementation: engine (`_readStoredAuxiliarySyncedAt`,
   `_markAuxiliarySynced`, `_shouldSyncAuxiliary`, capabilities key
   constant), coordinator due-ness path, tests updated.
-- [ ] Tests: engine auxiliary gating cases; coordinator auxiliary-drain
+- [x] Tests: engine auxiliary gating cases; coordinator auxiliary-drain
   case; no surviving reference to the retired key.
-- [ ] Evidence: `flutter test test/src/features/library/data/` focused run +
-  check.sh; commit hash: ______
+- [x] Evidence: check.sh green (1605 tests); commit `80653e5f` (2026-09-22).
+  The new monotonic DAO writer (`markAuxiliarySyncedAt`) keeps the unified
+  column regression-free against the coordinator's work-row derivation.
 
 ### Stage B4 — Cover-art recovery on 200 + error document
 
@@ -173,14 +176,16 @@ magic-byte sniff (JPEG `FF D8 FF`, PNG `89 50 4E 47`, WebP `RIFF....WEBP`,
 GIF variants) so a null/spoofed `image/*` content type with garbage bytes is
 rejected and evicted instead of cached.
 
-- [ ] Implementation in `cover_art_cache_manager.dart` (drain-then-classify
+- [x] Implementation in `cover_art_cache_manager.dart` (drain-then-classify
   rework; sniff before returning `_CoverArtHttpFileServiceResponse`).
-- [ ] Tests: loopback-server cases for (a) 200 + JSON error document →
+- [x] Tests: loopback-server cases for (a) 200 + JSON error document →
   recovery fires, (b) 200 + spoofed image content type + non-image bytes →
-  `CoverArtInvalidResponseException`, nothing cached; existing 404/410
-  cases stay green.
-- [ ] Evidence: `flutter test test/src/common_widgets/cover_art_cache_manager_test.dart`
-  + check.sh; commit hash: ______
+  rejected, nothing cached, (c) HTML stays `invalidPayload` without
+  recovery, (d) empty body rejected; existing 404/410 cases stay green.
+- [x] Evidence: `cover_art_cache_manager_test.dart` 24/24 + check.sh green
+  (1611 tests); commit `cfeb2bcf` (2026-09-22). JPEG detection uses the
+  2-byte SOI marker; `BytesBuilder` moved to a direct `dart:typed_data`
+  import after the gate flagged the deprecated indirect one.
 
 ### Stage B5 — Most Played tiebreaker
 
@@ -189,8 +194,12 @@ rejected and evicted instead of cached.
 `LEFT JOIN` on `MAX(play_history.playedAt)` per song, then `LOWER(title)`,
 then id. Add the first DAO-level test for this query.
 
-- [ ] Implementation + DAO test in `test/src/database/`.
-- [ ] Evidence: focused DAO test + check.sh; commit hash: ______
+- [x] Implementation + DAO tests in `test/src/database/` (tiebreaker by
+  recency-then-title, plus a history-less deterministic-order case; note
+  `upsertSongs` intentionally clears `serverDeletedAt`, so the deleted-row
+  filter is exercised via a direct row update).
+- [x] Evidence: `library_dao_test.dart` 23/23 + check.sh green; commit
+  `42c3e620` (2026-09-22).
 
 ### Stage B3 — Sync-status backlog observability
 
@@ -202,14 +211,19 @@ pill ("catalog synced - N albums awaiting metadata"); completion
 notification claims "complete" only when the backlog is 0. Sync Settings
 already renders `pendingWork`; wire the live stream to it.
 
-- [ ] Implementation: DAO streams, `library_sync_state.dart`,
-  `library_sync_provider.dart`, `library_support_widgets.dart`,
-  `sync_settings_screen.dart`, l10n ARBs.
-- [ ] Tests: DAO watch test; banner test via the fake-controller pattern;
-  provider state-machine test for the "complete only at 0" rule.
-- [ ] Runtime: `POST /v1/presentation/screenshot` of the banner + settings
-  screen; clean restart.
-- [ ] Evidence: focused tests + check.sh + screenshot paths; commit hash: ______
+- [x] Implementation: DAO streams (`watchPendingWork`,
+  `watchPendingHydrationAlbums`), live controller subscriptions (deferred
+  to the engine while a run is in flight), idle backlog pill on the
+  library screen (`library-sync-status-backlog`), l10n key
+  `librarySyncBacklogBanner`.
+- [x] Tests: DAO watch tests (bounded-wait settlement), banner widget
+  tests (pill present at backlog 3, absent at 0); 43/43 screen tests.
+- [x] Notable fix discovered by the new watch test: `enqueueWork` writes
+  through `customStatement`, which bypasses drift's stream notifications —
+  the DAO now reports the table explicitly after the enqueue transaction
+  commits.
+- [x] Evidence: check.sh green (1616 tests); commit `50af9c96` (2026-09-22).
+  Screenshot evidence: consolidated runtime pass (pending, see §5 note).
 
 ### Stage B2 — Adaptive discovery paging + discovery-debt ledger
 
@@ -224,15 +238,26 @@ shallow budget but record debt instead of silently dropping coverage.
 `libraryHealthCheckedAt` is stamped only on overlap or a clean cap below
 the budget.
 
-- [ ] Implementation: `_runNewestAlbumHealthProbe`, the
-  `healthProbeDue`/stamp path, coordinator `_enqueueProbeFollowUp`.
-- [ ] Tests: engine probe tests — overlap stop, debt on cap, resume-at-depth,
-  escalation enqueue, metered debt.
-- [ ] Live-server certification: `./tool/sync_diagnostics.sh clone` against
-  `navidrome.example.test` (disposable test account) + bounded probe run;
-  evidence under `build/sync-diagnostics/`.
-- [ ] Evidence: focused tests + check.sh + diagnostics artifacts; commit
-  hash: ______
+- [x] Implementation: `_runNewestAlbumHealthProbe` (adaptive window:
+  automatic 2 pages, widened to 5 while debt is outstanding; look-ahead
+  overlap stop shared with the bounded metered check), `healthProbeDue`
+  (debt keeps the probe on schedule), debt streak persisted in the
+  capabilities JSON (`libraryDiscoveryDebtStreak`), escalation signal
+  `probeDiscoveryDebtStreak` on the run state, coordinator
+  `_enqueueDeltaReconcile` at streak ≥ 2 (`discoveryDebtEscalationStreak`
+  in `sync_run_contract.dart`).
+- [x] Tests: engine probe tests — capped metered window records debt,
+  known-content overlap clears it, repeated caps reach the escalation
+  streak; suite 238/238.
+- [x] Design refinements recorded: (a) the window widens from offset 0, it
+  does not resume at the debt depth — new additions shift `newest` offsets,
+  so resume-at-depth could skip the very albums debt exists for; (b) debt is
+  recorded only where overlap evidence exists (full manual windows scan
+  everything by contract and never record debt; the bounded metered check
+  does evaluate the look-ahead); (c) a partial final page proves the feed
+  end and never counts as a cap.
+- [x] Evidence: check.sh green (1623 tests); commit `5e941404` (2026-09-22).
+  Live-server certification: pending (consolidated pass).
 
 ### Stage B6 — Scan-guard deferral cap + settle-wait
 
@@ -244,10 +269,24 @@ cap-release decision in the ledger and surface the deferral streak in sync
 status. Depends on A1 in spirit (fewer scans make settle-wait trivially
 fast) but must remain correct without it.
 
-- [ ] Implementation: engine promotion path + scan-guard tests extended.
-- [ ] Live-server certification with the B2 diagnostics pass.
-- [ ] Evidence: focused tests + check.sh + diagnostics artifacts; commit
-  hash: ______
+- [x] Implementation: deferral streak rides the capabilities JSON
+  (`libraryScanDeferralStreak`, incremented on every
+  `scanChangedDuringCollection` deferral; each deferral still records a
+  ledger entry carrying its streak). At 3 consecutive deferrals
+  (`_maxScanDeferralStreak`) the engine polls the server for a running scan
+  (`_waitForScanSettle`, bounded 12 x 5s, constructor-injectable for
+  tests); a quiet server releases the promotion (`scanChurnCapRelease`
+  ledger entry, streak cleared). Successful promotions also clear any
+  lingering streak.
+- [x] Tests: scan-guard suite 8/8 — streak accrues across churn (ledger
+  carries per-deferral streaks), settled server releases at the cap,
+  still-scanning server stays deferred at the cap with the settle polls
+  observed.
+- [x] Design note: the streak lives in the capabilities JSON rather than
+  being derived from ledger ordering — cheap atomic read/increment/clear;
+  the ledger preserves the full event trail for diagnostics.
+- [x] Evidence: check.sh green (1623 tests); commit `8e6f0ba8` (2026-09-22).
+  Live-server certification: pending (consolidated pass).
 
 ### Stage B7 — Broad-work honesty (deltaReconcile / compatibilityAudit)
 
@@ -258,8 +297,21 @@ debt exists (pairs with B2), and either age out or document
 `compatibilityAudit`'s steady state. Output: short decision note in this
 plan, then implement or close with rationale.
 
-- [ ] Decision note: ______
-- [ ] Implementation or documented close; evidence: ______
+- [x] Decision note (2026-09-22): the admission analysis showed broad work
+  is NOT dead — a due automatic catalog sync claims runnable work and
+  `_planFromWork` admits `deltaReconcile`/`compatibilityAudit` whenever the
+  app is foreground, idle (no playback), and background sync is allowed;
+  the audited device's perpetually-queued rows were that build's steady
+  state between admissions, hidden by the old status UI. With B3 surfacing
+  the live count and B2's escalation enqueueing `deltaReconcile` at
+  priority 50, the loop now closes without widening the gating: widening
+  admission to play-back-active or background sessions would reintroduce
+  the contention the guard exists to prevent. A regression test pins the
+  contract: an escalated `deltaReconcile` row is claimed by the next due
+  automatic sync and marked completed (coordinator suite).
+- [x] Implementation: test only (admission contract pinned); the policy
+  itself is the existing guard, now observable. Evidence: coordinator
+  suite green; commit with this plan update.
 
 ## 4. Workstream C — Device migration and repair (operator-run checklist)
 

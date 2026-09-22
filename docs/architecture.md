@@ -1203,6 +1203,12 @@ states without starting audio or modifying a queue.
     respects offline and metered-network limits. Durable per-target completion
     and backoff control freshness independently; a failed auxiliary target
     neither repeats a committed catalog nor suppresses the other target. The
+    auxiliary freshness clock is the single
+    `library_sync_state.lastAuxiliarySyncedAt` column: the typed coordinator
+    advances it from completed starred/playlist-header work rows, the legacy
+    combined-run path advances it through a monotonic
+    `markAuxiliarySyncedAt` writer, and the retired per-server
+    capabilities-JSON timestamp is no longer read or written. The
     catalog circuit breaker does not suppress these independent endpoints.
     Genre metadata is not a synchronized domain because Navis has no consumer
     for it. A legacy queued genre target is marked complete during recovery;
@@ -1219,7 +1225,13 @@ states without starting audio or modifying a queue.
     snapshot counts as a favorite even when its optional timestamp is absent.
     Eligible automatic catalog checks inspect at most two newest-album pages
     each configured due interval, even with an unchanged artist cursor; manual
-    checks inspect at most five. Automatic discovery defers during playback or
+    checks inspect at most five. A recorded discovery-debt streak
+    (`libraryDiscoveryDebtStreak`, persisted per server when a check hits its
+    page cap without ever reaching known, unchanged content) keeps the probe
+    on schedule and widens the automatic window to five pages until known
+    content is reached; a streak past the escalation threshold
+    (`discoveryDebtEscalationStreak`) hands deep discovery to a queued delta
+    reconciliation. Automatic discovery defers during playback or
     hidden foreground execution, and metered automation remains a hard probe.
     Reliable providers also run a weekly rotating audit;
     incompatible providers use one bounded daily partition, never a periodic
@@ -1249,7 +1261,12 @@ contract.
   that flows through the existing probe → snapshot path, and collection
   re-observes the token before promotion: if a scan landed mid-collection, the
   candidate's completeness evidence is withheld, the ledger records
-  `scanChangedDuringCollection`, and the resumable planner recollects. Servers
+  `scanChangedDuringCollection` (with a per-server deferral streak in
+  `libraryScanDeferralStreak`), and the resumable planner recollects. After
+  three consecutive deferrals the engine waits a bounded window for a running
+  scan to finish and releases the promotion once the server is quiet
+  (`scanChurnCapRelease` ledger entry) so a continuously rescanning server
+  cannot defer full-sync promotion forever. Servers
   without the endpoint are recorded once as unsupported and stay on the
   existing discovery/audit mechanisms.
 - **Catalog availability.** Songs, albums, and artists carry a typed
