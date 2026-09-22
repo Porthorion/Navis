@@ -1159,5 +1159,86 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test(
+      'watchMostPlayedSongs breaks play-count ties by recency then title',
+      () async {
+        Future<void> insertSong(String id, String title, int? playCount) async {
+          await database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(
+              id: id,
+              title: title,
+              playCount: Value(playCount),
+            ),
+          ]);
+        }
+
+        await insertSong('tie-old', 'Alpha', 2);
+        await insertSong('tie-new', 'Beta', 2);
+        await insertSong('single', 'Alpha', 1);
+        await insertSong('never-played', 'Delta', null);
+        // upsertSongs intentionally clears deletion evidence on writes, so
+        // mark the row deleted directly to exercise the query filter.
+        await (database.update(
+          database.songsTable,
+        )..where((table) => table.id.equals('deleted'))).write(
+          SongsTableCompanion(serverDeletedAt: Value(DateTime.now())),
+        );
+
+        await database
+            .into(database.playHistoryTable)
+            .insert(
+              PlayHistoryTableCompanion.insert(
+                songId: 'tie-old',
+                playedAt: DateTime.utc(2026, 1, 1),
+              ),
+            );
+        await database
+            .into(database.playHistoryTable)
+            .insert(
+              PlayHistoryTableCompanion.insert(
+                songId: 'tie-new',
+                playedAt: DateTime.utc(2026, 2, 1),
+              ),
+            );
+
+        final songs = await database.libraryDao
+            .watchMostPlayedSongs()
+            .map((rows) => rows.map((row) => row.id).toList())
+            .first;
+
+        // The newer play wins the tie; the unplayed lower count follows;
+        // deleted and unplayed-zero rows never appear.
+        expect(songs, <String>['tie-new', 'tie-old', 'single']);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'watchMostPlayedSongs deterministic order survives a history-less tie',
+      () async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'b-title',
+            title: 'Beta',
+            playCount: const Value(3),
+          ),
+          SongsTableCompanion.insert(
+            id: 'a-title',
+            title: 'Alpha',
+            playCount: const Value(3),
+          ),
+        ]);
+
+        final songs = await database.libraryDao
+            .watchMostPlayedSongs()
+            .map((rows) => rows.map((row) => row.id).toList())
+            .first;
+
+        // Without history, the alphabetical title tiebreaker decides.
+        expect(songs, <String>['a-title', 'b-title']);
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }

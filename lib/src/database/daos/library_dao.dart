@@ -1726,19 +1726,37 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// Watch songs ordered by play count descending.
+  ///
+  /// Ties break by most recent local play, then title, then identity, so
+  /// equal counts keep a stable order across refreshes instead of leaving
+  /// the section to SQLite's scan order.
   Stream<List<SongsTableData>> watchMostPlayedSongs({int? limit = 5}) {
-    final query = select(songsTable)
-      ..where(
-        (t) =>
-            t.playCount.isBiggerThanValue(0) &
-            t.serverDeletedAt.isNull() &
-            t.isProvisional.equals(false),
-      )
-      ..orderBy([(t) => OrderingTerm.desc(t.playCount)]);
-    if (limit != null) {
-      query.limit(limit);
-    }
-    return query.watch();
+    return customSelect(
+      '''
+      SELECT s.*
+      FROM songs s
+      LEFT JOIN (
+        SELECT song_id, MAX(played_at) AS last_played_at
+        FROM play_history
+        GROUP BY song_id
+      ) ph ON ph.song_id = s.id
+      WHERE s.play_count > 0
+        AND s.server_deleted_at IS NULL
+        AND s.is_provisional = 0
+      ORDER BY
+        s.play_count DESC,
+        ph.last_played_at IS NULL ASC,
+        ph.last_played_at DESC,
+        LOWER(COALESCE(s.title, '')) ASC,
+        s.id ASC
+      ${limit == null ? '' : 'LIMIT ?'}
+      ''',
+      variables: [if (limit != null) Variable.withInt(limit)],
+      readsFrom: {songsTable, playHistoryTable},
+    ).watch().map(
+      (rows) =>
+          rows.map((row) => songsTable.map(row.data)).toList(growable: false),
+    );
   }
 
   Future<List<ArtistsTableData>> getAllArtists() {

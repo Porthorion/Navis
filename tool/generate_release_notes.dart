@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Most Played Tracks now orders plays with the same count deterministically by how recently a song was played, so the section stops shuffling between refreshes',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'Servers that report missing artwork with an HTTP 200 error page now trigger the same targeted refresh as a 404, and error documents are never saved as artwork even with a misleading content type',
         type: _EntryType.fix,
       ),
