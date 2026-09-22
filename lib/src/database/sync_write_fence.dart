@@ -13,11 +13,21 @@ class SyncWriteFence {
     required this.serverId,
     required this.ownerToken,
     required this.now,
+    this.renewalTtl,
   });
 
   final int serverId;
   final String ownerToken;
   final DateTime Function() now;
+
+  /// When set, the first write of a transaction renews the lease to
+  /// `now + renewalTtl` under the write lock it already holds. A transaction
+  /// longer than the lease TTL otherwise expires its own lease and fails at
+  /// commit even though the owner never lost it: heartbeats cannot run inside
+  /// the open transaction, and takeover cannot happen either because the
+  /// writer lock is held for the whole transaction.
+  final Duration? renewalTtl;
+
   static final _zoneKey = Object();
   static SyncWriteFence? get current =>
       Zone.current[_zoneKey] as SyncWriteFence?;
@@ -28,19 +38,37 @@ class SyncWriteFence {
   Future<void> lockAndCheck(QueryExecutor executor) async {
     // The no-op update acquires SQLite's writer lock before validating the
     // token. Another connection cannot replace the owner until this commit.
+    // A renewal TTL extends the lease under the same lock so a long
+    // transaction cannot expire out from under its live owner.
+    final renewTo = renewalTtl == null
+        ? null
+        : now().add(renewalTtl!).millisecondsSinceEpoch ~/ 1000;
     final matched = await executor.runUpdate(
-      'UPDATE library_sync_execution_lease SET owner_token = owner_token '
+      'UPDATE library_sync_execution_lease '
+      'SET owner_token = owner_token, '
+      '    expires_at = CASE WHEN ? IS NULL THEN expires_at ELSE ? END '
       'WHERE server_id = ? AND owner_token = ? AND expires_at > ?',
-      [serverId, ownerToken, now().millisecondsSinceEpoch ~/ 1000],
+      [
+        renewTo,
+        renewTo,
+        serverId,
+        ownerToken,
+        now().millisecondsSinceEpoch ~/ 1000,
+      ],
     );
     if (matched != 1) throw const SyncLeaseLostException();
   }
 
   Future<void> checkBeforeCommit(QueryExecutor executor) async {
+    // Ownership, not expiry: a takeover cannot have happened while this
+    // transaction held the writer lock, so the owner token matching is the
+    // exact liveness condition at commit. Requiring unexpired leases here
+    // would fail transactions that outlive the TTL despite uninterrupted
+    // ownership.
     final rows = await executor.runSelect(
       'SELECT 1 FROM library_sync_execution_lease '
-      'WHERE server_id = ? AND owner_token = ? AND expires_at > ?',
-      [serverId, ownerToken, now().millisecondsSinceEpoch ~/ 1000],
+      'WHERE server_id = ? AND owner_token = ?',
+      [serverId, ownerToken],
     );
     if (rows.isEmpty) throw const SyncLeaseLostException();
   }

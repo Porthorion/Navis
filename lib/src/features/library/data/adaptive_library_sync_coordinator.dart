@@ -370,6 +370,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           serverId: serverId,
           ownerToken: recoveryToken,
           now: _now,
+          renewalTtl: _executionLeaseTtl,
         ).run(() async {
           if (!_recoveredServers.contains(serverId)) {
             await _database.librarySyncDao.migrateLegacySyncWork(serverId);
@@ -860,6 +861,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         serverId: serverId,
         ownerToken: ownerToken,
         now: _now,
+        renewalTtl: _executionLeaseTtl,
       ).run(() async {
         final durableAttempt = await _database.librarySyncDao
             .beginSyncRunAttempt(

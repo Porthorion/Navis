@@ -105,30 +105,59 @@ void main() {
     },
   );
 
-  test('expiry before outer commit rolls back nested writes', () async {
-    await expectLater(
-      fence.run(
-        () => database.transaction(() async {
-          await database.libraryDao.upsertSongs([
-            SongsTableCompanion.insert(id: 's', title: 'Song'),
-          ]);
-          await database.librarySyncDao.writeState(
-            const LibrarySyncStateTableCompanion(
-              serverId: Value(1),
-              currentGeneration: Value(2),
-            ),
-          );
-          now = now.add(const Duration(minutes: 2));
-        }),
-      ),
-      throwsA(isA<SyncLeaseLostException>()),
-    );
-    expect(await database.libraryDao.getSongById('s'), isNull);
-    expect(
-      (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
-      0,
-    );
-  });
+  test(
+    'a transaction that outlives the lease TTL still commits for its live owner',
+    () async {
+      // The owner validated its lease when the transaction acquired the
+      // writer lock; no takeover can happen while that lock is held, so
+      // expiry alone must not roll the transaction back at commit.
+      await expectLater(
+        fence.run(
+          () => database.transaction(() async {
+            await database.libraryDao.upsertSongs([
+              SongsTableCompanion.insert(id: 's', title: 'Song'),
+            ]);
+            await database.librarySyncDao.writeState(
+              const LibrarySyncStateTableCompanion(
+                serverId: Value(1),
+                currentGeneration: Value(2),
+              ),
+            );
+            now = now.add(const Duration(minutes: 2));
+          }),
+        ),
+        completes,
+      );
+      expect((await database.libraryDao.getSongById('s'))?.title, 'Song');
+      expect(
+        (await database.librarySyncDao.getOrCreateState(1)).currentGeneration,
+        2,
+      );
+    },
+  );
+
+  test(
+    'a renewal TTL extends the lease under the transaction write lock',
+    () async {
+      final renewingFence = SyncWriteFence(
+        serverId: 1,
+        ownerToken: 'first-owner',
+        now: () => now,
+        renewalTtl: const Duration(minutes: 10),
+      );
+      await renewingFence.run(
+        () => database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 's', title: 'Song'),
+        ]),
+      );
+      final lease = await database.librarySyncDao.getExecutionLease(1);
+      // now (advanced 2 minutes) + 10 minutes must hold after the renewal.
+      expect(
+        lease!.expiresAt.isAfter(now.add(const Duration(minutes: 9))),
+        isTrue,
+      );
+    },
+  );
 
   test(
     'unrelated user edits remain available outside the sync scope',
