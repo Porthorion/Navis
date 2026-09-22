@@ -879,7 +879,11 @@ NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
 The profile-only launcher stores its authenticated loopback handshake, logs,
 JSON report, and database checks under `build/sync-diagnostics/`. It rewrites
 cached-file paths in the clone so cancellation, restart, and deletion tests
-cannot unlink primary cache files. Clone mode can simulate metered/cellular
+cannot unlink primary cache files. Clone mode first drains startup work under
+the host's real network policy before applying scenario overrides, so a
+schema-migrating or mid-repair primary clone cannot leak its startup model
+repair into the metered guardrail scenarios. Clone mode can simulate
+metered/cellular
 policy through diagnostics overrides and asserts hard-probe, interactive
 hydration, budget, and one-time override guardrails without requiring a real
 modem. The clone suite also certifies the foreground cellular Check for updates
