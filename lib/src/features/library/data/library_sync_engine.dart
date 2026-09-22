@@ -508,6 +508,13 @@ const _librarySyncFailureRecordedAtCapabilityKey =
 const _defaultAuxiliarySyncStaleAfter = Duration(hours: 12);
 const _defaultHealthProbeStaleAfter = Duration(hours: 12);
 const _libraryDiscoveryDebtStreakCapabilityKey = 'libraryDiscoveryDebtStreak';
+const _libraryScanDeferralStreakCapabilityKey = 'libraryScanDeferralStreak';
+
+/// Consecutive scan-churn deferrals after which a settled server releases
+/// the withheld promotion. Without a cap, a server that rescans constantly
+/// (for example on a ~30-minute churn cycle) can defer full-sync promotion
+/// indefinitely.
+const _maxScanDeferralStreak = 3;
 
 /// Newest-feed pages scanned by an automatic check when a previous check hit
 /// its window cap without reaching known content (discovery debt): the window
@@ -791,6 +798,8 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     int? Function()? readMeteredResponseBudgetBytes,
     this.staleAfter = const Duration(hours: 1),
     this.auxiliarySyncStaleAfter = _defaultAuxiliarySyncStaleAfter,
+    this.scanSettlePollInterval = const Duration(seconds: 5),
+    this.scanSettleMaxPolls = 12,
     this.fastPathPageSize = 500,
     this.fastPathMaxPages = 200,
     this.bulkSearchPageSize = 1000,
@@ -826,6 +835,14 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   final NetworkType networkType;
   final Duration staleAfter;
   final Duration auxiliarySyncStaleAfter;
+
+  /// Poll cadence while waiting for a running server scan to finish before
+  /// releasing a capped scan-churn deferral. Constructor-injectable so tests
+  /// can bound the wait.
+  final Duration scanSettlePollInterval;
+
+  /// Upper bound on settle polls before a capped deferral stays deferred.
+  final int scanSettleMaxPolls;
   final int fastPathPageSize;
   final int fastPathMaxPages;
   final int bulkSearchPageSize;
@@ -3687,6 +3704,32 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         observation.reconciledToken != token;
   }
 
+  /// Waits a bounded number of polls for any running server scan to finish.
+  /// Returns true once the server is observed quiet (or scan status is
+  /// unsupported, which never blocks), false when the wait budget ran out or
+  /// transport failed — the caller then defers safely.
+  Future<bool> _waitForScanSettle(_SyncRunMetrics metrics) async {
+    for (var attempt = 0; attempt < scanSettleMaxPolls; attempt++) {
+      try {
+        final status = await _api.getScanStatusOrNull();
+        metrics.recordApiAttempt(
+          elapsed: Duration.zero,
+          isRetryAttempt: false,
+          endpoint: 'getScanStatus',
+        );
+        if (status == null || !status.scanning) {
+          return true;
+        }
+      } on Object {
+        return false;
+      }
+      if (attempt + 1 < scanSettleMaxPolls) {
+        await Future<void>.delayed(scanSettlePollInterval);
+      }
+    }
+    return false;
+  }
+
   /// Observes the server scan state once and records it.
   ///
   /// Returns the completed-scan token (null while a scan is running or when
@@ -3774,27 +3817,71 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     if (_scanInvalidatedCollection(scanTokenAtCollection, scanAtPromotion)) {
       // The server scanned while this candidate was collected. Promoting it
       // would commit incomplete evidence; keep the committed catalog visible
-      // and let the resumable planner recollect missing work.
-      await _database.librarySyncDao.writeState(
-        LibrarySyncStateTableCompanion(
-          serverId: Value(serverId),
-          candidateStatus: const Value('collecting'),
-        ),
+      // and let the resumable planner recollect missing work. On a server
+      // that rescans continuously this could defer forever, so after a
+      // bounded streak the promotion is released once the server settles.
+      final serverConfig = await _serverConfigRepository.getActiveServer();
+      final deferralStreak =
+          _readNavisIntCapability(
+            serverConfig?.capabilitiesJson,
+            _libraryScanDeferralStreakCapabilityKey,
+          ) +
+          1;
+      final capReached = deferralStreak >= _maxScanDeferralStreak;
+      var capReleased = false;
+      if (capReached) {
+        capReleased = await _waitForScanSettle(metrics);
+      }
+      if (!capReleased) {
+        await _updateVerificationCapabilities(
+          <String, Object?>{
+            _libraryScanDeferralStreakCapabilityKey: deferralStreak,
+          },
+          metrics,
+        );
+        await _database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: Value(serverId),
+            candidateStatus: const Value('collecting'),
+          ),
+        );
+        await _database.librarySyncDao.recordOperationLedgerEntry(
+          serverId: serverId,
+          operation: 'catalogPromotion',
+          reason: 'scanChangedDuringCollection',
+          details: <String, Object?>{
+            'generation': generation,
+            'tokenAtCollection': scanTokenAtCollection.$1,
+            'tokenAtPromotion': scanAtPromotion.$1,
+            'deferralStreak': deferralStreak,
+          },
+        );
+        AppLogger.warning(
+          'Deferred catalog promotion: server scan changed during collection '
+          '(streak $deferralStreak).',
+        );
+        return false;
+      }
+      await _updateVerificationCapabilities(
+        <String, Object?>{_libraryScanDeferralStreakCapabilityKey: null},
+        metrics,
       );
       await _database.librarySyncDao.recordOperationLedgerEntry(
         serverId: serverId,
         operation: 'catalogPromotion',
-        reason: 'scanChangedDuringCollection',
+        reason: 'scanChurnCapRelease',
         details: <String, Object?>{
           'generation': generation,
           'tokenAtCollection': scanTokenAtCollection.$1,
           'tokenAtPromotion': scanAtPromotion.$1,
+          'deferralStreak': deferralStreak,
         },
       );
       AppLogger.warning(
-        'Deferred catalog promotion: server scan changed during collection.',
+        'Released deferred catalog promotion after $deferralStreak '
+        'consecutive scan-churn deferrals: server settled. The freshest '
+        'completed snapshot wins.',
       );
-      return false;
     }
     final provisionalSongs = await _database.songIdentityDao
         .getProvisionalSongs();
@@ -4230,6 +4317,18 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       await _database.librarySyncDao.markScanReconciled(
         serverId: serverId,
         token: scanAtPromotion.$1!,
+      );
+    }
+    // A promotion supersedes any recorded scan-churn deferral streak.
+    final promotedServer = await _serverConfigRepository.getActiveServer();
+    if (_readNavisIntCapability(
+          promotedServer?.capabilitiesJson,
+          _libraryScanDeferralStreakCapabilityKey,
+        ) >
+        0) {
+      await _updateVerificationCapabilities(
+        <String, Object?>{_libraryScanDeferralStreakCapabilityKey: null},
+        metrics,
       );
     }
     return true;

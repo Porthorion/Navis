@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Repair Library and full syncs now complete on servers that rescan constantly instead of deferring forever, releasing the promotion once the server goes quiet and recording the decision',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Automatic checks now widen their discovery window when the library is far behind the server and hand a persistent backlog to a full reconciliation, so new albums can no longer be silently missed for weeks',
         type: ChangelogEntryType.improvement,
       ),

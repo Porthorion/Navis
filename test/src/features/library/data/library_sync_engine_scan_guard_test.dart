@@ -86,6 +86,8 @@ void main() {
         otherAlbumConcurrency: 1,
         writeChunkSize: 4,
         isolateThreshold: 1000,
+        scanSettlePollInterval: const Duration(milliseconds: 1),
+        scanSettleMaxPolls: 2,
       );
     });
 
@@ -127,6 +129,13 @@ void main() {
             jsonDecode(deferred.single.detailsJson) as Map<String, Object?>;
         expect(details['tokenAtCollection'], isNull);
         expect(details['tokenAtPromotion'], promotionScanAt.toIso8601String());
+
+        expect(
+          jsonDecode(
+            (await serverConfigRepository.getActiveServer())!.capabilitiesJson!,
+          )['navis']['libraryScanDeferralStreak'],
+          '1',
+        );
       },
       skip: !sqliteAvailable,
     );
@@ -178,6 +187,166 @@ void main() {
         );
         expect(observation!.reconciledToken, secondScanAt.toIso8601String());
         expect(observation.pendingReconciliation, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'repeated scan churn accrues a deferral streak in the ledger',
+      () async {
+        var scanCalls = 0;
+        var scanTimes = <DateTime>[
+          DateTime.utc(2026, 9, 2, 8),
+          DateTime.utc(2026, 9, 2, 9),
+        ];
+        api.onGetScanStatus = () async {
+          final token = scanTimes.length > scanCalls
+              ? scanTimes[scanCalls]
+              : scanTimes.last;
+          scanCalls++;
+          return ScanStatus(scanning: false, count: 10, lastScan: token);
+        };
+        seedTwoAlbumCatalog();
+        final serverId = await saveSession();
+
+        await engine.forceFullSync();
+        scanCalls = 0;
+        scanTimes = <DateTime>[
+          DateTime.utc(2026, 9, 2, 10),
+          DateTime.utc(2026, 9, 2, 11),
+        ];
+        await engine.forceFullSync();
+
+        final ledger = await database.librarySyncDao
+            .getRecentOperationLedgerEntries(serverId);
+        final deferred = ledger
+            .where((entry) => entry.reason == 'scanChangedDuringCollection')
+            .toList();
+        expect(deferred, hasLength(2));
+        // Recent-first ordering: the newest deferral carries the higher streak.
+        expect(
+          jsonDecode(deferred.first.detailsJson)['deferralStreak'],
+          2,
+        );
+        expect(
+          jsonDecode(deferred.last.detailsJson)['deferralStreak'],
+          1,
+        );
+        expect(
+          jsonDecode(
+            (await serverConfigRepository.getActiveServer())!.capabilitiesJson!,
+          )['navis']['libraryScanDeferralStreak'],
+          '2',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a settled server releases promotion at the deferral cap',
+      () async {
+        var scanCalls = 0;
+        var scanTimes = <DateTime>[
+          DateTime.utc(2026, 9, 2, 8),
+          DateTime.utc(2026, 9, 2, 9),
+        ];
+        api.onGetScanStatus = () async {
+          if (scanCalls >= 2) {
+            // Settle-wait polls observe a quiet server.
+            return ScanStatus(
+              scanning: false,
+              count: 10,
+              lastScan: DateTime.utc(2026, 9, 2, 9),
+            );
+          }
+          final token = scanTimes.length > scanCalls
+              ? scanTimes[scanCalls]
+              : scanTimes.last;
+          scanCalls++;
+          return ScanStatus(scanning: false, count: 10, lastScan: token);
+        };
+        seedTwoAlbumCatalog();
+        final serverId = await saveSession(
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{'libraryScanDeferralStreak': '2'},
+          }),
+        );
+
+        // Third consecutive churn: the cap is reached, the settle poll finds
+        // a quiet server, and the freshest completed snapshot is promoted.
+        final state = await engine.forceFullSync();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(await database.select(database.albumsTable).get(), hasLength(2));
+        final ledger = await database.librarySyncDao
+            .getRecentOperationLedgerEntries(serverId);
+        final released = ledger
+            .where((entry) => entry.reason == 'scanChurnCapRelease')
+            .toList();
+        expect(released, hasLength(1));
+        expect(
+          jsonDecode(released.single.detailsJson)['deferralStreak'],
+          3,
+        );
+        final capabilities =
+            jsonDecode(
+                  (await serverConfigRepository.getActiveServer())!
+                      .capabilitiesJson!,
+                )['navis']
+                as Map;
+        expect(capabilities.containsKey('libraryScanDeferralStreak'), isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a server that keeps scanning through the settle window stays deferred',
+      () async {
+        var scanCalls = 0;
+        api.onGetScanStatus = () async {
+          scanCalls++;
+          if (scanCalls == 1) {
+            return ScanStatus(
+              scanning: false,
+              count: 10,
+              lastScan: DateTime.utc(2026, 9, 2, 8),
+            );
+          }
+          // Promotion observation and every settle poll see an active scan.
+          return const ScanStatus(scanning: true, count: 10);
+        };
+        seedTwoAlbumCatalog();
+        final serverId = await saveSession(
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{'libraryScanDeferralStreak': '2'},
+          }),
+        );
+
+        final state = await engine.forceFullSync();
+
+        expect(state.freshness, LibrarySyncFreshness.repairRecommended);
+        expect(await database.select(database.albumsTable).get(), isEmpty);
+        final ledger = await database.librarySyncDao
+            .getRecentOperationLedgerEntries(serverId);
+        final deferred = ledger
+            .where((entry) => entry.reason == 'scanChangedDuringCollection')
+            .toList();
+        expect(deferred, hasLength(1));
+        expect(
+          jsonDecode(deferred.single.detailsJson)['deferralStreak'],
+          3,
+        );
+        expect(
+          jsonDecode(
+            (await serverConfigRepository.getActiveServer())!.capabilitiesJson!,
+          )['navis']['libraryScanDeferralStreak'],
+          '3',
+        );
+        // Collection + promotion observations plus the two settle polls.
+        expect(
+          api.calls.where((call) => call == 'getScanStatus').length,
+          greaterThanOrEqualTo(4),
+        );
       },
       skip: !sqliteAvailable,
     );
