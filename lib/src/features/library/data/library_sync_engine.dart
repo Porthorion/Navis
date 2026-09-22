@@ -505,7 +505,6 @@ const _librarySyncFailureDiagnosticsCapabilityKey =
     'librarySyncFailureDiagnostics';
 const _librarySyncFailureRecordedAtCapabilityKey =
     'librarySyncFailureRecordedAt';
-const _auxiliarySyncLastSyncedAtCapabilityKey = 'auxiliarySyncLastSyncedAt';
 const _defaultAuxiliarySyncStaleAfter = Duration(hours: 12);
 const _defaultHealthProbeStaleAfter = Duration(hours: 12);
 const _indexesCapabilityRetryAfter = Duration(days: 1);
@@ -522,17 +521,6 @@ String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
     capabilitiesJson,
     _bulkSongSearchQueryCapabilityKey,
   );
-}
-
-DateTime? _readStoredAuxiliarySyncedAt(String? capabilitiesJson) {
-  final raw = _readNavisStringCapability(
-    capabilitiesJson,
-    _auxiliarySyncLastSyncedAtCapabilityKey,
-  );
-  if (raw == null || raw.isEmpty) {
-    return null;
-  }
-  return DateTime.tryParse(raw);
 }
 
 LibrarySyncFreshness _readStoredLibraryFreshness(String? capabilitiesJson) {
@@ -599,17 +587,6 @@ String? _mergeStoredIndexesFingerprint(
     capabilitiesJson,
     _libraryIndexesFingerprintCapabilityKey,
     fingerprint,
-  );
-}
-
-String? _mergeStoredAuxiliarySyncedAt(
-  String? capabilitiesJson,
-  DateTime? syncedAt,
-) {
-  return _mergeNavisStringCapability(
-    capabilitiesJson,
-    _auxiliarySyncLastSyncedAtCapabilityKey,
-    syncedAt?.toUtc().toIso8601String(),
   );
 }
 
@@ -2118,7 +2095,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
     try {
       _ensureBackgroundWorkAllowed();
-      final auxiliaryDue = _shouldSyncAuxiliary(serverConfig.capabilitiesJson);
+      final auxiliaryDue = await _shouldSyncAuxiliary(serverConfig.id);
       // Typed catalog operations never absorb starred, playlist-header, or
       // genre refreshes. Those are their own auxiliary targets. Legacy entry
       // points retain the previous combined behavior for one release.
@@ -2193,7 +2170,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         await _reconcileStarredContent(metrics);
         if (metrics.starredSynchronized &&
             metrics.playlistHeadersSynchronized) {
-          await _markAuxiliarySynced(DateTime.now(), metrics);
+          await _markAuxiliarySynced(
+            DateTime.now(),
+            metrics,
+            serverId: serverConfig.id,
+          );
         }
       } else {
         metrics.skippedReason = metrics.skippedReason ?? 'auxiliaryFresh';
@@ -2725,8 +2706,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     return LibrarySyncMode.incremental;
   }
 
-  bool _shouldSyncAuxiliary(String? capabilitiesJson) {
-    final lastAuxiliarySync = _readStoredAuxiliarySyncedAt(capabilitiesJson);
+  Future<bool> _shouldSyncAuxiliary(int? serverId) async {
+    if (serverId == null) {
+      return true;
+    }
+    final state = await _database.librarySyncDao.getOrCreateState(serverId);
+    final lastAuxiliarySync = state.lastAuxiliarySyncedAt;
     if (lastAuxiliarySync == null) {
       return true;
     }
@@ -2753,18 +2738,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
   Future<void> _markAuxiliarySynced(
     DateTime syncedAt,
-    _SyncRunMetrics metrics,
-  ) async {
-    final serverConfig = await _serverConfigRepository.getActiveServer();
-    final currentCapabilitiesJson = serverConfig?.capabilitiesJson;
-    final nextCapabilitiesJson = _mergeStoredAuxiliarySyncedAt(
-      currentCapabilitiesJson,
-      syncedAt,
-    );
-    if (nextCapabilitiesJson == currentCapabilitiesJson) {
+    _SyncRunMetrics metrics, {
+    required int? serverId,
+  }) async {
+    if (serverId == null) {
       return;
     }
-    await _serverConfigRepository.updateCapabilitiesJson(nextCapabilitiesJson);
+    await _database.librarySyncDao.markAuxiliarySyncedAt(
+      serverId: serverId,
+      syncedAt: syncedAt,
+    );
     metrics.addDbWriteBatch();
   }
 

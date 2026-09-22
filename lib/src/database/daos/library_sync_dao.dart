@@ -1208,6 +1208,26 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     return into(librarySyncStateTable).insertOnConflictUpdate(state);
   }
 
+  /// Advances the auxiliary-freshness timestamp without regressing it. The
+  /// typed coordinator writes this column from completed starred and
+  /// playlist-header work rows; a legacy combined run may finish auxiliary
+  /// work out of band, so the later observation must win.
+  Future<void> markAuxiliarySyncedAt({
+    required int serverId,
+    required DateTime syncedAt,
+  }) async {
+    final persisted = await getOrCreateState(serverId);
+    final stored = persisted.lastAuxiliarySyncedAt;
+    if (stored != null && !syncedAt.isAfter(stored)) {
+      return;
+    }
+    await (update(
+      librarySyncStateTable,
+    )..where((table) => table.serverId.equals(serverId))).write(
+      LibrarySyncStateTableCompanion(lastAuxiliarySyncedAt: Value(syncedAt)),
+    );
+  }
+
   Future<void> setNextAutomaticCheckAt({
     required int serverId,
     required DateTime? nextAutomaticCheckAt,

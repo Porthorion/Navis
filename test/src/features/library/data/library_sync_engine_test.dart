@@ -2038,11 +2038,12 @@ void main() {
               'libraryHealthCheckedAt': DateTime.now()
                   .toUtc()
                   .toIso8601String(),
-              'auxiliarySyncLastSyncedAt': DateTime.now()
-                  .toUtc()
-                  .toIso8601String(),
             },
           }),
+        );
+        await database.librarySyncDao.markAuxiliarySyncedAt(
+          serverId: 1,
+          syncedAt: DateTime.now(),
         );
         final artists = List<Artist>.generate(
           30,
@@ -4197,13 +4198,10 @@ void main() {
       await saveSession(
         lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
         lastFullSyncedAt: DateTime.now(),
-        capabilitiesJson: jsonEncode(<String, Object?>{
-          'navis': <String, Object?>{
-            'auxiliarySyncLastSyncedAt': DateTime.now()
-                .toUtc()
-                .toIso8601String(),
-          },
-        }),
+      );
+      await database.librarySyncDao.markAuxiliarySyncedAt(
+        serverId: 1,
+        syncedAt: DateTime.now(),
       );
 
       final state = await engine.syncIfStale();
@@ -4222,13 +4220,10 @@ void main() {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
           lastFullSyncedAt: DateTime.now(),
-          capabilitiesJson: jsonEncode(<String, Object?>{
-            'navis': <String, Object?>{
-              'auxiliarySyncLastSyncedAt': DateTime.now()
-                  .toUtc()
-                  .toIso8601String(),
-            },
-          }),
+        );
+        await database.librarySyncDao.markAuxiliarySyncedAt(
+          serverId: 1,
+          syncedAt: DateTime.now().subtract(const Duration(hours: 1)),
         );
         api.indexes = Indexes(lastModified: DateTime.utc(2026, 8, 9));
         api.starredContent = const StarredContent();
@@ -4245,6 +4240,14 @@ void main() {
         expect(state.starredSynchronized, isTrue);
         expect(state.playlistHeadersSynchronized, isTrue);
         expect(state.genresSynchronized, isFalse);
+        final persisted = await database.librarySyncDao.getOrCreateState(1);
+        expect(persisted.lastAuxiliarySyncedAt, isNotNull);
+        expect(
+          persisted.lastAuxiliarySyncedAt!.isAfter(
+            DateTime.now().subtract(const Duration(seconds: 10)),
+          ),
+          isTrue,
+        );
       },
       skip: !sqliteAvailable,
     );

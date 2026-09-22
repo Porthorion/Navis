@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Liked content and playlists now share one freshness clock with the rest of sync, so a completed sync can no longer leave favorites stale behind a hidden timestamp',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Albums and artists whose server IDs change after a rescan now relink automatically from stable MusicBrainz identifiers or their songs, keeping favorites and ratings; unclear cases join the Unavailable Items review list',
         type: ChangelogEntryType.improvement,
       ),
