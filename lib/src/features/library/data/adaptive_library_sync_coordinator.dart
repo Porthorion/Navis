@@ -1203,6 +1203,18 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 (result.probeIndexChanged == true) ||
                 result.probeIndexesUnsupported,
           );
+          // Deep newest-feed discovery that keeps hitting its window cap is
+          // escalated to broad catalog reconciliation so a large backlog
+          // cannot stay invisible behind the bounded probe window.
+          if (result.status == LibrarySyncStatus.succeeded &&
+              (result.probeDiscoveryDebtStreak ?? 0) >=
+                  discoveryDebtEscalationStreak) {
+            await _enqueueDeltaReconcile(
+              serverId: serverId,
+              result: result,
+              now: startedAt,
+            );
+          }
           await recorder.finish(finalState);
           await _database.librarySyncDao.completeSyncRun(
             requestId: durableRunId,
@@ -1490,6 +1502,29 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     };
   }
 
+  Future<void> _enqueueDeltaReconcile({
+    required int serverId,
+    required LibrarySyncState result,
+    required DateTime now,
+  }) async {
+    await _database.librarySyncDao.enqueueWork(
+      serverId: serverId,
+      kind: LibrarySyncPlanKind.deltaReconcile.name,
+      entityId: '',
+      evidenceVersion: result.probeEvidenceVersion,
+      reactivateTerminal:
+          (await _database.librarySyncDao.getWork(
+            serverId: serverId,
+            kind: LibrarySyncPlanKind.deltaReconcile.name,
+          ))?.status ==
+          'completed',
+      priority: 50,
+      workClass: 'background',
+      releaseCooldown: true,
+      now: now,
+    );
+  }
+
   Future<void> _enqueueProbeFollowUp({
     required int serverId,
     required LibrarySyncState result,
@@ -1515,20 +1550,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       return;
     }
     if (result.probeIndexChanged == true) {
-      await _database.librarySyncDao.enqueueWork(
+      await _enqueueDeltaReconcile(
         serverId: serverId,
-        kind: LibrarySyncPlanKind.deltaReconcile.name,
-        entityId: '',
-        evidenceVersion: result.probeEvidenceVersion,
-        reactivateTerminal:
-            (await _database.librarySyncDao.getWork(
-              serverId: serverId,
-              kind: LibrarySyncPlanKind.deltaReconcile.name,
-            ))?.status ==
-            'completed',
-        priority: 50,
-        workClass: 'background',
-        releaseCooldown: true,
+        result: result,
         now: now,
       );
     }

@@ -1,5 +1,11 @@
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 
+/// Consecutive newest-feed checks that hit their page cap without reaching
+/// known content (discovery debt) after which the coordinator escalates deep
+/// discovery to delta reconciliation. Shared between the engine, which
+/// records the streak, and the coordinator, which enqueues the follow-up.
+const int discoveryDebtEscalationStreak = 2;
+
 /// The source of a durable sync request. These values intentionally describe
 /// a user or scheduler action rather than an implementation detail.
 enum SyncRunOrigin {

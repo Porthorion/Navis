@@ -93,6 +93,7 @@ class LibrarySyncState {
     this.probeIndexChanged,
     this.probeEvidenceVersion,
     this.probeIndexesUnsupported = false,
+    this.probeDiscoveryDebtStreak,
     this.updatesAvailable = false,
   });
 
@@ -175,6 +176,11 @@ class LibrarySyncState {
   final bool? probeIndexChanged;
   final String? probeEvidenceVersion;
   final bool probeIndexesUnsupported;
+
+  /// Consecutive newest-feed checks that hit their page cap without reaching
+  /// known content. Non-zero widens the next check and, past the escalation
+  /// threshold, tells the coordinator to enqueue broad reconciliation.
+  final int? probeDiscoveryDebtStreak;
   final bool updatesAvailable;
 
   bool get isRunning => status == LibrarySyncStatus.running;
@@ -257,6 +263,7 @@ class LibrarySyncState {
     String? probeEvidenceVersion,
     bool clearProbeIndexChanged = false,
     bool? probeIndexesUnsupported,
+    int? probeDiscoveryDebtStreak,
     bool? updatesAvailable,
   }) {
     return LibrarySyncState(
@@ -354,6 +361,8 @@ class LibrarySyncState {
       probeEvidenceVersion: probeEvidenceVersion ?? this.probeEvidenceVersion,
       probeIndexesUnsupported:
           probeIndexesUnsupported ?? this.probeIndexesUnsupported,
+      probeDiscoveryDebtStreak:
+          probeDiscoveryDebtStreak ?? this.probeDiscoveryDebtStreak,
       updatesAvailable: updatesAvailable ?? this.updatesAvailable,
     );
   }

@@ -3834,6 +3834,195 @@ void main() {
     );
 
     test(
+      'capped metered discovery window records discovery debt',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final meteredEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.cellular,
+          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
+            networkType: NetworkType.cellular,
+            isMetered: true,
+            allowsBackgroundSync: false,
+            allowsHardProbe: true,
+            allowsInteractiveHydration: true,
+          ),
+          fallbackArtistConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          writeChunkSize: 4,
+        );
+        // A full 50-album page of unknown content: the metered window caps
+        // without ever reaching known content.
+        api.fastPathPages[0] = List<Album>.generate(
+          50,
+          (index) => Album(
+            id: 'album-debt-$index',
+            name: 'Debt Album $index',
+            artistId: 'artist-debt',
+            artist: 'Debt Artist',
+            songCount: 1,
+          ),
+          growable: false,
+        );
+        for (var index = 0; index < 3; index++) {
+          api.albumDetails['album-debt-$index'] = Album(
+            id: 'album-debt-$index',
+            name: 'Debt Album $index',
+            artistId: 'artist-debt',
+            songs: <Song>[
+              Song(id: 'song-debt-$index', title: 'Debt song $index'),
+            ],
+          );
+        }
+
+        final state = await meteredEngine.executeSyncExecutionPlan(
+          _meteredManualDiscoveryPlan,
+        );
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.probeDiscoveryDebtStreak, 1);
+        final config = await serverConfigRepository.getActiveServer();
+        final capabilities =
+            jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
+        expect(
+          (capabilities['navis'] as Map)['libraryDiscoveryDebtStreak'],
+          '1',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'reaching known content clears recorded discovery debt',
+      () async {
+        await saveSession(lastSynced: DateTime.now());
+        final meteredEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.cellular,
+          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
+            networkType: NetworkType.cellular,
+            isMetered: true,
+            allowsBackgroundSync: false,
+            allowsHardProbe: true,
+            allowsInteractiveHydration: true,
+          ),
+          fallbackArtistConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          writeChunkSize: 4,
+        );
+        api.fastPathPages[0] = List<Album>.generate(
+          50,
+          (index) => Album(
+            id: 'album-clear-$index',
+            name: 'Clear Album $index',
+            artistId: 'artist-clear',
+            artist: 'Clear Artist',
+            songCount: 1,
+          ),
+          growable: false,
+        );
+        for (var index = 0; index < 3; index++) {
+          api.albumDetails['album-clear-$index'] = Album(
+            id: 'album-clear-$index',
+            name: 'Clear Album $index',
+            artistId: 'artist-clear',
+            songs: <Song>[
+              Song(id: 'song-clear-$index', title: 'Clear song $index'),
+            ],
+          );
+        }
+
+        // First pass: everything is unknown, so debt is recorded.
+        await meteredEngine.executeSyncExecutionPlan(
+          _meteredManualDiscoveryPlan,
+        );
+        // Second pass: the same window is now known and unchanged, so the
+        // probe reaches known content and clears the debt.
+        api.calls.clear();
+        final state = await meteredEngine.executeSyncExecutionPlan(
+          _meteredManualDiscoveryPlan,
+        );
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.probeDiscoveryDebtStreak, 0);
+        final config = await serverConfigRepository.getActiveServer();
+        final capabilities =
+            jsonDecode(config!.capabilitiesJson!) as Map<String, dynamic>;
+        expect(
+          (capabilities['navis'] as Map).containsKey(
+            'libraryDiscoveryDebtStreak',
+          ),
+          isFalse,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a repeated capped window reaches the reconciliation escalation streak',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now(),
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'libraryDiscoveryDebtStreak': '1',
+            },
+          }),
+        );
+        final meteredEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.cellular,
+          readSyncNetworkPolicy: () => const SyncNetworkPolicy(
+            networkType: NetworkType.cellular,
+            isMetered: true,
+            allowsBackgroundSync: false,
+            allowsHardProbe: true,
+            allowsInteractiveHydration: true,
+          ),
+          fallbackArtistConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          writeChunkSize: 4,
+        );
+        api.fastPathPages[0] = List<Album>.generate(
+          50,
+          (index) => Album(
+            id: 'album-escalate-$index',
+            name: 'Escalate Album $index',
+            artistId: 'artist-escalate',
+            artist: 'Escalate Artist',
+            songCount: 1,
+          ),
+          growable: false,
+        );
+        for (var index = 0; index < 3; index++) {
+          api.albumDetails['album-escalate-$index'] = Album(
+            id: 'album-escalate-$index',
+            name: 'Escalate Album $index',
+            artistId: 'artist-escalate',
+            songs: <Song>[
+              Song(id: 'song-escalate-$index', title: 'Escalate song $index'),
+            ],
+          );
+        }
+
+        final state = await meteredEngine.executeSyncExecutionPlan(
+          _meteredManualDiscoveryPlan,
+        );
+
+        // The stored streak of one increments past the escalation threshold;
+        // the coordinator enqueues broad reconciliation for this signal.
+        expect(state.probeDiscoveryDebtStreak, 2);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'manual changed-index refresh immediately hydrates newest albums in a large library',
       () async {
         const artistCount = 2000;

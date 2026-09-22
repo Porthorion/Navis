@@ -507,6 +507,12 @@ const _librarySyncFailureRecordedAtCapabilityKey =
     'librarySyncFailureRecordedAt';
 const _defaultAuxiliarySyncStaleAfter = Duration(hours: 12);
 const _defaultHealthProbeStaleAfter = Duration(hours: 12);
+const _libraryDiscoveryDebtStreakCapabilityKey = 'libraryDiscoveryDebtStreak';
+
+/// Newest-feed pages scanned by an automatic check when a previous check hit
+/// its window cap without reaching known content (discovery debt): the window
+/// widens so a deep backlog is bridged in a few checks instead of never.
+const _healthProbeDebtMaxPages = 5;
 const _indexesCapabilityRetryAfter = Duration(days: 1);
 const _normalArtistVerificationLimit = 48;
 const _cellularManualArtistVerificationLimit = 24;
@@ -520,6 +526,13 @@ String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
   return _readNavisStringCapability(
     capabilitiesJson,
     _bulkSongSearchQueryCapabilityKey,
+  );
+}
+
+int _readDiscoveryDebtStreak(String? capabilitiesJson) {
+  return _readNavisIntCapability(
+    capabilitiesJson,
+    _libraryDiscoveryDebtStreakCapabilityKey,
   );
 }
 
@@ -753,11 +766,18 @@ class _NewestAlbumHealthProbe {
     required this.artistIds,
     required this.discrepantAlbums,
     required this.newestRanks,
+    this.debtStreak = 0,
   });
 
   final Set<String> artistIds;
   final List<Album> discrepantAlbums;
   final Map<String, int> newestRanks;
+
+  /// Consecutive capped windows after this check: zero when the probe
+  /// reached known content (or the feed's end), otherwise the stored streak
+  /// plus one. Non-zero widens the next check's window and, at the
+  /// escalation threshold, hands deep discovery to delta reconciliation.
+  final int debtStreak;
 }
 
 class DriftLibrarySyncEngine extends LibrarySyncEngine
@@ -2812,6 +2832,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
   Future<_NewestAlbumHealthProbe> _runNewestAlbumHealthProbe(
     _SyncRunMetrics metrics, {
     required bool manual,
+    required String? capabilitiesJson,
   }) async {
     final localAlbums = await _database.libraryDao.getAllAlbums();
     final localById = <String, AlbumsTableData>{
@@ -2829,8 +2850,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
     // `newest` is a direct discovery path, but servers can have a much larger
     // recent window than one response page. A manual check deliberately
     // scans a fixed 500-album window, independent of `getIndexes`; automatic
-    // checks retain the original low-data one-page probe plus a look-ahead
-    // only when that first page is entirely newer or unknown.
+    // checks retain the low-data two-page probe, widened while discovery
+    // debt is outstanding, plus the look-ahead stop on the first page that
+    // reaches known, unchanged content.
+    final debtStreak = _readDiscoveryDebtStreak(capabilitiesJson);
     final limitedMeteredManualDiscovery = _allowsLimitedMeteredManualDiscovery(
       manual: manual,
     );
@@ -2840,13 +2863,23 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             ? 1
             : manual
             ? _manualNewestAlbumHealthProbeMaxPages
+            : debtStreak > 0
+            ? _healthProbeDebtMaxPages
             : 2);
     final pageSize = limitedMeteredManualDiscovery
         ? _meteredManualNewestAlbumHealthProbePageSize
         : _newestAlbumHealthProbePageSize;
     final pages = <Album>[];
     final seenIds = <String>{};
+    var reachedKnownContent = false;
+    var reachedFeedEnd = false;
+    var lastPageFull = false;
     var offset = 0;
+    // A full manual check scans its whole window by contract, so it never
+    // evaluates the look-ahead and carries no overlap evidence. The bounded
+    // metered check does evaluate it: its cap is a budget decision, but a
+    // window full of unknown content is genuine discovery evidence.
+    final overlapCheckActive = !manual || limitedMeteredManualDiscovery;
     for (var pageIndex = 0; pageIndex < maxPages; pageIndex++) {
       final page = await _withRetry(
         () => _api.getNewestAlbumListPage(
@@ -2856,7 +2889,11 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics: metrics,
         endpoint: 'getNewestAlbumList2',
       );
-      if (page.isEmpty) break;
+      if (page.isEmpty) {
+        reachedFeedEnd = true;
+        break;
+      }
+      lastPageFull = page.length >= pageSize;
       if (page.any(
         (album) => album.id.trim().isEmpty || !seenIds.add(album.id),
       )) {
@@ -2867,7 +2904,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       await _repairExternalSourceEvidence(albums: page);
       pages.addAll(page);
       offset += page.length;
-      if (manual) {
+      if (!overlapCheckActive) {
         continue;
       }
       final firstPageEntirelyNewerOrUnknown = page.every((album) {
@@ -2879,9 +2916,23 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             (latestLocalCreated == null || created.isAfter(latestLocalCreated));
       });
       if (!firstPageEntirelyNewerOrUnknown) {
+        reachedKnownContent = true;
         break;
       }
     }
+    // A capped window that never reached known content and never saw the
+    // feed's end means the local catalog is deep behind the server: record
+    // discovery debt so the next check widens its window, and hand deep
+    // discovery to broad reconciliation once the streak persists. A partial
+    // final page already proves the feed end, so it never counts as a cap.
+    final cappedWithoutOverlap =
+        pages.length == maxPages * pageSize &&
+        lastPageFull &&
+        !reachedKnownContent;
+    final nextDebtStreak =
+        overlapCheckActive && cappedWithoutOverlap && !reachedFeedEnd
+        ? debtStreak + 1
+        : 0;
 
     final newestAlbums = _dedupeAlbums(pages);
     final newestRanks = <String, int>{};
@@ -2908,6 +2959,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       artistIds: artistIds,
       discrepantAlbums: discrepantAlbums,
       newestRanks: newestRanks,
+      debtStreak: nextDebtStreak,
     );
   }
 
@@ -4386,6 +4438,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
       capabilitiesJson,
       _libraryHealthCheckedAtCapabilityKey,
     );
+    final discoveryDebtStreak = _readDiscoveryDebtStreak(capabilitiesJson);
     final targetCursor = indexesReliable ? indexes?.lastModified : null;
     final cursorChanged =
         targetCursor != null &&
@@ -4400,6 +4453,10 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         manual ||
         (_activeExecutionPlan?.budget.maxNewestPages ?? 0) > 0 ||
         lastHealthCheck == null ||
+        // Outstanding discovery debt keeps the newest-feed probe on the
+        // schedule: the window must reach known content before freshness can
+        // be reported honestly.
+        discoveryDebtStreak > 0 ||
         now.difference(lastHealthCheck) >= _defaultHealthProbeStaleAfter;
     var healthProbe = const _NewestAlbumHealthProbe(
       artistIds: <String>{},
@@ -4418,9 +4475,24 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         );
         onProgress?.call(current);
       }
-      healthProbe = await _runNewestAlbumHealthProbe(metrics, manual: manual);
+      healthProbe = await _runNewestAlbumHealthProbe(
+        metrics,
+        manual: manual,
+        capabilitiesJson: capabilitiesJson,
+      );
       await _updateVerificationCapabilities(
-        <String, Object?>{_libraryHealthCheckedAtCapabilityKey: now},
+        <String, Object?>{
+          _libraryHealthCheckedAtCapabilityKey: now,
+          _libraryDiscoveryDebtStreakCapabilityKey: healthProbe.debtStreak > 0
+              ? healthProbe.debtStreak
+              : null,
+        },
+        metrics,
+      );
+      current = _withMetrics(
+        current.copyWith(
+          probeDiscoveryDebtStreak: healthProbe.debtStreak,
+        ),
         metrics,
       );
       await _stageNewestAlbumsForHydration(

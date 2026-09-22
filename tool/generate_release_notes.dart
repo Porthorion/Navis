@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Automatic checks now widen their discovery window when the library is far behind the server and hand a persistent backlog to a full reconciliation, so new albums can no longer be silently missed for weeks',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
         'The library screen shows a backlog notice while album details are still loading after a sync, and pending task counts now update live instead of only after a run finishes',
         type: _EntryType.improvement,
       ),
