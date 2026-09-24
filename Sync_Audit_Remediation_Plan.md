@@ -2,8 +2,10 @@
 
 Created: 2026-09-22
 Status: **in progress** — stages B1-B7 implemented and committed; consolidated
-runtime validation + live-server certification pending; workstream A and the
-device checklist (C) are operator-run and still open.
+runtime validation + live-server certification pending (deferred 2026-09-22,
+server under heavy load); workstream A and the device checklist (C) are
+operator-run and still open. Remaining work, prerequisites, and continuation
+rules are consolidated in §8 (Handoff).
 Companion runbook: [docs/server-library-hygiene.md](docs/server-library-hygiene.md)
 Predecessor evidence: `Fix_Stale_Cache_Plan.md`, `Fix_Stale_Cache_Execution_Plan.md`
 (schema 80 baseline), `docs/sync-reliability-recovery-plan.md`.
@@ -389,8 +391,8 @@ intent — no artist/catalog sweep attributable to automatic cellular work
 startup model repair instead of failing on the leaked plan kind.
 
 - [ ] Clone suite green end to end: deferred until server load subsides;
-      scheduled re-run via session automation (first attempt 2026-09-25).
-      Artifact dirs so far: `build/sync-diagnostics/20260922T171212Z-clone`,
+      re-run is operator- or session-initiated (see §8 Handoff). Artifact
+      dirs so far: `build/sync-diagnostics/20260922T171212Z-clone`,
       `20260922T171932Z-clone` (transient stream timeout, server-side),
       `20260922T172348Z-clone` (drain validated, timeBudget deferral).
 - [ ] B2 evidence in the run: newest-feed probe behavior + escalation
@@ -422,3 +424,98 @@ startup model repair instead of failing on the leaked plan kind.
 4. B7 last.
 5. One commit per stage; `./tool/check.sh` before each commit; stage only
    the files the stage touched; no pushes without an explicit request.
+
+## 8. Handoff — remaining work and completion requirements
+
+Status as of 2026-09-22 (commit `abd284d3` on `dev`): every Navis code stage
+(B1-B7) is implemented, committed, and passed the full `./tool/check.sh` gate
+(1,624 tests) at its commit. Nothing remains to implement in workstream B.
+What remains is one machine-runnable certification pass, two operator-run
+workstreams, and closeout.
+
+### 8.1 Machine-runnable: consolidated runtime certification (§5a)
+
+Deferred 2026-09-22 because the live server (`navidrome.example.test`) was under
+extended heavy load; the resumed startup repair on the clone deferred with
+`timeBudget` after 10 minutes of real progress, which is correct behavior
+under load, not a defect. Re-run when the server is responsive again.
+
+Prerequisites:
+
+- Primary DB export at `~/Documents/navis.sqlite.sqlite` (refresh it from
+  the device if it is much older than the current app state; the clone
+  schema-migrates 78 → 80 at startup and resumes its mid-repair candidate,
+  generation 32 — that resume is expected and exercised by the suite).
+- Test-account credential file `~/.config/navis/clone-diagnostics.secret`
+  containing only the password of the disposable `navis` account (mode 600;
+  never commit it). The password is provided by the operator separately.
+- `./tool/check.sh` green on the checkout before starting.
+
+Procedure (documented in docs/development-workflow.md, "Linux Sync
+Diagnostics"):
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB="$HOME/Documents/navis.sqlite.sqlite" \
+NAVIS_DIAGNOSTICS_USERNAME=navis \
+NAVIS_DIAGNOSTICS_CREDENTIAL_PATH="$HOME/.config/navis/clone-diagnostics.secret" \
+  ./tool/sync_diagnostics.sh clone
+```
+
+Rules learned from the 2026-09-22 attempts:
+
+- Probe server health first with one bounded `getScanStatus` call; if it
+  times out, stop and reschedule — do not retry in the same session.
+- Run in the background and check at most every 5 minutes; `wait_for_sync`
+  already polls on a 2 s → 15 s backoff.
+- At most two suite attempts per session.
+- Expected-under-load outcomes: the startup model repair may end
+  `deferred`/`timeBudget` or `meteredPolicy`; the cellular guardrail
+  tolerates a deferred `fullRepair` remnant. Anything else failing is a new
+  reason and needs diagnosis from the artifact directory under
+  `build/sync-diagnostics/`.
+
+Definition of done for this item: the suite exits 0 end to end; §5a's
+checkboxes are filled with the artifact directory plus (a) B2 evidence
+(newest-feed probe behavior and any discovery-debt/escalation follow-up rows
+in the clone work table), (b) B3 evidence (backlog pill inspected via
+`POST /v1/presentation/screenshot`), (c) B6 evidence (promotion completing
+despite scan churn), and (d) the suite's restart/recovery cycle recorded as
+the clean-restart evidence. Commit as
+`docs: record sync audit certification evidence`.
+
+### 8.2 Operator-run: workstream A (server)
+
+Steps A1-A4 in [docs/server-library-hygiene.md](docs/server-library-hygiene.md):
+cap the Navidrome scanner (`Scanner.Schedule`, watcher policy), batch
+SoulSync writes, run the mutagen tag audit/retag, then verify. Needs shell
+access to the server host and the music library filesystem — this
+workstation does not have it. Acceptance criteria are per-step in the
+runbook. Warning repeated here: retagging re-issues album IDs, so Repair
+Library (C3) must run after A3.
+
+### 8.3 Operator-run: workstream C (device)
+
+Steps C0-C4 in §4: install a current dev build (schema 80), run Repair
+Library once, verify with the runbook appendix's read-only SQL (dead-album
+count → 0, hydration backlog trending to 0, auxiliary timestamp advancing),
+run Repair Library again after A3's retag, and monitor cover recovery plus
+Most Played ordering. Needs the physical device.
+
+### 8.4 Closeout
+
+Move this plan to `docs/completed-plans/` only when §5a is fully evidenced
+AND the operator confirms C0-C4; list it in `docs/completed-plans/README.md`
+and the `docs/README.md` map when moved. Workstream A acceptance is
+server-side and tracked here, not blocking the plan's move (record it as an
+operator handoff in this section if still open at move time).
+
+### 8.5 Guardrails for any continuation session
+
+- Read `AGENTS.md` and `docs/agentic-engineering.md` first; this plan is an
+  evidence record, not implementation authority.
+- `./tool/check.sh` before every commit; one commit per logical change.
+- Never push to origin without an explicit request.
+- Never commit credentials or real server values.
+- Leave the operator's in-flight `docs/agentic-engineering.md` modification
+  and the untracked `.agents/` and `.zcodeignore` out of all commits.
+- Do not run the certification suite against a visibly overloaded server.
