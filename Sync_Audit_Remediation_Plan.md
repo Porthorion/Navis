@@ -427,6 +427,25 @@ promptly but reported an active server scan. The live clone suite was not
 started because the runbook documents severe throughput loss during scans;
 no new runtime certification evidence is claimed from this follow-up.
 
+2026-09-24 local confirmation follow-up: a fresh single bounded server probe
+again reported an active scan, so no live clone suite was started. The isolated
+loopback repair gate uncovered two independent blockers: an older source export
+triggered an unrelated startup model repair after restart, and its diagnostic
+six-second execution lease expired during large promotion. The fixture now
+marks only its disposable clone model-current and uses the production ten-minute
+lease. With those isolated fixture settings, promotion also exposed a real
+batch review SQL error: an empty `ON CONFLICT DO UPDATE SET` statement. The
+batch now uses `DO NOTHING` on its identity key, preserving earlier review
+decisions. The focused DAO regression and full `./tool/check.sh` gate passed
+(1,625 tests). The local gate then exited 0 at
+`build/repair-confirmation-diagnostics/20260924T085630Z-clone`: generation 32
+remained `awaitingDeletionConfirmation` with the original catalog across a
+clean restart, then explicit repair succeeded, cleared the candidate, recorded
+the before/after/removal promotion ledger and 297 new review entries. Both
+app-owned Sync Settings screenshots were inspected, including the successful
+`Last library change` summary. This is local confirmation-boundary evidence;
+it does not satisfy the live clone-suite, B2/B3/B6, or operator device checks.
+
 - [ ] Clone suite green end to end: pending a live re-run with the
       action-correlation fix in a fresh responsive-server window (see §8
       Handoff). Artifact
@@ -479,8 +498,8 @@ Deferred 2026-09-22 because the live server (`navidrome.example.test`) was under
 extended heavy load; the resumed startup repair on the clone deferred with
 `timeBudget` after 10 minutes of real progress, which is correct behavior
 under load, not a defect. The 2026-09-24 attempt found a diagnostics-harness
-result-attribution gap (§5a); a focused fix is in the checkout but still
-needs a complete live clone-suite re-run before certification.
+result-attribution gap (§5a); its focused fix is committed, but the complete
+live clone-suite re-run is still required before certification.
 
 Prerequisites:
 

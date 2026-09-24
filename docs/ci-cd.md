@@ -148,7 +148,11 @@ production confirmation boundary, verifies that the committed catalog survives
 the pending state and a clean restart, then issues the explicit confirming
 Repair Library action and verifies atomic promotion plus its durable redacted
 before/after/removal operation-ledger entry. The fixture is isolated and never
-modifies a configured server or primary profile. Its inspected Sync Settings
+modifies a configured server or primary profile. It stamps the clone with the
+current library sync model so an older source export cannot start an unrelated
+model-upgrade repair during the confirmation restart. The fixture also uses
+the production ten-minute sync lease so the large local promotion can finish
+without the diagnostic default's six-second expiry. Its inspected Sync Settings
 capture must show the matching `Last library change` summary, proving the
 durable evidence is visible to the user as well as the diagnostics API.
 

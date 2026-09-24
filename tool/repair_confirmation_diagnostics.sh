@@ -40,13 +40,21 @@ FIXTURE_PID=$!
 for _ in $(seq 1 30); do [[ -s "$FIXTURE_HANDSHAKE" ]] && break; sleep 1; done
 [[ -s "$FIXTURE_HANDSHAKE" ]] || { echo "Fixture startup failed" >&2; exit 70; }
 
-python3 - "$SOURCE_DB" "$CLONE_DB" "$FIXTURE_HANDSHAKE" <<'PY'
-import datetime, json, sqlite3, sys, time
+python3 - "$SOURCE_DB" "$CLONE_DB" "$FIXTURE_HANDSHAKE" \
+  "$PROJECT_DIR/lib/src/features/library/presentation/library_sync_provider.dart" <<'PY'
+import datetime, json, re, sqlite3, sys, time
+from pathlib import Path
 source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 target = sqlite3.connect(sys.argv[2])
 source.backup(target)
 source.close()
 fixture = json.load(open(sys.argv[3], encoding="utf-8"))
+model_source = Path(sys.argv[4]).read_text(encoding="utf-8")
+model_version = re.search(
+    r"const currentLibrarySyncModelVersion = '([^']+)';", model_source
+)
+if model_version is None:
+    raise SystemExit("could not read the current library sync model version")
 server = target.execute("SELECT id, capabilities FROM server_config WHERE is_authenticated = 1 ORDER BY id LIMIT 1").fetchone()
 if server is None:
     raise SystemExit("clone has no authenticated server")
@@ -69,6 +77,13 @@ target.execute("DELETE FROM library_sync_work")
 for table in ("library_sync_candidate_artists", "library_sync_candidate_albums", "library_sync_candidate_songs"):
     target.execute(f"DELETE FROM {table}")
 target.execute("UPDATE albums SET songs_hydrated=1")
+# This gate tests an explicit confirmation across restart. A source export
+# from an older app model would independently schedule startup full repair and
+# race that confirmation, so make only the disposable fixture model-current.
+target.execute(
+    "UPDATE app_settings SET last_full_sync_app_build = ?",
+    (model_version.group(1),),
+)
 target.execute("UPDATE server_config SET name=?, url=?, username=?, api_version=?, capabilities=?, last_synced=?, last_full_synced=?, is_authenticated=1 WHERE id=?", ("Navis repair confirmation fixture", f"http://127.0.0.1:{fixture['port']}", "diagnostics", "1.16.1", json.dumps(capabilities, separators=(",", ":")), now, now, server_id))
 target.execute("INSERT OR IGNORE INTO library_sync_state (server_id) VALUES (?)", (server_id,))
 target.execute("UPDATE library_sync_state SET last_checked_at=?, last_catalog_synced_at=?, last_auxiliary_synced_at=?, last_genres_synced_at=?, candidate_generation=NULL, candidate_status=NULL, candidate_started_at=NULL, candidate_carried_forward_count=0, deletion_candidate_fingerprint=NULL, deletion_candidate_count=0, next_automatic_check_at=? WHERE server_id=?", (now, now, now, now, now + 3600, server_id))
@@ -95,6 +110,7 @@ launch() {
       --dart-define=NAVIS_APP_NAME='Navis Repair Confirmation Diagnostics' \
       --dart-define=NAVIS_SYNC_DIAGNOSTICS=true \
       --dart-define=NAVIS_SYNC_DIAGNOSTICS_MODE=clone \
+      --dart-define=NAVIS_SYNC_DIAGNOSTICS_LEASE_SECONDS=600 \
       --dart-define="NAVIS_SYNC_DIAGNOSTICS_HANDSHAKE=$HANDSHAKE" \
       --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
       --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \

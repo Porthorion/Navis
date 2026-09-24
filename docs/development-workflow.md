@@ -193,6 +193,11 @@ target as durable pending work, and drain that target only through its later
 explicit target request.
 
 `tool/repair_confirmation_diagnostics.sh` is the bounded deletion-safety gate.
+It marks only its disposable fixture clone current for the library sync model,
+so the clean restart tests the pending explicit confirmation rather than an
+unrelated model-upgrade repair from an older source export.
+The fixture uses the production ten-minute sync lease for the large local
+promotion instead of the six-second diagnostics default.
 It uses an isolated fixture to require the production repair confirmation
 boundary, proves the committed catalog remains untouched across a clean
 restart, then verifies that only the explicit confirming repair request
