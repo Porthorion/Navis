@@ -1130,6 +1130,8 @@ states without starting audio or modifying a queue.
    That fingerprint and its server-missing count are durable; Settings exposes
    the count and requires an explicit Apply library repair confirmation before
    it makes the second repair request.
+   Promotion creates review entries for retained unavailable songs without
+   replacing existing review decisions, including when the promotion is retried.
    Isolated detail 404s and an album omitted from one artist-detail response
    remain candidates until a complete snapshot confirms deletion; incremental
    artist reconciliation may only add or update catalog rows.

@@ -157,4 +157,50 @@ void main() {
     pending = await database.librarySyncDao.getPendingRecoveryReview(1);
     expect(pending, isEmpty);
   }, skip: !sqliteAvailable);
+
+  test('batch review inserts new rows and preserves reviewed rows', () async {
+    await database.libraryDao.upsertSongs([
+      SongsTableCompanion.insert(id: 'missing-1', title: 'First'),
+      SongsTableCompanion.insert(id: 'missing-2', title: 'Second'),
+    ]);
+    final songs = [
+      (await database.libraryDao.getSongById('missing-1'))!,
+      (await database.libraryDao.getSongById('missing-2'))!,
+    ];
+    await database.librarySyncDao.recordRecoveryReview(
+      serverId: 1,
+      entityType: 'song',
+      oldId: 'missing-2',
+      savedTitle: 'Earlier title',
+      reason: 'missingFromCatalog',
+      evidenceGeneration: 11,
+    );
+    final reviewed = (await database.librarySyncDao.getPendingRecoveryReview(
+      1,
+    )).single;
+    await database.librarySyncDao.setRecoveryReviewDisposition(
+      id: reviewed.id,
+      disposition: 'keptForLater',
+    );
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      await database.librarySyncDao.recordRecoveryReviewBatch(
+        serverId: 1,
+        retainedSongs: songs,
+        evidenceGeneration: 12,
+      );
+    }
+
+    final rows = await database
+        .select(database.libraryRecoveryReviewTable)
+        .get();
+    expect(rows, hasLength(2));
+    final newReview = rows.singleWhere((row) => row.oldId == 'missing-1');
+    expect(newReview.disposition, 'pending');
+    expect(newReview.evidenceGeneration, 12);
+    final keptReview = rows.singleWhere((row) => row.oldId == 'missing-2');
+    expect(keptReview.disposition, 'keptForLater');
+    expect(keptReview.savedTitle, 'Earlier title');
+    expect(keptReview.evidenceGeneration, 11);
+  }, skip: !sqliteAvailable);
 }

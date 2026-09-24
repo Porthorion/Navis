@@ -1801,14 +1801,17 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
             createdAt: now,
             updatedAt: now,
           ),
-          onConflict: DoUpdate(
-            (_) => const LibraryRecoveryReviewTableCompanion(),
-            target: [
-              libraryRecoveryReviewTable.serverId,
-              libraryRecoveryReviewTable.entityType,
-              libraryRecoveryReviewTable.oldId,
-            ],
-          ),
+          onConflict:
+              DoNothing<
+                LibraryRecoveryReviewTable,
+                LibraryRecoveryReviewTableData
+              >(
+                target: [
+                  libraryRecoveryReviewTable.serverId,
+                  libraryRecoveryReviewTable.entityType,
+                  libraryRecoveryReviewTable.oldId,
+                ],
+              ),
         );
       }
     });

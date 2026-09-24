@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Repair Library now finishes large confirmed changes when unavailable songs need review, while preserving earlier review decisions',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'Repair Library and full syncs now complete on servers that rescan constantly instead of deferring forever, releasing the promotion once the server goes quiet and recording the decision',
         type: _EntryType.fix,
       ),
