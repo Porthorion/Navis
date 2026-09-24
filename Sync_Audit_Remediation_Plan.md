@@ -357,7 +357,7 @@ focused suites plus the full `./tool/check.sh` gate at each commit (1605 →
 + inspected screenshots + clean restart) runs once over the completed stack
 instead of per stage; its evidence is recorded below in §5a.
 
-### §5a Consolidated runtime certification (2026-09-22, deferred — server under extended heavy load)
+### §5a Consolidated runtime certification (open)
 
 First clone attempt (17:12Z) failed its first guardrail assertion for a
 non-B-stage reason: the cloned primary device database is mid-repair
@@ -390,11 +390,33 @@ intent — no artist/catalog sweep attributable to automatic cellular work
 (`getIndexes <= 1`) — and tolerates a deferred fullRepair remnant of the
 startup model repair instead of failing on the leaked plan kind.
 
-- [ ] Clone suite green end to end: deferred until server load subsides;
-      re-run is operator- or session-initiated (see §8 Handoff). Artifact
+2026-09-24 certification attempt: `./tool/check.sh` passed (1,624 tests).
+The single 20-second-bounded `getScanStatus` health probe returned promptly
+with `status=ok` and no active scan, so two clone-suite attempts were made.
+The first (`build/sync-diagnostics/20260924T075837Z-clone`) stopped at its
+opening `POST /v1/playback/start` with HTTP 500 / `StateError`; no sync
+scenario ran. The second (`build/sync-diagnostics/20260924T080547Z-clone`)
+passed playback and drained the startup repair, but stopped at the cellular
+automatic guardrail assertion. That repair ended `partial` with candidate
+generation 32 `awaitingDeletionConfirmation`, rather than the previously
+expected `deferred` outcome. The saved cellular result still reports repair
+request 337 as the current status even though its `durableRuns` list includes
+new auxiliary requests 338 and 339 (one completed, one deferred by metered
+policy). The harness therefore cannot attribute its `planKind` and endpoint
+counts to the cellular action from this snapshot. This is an observation gap,
+not evidence that the cellular guardrail passed or failed. Both allowed suite
+attempts for this session are exhausted. Before re-running, correlate each
+posted action with new durable request/attempt IDs in the diagnostics harness;
+then perform a fresh bounded server-health check. No certification checkbox
+below is claimed from these partial attempts.
+
+- [ ] Clone suite green end to end: pending diagnostics-harness correlation
+      fix and a fresh responsive-server window (see §8 Handoff). Artifact
       dirs so far: `build/sync-diagnostics/20260922T171212Z-clone`,
       `20260922T171932Z-clone` (transient stream timeout, server-side),
-      `20260922T172348Z-clone` (drain validated, timeBudget deferral).
+      `20260922T172348Z-clone` (drain validated, timeBudget deferral),
+      `20260924T075837Z-clone` (playback start error), and
+      `20260924T080547Z-clone` (cellular result attribution gap).
 - [ ] B2 evidence in the run: newest-feed probe behavior + escalation
       follow-up rows observed in the clone: pending re-run.
 - [ ] B3 evidence: banner/backlog pill screenshot inspected: pending re-run.
@@ -438,7 +460,9 @@ workstreams, and closeout.
 Deferred 2026-09-22 because the live server (`navidrome.example.test`) was under
 extended heavy load; the resumed startup repair on the clone deferred with
 `timeBudget` after 10 minutes of real progress, which is correct behavior
-under load, not a defect. Re-run when the server is responsive again.
+under load, not a defect. The 2026-09-24 attempt found a diagnostics-harness
+result-attribution gap (§5a); resolve that gap before another clone-suite
+attempt, even if the server is responsive.
 
 Prerequisites:
 
