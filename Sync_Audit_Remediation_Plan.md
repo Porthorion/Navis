@@ -421,6 +421,12 @@ not yet been re-run. A separate local repair-confirmation fixture run on
 `failed` repair. It does not verify an automatic clone-only confirmation step,
 so the suite leaves that boundary to its existing explicit repair scenarios.
 
+2026-09-24 follow-up: the action-correlation fix passed the full repository
+gate and was committed. The one fresh bounded `getScanStatus` probe responded
+promptly but reported an active server scan. The live clone suite was not
+started because the runbook documents severe throughput loss during scans;
+no new runtime certification evidence is claimed from this follow-up.
+
 - [ ] Clone suite green end to end: pending a live re-run with the
       action-correlation fix in a fresh responsive-server window (see §8
       Handoff). Artifact
