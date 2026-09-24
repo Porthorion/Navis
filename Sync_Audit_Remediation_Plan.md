@@ -410,8 +410,20 @@ posted action with new durable request/attempt IDs in the diagnostics harness;
 then perform a fresh bounded server-health check. No certification checkbox
 below is claimed from these partial attempts.
 
-- [ ] Clone suite green end to end: pending diagnostics-harness correlation
-      fix and a fresh responsive-server window (see §8 Handoff). Artifact
+Harness fix 3 (pending live re-run): the clone now observes the terminal
+diagnostics event for each metered guardrail action and checks only durable
+requests and attempt endpoint counts created after that action's ledger
+baseline. It forces the automatic deadline due for each automatic guardrail.
+Focused action-correlation tests cover the stale-repair result from the
+second attempt and reject a real catalog sweep; the complete live suite has
+not yet been re-run. A separate local repair-confirmation fixture run on
+2026-09-24 failed after restart with the candidate in `applying` and a
+`failed` repair. It does not verify an automatic clone-only confirmation step,
+so the suite leaves that boundary to its existing explicit repair scenarios.
+
+- [ ] Clone suite green end to end: pending a live re-run with the
+      action-correlation fix in a fresh responsive-server window (see §8
+      Handoff). Artifact
       dirs so far: `build/sync-diagnostics/20260922T171212Z-clone`,
       `20260922T171932Z-clone` (transient stream timeout, server-side),
       `20260922T172348Z-clone` (drain validated, timeBudget deferral),
@@ -461,8 +473,8 @@ Deferred 2026-09-22 because the live server (`navidrome.example.test`) was under
 extended heavy load; the resumed startup repair on the clone deferred with
 `timeBudget` after 10 minutes of real progress, which is correct behavior
 under load, not a defect. The 2026-09-24 attempt found a diagnostics-harness
-result-attribution gap (§5a); resolve that gap before another clone-suite
-attempt, even if the server is responsive.
+result-attribution gap (§5a); a focused fix is in the checkout but still
+needs a complete live clone-suite re-run before certification.
 
 Prerequisites:
 

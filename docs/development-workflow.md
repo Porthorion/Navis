@@ -882,14 +882,18 @@ cached-file paths in the clone so cancellation, restart, and deletion tests
 cannot unlink primary cache files. Clone mode first drains startup work under
 the host's real network policy before applying scenario overrides, so a
 schema-migrating or mid-repair primary clone cannot leak its startup model
-repair into the metered guardrail scenarios. Clone mode can simulate
-metered/cellular
-policy through diagnostics overrides and asserts hard-probe, interactive
-hydration, budget, and one-time override guardrails without requiring a real
-modem. The clone suite also certifies the foreground cellular Check for updates
-path: exactly one newest-album page, no artist/bulk-song sweep, and at most
-three changed-album details. Its authenticated `recent-albums` observation
-also proves the Library's production Recently Added query follows the server's
+repair into the metered guardrail scenarios. The cellular automatic,
+manual-check, and metered-Wi-Fi checks correlate each posted action with new
+redacted ledger events, durable requests, and attempt endpoint counts. A
+preceding repair's displayed status
+is not attributed to a later bounded action. Clone mode can simulate
+metered/cellular policy through diagnostics overrides and asserts hard-probe,
+interactive hydration, budget, and one-time override guardrails without
+requiring a real modem. The clone suite also certifies the foreground cellular
+Check for updates path: exactly one newest-album page, no artist/bulk-song
+sweep, and at most three changed-album details. Its authenticated
+`recent-albums` observation also proves the Library's production Recently Added
+query follows the server's
 newest-feed positions first, then server creation date for entries outside that
 feed, after the check.
 

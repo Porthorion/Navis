@@ -331,6 +331,52 @@ PY
   exit 70
 }
 
+wait_for_action() {
+  local before="$1"
+  local after="$2"
+  local cause="$3"
+  local deadline=$((SECONDS + 14400))
+  local interval=2
+  while (( SECONDS < deadline )); do
+    api GET /v1/sync/ledger > "$after"
+    if python3 "$PROJECT_DIR/tool/sync_diagnostics_action.py" \
+      complete "$before" "$after" "$cause"; then
+      return
+    else
+      local result=$?
+      if (( result != 1 )); then
+        echo "Could not read the $cause diagnostics action ledger." >&2
+        exit 70
+      fi
+    fi
+    sleep "$interval"
+    if (( interval < 15 )); then
+      interval=$((interval * 2))
+    fi
+  done
+  echo "Timed out waiting for the $cause diagnostics action." >&2
+  exit 70
+}
+
+run_guardrail_action() {
+  local scenario="$1"
+  local cause="$2"
+  local route="$3"
+  local body="$4"
+  local prefix="$5"
+  local before="$OUTPUT_ROOT/$prefix-ledger-before.json"
+  local after="$OUTPUT_ROOT/$prefix-ledger-after.json"
+  local attempts="$OUTPUT_ROOT/$prefix-attempts.json"
+  api GET /v1/sync/ledger > "$before"
+  api POST "$route" "$body" > "$OUTPUT_ROOT/$prefix-start.json"
+  wait_for_action "$before" "$after" "$cause"
+  api GET /v1/sync/status > "$OUTPUT_ROOT/$prefix-result.json"
+  api GET /v1/sync/attempts > "$attempts"
+  python3 "$PROJECT_DIR/tool/sync_diagnostics_action.py" \
+    validate "$scenario" "$before" "$after" "$attempts" \
+    > "$OUTPUT_ROOT/$prefix-evidence.json"
+}
+
 wait_for_candidate_collection() {
   local deadline=$((SECONDS + 300))
   while (( SECONDS < deadline )); do
@@ -758,45 +804,22 @@ PY
     printf '%s\n' '{"startupWork": false}' \
       > "$OUTPUT_ROOT/startup-sync-result.json"
   fi
-
   api POST /v1/diagnostics/overrides \
     '{"networkType":"cellular","backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
     > "$OUTPUT_ROOT/guardrails-overrides-cellular.json"
+  api POST /v1/diagnostics/automatic-sync-due \
+    > "$OUTPUT_ROOT/guardrails-cellular-automatic-due.json"
 
-  api POST /v1/sync/automatic > "$OUTPUT_ROOT/guardrails-cellular-automatic-start.json"
-  wait_for_sync > "$OUTPUT_ROOT/guardrails-cellular-automatic-result.json"
-  python3 - "$OUTPUT_ROOT/guardrails-cellular-automatic-result.json" <<'PY'
-import json, sys
-value = json.load(open(sys.argv[1], encoding="utf-8"))
-endpoints = value.get("endpointRequests") or {}
-assert endpoints.get("getIndexes", 0) <= 1, endpoints
-# The clone of a mid-repair primary database resumes its startup model
-# repair as a fullRepair candidate; under a loaded server that repair can
-# stay deferred for days and every automatic call observes it. The scenario
-# owns one thing: automatic cellular work must not sweep the catalog here.
-# A deferred repair remnant therefore passes only when it stayed bounded.
-if value.get("planKind") == "fullRepair":
-    assert value.get("status") == "deferred", value
-else:
-    assert value.get("planKind") in (None, "probe", "targetedHydration"), value
-PY
+  # The controller can retain the preceding repair as its displayed status
+  # while this action creates only auxiliary work. Check the new durable runs
+  # and their attempt telemetry instead of attributing that old status here.
+  run_guardrail_action automatic automatic /v1/sync/automatic '' \
+    guardrails-cellular-automatic
 
   # A foreground user request is deliberately more useful than automatic
   # cellular work, but still must not turn into a catalog/artist/song sweep.
-  api POST /v1/sync/check '{}' \
-    > "$OUTPUT_ROOT/guardrails-cellular-manual-check-start.json"
-  wait_for_sync > "$OUTPUT_ROOT/guardrails-cellular-manual-check-result.json"
-  python3 - "$OUTPUT_ROOT/guardrails-cellular-manual-check-result.json" <<'PY'
-import json, sys
-value = json.load(open(sys.argv[1], encoding="utf-8"))
-endpoints = value.get("endpointRequests") or {}
-assert value.get("planKind") == "deltaReconcile", value
-assert value.get("planReason") == "manualMeteredLimitedDiscovery", value
-assert endpoints.get("getNewestAlbumList2", 0) == 1, endpoints
-assert endpoints.get("getArtist", 0) == 0, endpoints
-assert endpoints.get("searchSongsPage", 0) == 0, endpoints
-assert endpoints.get("getAlbum", 0) <= 3, endpoints
-PY
+  run_guardrail_action manual manualCheck /v1/sync/check '{}' \
+    guardrails-cellular-manual-check
   api GET '/v1/library/recent-albums?limit=100' \
     > "$OUTPUT_ROOT/recent-albums-after-cellular-check.json"
   python3 - "$OUTPUT_ROOT/recent-albums-after-cellular-check.json" <<'PY'
@@ -825,14 +848,10 @@ PY
   api POST /v1/diagnostics/overrides \
     '{"networkType":"wifi","nativeMetered":true,"backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
     > "$OUTPUT_ROOT/guardrails-overrides-metered-wifi.json"
-  api POST /v1/sync/automatic > "$OUTPUT_ROOT/guardrails-metered-wifi-start.json"
-  wait_for_sync > "$OUTPUT_ROOT/guardrails-metered-wifi-result.json"
-  python3 - "$OUTPUT_ROOT/guardrails-metered-wifi-result.json" <<'PY'
-import json, sys
-value = json.load(open(sys.argv[1], encoding="utf-8"))
-endpoints = value.get("endpointRequests") or {}
-assert endpoints.get("getIndexes", 0) <= 1, endpoints
-PY
+  api POST /v1/diagnostics/automatic-sync-due \
+    > "$OUTPUT_ROOT/guardrails-metered-wifi-due.json"
+  run_guardrail_action automatic automatic /v1/sync/automatic '' \
+    guardrails-metered-wifi
 
   ALBUM_ID="$(python3 - "$CLONE_DB" <<'PY'
 import sqlite3, sys

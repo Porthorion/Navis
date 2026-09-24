@@ -88,7 +88,11 @@ suite (`./tool/sync_diagnostics.sh clone`):
 automatic cellular work remains a single probe, while a foreground manual check
 is certified as `manualMeteredLimitedDiscovery` with one newest-album page, no
 artist sweep or bulk-song index, and no more than three album details.
-It can simulate network cost overrides without cellular hardware.
+The harness verifies those counts against the durable attempts created after
+each action, so an earlier repair result cannot satisfy a later guardrail.
+It can simulate network cost overrides without cellular hardware. The focused
+action-correlation regression check is `python3 -m unittest
+tool.sync_diagnostics_action_test`.
 
 Target-hydration controller isolation has a separate clone-only Linux gate:
 
