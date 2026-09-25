@@ -87,11 +87,14 @@ Library sync metered-network guardrails are exercised by the clone diagnostics
 suite (`./tool/sync_diagnostics.sh clone`). Its post-report Library screenshot
 is an app-owned artifact for visual verification of the pending hydration
 notice. The suite records the matching idle sync status after the performance
-sample so Library tab queries do not alter that sample. Automatic cellular
-work remains a single probe, while a foreground
-manual check is certified as `manualMeteredLimitedDiscovery` with one
-newest-album page, no
-artist sweep or bulk-song index, and no more than three album details.
+sample so Library tab queries do not alter that sample. The saved report's
+`databaseCanarySlowSamples` trace attributes reads above 100 ms to their sync
+phase and observed event-loop delay without changing the canary thresholds.
+`slowFrameSamples` records build/raster detail and approximate sync phase for
+frames over the 100 ms maximum. Automatic cellular work remains a single
+probe, while a foreground manual check is certified as
+`manualMeteredLimitedDiscovery` with one newest-album page, no artist sweep or
+bulk-song index, and no more than three album details.
 The harness verifies those counts against the durable attempts created after
 each action, so an earlier repair result cannot satisfy a later guardrail.
 It can simulate network cost overrides without cellular hardware. The focused

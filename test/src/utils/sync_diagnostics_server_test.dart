@@ -118,7 +118,7 @@ void main() {
         rasterFinishWallTime: 1200 + build,
       );
       binding.platformDispatcher.onReportTimings!([
-        for (var i = 0; i < 5; i++) timing(999999),
+        for (var i = 0; i < 40; i++) timing(999999),
         for (var i = 0; i < 5000; i++) timing(2000),
       ]);
       final report = await _request(
@@ -139,6 +139,9 @@ void main() {
           'maxMicros': entry.value,
         });
       }
+      final slowFrames = report.body['slowFrameSamples']! as List<Object?>;
+      expect(slowFrames, hasLength(32));
+      expect(slowFrames.first, containsPair('totalMicros', 1000999));
       final reset = await _request(
         fixture.port,
         '/v1/diagnostics/metrics/reset',
@@ -154,6 +157,7 @@ void main() {
       for (final key in ['frames', 'frameBuild', 'frameRaster', 'frameSpan']) {
         expect(cleared.body[key], {'samples': 0});
       }
+      expect(cleared.body['slowFrameSamples'], isEmpty);
     },
   );
 

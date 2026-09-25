@@ -1001,6 +1001,16 @@ latest-5,000-sample window. `frameSpan` is Flutter's vsync-to-raster-finish dura
 none of these fields measures presentation by the compositor or audible gaps.
 The reset endpoint clears all four windows together. Use the separate phases to
 locate UI-thread versus raster cost before choosing a performance change.
+`databaseCanarySlowSamples` retains the latest 32 artist-count reads above
+100 ms, with their UTC start time, sync phase, elapsed time, and largest
+observed event-loop timer delay. The timer delay helps attribute a slow read;
+it is not a direct measurement of SQLite execution time. Metrics reset clears
+these samples too. The trace contains no SQL arguments or server values.
+`slowFrameSamples` likewise retains the latest 32 build-plus-raster frames above
+100 ms, with build, raster, span, and total durations. Its UTC time and sync
+phase are observed when Flutter delivers the timing callback, so batched
+callbacks may label a frame with a slightly later phase. Metrics reset clears
+this trace too.
 
 
 ### Isolated Android worker fixture

@@ -92,9 +92,12 @@ class SyncDiagnosticsServer {
   final List<int> _frameBuildMicros = <int>[];
   final List<int> _frameRasterMicros = <int>[];
   final List<int> _frameSpanMicros = <int>[];
+  final List<Map<String, Object?>> _slowFrameSamples = <Map<String, Object?>>[];
   final List<int> _databaseCanaryMicros = <int>[];
   final Map<String, List<int>> _databaseCanaryMicrosByPhase =
       <String, List<int>>{};
+  final List<Map<String, Object?>> _slowDatabaseCanarySamples =
+      <Map<String, Object?>>[];
   final DateTime _startedAt = DateTime.now();
   late final String _token;
   HttpServer? _server;
@@ -1778,8 +1781,10 @@ class SyncDiagnosticsServer {
         _frameBuildMicros.clear();
         _frameRasterMicros.clear();
         _frameSpanMicros.clear();
+        _slowFrameSamples.clear();
         _databaseCanaryMicros.clear();
         _databaseCanaryMicrosByPhase.clear();
+        _slowDatabaseCanarySamples.clear();
         _playbackFailureCount = 0;
         await _respond(request, HttpStatus.ok, {'status': 'reset'});
         return;
@@ -2588,11 +2593,13 @@ class SyncDiagnosticsServer {
       'frameBuild': _sampleSummary(_frameBuildMicros),
       'frameRaster': _sampleSummary(_frameRasterMicros),
       'frameSpan': _sampleSummary(_frameSpanMicros),
+      'slowFrameSamples': _slowFrameSamples,
       'databaseCanary': _sampleSummary(_databaseCanaryMicros),
       'databaseCanaryByPhase': <String, Object?>{
         for (final entry in _databaseCanaryMicrosByPhase.entries)
           entry.key: _sampleSummary(entry.value),
       },
+      'databaseCanarySlowSamples': _slowDatabaseCanarySamples,
       'playback': <String, Object?>{
         'active': playback?.hasActivePlayback ?? false,
         'playing': playback?.playing ?? false,
@@ -2859,13 +2866,28 @@ class SyncDiagnosticsServer {
 
   void _recordFrameTimings(List<FrameTiming> timings) {
     for (final timing in timings) {
-      _frameBuildMicros.add(timing.buildDuration.inMicroseconds);
-      _frameRasterMicros.add(timing.rasterDuration.inMicroseconds);
-      _frameSpanMicros.add(timing.totalSpan.inMicroseconds);
-      _frameMicros.add(
-        timing.buildDuration.inMicroseconds +
-            timing.rasterDuration.inMicroseconds,
-      );
+      final buildMicros = timing.buildDuration.inMicroseconds;
+      final rasterMicros = timing.rasterDuration.inMicroseconds;
+      final spanMicros = timing.totalSpan.inMicroseconds;
+      final totalMicros = buildMicros + rasterMicros;
+      _frameBuildMicros.add(buildMicros);
+      _frameRasterMicros.add(rasterMicros);
+      _frameSpanMicros.add(spanMicros);
+      _frameMicros.add(totalMicros);
+      if (totalMicros > 100000) {
+        final sync = _container.read(librarySyncControllerProvider);
+        _slowFrameSamples.add(<String, Object?>{
+          'observedAt': DateTime.now().toUtc().toIso8601String(),
+          'phase': sync.candidateStatus ?? sync.stage.name,
+          'buildMicros': buildMicros,
+          'rasterMicros': rasterMicros,
+          'spanMicros': spanMicros,
+          'totalMicros': totalMicros,
+        });
+        if (_slowFrameSamples.length > 32) {
+          _slowFrameSamples.removeAt(0);
+        }
+      }
     }
     _trimSamples(_frameMicros);
     _trimSamples(_frameBuildMicros);
@@ -2878,10 +2900,39 @@ class SyncDiagnosticsServer {
     _canaryRunning = true;
     final sync = _container.read(librarySyncControllerProvider);
     final phase = sync.candidateStatus ?? sync.stage.name;
+    final startedAt = DateTime.now().toUtc();
     final stopwatch = Stopwatch()..start();
+    var lastEventLoopTickMicros = 0;
+    var maximumEventLoopLagMicros = 0;
+    final eventLoopTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) {
+        final tickMicros = stopwatch.elapsedMicroseconds;
+        final lagMicros = tickMicros - lastEventLoopTickMicros - 50000;
+        if (lagMicros > maximumEventLoopLagMicros) {
+          maximumEventLoopLagMicros = lagMicros;
+        }
+        lastEventLoopTickMicros = tickMicros;
+      },
+    );
     try {
       await _container.read(navisDatabaseProvider).libraryDao.countArtists();
       final elapsed = stopwatch.elapsedMicroseconds;
+      if (elapsed > 100000) {
+        final finalLagMicros = elapsed - lastEventLoopTickMicros - 50000;
+        if (finalLagMicros > maximumEventLoopLagMicros) {
+          maximumEventLoopLagMicros = finalLagMicros;
+        }
+        _slowDatabaseCanarySamples.add(<String, Object?>{
+          'startedAt': startedAt.toIso8601String(),
+          'phase': phase,
+          'elapsedMicros': elapsed,
+          'eventLoopLagMicros': maximumEventLoopLagMicros,
+        });
+        if (_slowDatabaseCanarySamples.length > 32) {
+          _slowDatabaseCanarySamples.removeAt(0);
+        }
+      }
       _databaseCanaryMicros.add(elapsed);
       _trimSamples(_databaseCanaryMicros);
       final phaseSamples = _databaseCanaryMicrosByPhase.putIfAbsent(
@@ -2891,6 +2942,7 @@ class SyncDiagnosticsServer {
       phaseSamples.add(elapsed);
       _trimSamples(phaseSamples);
     } finally {
+      eventLoopTimer.cancel();
       _canaryRunning = false;
     }
   }

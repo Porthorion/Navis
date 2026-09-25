@@ -496,8 +496,41 @@ canary report. This is local
 performance evidence only; the live clone suite must still pass in a new
 responsive-server window.
 
-- [ ] Clone suite green end to end: pending a live re-run with the
-      database-canary latency addressed in a fresh responsive-server window
+2026-09-26 continuation: the previous full repository gate remained green on
+the committed checkout, and one bounded server probe returned promptly with no
+active scan. The first allowed live attempt,
+`build/sync-diagnostics/20260925T194918Z-clone`, completed the sync scenarios
+but again failed only the final database-canary maximum: 828,445 µs against
+500,000 µs, with p95 7,077 µs and p99 16,090 µs. The frame, promotion, and
+playback metrics met their limits. Slow reads were sampled during
+`fetchingSongs` and `applying`; collection and candidate cleanup stayed below
+38 ms maximum. The two-reader change improved most phases but did not
+eliminate rare stalls. A bounded, redacted slow-canary trace now records
+event-loop delay alongside phase and elapsed time for the remaining allowed
+attempt. The full repository gate passed again (1,626 tests) before that
+attempt. No green suite or B6 scan-churn evidence is claimed from this run.
+
+The second and final attempt for this session,
+`build/sync-diagnostics/20260925T200936Z-clone`, also completed the sync
+scenarios and reached the final performance gate. Its database canary passed
+(512 samples, p95 6,990 µs, maximum 96,731 µs) and recorded no slow-read
+trace entries. The frame maximum failed at 175,285 µs against 100,000 µs;
+the corresponding build maximum was 172,670 µs while raster stayed below
+8,000 µs. Frame p99, promotion, and playback metrics met their limits. The
+app-owned Library screenshot again showed the four-album backlog pill. Neither
+run observed scan-churn promotion or discovery-debt escalation. A bounded
+slow-frame trace now records build/raster detail and the approximate sync
+phase for any future frame over the limit. No §5a checkbox is certified from
+these performance-failing runs, and the two-attempt cap is exhausted. The
+isolated confirmation fixture then exited 0 at
+`build/repair-confirmation-diagnostics/20260925T202916Z-clone` with 124
+canary samples, maximum 10.7 ms, a clean restart, and an inspected app-owned
+Sync Settings screenshot. This local gate verifies the diagnostic build and
+repair path; it does not substitute for the live suite.
+
+- [ ] Clone suite green end to end: pending a live re-run after the
+      intermittent canary and frame maxima are understood in a fresh
+      responsive-server window
       (see §8 Handoff). Artifact
       dirs so far: `build/sync-diagnostics/20260922T171212Z-clone`,
       `20260922T171932Z-clone` (transient stream timeout, server-side),
@@ -507,7 +540,9 @@ responsive-server window.
       `20260925T182819Z-clone` (manual intent displaced by probe),
       `20260925T183842Z-clone` (repair-consent assertion gap),
       `20260925T185046Z-clone` and `20260925T191113Z-clone`
-      (database-canary maximum exceeded).
+      (database-canary maximum exceeded), and
+      `20260925T194918Z-clone` (database-canary maximum exceeded with two
+      readers), and `20260925T200936Z-clone` (frame maximum exceeded).
 - [ ] B2 evidence in the run: newest-feed probe behavior + escalation
       follow-up rows observed in the clone: newest-feed request observed;
       no escalation row, pending green re-run.
