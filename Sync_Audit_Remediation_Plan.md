@@ -446,6 +446,26 @@ app-owned Sync Settings screenshots were inspected, including the successful
 `Last library change` summary. This is local confirmation-boundary evidence;
 it does not satisfy the live clone-suite, B2/B3/B6, or operator device checks.
 
+2026-09-25 live re-run: `./tool/check.sh` passed before the single bounded
+`getScanStatus` probe, which returned promptly with `status=ok` and no active
+scan. Both allowed clone-suite attempts were used. The first artifact,
+`build/sync-diagnostics/20260925T182819Z-clone`, reached the cellular
+automatic and manual guardrails. Its manual action incorrectly resumed a
+queued automatic probe (`requestId` 344), so it never requested a newest page.
+The coordinator now leaves that probe queued and preserves explicit bounded
+manual discovery; its focused regression and the full gate passed (1,626
+tests), committed as `8911dea1`. The second artifact,
+`build/sync-diagnostics/20260925T183842Z-clone`, passed the cellular automatic,
+manual, metered-Wi-Fi, and interactive-hydration checks. The manual action
+made exactly one `getIndexes` and one `getNewestAlbumList2` request, with no
+artist or bulk-song sweep. The suite then stopped at its no-override repair
+assertion: production correctly returned `deferred` /
+`waitingForMobileConsent` with zero requests and `updatesAvailable=false`,
+but the harness expected every deferred repair to report updates available.
+The harness now checks the explicit consent contract. No end-to-end suite
+success or B2/B3/B6 certification is claimed from these partial attempts; a
+new session with a fresh server-health check is needed for a complete run.
+
 - [ ] Clone suite green end to end: pending a live re-run with the
       action-correlation fix in a fresh responsive-server window (see §8
       Handoff). Artifact
@@ -453,7 +473,9 @@ it does not satisfy the live clone-suite, B2/B3/B6, or operator device checks.
       `20260922T171932Z-clone` (transient stream timeout, server-side),
       `20260922T172348Z-clone` (drain validated, timeBudget deferral),
       `20260924T075837Z-clone` (playback start error), and
-      `20260924T080547Z-clone` (cellular result attribution gap).
+      `20260924T080547Z-clone` (cellular result attribution gap),
+      `20260925T182819Z-clone` (manual intent displaced by probe), and
+      `20260925T183842Z-clone` (repair-consent assertion gap).
 - [ ] B2 evidence in the run: newest-feed probe behavior + escalation
       follow-up rows observed in the clone: pending re-run.
 - [ ] B3 evidence: banner/backlog pill screenshot inspected: pending re-run.

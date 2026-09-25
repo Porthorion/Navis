@@ -137,6 +137,10 @@ With `NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1` and
 a partial artist detail and proves a user Check for updates retains an omitted
 existing sibling album while importing the new one.
 
+The live clone suite requires the no-override cellular Repair Library action
+to defer for `waitingForMobileConsent` before creating repair work or sending
+requests. A false `updatesAvailable` value is valid for this consent state.
+
 Large-deletion repair confirmation has a separate deterministic gate:
 
 ```bash

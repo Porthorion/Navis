@@ -891,11 +891,13 @@ PY
   python3 - "$OUTPUT_ROOT/guardrails-no-override-repair-result.json" <<'PY'
 import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
-assert value.get("status") in ("deferred", "skipped", "succeeded", "partial"), value
-endpoints = value.get("endpointRequests") or {}
-if value.get("status") == "deferred":
-    assert value.get("updatesAvailable") is True, value
-assert endpoints.get("getIndexes", 0) <= 1, endpoints
+assert value.get("status") == "deferred", value
+assert value.get("planReason") == "waitingForMobileConsent", value
+assert value.get("failureCategory") == "consent", value
+assert value.get("runRequestId") is None, value
+assert value.get("runAttemptId") is None, value
+assert value.get("requests") == 0, value
+assert not (value.get("endpointRequests") or {}), value
 PY
 
   api POST /v1/sync/repair '{"allowMeteredBroadOverride":true}' \

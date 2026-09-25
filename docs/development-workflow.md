@@ -893,8 +893,9 @@ redacted ledger events, durable requests, and attempt endpoint counts. A
 preceding repair's displayed status
 is not attributed to a later bounded action. Clone mode can simulate
 metered/cellular policy through diagnostics overrides and asserts hard-probe,
-interactive hydration, budget, and one-time override guardrails without
-requiring a real modem. The clone suite also certifies the foreground cellular
+interactive hydration, explicit repair-consent deferral with zero requests,
+budget, and one-time override guardrails without requiring a real modem. The
+clone suite also certifies the foreground cellular
 Check for updates path: exactly one newest-album page, no artist/bulk-song
 sweep, and at most three changed-album details. Its authenticated
 `recent-albums` observation also proves the Library's production Recently Added
