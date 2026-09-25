@@ -891,9 +891,10 @@ repair into the metered guardrail scenarios. The cellular automatic,
 manual-check, and metered-Wi-Fi checks correlate each posted action with new
 redacted ledger events, durable requests, and attempt endpoint counts. A
 preceding repair's displayed status is not attributed to a later bounded
-action. After startup work settles, clone mode saves the idle sync status and
-captures an app-owned Library screenshot for visual inspection of the hydration
-backlog notice, then returns to Home before applying guardrail overrides.
+action. After collecting its performance report, clone mode saves the idle
+sync status and captures an app-owned Library screenshot for visual inspection
+of the hydration backlog notice. Capturing after the report keeps the Library
+tab's mounted queries out of the benchmark workload.
 Clone mode can simulate metered/cellular policy through diagnostics overrides
 and asserts hard-probe, interactive hydration, explicit repair-consent deferral
 with zero requests,

@@ -804,44 +804,6 @@ PY
     printf '%s\n' '{"startupWork": false}' \
       > "$OUTPUT_ROOT/startup-sync-result.json"
   fi
-  api GET /v1/sync/status > "$OUTPUT_ROOT/library-backlog-status.json"
-  api GET /v1/presentation/status > "$OUTPUT_ROOT/library-backlog-presentation.json"
-  python3 - "$OUTPUT_ROOT/library-backlog-presentation.json" <<'PY'
-import json, sys
-value = json.load(open(sys.argv[1], encoding="utf-8"))
-assert value.get("appReady") and value.get("screenshotReady"), value
-PY
-  api POST /v1/presentation/navigate '{"location":"/library"}' \
-    > "$OUTPUT_ROOT/library-backlog-navigation.json"
-  python3 - "$OUTPUT_ROOT/library-backlog-navigation.json" <<'PY'
-import json, sys
-value = json.load(open(sys.argv[1], encoding="utf-8"))
-assert value.get("actualLocation") == "/library" and not value.get("redirected"), value
-PY
-  sleep 2
-  api POST /v1/presentation/screenshot '{"label":"library-backlog"}' \
-    > "$OUTPUT_ROOT/library-backlog-screenshot.json"
-  python3 - "$OUTPUT_ROOT/library-backlog-screenshot.json" "$OUTPUT_ROOT" \
-    "$OUTPUT_ROOT/library-backlog-screenshot-path.txt" <<'PY'
-import hashlib, json, os, sys
-metadata_path, root, output_path = sys.argv[1:]
-value = json.load(open(metadata_path, encoding="utf-8"))
-artifact = value.get("artifact")
-if not isinstance(artifact, str) or os.path.isabs(artifact):
-    raise SystemExit("library screenshot artifact must be relative")
-root = os.path.realpath(root)
-path = os.path.realpath(os.path.join(root, artifact))
-if os.path.commonpath([root, path]) != root:
-    raise SystemExit("library screenshot escaped diagnostics root")
-with open(path, "rb") as screenshot:
-    data = screenshot.read()
-if data[:8] != b"\x89PNG\r\n\x1a\n" or hashlib.sha256(data).hexdigest() != value.get("sha256"):
-    raise SystemExit("library screenshot failed integrity validation")
-with open(output_path, "w", encoding="utf-8") as output:
-    output.write(path + "\n")
-PY
-  api POST /v1/presentation/navigate '{"location":"/"}' \
-    > "$OUTPUT_ROOT/library-backlog-return-navigation.json"
   api POST /v1/diagnostics/overrides \
     '{"networkType":"cellular","backgroundSyncUnmeteredOnly":true,"requestReporting":true}' \
     > "$OUTPUT_ROOT/guardrails-overrides-cellular.json"
@@ -1092,6 +1054,46 @@ fi
 api POST /v1/sync/check > "$OUTPUT_ROOT/check-start.json"
 wait_for_sync > "$OUTPUT_ROOT/check-result.json"
 api GET /v1/diagnostics/report > "$REPORT"
+if [[ "$MODE" == "clone" ]]; then
+  # Capture the backlog after the performance report. Stateful shell branches
+  # remain mounted after navigation, which would change the measured workload.
+  api GET /v1/sync/status > "$OUTPUT_ROOT/library-backlog-status.json"
+  api GET /v1/presentation/status > "$OUTPUT_ROOT/library-backlog-presentation.json"
+  python3 - "$OUTPUT_ROOT/library-backlog-presentation.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value.get("appReady") and value.get("screenshotReady"), value
+PY
+  api POST /v1/presentation/navigate '{"location":"/library"}' \
+    > "$OUTPUT_ROOT/library-backlog-navigation.json"
+  python3 - "$OUTPUT_ROOT/library-backlog-navigation.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value.get("actualLocation") == "/library" and not value.get("redirected"), value
+PY
+  sleep 2
+  api POST /v1/presentation/screenshot '{"label":"library-backlog"}' \
+    > "$OUTPUT_ROOT/library-backlog-screenshot.json"
+  python3 - "$OUTPUT_ROOT/library-backlog-screenshot.json" "$OUTPUT_ROOT" \
+    "$OUTPUT_ROOT/library-backlog-screenshot-path.txt" <<'PY'
+import hashlib, json, os, sys
+metadata_path, root, output_path = sys.argv[1:]
+value = json.load(open(metadata_path, encoding="utf-8"))
+artifact = value.get("artifact")
+if not isinstance(artifact, str) or os.path.isabs(artifact):
+    raise SystemExit("library screenshot artifact must be relative")
+root = os.path.realpath(root)
+path = os.path.realpath(os.path.join(root, artifact))
+if os.path.commonpath([root, path]) != root:
+    raise SystemExit("library screenshot escaped diagnostics root")
+with open(path, "rb") as screenshot:
+    data = screenshot.read()
+if data[:8] != b"\x89PNG\r\n\x1a\n" or hashlib.sha256(data).hexdigest() != value.get("sha256"):
+    raise SystemExit("library screenshot failed integrity validation")
+with open(output_path, "w", encoding="utf-8") as output:
+    output.write(path + "\n")
+PY
+fi
 api POST /v1/shutdown > "$OUTPUT_ROOT/shutdown.json" || true
 wait "$FLUTTER_PID" || true
 FLUTTER_PID=0
