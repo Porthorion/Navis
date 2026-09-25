@@ -528,10 +528,38 @@ canary samples, maximum 10.7 ms, a clean restart, and an inspected app-owned
 Sync Settings screenshot. This local gate verifies the diagnostic build and
 repair path; it does not substitute for the live suite.
 
-- [ ] Clone suite green end to end: pending a live re-run after the
-      intermittent canary and frame maxima are understood in a fresh
-      responsive-server window
-      (see §8 Handoff). Artifact
+2026-09-26 later live window: one fresh bounded `getScanStatus` probe returned
+promptly with no active scan. The first clone attempt,
+`build/sync-diagnostics/20260925T203545Z-clone`, completed the scenarios and
+failed only the database-canary maximum (718,182 µs against 500,000 µs;
+p95 7,892 µs). The new slow-read trace places that sample in `fetchingSongs`
+near the end of a 48-album detail batch, with 222,379 µs of observed
+event-loop delay. Frame, promotion, and playback metrics met their limits;
+the app-owned Library screenshot again showed the backlog pill. No scan-churn
+promotion or discovery-debt escalation was observed. Song-row conversion now
+yields between groups of eight fetched albums while preserving the complete
+batch reconciliation boundary; the second allowed attempt below validates it.
+No §5a checkbox is claimed from the failed run.
+
+The second allowed attempt, `build/sync-diagnostics/20260925T205945Z-clone`,
+exited 0 end to end after the conversion-yield fix (`5a47a811`). Its 386
+database-canary samples had p95 10,340 µs and maximum 129,000 µs; 5,000
+Flutter frame samples had p99 7,041 µs and maximum 17,353 µs. The final
+zero-write promotion applied in 450 ms with 63,372 unchanged rows, and
+playback stayed active with no load failures. The interrupted candidate
+survived the suite's clean restart; subsequent repair and checks completed,
+and the clone database passed integrity and foreign-key validation. The
+app-owned Library screenshot was inspected and showed the four-album backlog
+pill. Manual cellular discovery made one `getIndexes` and one
+`getNewestAlbumList2` request without an artist or bulk-song sweep. No
+discovery-debt capability or new escalation work row appeared; the completed
+`deltaReconcile` row was created before this clone run. The promotion ledger
+contains validated full candidates but no scan-churn deferral or cap-release
+decision. This certifies the suite, B3, and clean restart while leaving the
+live B2 escalation and B6 scan-churn paths open.
+
+- [x] Clone suite green end to end: `build/sync-diagnostics/20260925T205945Z-clone`
+      (see §8 Handoff). Earlier artifact
       dirs so far: `build/sync-diagnostics/20260922T171212Z-clone`,
       `20260922T171932Z-clone` (transient stream timeout, server-side),
       `20260922T172348Z-clone` (drain validated, timeBudget deferral),
@@ -542,15 +570,17 @@ repair path; it does not substitute for the live suite.
       `20260925T185046Z-clone` and `20260925T191113Z-clone`
       (database-canary maximum exceeded), and
       `20260925T194918Z-clone` (database-canary maximum exceeded with two
-      readers), and `20260925T200936Z-clone` (frame maximum exceeded).
-- [ ] B2 evidence in the run: newest-feed probe behavior + escalation
-      follow-up rows observed in the clone: newest-feed request observed;
-      no escalation row, pending green re-run.
-- [ ] B3 evidence: banner/backlog pill screenshot inspected in both Sep 25
-      performance-failing artifacts; pending green re-run.
-- [ ] B6 evidence: promotion completes despite scan churn: pending re-run.
-- [ ] Clean restart: the suite's own restart/recovery cycle covers this on
-      the green run.
+      readers), `20260925T200936Z-clone` (frame maximum exceeded), and
+      `20260925T203545Z-clone` (database-canary maximum exceeded during song
+      hydration).
+- [ ] B2 evidence in the run: newest-feed probe behavior was observed;
+      no discovery debt or escalation follow-up row arose on this server.
+- [x] B3 evidence: app-owned Library backlog pill screenshot inspected in the
+      green clone artifact.
+- [ ] B6 evidence: promotion completes despite scan churn; no scan change
+      occurred during this run.
+- [x] Clean restart: interrupted candidate recovered and the suite completed
+      its restart/recovery cycle in the green run.
 
 ## 6. Documentation, rollout, and remaining limits
 
@@ -590,9 +620,11 @@ extended heavy load; the resumed startup repair on the clone deferred with
 `timeBudget` after 10 minutes of real progress, which is correct behavior
 under load, not a defect. The 2026-09-24 attempt found a diagnostics-harness
 result-attribution gap (§5a); its focused fix is committed, but the complete
-live clone-suite re-run is still required before certification. The later
-2026-09-25 window reached the final performance check twice and exposed
-database-canary maximum latency above its limit (§5a).
+live clone-suite re-run was still required. The later 2026-09-25 windows
+exposed intermittent database-canary and frame maxima above their limits.
+The 2026-09-26 continuation produced one green end-to-end clone run after a
+hydration conversion yield, but §5a still lacks live discovery-debt escalation
+and scan-churn promotion evidence.
 
 Prerequisites:
 
