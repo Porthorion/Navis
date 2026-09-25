@@ -1108,6 +1108,8 @@ states without starting audio or modifying a queue.
    explicit repair remains bounded at four to eight Wi-Fi workers rather than
    falling to the ordinary two-worker interactive cap, so a server
    search-result window cannot turn the repair tail into a serial crawl.
+   Multi-album detail batches yield during song-row conversion while keeping
+   reconciliation and identity matching on the complete fetched batch.
 6. The transport interceptor owns at most one immediate idempotent retry and
    honors `Retry-After`. Durable work owns later attempts with exponential
    cooldown. Three consecutive failures open the endpoint circuit; user,

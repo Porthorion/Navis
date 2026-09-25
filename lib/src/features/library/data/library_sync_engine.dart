@@ -5529,6 +5529,7 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
 
       final songsByAlbum = <String, List<SongsTableCompanion>>{};
       final hydratedAlbumIds = <String>[];
+      var convertedAlbums = 0;
       for (final detail in batchResult.albums) {
         songsByAlbum[detail.id] = await _toSongCompanions(
           detail.songs,
@@ -5537,6 +5538,12 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           catalogGeneration: catalogGeneration,
         );
         hydratedAlbumIds.add(detail.id);
+        convertedAlbums++;
+        if (convertedAlbums % 8 == 0) {
+          // Keep database reads and Flutter frames responsive while a fetched
+          // batch is converted; reconciliation still observes the whole batch.
+          await Future<void>.delayed(Duration.zero);
+        }
       }
 
       if (candidateMode) {
