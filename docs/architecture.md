@@ -207,10 +207,10 @@ Located in `lib/src/providers/app_providers.dart`:
   indexed provisional-song identity plan, and defers cache-file unlinking
   until after commit. Unchanged catalogs therefore avoid metadata rewrites and
   large in-memory ID collections.
-- Native Drift access uses WAL plus one pooled reader. Candidate collection and
-  classification stay on the writer while ordinary app reads can continue,
-  without a second `NavisDatabase` or candidate visibility in reactive
-  providers.
+- Native Drift access uses WAL plus two pooled readers. Candidate collection
+  and classification stay on the writer while an interactive read can proceed
+  alongside a long catalog read, without a second `NavisDatabase` or candidate
+  visibility in reactive providers.
 - Linux and Windows profile diagnostics use the bearer-authenticated loopback
   control plane. The Linux launcher is `tool/sync_diagnostics.sh`; Windows
   launchers must use the same clone-only, isolated database/cache contract.

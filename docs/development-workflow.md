@@ -202,7 +202,9 @@ It uses an isolated fixture to require the production repair confirmation
 boundary, proves the committed catalog remains untouched across a clean
 restart, then verifies that only the explicit confirming repair request
 promotes the candidate and that the durable operation ledger records matching
-safe before/after/removal counts. It is required after changing repair
+safe before/after/removal counts. Its `repair-confirm-report.json` also checks
+the database-canary read latency (p95 ≤ 100 ms, maximum ≤ 500 ms) during the
+large repair. It is required after changing repair
 promotion, deletion analysis, ledger recording, or the confirmation
 presentation. Open the resulting Sync Settings screenshot and verify the
 `Last library change` summary matches the authenticated ledger counts; a later

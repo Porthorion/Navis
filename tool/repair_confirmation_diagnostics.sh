@@ -211,6 +211,14 @@ assert restart["catalog"] == first["catalog"], (first, restart)
 PY
 api POST /v1/sync/repair '{}' > "$OUTPUT_ROOT/repair-confirm-start.json"
 wait_for_idle "$OUTPUT_ROOT/repair-confirm-result.json"
+api GET /v1/diagnostics/report > "$OUTPUT_ROOT/repair-confirm-report.json"
+python3 - "$OUTPUT_ROOT/repair-confirm-report.json" <<'PY'
+import json, sys
+canary = json.load(open(sys.argv[1], encoding="utf-8")).get("databaseCanary") or {}
+assert canary.get("samples", 0) > 0, canary
+assert canary.get("p95Micros", 100001) <= 100000, canary
+assert canary.get("maxMicros", 500001) <= 500000, canary
+PY
 api GET /v1/sync/ledger > "$OUTPUT_ROOT/sync-ledger.json"
 python3 - "$OUTPUT_ROOT/status-before.json" "$OUTPUT_ROOT/repair-confirm-result.json" "$OUTPUT_ROOT/sync-ledger.json" <<'PY'
 import json, sys

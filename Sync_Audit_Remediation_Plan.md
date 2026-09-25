@@ -466,19 +466,53 @@ The harness now checks the explicit consent contract. No end-to-end suite
 success or B2/B3/B6 certification is claimed from these partial attempts; a
 new session with a fresh server-health check is needed for a complete run.
 
+2026-09-25 later live window: the repository gate passed again (1,626 tests),
+and the single bounded `getScanStatus` probe returned `status=ok`,
+`scanning=false`, and count 56,220. Both allowed clone-suite attempts reached
+the final performance assertion. The first artifact,
+`build/sync-diagnostics/20260925T185046Z-clone`, failed only the
+database-canary maximum (1,142,227 µs; limit 500,000 µs); the second,
+`build/sync-diagnostics/20260925T191113Z-clone`, failed the same limit
+(1,575,938 µs). Their canary p95, frame, promotion, and playback checks passed.
+Moving the Library screenshot after the performance report in the second run
+did not remove the slow reads. Its app-owned screenshot shows the backlog pill
+"Library synced, 4 albums are still loading details"; the saved idle status
+records four pending albums. The manual cellular action made one `getIndexes`
+and one `getNewestAlbumList2` request without an artist or bulk-song sweep.
+Neither run observed scan churn or discovery-debt escalation. These are partial
+observations, not a green §5a certification. Both live attempts for this window
+are exhausted. An offline SQLite copy deleted the 55,947-row candidate in 111
+pages while a separate artist-count reader stayed below 1 ms, so cleanup-page
+locking alone did not explain the app result. The isolated, authenticated
+repair-confirmation fixture reproduced canary maxima of 757 ms and 751 ms
+with Drift's single pooled reader. With two pooled readers, the same fixture's
+134 samples reached 8.1 ms maximum and its 120 promotion-phase samples reached
+3.2 ms maximum, while the large confirmation repair and clean restart still
+passed. A final run without temporary timing probes also exited 0 at
+`build/repair-confirmation-diagnostics/20260925T194248Z-clone`: 122 canary
+samples, p95 7.4 ms, maximum 43.7 ms, and an inspected app-owned Sync Settings
+screenshot showing the completed repair. The fixture now saves and asserts its
+canary report. This is local
+performance evidence only; the live clone suite must still pass in a new
+responsive-server window.
+
 - [ ] Clone suite green end to end: pending a live re-run with the
-      action-correlation fix in a fresh responsive-server window (see §8
-      Handoff). Artifact
+      database-canary latency addressed in a fresh responsive-server window
+      (see §8 Handoff). Artifact
       dirs so far: `build/sync-diagnostics/20260922T171212Z-clone`,
       `20260922T171932Z-clone` (transient stream timeout, server-side),
       `20260922T172348Z-clone` (drain validated, timeBudget deferral),
       `20260924T075837Z-clone` (playback start error), and
       `20260924T080547Z-clone` (cellular result attribution gap),
-      `20260925T182819Z-clone` (manual intent displaced by probe), and
-      `20260925T183842Z-clone` (repair-consent assertion gap).
+      `20260925T182819Z-clone` (manual intent displaced by probe),
+      `20260925T183842Z-clone` (repair-consent assertion gap),
+      `20260925T185046Z-clone` and `20260925T191113Z-clone`
+      (database-canary maximum exceeded).
 - [ ] B2 evidence in the run: newest-feed probe behavior + escalation
-      follow-up rows observed in the clone: pending re-run.
-- [ ] B3 evidence: banner/backlog pill screenshot inspected: pending re-run.
+      follow-up rows observed in the clone: newest-feed request observed;
+      no escalation row, pending green re-run.
+- [ ] B3 evidence: banner/backlog pill screenshot inspected in both Sep 25
+      performance-failing artifacts; pending green re-run.
 - [ ] B6 evidence: promotion completes despite scan churn: pending re-run.
 - [ ] Clean restart: the suite's own restart/recovery cycle covers this on
       the green run.
@@ -521,7 +555,9 @@ extended heavy load; the resumed startup repair on the clone deferred with
 `timeBudget` after 10 minutes of real progress, which is correct behavior
 under load, not a defect. The 2026-09-24 attempt found a diagnostics-harness
 result-attribution gap (§5a); its focused fix is committed, but the complete
-live clone-suite re-run is still required before certification.
+live clone-suite re-run is still required before certification. The later
+2026-09-25 window reached the final performance check twice and exposed
+database-canary maximum latency above its limit (§5a).
 
 Prerequisites:
 

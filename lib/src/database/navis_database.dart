@@ -163,8 +163,9 @@ class NavisDatabase extends _$NavisDatabase {
       file,
       setup: _configureNativeDatabase,
       // WAL lets ordinary reads continue while sync writes its hidden
-      // candidate catalog. One reader keeps device overhead low.
-      readPool: 1,
+      // candidate catalog. A second reader keeps interactive queries moving
+      // while a large catalog read occupies the first reader.
+      readPool: 2,
     );
   }
 

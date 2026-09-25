@@ -161,7 +161,10 @@ current library sync model so an older source export cannot start an unrelated
 model-upgrade repair during the confirmation restart. The fixture also uses
 the production ten-minute sync lease so the large local promotion can finish
 without the diagnostic default's six-second expiry. Its inspected Sync Settings
-capture must show the matching `Last library change` summary, proving the
+screenshots accompany a saved `repair-confirm-report.json`; the gate also
+requires its artist-count database canary to stay within 100 ms at p95 and
+500 ms at maximum during the confirmation repair. The screenshot capture must
+show the matching `Last library change` summary, proving the
 durable evidence is visible to the user as well as the diagnostics API.
 
 First-login and logout ownership are exercised separately with:
