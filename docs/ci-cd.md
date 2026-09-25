@@ -84,9 +84,12 @@ tabs, completes audio bootstrap, and emits no fatal Android or Flutter logs.
 It complements, but does not replace, the physical-phone DHU projection check.
 
 Library sync metered-network guardrails are exercised by the clone diagnostics
-suite (`./tool/sync_diagnostics.sh clone`):
-automatic cellular work remains a single probe, while a foreground manual check
-is certified as `manualMeteredLimitedDiscovery` with one newest-album page, no
+suite (`./tool/sync_diagnostics.sh clone`). Its post-startup Library screenshot
+is an app-owned artifact for visual verification of the pending hydration
+notice. The suite records the matching idle sync status before the cellular
+scenarios. Automatic cellular work remains a single probe, while a foreground
+manual check is certified as `manualMeteredLimitedDiscovery` with one
+newest-album page, no
 artist sweep or bulk-song index, and no more than three album details.
 The harness verifies those counts against the durable attempts created after
 each action, so an earlier repair result cannot satisfy a later guardrail.
