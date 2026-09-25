@@ -525,7 +525,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             // A manual catalog refresh is an explicit discovery request. It
             // must not be consumed by a queued page/detail hydration merely
             // because that interaction work has a higher durable priority.
-            // Target work stays queued for its own interaction path.
+            // An automatic probe cannot replace manual discovery either;
+            // it stays queued for a later automatic pass.
             catalogWorkOnly:
                 request.intent == LibrarySyncIntent.checkForUpdates ||
                 (request.intent == LibrarySyncIntent.automatic && isDue),
@@ -1811,7 +1812,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       }
       final planKind = kind.first;
       if (catalogWorkOnly &&
-          planKind == LibrarySyncPlanKind.targetedHydration) {
+          (planKind == LibrarySyncPlanKind.targetedHydration ||
+              (request.intent == LibrarySyncIntent.checkForUpdates &&
+                  planKind == LibrarySyncPlanKind.probe))) {
         continue;
       }
       if (planKind == LibrarySyncPlanKind.fullRepair &&

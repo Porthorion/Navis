@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Check for updates on mobile data now reaches its bounded newest-album check even when an automatic index probe is pending',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Repair Library now finishes large confirmed changes when unavailable songs need review, while preserving earlier review decisions',
         type: ChangelogEntryType.fix,
       ),

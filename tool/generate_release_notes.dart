@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Check for updates on mobile data now reaches its bounded newest-album check even when an automatic index probe is pending',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'Repair Library now finishes large confirmed changes when unavailable songs need review, while preserving earlier review decisions',
         type: _EntryType.fix,
       ),

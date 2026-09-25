@@ -836,6 +836,55 @@ void main() {
   );
 
   test(
+    'manual cellular refresh does not resume a queued automatic probe',
+    () async {
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(1),
+          currentGeneration: Value(1),
+        ),
+      );
+      await database.librarySyncDao.enqueueWork(
+        serverId: 1,
+        kind: LibrarySyncPlanKind.probe.name,
+        priority: 20,
+      );
+      final probeEngine = _ProbeLibrarySyncEngine();
+      const policy = SyncNetworkPolicy(
+        networkType: NetworkType.cellular,
+        isMetered: true,
+        allowsBackgroundSync: false,
+        allowsHardProbe: true,
+        allowsInteractiveHydration: true,
+      );
+      final coordinator = AdaptiveLibrarySyncCoordinator(
+        executor: probeEngine,
+        database: database,
+        serverConfigRepository: repository,
+        readSyncNetworkPolicy: () => policy,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => DateTime.utc(2026, 8, 4),
+      );
+
+      final result = await coordinator.syncNow();
+
+      expect(result.planKind, LibrarySyncPlanKind.deltaReconcile);
+      expect(result.planReason, 'manualMeteredLimitedDiscovery');
+      expect(probeEngine.syncNowCalls, 1);
+      expect(probeEngine.probeCalls, 0);
+      expect(
+        (await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.probe.name,
+        ))?.status,
+        'queued',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'manual refresh resumes queued catalog work while playback is active',
     () async {
       final probeEngine = _ProbeLibrarySyncEngine();
