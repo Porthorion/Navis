@@ -152,6 +152,9 @@ ADRs without reliable evidence. Use the template and status rules in
 Codex reads `AGENTS.md`; Cursor reads `.cursor/rules/navis-agents.mdc`; Claude
 reads `CLAUDE.md`; Gemini reads `GEMINI.md`; GitHub Copilot reads
 `.github/copilot-instructions.md`. Each is intentionally concise and points
-here. When changing policy, update this guide first, then update only the
-entry-point wording necessary to keep it accurate. Add a scoped instruction
-only where a directory has rules that are materially different from the root.
+here. On-demand project skills for recurring workflows live under
+`.agents/skills/<name>/SKILL.md`; they complement this guide and must not
+contradict or duplicate it. When changing policy, update this guide first,
+then update only the entry-point wording necessary to keep it accurate. Add
+a scoped instruction only where a directory has rules that are materially
+different from the root.
