@@ -1289,6 +1289,16 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
         metrics: metrics,
         endpoint: 'getArtist',
       );
+      final releaseIds = detail.albums.map((album) => album.id).toSet();
+      if (detail.id != normalizedId ||
+          releaseIds.any((id) => id.trim().isEmpty) ||
+          releaseIds.length != detail.albums.length ||
+          (detail.albumCount != null &&
+              releaseIds.length < detail.albumCount!)) {
+        throw const SubsonicIncompleteResponseException(
+          'Artist detail identity or release count is incomplete.',
+        );
+      }
       final isExternalDetail = isExternalCatalogSource(
         id: detail.id,
         apiIsExternal: detail.isExternal,
@@ -1318,11 +1328,19 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
             isExternal: Value(isExternalDetail),
           ),
         ];
-        final albumRows = await _toAlbumCompanions(
-          detail.albums,
-          pendingHydrationAlbumIds: detail.albums.map((album) => album.id),
-          inheritExternalWhenMissing: isExternalDetail,
-        );
+        final albumRows =
+            (await _toAlbumCompanions(
+                  detail.albums,
+                  pendingHydrationAlbumIds: detail.albums.map(
+                    (album) => album.id,
+                  ),
+                  inheritExternalWhenMissing: isExternalDetail,
+                ))
+                .map(
+                  (album) =>
+                      album.copyWith(songsHydrated: const Value.absent()),
+                )
+                .toList(growable: false);
         final externalAlbumRows = albumRows
             .where(
               (album) => album.isExternal.present && album.isExternal.value,
@@ -1407,6 +1425,17 @@ class DriftLibrarySyncEngine extends LibrarySyncEngine
           isHydrating: false,
           errorMessage:
               'Sync deferred: response exceeded the mobile-data budget.',
+        ),
+        metrics,
+      );
+    } on SubsonicIncompleteResponseException catch (error) {
+      state = _withMetrics(
+        state.copyWith(
+          status: LibrarySyncStatus.partial,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          isHydrating: false,
+          errorMessage: error.message,
         ),
         metrics,
       );

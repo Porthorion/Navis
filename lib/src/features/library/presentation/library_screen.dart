@@ -19,7 +19,6 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
-import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -42,6 +41,10 @@ import 'package:navis/src/features/library/presentation/unavailable_review_scree
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/common_widgets/responsive_content_grid.dart';
+import 'package:navis/src/common_widgets/content_shelf.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
 
@@ -49,27 +52,6 @@ part 'library_support_widgets.dart';
 part 'library_tabs.dart';
 
 enum _AlbumSort { recentlyAdded, newest, name, artist, byYear }
-
-/// Computes the effective album grid column count.
-///
-/// When [densityOverride] is non-null, returns that value clamped to [1, 5].
-/// Otherwise, auto-computes from [availableWidth] as `floor(width / 180)`
-/// clamped to [1, 5].
-int computeGridCrossAxisCount(int? densityOverride, double availableWidth) {
-  if (densityOverride != null) {
-    return densityOverride.clamp(1, 5);
-  }
-  return (availableWidth / 180).floor().clamp(1, 5);
-}
-
-/// Computes artist grid columns for circular cards.
-///
-/// Artist tiles must stay denser than album tiles so the view never degrades
-/// to one oversized card per row on phones.
-int computeArtistGridCrossAxisCount(double availableWidth) {
-  final usableWidth = availableWidth - 52; // matches grid horizontal padding
-  return (usableWidth / 150).floor().clamp(2, 6);
-}
 
 bool _likedSongMatchesTypeFilter(SongsTableData song, String queryLower) {
   return song.title.toLowerCase().contains(queryLower) ||
@@ -206,25 +188,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       libraryScrollDiagnosticsProvider,
       (previous, request) async {
         if (request == null) return;
-        if (!mounted || !_albumsScrollController.hasClients) {
+        final controller = switch (ref.read(librarySectionProvider)) {
+          LibrarySection.albums => _albumsScrollController,
+          LibrarySection.liked => _likedScrollController,
+          _ => null,
+        };
+        if (!mounted || controller == null || !controller.hasClients) {
           request.completed.completeError(
-            StateError('Albums scroll view is not mounted'),
+            StateError('Selected collection scroll view is not mounted'),
           );
           return;
         }
         try {
           final target = request.pixels.clamp(
             0.0,
-            _albumsScrollController.position.maxScrollExtent,
+            controller.position.maxScrollExtent,
           );
-          await _albumsScrollController.animateTo(
+          await controller.animateTo(
             target,
             duration: const Duration(milliseconds: 250),
             curve: Curves.linear,
           );
-          if (!mounted || !_albumsScrollController.hasClients)
+          if (!mounted || !controller.hasClients)
             throw StateError('Albums scroll view detached');
-          request.completed.complete(_albumsScrollController.offset);
+          request.completed.complete(controller.offset);
         } on Object catch (error, stack) {
           request.completed.completeError(error, stack);
         }
@@ -848,9 +835,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
 
     if (tabletMode) {
-      final maxWidth = adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
-          ? 1080.0
-          : 920.0;
       return Scaffold(
         appBar: AppBar(
           title: Text(l10n.libraryTitle),
@@ -859,7 +843,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         body: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
+            constraints: const BoxConstraints(),
             child: bodyContent,
           ),
         ),
@@ -973,15 +957,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
 
     if (tabletMode) {
-      final maxWidth = adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
-          ? 1080.0
-          : 920.0;
       return Scaffold(
         appBar: AppBar(title: Text(l10n.libraryTitle)),
         body: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
+            constraints: const BoxConstraints(),
             child: content,
           ),
         ),
@@ -1334,6 +1315,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     })
                     .toList(growable: false);
           _reportVisibleAlbumPriority(typeFiltered);
+          if (!albumsAsync.isLoading && !albumsAsync.hasError) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _onAlbumsScroll();
+            });
+          }
           final totalAlbums = _downloadedOnly || _typeFilterQuery.isNotEmpty
               ? typeFiltered.length
               : (totalAlbumsAsync.asData?.value ?? items.length);
@@ -1343,10 +1329,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               items.length < totalAlbums;
           return LayoutBuilder(
             builder: (context, constraints) {
-              final gridWidth = (constraints.maxWidth - 24).clamp(
-                240.0,
-                2400.0,
-              );
               return Scrollbar(
                 controller: _albumsScrollController,
                 thumbVisibility: false,
@@ -1422,65 +1404,55 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         ),
                       )
                     else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                        sliver: SliverGrid(
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: computeGridCrossAxisCount(
-                                  ref.watch(albumGridDensityProvider),
-                                  gridWidth,
-                                ),
-                                childAspectRatio: 1,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                              ),
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final album = typeFiltered[index];
-                            final heroTag = buildCoverArtHeroTag(
-                              coverArtId: album.coverArt,
-                              context: 'album',
-                              entityId: album.id,
-                            );
-                            return RepaintBoundary(
-                              child: AlbumCard(
-                                key: ValueKey(album.id),
-                                album: album,
-                                size: AlbumCardSize.library,
-                                heroTag: heroTag,
-                                badge: AlbumDownloadBadge(albumId: album.id),
-                                onTap: () {
-                                  ref
-                                      .read(
-                                        librarySyncControllerProvider.notifier,
-                                      )
-                                      .registerAlbumInteraction(album.id);
-                                  NavService.openAlbumDetail(
-                                    context,
-                                    ref,
-                                    album.id,
-                                    heroTag: heroTag,
-                                  );
-                                },
-                                onLongPress: () => showAlbumContextMenu(
-                                  context,
-                                  ref,
-                                  album.id,
-                                ),
-                                onSecondaryTapDown: (details) =>
-                                    showAlbumContextMenu(
+                      ResponsiveContentSliverGrid(
+                        itemCount: typeFiltered.length,
+                        itemBuilder:
+                            (
+                              context,
+                              index,
+                            ) {
+                              final album = typeFiltered[index];
+                              final heroTag = buildCoverArtHeroTag(
+                                coverArtId: album.coverArt,
+                                context: 'album',
+                                entityId: album.id,
+                              );
+                              return RepaintBoundary(
+                                child: AlbumCard(
+                                  key: ValueKey(album.id),
+                                  album: album,
+                                  size: AlbumCardSize.library,
+                                  heroTag: heroTag,
+                                  badge: AlbumDownloadBadge(albumId: album.id),
+                                  onTap: () {
+                                    ref
+                                        .read(
+                                          librarySyncControllerProvider
+                                              .notifier,
+                                        )
+                                        .registerAlbumInteraction(album.id);
+                                    NavService.openAlbumDetail(
                                       context,
                                       ref,
                                       album.id,
-                                      anchor: details.globalPosition,
-                                    ),
-                              ),
-                            );
-                          }, childCount: typeFiltered.length),
-                        ),
+                                      heroTag: heroTag,
+                                    );
+                                  },
+                                  onLongPress: () => showAlbumContextMenu(
+                                    context,
+                                    ref,
+                                    album.id,
+                                  ),
+                                  onSecondaryTapDown: (details) =>
+                                      showAlbumContextMenu(
+                                        context,
+                                        ref,
+                                        album.id,
+                                        anchor: details.globalPosition,
+                                      ),
+                                ),
+                              );
+                            },
                       ),
                     if (hasMore)
                       SliverToBoxAdapter(
@@ -1738,10 +1710,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Widget _buildLikedTab(BuildContext context, {required bool desktopMode}) {
     final l10n = AppLocalizations.of(context)!;
-    // Recent 6 liked albums (ordered by starred desc) for the capped grid.
+    // Filter the full recent order before deriving a pane-sized preview.
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
-    // Full list used only for the total count; data is not rendered directly.
-    final likedAlbumsAllAsync = ref.watch(likedAlbumsProvider);
+
     final likedAlbumSongsAsync = ref.watch(likedAlbumSongsProvider);
     final likedArtistsAsync = ref.watch(likedArtistsProvider);
     final likedSongsAsync = ref.watch(likedSongsProvider);
@@ -1766,14 +1737,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               )
               .toList(growable: false)
         : likedAlbumsRecentAsync.asData?.value ?? const <AlbumsTableData>[];
-    final totalAlbumCount = _downloadedOnly
-        ? (likedAlbumsAllAsync.asData?.value ?? const <AlbumsTableData>[])
-              .where(
-                (album) =>
-                    downloadedContentIds?.albumIds.contains(album.id) ?? false,
-              )
-              .length
-        : likedAlbumsAllAsync.asData?.value.length ?? albums.length;
     final songs = _filterLikedSongs(
       likedSongsAsync.asData?.value ?? const <SongsTableData>[],
       downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
@@ -1821,11 +1784,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
       typeFilterQuery: _typeFilterQuery,
     );
-    const likedArtistsPreviewLimit = 14;
-    final artistPreview = filteredArtists
-        .take(likedArtistsPreviewLimit)
-        .toList(growable: false);
-    final hasMoreLikedArtists = filteredArtists.length > artistPreview.length;
     final error =
         likedAlbumsRecentAsync.error ??
         likedAlbumSongsAsync.error ??
@@ -1867,7 +1825,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       onRefresh: _refreshLibrary,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final gridWidth = (constraints.maxWidth - 24).clamp(240.0, 2400.0);
+          final padding = ContentLayout.padding(constraints.maxWidth);
+          final width = (constraints.maxWidth - padding * 2).clamp(
+            0.0,
+            double.infinity,
+          );
+          final gap = ContentLayout.gap(width);
+          final titleStyle = width < 600
+              ? Theme.of(context).textTheme.titleMedium
+              : Theme.of(context).textTheme.titleLarge;
+          final albumExtent = width < 600 ? 128.0 : 148.0;
+          final artistExtent = width < 600 ? 56.0 : 64.0;
+          final artistWidth = width < 600 ? 80.0 : 88.0;
+          final artistPreview = filteredArtists
+              .take(ContentLayout.shelfLimit(width, artistWidth))
+              .toList(growable: false);
+          final albumPreview = filteredAlbums
+              .take(ContentLayout.shelfLimit(width, albumExtent))
+              .toList(growable: false);
           return CustomScrollView(
             controller: _likedScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
@@ -1901,16 +1876,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 if (filteredArtists.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 12, 4),
                       child: Row(
                         children: <Widget>[
                           Expanded(
                             child: Text(
                               '${l10n.libraryLikedOnlyFilter} ${l10n.libraryTabArtists}',
-                              style: Theme.of(context).textTheme.titleLarge,
+                              style: titleStyle,
                             ),
                           ),
-                          if (hasMoreLikedArtists)
+                          if (filteredArtists.isNotEmpty)
                             TextButton(
                               onPressed: _openLikedArtistsAll,
                               child: Text(l10n.libraryLikedAlbumsSeeAll),
@@ -1921,19 +1896,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   ),
                 if (filteredArtists.isNotEmpty)
                   SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 118,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: padding),
+                      child: ContentShelf(
+                        key: const ValueKey('liked-artists-shelf'),
+                        extent: artistWidth,
+                        height:
+                            artistTileHeight(context, artistWidth) -
+                            artistWidth +
+                            artistExtent +
+                            8,
+                        gap: gap,
                         itemCount: artistPreview.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
                         itemBuilder: (context, index) {
                           final artist = artistPreview[index];
                           return SizedBox(
-                            width: 88,
+                            width: artistWidth,
                             child: _LikedArtistStripTile(
                               artist: artist,
+                              artworkExtent: artistExtent,
                               onTap: () => NavService.openArtistDetail(
                                 context,
                                 ref,
@@ -1953,48 +1934,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ),
                   ),
-                if (filteredPlaybackSongs.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                      child: Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: <Widget>[
-                          FilledButton.icon(
-                            onPressed: () => unawaited(
-                              _queueLikedSongs(filteredPlaybackSongs),
-                            ),
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: Text(l10n.albumDetailPlayAction),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => unawaited(
-                              _queueLikedSongs(
-                                filteredPlaybackSongs,
-                                shuffle: true,
-                              ),
-                            ),
-                            icon: const Icon(Icons.shuffle_rounded),
-                            label: Text(l10n.albumDetailShuffleAction),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 if (filteredAlbums.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 4, 0),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
                       child: Row(
                         children: <Widget>[
                           Expanded(
                             child: Text(
                               l10n.libraryLikedAlbumsSectionTitle,
-                              style: Theme.of(context).textTheme.titleLarge,
+                              style: titleStyle,
                             ),
                           ),
-                          if (totalAlbumCount > 6)
+                          if (filteredAlbums.isNotEmpty)
                             TextButton(
                               onPressed: () =>
                                   context.push('/library/liked-albums'),
@@ -2005,163 +1957,171 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     ),
                   ),
                 if (filteredAlbums.isNotEmpty)
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                    sliver: SliverGrid(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: computeGridCrossAxisCount(
-                          ref.watch(albumGridDensityProvider),
-                          gridWidth,
-                        ),
-                        childAspectRatio: 1,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                      ),
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final album = filteredAlbums[index];
-                        final heroTag = buildCoverArtHeroTag(
-                          coverArtId: album.coverArt,
-                          context: 'liked_album',
-                          entityId: album.id,
-                        );
-                        return RepaintBoundary(
-                          child: AlbumCard(
-                            key: ValueKey('liked-album-${album.id}'),
-                            album: album,
-                            size: AlbumCardSize.library,
-                            heroTag: heroTag,
-                            badge: AlbumDownloadBadge(albumId: album.id),
-                            onTap: () {
-                              ref
-                                  .read(librarySyncControllerProvider.notifier)
-                                  .registerAlbumInteraction(album.id);
-                              NavService.openAlbumDetail(
-                                context,
-                                ref,
-                                album.id,
-                                heroTag: heroTag,
-                              );
-                            },
-                            onLongPress: () =>
-                                showAlbumContextMenu(context, ref, album.id),
-                            onSecondaryTapDown: (details) =>
-                                showAlbumContextMenu(
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(padding, 4, padding, 4),
+                      child: ContentShelf(
+                        key: const ValueKey('liked-albums-shelf'),
+                        showNextTooltip: false,
+                        extent: albumExtent,
+                        height: albumExtent,
+                        gap: gap,
+                        itemCount: albumPreview.length,
+                        itemBuilder: (context, index) {
+                          final album = albumPreview[index];
+                          final heroTag = buildCoverArtHeroTag(
+                            coverArtId: album.coverArt,
+                            context: 'liked_album',
+                            entityId: album.id,
+                          );
+                          return RepaintBoundary(
+                            child: AlbumCard(
+                              key: ValueKey('liked-album-${album.id}'),
+                              album: album,
+                              size: AlbumCardSize.compact,
+                              extent: albumExtent,
+                              heroTag: heroTag,
+                              badge: AlbumDownloadBadge(albumId: album.id),
+                              onTap: () {
+                                ref
+                                    .read(
+                                      librarySyncControllerProvider.notifier,
+                                    )
+                                    .registerAlbumInteraction(album.id);
+                                NavService.openAlbumDetail(
                                   context,
                                   ref,
                                   album.id,
-                                  anchor: details.globalPosition,
-                                ),
+                                  heroTag: heroTag,
+                                );
+                              },
+                              onLongPress: () =>
+                                  showAlbumContextMenu(context, ref, album.id),
+                              onSecondaryTapDown: (details) =>
+                                  showAlbumContextMenu(
+                                    context,
+                                    ref,
+                                    album.id,
+                                    anchor: details.globalPosition,
+                                  ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                if (filteredSongs.isNotEmpty ||
+                    filteredPlaybackSongs.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            l10n.libraryLikedSongsSectionTitle,
+                            style: titleStyle,
                           ),
-                        );
-                      }, childCount: filteredAlbums.length),
+                          if (filteredPlaybackSongs.isNotEmpty &&
+                              width < 600) ...[
+                            IconButton.filled(
+                              tooltip: l10n.albumDetailPlayAction,
+                              constraints: const BoxConstraints(
+                                minWidth: 48,
+                                minHeight: 48,
+                              ),
+                              onPressed: () => unawaited(
+                                _queueLikedSongs(filteredPlaybackSongs),
+                              ),
+                              icon: const Icon(Icons.play_arrow_rounded),
+                            ),
+                            IconButton.outlined(
+                              tooltip: l10n.albumDetailShuffleAction,
+                              constraints: const BoxConstraints(
+                                minWidth: 48,
+                                minHeight: 48,
+                              ),
+                              onPressed: () => unawaited(
+                                _queueLikedSongs(
+                                  filteredPlaybackSongs,
+                                  shuffle: true,
+                                ),
+                              ),
+                              icon: const Icon(Icons.shuffle_rounded),
+                            ),
+                          ],
+                          if (filteredPlaybackSongs.isNotEmpty &&
+                              width >= 600) ...[
+                            FilledButton.icon(
+                              onPressed: () => unawaited(
+                                _queueLikedSongs(filteredPlaybackSongs),
+                              ),
+                              icon: const Icon(Icons.play_arrow_rounded),
+                              label: Text(l10n.albumDetailPlayAction),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => unawaited(
+                                _queueLikedSongs(
+                                  filteredPlaybackSongs,
+                                  shuffle: true,
+                                ),
+                              ),
+                              icon: const Icon(Icons.shuffle_rounded),
+                              label: Text(l10n.albumDetailShuffleAction),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 if (filteredSongs.isNotEmpty)
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                      child: Text(
-                        l10n.libraryLikedSongsSectionTitle,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
+                    child: AdaptiveTrackHeader(
+                      actionExtent: desktopMode ? null : 96,
                     ),
                   ),
                 if (filteredSongs.isNotEmpty)
                   SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final song = filteredSongs[index];
-                      if (desktopMode) {
-                        final subtitleParts = <String>[
-                          if (song.artistName != null &&
-                              song.artistName!.trim().isNotEmpty)
-                            song.artistName!,
-                          if (song.albumName != null &&
-                              song.albumName!.trim().isNotEmpty)
-                            song.albumName!,
-                        ];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 2,
-                          ),
-                          child: DesktopListRow(
-                            playbackSongId: song.id,
-                            leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: CoverArtImage(
-                                coverArtId: song.coverArt,
-                                size: kCoverArtStandardSize,
-                                width: 40,
-                                height: 40,
-                                placeholderIcon: Icons.music_note_outlined,
-                                isExternalSource: song.isExternal,
-                                remoteSourceIndicatorPolicy:
-                                    RemoteSourceIndicatorPolicy.hidden,
-                              ),
-                            ),
-                            title: song.title,
-                            subtitleWidget: RemoteSourceMetadataLine(
-                              metadata: Text(
-                                subtitleParts.join(' • '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                              ),
-                              isRemote: song.isExternal,
-                              spacing: subtitleParts.isEmpty ? 0 : 6,
-                            ),
-                            trailing: DesktopSongActions(
-                              song: song,
-                              includeDuration: true,
-                              keyPrefix: 'liked-song',
-                            ),
-                            onTap: () {
-                              _handleLikedSongTap(
-                                song,
-                                playbackSongs: filteredPlaybackSongs,
-                              );
-                            },
-                            onSecondaryTapDown: (details) =>
-                                showSongContextMenu(
-                                  this.context,
-                                  ref,
-                                  song,
-                                  anchor: details.globalPosition,
-                                ),
-                          ),
-                        );
-                      }
                       return TrackListTile(
                         song: song,
                         showAlbumArt: true,
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            SongDownloadStatusIcon(
-                              songId: song.id,
-                              onDownload: () =>
-                                  unawaited(_downloadLikedSong(song)),
-                            ),
-                            Builder(
-                              builder: (buttonContext) => IconButton(
-                                tooltip: MaterialLocalizations.of(
-                                  buttonContext,
-                                ).showMenuTooltip,
-                                icon: const Icon(Icons.more_vert),
-                                onPressed: () => showSongContextMenu(
-                                  this.context,
-                                  ref,
-                                  song,
-                                ),
+                        actionExtent: desktopMode ? null : 96,
+                        trailing: desktopMode
+                            ? DesktopSongActions(
+                                song: song,
+                                keyPrefix: 'liked-song',
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: SongDownloadStatusIcon(
+                                      songId: song.id,
+                                      onDownload: () =>
+                                          unawaited(_downloadLikedSong(song)),
+                                    ),
+                                  ),
+                                  Builder(
+                                    builder: (buttonContext) => IconButton(
+                                      tooltip: MaterialLocalizations.of(
+                                        buttonContext,
+                                      ).showMenuTooltip,
+                                      icon: const Icon(Icons.more_vert),
+                                      onPressed: () => showSongContextMenu(
+                                        this.context,
+                                        ref,
+                                        song,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
                         onTap: () {
                           _handleLikedSongTap(
                             song,
@@ -2212,6 +2172,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _openLikedArtistsAll() {
     if (!ref.read(showArtistsPageProvider)) {
+      context.push('/library/liked-artists');
       return;
     }
     if (mounted) {
@@ -2289,31 +2250,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   void _onAlbumsScroll() {
-    if (_albumSort == _AlbumSort.byYear) {
+    if (_albumSort == _AlbumSort.byYear ||
+        _downloadedOnly ||
+        _typeFilterQuery.isNotEmpty ||
+        !_albumsScrollController.hasClients) {
       return;
     }
-    if (!_albumsScrollController.hasClients) {
-      return;
-    }
-
     final metrics = _albumsScrollController.position;
-    if (!metrics.hasContentDimensions || metrics.maxScrollExtent <= 0) {
+    if (!metrics.hasContentDimensions ||
+        metrics.extentAfter >= metrics.viewportDimension)
       return;
-    }
-
-    final threshold = metrics.maxScrollExtent * 0.7;
-    if (metrics.pixels < threshold) {
-      return;
-    }
-
-    final totalAlbums = ref.read(albumCountProvider).asData?.value;
+    final sort = _toAlbumSortOrder(_albumSort);
     final pageSize = ref.read(albumPageSizeProvider);
-    if (totalAlbums == null) {
+    final current = ref.read(
+      pagedAlbumsProvider((sort: sort, limit: pageSize * _loadedAlbumPages)),
+    );
+    final items = current.asData?.value;
+    final total = ref.read(albumCountProvider).asData?.value;
+    // A partial or failed response must not spin through additional page keys.
+    if (current.isLoading ||
+        current.hasError ||
+        items == null ||
+        total == null ||
+        items.length < pageSize * _loadedAlbumPages ||
+        items.length >= total)
       return;
-    }
-    if (pageSize * _loadedAlbumPages >= totalAlbums) {
-      return;
-    }
     setState(() => _loadedAlbumPages += 1);
   }
 
@@ -2428,10 +2389,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = computeArtistGridCrossAxisCount(
-          constraints.maxWidth,
-        );
-
         return CustomScrollView(
           controller: _artistsGridScrollController,
           physics: const AlwaysScrollableScrollPhysics(),
@@ -2447,39 +2404,32 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   ),
                 ),
               ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 40, 8),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    childAspectRatio: 0.72,
-                    crossAxisSpacing: 4,
-                    mainAxisSpacing: 4,
-                  ),
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final byLetter =
-                        grouped[letter] ?? const <ArtistsTableData>[];
-                    final artist = byLetter[index];
-                    return RepaintBoundary(
-                      child: ArtistGridCard(
-                        key: ValueKey(artist.id),
-                        artist: artist,
-                        onTap: () => NavService.openArtistDetail(
-                          context,
-                          ref,
-                          artist.id,
-                        ),
-                        onLongPress: () =>
-                            _showArtistActions(context, artist.id),
-                        onSecondaryTapDown: (details) => _showArtistActions(
-                          context,
-                          artist.id,
-                          anchor: details.globalPosition,
-                        ),
+              ResponsiveContentSliverGrid(
+                itemCount: grouped[letter]?.length ?? 0,
+                artists: true,
+                trailingInset: 28,
+                itemBuilder: (context, index) {
+                  final byLetter =
+                      grouped[letter] ?? const <ArtistsTableData>[];
+                  final artist = byLetter[index];
+                  return RepaintBoundary(
+                    child: ArtistGridCard(
+                      key: ValueKey(artist.id),
+                      artist: artist,
+                      onTap: () => NavService.openArtistDetail(
+                        context,
+                        ref,
+                        artist.id,
                       ),
-                    );
-                  }, childCount: grouped[letter]?.length ?? 0),
-                ),
+                      onLongPress: () => _showArtistActions(context, artist.id),
+                      onSecondaryTapDown: (details) => _showArtistActions(
+                        context,
+                        artist.id,
+                        anchor: details.globalPosition,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
             const SliverToBoxAdapter(child: SizedBox(height: 72)),

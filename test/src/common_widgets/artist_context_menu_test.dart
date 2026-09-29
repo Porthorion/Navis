@@ -8,6 +8,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../helpers/test_database.dart';
@@ -34,16 +36,15 @@ void main() {
   testWidgets('desktop artist actions open before local artist streams emit', (
     tester,
   ) async {
-    final songs = StreamController<List<SongsTableData>>();
     final container = ProviderContainer(
       overrides: [
+        subsonicApiProvider.overrideWithValue(null),
+        playerStateProvider.overrideWithValue(const PlaybackSnapshot.idle()),
         artistByIdProvider.overrideWith((ref, artistId) => Stream.value(null)),
-        songsByArtistProvider.overrideWith((ref, artistId) => songs.stream),
       ],
     );
     addTearDown(() async {
       container.dispose();
-      await songs.close();
     });
 
     await tester.pumpWidget(
@@ -82,7 +83,11 @@ void main() {
     await database
         .into(database.artistsTable)
         .insert(
-          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Night Harbour'),
+          ArtistsTableCompanion.insert(
+            id: 'artist-1',
+            name: 'Night Harbour',
+            albumCount: const Value(0),
+          ),
         );
     await database
         .into(database.songsTable)
@@ -98,6 +103,15 @@ void main() {
       overrides: withTestDatabase(
         database,
         overrides: [
+          artistPlaybackResolverProvider.overrideWithValue(
+            ArtistPlaybackResolver(
+              readSnapshot: database.libraryDao.getArtistPlaybackSnapshot,
+              hydrate: (_) => throw StateError('fixture is already hydrated'),
+              canHydrate: () => false,
+              isOffline: () => false,
+              isLocallyPlayable: (_) async => true,
+            ),
+          ),
           queueProvider.overrideWith(() {
             queue = _QueueSpyController();
             return queue;
@@ -165,6 +179,18 @@ void main() {
     );
 
     await tester.tap(find.text('Play'));
+    await tester.runAsync(() async {
+      final done = Completer<void>();
+      final subscription = container.listen(artistPlaybackControllerProvider, (
+        _,
+        next,
+      ) {
+        if (next.stage == ArtistPlaybackStage.completed && !done.isCompleted)
+          done.complete();
+      }, fireImmediately: true);
+      await done.future.timeout(const Duration(seconds: 5));
+      subscription.close();
+    });
     await tester.pumpAndSettle();
     expect(queue.replacedSongIds, <String>['song-1']);
 

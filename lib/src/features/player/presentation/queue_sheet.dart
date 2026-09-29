@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_unavailable_tracks.dart';
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider, songByIdProvider, subsonicApiProvider;
 import 'package:navis/src/routing/navigation_service.dart';
@@ -42,6 +43,7 @@ class QueueSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final queueIds = ref.watch(queueProvider);
+    final retained = ref.watch(retainedArtistQueueProvider);
     final playerSnapshot = ref.watch(playerStateProvider);
     final actionsDisabled =
         playerSnapshot.isLoading && playerSnapshot.hasPendingLogicalQueue;
@@ -59,13 +61,14 @@ class QueueSheet extends ConsumerWidget {
           showDragPill: !embeddedMode,
         ),
         Expanded(
-          child: queueIds.isEmpty
+          child: queueIds.isEmpty && retained.isEmpty
               ? EmptyState(
                   title: l10n.queueEmptyTitle,
                   subtitle: l10n.queueEmptySubtitle,
                   icon: Icons.queue_music_outlined,
                 )
               : ReorderableListView.builder(
+                  footer: const QueueUnavailableTracks(),
                   scrollController: scrollController,
                   physics: sheetDragActive
                       ? const NeverScrollableScrollPhysics()

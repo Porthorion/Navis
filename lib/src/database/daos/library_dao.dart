@@ -45,6 +45,19 @@ class ArtistAlbumBuckets {
   bool get isEmpty => primaryAlbums.isEmpty && featuredInAlbums.isEmpty;
 }
 
+/// A consistent release and track snapshot for an artist playback action.
+class ArtistPlaybackSnapshot {
+  const ArtistPlaybackSnapshot({
+    required this.artist,
+    required this.albums,
+    required this.songs,
+  });
+
+  final ArtistsTableData? artist;
+  final List<AlbumsTableData> albums;
+  final List<SongsTableData> songs;
+}
+
 class PreservedProvisionalTree {
   const PreservedProvisionalTree({
     this.artistIds = const <String>{},
@@ -206,6 +219,95 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  Future<ArtistPlaybackSnapshot> getArtistPlaybackSnapshot(String artistId) {
+    return transaction(() async {
+      final artist = await getArtistById(artistId);
+      final directSongs =
+          await (select(songsTable)..where(
+                (table) =>
+                    table.artistId.equals(artistId) &
+                    (table.isProvisional.equals(false) |
+                        table.isExternal.equals(true)) &
+                    _selectableForBulkUse,
+              ))
+              .get();
+      final visibleAlbums =
+          await (select(albumsTable)..where(
+                (table) =>
+                    table.isProvisional.equals(false) |
+                    table.isExternal.equals(true),
+              ))
+              .get();
+      final buckets = _buildArtistAlbumBuckets(
+        albums: visibleAlbums,
+        artistId: artistId,
+        artistName: artist?.name,
+        relatedSongAlbumIds: directSongs
+            .map((song) => song.albumId)
+            .nonNulls
+            .toSet(),
+      );
+      final albums = [...buckets.primaryAlbums, ...buckets.featuredInAlbums]
+        ..sort((a, b) {
+          final aYear = a.year != null && a.year! > 0 ? a.year! : 0x7fffffff;
+          final bYear = b.year != null && b.year! > 0 ? b.year! : 0x7fffffff;
+          final year = aYear.compareTo(bYear);
+          if (year != 0) return year;
+          final name = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          return name != 0 ? name : a.id.compareTo(b.id);
+        });
+      final albumIds = albums.map((album) => album.id).toSet();
+      final albumIdList = albumIds.toList(growable: false);
+      final albumSongs = <SongsTableData>[];
+      for (
+        var offset = 0;
+        offset < albumIdList.length;
+        offset += _safeSqlVariableChunkSize
+      ) {
+        final end = math.min(
+          offset + _safeSqlVariableChunkSize,
+          albumIdList.length,
+        );
+        albumSongs.addAll(
+          await (select(songsTable)..where(
+                (table) =>
+                    table.albumId.isIn(albumIdList.sublist(offset, end)) &
+                    (table.isProvisional.equals(false) |
+                        table.isExternal.equals(true)) &
+                    _selectableForBulkUse,
+              ))
+              .get(),
+        );
+      }
+      final ranks = {for (var i = 0; i < albums.length; i++) albums[i].id: i};
+      albumSongs.sort((a, b) {
+        final album = ranks[a.albumId]!.compareTo(ranks[b.albumId]!);
+        if (album != 0) return album;
+        final disc = (a.discNumber ?? 1).compareTo(b.discNumber ?? 1);
+        if (disc != 0) return disc;
+        final track = (a.track ?? 0x7fffffff).compareTo(b.track ?? 0x7fffffff);
+        return track != 0 ? track : a.id.compareTo(b.id);
+      });
+      final looseSongs =
+          directSongs.where((song) => !albumIds.contains(song.albumId)).toList()
+            ..sort((a, b) {
+              final title = a.title.toLowerCase().compareTo(
+                b.title.toLowerCase(),
+              );
+              return title != 0 ? title : a.id.compareTo(b.id);
+            });
+      final seen = <String>{};
+      return ArtistPlaybackSnapshot(
+        artist: artist,
+        albums: albums,
+        songs: [
+          ...albumSongs,
+          ...looseSongs,
+        ].where((song) => seen.add(song.id)).toList(growable: false),
+      );
+    });
+  }
+
   Stream<ArtistAlbumBuckets> watchArtistAlbumBuckets(String artistId) {
     final id = artistId.trim();
     if (id.isEmpty) {
@@ -307,10 +409,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Returns the [limit] most recently liked albums, ordered by the album's
-  /// own starred timestamp descending. Albums liked via a liked song (but not
-  /// directly starred) are ordered last by name.
-  Stream<List<AlbumsTableData>> watchRecentlyLikedAlbums({int limit = 6}) {
+  /// Watches explicitly starred albums, newest starred timestamp first.
+  ///
+  /// Equal timestamps use name then ID ordering. Pass a null [limit] to load
+  /// the full collection before applying local filters and shelf capacity.
+  Stream<List<AlbumsTableData>> watchRecentlyLikedAlbums({int? limit = 6}) {
     return customSelect(
       '''
       SELECT albums.* FROM albums
@@ -319,9 +422,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         albums.starred DESC NULLS LAST,
         albums.name ASC,
         albums.id ASC
-      LIMIT ?
+      ${limit == null ? '' : 'LIMIT ?'}
       ''',
-      variables: [Variable<int>(limit < 1 ? 1 : limit)],
+      variables: [if (limit != null) Variable<int>(limit < 1 ? 1 : limit)],
       readsFrom: {albumsTable, songsTable},
     ).watch().map(
       (rows) =>
@@ -449,8 +552,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         al.year ASC,
         s.album_name IS NULL ASC,
         s.album_name ASC,
+        COALESCE(s.disc_number, 1) ASC,
         s.track IS NULL ASC,
-        s.track ASC
+        s.track ASC,
+        s.id ASC
       ''',
       variables: <Variable<Object>>[Variable<String>(artistId)],
       readsFrom: {songsTable, albumsTable},

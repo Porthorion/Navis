@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -336,6 +337,7 @@ class _TopTrackTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final desktopRuntime = resolveAdaptiveContextFor(context).desktopRuntime;
     final rankText = '${track.rank}';
     final subtitle = track.listeners != null
         ? _formatListeners(track.listeners!, context)
@@ -405,7 +407,7 @@ class _TopTrackTile extends ConsumerWidget {
     // ── Trailing: download status + 3-dot menu (resolved tracks only) ───
     Widget? trailing;
     if (resolvedId != null) {
-      trailing = isDesktopRuntime && dbSong != null
+      trailing = desktopRuntime && dbSong != null
           ? DesktopSongActions(
               song: dbSong,
               keyPrefix: 'artist-top-track',
@@ -413,10 +415,14 @@ class _TopTrackTile extends ConsumerWidget {
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                SongDownloadStatusIcon(
-                  songId: resolvedId,
-                  onDownload: () => _downloadSong(context, ref, resolvedId),
-                  size: 20,
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: SongDownloadStatusIcon(
+                    songId: resolvedId,
+                    onDownload: () => _downloadSong(context, ref, resolvedId),
+                    size: 20,
+                  ),
                 ),
                 Builder(
                   builder: (buttonContext) => IconButton(
@@ -425,7 +431,10 @@ class _TopTrackTile extends ConsumerWidget {
                     ).showMenuTooltip,
                     icon: const Icon(Icons.more_vert),
                     iconSize: 20,
-                    constraints: const BoxConstraints(),
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
                     padding: const EdgeInsets.all(8),
                     onPressed: dbSong == null
                         ? null
@@ -433,7 +442,7 @@ class _TopTrackTile extends ConsumerWidget {
                             final renderObject = buttonContext
                                 .findRenderObject();
                             final anchor =
-                                !isDesktopRuntime || renderObject is! RenderBox
+                                !desktopRuntime || renderObject is! RenderBox
                                 ? null
                                 : renderObject.localToGlobal(
                                     renderObject.size.center(Offset.zero),
@@ -454,44 +463,37 @@ class _TopTrackTile extends ConsumerWidget {
     }
 
     // ── Tile ────────────────────────────────────────────────────────────
-    final tile = ListTile(
+    final tile = AdaptiveTrackRow(
+      title: track.title,
+      artist: resolvedSong?.artist ?? track.artist,
+      album: resolvedSong?.album,
+      duration: resolvedSong?.duration,
       selected: isSelected,
-      selectedColor: colorScheme.primary,
-      selectedTileColor: colorScheme.primary.withValues(alpha: 0.08),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      enabled: enabled,
-      onTap: onTap,
-      onLongPress: dbSong != null
+      isRemote: isRemote,
+      leadingExtent: 76,
+      actionExtent: desktopRuntime
+          ? null
+          : trailing == null
+          ? 0
+          : 96,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      badge: subtitle == null
+          ? null
+          : Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+      onTap: enabled ? onTap : null,
+      onLongPress: enabled && dbSong != null
           ? () {
               HapticFeedback.mediumImpact();
               unawaited(showSongContextMenu(context, ref, dbSong));
             }
           : null,
-      minLeadingWidth: 76,
       leading: leading,
-      title: Text(
-        track.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          fontWeight: FontWeight.w500,
-          color: isSelected ? colorScheme.primary : null,
-        ),
-      ),
-      subtitle: subtitle != null || isRemote
-          ? RemoteSourceMetadataLine(
-              metadata: Text(
-                subtitle ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
-                ),
-              ),
-              isRemote: isRemote,
-            )
-          : null,
-      trailing: trailing,
+      actions: trailing,
     );
 
     // Wrap with GestureDetector to support desktop right-click context menu.

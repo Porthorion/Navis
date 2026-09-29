@@ -4,7 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/content_shelf.dart';
+import 'package:navis/src/routing/content_layout.dart';
+import 'package:flutter/rendering.dart' show RenderBox, RenderAbstractViewport;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,7 +22,6 @@ import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
-import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
@@ -34,6 +36,10 @@ import 'package:navis/src/features/downloads/presentation/download_quality_sheet
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
+import 'package:navis/src/features/home/presentation/recommendation_auto_advance.dart';
+import 'package:navis/src/routing/home_activity_scope.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
+    show quickSearchOverlayVisibleProvider;
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
@@ -50,7 +56,6 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
-import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -613,17 +618,28 @@ class _ListenBrainzWeeklyDetailContentState
 
   SliverList _buildTrackSliver({required bool compact}) {
     return SliverList.builder(
-      itemCount: playlist.recommendations.length,
+      itemCount: playlist.recommendations.length + 1,
       itemBuilder: (context, index) {
-        final recommendation = playlist.recommendations[index];
+        if (index == 0)
+          return AdaptiveTrackHeader(
+            numberColumnExtent: 32,
+            leadingExtent: 32,
+            leadingGap: 6,
+            actionExtent: 96,
+            padding: compact
+                ? const EdgeInsetsDirectional.only(start: 8, end: 4)
+                : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          );
+        final recommendation = playlist.recommendations[index - 1];
         final tableSong = recommendation.tableSong;
         if (recommendation.hasServerSong && tableSong != null) {
           return TrackListTile(
-            song: tableSong.copyWith(track: Value(index + 1)),
+            song: tableSong.copyWith(track: Value(index)),
             contentPadding: compact
                 ? const EdgeInsetsDirectional.only(start: 8, end: 4)
                 : null,
             horizontalTitleGap: 6,
+            actionExtent: 96,
             onTap: () => _playOneTableSong(tableSong),
             onLongPress: () => showSongContextMenu(context, ref, tableSong),
             onSecondaryTapDown: (details) => showSongContextMenu(
@@ -635,9 +651,13 @@ class _ListenBrainzWeeklyDetailContentState
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                SongDownloadStatusIcon(
-                  songId: tableSong.id,
-                  onDownload: () => _downloadSong(tableSong),
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: SongDownloadStatusIcon(
+                    songId: tableSong.id,
+                    onDownload: () => _downloadSong(tableSong),
+                  ),
                 ),
                 Builder(
                   builder: (buttonContext) => IconButton(
@@ -647,8 +667,8 @@ class _ListenBrainzWeeklyDetailContentState
                     icon: const Icon(Icons.more_vert),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
+                      minWidth: 48,
+                      minHeight: 48,
                     ),
                     onPressed: () => showSongContextMenu(
                       context,
@@ -664,7 +684,7 @@ class _ListenBrainzWeeklyDetailContentState
         }
         return _ListenBrainzRecommendationTile(
           recommendation: recommendation,
-          index: index + 1,
+          index: index,
           contentPadding: compact
               ? const EdgeInsetsDirectional.only(start: 8, end: 4)
               : null,
@@ -1096,9 +1116,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
     final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 0.0;
-    final tabletMode =
-        !adaptiveContext.useDesktopShell &&
-        adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     final desktopRuntime = adaptiveContext.desktopRuntime;
     final desktopMode = adaptiveContext.useDesktopShell;
     final useCustomHomePullRefresh = !desktopMode;
@@ -1216,22 +1233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ],
     );
 
-    final contentMaxWidth = switch (adaptiveLayoutClass) {
-      AdaptiveLayoutClass.phoneCompact => double.infinity,
-      AdaptiveLayoutClass.tabletMedium => 880.0,
-      AdaptiveLayoutClass.tabletExpanded =>
-        compactWideLandscapeMode ? double.infinity : 1040.0,
-    };
-
-    final resolvedContent = tabletMode && !compactWideLandscapeMode
-        ? Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: contentMaxWidth),
-              child: content,
-            ),
-          )
-        : content;
+    final resolvedContent = content;
 
     final scrollObservedContent = useCustomHomePullRefresh
         ? NotificationListener<ScrollNotification>(
@@ -1294,6 +1296,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<AlbumsTableData>>(
             title: l10n.homeRecentlyLikedAlbumsTitle,
+            onSeeAll: () => context.push('/library/liked-albums'),
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
@@ -1900,6 +1903,7 @@ class _HomeSection<T> extends StatelessWidget {
     this.loadingBuilder,
     this.keepPreviousDataWhileLoading = false,
     this.onRetry,
+    this.onSeeAll,
   });
 
   final String title;
@@ -1916,12 +1920,13 @@ class _HomeSection<T> extends StatelessWidget {
   final Widget Function()? loadingBuilder;
   final bool keepPreviousDataWhileLoading;
   final VoidCallback? onRetry;
+  final VoidCallback? onSeeAll;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final compactDensity = density == _HomeSectionDensity.compact;
-    final titleWidget = Text(
+    final titleText = Text(
       title,
       style:
           (template == _HomeSectionTemplate.compactList
@@ -1929,6 +1934,18 @@ class _HomeSection<T> extends StatelessWidget {
                   : Theme.of(context).textTheme.titleLarge)
               ?.copyWith(fontWeight: FontWeight.w700),
     );
+    final titleWidget =
+        onSeeAll == null || data.asData == null || isEmpty(data.asData!.value)
+        ? titleText
+        : Row(
+            children: [
+              Expanded(child: titleText),
+              TextButton(
+                onPressed: onSeeAll,
+                child: Text(l10n.libraryLikedAlbumsSeeAll),
+              ),
+            ],
+          );
     final sectionBody = data.when(
       skipLoadingOnRefresh: keepPreviousDataWhileLoading,
       skipLoadingOnReload: keepPreviousDataWhileLoading,
@@ -2063,92 +2080,59 @@ class _ServerAlbumCarousel extends ConsumerWidget {
     final coverShape = ref.watch(coverArtShapeProvider);
     final coverRadius = coverArtShapeToRadius(coverShape);
     final compactDensity = density == _HomeSectionDensity.compact;
-    final cardSize = desktopMode
-        ? (compactDensity ? 152.0 : 164.0)
-        : tabletMode
-        ? (adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
-              ? (compactDensity ? 164.0 : 176.0)
-              : (compactDensity ? 152.0 : 162.0))
-        : (compactDensity ? 138.0 : 150.0);
-    final horizontalPadding = desktopMode
-        ? 0.0
-        : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
-    final separatorWidth = compactDensity ? 10.0 : (tabletMode ? 14.0 : 12.0);
-    if (desktopMode) {
-      return _DesktopScrollableCarousel(
-        height: cardSize,
-        horizontalPadding: horizontalPadding,
-        separatorWidth: separatorWidth,
-        itemCount: albums.length,
-        itemBuilder: (context, index) {
-          final album = albums[index];
-          final heroTag = buildCoverArtHeroTag(
-            coverArtId: album.coverArt,
-            context: '${heroContext}_${album.id}',
-          );
-          return _ServerAlbumCard(
-            name: album.name,
-            artist: album.artist,
-            coverArtId: album.coverArt,
-            width: cardSize,
-            borderRadius: coverRadius,
-            isExternalSource: isExternalCatalogSource(
-              id: album.id,
-              apiIsExternal: album.isExternal,
-            ),
-            heroTag: heroTag,
-            onTap: () => onTap(album, heroTag),
-            onLongPress: () => showAlbumContextMenu(context, ref, album.id),
-            onSecondaryTapDown: (details) => showAlbumContextMenu(
-              context,
-              ref,
-              album.id,
-              anchor: details.globalPosition,
-            ),
-          );
-        },
-      );
-    }
-    return SizedBox(
-      height: cardSize,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-        itemCount: albums.length,
-        separatorBuilder: (_, _) => SizedBox(width: separatorWidth),
-        itemBuilder: (context, index) {
-          final album = albums[index];
-          final heroTag = buildCoverArtHeroTag(
-            coverArtId: album.coverArt,
-            context: '${heroContext}_${album.id}',
-          );
-          return _ServerAlbumCard(
-            name: album.name,
-            artist: album.artist,
-            coverArtId: album.coverArt,
-            width: cardSize,
-            borderRadius: coverRadius,
-            isExternalSource: isExternalCatalogSource(
-              id: album.id,
-              apiIsExternal: album.isExternal,
-            ),
-            heroTag: heroTag,
-            onTap: () => onTap(album, heroTag),
-            onLongPress: () => showAlbumContextMenu(context, ref, album.id),
-            onSecondaryTapDown: (details) => showAlbumContextMenu(
-              context,
-              ref,
-              album.id,
-              anchor: details.globalPosition,
-            ),
-          );
-        },
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final cardSize = width < 600
+            ? (compactDensity ? 138.0 : 150.0)
+            : (compactDensity ? 152.0 : 164.0);
+        final horizontalPadding = desktopMode || tabletMode ? 0.0 : 16.0;
+        final usableWidth = (width - horizontalPadding * 2).clamp(
+          0.0,
+          double.infinity,
+        );
+        final visibleAlbums = albums;
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: ContentShelf(
+            height: cardSize,
+            extent: cardSize,
+            gap: ContentLayout.gap(usableWidth),
+            itemCount: visibleAlbums.length,
+            itemBuilder: (context, index) {
+              final album = visibleAlbums[index];
+              final heroTag = buildCoverArtHeroTag(
+                coverArtId: album.coverArt,
+                context: '${heroContext}_${album.id}',
+              );
+              return _ServerAlbumCard(
+                name: album.name,
+                artist: album.artist,
+                coverArtId: album.coverArt,
+                width: cardSize,
+                borderRadius: coverRadius,
+                isExternalSource: isExternalCatalogSource(
+                  id: album.id,
+                  apiIsExternal: album.isExternal,
+                ),
+                heroTag: heroTag,
+                onTap: () => onTap(album, heroTag),
+                onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+                onSecondaryTapDown: (details) => showAlbumContextMenu(
+                  context,
+                  ref,
+                  album.id,
+                  anchor: details.globalPosition,
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
 
-/// Carousel for [AlbumsTableData] objects from the local database.
 class _LocalAlbumCarousel extends ConsumerWidget {
   const _LocalAlbumCarousel({
     required this.albums,
@@ -2173,214 +2157,53 @@ class _LocalAlbumCarousel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final compactDensity = density == _HomeSectionDensity.compact;
-    final cardSize = desktopMode
-        ? (compactDensity ? 152.0 : 164.0)
-        : tabletMode
-        ? (adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
-              ? (compactDensity ? 164.0 : 176.0)
-              : (compactDensity ? 152.0 : 162.0))
-        : (compactDensity ? 138.0 : 150.0);
-    final horizontalPadding = desktopMode
-        ? 0.0
-        : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
-    final separatorWidth = compactDensity ? 10.0 : (tabletMode ? 14.0 : 12.0);
-    if (desktopMode) {
-      return _DesktopScrollableCarousel(
-        height: cardSize,
-        horizontalPadding: horizontalPadding,
-        separatorWidth: separatorWidth,
-        itemCount: albums.length,
-        itemBuilder: (context, index) {
-          final album = albums[index];
-          final heroTag = buildCoverArtHeroTag(
-            coverArtId: album.coverArt,
-            context: '${heroContext}_${album.id}',
-          );
-          return AlbumCard(
-            album: album,
-            size: AlbumCardSize.compact,
-            heroTag: heroTag,
-            onTap: () => onTap(album, heroTag),
-            onLongPress: () => showAlbumContextMenu(context, ref, album.id),
-            onSecondaryTapDown: (details) => showAlbumContextMenu(
-              context,
-              ref,
-              album.id,
-              anchor: details.globalPosition,
-            ),
-          );
-        },
-      );
-    }
-    return SizedBox(
-      height: cardSize,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-        itemCount: albums.length,
-        separatorBuilder: (_, _) => SizedBox(width: separatorWidth),
-        itemBuilder: (context, index) {
-          final album = albums[index];
-          final heroTag = buildCoverArtHeroTag(
-            coverArtId: album.coverArt,
-            context: '${heroContext}_${album.id}',
-          );
-          return AlbumCard(
-            album: album,
-            size: AlbumCardSize.compact,
-            heroTag: heroTag,
-            onTap: () => onTap(album, heroTag),
-            onLongPress: () => showAlbumContextMenu(context, ref, album.id),
-            onSecondaryTapDown: (details) => showAlbumContextMenu(
-              context,
-              ref,
-              album.id,
-              anchor: details.globalPosition,
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _DesktopScrollableCarousel extends StatefulWidget {
-  const _DesktopScrollableCarousel({
-    required this.height,
-    required this.horizontalPadding,
-    required this.separatorWidth,
-    required this.itemCount,
-    required this.itemBuilder,
-  });
-
-  final double height;
-  final double horizontalPadding;
-  final double separatorWidth;
-  final int itemCount;
-  final IndexedWidgetBuilder itemBuilder;
-
-  @override
-  State<_DesktopScrollableCarousel> createState() =>
-      _DesktopScrollableCarouselState();
-}
-
-class _DesktopScrollableCarouselState
-    extends State<_DesktopScrollableCarousel> {
-  static const double _edgeButtonSize = 34;
-
-  late final ScrollController _scrollController;
-  bool _canScrollBackward = false;
-  bool _canScrollForward = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController()..addListener(_syncArrowState);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncArrowState());
-  }
-
-  @override
-  void didUpdateWidget(covariant _DesktopScrollableCarousel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.itemCount != widget.itemCount) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _syncArrowState());
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController
-      ..removeListener(_syncArrowState)
-      ..dispose();
-    super.dispose();
-  }
-
-  void _syncArrowState() {
-    if (!_scrollController.hasClients) {
-      if (_canScrollBackward || _canScrollForward) {
-        setState(() {
-          _canScrollBackward = false;
-          _canScrollForward = false;
-        });
-      }
-      return;
-    }
-    final position = _scrollController.position;
-    final nextBackward = position.pixels > 1;
-    final nextForward = (position.maxScrollExtent - position.pixels) > 1;
-    if (nextBackward == _canScrollBackward &&
-        nextForward == _canScrollForward) {
-      return;
-    }
-    setState(() {
-      _canScrollBackward = nextBackward;
-      _canScrollForward = nextForward;
-    });
-  }
-
-  void _animateBy(double delta, MotionPolicy motion) {
-    if (!_scrollController.hasClients) {
-      return;
-    }
-    final position = _scrollController.position;
-    final target = (position.pixels + delta).clamp(
-      position.minScrollExtent,
-      position.maxScrollExtent,
-    );
-    if (motion.reduceMotion) {
-      _scrollController.jumpTo(target);
-    } else {
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final motion = MotionPolicy.of(context);
-    final canHaveArrows = widget.itemCount > 1;
-    return SizedBox(
-      height: widget.height,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final viewportJump = constraints.maxWidth * 0.72;
-          final list = ListView.separated(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
-            itemCount: widget.itemCount,
-            separatorBuilder: (_, _) => SizedBox(width: widget.separatorWidth),
-            itemBuilder: widget.itemBuilder,
-          );
-          if (!canHaveArrows) {
-            return list;
-          }
-          return Stack(
-            children: <Widget>[
-              Positioned.fill(child: list),
-              if (_canScrollBackward)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _CarouselEdgeArrow(
-                    icon: Icons.chevron_left_rounded,
-                    onPressed: () => _animateBy(-viewportJump, motion),
-                  ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final cardSize = width < 600
+            ? (compactDensity ? 138.0 : 150.0)
+            : (compactDensity ? 152.0 : 164.0);
+        final horizontalPadding = desktopMode || tabletMode ? 0.0 : 16.0;
+        final usableWidth = (width - horizontalPadding * 2).clamp(
+          0.0,
+          double.infinity,
+        );
+        final visibleAlbums = heroContext == 'home_recently_liked'
+            ? albums
+                  .take(ContentLayout.shelfLimit(usableWidth, cardSize))
+                  .toList(growable: false)
+            : albums;
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: ContentShelf(
+            height: cardSize,
+            extent: cardSize,
+            gap: ContentLayout.gap(usableWidth),
+            itemCount: visibleAlbums.length,
+            itemBuilder: (context, index) {
+              final album = visibleAlbums[index];
+              final heroTag = buildCoverArtHeroTag(
+                coverArtId: album.coverArt,
+                context: '${heroContext}_${album.id}',
+              );
+              return AlbumCard(
+                album: album,
+                size: AlbumCardSize.compact,
+                extent: cardSize,
+                heroTag: heroTag,
+                onTap: () => onTap(album, heroTag),
+                onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+                onSecondaryTapDown: (details) => showAlbumContextMenu(
+                  context,
+                  ref,
+                  album.id,
+                  anchor: details.globalPosition,
                 ),
-              if (_canScrollForward)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: _CarouselEdgeArrow(
-                    icon: Icons.chevron_right_rounded,
-                    onPressed: () => _animateBy(viewportJump, motion),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -2407,8 +2230,8 @@ class _CarouselEdgeArrow extends StatelessWidget {
           customBorder: const CircleBorder(),
           onTap: onPressed,
           child: SizedBox(
-            width: _DesktopScrollableCarouselState._edgeButtonSize,
-            height: _DesktopScrollableCarouselState._edgeButtonSize,
+            width: 48,
+            height: 48,
             child: Icon(icon),
           ),
         ),
@@ -2455,61 +2278,35 @@ class _DesktopRandomAlbumsPagerState
   @override
   void didUpdateWidget(covariant _DesktopRandomAlbumsPager oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final incomingAlbums = List<HomeRandomShowcaseItem>.unmodifiable(
-      widget.albums,
+    if (widget.freezeListUpdates && _displayedAlbums.isNotEmpty) return;
+    final incoming = List<HomeRandomShowcaseItem>.unmodifiable(widget.albums);
+    final oldIds = _displayedAlbums.map((item) => item.stableId).toList();
+    final newIds = incoming.map((item) => item.stableId).toList();
+    if (listEquals(oldIds, newIds)) {
+      if (_homeRandomShowcaseItemsVisuallyChanged(_displayedAlbums, incoming)) {
+        _displayedAlbums = incoming;
+      }
+      return;
+    }
+    final retained = incoming.indexWhere(
+      (item) => item.stableId == _currentStableId,
     );
-    final oldIds = _displayedAlbums.map((album) => album.stableId).toList();
-    final newIds = incomingAlbums.map((album) => album.stableId).toList();
-    if (widget.freezeListUpdates && _displayedAlbums.isNotEmpty) {
-      return;
-    }
-    if (!listEquals(oldIds, newIds)) {
-      final stableId = _currentStableId;
-      setState(() {
-        _displayedAlbums = incomingAlbums;
-        if (stableId != null && _displayedAlbums.isNotEmpty) {
-          final nextIndex = _displayedAlbums.indexWhere(
-            (album) => album.stableId == stableId,
-          );
-          if (nextIndex >= 0) {
-            _currentPage = nextIndex;
-            _currentStableId = stableId;
-          }
-        }
-      });
-      if (stableId != null && _displayedAlbums.isNotEmpty) {
-        final nextIndex = _displayedAlbums.indexWhere(
-          (album) => album.stableId == stableId,
-        );
-        if (nextIndex >= 0 && _pageController.hasClients) {
-          _pageController.jumpToPage(nextIndex);
-        }
+    _displayedAlbums = incoming;
+    _currentPage = incoming.isEmpty
+        ? 0
+        : retained >= 0
+        ? retained
+        : _currentPage.clamp(0, incoming.length - 1);
+    _currentStableId = incoming.isEmpty
+        ? null
+        : incoming[_currentPage].stableId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          _pageController.hasClients &&
+          _displayedAlbums.isNotEmpty) {
+        _pageController.jumpToPage(_currentPage);
       }
-    } else if (_homeRandomShowcaseItemsVisuallyChanged(
-      _displayedAlbums,
-      incomingAlbums,
-    )) {
-      setState(() {
-        _displayedAlbums = incomingAlbums;
-      });
-    }
-    if (_displayedAlbums.isEmpty) {
-      if (_currentPage != 0) {
-        setState(() {
-          _currentPage = 0;
-        });
-      }
-      return;
-    }
-    final clampedPage = _currentPage.clamp(0, _displayedAlbums.length - 1);
-    if (_currentPage != clampedPage) {
-      setState(() {
-        _currentPage = clampedPage;
-      });
-      if (_pageController.hasClients) {
-        _pageController.jumpToPage(clampedPage);
-      }
-    }
+    });
   }
 
   @override
@@ -2541,7 +2338,7 @@ class _DesktopRandomAlbumsPagerState
     final compact = widget.density == _HomeSectionDensity.compact;
     return (availableWidth * (compact ? 0.26 : 0.29)).clamp(
       compact ? 300.0 : 330.0,
-      compact ? 430.0 : 470.0,
+      compact ? 330.0 : 360.0,
     );
   }
 
@@ -2559,7 +2356,12 @@ class _DesktopRandomAlbumsPagerState
             final availableWidth = constraints.maxWidth.isFinite
                 ? constraints.maxWidth
                 : MediaQuery.sizeOf(context).width;
-            final height = _heroHeightFor(availableWidth);
+            final cardMode = availableWidth < 640;
+            final height = cardMode
+                ? (widget.density == _HomeSectionDensity.compact
+                      ? 240.0
+                      : 260.0)
+                : _heroHeightFor(availableWidth);
             return SizedBox(
               height: height,
               child: Stack(
@@ -2588,10 +2390,15 @@ class _DesktopRandomAlbumsPagerState
                             key: ValueKey<String>(
                               _displayedAlbums[index].stableId,
                             ),
-                            child: _DesktopRandomAlbumPage(
-                              album: _displayedAlbums[index],
-                              heroContext: widget.heroContext,
-                            ),
+                            child: cardMode
+                                ? _RandomAlbumsHeroCard(
+                                    album: _displayedAlbums[index],
+                                    heroContext: widget.heroContext,
+                                  )
+                                : _DesktopRandomAlbumPage(
+                                    album: _displayedAlbums[index],
+                                    heroContext: widget.heroContext,
+                                  ),
                           ),
                         );
                       },
@@ -2848,7 +2655,7 @@ class _DesktopListenBrainzPage extends ConsumerWidget {
         final pageHeight = constraints.maxHeight.isFinite
             ? constraints.maxHeight
             : 330.0;
-        final coverWidth = math.min(pageHeight, constraints.maxWidth * 0.44);
+        final coverWidth = math.min(pageHeight, constraints.maxWidth * 0.4);
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -3137,8 +2944,6 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
       );
     }
 
-    const preferredRowHeight = 52.0;
-
     return LayoutBuilder(
       builder: (context, constraints) {
         return ListView.separated(
@@ -3153,7 +2958,6 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
               albumTracks: allSongs,
               queueStartIndex: index,
               displayIndex: index + 1,
-              rowHeight: preferredRowHeight,
             );
           },
         );
@@ -3168,124 +2972,50 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
     required this.albumTracks,
     required this.queueStartIndex,
     required this.displayIndex,
-    required this.rowHeight,
   });
 
   final SongsTableData song;
   final List<SongsTableData> albumTracks;
   final int queueStartIndex;
   final int displayIndex;
-  final double rowHeight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).colorScheme;
     final playbackState = ref.watch(
       songPlaybackIndicatorStateProvider(song.id),
     );
-    final isSelected = playbackState.isSelected;
-    final row = SizedBox(
+    final row = AdaptiveTrackRow(
       key: ValueKey<String>('home-random-desktop-song-row-${song.id}'),
-      height: rowHeight,
-      child: Material(
-        color: isSelected
-            ? colors.primary.withValues(alpha: 0.08)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          mouseCursor: SystemMouseCursors.click,
-          hoverColor: colors.primary.withValues(alpha: 0.06),
-          highlightColor: colors.primary.withValues(alpha: 0.08),
-          onTap: () {
-            unawaited(
-              ref
-                  .read(queueProvider.notifier)
-                  .replaceWithTableData(
-                    albumTracks,
-                    startIndex: queueStartIndex,
-                    autoPlay: true,
-                  ),
-            );
-          },
-          onSecondaryTapDown: (details) {
-            unawaited(
-              showSongContextMenu(
-                context,
-                ref,
-                song,
-                anchor: details.globalPosition,
-              ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: <Widget>[
-                SizedBox(
-                  width: 24,
-                  child: isSelected
-                      ? SongPlaybackMarker(
-                          state: playbackState,
-                          size: 17,
-                        )
-                      : Text(
-                          '$displayIndex',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: colors.onSurfaceVariant.withValues(
-                                  alpha: 0.75,
-                                ),
-                                fontFeatures: const <FontFeature>[
-                                  FontFeature.tabularFigures(),
-                                ],
-                              ),
-                        ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              color: isSelected ? colors.primary : null,
-                            ),
-                      ),
-                      if (song.artistName != null &&
-                          song.artistName!.trim().isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 1),
-                        Text(
-                          song.artistName!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: colors.onSurfaceVariant.withValues(
-                                  alpha: 0.8,
-                                ),
-                              ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                DesktopSongActions(
-                  song: song,
-                  includeDuration: true,
-                  keyPrefix: 'home-random-desktop',
-                ),
-              ],
+      title: song.title,
+      artist: song.artistName,
+      album: song.albumName,
+      duration: song.duration,
+      selected: playbackState.isSelected,
+      isRemote: song.isExternal,
+      leadingExtent: 24,
+      leadingGap: 6,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      leading: Center(
+        child: playbackState.isSelected
+            ? SongPlaybackMarker(state: playbackState, size: 17)
+            : Text('$displayIndex', textAlign: TextAlign.center),
+      ),
+      actions: DesktopSongActions(song: song, keyPrefix: 'home-random-desktop'),
+      onTap: () => unawaited(
+        ref
+            .read(queueProvider.notifier)
+            .replaceWithTableData(
+              albumTracks,
+              startIndex: queueStartIndex,
+              autoPlay: true,
             ),
-          ),
+      ),
+      onSecondaryTapDown: (details) => unawaited(
+        showSongContextMenu(
+          context,
+          ref,
+          song,
+          anchor: details.globalPosition,
         ),
       ),
     );
@@ -3458,13 +3188,25 @@ class _RandomAlbumsHeroCarousel extends ConsumerStatefulWidget {
 }
 
 class _RandomAlbumsHeroCarouselState
-    extends ConsumerState<_RandomAlbumsHeroCarousel> {
+    extends ConsumerState<_RandomAlbumsHeroCarousel>
+    with WidgetsBindingObserver {
   static const int _kVirtualLoopCycles = 10000;
   late final PageController _pageController;
   late List<HomeRandomShowcaseItem> _displayedAlbums;
-  Timer? _autoAdvanceTimer;
-  Timer? _resumeTimer;
-  bool _autoAdvancePaused = false;
+  late final RecommendationAutoAdvance _autoAdvance;
+  final GlobalKey _viewportKey = GlobalKey();
+  ScrollPosition? _homeScrollPosition;
+  bool _visibilityCheckPending = false;
+  bool _heroVisible = false;
+  bool _gestureActive = false;
+  bool _pageScrolling = false;
+  bool _manualPageScroll = false;
+  bool _enabled = false;
+  bool _homeActive = false;
+  bool _desktopRuntime = true;
+  bool _routeCurrent = false;
+  bool _resumed = true;
+  bool _overlayFree = true;
   bool _reduceMotion = false;
   int _currentVirtualPage = 0;
   int _currentLogicalPage = 0;
@@ -3485,24 +3227,117 @@ class _RandomAlbumsHeroCarouselState
       viewportFraction: widget.desktopMode ? 0.58 : 0.84,
       initialPage: initialPage,
     );
-    _startAutoAdvance();
+    _autoAdvance = RecommendationAutoAdvance(
+      onAdvance: () {
+        if (mounted &&
+            _pageController.hasClients &&
+            _displayedAlbums.length > 1) {
+          _pageController.animateToPage(
+            _currentVirtualPage + 1,
+            duration: const Duration(milliseconds: 460),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      },
+    );
+    WidgetsBinding.instance.addObserver(this);
+    _resumed =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    ref.listenManual(homeRecommendationsAutoAdvanceProvider, (_, enabled) {
+      _enabled = enabled;
+      _updateAutoAdvance();
+    }, fireImmediately: true);
+    void checkOverlays() {
+      _overlayFree =
+          ref.read(playerOverlayStackProvider).isEmpty &&
+          !ref.read(quickSearchOverlayVisibleProvider);
+      _updateAutoAdvance();
+    }
+
+    ref.listenManual(
+      playerOverlayStackProvider,
+      (_, next) => checkOverlays(),
+      fireImmediately: true,
+    );
+    ref.listenManual(
+      quickSearchOverlayVisibleProvider,
+      (_, next) => checkOverlays(),
+      fireImmediately: true,
+    );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final reduceMotion = MotionPolicy.of(context).reduceMotion;
-    if (_reduceMotion == reduceMotion) {
-      return;
+    _reduceMotion = MotionPolicy.of(context).reduceMotion;
+    _desktopRuntime = resolveAdaptiveContextFor(context).desktopRuntime;
+    _homeActive = HomeActivityScope.of(context) && TickerMode.of(context);
+    _routeCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    final position = Scrollable.maybeOf(context)?.position;
+    if (_homeScrollPosition != position) {
+      _homeScrollPosition?.removeListener(_onHomeScroll);
+      _homeScrollPosition = position;
+      position?.addListener(_onHomeScroll);
     }
-    _reduceMotion = reduceMotion;
-    if (_reduceMotion) {
-      _stopAutoAdvance();
-      _resumeTimer?.cancel();
-      _resumeTimer = null;
-    } else {
-      _startAutoAdvance();
-    }
+    _updateAutoAdvance();
+    _scheduleVisibilityCheck();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _resumed = state == AppLifecycleState.resumed;
+    _updateAutoAdvance();
+  }
+
+  void _onHomeScroll() {
+    _heroVisible = false;
+    _updateAutoAdvance();
+    _autoAdvance.recordInteraction();
+    _scheduleVisibilityCheck();
+  }
+
+  void _scheduleVisibilityCheck() {
+    if (_visibilityCheckPending) return;
+    _visibilityCheckPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _visibilityCheckPending = false;
+      if (!mounted) return;
+      final box = _viewportKey.currentContext?.findRenderObject();
+      var visible = false;
+      if (box is RenderBox && box.hasSize && box.size.height > 0) {
+        final bounds = box.localToGlobal(Offset.zero) & box.size;
+        final Object? viewport = RenderAbstractViewport.maybeOf(box);
+        final clip = viewport is RenderBox && viewport.hasSize
+            ? viewport.localToGlobal(Offset.zero) & viewport.size
+            : Offset.zero & MediaQuery.sizeOf(context);
+        final intersection = bounds.intersect(clip);
+        visible =
+            !intersection.isEmpty &&
+            intersection.height >= bounds.height * .5 &&
+            intersection.width > 0;
+      }
+      _heroVisible = visible;
+      _updateAutoAdvance();
+    });
+  }
+
+  void _updateAutoAdvance() {
+    _autoAdvance.setEligible(
+      eligible:
+          _enabled &&
+          !widget.desktopMode &&
+          !_desktopRuntime &&
+          _displayedAlbums.length > 1 &&
+          _resumed &&
+          _homeActive &&
+          _routeCurrent &&
+          _heroVisible &&
+          _overlayFree &&
+          !_gestureActive &&
+          !_pageScrolling &&
+          !_reduceMotion,
+    );
   }
 
   @override
@@ -3547,7 +3382,7 @@ class _RandomAlbumsHeroCarouselState
     if (_displayedAlbums.isEmpty) {
       _currentVirtualPage = 0;
       _currentLogicalPage = 0;
-      _stopAutoAdvance();
+      _updateAutoAdvance();
       return;
     }
 
@@ -3560,7 +3395,10 @@ class _RandomAlbumsHeroCarouselState
               )]
               .stableId;
     }
-    var nextLogicalPage = 0;
+    var nextLogicalPage = _currentLogicalPage.clamp(
+      0,
+      _displayedAlbums.length - 1,
+    );
     if (currentAlbumId != null) {
       final matchedIndex = newIds.indexOf(currentAlbumId);
       if (matchedIndex != -1) {
@@ -3570,53 +3408,24 @@ class _RandomAlbumsHeroCarouselState
     nextLogicalPage = nextLogicalPage.clamp(0, _displayedAlbums.length - 1);
     _currentLogicalPage = nextLogicalPage;
     _currentVirtualPage = _rebaseVirtualPage(nextLogicalPage);
-    if (_pageController.hasClients) {
-      _pageController.jumpToPage(_currentVirtualPage);
-    }
-    _startAutoAdvance();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _pageController.hasClients)
+        _pageController.jumpToPage(_currentVirtualPage);
+      if (mounted) _scheduleVisibilityCheck();
+    });
+    _updateAutoAdvance();
   }
 
   @override
   void dispose() {
-    _autoAdvanceTimer?.cancel();
-    _resumeTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _homeScrollPosition?.removeListener(_onHomeScroll);
+    _autoAdvance.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
-  void _stopAutoAdvance() {
-    _autoAdvanceTimer?.cancel();
-    _autoAdvanceTimer = null;
-  }
-
-  void _startAutoAdvance() {
-    _stopAutoAdvance();
-    if (_reduceMotion || _displayedAlbums.length <= 1) {
-      return;
-    }
-    _autoAdvanceTimer = Timer.periodic(const Duration(milliseconds: 4200), (_) {
-      if (!mounted || _autoAdvancePaused || !_pageController.hasClients) {
-        return;
-      }
-      final nextIndex = _currentVirtualPage + 1;
-      _pageController.animateToPage(
-        nextIndex,
-        duration: const Duration(milliseconds: 460),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
-  void _pauseAutoAdvanceTemporarily() {
-    if (!mounted || _reduceMotion) {
-      return;
-    }
-    _autoAdvancePaused = true;
-    _resumeTimer?.cancel();
-    _resumeTimer = Timer(const Duration(milliseconds: 2200), () {
-      _autoAdvancePaused = false;
-    });
-  }
+  void _pauseAutoAdvanceTemporarily() => _autoAdvance.recordInteraction();
 
   void _animateToRelativePage(int delta) {
     if (!mounted ||
@@ -3682,6 +3491,7 @@ class _RandomAlbumsHeroCarouselState
       return const SizedBox.shrink();
     }
 
+    _scheduleVisibilityCheck();
     final motion = MotionPolicy.of(context);
     final currentPageLabel =
         'home-random-hero-carousel-page-${_currentLogicalPage.clamp(0, _displayedAlbums.length - 1)}';
@@ -3751,19 +3561,38 @@ class _RandomAlbumsHeroCarouselState
               );
             }
 
-            Widget viewportChild = NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification is ScrollStartNotification) {
-                  _pauseAutoAdvanceTemporarily();
-                } else if (notification is ScrollEndNotification) {
-                  _pauseAutoAdvanceTemporarily();
-                } else if (notification is UserScrollNotification &&
-                    notification.direction == ScrollDirection.idle) {
-                  _pauseAutoAdvanceTemporarily();
-                }
-                return false;
+            Widget viewportChild = Listener(
+              onPointerDown: (_) {
+                _gestureActive = true;
+                _pauseAutoAdvanceTemporarily();
+                _updateAutoAdvance();
               },
-              child: carouselViewport,
+              onPointerUp: (_) {
+                _gestureActive = false;
+                _pauseAutoAdvanceTemporarily();
+                _updateAutoAdvance();
+              },
+              onPointerCancel: (_) {
+                _gestureActive = false;
+                _pauseAutoAdvanceTemporarily();
+                _updateAutoAdvance();
+              },
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification is ScrollStartNotification) {
+                    _pageScrolling = true;
+                    _manualPageScroll = notification.dragDetails != null;
+                    _updateAutoAdvance();
+                  } else if (notification is ScrollEndNotification) {
+                    _pageScrolling = false;
+                    if (_manualPageScroll) _pauseAutoAdvanceTemporarily();
+                    _manualPageScroll = false;
+                    _updateAutoAdvance();
+                  }
+                  return false;
+                },
+                child: carouselViewport,
+              ),
             );
 
             if (widget.desktopMode && _displayedAlbums.length > 1) {
@@ -3788,7 +3617,11 @@ class _RandomAlbumsHeroCarouselState
               );
             }
 
-            return SizedBox(height: height, child: viewportChild);
+            return SizedBox(
+              key: _viewportKey,
+              height: height,
+              child: viewportChild,
+            );
           },
         ),
         if (_displayedAlbums.length > 1) ...[
@@ -4234,112 +4067,29 @@ class _SongListSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final compactDensity = density == _HomeSectionDensity.compact;
-    if (desktopMode) {
-      return Column(
-        children: <Widget>[
-          for (final song in songs)
-            DesktopListRow(
-              playbackSongId: song.id,
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CoverArtImage(
-                  coverArtId: song.coverArt,
-                  size: 128,
-                  width: compactDensity ? 38 : 42,
-                  height: compactDensity ? 38 : 42,
-                  placeholderIcon: Icons.music_note_outlined,
-                  isExternalSource: song.isExternal,
-                  remoteSourceIndicatorPolicy:
-                      RemoteSourceIndicatorPolicy.hidden,
-                ),
-              ),
-              title: song.title,
-              subtitleWidget: RemoteSourceMetadataLine(
-                metadata: Text(
-                  song.artistName ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                isRemote: song.isExternal,
-                spacing: (song.artistName?.isEmpty ?? true) ? 0 : 6,
-              ),
-              trailing: DesktopSongActions(
-                song: song,
-                keyPrefix: 'home-song',
-              ),
-              onTap: () => onTap(song),
-              onSecondaryTapDown: (details) => showSongContextMenu(
-                context,
-                ref,
-                song,
-                anchor: details.globalPosition,
-              ),
-            ),
-        ],
-      );
-    }
     final tabletMode = adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
 
-    Widget songTile(SongsTableData song) {
-      final playbackState = ref.watch(
-        songPlaybackIndicatorStateProvider(song.id),
-      );
-      final isSelected = playbackState.isSelected;
-      final tile = ListTile(
-        selected: isSelected,
-        selectedColor: Theme.of(context).colorScheme.primary,
-        selectedTileColor: Theme.of(
-          context,
-        ).colorScheme.primary.withValues(alpha: 0.08),
-        leading: ArtworkPlaybackMarker(
-          state: playbackState,
-          child: SizedBox(
-            width: tabletMode
-                ? (compactDensity ? 48 : 52)
-                : (compactDensity ? 44 : 48),
-            height: tabletMode
-                ? (compactDensity ? 48 : 52)
-                : (compactDensity ? 44 : 48),
-            child: CoverArtImage(
-              coverArtId: song.coverArt,
-              size: 160,
-              borderRadius: BorderRadius.circular(6),
-              placeholderIcon: Icons.music_note_outlined,
-              isExternalSource: song.isExternal,
-              remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
-            ),
-          ),
-        ),
-        title: Text(
-          song.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: isSelected
-              ? TextStyle(color: Theme.of(context).colorScheme.primary)
-              : null,
-        ),
-        subtitle: RemoteSourceMetadataLine(
-          metadata: Text(
-            song.artistName ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          isRemote: song.isExternal,
-          spacing: (song.artistName?.isEmpty ?? true) ? 0 : 6,
-        ),
-        dense: compactDensity || !tabletMode,
-        visualDensity: compactDensity
-            ? const VisualDensity(horizontal: -1, vertical: -2)
-            : null,
-        contentPadding: EdgeInsets.symmetric(horizontal: tabletMode ? 12 : 8),
-        onTap: () => onTap(song),
-        onLongPress: () => showSongContextMenu(context, ref, song),
-      );
-      return SongPlaybackSemantics(state: playbackState, child: tile);
-    }
+    Widget songTile(SongsTableData song) => TrackListTile(
+      key: ValueKey(song.id),
+      song: song,
+      showAlbumArt: true,
+      actionExtent: desktopMode ? null : 0,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: tabletMode ? 12 : 8,
+        vertical: compactDensity ? 4 : 8,
+      ),
+      trailing: desktopMode
+          ? DesktopSongActions(song: song, keyPrefix: 'home-song')
+          : null,
+      onTap: () => onTap(song),
+      onLongPress: () => showSongContextMenu(context, ref, song),
+      onSecondaryTapDown: (details) => showSongContextMenu(
+        context,
+        ref,
+        song,
+        anchor: details.globalPosition,
+      ),
+    );
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: tabletMode ? 4 : 8),
@@ -4349,19 +4099,26 @@ class _SongListSection extends ConsumerWidget {
               compactWideLandscapeMode &&
               constraints.maxWidth >= _compactWideTwoColumnMinWidth;
           if (useTwoColumns) {
-            return GridView.builder(
+            return Column(
               key: const ValueKey<String>('homeSongListTwoColumnGrid'),
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              itemCount: songs.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: _compactWideColumnGap,
-                mainAxisSpacing: compactDensity ? 2 : 4,
-                mainAxisExtent: compactDensity ? 56 : 64,
-              ),
-              itemBuilder: (context, index) => songTile(songs[index]),
+              children: [
+                for (var index = 0; index < songs.length; index += 2)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: compactDensity ? 2 : 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: songTile(songs[index])),
+                        const SizedBox(width: _compactWideColumnGap),
+                        Expanded(
+                          child: index + 1 < songs.length
+                              ? songTile(songs[index + 1])
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             );
           }
           return Column(

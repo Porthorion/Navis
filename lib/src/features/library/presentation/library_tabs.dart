@@ -3,12 +3,14 @@ part of 'library_screen.dart';
 class _LikedArtistStripTile extends ConsumerWidget {
   const _LikedArtistStripTile({
     required this.artist,
+    this.artworkExtent = 64,
     this.onTap,
     this.onLongPress,
     this.onSecondaryTapDown,
   });
 
   final ArtistsTableData artist;
+  final double artworkExtent;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
@@ -32,8 +34,8 @@ class _LikedArtistStripTile extends ConsumerWidget {
             CoverArtImage(
               coverArtId: artist.coverArt,
               size: kCoverArtStandardSize,
-              width: 64,
-              height: 64,
+              width: artworkExtent,
+              height: artworkExtent,
               borderRadius: borderRadius,
               placeholderIcon: Icons.person_outline,
               isExternalSource: artist.isExternal,
@@ -624,69 +626,144 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
             }
             return LayoutBuilder(
               builder: (context, constraints) {
-                final gridWidth = (constraints.maxWidth - 24).clamp(
-                  240.0,
-                  2400.0,
-                );
                 return CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: computeGridCrossAxisCount(
-                            ref.watch(albumGridDensityProvider),
-                            gridWidth,
-                          ),
-                          childAspectRatio: 1,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final album = filteredAlbums[index];
-                          final heroTag = buildCoverArtHeroTag(
-                            coverArtId: album.coverArt,
-                            context: 'liked_all_album',
-                            entityId: album.id,
-                          );
-                          return RepaintBoundary(
-                            child: AlbumCard(
-                              key: ValueKey('liked-all-album-${album.id}'),
-                              album: album,
-                              size: AlbumCardSize.library,
-                              heroTag: heroTag,
-                              badge: AlbumDownloadBadge(albumId: album.id),
-                              onTap: () {
-                                ref
-                                    .read(
-                                      librarySyncControllerProvider.notifier,
-                                    )
-                                    .registerAlbumInteraction(album.id);
-                                NavService.openAlbumDetail(
+                    ResponsiveContentSliverGrid(
+                      itemCount: filteredAlbums.length,
+                      itemBuilder: (context, index) {
+                        final album = filteredAlbums[index];
+                        final heroTag = buildCoverArtHeroTag(
+                          coverArtId: album.coverArt,
+                          context: 'liked_all_album',
+                          entityId: album.id,
+                        );
+                        return RepaintBoundary(
+                          child: AlbumCard(
+                            key: ValueKey('liked-all-album-${album.id}'),
+                            album: album,
+                            size: AlbumCardSize.library,
+                            heroTag: heroTag,
+                            badge: AlbumDownloadBadge(albumId: album.id),
+                            onTap: () {
+                              ref
+                                  .read(
+                                    librarySyncControllerProvider.notifier,
+                                  )
+                                  .registerAlbumInteraction(album.id);
+                              NavService.openAlbumDetail(
+                                context,
+                                ref,
+                                album.id,
+                                heroTag: heroTag,
+                              );
+                            },
+                            onLongPress: () =>
+                                showAlbumContextMenu(context, ref, album.id),
+                            onSecondaryTapDown: (details) =>
+                                showAlbumContextMenu(
                                   context,
                                   ref,
                                   album.id,
-                                  heroTag: heroTag,
-                                );
-                              },
-                              onLongPress: () =>
-                                  showAlbumContextMenu(context, ref, album.id),
-                              onSecondaryTapDown: (details) =>
-                                  showAlbumContextMenu(
-                                    context,
-                                    ref,
-                                    album.id,
-                                    anchor: details.globalPosition,
-                                  ),
-                            ),
-                          );
-                        }, childCount: filteredAlbums.length),
-                      ),
+                                  anchor: details.globalPosition,
+                                ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 );
               },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// A liked-artist destination when the general Artists page is hidden.
+class LikedArtistsAllScreen extends ConsumerWidget {
+  const LikedArtistsAllScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final artists = ref.watch(likedArtistsProvider);
+    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
+    final downloaded = downloadedOnly
+        ? ref.watch(downloadedContentIdsProvider).asData?.value
+        : null;
+    Future<void> refresh() =>
+        ref.read(librarySyncControllerProvider.notifier).syncNow();
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${l10n.libraryLikedOnlyFilter} ${l10n.libraryTabArtists}'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: refresh,
+        child: artists.when(
+          loading: () => const _LoadingListPlaceholder(),
+          error: (error, stack) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              ErrorState(
+                title: l10n.libraryArtistsErrorTitle,
+                onRetry: refresh,
+              ),
+            ],
+          ),
+          data: (items) {
+            final visible = downloadedOnly
+                ? items
+                      .where(
+                        (artist) =>
+                            downloaded?.artistIds.contains(artist.id) ?? false,
+                      )
+                      .toList(growable: false)
+                : items;
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                if (visible.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      title: downloadedOnly
+                          ? l10n.libraryDownloadedOnlyEmpty
+                          : l10n.libraryLikedEmptyTitle,
+                      subtitle: downloadedOnly
+                          ? l10n.libraryDownloadedOnlyEmptySubtitle
+                          : l10n.libraryLikedEmptySubtitle,
+                      icon: Icons.person_outline,
+                    ),
+                  )
+                else
+                  ResponsiveContentSliverGrid(
+                    artists: true,
+                    itemCount: visible.length,
+                    itemBuilder: (context, index) {
+                      final artist = visible[index];
+                      return ArtistGridCard(
+                        key: ValueKey('liked-all-artist-${artist.id}'),
+                        artist: artist,
+                        onTap: () => NavService.openArtistDetail(
+                          context,
+                          ref,
+                          artist.id,
+                        ),
+                        onLongPress: () =>
+                            showArtistContextMenu(context, ref, artist.id),
+                        onSecondaryTapDown: (details) => showArtistContextMenu(
+                          context,
+                          ref,
+                          artist.id,
+                          anchor: details.globalPosition,
+                        ),
+                      );
+                    },
+                  ),
+              ],
             );
           },
         ),

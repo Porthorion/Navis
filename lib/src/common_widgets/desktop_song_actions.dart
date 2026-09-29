@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -51,18 +53,26 @@ class DesktopSongActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final rowMode = TrackRowModeScope.maybeOf(context);
     if (isExternal) {
       return includeDuration
           ? Text(
               formatSeconds(duration),
               style: Theme.of(context).textTheme.bodySmall,
             )
-          : const SizedBox.shrink();
+          : SizedBox(
+              width: rowMode == null
+                  ? 0
+                  : rowMode == TrackRowMode.wide
+                  ? 144
+                  : 48,
+            );
     }
 
     final l10n = AppLocalizations.of(context)!;
-    final showDirectActions =
-        MediaQuery.sizeOf(context).width >= directActionMinWidth;
+    final showDirectActions = rowMode != null
+        ? rowMode == TrackRowMode.wide
+        : MediaQuery.sizeOf(context).width >= directActionMinWidth;
     final isLiked =
         ref.watch(songStarredProvider(songId)).asData?.value ?? false;
 
@@ -95,9 +105,13 @@ class DesktopSongActions extends ConsumerWidget {
               );
             },
           ),
-          SongDownloadStatusIcon(
-            songId: songId,
-            onDownload: () => unawaited(_download(context, ref)),
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: SongDownloadStatusIcon(
+              songId: songId,
+              onDownload: () => unawaited(_download(context, ref)),
+            ),
           ),
         ],
         Builder(

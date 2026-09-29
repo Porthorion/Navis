@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +25,6 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -991,6 +991,8 @@ class _SongResultsSection extends ConsumerWidget {
           onToggle: onToggleExpanded,
           itemCount: songs.length,
         ),
+        if (expanded && visible.isNotEmpty)
+          AdaptiveTrackHeader(actionExtent: desktopMode ? null : 0),
         ...visible.asMap().entries.map(
           (entry) {
             final song = entry.value;
@@ -1002,64 +1004,14 @@ class _SongResultsSection extends ConsumerWidget {
               id: song.id,
               apiIsExternal: song.isExternal,
             );
-            final metadata = <String>[
-              if (song.artist != null) song.artist!,
-              if (song.album != null) song.album!,
-            ].join(' • ');
-
-            if (desktopMode) {
-              return DesktopListRow(
-                playbackSongId: song.id,
-                leading: CoverArtImage(
-                  coverArtId: song.coverArt,
-                  size: 80,
-                  width: 46,
-                  height: 46,
-                  borderRadius: coverRadius,
-                  isExternalSource: isRemote,
-                  remoteSourceIndicatorPolicy:
-                      RemoteSourceIndicatorPolicy.hidden,
-                ),
-                title: song.title,
-                subtitleWidget: _SearchResultMetadata(
-                  text: metadata,
-                  isRemote: isRemote,
-                ),
-                trailing: DesktopSongActions.forSongId(
-                  songId: song.id,
-                  isExternal: isRemote,
-                  duration: song.duration,
-                  includeDuration: true,
-                  keyPrefix: 'search-song',
-                  onMore: (anchor) => _showSongContextMenu(
-                    context,
-                    ref,
-                    song,
-                    anchor: anchor,
-                  ),
-                ),
-                onTap: () {
-                  unawaited(
-                    ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
-                      song,
-                    ]),
-                  );
-                },
-                onSecondaryTapDown: (details) => _showSongContextMenu(
-                  context,
-                  ref,
-                  song,
-                  anchor: details.globalPosition,
-                ),
-              );
-            }
-
-            final tile = ListTile(
+            final tile = AdaptiveTrackRow(
+              title: song.title,
+              artist: song.artist,
+              album: song.album,
+              duration: song.duration,
               selected: isSelected,
-              selectedColor: Theme.of(context).colorScheme.primary,
-              selectedTileColor: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.08),
+              isRemote: isRemote,
+              actionExtent: desktopMode ? null : 0,
               leading: ArtworkPlaybackMarker(
                 state: playbackState,
                 child: CoverArtImage(
@@ -1073,25 +1025,29 @@ class _SongResultsSection extends ConsumerWidget {
                       RemoteSourceIndicatorPolicy.hidden,
                 ),
               ),
-              title: Text(
-                song.title,
-                style: isSelected
-                    ? TextStyle(color: Theme.of(context).colorScheme.primary)
-                    : null,
+              actions: desktopMode
+                  ? DesktopSongActions.forSongId(
+                      songId: song.id,
+                      isExternal: isRemote,
+                      keyPrefix: 'search-song',
+                      onMore: (anchor) => _showSongContextMenu(
+                        context,
+                        ref,
+                        song,
+                        anchor: anchor,
+                      ),
+                    )
+                  : null,
+              onTap: () => unawaited(
+                ref.read(queueProvider.notifier).replaceWithSongs(<Song>[song]),
               ),
-              subtitle: _SearchResultMetadata(
-                text: metadata,
-                isRemote: isRemote,
-              ),
-              trailing: Text(formatSeconds(song.duration, fallback: '')),
-              onTap: () {
-                unawaited(
-                  ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
-                    song,
-                  ]),
-                );
-              },
               onLongPress: () => _showSongContextMenu(context, ref, song),
+              onSecondaryTapDown: (details) => _showSongContextMenu(
+                context,
+                ref,
+                song,
+                anchor: details.globalPosition,
+              ),
             );
             return SongPlaybackSemantics(
               state: playbackState,

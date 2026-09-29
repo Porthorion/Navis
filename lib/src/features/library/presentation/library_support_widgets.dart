@@ -558,7 +558,10 @@ class _SortFilterRow<T> extends StatelessWidget {
               const SizedBox(width: 12),
               Flexible(
                 fit: FlexFit.loose,
-                child: buildSortDropdown(),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: buildSortDropdown(),
+                ),
               ),
             ],
           );

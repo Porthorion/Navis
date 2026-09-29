@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -86,6 +87,80 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('mobile downloaded row keeps delete beside quality metadata', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 800);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+    const song = SongsTableData(
+      id: 'mobile-download',
+      title: 'Downloaded Song',
+      artistName: 'Artist',
+      albumName: 'Album',
+      duration: 223,
+      isProvisional: false,
+      isExternal: false,
+    );
+    final track = CachedTracksTableData(
+      songId: song.id,
+      filePath: '/tmp/mobile-download.mp3',
+      storageKind: 'filesystem',
+      fileSize: 1000000,
+      format: 'mp3',
+      bitRate: 320,
+      lastAccessedAt: DateTime(2026),
+      cacheType: CacheType.permanent,
+      downloadStatus: DownloadStatus.complete,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            downloadQueueProvider.overrideWithValue(
+              const AsyncData(<DownloadQueueTableData>[]),
+            ),
+            permanentCachedTracksProvider.overrideWithValue(AsyncData([track])),
+            songByIdProvider.overrideWith((ref, id) => Stream.value(song)),
+            playerStateProvider.overrideWithValue(_pausedSnapshot(song.id)),
+          ],
+        ),
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AdaptiveContextScope(
+            adaptiveContext: resolveAdaptiveContext(
+              desktopRuntime: false,
+              viewportSize: const Size(360, 800),
+              safePadding: EdgeInsets.zero,
+            ),
+            child: const DownloadsScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Downloaded'));
+    await tester.pumpAndSettle();
+    final row = find.byType(AdaptiveTrackRow);
+    expect(row, findsOneWidget);
+    final bounds = tester.getRect(row);
+    expect(bounds.height, lessThan(96));
+    expect(tester.widget<AdaptiveTrackRow>(row).actionExtent, 48);
+    final delete = find.descendant(of: row, matching: find.byType(IconButton));
+    expect(tester.getRect(delete).center.dy, bounds.center.dy);
+    expect(tester.getSize(delete), const Size(48, 48));
+    expect(find.text('3:43'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 
   testWidgets('desktop Downloads combines navigation and search in one strip', (

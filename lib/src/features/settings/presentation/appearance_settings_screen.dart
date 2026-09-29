@@ -12,6 +12,7 @@ import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -241,7 +242,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 child: Text(
-                  l10n.appearanceGridDensityLabel,
+                  l10n.appearanceArtworkSizeLabel,
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: theme.colorScheme.primary,
                   ),
@@ -253,15 +254,15 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   vertical: 4,
                 ),
                 child: Text(
-                  l10n.appearanceGridDensitySub,
+                  l10n.appearanceArtworkSizeSub,
                   style: theme.textTheme.bodySmall,
                 ),
               ),
-              _GridDensitySelector(
-                current: ref.watch(albumGridDensityProvider),
+              _ArtworkSizeSelector(
+                current: ref.watch(gridArtworkSizeProvider),
                 onChanged: (density) async {
                   final db = ref.read(navisDatabaseProvider);
-                  await db.appSettingsDao.updateAlbumGridDensity(density);
+                  await db.appSettingsDao.updateGridArtworkSize(density.name);
                 },
               ),
               const Divider(height: 32),
@@ -377,6 +378,24 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                         await db.appSettingsDao.updateHomeDensity(value);
                       },
                     ),
+                    if (!resolveAdaptiveContextFor(context).desktopRuntime)
+                      SwitchListTile(
+                        title: Text(l10n.appearanceRecommendationsAutoAdvance),
+                        subtitle: Text(
+                          l10n.appearanceRecommendationsAutoAdvanceSub,
+                        ),
+                        value: ref.watch(
+                          homeRecommendationsAutoAdvanceProvider,
+                        ),
+                        onChanged: (value) async {
+                          await ref
+                              .read(navisDatabaseProvider)
+                              .appSettingsDao
+                              .updateHomeRecommendationsAutoAdvance(
+                                enabled: value,
+                              );
+                        },
+                      ),
                     _HomeSectionReorder(
                       order: displayOrder,
                       hidden: sanitizedHidden,
@@ -1451,38 +1470,40 @@ class _HueSlider extends StatelessWidget {
 // Grid density selector
 // ---------------------------------------------------------------------------
 
-class _GridDensitySelector extends StatelessWidget {
-  const _GridDensitySelector({
+class _ArtworkSizeSelector extends StatelessWidget {
+  const _ArtworkSizeSelector({
     required this.current,
     required this.onChanged,
   });
 
-  final int? current;
-  final ValueChanged<int?> onChanged;
+  final GridArtworkSize current;
+  final ValueChanged<GridArtworkSize> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final presets = <(int? value, String label)>[
-      (null, l10n.appearanceGridDensityAuto),
-      (2, l10n.appearanceGridDensityCozy),
-      (3, l10n.appearanceGridDensityCompact),
-      (4, l10n.appearanceGridDensitySpaciousLabel),
+    final presets = <(GridArtworkSize value, String label)>[
+      (GridArtworkSize.auto, l10n.appearanceGridDensityAuto),
+      (GridArtworkSize.small, l10n.appearanceArtworkSizeSmall),
+      (GridArtworkSize.medium, l10n.appearanceArtworkSizeMedium),
+      (GridArtworkSize.large, l10n.appearanceArtworkSizeLarge),
     ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SegmentedButton<int?>(
-        segments: presets
-            .map(
-              (e) => ButtonSegment<int?>(value: e.$1, label: Text(e.$2)),
-            )
-            .toList(),
-        selected: {current},
-        onSelectionChanged: (selection) {
-          if (selection.isNotEmpty) onChanged(selection.first);
-        },
-        showSelectedIcon: false,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final preset in presets)
+            ChoiceChip(
+              label: Text(preset.$2),
+              selected: current == preset.$1,
+              showCheckmark: false,
+              materialTapTargetSize: MaterialTapTargetSize.padded,
+              onSelected: (_) => onChanged(preset.$1),
+            ),
+        ],
       ),
     );
   }

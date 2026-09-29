@@ -1301,6 +1301,43 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    for (final detail in [
+      const Artist(id: 'wrong-artist', name: 'Wrong'),
+      const Artist(
+        id: 'artist-1',
+        name: 'Partial',
+        albumCount: 2,
+        albums: [Album(id: 'new-album', name: 'New')],
+      ),
+      const Artist(
+        id: 'artist-1',
+        name: 'Duplicate',
+        albums: [
+          Album(id: 'same', name: 'A'),
+          Album(id: 'same', name: 'B'),
+        ],
+      ),
+    ]) {
+      test(
+        'incomplete artist detail preserves existing metadata: ${detail.name}',
+        () async {
+          await saveSession(lastSynced: DateTime.now());
+          await database.libraryDao.upsertArtists([
+            ArtistsTableCompanion.insert(id: 'artist-1', name: 'Existing'),
+          ]);
+          api.artistDetails['artist-1'] = detail;
+          final result = await engine.hydrateArtist('artist-1');
+          expect(result.status, LibrarySyncStatus.partial);
+          expect(
+            (await database.libraryDao.getArtistById('artist-1'))!.name,
+            'Existing',
+          );
+          expect(await database.libraryDao.getAlbumById('new-album'), isNull);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
     test(
       'external targeted artist and album hydration stays provisional and browsable by exact detail',
       () async {
@@ -1384,6 +1421,12 @@ void main() {
           hasLength(2),
         );
         expect(await database.libraryDao.watchAllAlbums().first, isEmpty);
+        await engine.hydrateArtist('ext-deezer-artist-1');
+        expect(
+          (await database.libraryDao.getAlbumById('provider-album-1'))!
+              .songsHydrated,
+          isTrue,
+        );
       },
       skip: !sqliteAvailable,
     );

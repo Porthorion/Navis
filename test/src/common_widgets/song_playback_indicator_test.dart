@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -126,9 +127,23 @@ void main() {
     );
 
     expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
-    final tile = tester.widget<ListTile>(find.byType(ListTile));
+    final tile = tester.widget<AdaptiveTrackRow>(find.byType(AdaptiveTrackRow));
     expect(tile.selected, isTrue);
-    expect(tile.selectedTileColor, isNotNull);
+    final surface = tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byType(AdaptiveTrackRow),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(
+      surface.color,
+      Theme.of(tester.element(find.byType(AdaptiveTrackRow)))
+          .colorScheme
+          .primary
+          .withValues(alpha: .08),
+    );
     expect(find.text('7'), findsNothing);
     final semantics = tester.widget<Semantics>(
       find.byWidgetPredicate(
@@ -156,7 +171,10 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.byType(ArtworkPlaybackMarker), findsOneWidget);
-    expect(tester.widget<ListTile>(find.byType(ListTile)).selected, isTrue);
+    expect(
+      tester.widget<AdaptiveTrackRow>(find.byType(AdaptiveTrackRow)).selected,
+      isTrue,
+    );
   });
 
   testWidgets('inactive tile keeps its track number and default styling', (
@@ -170,7 +188,7 @@ void main() {
 
     expect(find.byIcon(Icons.graphic_eq_rounded), findsNothing);
     expect(find.text('7'), findsOneWidget);
-    final tile = tester.widget<ListTile>(find.byType(ListTile));
+    final tile = tester.widget<AdaptiveTrackRow>(find.byType(AdaptiveTrackRow));
     expect(tile.selected, isFalse);
   });
 

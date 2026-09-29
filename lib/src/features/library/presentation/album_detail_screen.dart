@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -186,7 +187,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   ? widget.openingHeroTag!.trim()
                   : buildCoverArtHeroTag(
                       coverArtId: details.coverArt,
-                      context: 'album',
+                      // Keep desktop detail/viewer artwork distinct from the
+                      // Library card even when no opening Hero was supplied.
+                      context: desktopMode ? 'album_detail' : 'album',
                       entityId: widget.albumId,
                     );
               // ── Build render items with disc headers for multi-disc ──
@@ -235,7 +238,24 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     )
                   : SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) {
-                        final item = renderItems[index];
+                        if (index == 0) {
+                          return AdaptiveTrackHeader(
+                            numberColumnExtent: 32,
+                            leadingExtent: 32,
+                            leadingGap: 6,
+                            actionExtent: desktopMode ? null : 96,
+                            padding: compactWideMode
+                                ? const EdgeInsetsDirectional.only(
+                                    start: 8,
+                                    end: 4,
+                                  )
+                                : const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                          );
+                        }
+                        final item = renderItems[index - 1];
                         return switch (item) {
                           _DiscHeader(:final discNumber, :final isFirst) =>
                             _buildDiscHeader(
@@ -246,6 +266,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             ),
                           _SongItem(:final song) => TrackListTile(
                             song: song,
+                            actionExtent: desktopMode ? null : 96,
                             contentPadding: compactWideMode
                                 ? const EdgeInsetsDirectional.only(
                                     start: 8,
@@ -270,12 +291,18 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 : Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      if (!song.isExternal)
-                                        SongDownloadStatusIcon(
-                                          songId: song.id,
-                                          onDownload: () =>
-                                              unawaited(_downloadSong(song)),
-                                        ),
+                                      SizedBox(
+                                        width: 48,
+                                        height: 48,
+                                        child: song.isExternal
+                                            ? null
+                                            : SongDownloadStatusIcon(
+                                                songId: song.id,
+                                                onDownload: () => unawaited(
+                                                  _downloadSong(song),
+                                                ),
+                                              ),
+                                      ),
                                       _AlbumSongMoreButton(
                                         onPressed: (anchor) => unawaited(
                                           _showSongActions(
@@ -288,7 +315,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   ),
                           ),
                         };
-                      }, childCount: renderItems.length),
+                      }, childCount: renderItems.length + 1),
                     );
 
               // ── Desktop layout: horizontal header + scrollable track panel ──

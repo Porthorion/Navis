@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -519,13 +520,15 @@ class _DownloadedTab extends ConsumerWidget {
                 child: ListView.builder(
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
-                  itemCount: filtered.length,
+                  itemCount: filtered.length + 1,
                   itemBuilder: (context, index) {
-                    final track = filtered[index];
+                    if (index == 0)
+                      return const AdaptiveTrackHeader(actionExtent: 48);
+                    final track = filtered[index - 1];
                     return _DownloadedTrackTile(
                       track: track,
                       allTracks: filtered,
-                      trackIndex: index,
+                      trackIndex: index - 1,
                     );
                   },
                 ),
@@ -566,12 +569,14 @@ class _DownloadedTrackTile extends ConsumerWidget {
     );
     final isSelected = playbackState.isSelected;
 
-    final tile = ListTile(
+    final tile = AdaptiveTrackRow(
+      title: title,
+      artist: artist,
+      album: song?.albumName,
+      duration: song?.duration,
       selected: isSelected,
-      selectedColor: Theme.of(context).colorScheme.primary,
-      selectedTileColor: Theme.of(
-        context,
-      ).colorScheme.primary.withValues(alpha: 0.08),
+      isRemote: song?.isExternal ?? false,
+      actionExtent: 48,
       leading: ArtworkPlaybackMarker(
         state: playbackState,
         child: SizedBox(
@@ -597,24 +602,13 @@ class _DownloadedTrackTile extends ConsumerWidget {
                 ),
         ),
       ),
-      title: Text(
-        title,
+      badge: Text(
+        '${track.format.toUpperCase()} · ${formatBytes(track.fileSize)}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: isSelected
-            ? TextStyle(color: Theme.of(context).colorScheme.primary)
-            : null,
+        style: Theme.of(context).textTheme.bodySmall,
       ),
-      subtitle: RemoteSourceMetadataLine(
-        metadata: Text(
-          '$artist · ${track.format.toUpperCase()} · ${formatBytes(track.fileSize)}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        isRemote: song?.isExternal ?? false,
-        spacing: 8,
-      ),
-      trailing: IconButton(
+      actions: IconButton(
         icon: const Icon(Icons.delete_outline),
         tooltip: l10n.downloadsRemoveAction,
         onPressed: () => _confirmAndDelete(context, ref, track, l10n),

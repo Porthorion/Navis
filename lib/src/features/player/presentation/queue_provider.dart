@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -68,9 +67,47 @@ class RegularQueueReplacementEpoch extends Notifier<int> {
   }
 }
 
+/// Known artist tracks omitted by source preparation remain visible in the queue.
+/// Native indexes and repeated playable occurrences remain owned by the handler.
+final retainedArtistQueueProvider =
+    NotifierProvider<RetainedArtistQueue, List<SongsTableData>>(
+      RetainedArtistQueue.new,
+    );
+
+class RetainedArtistQueue extends Notifier<List<SongsTableData>> {
+  @override
+  List<SongsTableData> build() {
+    ref.listen<int>(regularQueueReplacementEpochProvider, (_, next) => clear());
+    ref.listen<bool>(playerStateProvider.select((value) => value.isRadioMode), (
+      _,
+      next,
+    ) {
+      if (next) clear();
+    });
+    return const [];
+  }
+
+  void retain(List<SongsTableData> songs, {required bool append}) {
+    state = List.unmodifiable([if (append) ...state, ...songs]);
+  }
+
+  void removeAt(int index) {
+    state = List.unmodifiable([...state]..removeAt(index));
+  }
+
+  void clear() => state = const [];
+}
+
 class QueueController extends Notifier<List<String>> {
   Future<void> _recommendationCommitTail = Future<void>.value();
   int _regularSelectionEpoch = 0;
+
+  /// Reserves a selection before its metadata is ready to replace the queue.
+  int reserveSelection() => ++_regularSelectionEpoch;
+
+  int get selectionGeneration => _regularSelectionEpoch;
+
+  bool ownsSelection(int epoch) => epoch == _regularSelectionEpoch;
 
   @override
   List<String> build() {
@@ -147,6 +184,15 @@ class QueueController extends Notifier<List<String>> {
     final handler = _requireHandler();
     await handler.addToQueue(<String>[normalizedId]);
     _prewarmLyricsForIds(<String>[normalizedId]);
+  }
+
+  Future<void> addTableData(List<SongsTableData> songs) async {
+    if (songs.isEmpty) return;
+    await _requireHandler().addToQueue(
+      songs.map((song) => song.id).toList(growable: false),
+      expandMatchFlows: false,
+    );
+    _prewarmLyricsForIds(songs.map((song) => song.id));
   }
 
   Future<void> playNext(String id) async {
@@ -534,21 +580,10 @@ class QueueController extends Notifier<List<String>> {
   }
 
   Future<void> clear() async {
+    ++_regularSelectionEpoch;
     final handler = _requireHandler();
     _markRegularQueueReplacement(notify: true);
     await handler.clearQueue();
-    final settings =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
-    if (settings.playbackSpeed == 1) {
-      return;
-    }
-    await ref
-        .read(settingsRepositoryProvider)
-        .saveSettings(
-          settings.copyWith(playbackSpeed: 1),
-        );
-    await handler.applyRuntimeSettings();
   }
 
   List<String> _normalizeSongIds(Iterable<String> ids) {

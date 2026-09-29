@@ -126,7 +126,7 @@ final libraryTypeFilterDiagnosticsProvider =
       LibraryTypeFilterDiagnosticsController.new,
     );
 
-/// Clone-only diagnostics command, consumed by the mounted Albums scroll view.
+/// Clone-only diagnostics command, consumed by the mounted Albums or Liked scroll view.
 class LibraryScrollDiagnosticsRequest {
   LibraryScrollDiagnosticsRequest(this.pixels);
   final double pixels;

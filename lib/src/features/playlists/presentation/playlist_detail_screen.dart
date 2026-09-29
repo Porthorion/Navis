@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
@@ -353,6 +354,19 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     ],
                   ),
           ),
+          if (visibleSongs.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
+                child: AdaptiveTrackHeader(
+                  numberColumnExtent: 32,
+                  leadingExtent: 32,
+                  actionExtent: desktopMode
+                      ? null
+                      : (downloadedOnly ? 96 : 144),
+                ),
+              ),
+            ),
           if (visibleSongs.isEmpty)
             SliverPadding(
               padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
@@ -384,6 +398,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     type: MaterialType.transparency,
                     child: TrackListTile(
                       song: song,
+                      actionExtent: desktopMode ? null : 96,
                       onTap: () => _playNow(visibleSongs, index),
                       onLongPress: () =>
                           _showSongActions(song, entry.playlistIndex),
@@ -405,10 +420,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                SongDownloadStatusIcon(
-                                  songId: song.id,
-                                  onDownload: () =>
-                                      unawaited(_downloadSong(song)),
+                                SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: SongDownloadStatusIcon(
+                                    songId: song.id,
+                                    onDownload: () =>
+                                        unawaited(_downloadSong(song)),
+                                  ),
                                 ),
                                 _songActionsButton(song, entry.playlistIndex),
                               ],
@@ -432,6 +451,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     type: MaterialType.transparency,
                     child: TrackListTile(
                       song: song,
+                      actionExtent: desktopMode ? null : 144,
                       onTap: () => _playNow(songs, index),
                       onLongPress: () => _showSongActions(song, index),
                       onSecondaryTapDown: (details) => _showSongActions(
@@ -452,15 +472,23 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                SongDownloadStatusIcon(
-                                  songId: song.id,
-                                  onDownload: () =>
-                                      unawaited(_downloadSong(song)),
+                                SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: SongDownloadStatusIcon(
+                                    songId: song.id,
+                                    onDownload: () =>
+                                        unawaited(_downloadSong(song)),
+                                  ),
                                 ),
                                 _songActionsButton(song, index),
                                 ReorderableDragStartListener(
                                   index: index,
-                                  child: const Icon(Icons.drag_handle),
+                                  child: const SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: Icon(Icons.drag_handle),
+                                  ),
                                 ),
                               ],
                             ),

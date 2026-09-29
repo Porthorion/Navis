@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -34,6 +35,7 @@ class GenreDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final desktopRuntime = resolveAdaptiveContextFor(context).desktopRuntime;
     final albums = ref.watch(albumsByGenreProvider(genreName));
     final songs = ref.watch(songsByGenreProvider(genreName));
     Future<void> refresh() {
@@ -128,11 +130,18 @@ class GenreDetailScreen extends ConsumerWidget {
                   }
                   return ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: items.length,
+                    itemCount: items.length + 1,
                     itemBuilder: (context, index) {
-                      final song = items[index];
+                      if (index == 0)
+                        return AdaptiveTrackHeader(
+                          numberColumnExtent: 32,
+                          leadingExtent: 32,
+                          actionExtent: desktopRuntime ? null : 96,
+                        );
+                      final song = items[index - 1];
                       return TrackListTile(
                         song: song,
+                        actionExtent: desktopRuntime ? null : 96,
                         onTap: () {
                           ref.read(queueProvider.notifier).replaceWithTableData(
                             <SongsTableData>[song],
@@ -141,7 +150,7 @@ class GenreDetailScreen extends ConsumerWidget {
                         },
                         onLongPress: () =>
                             showSongContextMenu(context, ref, song),
-                        trailing: isDesktopRuntime
+                        trailing: desktopRuntime
                             ? DesktopSongActions(
                                 song: song,
                                 keyPrefix: 'genre-song',
@@ -149,31 +158,35 @@ class GenreDetailScreen extends ConsumerWidget {
                             : Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: <Widget>[
-                                  SongDownloadStatusIcon(
-                                    songId: song.id,
-                                    onDownload: () => unawaited(() async {
-                                      final choice =
-                                          await showDownloadQualitySheet(
-                                            context,
-                                          );
-                                      if (choice == null || !context.mounted)
-                                        return;
-                                      unawaited(
-                                        ref
-                                            .read(downloadServiceProvider)
-                                            .enqueueSong(
-                                              song.id,
-                                              quality: choice.quality,
-                                              format: choice.format,
-                                            ),
-                                      );
-                                      if (!context.mounted) return;
-                                      showAppNotice(
-                                        context,
-                                        message: l10n.downloadSongQueued,
-                                        level: AppNoticeLevel.success,
-                                      );
-                                    }()),
+                                  SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: SongDownloadStatusIcon(
+                                      songId: song.id,
+                                      onDownload: () => unawaited(() async {
+                                        final choice =
+                                            await showDownloadQualitySheet(
+                                              context,
+                                            );
+                                        if (choice == null || !context.mounted)
+                                          return;
+                                        unawaited(
+                                          ref
+                                              .read(downloadServiceProvider)
+                                              .enqueueSong(
+                                                song.id,
+                                                quality: choice.quality,
+                                                format: choice.format,
+                                              ),
+                                        );
+                                        if (!context.mounted) return;
+                                        showAppNotice(
+                                          context,
+                                          message: l10n.downloadSongQueued,
+                                          level: AppNoticeLevel.success,
+                                        );
+                                      }()),
+                                    ),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.more_vert),

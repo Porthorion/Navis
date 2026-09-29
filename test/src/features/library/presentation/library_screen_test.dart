@@ -6,6 +6,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -184,6 +186,7 @@ Widget _buildLibraryScreen({
   bool desktopIconsOnly = false,
   TextScaler? textScaler,
   String artistViewMode = 'list',
+  AdaptiveContext? adaptiveContext,
 }) {
   return ProviderScope(
     overrides: withTestDatabase(
@@ -204,6 +207,12 @@ Widget _buildLibraryScreen({
       theme: testTheme(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      builder: adaptiveContext == null
+          ? null
+          : (context, child) => AdaptiveContextScope(
+              adaptiveContext: adaptiveContext,
+              child: child!,
+            ),
       home: DesktopNavigationPresentationScope(
         iconsOnly: desktopIconsOnly,
         child: Builder(
@@ -233,6 +242,10 @@ Widget _buildLibraryScreenRouter({
         path: '/',
         builder: (context, state) => const LibraryScreen(),
         routes: <RouteBase>[
+          GoRoute(
+            path: 'library/liked-artists',
+            builder: (context, state) => const LikedArtistsAllScreen(),
+          ),
           GoRoute(
             path: 'library/listenbrainz/:sourcePatch',
             builder: (context, state) => Text(
@@ -303,6 +316,7 @@ Future<void> _pumpLibraryScreen(
   TextScaler? textScaler,
   bool settle = true,
   String artistViewMode = 'list',
+  AdaptiveContext? adaptiveContext,
 }) async {
   await tester.pumpWidget(
     _buildLibraryScreen(
@@ -311,6 +325,7 @@ Future<void> _pumpLibraryScreen(
       desktopIconsOnly: desktopIconsOnly,
       textScaler: textScaler,
       artistViewMode: artistViewMode,
+      adaptiveContext: adaptiveContext,
     ),
   );
   if (settle) {
@@ -381,21 +396,6 @@ void main() {
     await _testDatabase.close();
   });
 
-  group('grid column resolver', () {
-    test('computeGridCrossAxisCount uses available pane width', () {
-      expect(computeGridCrossAxisCount(null, 320), 1);
-      expect(computeGridCrossAxisCount(null, 520), 2);
-      expect(computeGridCrossAxisCount(null, 720), 4);
-      expect(computeGridCrossAxisCount(null, 980), 5);
-    });
-
-    test('density override is clamped', () {
-      expect(computeGridCrossAxisCount(0, 980), 1);
-      expect(computeGridCrossAxisCount(3, 980), 3);
-      expect(computeGridCrossAxisCount(8, 980), 5);
-    });
-  });
-
   _testWidgetsWithCleanup(
     'disabled library pages offer a direct Appearance settings recovery',
     (tester) async {
@@ -424,6 +424,294 @@ void main() {
   );
 
   group('LibraryScreen', () {
+    _testWidgetsWithCleanup(
+      'Liked artist See all works when Artists is hidden',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showArtistsPage: false,
+            overrides: [
+              showLikedPageProvider.overrideWithValue(true),
+              likedArtistsProvider.overrideWithValue(
+                const AsyncData([
+                  ArtistsTableData(
+                    id: 'hidden-artist',
+                    name: 'Hidden page artist',
+                    isExternal: false,
+                    isProvisional: false,
+                  ),
+                ]),
+              ),
+              likedAlbumsRecentProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+              likedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              likedAlbumSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('See all'));
+        await tester.pumpAndSettle();
+        expect(find.byType(LikedArtistsAllScreen), findsOneWidget);
+        expect(find.text('Hidden page artist'), findsOneWidget);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(LikedArtistsAllScreen)),
+        );
+        expect(container.read(showArtistsPageProvider), isFalse);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'Liked download filter finds an album after the former first six',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            showLikedPageProvider.overrideWithValue(true),
+            downloadedOnlyFilterProvider.overrideWith(
+              _DownloadedOnlyEnabledController.new,
+            ),
+            downloadedContentIdsProvider.overrideWithValue(
+              const AsyncData((
+                albumIds: <String>{'later-liked-9'},
+                artistIds: <String>{},
+              )),
+            ),
+            downloadedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{}),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              AsyncData([
+                for (var i = 0; i < 12; i++)
+                  _likedAlbum(id: 'later-liked-$i', name: 'Recent album $i'),
+              ]),
+            ),
+            likedArtistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedAlbumSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+          ],
+        );
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
+        expect(find.text('Recent album 9'), findsOneWidget);
+        expect(find.text('Recent album 0'), findsNothing);
+        final shelf = tester.widget<ContentShelf>(
+          find.byKey(const ValueKey('liked-albums-shelf')),
+        );
+        expect(shelf.itemCount, 1);
+        expect(find.text('See all'), findsOneWidget);
+      },
+    );
+    _testWidgetsWithCleanup(
+      'diagnostics scrolls the selected Liked collection through its existing owner',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        final songs = List.generate(
+          30,
+          (i) => _likedSong(
+            id: 'scroll-$i',
+            title: 'Scrollable $i',
+            albumId: 'album',
+          ),
+        );
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            showLikedPageProvider.overrideWithValue(true),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(const AsyncData([])),
+            likedArtistsProvider.overrideWithValue(const AsyncData([])),
+            likedSongsProvider.overrideWithValue(AsyncData(songs)),
+          ],
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(LibraryScreen)),
+        );
+        container
+            .read(librarySectionProvider.notifier)
+            .setSection(LibrarySection.liked);
+        await tester.pumpAndSettle();
+        final scroll = container
+            .read(libraryScrollDiagnosticsProvider.notifier)
+            .scroll(500);
+        await tester.pumpAndSettle();
+        expect(await scroll, 500);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'phone Liked has two compact shelves and songs within one swipe',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        final albums = List.generate(
+          20,
+          (i) => _likedAlbum(id: 'liked-$i', name: 'Liked album $i'),
+        );
+        final artists = List.generate(
+          20,
+          (i) => ArtistsTableData(
+            isProvisional: false,
+            isExternal: false,
+            id: 'liked-artist-$i',
+            name: 'Liked artist $i',
+          ),
+        );
+        final song = _likedSong(
+          id: 'first-liked-song',
+          title: 'First liked song',
+          albumId: 'liked-0',
+        );
+        await _pumpLibraryScreen(
+          tester,
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: false,
+            viewportSize: const Size(390, 844),
+            safePadding: EdgeInsets.zero,
+          ),
+          overrides: [
+            showLikedPageProvider.overrideWithValue(true),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(AsyncData(albums)),
+            likedArtistsProvider.overrideWithValue(AsyncData(artists)),
+            likedSongsProvider.overrideWithValue(AsyncData([song])),
+            likedAlbumSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+          ],
+        );
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
+        final shelves = tester
+            .widgetList<ContentShelf>(find.byType(ContentShelf))
+            .toList();
+        expect(shelves.length, 2);
+        expect(shelves[0].extent, 80);
+        expect(shelves[1].extent, 128);
+        expect(shelves[0].showNextTooltip, isTrue);
+        expect(shelves[1].showNextTooltip, isFalse);
+        expect(shelves[1].itemCount, 6);
+        final scroll = find.ancestor(
+          of: find.text('First liked song'),
+          matching: find.byType(CustomScrollView),
+        );
+        final start = tester.getRect(scroll).top;
+        final firstSongTop = tester.getRect(find.text('First liked song')).top;
+        final row = find.ancestor(
+          of: find.text('First liked song'),
+          matching: find.byType(AdaptiveTrackRow),
+        );
+        expect(tester.getSize(row).height, 64);
+        final more = find.descendant(
+          of: row,
+          matching: find.byIcon(Icons.more_vert),
+        );
+        expect(tester.getRect(more).center.dy, tester.getRect(row).center.dy);
+        expect(firstSongTop - start, lessThanOrEqualTo(440));
+        expect(find.text('See all'), findsNWidgets(2));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'underfilled album page loads a viewport buffer without scrolling',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(3440, 1440));
+        final requests = <int>[];
+        final albums = List.generate(
+          240,
+          (i) => _likedAlbum(id: 'album-$i', name: 'Album $i'),
+        );
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(240)),
+            pagedAlbumsProvider.overrideWith((ref, request) {
+              requests.add(request.limit);
+              return Stream.value(albums.take(request.limit).toList());
+            }),
+          ],
+        );
+        expect(requests.first, 60);
+        expect(requests.length, greaterThan(1));
+        expect(requests.toSet().length, requests.length);
+        expect(requests.last, lessThanOrEqualTo(240));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'album paging stops on error and retains the first page',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(3440, 1440));
+        final requests = <int>[];
+        final albums = List.generate(
+          60,
+          (i) => _likedAlbum(id: 'album-$i', name: 'Album $i'),
+        );
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(240)),
+            pagedAlbumsProvider.overrideWith((ref, request) {
+              requests.add(request.limit);
+              return request.limit == 60
+                  ? Stream.value(albums)
+                  : Stream.error(StateError('fixture failure'));
+            }),
+          ],
+        );
+        await tester.pump(const Duration(seconds: 1));
+        expect(requests, [60, 120]);
+        expect(find.text('Album 0'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     _testWidgetsWithCleanup(
       'portrait phone Library keeps space above its tabs',
       (tester) async {
@@ -1842,12 +2130,12 @@ void main() {
         tester.view.physicalSize = const Size(1200, 1200);
         await tester.pumpAndSettle();
 
-        expect(find.byType(DesktopListRow), findsOneWidget);
-        expect(find.byType(TrackListTile), findsNothing);
+        expect(find.byType(TrackListTile), findsOneWidget);
+        expect(find.byType(DesktopListRow), findsNothing);
         expect(find.text('Desktop Liked Song'), findsOneWidget);
         final desktopMoreButton = find.ancestor(
           of: find.descendant(
-            of: find.byType(DesktopListRow),
+            of: find.byType(TrackListTile),
             matching: find.byIcon(Icons.more_horiz_rounded),
           ),
           matching: find.byType(IconButton),
@@ -2122,31 +2410,5 @@ void main() {
         expect(queueSpy.lastReplaceIds, <String>['downloaded-album-song']);
       },
     );
-  });
-
-  group('computeGridCrossAxisCount', () {
-    test('returns override when provided', () {
-      expect(computeGridCrossAxisCount(3, 600), 3);
-    });
-
-    test('clamps override to [1, 5]', () {
-      expect(computeGridCrossAxisCount(0, 600), 1);
-      expect(computeGridCrossAxisCount(10, 600), 5);
-    });
-
-    test('auto-computes from width when override is null', () {
-      // 360px / 180 = 2
-      expect(computeGridCrossAxisCount(null, 360), 2);
-      // 900px / 180 = 5
-      expect(computeGridCrossAxisCount(null, 900), 5);
-    });
-
-    test('clamps auto-computed to at least 1', () {
-      expect(computeGridCrossAxisCount(null, 100), 1);
-    });
-
-    test('clamps auto-computed to at most 5', () {
-      expect(computeGridCrossAxisCount(null, 2000), 5);
-    });
   });
 }

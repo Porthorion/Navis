@@ -22,8 +22,10 @@ void main() {
     List<int> customPresets = const <int>[],
     bool dynamicAlbumColorEnabled = false,
     AdaptiveContext? adaptiveContext,
+    TextScaler textScaler = TextScaler.noScaling,
   }) async {
     final database = createTestDatabase();
+    await tester.runAsync(database.appSettingsDao.getSettings);
     final settings = const AppSettingsModel.defaults().copyWith(
       colorSchemeSeed: colorSeed,
       dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
@@ -51,6 +53,10 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           theme: testTheme(buildLightTheme(defaultColorSchemeSeedColor)),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+            child: child!,
+          ),
           home: adaptiveContext == null
               ? const AppearanceSettingsScreen()
               : AdaptiveContextScope(
@@ -285,6 +291,82 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('artwork choices wrap and save on a phone with large text', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(320, 800));
+    final container = await pumpAppearance(
+      tester,
+      textScaler: const TextScaler.linear(2),
+    );
+    // Shape previews animate continuously; wait only for finite transitions.
+    final small = find.widgetWithText(ChoiceChip, 'Small');
+    await tester.scrollUntilVisible(
+      small,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(small);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    final row = (await tester.runAsync(
+      () => container
+          .read(navisDatabaseProvider)
+          .appSettingsDao
+          .watchSettings()
+          .firstWhere((row) => row?.gridArtworkSize == 'small')
+          .timeout(const Duration(seconds: 2)),
+    ))!;
+    expect(row.gridArtworkSize, 'small');
+    expect(row.homeRecommendationsAutoAdvance, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'mobile Home offers an automatic recommendation preference off by default',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final container = await pumpAppearance(tester);
+      final home = find.text('Home Sections');
+      await tester.scrollUntilVisible(
+        home,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(home);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final control = find.widgetWithText(
+        SwitchListTile,
+        'Automatically advance recommendations',
+      );
+      await tester.scrollUntilVisible(
+        control,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.widget<SwitchListTile>(control).value, isFalse);
+      await tester.tap(control);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final row = (await tester.runAsync(
+        () => container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .watchSettings()
+            .firstWhere((row) => row?.homeRecommendationsAutoAdvance == true)
+            .timeout(const Duration(seconds: 2)),
+      ))!;
+      expect(row.homeRecommendationsAutoAdvance, isTrue);
+      expect(row.gridArtworkSize, 'auto');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('desktop appearance uses a focused settings workspace', (
     tester,

@@ -5,10 +5,13 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/api/models/internet_radio_station.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 
 class RadioScreen extends ConsumerWidget {
   const RadioScreen({super.key});
@@ -100,48 +103,67 @@ class RadioTabContent extends ConsumerWidget {
               ],
             );
           }
-          return ListView.separated(
+          return CustomScrollView(
             controller: scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: stations.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final station = stations[index];
-              final isPlaying = activeStationId == station.id;
-              return ListTile(
-                leading: Icon(
-                  isPlaying ? Icons.radio : Icons.radio_outlined,
-                  color: isPlaying
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                ),
-                title: Text(
-                  station.name,
-                  style: isPlaying
-                      ? TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        )
-                      : null,
-                ),
-                subtitle: Text(
-                  station.streamUrl,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: isPlaying
-                    ? IconButton(
-                        icon: const Icon(Icons.stop_circle_outlined),
-                        tooltip: l10n.radioStopStation,
-                        onPressed: () {
-                          final handler = ref.read(audioHandlerProvider);
-                          unawaited(handler?.stopRadio());
-                        },
-                      )
-                    : null,
-                onTap: () => _onStationTap(context, ref, station, isPlaying),
-              );
-            },
+            slivers: [
+              SliverLayoutBuilder(
+                builder: (context, constraints) {
+                  final padding = ContentLayout.padding(
+                    constraints.crossAxisExtent,
+                  );
+                  final width = (constraints.crossAxisExtent - padding * 2)
+                      .clamp(0.0, double.infinity);
+                  if (width <= 0) {
+                    return const SliverToBoxAdapter(child: SizedBox.shrink());
+                  }
+                  final geometry = ContentLayout.radio(width);
+                  final inset = padding + (width - geometry.occupiedWidth) / 2;
+                  // Reserve two scaled name lines and one host line in every card.
+                  final painter = TextPainter(
+                    text: TextSpan(
+                      text: 'Ag\nAg',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    textDirection: Directionality.of(context),
+                    textScaler: MediaQuery.textScalerOf(context),
+                  )..layout();
+                  final nameHeight = painter.height;
+                  painter.text = TextSpan(
+                    text: 'Ag',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  );
+                  painter.layout();
+                  final height = (nameHeight + painter.height + 32).clamp(
+                    96.0,
+                    double.infinity,
+                  );
+                  painter.dispose();
+                  return SliverPadding(
+                    padding: EdgeInsets.all(inset)
+                        .copyWith(top: padding, bottom: padding),
+                    sliver: SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: geometry.columns,
+                        mainAxisExtent: height,
+                        crossAxisSpacing: geometry.gap,
+                        mainAxisSpacing: geometry.gap,
+                      ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final station = stations[index];
+                        final playing = activeStationId == station.id;
+                        return _RadioStationCard(
+                          station: station,
+                          playing: playing,
+                          onTap: () =>
+                              _onStationTap(context, ref, station, playing),
+                        );
+                      }, childCount: stations.length),
+                    ),
+                  );
+                },
+              ),
+            ],
           );
         },
         loading: () => const ShimmerListPage(count: 8),
@@ -163,7 +185,7 @@ class RadioTabContent extends ConsumerWidget {
   void _onStationTap(
     BuildContext context,
     WidgetRef ref,
-    dynamic station,
+    InternetRadioStation station,
     bool isPlaying,
   ) {
     final handler = ref.read(audioHandlerProvider);
@@ -174,13 +196,15 @@ class RadioTabContent extends ConsumerWidget {
       return;
     }
 
+    ref.read(queueProvider.notifier).reserveSelection();
+    ref.read(regularQueueReplacementEpochProvider.notifier).bump();
     unawaited(
       handler
           .playRadioStream(
-            stationId: station.id as String,
-            stationName: station.name as String,
-            streamUrl: station.streamUrl as String,
-            homePageUrl: station.homePageUrl as String?,
+            stationId: station.id,
+            stationName: station.name,
+            streamUrl: station.streamUrl,
+            homePageUrl: station.homePageUrl,
           )
           .catchError((Object error) {
             if (!context.mounted) return;
@@ -203,5 +227,85 @@ class RadioTabContent extends ConsumerWidget {
       return l10n.radioUnsupportedMessage;
     }
     return l10n.commonErrorRecoveryHint;
+  }
+}
+
+class _RadioStationCard extends StatelessWidget {
+  const _RadioStationCard({
+    required this.station,
+    required this.playing,
+    required this.onTap,
+  });
+  final InternetRadioStation station;
+  final bool playing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final host = Uri.tryParse(station.streamUrl)?.host ?? '';
+    final action = playing ? l10n.radioStopStation : l10n.nowPlayingPlay;
+    return Semantics(
+      selected: playing,
+      child: Card(
+        key: ValueKey('radioStation-${station.id}'),
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
+            child: Row(
+              children: [
+                Icon(
+                  playing ? Icons.radio : Icons.radio_outlined,
+                  color: playing ? colors.primary : colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        station.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: playing ? colors.primary : colors.onSurface,
+                        ),
+                      ),
+                      if (playing || host.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          playing ? l10n.nowPlayingTitle : host,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: IconButton(
+                    tooltip: action,
+                    onPressed: onTap,
+                    icon: Icon(
+                      playing
+                          ? Icons.stop_circle_outlined
+                          : Icons.play_arrow_rounded,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

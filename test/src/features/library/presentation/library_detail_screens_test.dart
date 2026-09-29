@@ -1,4 +1,8 @@
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -19,10 +23,13 @@ import 'package:navis/src/features/library/presentation/album_detail_screen.dart
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
+import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_virtual_playlist_artwork.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -33,6 +40,21 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _DelayedReplaceHandler implements NavisPlaybackHandler {
+  @override
+  EqCapabilities get equalizerCapabilities => EqCapabilities.unavailable;
+  @override
+  EqApplicationState get equalizerState => EqApplicationState(
+    desired: EqConfiguration.flat(),
+    applied: EqConfiguration.flat(),
+  );
+  @override
+  Stream<EqApplicationState> get equalizerStateStream => const Stream.empty();
+  @override
+  Future<void> setEqualizer(EqConfiguration values) async =>
+      throw UnsupportedError('This fake has no EQ backend');
+  @override
+  Future<void> refreshEqualizerState() async {}
+
   _DelayedReplaceHandler({required this.gate});
 
   final Completer<void> gate;
@@ -157,6 +179,21 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> setVolume(double volume) async {}
+
+  @override
+  PlaybackAdjustments get playbackAdjustments => const PlaybackAdjustments();
+
+  @override
+  Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
+      const Stream.empty();
+
+  @override
+  PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities =>
+      PlaybackAdjustmentCapabilities.android;
+
+  @override
+  Future<void> setPlaybackAdjustments(PlaybackAdjustments values) =>
+      setPlaybackSpeed(values.speed);
 
   @override
   Future<void> setPlaybackSpeed(double speed) async {}
@@ -303,6 +340,31 @@ AlbumWithSongs _albumWithSongs(
   );
 }
 
+// Geometry assertions complement page goldens: a detached action footer can
+// render without throwing an overflow or losing any text.
+void _expectInlineMobileActions(WidgetTester tester, {double maxHeight = 80}) {
+  final rows = find.byType(AdaptiveTrackRow);
+  expect(rows, findsAtLeastNWidgets(1));
+  for (final element in rows.evaluate()) {
+    final row = element.widget as AdaptiveTrackRow;
+    final finder = find.byWidget(row);
+    final bounds = tester.getRect(finder);
+    expect(bounds.height, lessThanOrEqualTo(maxHeight));
+    final menus = find.descendant(
+      of: finder,
+      matching: find.byIcon(Icons.more_vert),
+    );
+    for (final menu in menus.evaluate()) {
+      expect(
+        tester.getRect(find.byWidget(menu.widget)).center.dy,
+        bounds.center.dy,
+      );
+    }
+  }
+  expect(find.text('#'), findsNothing);
+  expect(tester.takeException(), isNull);
+}
+
 ListenBrainzDiscoverPlaylist _listenBrainzPlaylist() {
   return const ListenBrainzDiscoverPlaylist(
     playlist: ListenBrainzPlaylist(
@@ -428,6 +490,79 @@ void main() {
       await database.close();
     });
 
+    testWidgets(
+      'mobile artist preview reserves both controls and genre rows stay compact',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(360, 1200));
+        const song = SongsTableData(
+          id: 'mobile-shared',
+          title: 'Mobile shared song',
+          artistName: 'Artist',
+          albumName: 'Album',
+          duration: 223,
+          isExternal: false,
+          isProvisional: false,
+        );
+        await tester.pumpWidget(
+          _buildApp(
+            database: database,
+            adaptiveContext: _mobileContext,
+            child: const Scaffold(
+              body: ArtistTopTracksSection(artistName: 'Artist'),
+            ),
+            overrides: [
+              artistTopTracksProvider('Artist').overrideWith(
+                (ref) async => const [
+                  ResolvedArtistTopTrack(
+                    rank: 1,
+                    title: 'Mobile shared song',
+                    artist: 'Artist',
+                    resolvedSong: Song(
+                      id: 'mobile-shared',
+                      title: 'Mobile shared song',
+                      artist: 'Artist',
+                      album: 'Album',
+                      duration: 223,
+                    ),
+                  ),
+                ],
+              ),
+              songByIdProvider.overrideWith((ref, id) => Stream.value(song)),
+            ],
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(
+          tester
+              .widget<AdaptiveTrackRow>(find.byType(AdaptiveTrackRow))
+              .actionExtent,
+          96,
+        );
+        _expectInlineMobileActions(tester);
+        await _disposeApp(tester);
+        await tester.pumpWidget(
+          _buildApp(
+            database: database,
+            adaptiveContext: _mobileContext,
+            child: GenreDetailScreen(
+              encodedGenre: base64Url.encode(utf8.encode('Diagnostics')),
+            ),
+            overrides: [
+              albumsByGenreProvider('Diagnostics')
+                  .overrideWithValue(const AsyncData(<AlbumsTableData>[])),
+              songsByGenreProvider('Diagnostics')
+                  .overrideWithValue(const AsyncData([song])),
+            ],
+          ),
+        );
+        await tester.pump();
+        await tester.tap(find.text('Songs'));
+        await tester.pumpAndSettle();
+        _expectInlineMobileActions(tester, maxHeight: 64);
+        await _disposeApp(tester);
+      },
+    );
+
     testWidgets('artist detail renders albums and featured appearances', (
       tester,
     ) async {
@@ -491,9 +626,19 @@ void main() {
       expect(find.text('Artist 1'), findsNWidgets(2));
       expect(find.textContaining('1 albums'), findsNWidgets(2));
       expect(find.text('Albums'), findsOneWidget);
-      expect(find.text('Featured In'), findsOneWidget);
-      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
+      expect(find.byIcon(Icons.more_horiz), findsNWidgets(2));
       expect(find.text('Album 1'), findsAtLeastNWidgets(1));
+      await tester.scrollUntilVisible(
+        find.text('Featured In'),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ArtistDetailScreen),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('Featured In'), findsOneWidget);
       expect(find.text('Album 2'), findsAtLeastNWidgets(1));
       await _disposeApp(tester);
     });
@@ -645,6 +790,12 @@ void main() {
         expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
         expect(find.text('Test Artist · 1 song'), findsOneWidget);
         expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
+        _expectInlineMobileActions(tester);
+        final row = find.byType(AdaptiveTrackRow);
+        expect(
+          tester.getRect(find.byTooltip('Search')).center.dy,
+          tester.getRect(row).center.dy,
+        );
         await _disposeApp(tester);
       },
     );
@@ -935,6 +1086,51 @@ void main() {
       await _disposeApp(tester);
     });
 
+    testWidgets('mobile album keeps numbered controls beside 64 px tracks', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(360, 1200));
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _mobileContext,
+        album: _albumWithSongs(const [
+          SongsTableData(
+            id: 'compact-album-song',
+            title: 'Compact album song',
+            artistName: 'Artist',
+            albumName: 'Album',
+            duration: 223,
+            track: 1,
+            isExternal: false,
+            isProvisional: false,
+          ),
+        ]),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      final row = find.byType(AdaptiveTrackRow);
+      expect(row, findsOneWidget);
+      expect(tester.getSize(row).height, 64);
+      expect(
+        tester.getRect(find.text('3:43')).left,
+        greaterThanOrEqualTo(
+          tester.getRect(find.text('Compact album song')).left,
+        ),
+      );
+      expect(
+        tester
+            .getRect(
+              find.descendant(of: row, matching: find.byIcon(Icons.more_vert)),
+            )
+            .center
+            .dy,
+        tester.getRect(row).center.dy,
+      );
+      expect(find.text('#'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await _disposeApp(tester);
+    });
+
     testWidgets('mobile album detail does not create a destination art Hero', (
       tester,
     ) async {
@@ -956,35 +1152,53 @@ void main() {
       await _disposeApp(tester);
     });
 
-    testWidgets('desktop album detail keeps the card artwork cache key', (
-      tester,
-    ) async {
-      await _pumpAlbumDetail(
+    testWidgets(
+      'desktop album detail keeps the card artwork cache key and a distinct viewer Hero',
+      (
         tester,
-        database: database,
-        adaptiveContext: _desktopContext,
-        album: _albumWithSongs(const <SongsTableData>[]),
-      );
+      ) async {
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _desktopContext,
+          album: _albumWithSongs(const <SongsTableData>[]),
+        );
 
-      expect(
-        tester
-            .widgetList<HeroCoverArt>(find.byType(HeroCoverArt))
-            .every((art) => art.size == kCoverArtStandardSize),
-        isTrue,
-      );
-      expect(
-        tester
-            .widgetList<CoverArtImage>(find.byType(CoverArtImage))
-            .where((art) => art.size == kCoverArtStandardSize)
-            .every(
-              (art) =>
-                  art.fadeInDuration == Duration.zero &&
-                  art.useRequestedMemCacheSize,
-            ),
-        isTrue,
-      );
-      await _disposeApp(tester);
-    });
+        expect(
+          tester
+              .widgetList<HeroCoverArt>(find.byType(HeroCoverArt))
+              .every((art) => art.size == kCoverArtStandardSize),
+          isTrue,
+        );
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Hero && widget.tag == 'cover_art_album_album-1',
+          ),
+          findsNothing,
+        );
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Hero &&
+                widget.tag == 'cover_art_album_detail_album-1',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widgetList<CoverArtImage>(find.byType(CoverArtImage))
+              .where((art) => art.size == kCoverArtStandardSize)
+              .every(
+                (art) =>
+                    art.fadeInDuration == Duration.zero &&
+                    art.useRequestedMemCacheSize,
+              ),
+          isTrue,
+        );
+        await _disposeApp(tester);
+      },
+    );
 
     testWidgets(
       'compact-wide album detail uses split pane instead of mobile art app bar',
@@ -1554,6 +1768,10 @@ void main() {
           moreOrLessEquals(matchedTitleLeft, epsilon: 1),
         );
         expect(find.byTooltip('Search'), findsOneWidget);
+        for (final element in find.byType(AdaptiveTrackRow).evaluate()) {
+          final finder = find.byWidget(element.widget);
+          expect(tester.getSize(finder).height, lessThan(96));
+        }
 
         await _disposeApp(tester);
       },

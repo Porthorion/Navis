@@ -282,6 +282,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
   int _automaticScheduleEpoch = 0;
+  final Set<Future<void>> _automaticTimerArms = {};
   StreamSubscription<int>? _pendingWorkCountSub;
   StreamSubscription<int>? _pendingHydrationCountSub;
 
@@ -527,6 +528,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     } else if (engine is DriftLibrarySyncEngine) {
       await engine.cancelAndWait();
     }
+    // The automatic check owns a final schedule write after its engine returns.
+    // Drain that owner as well as the engine before a caller closes Drift.
+    final automaticCheck = _activeAutomaticCheck;
+    if (automaticCheck != null) {
+      await automaticCheck;
+    }
+    await Future.wait(_automaticTimerArms.toList());
+    _cancelPeriodicSync();
     if (ref.mounted) {
       state = state.copyWith(
         status: LibrarySyncStatus.cancelled,
@@ -1408,8 +1417,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _schedulePeriodicSync(int minutes) {
     _cancelPeriodicSync();
+    if (_startupSyncSuppressed) return;
     final epoch = _automaticScheduleEpoch;
-    unawaited(_armAutomaticCheckTimer(minutes, epoch));
+    late final Future<void> task;
+    task = _armAutomaticCheckTimer(minutes, epoch).whenComplete(() {
+      _automaticTimerArms.remove(task);
+    });
+    _automaticTimerArms.add(task);
+    unawaited(task);
   }
 
   Future<void> _armAutomaticCheckTimer(int minutes, int epoch) async {

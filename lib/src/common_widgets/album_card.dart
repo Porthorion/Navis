@@ -28,6 +28,7 @@ class AlbumCard extends ConsumerWidget {
     super.key,
     this.size = AlbumCardSize.library,
     this.heroTag,
+    this.extent,
     this.badge,
     this.onTap,
     this.onLongPress,
@@ -36,6 +37,7 @@ class AlbumCard extends ConsumerWidget {
 
   final AlbumsTableData album;
   final AlbumCardSize size;
+  final double? extent;
 
   /// Optional hero tag for cover-art transition animations.
   final String? heroTag;
@@ -55,9 +57,7 @@ class AlbumCard extends ConsumerWidget {
         : const Color(0xCCFFFFFF);
     final shape = ref.watch(coverArtShapeProvider);
     final cardBorderRadius = coverArtShapeToRadius(shape);
-    final cardWidth = size == AlbumCardSize.compact
-        ? size.extent
-        : double.infinity;
+    final cardWidth = extent ?? size.extent;
 
     return SizedBox(
       width: cardWidth,
@@ -70,6 +70,7 @@ class AlbumCard extends ConsumerWidget {
             borderRadius: cardBorderRadius,
           ),
           child: InkWell(
+            key: const ValueKey('albumCardTapTarget'),
             onTap: onTap,
             onSecondaryTapDown: onSecondaryTapDown,
             onLongPress: onLongPress == null
@@ -142,7 +143,9 @@ class AlbumCard extends ConsumerWidget {
                               children: <Widget>[
                                 Text(
                                   album.name,
-                                  maxLines: 1,
+                                  maxLines: size == AlbumCardSize.library
+                                      ? 2
+                                      : 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: titleColor,

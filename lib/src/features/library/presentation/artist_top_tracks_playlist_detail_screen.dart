@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/song.dart';
@@ -234,6 +235,16 @@ class _ArtistTopTracksPlaylistContent extends ConsumerWidget {
               ),
             ),
           ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
+            child: const AdaptiveTrackHeader(
+              numberColumnExtent: 30,
+              leadingExtent: 82,
+              actionExtent: 48,
+            ),
+          ),
+        ),
         SliverPadding(
           padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
           sliver: SliverList.builder(
@@ -383,12 +394,23 @@ class _RankedTopTrackRow extends ConsumerWidget {
             apiIsExternal: song.isExternal,
           );
 
-    final tile = ListTile(
+    final tile = AdaptiveTrackRow(
+      title: track.title,
+      artist: track.artist,
+      album: song?.album,
+      duration: song?.duration,
       selected: isSelected,
-      selectedColor: colorScheme.primary,
-      selectedTileColor: colorScheme.primary.withValues(alpha: 0.08),
-      enabled: !unavailable,
-      minLeadingWidth: 76,
+      isRemote: isRemote,
+      leadingExtent: 82,
+      actionExtent: 48,
+      badge: unavailable
+          ? Text(
+              l10n.artistTopTracksPlaylistUnavailable,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            )
+          : null,
       leading: SizedBox(
         height: 44,
         child: Row(
@@ -423,20 +445,6 @@ class _RankedTopTrackRow extends ConsumerWidget {
           ],
         ),
       ),
-      title: Text(
-        track.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: isSelected ? TextStyle(color: colorScheme.primary) : null,
-      ),
-      subtitle: RemoteSourceMetadataLine(
-        metadata: Text(
-          unavailable ? l10n.artistTopTracksPlaylistUnavailable : track.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        isRemote: isRemote,
-      ),
       onTap: song == null
           ? null
           : () => ref
@@ -447,15 +455,15 @@ class _RankedTopTrackRow extends ConsumerWidget {
                   ], autoPlay: true),
                   label: 'playNow',
                 ),
-      trailing: song == null
-          ? TextButton.icon(
+      actions: song == null
+          ? IconButton(
+              tooltip: l10n.artistTopTracksPlaylistSearchAction,
               onPressed: () => NavService.openSearch(
                 context,
                 ref,
                 '${track.title} ${track.artist}'.trim(),
               ),
-              icon: const Icon(Icons.search_outlined, size: 18),
-              label: Text(l10n.artistTopTracksPlaylistSearchAction),
+              icon: const Icon(Icons.search_outlined),
             )
           : SongDownloadStatusIcon(
               songId: song.id,

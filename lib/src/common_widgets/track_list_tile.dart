@@ -5,7 +5,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/utils/format_utils.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 
 class TrackListTile extends ConsumerWidget {
   const TrackListTile({
@@ -19,6 +19,7 @@ class TrackListTile extends ConsumerWidget {
     this.showAlbumArt = false,
     this.horizontalTitleGap,
     this.contentPadding,
+    this.actionExtent,
   });
 
   final SongsTableData song;
@@ -27,6 +28,7 @@ class TrackListTile extends ConsumerWidget {
   final GestureTapDownCallback? onSecondaryTapDown;
   final Widget? trailing;
   final Widget? badge;
+  final double? actionExtent;
 
   /// Override the gap between the leading widget and the title.
   /// Defaults to 12 when null.
@@ -43,14 +45,10 @@ class TrackListTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final playbackState = ref.watch(
       songPlaybackIndicatorStateProvider(song.id),
     );
     final isSelected = playbackState.isSelected;
-    final hasArtist = song.artistName != null && song.artistName!.isNotEmpty;
-    final hasAlbum = song.albumName != null && song.albumName!.isNotEmpty;
 
     final inactiveLeading = showAlbumArt
         ? SizedBox(
@@ -91,113 +89,31 @@ class TrackListTile extends ConsumerWidget {
           )
         : inactiveLeading;
 
-    // Build a RichText subtitle: "Artist · Album" with differentiated styling.
-    Widget? subtitleWidget;
-    if (hasArtist || hasAlbum || song.isExternal || badge != null) {
-      final subtitleChildren = <InlineSpan>[];
-      if (hasArtist) {
-        subtitleChildren.add(
-          TextSpan(
-            text: song.artistName,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurface.withValues(alpha: 0.8),
-            ),
-          ),
-        );
-      }
-      if (hasArtist && hasAlbum) {
-        subtitleChildren.add(
-          TextSpan(
-            text: ' · ',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurface.withValues(alpha: 0.4),
-            ),
-          ),
-        );
-      }
-      if (hasAlbum) {
-        subtitleChildren.add(
-          TextSpan(
-            text: song.albumName,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurface.withValues(alpha: 0.5),
-            ),
-          ),
-        );
-      }
-
-      final metadata = RichText(
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        text: TextSpan(children: subtitleChildren),
-      );
-      subtitleWidget = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          if (subtitleChildren.isNotEmpty || song.isExternal)
-            RemoteSourceMetadataLine(
-              metadata: metadata,
-              isRemote: song.isExternal,
-              spacing: subtitleChildren.isEmpty ? 0 : 6,
-            ),
-          if (badge != null) ...<Widget>[
-            if (subtitleChildren.isNotEmpty || song.isExternal)
-              const SizedBox(height: 2),
-            Wrap(
-              spacing: 6,
-              runSpacing: 2,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: <Widget>[badge!],
-            ),
-          ],
-        ],
-      );
-    }
-
-    final tile = ListTile(
-      dense: true,
-      minTileHeight: 64,
-      contentPadding: contentPadding,
-      minLeadingWidth: showAlbumArt ? 48 : 32,
-      horizontalTitleGap: horizontalTitleGap ?? 12,
+    final interactiveTile = AdaptiveTrackRow(
+      title: song.title,
+      artist: song.artistName,
+      album: song.albumName,
+      duration: song.duration,
       leading: leading,
+      leadingExtent: showAlbumArt ? 48 : 32,
+      leadingGap: horizontalTitleGap ?? 12,
+      actionExtent: actionExtent,
       selected: isSelected,
-      selectedColor: cs.primary,
-      selectedTileColor: cs.primary.withValues(alpha: 0.08),
-      title: Text(
-        song.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: isSelected ? cs.primary : null,
-        ),
-      ),
-      subtitle: subtitleWidget,
-      trailing:
-          trailing ??
-          Text(
-            formatSeconds(song.duration),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurface.withValues(alpha: 0.5),
-            ),
-          ),
+      isRemote: song.isExternal,
+      actions: trailing,
+      badge: badge,
       onTap: onTap,
+      padding:
+          contentPadding ??
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       onLongPress: onLongPress == null
           ? null
           : () {
               HapticFeedback.mediumImpact();
               onLongPress!();
             },
+      onSecondaryTapDown: onSecondaryTapDown,
     );
-    final interactiveTile = onSecondaryTapDown == null
-        ? tile
-        : GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onSecondaryTapDown: onSecondaryTapDown,
-            child: tile,
-          );
     return SongPlaybackSemantics(state: playbackState, child: interactiveTile);
   }
 }

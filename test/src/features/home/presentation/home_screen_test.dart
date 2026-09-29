@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/routing/home_activity_scope.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -95,6 +99,27 @@ class _PendingRefreshLibrarySyncController extends LibrarySyncController {
     _completer = Completer<LibrarySyncState>();
   }
 }
+
+class _AutoAdvancePreference extends Notifier<bool> {
+  @override
+  bool build() => true;
+  void setEnabled({required bool enabled}) => state = enabled;
+}
+
+final _autoAdvancePreference = NotifierProvider<_AutoAdvancePreference, bool>(
+  _AutoAdvancePreference.new,
+);
+
+class _ShowcaseFixture extends Notifier<List<HomeRandomShowcaseItem>> {
+  @override
+  List<HomeRandomShowcaseItem> build() => const [];
+  set items(List<HomeRandomShowcaseItem> value) => state = value;
+}
+
+final _showcaseFixture =
+    NotifierProvider<_ShowcaseFixture, List<HomeRandomShowcaseItem>>(
+      _ShowcaseFixture.new,
+    );
 
 class _QueueSpyController extends QueueController {
   List<String>? lastReplaceIds;
@@ -240,11 +265,11 @@ ListenBrainzDiscoverPlaylist _listenBrainzPlaylistWithApiSongs() {
 void _expectWeeklyMarkerAlignedWithNumber(WidgetTester tester) {
   final inactiveTile = find.ancestor(
     of: find.text('Remote Song 1'),
-    matching: find.byType(ListTile),
+    matching: find.byType(AdaptiveTrackRow),
   );
   final currentTile = find.ancestor(
     of: find.text('Remote Song 2'),
-    matching: find.byType(ListTile),
+    matching: find.byType(AdaptiveTrackRow),
   );
   final number = find.descendant(of: inactiveTile, matching: find.text('1'));
   final marker = find.descendant(
@@ -463,6 +488,13 @@ Future<void> _pumpRandomSectionHome(
   required NavisDatabase database,
   List<Override> overrides = const <Override>[],
   bool settle = true,
+  bool nativeTouch = false,
+  bool forceDesktop = false,
+  bool mutableShowcase = false,
+  List<SongsTableData> homeLikedSongs = const [],
+  List<String> sectionOrder = const [HomeSectionIds.randomAlbums],
+  bool reduceMotion = true,
+  ValueNotifier<bool>? homeActive,
 }) async {
   final sectionOverrides = withTestDatabase(
     database,
@@ -470,7 +502,7 @@ Future<void> _pumpRandomSectionHome(
       appSettingsProvider.overrideWithValue(
         AsyncData(
           const AppSettingsModel.defaults().copyWith(
-            homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
+            homeSectionOrder: sectionOrder,
             homeSectionsHidden: <String>[],
           ),
         ),
@@ -483,11 +515,11 @@ Future<void> _pumpRandomSectionHome(
       ),
       subsonicApiProvider.overrideWithValue(null),
       homeRandomShowcaseProvider.overrideWith(
-        (ref, filters) => AsyncData(randomAlbums),
+        (ref, filters) => AsyncData(
+          mutableShowcase ? ref.watch(_showcaseFixture) : randomAlbums,
+        ),
       ),
-      homeLikedSongsProvider.overrideWithValue(
-        const AsyncData(<SongsTableData>[]),
-      ),
+      homeLikedSongsProvider.overrideWithValue(AsyncData(homeLikedSongs)),
       likedSongsProvider.overrideWithValue(
         const AsyncData(<SongsTableData>[]),
       ),
@@ -517,10 +549,31 @@ Future<void> _pumpRandomSectionHome(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+          data: MediaQuery.of(ctx).copyWith(disableAnimations: reduceMotion),
           child: child!,
         ),
-        home: const HomeScreen(),
+        home: Builder(
+          builder: (context) {
+            Widget screen = const HomeScreen();
+            if (nativeTouch || forceDesktop)
+              screen = AdaptiveContextScope(
+                adaptiveContext: resolveAdaptiveContext(
+                  desktopRuntime: forceDesktop,
+                  viewportSize: MediaQuery.sizeOf(context),
+                  safePadding: EdgeInsets.zero,
+                ),
+                child: screen,
+              );
+            return homeActive == null
+                ? screen
+                : ValueListenableBuilder<bool>(
+                    valueListenable: homeActive,
+                    child: screen,
+                    builder: (context, active, child) =>
+                        HomeActivityScope(active: active, child: child!),
+                  );
+          },
+        ),
       ),
     ),
   );
@@ -1430,6 +1483,10 @@ void main() {
       await _pumpRandomSectionHome(
         tester,
         database: database,
+        nativeTouch: true,
+        overrides: [
+          homeRecommendationsAutoAdvanceProvider.overrideWithValue(true),
+        ],
         randomAlbums: const <HomeRandomShowcaseItem>[
           HomeRandomShowcaseAlbum(
             id: 'reduced-hero-1',
@@ -1459,7 +1516,7 @@ void main() {
       }
 
       final initialPage = currentPageKey();
-      await tester.pump(const Duration(milliseconds: 5000));
+      await tester.pump(const Duration(milliseconds: 20000));
       await tester.pump(const Duration(milliseconds: 600));
       expect(currentPageKey(), initialPage);
     },
@@ -1706,7 +1763,7 @@ void main() {
       final remoteTitle = find.text('Remote Song').last;
       final remoteTile = find.ancestor(
         of: remoteTitle,
-        matching: find.byType(ListTile),
+        matching: find.byType(AdaptiveTrackRow),
       );
       expect(
         find.descendant(
@@ -1828,6 +1885,198 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('opt-in carousel stops while the hero is below half visible', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      nativeTouch: true,
+      reduceMotion: false,
+      homeLikedSongs: [
+        for (var i = 0; i < 30; i++)
+          _songRow(
+            id: 'visibility-$i',
+            title: 'Visible song $i',
+            albumId: 'visibility-album',
+          ),
+      ],
+      sectionOrder: const [
+        HomeSectionIds.randomAlbums,
+        HomeSectionIds.likedTracks,
+      ],
+      overrides: [
+        homeRecommendationsAutoAdvanceProvider.overrideWithValue(true),
+      ],
+      randomAlbums: const [
+        HomeRandomShowcaseAlbum(
+          id: 'visibility-one',
+          name: 'One',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+        HomeRandomShowcaseAlbum(
+          id: 'visibility-two',
+          name: 'Two',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+      ],
+    );
+    final scrollable = find
+        .descendant(
+          of: find.byType(HomeScreen),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    position.jumpTo(400);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 20));
+    position.jumpTo(0);
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('home-random-hero-carousel-page-0')),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(
+      find.byKey(const ValueKey('home-random-hero-carousel-page-1')),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'opt-in carousel pauses for inactive Home, player overlays and lifecycle',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final active = ValueNotifier(true);
+      addTearDown(active.dispose);
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        nativeTouch: true,
+        reduceMotion: false,
+        homeActive: active,
+        overrides: [
+          homeRecommendationsAutoAdvanceProvider.overrideWithValue(true),
+        ],
+        randomAlbums: const [
+          HomeRandomShowcaseAlbum(
+            id: 'eligible-one',
+            name: 'One',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+          HomeRandomShowcaseAlbum(
+            id: 'eligible-two',
+            name: 'Two',
+            source: HomeRandomShowcaseSource.serverRandom,
+          ),
+        ],
+      );
+      String page() =>
+          (tester
+                      .widget(
+                        find.byWidgetPredicate(
+                          (widget) =>
+                              widget.key is ValueKey<String> &&
+                              (widget.key! as ValueKey<String>).value
+                                  .startsWith(
+                                    'home-random-hero-carousel-page-',
+                                  ),
+                        ),
+                      )
+                      .key!
+                  as ValueKey<String>)
+              .value;
+      final initial = page();
+      active.value = false;
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 20));
+      expect(page(), initial);
+      active.value = true;
+      await tester.pump();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomeScreen)),
+      );
+      final homeContext = tester.element(find.byType(HomeScreen));
+      showDialog<void>(
+        context: homeContext,
+        builder: (context) => const Dialog(child: Text('Covered Home')),
+      ).ignore();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 20));
+      expect(page(), initial);
+      Navigator.of(homeContext).pop();
+      await tester.pumpAndSettle();
+      container.read(playerOverlayStackProvider.notifier).expand();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 20));
+      expect(page(), initial);
+      container.read(playerOverlayStackProvider.notifier).clear();
+      container.read(quickSearchOverlayVisibleProvider.notifier).visible = true;
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 20));
+      expect(page(), initial);
+      container.read(quickSearchOverlayVisibleProvider.notifier).visible =
+          false;
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump(const Duration(seconds: 20));
+      expect(page(), initial);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(const Duration(seconds: 7));
+      expect(page(), initial);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(page(), isNot(initial));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('recommendations are manual by default even with normal motion', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      nativeTouch: true,
+      reduceMotion: false,
+      randomAlbums: const [
+        HomeRandomShowcaseAlbum(
+          id: 'default-one',
+          name: 'One',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+        HomeRandomShowcaseAlbum(
+          id: 'default-two',
+          name: 'Two',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+      ],
+    );
+    await tester.pump(const Duration(seconds: 30));
+    expect(
+      find.byKey(const ValueKey('home-random-hero-carousel-page-0')),
+      findsOneWidget,
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('home-random-hero-carousel')),
+      const Offset(-260, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('home-random-hero-carousel-page-1')),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets(
     'random hero carousel auto-advances and pauses after interaction',
     (tester) async {
@@ -1844,6 +2093,9 @@ void main() {
           overrides: withTestDatabase(
             database,
             overrides: [
+              homeRecommendationsAutoAdvanceProvider.overrideWith(
+                (ref) => ref.watch(_autoAdvancePreference),
+              ),
               appSettingsProvider.overrideWithValue(
                 AsyncData(
                   const AppSettingsModel.defaults().copyWith(
@@ -1912,7 +2164,14 @@ void main() {
               data: MediaQuery.of(ctx).copyWith(disableAnimations: false),
               child: child!,
             ),
-            home: const HomeScreen(),
+            home: AdaptiveContextScope(
+              adaptiveContext: resolveAdaptiveContext(
+                desktopRuntime: false,
+                viewportSize: const Size(390, 844),
+                safePadding: EdgeInsets.zero,
+              ),
+              child: const HomeScreen(),
+            ),
           ),
         ),
       );
@@ -1934,7 +2193,7 @@ void main() {
       final initialPage = currentPageKey();
       expect(initialPage, 'home-random-hero-carousel-page-0');
 
-      await tester.pump(const Duration(milliseconds: 4700));
+      await tester.pump(const Duration(milliseconds: 8100));
       await tester.pump(const Duration(milliseconds: 520));
       final afterAutoAdvance = currentPageKey();
       expect(afterAutoAdvance, isNot(initialPage));
@@ -1946,12 +2205,80 @@ void main() {
       await tester.pumpAndSettle();
       final afterDrag = currentPageKey();
 
-      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 9000));
       expect(currentPageKey(), afterDrag);
 
-      await tester.pump(const Duration(milliseconds: 3000));
+      await tester.pump(const Duration(milliseconds: 1600));
       await tester.pump(const Duration(milliseconds: 520));
       expect(currentPageKey(), isNot(afterDrag));
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomeScreen)),
+      );
+      container
+          .read(_autoAdvancePreference.notifier)
+          .setEnabled(enabled: false);
+      await tester.pump();
+      final disabledPage = currentPageKey();
+      await tester.pump(const Duration(seconds: 30));
+      expect(currentPageKey(), disabledPage);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'desktop recommendations preserve selection across pane resizing and data refresh',
+    (tester) async {
+      const items = [
+        HomeRandomShowcaseAlbum(
+          id: 'resize-a',
+          name: 'Resize A',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+        HomeRandomShowcaseAlbum(
+          id: 'resize-b',
+          name: 'Resize B',
+          source: HomeRandomShowcaseSource.serverRandom,
+        ),
+      ];
+      setAdaptiveTestViewport(tester, const Size(1200, 900));
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: items,
+        forceDesktop: true,
+        mutableShowcase: true,
+        overrides: [
+          homeRecommendationsAutoAdvanceProvider.overrideWithValue(true),
+        ],
+      );
+      final fixture = ProviderScope.containerOf(
+        tester.element(find.byType(HomeScreen)),
+      ).read(_showcaseFixture.notifier);
+      fixture.items = items;
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('home-random-desktop-mini-cover-1')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('album:resize-b')), findsOneWidget);
+      tester.view.physicalSize = const Size(620, 900);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('album:resize-b')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(seconds: 30));
+      expect(find.byKey(const ValueKey('album:resize-b')), findsOneWidget);
+      tester.view.physicalSize = const Size(1200, 900);
+      await tester.pumpAndSettle();
+      fixture.items = [items[1], items[0]];
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('album:resize-b')), findsOneWidget);
+      fixture.items = [items[0]];
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('album:resize-a')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
     },
   );
 
@@ -2199,7 +2526,7 @@ void main() {
   });
 
   testWidgets(
-    'desktop random pager supports manual paging and expands rows when height allows',
+    'bounded desktop hero keeps all tracks reachable and supports manual paging',
     (tester) async {
       const randomAlbums = <HomeRandomShowcaseItem>[
         HomeRandomShowcaseAlbum(
@@ -2269,7 +2596,15 @@ void main() {
         find.byKey(const ValueKey<String>('album:desk-a')),
         findsOneWidget,
       );
-      expect(visibleRows(), findsNWidgets(6));
+      expect(find.text('A Song 1'), findsOneWidget);
+      await tester.drag(
+        find.byKey(
+          const ValueKey<String>('home-random-desktop-song-list-desk-a'),
+        ),
+        const Offset(0, -240),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('A Song 6'), findsOneWidget);
 
       await tester.tap(
         find.byKey(const ValueKey<String>('home-random-desktop-mini-cover-1')),
@@ -2289,7 +2624,15 @@ void main() {
         find.byKey(const ValueKey<String>('album:desk-a')),
         findsOneWidget,
       );
-      expect(visibleRows(), findsNWidgets(6));
+      expect(find.text('A Song 1'), findsOneWidget);
+      await tester.drag(
+        find.byKey(
+          const ValueKey<String>('home-random-desktop-song-list-desk-a'),
+        ),
+        const Offset(0, -240),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('A Song 6'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -2309,7 +2652,7 @@ void main() {
         ),
       ];
 
-      setAdaptiveTestViewport(tester, const Size(1280, 900));
+      setAdaptiveTestViewport(tester, const Size(2560, 900));
       await _pumpRandomSectionHome(
         tester,
         database: database,

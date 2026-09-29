@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/internet_radio_station.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 
 import '../../../../helpers/test_theme.dart';
 
@@ -19,21 +20,28 @@ Future<void> _pumpRadio(
   required List<InternetRadioStation> stations,
   required String query,
   required VoidCallback? onClearTypeFilter,
+  String? activeId,
+  NavisPlaybackHandler? handler,
+  double scale = 1,
 }) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
         radioStationsProvider.overrideWith((ref) async => stations),
-        currentRadioStationIdProvider.overrideWithValue(null),
+        currentRadioStationIdProvider.overrideWithValue(activeId),
+        audioHandlerProvider.overrideWithValue(handler),
       ],
       child: MaterialApp(
         theme: testTheme(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: RadioTabContent(
-            typeFilterQuery: query,
-            onClearTypeFilter: onClearTypeFilter,
+        home: MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+          child: Scaffold(
+            body: RadioTabContent(
+              typeFilterQuery: query,
+              onClearTypeFilter: onClearTypeFilter,
+            ),
           ),
         ),
       ),
@@ -41,7 +49,101 @@ Future<void> _pumpRadio(
   );
 }
 
+class _RadioHandler implements NavisPlaybackHandler {
+  String? startedUrl;
+  String? startedId;
+  int stops = 0;
+  @override
+  Future<void> playRadioStream({
+    required String stationId,
+    required String stationName,
+    required String streamUrl,
+    String? homePageUrl,
+  }) async {
+    startedId = stationId;
+    startedUrl = streamUrl;
+  }
+
+  @override
+  Future<void> stopRadio() async => stops++;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 void main() {
+  testWidgets('radio cards resize lazily and display only the safe host', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final stations = List.generate(
+      20,
+      (i) => InternetRadioStation(
+        id: 'station-$i',
+        name: 'Station $i with a long multilingual name محطة',
+        streamUrl: 'https://user:password@example.com/radio?token=private',
+      ),
+    );
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    await _pumpRadio(
+      tester,
+      stations: stations,
+      query: '',
+      onClearTypeFilter: null,
+      scale: 2,
+    );
+    await tester.pumpAndSettle();
+    final first = find.byKey(const ValueKey('radioStation-station-0'));
+    expect(tester.getSize(first).width, 366);
+    expect(find.text('example.com'), findsWidgets);
+    expect(find.textContaining('password'), findsNothing);
+    expect(find.textContaining('token='), findsNothing);
+    expect(find.byKey(const ValueKey('radioStation-station-19')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(first).width, lessThanOrEqualTo(360));
+    final second = find.byKey(const ValueKey('radioStation-station-1'));
+    expect(tester.getTopLeft(first).dy, tester.getTopLeft(second).dy);
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/radio_cards_wide_scaled.png'),
+    );
+  });
+
+  testWidgets(
+    'radio card play and stop preserve stream identity and show playing text',
+    (tester) async {
+      final handler = _RadioHandler();
+      await _pumpRadio(
+        tester,
+        stations: const [_station],
+        query: '',
+        onClearTypeFilter: null,
+        handler: handler,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Play'));
+      await tester.pump();
+      expect(handler.startedId, _station.id);
+      expect(handler.startedUrl, _station.streamUrl);
+      await _pumpRadio(
+        tester,
+        stations: const [_station],
+        query: '',
+        onClearTypeFilter: null,
+        handler: handler,
+        activeId: _station.id,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Now Playing'), findsOneWidget);
+      await tester.tap(find.byTooltip('Stop radio'));
+      await tester.pump();
+      expect(handler.stops, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'filtered Radio empty state explains the filter and restores stations',
     (tester) async {

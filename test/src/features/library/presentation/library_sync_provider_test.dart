@@ -581,6 +581,72 @@ void main() {
       },
     );
 
+    test('cancelAndWait drains an active automatic check and its durable completion', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ),
+      );
+      final entered = Completer<void>();
+      final completion = Completer<LibrarySyncState>();
+      final engine = _FakeLibrarySyncEngine(
+        ({onProgress}) {
+          entered.complete();
+          return completion.future;
+        },
+        ({forceFull = false, onProgress}) async =>
+            const LibrarySyncState.idle(),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          syncIntervalMinutesProvider.overrideWithValue(60),
+          syncIntervalDurationProvider.overrideWithValue(
+            const Duration(hours: 1),
+          ),
+          serverConfigStateProvider.overrideWithValue(AsyncData(config)),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.offline,
+              ),
+            ),
+          ),
+          navisDatabaseProvider.overrideWithValue(database),
+          librarySyncEngineProvider.overrideWithValue(engine),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      final automatic = controller.syncIfStale();
+      await entered.future;
+      var drained = false;
+      final cancellation = controller.cancelAndWait().then(
+        (_) => drained = true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(drained, isFalse);
+      completion.complete(
+        LibrarySyncState(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        ),
+      );
+      await cancellation;
+      await automatic;
+      final persisted = await database.librarySyncDao.getOrCreateState(
+        config.id!,
+      );
+      expect(persisted.nextAutomaticCheckAt!.isAfter(DateTime.now()), isTrue);
+      expect(drained, isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(engine.staleCalls, 1);
+    });
+
     test(
       'cancelAndWait drains and suppresses scheduled startup sync',
       () async {

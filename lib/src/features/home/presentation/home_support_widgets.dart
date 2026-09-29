@@ -14,9 +14,10 @@ class _RandomHeroShimmer extends StatelessWidget {
   double _heroHeightFor(double availableWidth) {
     final compact = density == _HomeSectionDensity.compact;
     if (desktopMode) {
+      if (availableWidth < 640) return compact ? 240 : 260;
       return (availableWidth * (compact ? 0.28 : 0.32)).clamp(
         compact ? 260.0 : 300.0,
-        compact ? 420.0 : 500.0,
+        compact ? 330.0 : 360.0,
       );
     }
     return switch (adaptiveLayoutClass) {
@@ -28,36 +29,39 @@ class _RandomHeroShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final availableWidth = MediaQuery.sizeOf(context).width;
-    final heroHeight = _heroHeightFor(availableWidth);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Column(
-        children: <Widget>[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: ShimmerPlaceholder(
-              height: heroHeight,
-              width: double.infinity,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List<Widget>.generate(
-              3,
-              (index) => Padding(
-                padding: EdgeInsets.only(right: index == 2 ? 0 : 6),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final heroHeight = _heroHeightFor(constraints.maxWidth);
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Column(
+            children: <Widget>[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
                 child: ShimmerPlaceholder(
-                  height: 6,
-                  width: index == 1 ? 16 : 6,
-                  borderRadius: BorderRadius.circular(999),
+                  height: heroHeight,
+                  width: double.infinity,
                 ),
               ),
-            ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List<Widget>.generate(
+                  3,
+                  (index) => Padding(
+                    padding: EdgeInsets.only(right: index == 2 ? 0 : 6),
+                    child: ShimmerPlaceholder(
+                      height: 6,
+                      width: index == 1 ? 16 : 6,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -601,7 +605,6 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final song = recommendation.song;
     final track = recommendation.track;
@@ -619,39 +622,40 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
         ? SongPlaybackIndicatorState.inactive
         : ref.watch(songPlaybackIndicatorStateProvider(playableSong.id));
     final isSelected = playbackState.isSelected;
-    final subtitle = pending
-        ? <String>[
-            if (track.creator != null) track.creator!,
-            if (track.album != null) track.album!,
-            l10n.weeklyPlaylistMatching,
-          ].join(' · ')
-        : song == null
-        ? <String>[
-            if (track.creator != null) track.creator!,
-            if (track.album != null) track.album!,
-            recommendation.status ==
-                    ListenBrainzRecommendationMatchStatus.ambiguous
-                ? l10n.weeklyPlaylistAmbiguousMatch
-                : l10n.weeklyPlaylistTrackUnavailable,
-          ].join(' · ')
-        : <String>[
-            if (song.artist != null) song.artist!,
-            if (song.album != null) song.album!,
-          ].join(' · ');
+    final statusLabel = pending
+        ? l10n.weeklyPlaylistMatching
+        : unavailable
+        ? recommendation.status ==
+                  ListenBrainzRecommendationMatchStatus.ambiguous
+              ? l10n.weeklyPlaylistAmbiguousMatch
+              : l10n.weeklyPlaylistTrackUnavailable
+        : null;
 
     final tile = Opacity(
       opacity: unavailable ? 0.58 : 1,
       child: Material(
         type: MaterialType.transparency,
-        child: ListTile(
+        child: AdaptiveTrackRow(
+          title: playableSong?.title ?? track.title,
+          artist: playableSong?.artist ?? track.creator,
+          album: playableSong?.album ?? track.album,
+          duration: playableSong?.duration,
           selected: isSelected,
-          selectedColor: cs.primary,
-          selectedTileColor: cs.primary.withValues(alpha: 0.08),
-          dense: true,
-          minTileHeight: 64,
-          contentPadding: contentPadding,
-          minLeadingWidth: 32,
-          horizontalTitleGap: horizontalTitleGap,
+          isRemote: isRemote,
+          padding:
+              contentPadding ??
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          leadingExtent: 32,
+          leadingGap: horizontalTitleGap,
+          actionExtent: 96,
+          badge: statusLabel == null
+              ? null
+              : Text(
+                  statusLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
           leading: SizedBox(
             width: 32,
             child: Center(
@@ -669,57 +673,19 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
                     ),
             ),
           ),
-          title: Text(
-            playableSong?.title ?? track.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: isSelected ? cs.primary : null,
-            ),
-          ),
-          subtitle: RemoteSourceMetadataLine(
-            metadata: Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: unavailable
-                    ? cs.onSurface.withValues(alpha: 0.55)
-                    : cs.onSurfaceVariant,
-              ),
-            ),
-            isRemote: isRemote,
-          ),
-          trailing: SizedBox(
-            width: 76,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: playableSong == null
-                  ? IconButton(
-                      tooltip: pending
-                          ? l10n.weeklyPlaylistMatching
-                          : l10n.weeklyPlaylistSearchAction,
-                      icon: Icon(
-                        pending
-                            ? Icons.hourglass_empty_rounded
-                            : Icons.search_rounded,
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                      onPressed: pending ? null : () => onSearch(track),
-                    )
-                  : Text(
-                      formatSeconds(playableSong.duration),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurface.withValues(alpha: 0.5),
-                      ),
-                    ),
-            ),
-          ),
+          actions: playableSong == null
+              ? IconButton(
+                  tooltip: pending
+                      ? l10n.weeklyPlaylistMatching
+                      : l10n.weeklyPlaylistSearchAction,
+                  icon: Icon(
+                    pending
+                        ? Icons.hourglass_empty_rounded
+                        : Icons.search_rounded,
+                  ),
+                  onPressed: pending ? null : () => onSearch(track),
+                )
+              : null,
           onTap: playableSong == null ? null : () => onPlay(playableSong),
         ),
       ),
