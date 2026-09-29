@@ -784,58 +784,6 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
-  static const VerificationMeta _equalizerEnabledMeta = const VerificationMeta(
-    'equalizerEnabled',
-  );
-  @override
-  late final GeneratedColumn<bool> equalizerEnabled = GeneratedColumn<bool>(
-    'equalizer_enabled',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("equalizer_enabled" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
-  static const VerificationMeta _equalizerBandGainsMeta =
-      const VerificationMeta('equalizerBandGains');
-  @override
-  late final GeneratedColumn<String> equalizerBandGains =
-      GeneratedColumn<String>(
-        'equalizer_band_gains',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _loudnessEnabledMeta = const VerificationMeta(
-    'loudnessEnabled',
-  );
-  @override
-  late final GeneratedColumn<bool> loudnessEnabled = GeneratedColumn<bool>(
-    'loudness_enabled',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("loudness_enabled" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
-  static const VerificationMeta _loudnessTargetGainDbMeta =
-      const VerificationMeta('loudnessTargetGainDb');
-  @override
-  late final GeneratedColumn<double> loudnessTargetGainDb =
-      GeneratedColumn<double>(
-        'loudness_target_gain_db',
-        aliasedName,
-        true,
-        type: DriftSqlType.double,
-        requiredDuringInsert: false,
-      );
   static const VerificationMeta _rollingCacheBudgetMbMeta =
       const VerificationMeta('rollingCacheBudgetMb');
   @override
@@ -1195,6 +1143,56 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(1),
   );
+  static const VerificationMeta _playbackPitchSemitonesMeta =
+      const VerificationMeta('playbackPitchSemitones');
+  @override
+  late final GeneratedColumn<double> playbackPitchSemitones =
+      GeneratedColumn<double>(
+        'playback_pitch_semitones',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _lockPitchToSpeedMeta = const VerificationMeta(
+    'lockPitchToSpeed',
+  );
+  @override
+  late final GeneratedColumn<bool> lockPitchToSpeed = GeneratedColumn<bool>(
+    'lock_pitch_to_speed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("lock_pitch_to_speed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _playbackPresetsMeta = const VerificationMeta(
+    'playbackPresets',
+  );
+  @override
+  late final GeneratedColumn<String> playbackPresets = GeneratedColumn<String>(
+    'playback_presets',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _selectedPlaybackPresetIdMeta =
+      const VerificationMeta('selectedPlaybackPresetId');
+  @override
+  late final GeneratedColumn<String> selectedPlaybackPresetId =
+      GeneratedColumn<String>(
+        'selected_playback_preset_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _albumGridDensityMeta = const VerificationMeta(
     'albumGridDensity',
   );
@@ -1206,6 +1204,33 @@ class $AppSettingsTableTable extends AppSettingsTable
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _gridArtworkSizeMeta = const VerificationMeta(
+    'gridArtworkSize',
+  );
+  @override
+  late final GeneratedColumn<String> gridArtworkSize = GeneratedColumn<String>(
+    'grid_artwork_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('auto'),
+  );
+  static const VerificationMeta _homeRecommendationsAutoAdvanceMeta =
+      const VerificationMeta('homeRecommendationsAutoAdvance');
+  @override
+  late final GeneratedColumn<bool> homeRecommendationsAutoAdvance =
+      GeneratedColumn<bool>(
+        'home_recommendations_auto_advance',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("home_recommendations_auto_advance" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _coverArtBorderRadiusMeta =
       const VerificationMeta('coverArtBorderRadius');
   @override
@@ -1566,10 +1591,6 @@ class $AppSettingsTableTable extends AppSettingsTable
     showPlaylistsPage,
     showArtistsPage,
     showLikedPage,
-    equalizerEnabled,
-    equalizerBandGains,
-    loudnessEnabled,
-    loudnessTargetGainDb,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
     autoDownloadStarredOnWifi,
@@ -1598,7 +1619,13 @@ class $AppSettingsTableTable extends AppSettingsTable
     replayGainMode,
     replayGainPreamp,
     playbackSpeed,
+    playbackPitchSemitones,
+    lockPitchToSpeed,
+    playbackPresets,
+    selectedPlaybackPresetId,
     albumGridDensity,
+    gridArtworkSize,
+    homeRecommendationsAutoAdvance,
     coverArtBorderRadius,
     nowPlayingArtBorderRadius,
     coverArtShape,
@@ -1762,42 +1789,6 @@ class $AppSettingsTableTable extends AppSettingsTable
         showLikedPage.isAcceptableOrUnknown(
           data['show_liked_page']!,
           _showLikedPageMeta,
-        ),
-      );
-    }
-    if (data.containsKey('equalizer_enabled')) {
-      context.handle(
-        _equalizerEnabledMeta,
-        equalizerEnabled.isAcceptableOrUnknown(
-          data['equalizer_enabled']!,
-          _equalizerEnabledMeta,
-        ),
-      );
-    }
-    if (data.containsKey('equalizer_band_gains')) {
-      context.handle(
-        _equalizerBandGainsMeta,
-        equalizerBandGains.isAcceptableOrUnknown(
-          data['equalizer_band_gains']!,
-          _equalizerBandGainsMeta,
-        ),
-      );
-    }
-    if (data.containsKey('loudness_enabled')) {
-      context.handle(
-        _loudnessEnabledMeta,
-        loudnessEnabled.isAcceptableOrUnknown(
-          data['loudness_enabled']!,
-          _loudnessEnabledMeta,
-        ),
-      );
-    }
-    if (data.containsKey('loudness_target_gain_db')) {
-      context.handle(
-        _loudnessTargetGainDbMeta,
-        loudnessTargetGainDb.isAcceptableOrUnknown(
-          data['loudness_target_gain_db']!,
-          _loudnessTargetGainDbMeta,
         ),
       );
     }
@@ -2044,12 +2035,66 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('playback_pitch_semitones')) {
+      context.handle(
+        _playbackPitchSemitonesMeta,
+        playbackPitchSemitones.isAcceptableOrUnknown(
+          data['playback_pitch_semitones']!,
+          _playbackPitchSemitonesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('lock_pitch_to_speed')) {
+      context.handle(
+        _lockPitchToSpeedMeta,
+        lockPitchToSpeed.isAcceptableOrUnknown(
+          data['lock_pitch_to_speed']!,
+          _lockPitchToSpeedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('playback_presets')) {
+      context.handle(
+        _playbackPresetsMeta,
+        playbackPresets.isAcceptableOrUnknown(
+          data['playback_presets']!,
+          _playbackPresetsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('selected_playback_preset_id')) {
+      context.handle(
+        _selectedPlaybackPresetIdMeta,
+        selectedPlaybackPresetId.isAcceptableOrUnknown(
+          data['selected_playback_preset_id']!,
+          _selectedPlaybackPresetIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('album_grid_density')) {
       context.handle(
         _albumGridDensityMeta,
         albumGridDensity.isAcceptableOrUnknown(
           data['album_grid_density']!,
           _albumGridDensityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('grid_artwork_size')) {
+      context.handle(
+        _gridArtworkSizeMeta,
+        gridArtworkSize.isAcceptableOrUnknown(
+          data['grid_artwork_size']!,
+          _gridArtworkSizeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('home_recommendations_auto_advance')) {
+      context.handle(
+        _homeRecommendationsAutoAdvanceMeta,
+        homeRecommendationsAutoAdvance.isAcceptableOrUnknown(
+          data['home_recommendations_auto_advance']!,
+          _homeRecommendationsAutoAdvanceMeta,
         ),
       );
     }
@@ -2364,22 +2409,6 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_liked_page'],
       )!,
-      equalizerEnabled: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}equalizer_enabled'],
-      )!,
-      equalizerBandGains: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}equalizer_band_gains'],
-      ),
-      loudnessEnabled: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}loudness_enabled'],
-      )!,
-      loudnessTargetGainDb: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}loudness_target_gain_db'],
-      ),
       rollingCacheBudgetMb: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}rolling_cache_budget_mb'],
@@ -2492,10 +2521,34 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.double,
         data['${effectivePrefix}playback_speed'],
       )!,
+      playbackPitchSemitones: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}playback_pitch_semitones'],
+      )!,
+      lockPitchToSpeed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}lock_pitch_to_speed'],
+      )!,
+      playbackPresets: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}playback_presets'],
+      )!,
+      selectedPlaybackPresetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_playback_preset_id'],
+      ),
       albumGridDensity: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}album_grid_density'],
       ),
+      gridArtworkSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}grid_artwork_size'],
+      )!,
+      homeRecommendationsAutoAdvance: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}home_recommendations_auto_advance'],
+      )!,
       coverArtBorderRadius: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}cover_art_border_radius'],
@@ -2636,10 +2689,6 @@ class AppSettingsTableData extends DataClass
   final bool showPlaylistsPage;
   final bool showArtistsPage;
   final bool showLikedPage;
-  final bool equalizerEnabled;
-  final String? equalizerBandGains;
-  final bool loudnessEnabled;
-  final double? loudnessTargetGainDb;
 
   /// Rolling cache budget in megabytes. Default 2048 (2 GB).
   final int rollingCacheBudgetMb;
@@ -2726,12 +2775,22 @@ class AppSettingsTableData extends DataClass
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
   final double replayGainPreamp;
 
-  /// Playback speed multiplier (0.5–2.0). Default 1.0.
+  /// Playback speed multiplier. Default 1.0.
   final double playbackSpeed;
+  final double playbackPitchSemitones;
+  final bool lockPitchToSpeed;
+
+  /// JSON list of user presets; the immutable None preset is derived.
+  final String playbackPresets;
+
+  /// Null denotes Custom.
+  final String? selectedPlaybackPresetId;
 
   /// Album grid column count override. Null = auto (computed from width).
   /// Valid explicit values: 1–4.
   final int? albumGridDensity;
+  final String gridArtworkSize;
+  final bool homeRecommendationsAutoAdvance;
 
   /// Border radius (logical px) for cover art in library cards, carousels, etc.
   /// 0 = square, 24 = very rounded. Default 12.
@@ -2837,10 +2896,6 @@ class AppSettingsTableData extends DataClass
     required this.showPlaylistsPage,
     required this.showArtistsPage,
     required this.showLikedPage,
-    required this.equalizerEnabled,
-    this.equalizerBandGains,
-    required this.loudnessEnabled,
-    this.loudnessTargetGainDb,
     required this.rollingCacheBudgetMb,
     required this.wifiOnlyDownloads,
     required this.autoDownloadStarredOnWifi,
@@ -2869,7 +2924,13 @@ class AppSettingsTableData extends DataClass
     required this.replayGainMode,
     required this.replayGainPreamp,
     required this.playbackSpeed,
+    required this.playbackPitchSemitones,
+    required this.lockPitchToSpeed,
+    required this.playbackPresets,
+    this.selectedPlaybackPresetId,
     this.albumGridDensity,
+    required this.gridArtworkSize,
+    required this.homeRecommendationsAutoAdvance,
     required this.coverArtBorderRadius,
     required this.nowPlayingArtBorderRadius,
     required this.coverArtShape,
@@ -2924,14 +2985,6 @@ class AppSettingsTableData extends DataClass
     map['show_playlists_page'] = Variable<bool>(showPlaylistsPage);
     map['show_artists_page'] = Variable<bool>(showArtistsPage);
     map['show_liked_page'] = Variable<bool>(showLikedPage);
-    map['equalizer_enabled'] = Variable<bool>(equalizerEnabled);
-    if (!nullToAbsent || equalizerBandGains != null) {
-      map['equalizer_band_gains'] = Variable<String>(equalizerBandGains);
-    }
-    map['loudness_enabled'] = Variable<bool>(loudnessEnabled);
-    if (!nullToAbsent || loudnessTargetGainDb != null) {
-      map['loudness_target_gain_db'] = Variable<double>(loudnessTargetGainDb);
-    }
     map['rolling_cache_budget_mb'] = Variable<int>(rollingCacheBudgetMb);
     map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads);
     map['auto_download_starred_on_wifi'] = Variable<bool>(
@@ -2984,9 +3037,21 @@ class AppSettingsTableData extends DataClass
     map['replay_gain_mode'] = Variable<String>(replayGainMode);
     map['replay_gain_preamp'] = Variable<double>(replayGainPreamp);
     map['playback_speed'] = Variable<double>(playbackSpeed);
+    map['playback_pitch_semitones'] = Variable<double>(playbackPitchSemitones);
+    map['lock_pitch_to_speed'] = Variable<bool>(lockPitchToSpeed);
+    map['playback_presets'] = Variable<String>(playbackPresets);
+    if (!nullToAbsent || selectedPlaybackPresetId != null) {
+      map['selected_playback_preset_id'] = Variable<String>(
+        selectedPlaybackPresetId,
+      );
+    }
     if (!nullToAbsent || albumGridDensity != null) {
       map['album_grid_density'] = Variable<int>(albumGridDensity);
     }
+    map['grid_artwork_size'] = Variable<String>(gridArtworkSize);
+    map['home_recommendations_auto_advance'] = Variable<bool>(
+      homeRecommendationsAutoAdvance,
+    );
     map['cover_art_border_radius'] = Variable<double>(coverArtBorderRadius);
     map['now_playing_art_border_radius'] = Variable<double>(
       nowPlayingArtBorderRadius,
@@ -3064,14 +3129,6 @@ class AppSettingsTableData extends DataClass
       showPlaylistsPage: Value(showPlaylistsPage),
       showArtistsPage: Value(showArtistsPage),
       showLikedPage: Value(showLikedPage),
-      equalizerEnabled: Value(equalizerEnabled),
-      equalizerBandGains: equalizerBandGains == null && nullToAbsent
-          ? const Value.absent()
-          : Value(equalizerBandGains),
-      loudnessEnabled: Value(loudnessEnabled),
-      loudnessTargetGainDb: loudnessTargetGainDb == null && nullToAbsent
-          ? const Value.absent()
-          : Value(loudnessTargetGainDb),
       rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
       wifiOnlyDownloads: Value(wifiOnlyDownloads),
       autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
@@ -3112,9 +3169,17 @@ class AppSettingsTableData extends DataClass
       replayGainMode: Value(replayGainMode),
       replayGainPreamp: Value(replayGainPreamp),
       playbackSpeed: Value(playbackSpeed),
+      playbackPitchSemitones: Value(playbackPitchSemitones),
+      lockPitchToSpeed: Value(lockPitchToSpeed),
+      playbackPresets: Value(playbackPresets),
+      selectedPlaybackPresetId: selectedPlaybackPresetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectedPlaybackPresetId),
       albumGridDensity: albumGridDensity == null && nullToAbsent
           ? const Value.absent()
           : Value(albumGridDensity),
+      gridArtworkSize: Value(gridArtworkSize),
+      homeRecommendationsAutoAdvance: Value(homeRecommendationsAutoAdvance),
       coverArtBorderRadius: Value(coverArtBorderRadius),
       nowPlayingArtBorderRadius: Value(nowPlayingArtBorderRadius),
       coverArtShape: Value(coverArtShape),
@@ -3182,14 +3247,6 @@ class AppSettingsTableData extends DataClass
       showPlaylistsPage: serializer.fromJson<bool>(json['showPlaylistsPage']),
       showArtistsPage: serializer.fromJson<bool>(json['showArtistsPage']),
       showLikedPage: serializer.fromJson<bool>(json['showLikedPage']),
-      equalizerEnabled: serializer.fromJson<bool>(json['equalizerEnabled']),
-      equalizerBandGains: serializer.fromJson<String?>(
-        json['equalizerBandGains'],
-      ),
-      loudnessEnabled: serializer.fromJson<bool>(json['loudnessEnabled']),
-      loudnessTargetGainDb: serializer.fromJson<double?>(
-        json['loudnessTargetGainDb'],
-      ),
       rollingCacheBudgetMb: serializer.fromJson<int>(
         json['rollingCacheBudgetMb'],
       ),
@@ -3246,7 +3303,19 @@ class AppSettingsTableData extends DataClass
       replayGainMode: serializer.fromJson<String>(json['replayGainMode']),
       replayGainPreamp: serializer.fromJson<double>(json['replayGainPreamp']),
       playbackSpeed: serializer.fromJson<double>(json['playbackSpeed']),
+      playbackPitchSemitones: serializer.fromJson<double>(
+        json['playbackPitchSemitones'],
+      ),
+      lockPitchToSpeed: serializer.fromJson<bool>(json['lockPitchToSpeed']),
+      playbackPresets: serializer.fromJson<String>(json['playbackPresets']),
+      selectedPlaybackPresetId: serializer.fromJson<String?>(
+        json['selectedPlaybackPresetId'],
+      ),
       albumGridDensity: serializer.fromJson<int?>(json['albumGridDensity']),
+      gridArtworkSize: serializer.fromJson<String>(json['gridArtworkSize']),
+      homeRecommendationsAutoAdvance: serializer.fromJson<bool>(
+        json['homeRecommendationsAutoAdvance'],
+      ),
       coverArtBorderRadius: serializer.fromJson<double>(
         json['coverArtBorderRadius'],
       ),
@@ -3327,10 +3396,6 @@ class AppSettingsTableData extends DataClass
       'showPlaylistsPage': serializer.toJson<bool>(showPlaylistsPage),
       'showArtistsPage': serializer.toJson<bool>(showArtistsPage),
       'showLikedPage': serializer.toJson<bool>(showLikedPage),
-      'equalizerEnabled': serializer.toJson<bool>(equalizerEnabled),
-      'equalizerBandGains': serializer.toJson<String?>(equalizerBandGains),
-      'loudnessEnabled': serializer.toJson<bool>(loudnessEnabled),
-      'loudnessTargetGainDb': serializer.toJson<double?>(loudnessTargetGainDb),
       'rollingCacheBudgetMb': serializer.toJson<int>(rollingCacheBudgetMb),
       'wifiOnlyDownloads': serializer.toJson<bool>(wifiOnlyDownloads),
       'autoDownloadStarredOnWifi': serializer.toJson<bool>(
@@ -3377,7 +3442,19 @@ class AppSettingsTableData extends DataClass
       'replayGainMode': serializer.toJson<String>(replayGainMode),
       'replayGainPreamp': serializer.toJson<double>(replayGainPreamp),
       'playbackSpeed': serializer.toJson<double>(playbackSpeed),
+      'playbackPitchSemitones': serializer.toJson<double>(
+        playbackPitchSemitones,
+      ),
+      'lockPitchToSpeed': serializer.toJson<bool>(lockPitchToSpeed),
+      'playbackPresets': serializer.toJson<String>(playbackPresets),
+      'selectedPlaybackPresetId': serializer.toJson<String?>(
+        selectedPlaybackPresetId,
+      ),
       'albumGridDensity': serializer.toJson<int?>(albumGridDensity),
+      'gridArtworkSize': serializer.toJson<String>(gridArtworkSize),
+      'homeRecommendationsAutoAdvance': serializer.toJson<bool>(
+        homeRecommendationsAutoAdvance,
+      ),
       'coverArtBorderRadius': serializer.toJson<double>(coverArtBorderRadius),
       'nowPlayingArtBorderRadius': serializer.toJson<double>(
         nowPlayingArtBorderRadius,
@@ -3434,10 +3511,6 @@ class AppSettingsTableData extends DataClass
     bool? showPlaylistsPage,
     bool? showArtistsPage,
     bool? showLikedPage,
-    bool? equalizerEnabled,
-    Value<String?> equalizerBandGains = const Value.absent(),
-    bool? loudnessEnabled,
-    Value<double?> loudnessTargetGainDb = const Value.absent(),
     int? rollingCacheBudgetMb,
     bool? wifiOnlyDownloads,
     bool? autoDownloadStarredOnWifi,
@@ -3466,7 +3539,13 @@ class AppSettingsTableData extends DataClass
     String? replayGainMode,
     double? replayGainPreamp,
     double? playbackSpeed,
+    double? playbackPitchSemitones,
+    bool? lockPitchToSpeed,
+    String? playbackPresets,
+    Value<String?> selectedPlaybackPresetId = const Value.absent(),
     Value<int?> albumGridDensity = const Value.absent(),
+    String? gridArtworkSize,
+    bool? homeRecommendationsAutoAdvance,
     double? coverArtBorderRadius,
     double? nowPlayingArtBorderRadius,
     String? coverArtShape,
@@ -3516,14 +3595,6 @@ class AppSettingsTableData extends DataClass
     showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
     showArtistsPage: showArtistsPage ?? this.showArtistsPage,
     showLikedPage: showLikedPage ?? this.showLikedPage,
-    equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
-    equalizerBandGains: equalizerBandGains.present
-        ? equalizerBandGains.value
-        : this.equalizerBandGains,
-    loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
-    loudnessTargetGainDb: loudnessTargetGainDb.present
-        ? loudnessTargetGainDb.value
-        : this.loudnessTargetGainDb,
     rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
     wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
     autoDownloadStarredOnWifi:
@@ -3570,9 +3641,19 @@ class AppSettingsTableData extends DataClass
     replayGainMode: replayGainMode ?? this.replayGainMode,
     replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
     playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+    playbackPitchSemitones:
+        playbackPitchSemitones ?? this.playbackPitchSemitones,
+    lockPitchToSpeed: lockPitchToSpeed ?? this.lockPitchToSpeed,
+    playbackPresets: playbackPresets ?? this.playbackPresets,
+    selectedPlaybackPresetId: selectedPlaybackPresetId.present
+        ? selectedPlaybackPresetId.value
+        : this.selectedPlaybackPresetId,
     albumGridDensity: albumGridDensity.present
         ? albumGridDensity.value
         : this.albumGridDensity,
+    gridArtworkSize: gridArtworkSize ?? this.gridArtworkSize,
+    homeRecommendationsAutoAdvance:
+        homeRecommendationsAutoAdvance ?? this.homeRecommendationsAutoAdvance,
     coverArtBorderRadius: coverArtBorderRadius ?? this.coverArtBorderRadius,
     nowPlayingArtBorderRadius:
         nowPlayingArtBorderRadius ?? this.nowPlayingArtBorderRadius,
@@ -3665,18 +3746,6 @@ class AppSettingsTableData extends DataClass
       showLikedPage: data.showLikedPage.present
           ? data.showLikedPage.value
           : this.showLikedPage,
-      equalizerEnabled: data.equalizerEnabled.present
-          ? data.equalizerEnabled.value
-          : this.equalizerEnabled,
-      equalizerBandGains: data.equalizerBandGains.present
-          ? data.equalizerBandGains.value
-          : this.equalizerBandGains,
-      loudnessEnabled: data.loudnessEnabled.present
-          ? data.loudnessEnabled.value
-          : this.loudnessEnabled,
-      loudnessTargetGainDb: data.loudnessTargetGainDb.present
-          ? data.loudnessTargetGainDb.value
-          : this.loudnessTargetGainDb,
       rollingCacheBudgetMb: data.rollingCacheBudgetMb.present
           ? data.rollingCacheBudgetMb.value
           : this.rollingCacheBudgetMb,
@@ -3756,9 +3825,28 @@ class AppSettingsTableData extends DataClass
       playbackSpeed: data.playbackSpeed.present
           ? data.playbackSpeed.value
           : this.playbackSpeed,
+      playbackPitchSemitones: data.playbackPitchSemitones.present
+          ? data.playbackPitchSemitones.value
+          : this.playbackPitchSemitones,
+      lockPitchToSpeed: data.lockPitchToSpeed.present
+          ? data.lockPitchToSpeed.value
+          : this.lockPitchToSpeed,
+      playbackPresets: data.playbackPresets.present
+          ? data.playbackPresets.value
+          : this.playbackPresets,
+      selectedPlaybackPresetId: data.selectedPlaybackPresetId.present
+          ? data.selectedPlaybackPresetId.value
+          : this.selectedPlaybackPresetId,
       albumGridDensity: data.albumGridDensity.present
           ? data.albumGridDensity.value
           : this.albumGridDensity,
+      gridArtworkSize: data.gridArtworkSize.present
+          ? data.gridArtworkSize.value
+          : this.gridArtworkSize,
+      homeRecommendationsAutoAdvance:
+          data.homeRecommendationsAutoAdvance.present
+          ? data.homeRecommendationsAutoAdvance.value
+          : this.homeRecommendationsAutoAdvance,
       coverArtBorderRadius: data.coverArtBorderRadius.present
           ? data.coverArtBorderRadius.value
           : this.coverArtBorderRadius,
@@ -3859,10 +3947,6 @@ class AppSettingsTableData extends DataClass
           ..write('showPlaylistsPage: $showPlaylistsPage, ')
           ..write('showArtistsPage: $showArtistsPage, ')
           ..write('showLikedPage: $showLikedPage, ')
-          ..write('equalizerEnabled: $equalizerEnabled, ')
-          ..write('equalizerBandGains: $equalizerBandGains, ')
-          ..write('loudnessEnabled: $loudnessEnabled, ')
-          ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
@@ -3893,7 +3977,15 @@ class AppSettingsTableData extends DataClass
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('playbackSpeed: $playbackSpeed, ')
+          ..write('playbackPitchSemitones: $playbackPitchSemitones, ')
+          ..write('lockPitchToSpeed: $lockPitchToSpeed, ')
+          ..write('playbackPresets: $playbackPresets, ')
+          ..write('selectedPlaybackPresetId: $selectedPlaybackPresetId, ')
           ..write('albumGridDensity: $albumGridDensity, ')
+          ..write('gridArtworkSize: $gridArtworkSize, ')
+          ..write(
+            'homeRecommendationsAutoAdvance: $homeRecommendationsAutoAdvance, ',
+          )
           ..write('coverArtBorderRadius: $coverArtBorderRadius, ')
           ..write('nowPlayingArtBorderRadius: $nowPlayingArtBorderRadius, ')
           ..write('coverArtShape: $coverArtShape, ')
@@ -3946,10 +4038,6 @@ class AppSettingsTableData extends DataClass
     showPlaylistsPage,
     showArtistsPage,
     showLikedPage,
-    equalizerEnabled,
-    equalizerBandGains,
-    loudnessEnabled,
-    loudnessTargetGainDb,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
     autoDownloadStarredOnWifi,
@@ -3978,7 +4066,13 @@ class AppSettingsTableData extends DataClass
     replayGainMode,
     replayGainPreamp,
     playbackSpeed,
+    playbackPitchSemitones,
+    lockPitchToSpeed,
+    playbackPresets,
+    selectedPlaybackPresetId,
     albumGridDensity,
+    gridArtworkSize,
+    homeRecommendationsAutoAdvance,
     coverArtBorderRadius,
     nowPlayingArtBorderRadius,
     coverArtShape,
@@ -4026,10 +4120,6 @@ class AppSettingsTableData extends DataClass
           other.showPlaylistsPage == this.showPlaylistsPage &&
           other.showArtistsPage == this.showArtistsPage &&
           other.showLikedPage == this.showLikedPage &&
-          other.equalizerEnabled == this.equalizerEnabled &&
-          other.equalizerBandGains == this.equalizerBandGains &&
-          other.loudnessEnabled == this.loudnessEnabled &&
-          other.loudnessTargetGainDb == this.loudnessTargetGainDb &&
           other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
           other.wifiOnlyDownloads == this.wifiOnlyDownloads &&
           other.autoDownloadStarredOnWifi == this.autoDownloadStarredOnWifi &&
@@ -4061,7 +4151,14 @@ class AppSettingsTableData extends DataClass
           other.replayGainMode == this.replayGainMode &&
           other.replayGainPreamp == this.replayGainPreamp &&
           other.playbackSpeed == this.playbackSpeed &&
+          other.playbackPitchSemitones == this.playbackPitchSemitones &&
+          other.lockPitchToSpeed == this.lockPitchToSpeed &&
+          other.playbackPresets == this.playbackPresets &&
+          other.selectedPlaybackPresetId == this.selectedPlaybackPresetId &&
           other.albumGridDensity == this.albumGridDensity &&
+          other.gridArtworkSize == this.gridArtworkSize &&
+          other.homeRecommendationsAutoAdvance ==
+              this.homeRecommendationsAutoAdvance &&
           other.coverArtBorderRadius == this.coverArtBorderRadius &&
           other.nowPlayingArtBorderRadius == this.nowPlayingArtBorderRadius &&
           other.coverArtShape == this.coverArtShape &&
@@ -4109,10 +4206,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> showPlaylistsPage;
   final Value<bool> showArtistsPage;
   final Value<bool> showLikedPage;
-  final Value<bool> equalizerEnabled;
-  final Value<String?> equalizerBandGains;
-  final Value<bool> loudnessEnabled;
-  final Value<double?> loudnessTargetGainDb;
   final Value<int> rollingCacheBudgetMb;
   final Value<bool> wifiOnlyDownloads;
   final Value<bool> autoDownloadStarredOnWifi;
@@ -4141,7 +4234,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> replayGainMode;
   final Value<double> replayGainPreamp;
   final Value<double> playbackSpeed;
+  final Value<double> playbackPitchSemitones;
+  final Value<bool> lockPitchToSpeed;
+  final Value<String> playbackPresets;
+  final Value<String?> selectedPlaybackPresetId;
   final Value<int?> albumGridDensity;
+  final Value<String> gridArtworkSize;
+  final Value<bool> homeRecommendationsAutoAdvance;
   final Value<double> coverArtBorderRadius;
   final Value<double> nowPlayingArtBorderRadius;
   final Value<String> coverArtShape;
@@ -4185,10 +4284,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.showPlaylistsPage = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
     this.showLikedPage = const Value.absent(),
-    this.equalizerEnabled = const Value.absent(),
-    this.equalizerBandGains = const Value.absent(),
-    this.loudnessEnabled = const Value.absent(),
-    this.loudnessTargetGainDb = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
     this.autoDownloadStarredOnWifi = const Value.absent(),
@@ -4217,7 +4312,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
+    this.playbackPitchSemitones = const Value.absent(),
+    this.lockPitchToSpeed = const Value.absent(),
+    this.playbackPresets = const Value.absent(),
+    this.selectedPlaybackPresetId = const Value.absent(),
     this.albumGridDensity = const Value.absent(),
+    this.gridArtworkSize = const Value.absent(),
+    this.homeRecommendationsAutoAdvance = const Value.absent(),
     this.coverArtBorderRadius = const Value.absent(),
     this.nowPlayingArtBorderRadius = const Value.absent(),
     this.coverArtShape = const Value.absent(),
@@ -4262,10 +4363,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.showPlaylistsPage = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
     this.showLikedPage = const Value.absent(),
-    this.equalizerEnabled = const Value.absent(),
-    this.equalizerBandGains = const Value.absent(),
-    this.loudnessEnabled = const Value.absent(),
-    this.loudnessTargetGainDb = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
     this.autoDownloadStarredOnWifi = const Value.absent(),
@@ -4294,7 +4391,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
+    this.playbackPitchSemitones = const Value.absent(),
+    this.lockPitchToSpeed = const Value.absent(),
+    this.playbackPresets = const Value.absent(),
+    this.selectedPlaybackPresetId = const Value.absent(),
     this.albumGridDensity = const Value.absent(),
+    this.gridArtworkSize = const Value.absent(),
+    this.homeRecommendationsAutoAdvance = const Value.absent(),
     this.coverArtBorderRadius = const Value.absent(),
     this.nowPlayingArtBorderRadius = const Value.absent(),
     this.coverArtShape = const Value.absent(),
@@ -4339,10 +4442,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? showPlaylistsPage,
     Expression<bool>? showArtistsPage,
     Expression<bool>? showLikedPage,
-    Expression<bool>? equalizerEnabled,
-    Expression<String>? equalizerBandGains,
-    Expression<bool>? loudnessEnabled,
-    Expression<double>? loudnessTargetGainDb,
     Expression<int>? rollingCacheBudgetMb,
     Expression<bool>? wifiOnlyDownloads,
     Expression<bool>? autoDownloadStarredOnWifi,
@@ -4371,7 +4470,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? replayGainMode,
     Expression<double>? replayGainPreamp,
     Expression<double>? playbackSpeed,
+    Expression<double>? playbackPitchSemitones,
+    Expression<bool>? lockPitchToSpeed,
+    Expression<String>? playbackPresets,
+    Expression<String>? selectedPlaybackPresetId,
     Expression<int>? albumGridDensity,
+    Expression<String>? gridArtworkSize,
+    Expression<bool>? homeRecommendationsAutoAdvance,
     Expression<double>? coverArtBorderRadius,
     Expression<double>? nowPlayingArtBorderRadius,
     Expression<String>? coverArtShape,
@@ -4419,12 +4524,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (showPlaylistsPage != null) 'show_playlists_page': showPlaylistsPage,
       if (showArtistsPage != null) 'show_artists_page': showArtistsPage,
       if (showLikedPage != null) 'show_liked_page': showLikedPage,
-      if (equalizerEnabled != null) 'equalizer_enabled': equalizerEnabled,
-      if (equalizerBandGains != null)
-        'equalizer_band_gains': equalizerBandGains,
-      if (loudnessEnabled != null) 'loudness_enabled': loudnessEnabled,
-      if (loudnessTargetGainDb != null)
-        'loudness_target_gain_db': loudnessTargetGainDb,
       if (rollingCacheBudgetMb != null)
         'rolling_cache_budget_mb': rollingCacheBudgetMb,
       if (wifiOnlyDownloads != null) 'wifi_only_downloads': wifiOnlyDownloads,
@@ -4468,7 +4567,16 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (replayGainMode != null) 'replay_gain_mode': replayGainMode,
       if (replayGainPreamp != null) 'replay_gain_preamp': replayGainPreamp,
       if (playbackSpeed != null) 'playback_speed': playbackSpeed,
+      if (playbackPitchSemitones != null)
+        'playback_pitch_semitones': playbackPitchSemitones,
+      if (lockPitchToSpeed != null) 'lock_pitch_to_speed': lockPitchToSpeed,
+      if (playbackPresets != null) 'playback_presets': playbackPresets,
+      if (selectedPlaybackPresetId != null)
+        'selected_playback_preset_id': selectedPlaybackPresetId,
       if (albumGridDensity != null) 'album_grid_density': albumGridDensity,
+      if (gridArtworkSize != null) 'grid_artwork_size': gridArtworkSize,
+      if (homeRecommendationsAutoAdvance != null)
+        'home_recommendations_auto_advance': homeRecommendationsAutoAdvance,
       if (coverArtBorderRadius != null)
         'cover_art_border_radius': coverArtBorderRadius,
       if (nowPlayingArtBorderRadius != null)
@@ -4531,10 +4639,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? showPlaylistsPage,
     Value<bool>? showArtistsPage,
     Value<bool>? showLikedPage,
-    Value<bool>? equalizerEnabled,
-    Value<String?>? equalizerBandGains,
-    Value<bool>? loudnessEnabled,
-    Value<double?>? loudnessTargetGainDb,
     Value<int>? rollingCacheBudgetMb,
     Value<bool>? wifiOnlyDownloads,
     Value<bool>? autoDownloadStarredOnWifi,
@@ -4563,7 +4667,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? replayGainMode,
     Value<double>? replayGainPreamp,
     Value<double>? playbackSpeed,
+    Value<double>? playbackPitchSemitones,
+    Value<bool>? lockPitchToSpeed,
+    Value<String>? playbackPresets,
+    Value<String?>? selectedPlaybackPresetId,
     Value<int?>? albumGridDensity,
+    Value<String>? gridArtworkSize,
+    Value<bool>? homeRecommendationsAutoAdvance,
     Value<double>? coverArtBorderRadius,
     Value<double>? nowPlayingArtBorderRadius,
     Value<String>? coverArtShape,
@@ -4608,10 +4718,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       showLikedPage: showLikedPage ?? this.showLikedPage,
-      equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
-      equalizerBandGains: equalizerBandGains ?? this.equalizerBandGains,
-      loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
-      loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
       rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       autoDownloadStarredOnWifi:
@@ -4650,7 +4756,16 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      playbackPitchSemitones:
+          playbackPitchSemitones ?? this.playbackPitchSemitones,
+      lockPitchToSpeed: lockPitchToSpeed ?? this.lockPitchToSpeed,
+      playbackPresets: playbackPresets ?? this.playbackPresets,
+      selectedPlaybackPresetId:
+          selectedPlaybackPresetId ?? this.selectedPlaybackPresetId,
       albumGridDensity: albumGridDensity ?? this.albumGridDensity,
+      gridArtworkSize: gridArtworkSize ?? this.gridArtworkSize,
+      homeRecommendationsAutoAdvance:
+          homeRecommendationsAutoAdvance ?? this.homeRecommendationsAutoAdvance,
       coverArtBorderRadius: coverArtBorderRadius ?? this.coverArtBorderRadius,
       nowPlayingArtBorderRadius:
           nowPlayingArtBorderRadius ?? this.nowPlayingArtBorderRadius,
@@ -4737,20 +4852,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (showLikedPage.present) {
       map['show_liked_page'] = Variable<bool>(showLikedPage.value);
-    }
-    if (equalizerEnabled.present) {
-      map['equalizer_enabled'] = Variable<bool>(equalizerEnabled.value);
-    }
-    if (equalizerBandGains.present) {
-      map['equalizer_band_gains'] = Variable<String>(equalizerBandGains.value);
-    }
-    if (loudnessEnabled.present) {
-      map['loudness_enabled'] = Variable<bool>(loudnessEnabled.value);
-    }
-    if (loudnessTargetGainDb.present) {
-      map['loudness_target_gain_db'] = Variable<double>(
-        loudnessTargetGainDb.value,
-      );
     }
     if (rollingCacheBudgetMb.present) {
       map['rolling_cache_budget_mb'] = Variable<int>(
@@ -4856,8 +4957,32 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (playbackSpeed.present) {
       map['playback_speed'] = Variable<double>(playbackSpeed.value);
     }
+    if (playbackPitchSemitones.present) {
+      map['playback_pitch_semitones'] = Variable<double>(
+        playbackPitchSemitones.value,
+      );
+    }
+    if (lockPitchToSpeed.present) {
+      map['lock_pitch_to_speed'] = Variable<bool>(lockPitchToSpeed.value);
+    }
+    if (playbackPresets.present) {
+      map['playback_presets'] = Variable<String>(playbackPresets.value);
+    }
+    if (selectedPlaybackPresetId.present) {
+      map['selected_playback_preset_id'] = Variable<String>(
+        selectedPlaybackPresetId.value,
+      );
+    }
     if (albumGridDensity.present) {
       map['album_grid_density'] = Variable<int>(albumGridDensity.value);
+    }
+    if (gridArtworkSize.present) {
+      map['grid_artwork_size'] = Variable<String>(gridArtworkSize.value);
+    }
+    if (homeRecommendationsAutoAdvance.present) {
+      map['home_recommendations_auto_advance'] = Variable<bool>(
+        homeRecommendationsAutoAdvance.value,
+      );
     }
     if (coverArtBorderRadius.present) {
       map['cover_art_border_radius'] = Variable<double>(
@@ -4987,10 +5112,6 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('showPlaylistsPage: $showPlaylistsPage, ')
           ..write('showArtistsPage: $showArtistsPage, ')
           ..write('showLikedPage: $showLikedPage, ')
-          ..write('equalizerEnabled: $equalizerEnabled, ')
-          ..write('equalizerBandGains: $equalizerBandGains, ')
-          ..write('loudnessEnabled: $loudnessEnabled, ')
-          ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
@@ -5021,7 +5142,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('playbackSpeed: $playbackSpeed, ')
+          ..write('playbackPitchSemitones: $playbackPitchSemitones, ')
+          ..write('lockPitchToSpeed: $lockPitchToSpeed, ')
+          ..write('playbackPresets: $playbackPresets, ')
+          ..write('selectedPlaybackPresetId: $selectedPlaybackPresetId, ')
           ..write('albumGridDensity: $albumGridDensity, ')
+          ..write('gridArtworkSize: $gridArtworkSize, ')
+          ..write(
+            'homeRecommendationsAutoAdvance: $homeRecommendationsAutoAdvance, ',
+          )
           ..write('coverArtBorderRadius: $coverArtBorderRadius, ')
           ..write('nowPlayingArtBorderRadius: $nowPlayingArtBorderRadius, ')
           ..write('coverArtShape: $coverArtShape, ')
@@ -5053,6 +5182,769 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('customVoyageServers: $customVoyageServers, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EqPresetsTableTable extends EqPresetsTable
+    with TableInfo<$EqPresetsTableTable, EqPresetsTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EqPresetsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _normalizedNameMeta = const VerificationMeta(
+    'normalizedName',
+  );
+  @override
+  late final GeneratedColumn<String> normalizedName = GeneratedColumn<String>(
+    'normalized_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _presetJsonMeta = const VerificationMeta(
+    'presetJson',
+  );
+  @override
+  late final GeneratedColumn<String> presetJson = GeneratedColumn<String>(
+    'preset_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, normalizedName, presetJson];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'eq_presets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EqPresetsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('normalized_name')) {
+      context.handle(
+        _normalizedNameMeta,
+        normalizedName.isAcceptableOrUnknown(
+          data['normalized_name']!,
+          _normalizedNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_normalizedNameMeta);
+    }
+    if (data.containsKey('preset_json')) {
+      context.handle(
+        _presetJsonMeta,
+        presetJson.isAcceptableOrUnknown(data['preset_json']!, _presetJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_presetJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EqPresetsTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EqPresetsTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      normalizedName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}normalized_name'],
+      )!,
+      presetJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}preset_json'],
+      )!,
+    );
+  }
+
+  @override
+  $EqPresetsTableTable createAlias(String alias) {
+    return $EqPresetsTableTable(attachedDatabase, alias);
+  }
+}
+
+class EqPresetsTableData extends DataClass
+    implements Insertable<EqPresetsTableData> {
+  final String id;
+  final String name;
+  final String normalizedName;
+  final String presetJson;
+  const EqPresetsTableData({
+    required this.id,
+    required this.name,
+    required this.normalizedName,
+    required this.presetJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['normalized_name'] = Variable<String>(normalizedName);
+    map['preset_json'] = Variable<String>(presetJson);
+    return map;
+  }
+
+  EqPresetsTableCompanion toCompanion(bool nullToAbsent) {
+    return EqPresetsTableCompanion(
+      id: Value(id),
+      name: Value(name),
+      normalizedName: Value(normalizedName),
+      presetJson: Value(presetJson),
+    );
+  }
+
+  factory EqPresetsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EqPresetsTableData(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      normalizedName: serializer.fromJson<String>(json['normalizedName']),
+      presetJson: serializer.fromJson<String>(json['presetJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'normalizedName': serializer.toJson<String>(normalizedName),
+      'presetJson': serializer.toJson<String>(presetJson),
+    };
+  }
+
+  EqPresetsTableData copyWith({
+    String? id,
+    String? name,
+    String? normalizedName,
+    String? presetJson,
+  }) => EqPresetsTableData(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    normalizedName: normalizedName ?? this.normalizedName,
+    presetJson: presetJson ?? this.presetJson,
+  );
+  EqPresetsTableData copyWithCompanion(EqPresetsTableCompanion data) {
+    return EqPresetsTableData(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      normalizedName: data.normalizedName.present
+          ? data.normalizedName.value
+          : this.normalizedName,
+      presetJson: data.presetJson.present
+          ? data.presetJson.value
+          : this.presetJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EqPresetsTableData(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('normalizedName: $normalizedName, ')
+          ..write('presetJson: $presetJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, normalizedName, presetJson);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EqPresetsTableData &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.normalizedName == this.normalizedName &&
+          other.presetJson == this.presetJson);
+}
+
+class EqPresetsTableCompanion extends UpdateCompanion<EqPresetsTableData> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> normalizedName;
+  final Value<String> presetJson;
+  final Value<int> rowid;
+  const EqPresetsTableCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.normalizedName = const Value.absent(),
+    this.presetJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EqPresetsTableCompanion.insert({
+    required String id,
+    required String name,
+    required String normalizedName,
+    required String presetJson,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       normalizedName = Value(normalizedName),
+       presetJson = Value(presetJson);
+  static Insertable<EqPresetsTableData> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? normalizedName,
+    Expression<String>? presetJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (normalizedName != null) 'normalized_name': normalizedName,
+      if (presetJson != null) 'preset_json': presetJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EqPresetsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? normalizedName,
+    Value<String>? presetJson,
+    Value<int>? rowid,
+  }) {
+    return EqPresetsTableCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      normalizedName: normalizedName ?? this.normalizedName,
+      presetJson: presetJson ?? this.presetJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (normalizedName.present) {
+      map['normalized_name'] = Variable<String>(normalizedName.value);
+    }
+    if (presetJson.present) {
+      map['preset_json'] = Variable<String>(presetJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EqPresetsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('normalizedName: $normalizedName, ')
+          ..write('presetJson: $presetJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EqStateTableTable extends EqStateTable
+    with TableInfo<$EqStateTableTable, EqStateTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EqStateTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _configurationJsonMeta = const VerificationMeta(
+    'configurationJson',
+  );
+  @override
+  late final GeneratedColumn<String> configurationJson =
+      GeneratedColumn<String>(
+        'configuration_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _selectedPresetIdMeta = const VerificationMeta(
+    'selectedPresetId',
+  );
+  @override
+  late final GeneratedColumn<String> selectedPresetId = GeneratedColumn<String>(
+    'selected_preset_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _originPresetIdMeta = const VerificationMeta(
+    'originPresetId',
+  );
+  @override
+  late final GeneratedColumn<String> originPresetId = GeneratedColumn<String>(
+    'origin_preset_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _workspacesJsonMeta = const VerificationMeta(
+    'workspacesJson',
+  );
+  @override
+  late final GeneratedColumn<String> workspacesJson = GeneratedColumn<String>(
+    'workspaces_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _legacyResetNoticeMeta = const VerificationMeta(
+    'legacyResetNotice',
+  );
+  @override
+  late final GeneratedColumn<bool> legacyResetNotice = GeneratedColumn<bool>(
+    'legacy_reset_notice',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("legacy_reset_notice" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    configurationJson,
+    selectedPresetId,
+    originPresetId,
+    workspacesJson,
+    legacyResetNotice,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'eq_state';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EqStateTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('configuration_json')) {
+      context.handle(
+        _configurationJsonMeta,
+        configurationJson.isAcceptableOrUnknown(
+          data['configuration_json']!,
+          _configurationJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('selected_preset_id')) {
+      context.handle(
+        _selectedPresetIdMeta,
+        selectedPresetId.isAcceptableOrUnknown(
+          data['selected_preset_id']!,
+          _selectedPresetIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('origin_preset_id')) {
+      context.handle(
+        _originPresetIdMeta,
+        originPresetId.isAcceptableOrUnknown(
+          data['origin_preset_id']!,
+          _originPresetIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('workspaces_json')) {
+      context.handle(
+        _workspacesJsonMeta,
+        workspacesJson.isAcceptableOrUnknown(
+          data['workspaces_json']!,
+          _workspacesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('legacy_reset_notice')) {
+      context.handle(
+        _legacyResetNoticeMeta,
+        legacyResetNotice.isAcceptableOrUnknown(
+          data['legacy_reset_notice']!,
+          _legacyResetNoticeMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EqStateTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EqStateTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      configurationJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}configuration_json'],
+      ),
+      selectedPresetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_preset_id'],
+      ),
+      originPresetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}origin_preset_id'],
+      ),
+      workspacesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}workspaces_json'],
+      ),
+      legacyResetNotice: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}legacy_reset_notice'],
+      )!,
+    );
+  }
+
+  @override
+  $EqStateTableTable createAlias(String alias) {
+    return $EqStateTableTable(attachedDatabase, alias);
+  }
+}
+
+class EqStateTableData extends DataClass
+    implements Insertable<EqStateTableData> {
+  final int id;
+  final String? configurationJson;
+  final String? selectedPresetId;
+  final String? originPresetId;
+  final String? workspacesJson;
+  final bool legacyResetNotice;
+  const EqStateTableData({
+    required this.id,
+    this.configurationJson,
+    this.selectedPresetId,
+    this.originPresetId,
+    this.workspacesJson,
+    required this.legacyResetNotice,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || configurationJson != null) {
+      map['configuration_json'] = Variable<String>(configurationJson);
+    }
+    if (!nullToAbsent || selectedPresetId != null) {
+      map['selected_preset_id'] = Variable<String>(selectedPresetId);
+    }
+    if (!nullToAbsent || originPresetId != null) {
+      map['origin_preset_id'] = Variable<String>(originPresetId);
+    }
+    if (!nullToAbsent || workspacesJson != null) {
+      map['workspaces_json'] = Variable<String>(workspacesJson);
+    }
+    map['legacy_reset_notice'] = Variable<bool>(legacyResetNotice);
+    return map;
+  }
+
+  EqStateTableCompanion toCompanion(bool nullToAbsent) {
+    return EqStateTableCompanion(
+      id: Value(id),
+      configurationJson: configurationJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(configurationJson),
+      selectedPresetId: selectedPresetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectedPresetId),
+      originPresetId: originPresetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originPresetId),
+      workspacesJson: workspacesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(workspacesJson),
+      legacyResetNotice: Value(legacyResetNotice),
+    );
+  }
+
+  factory EqStateTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EqStateTableData(
+      id: serializer.fromJson<int>(json['id']),
+      configurationJson: serializer.fromJson<String?>(
+        json['configurationJson'],
+      ),
+      selectedPresetId: serializer.fromJson<String?>(json['selectedPresetId']),
+      originPresetId: serializer.fromJson<String?>(json['originPresetId']),
+      workspacesJson: serializer.fromJson<String?>(json['workspacesJson']),
+      legacyResetNotice: serializer.fromJson<bool>(json['legacyResetNotice']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'configurationJson': serializer.toJson<String?>(configurationJson),
+      'selectedPresetId': serializer.toJson<String?>(selectedPresetId),
+      'originPresetId': serializer.toJson<String?>(originPresetId),
+      'workspacesJson': serializer.toJson<String?>(workspacesJson),
+      'legacyResetNotice': serializer.toJson<bool>(legacyResetNotice),
+    };
+  }
+
+  EqStateTableData copyWith({
+    int? id,
+    Value<String?> configurationJson = const Value.absent(),
+    Value<String?> selectedPresetId = const Value.absent(),
+    Value<String?> originPresetId = const Value.absent(),
+    Value<String?> workspacesJson = const Value.absent(),
+    bool? legacyResetNotice,
+  }) => EqStateTableData(
+    id: id ?? this.id,
+    configurationJson: configurationJson.present
+        ? configurationJson.value
+        : this.configurationJson,
+    selectedPresetId: selectedPresetId.present
+        ? selectedPresetId.value
+        : this.selectedPresetId,
+    originPresetId: originPresetId.present
+        ? originPresetId.value
+        : this.originPresetId,
+    workspacesJson: workspacesJson.present
+        ? workspacesJson.value
+        : this.workspacesJson,
+    legacyResetNotice: legacyResetNotice ?? this.legacyResetNotice,
+  );
+  EqStateTableData copyWithCompanion(EqStateTableCompanion data) {
+    return EqStateTableData(
+      id: data.id.present ? data.id.value : this.id,
+      configurationJson: data.configurationJson.present
+          ? data.configurationJson.value
+          : this.configurationJson,
+      selectedPresetId: data.selectedPresetId.present
+          ? data.selectedPresetId.value
+          : this.selectedPresetId,
+      originPresetId: data.originPresetId.present
+          ? data.originPresetId.value
+          : this.originPresetId,
+      workspacesJson: data.workspacesJson.present
+          ? data.workspacesJson.value
+          : this.workspacesJson,
+      legacyResetNotice: data.legacyResetNotice.present
+          ? data.legacyResetNotice.value
+          : this.legacyResetNotice,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EqStateTableData(')
+          ..write('id: $id, ')
+          ..write('configurationJson: $configurationJson, ')
+          ..write('selectedPresetId: $selectedPresetId, ')
+          ..write('originPresetId: $originPresetId, ')
+          ..write('workspacesJson: $workspacesJson, ')
+          ..write('legacyResetNotice: $legacyResetNotice')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    configurationJson,
+    selectedPresetId,
+    originPresetId,
+    workspacesJson,
+    legacyResetNotice,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EqStateTableData &&
+          other.id == this.id &&
+          other.configurationJson == this.configurationJson &&
+          other.selectedPresetId == this.selectedPresetId &&
+          other.originPresetId == this.originPresetId &&
+          other.workspacesJson == this.workspacesJson &&
+          other.legacyResetNotice == this.legacyResetNotice);
+}
+
+class EqStateTableCompanion extends UpdateCompanion<EqStateTableData> {
+  final Value<int> id;
+  final Value<String?> configurationJson;
+  final Value<String?> selectedPresetId;
+  final Value<String?> originPresetId;
+  final Value<String?> workspacesJson;
+  final Value<bool> legacyResetNotice;
+  const EqStateTableCompanion({
+    this.id = const Value.absent(),
+    this.configurationJson = const Value.absent(),
+    this.selectedPresetId = const Value.absent(),
+    this.originPresetId = const Value.absent(),
+    this.workspacesJson = const Value.absent(),
+    this.legacyResetNotice = const Value.absent(),
+  });
+  EqStateTableCompanion.insert({
+    this.id = const Value.absent(),
+    this.configurationJson = const Value.absent(),
+    this.selectedPresetId = const Value.absent(),
+    this.originPresetId = const Value.absent(),
+    this.workspacesJson = const Value.absent(),
+    this.legacyResetNotice = const Value.absent(),
+  });
+  static Insertable<EqStateTableData> custom({
+    Expression<int>? id,
+    Expression<String>? configurationJson,
+    Expression<String>? selectedPresetId,
+    Expression<String>? originPresetId,
+    Expression<String>? workspacesJson,
+    Expression<bool>? legacyResetNotice,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (configurationJson != null) 'configuration_json': configurationJson,
+      if (selectedPresetId != null) 'selected_preset_id': selectedPresetId,
+      if (originPresetId != null) 'origin_preset_id': originPresetId,
+      if (workspacesJson != null) 'workspaces_json': workspacesJson,
+      if (legacyResetNotice != null) 'legacy_reset_notice': legacyResetNotice,
+    });
+  }
+
+  EqStateTableCompanion copyWith({
+    Value<int>? id,
+    Value<String?>? configurationJson,
+    Value<String?>? selectedPresetId,
+    Value<String?>? originPresetId,
+    Value<String?>? workspacesJson,
+    Value<bool>? legacyResetNotice,
+  }) {
+    return EqStateTableCompanion(
+      id: id ?? this.id,
+      configurationJson: configurationJson ?? this.configurationJson,
+      selectedPresetId: selectedPresetId ?? this.selectedPresetId,
+      originPresetId: originPresetId ?? this.originPresetId,
+      workspacesJson: workspacesJson ?? this.workspacesJson,
+      legacyResetNotice: legacyResetNotice ?? this.legacyResetNotice,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (configurationJson.present) {
+      map['configuration_json'] = Variable<String>(configurationJson.value);
+    }
+    if (selectedPresetId.present) {
+      map['selected_preset_id'] = Variable<String>(selectedPresetId.value);
+    }
+    if (originPresetId.present) {
+      map['origin_preset_id'] = Variable<String>(originPresetId.value);
+    }
+    if (workspacesJson.present) {
+      map['workspaces_json'] = Variable<String>(workspacesJson.value);
+    }
+    if (legacyResetNotice.present) {
+      map['legacy_reset_notice'] = Variable<bool>(legacyResetNotice.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EqStateTableCompanion(')
+          ..write('id: $id, ')
+          ..write('configurationJson: $configurationJson, ')
+          ..write('selectedPresetId: $selectedPresetId, ')
+          ..write('originPresetId: $originPresetId, ')
+          ..write('workspacesJson: $workspacesJson, ')
+          ..write('legacyResetNotice: $legacyResetNotice')
           ..write(')'))
         .toString();
   }
@@ -31604,6 +32496,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final $AppSettingsTableTable appSettingsTable = $AppSettingsTableTable(
     this,
   );
+  late final $EqPresetsTableTable eqPresetsTable = $EqPresetsTableTable(this);
+  late final $EqStateTableTable eqStateTable = $EqStateTableTable(this);
   late final $ArtistsTableTable artistsTable = $ArtistsTableTable(this);
   late final $AlbumsTableTable albumsTable = $AlbumsTableTable(this);
   late final $SongsTableTable songsTable = $SongsTableTable(this);
@@ -31687,6 +32581,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
+  late final EqDao eqDao = EqDao(this as NavisDatabase);
   late final ServerDao serverDao = ServerDao(this as NavisDatabase);
   late final LibraryDao libraryDao = LibraryDao(this as NavisDatabase);
   late final PlaylistDao playlistDao = PlaylistDao(this as NavisDatabase);
@@ -31722,6 +32617,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     serverConfigTable,
     appSettingsTable,
+    eqPresetsTable,
+    eqStateTable,
     artistsTable,
     albumsTable,
     songsTable,
@@ -33474,10 +34371,6 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> showPlaylistsPage,
       Value<bool> showArtistsPage,
       Value<bool> showLikedPage,
-      Value<bool> equalizerEnabled,
-      Value<String?> equalizerBandGains,
-      Value<bool> loudnessEnabled,
-      Value<double?> loudnessTargetGainDb,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
       Value<bool> autoDownloadStarredOnWifi,
@@ -33506,7 +34399,13 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
       Value<double> playbackSpeed,
+      Value<double> playbackPitchSemitones,
+      Value<bool> lockPitchToSpeed,
+      Value<String> playbackPresets,
+      Value<String?> selectedPlaybackPresetId,
       Value<int?> albumGridDensity,
+      Value<String> gridArtworkSize,
+      Value<bool> homeRecommendationsAutoAdvance,
       Value<double> coverArtBorderRadius,
       Value<double> nowPlayingArtBorderRadius,
       Value<String> coverArtShape,
@@ -33552,10 +34451,6 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> showPlaylistsPage,
       Value<bool> showArtistsPage,
       Value<bool> showLikedPage,
-      Value<bool> equalizerEnabled,
-      Value<String?> equalizerBandGains,
-      Value<bool> loudnessEnabled,
-      Value<double?> loudnessTargetGainDb,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
       Value<bool> autoDownloadStarredOnWifi,
@@ -33584,7 +34479,13 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
       Value<double> playbackSpeed,
+      Value<double> playbackPitchSemitones,
+      Value<bool> lockPitchToSpeed,
+      Value<String> playbackPresets,
+      Value<String?> selectedPlaybackPresetId,
       Value<int?> albumGridDensity,
+      Value<String> gridArtworkSize,
+      Value<bool> homeRecommendationsAutoAdvance,
       Value<double> coverArtBorderRadius,
       Value<double> nowPlayingArtBorderRadius,
       Value<String> coverArtShape,
@@ -33695,26 +34596,6 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get showLikedPage => $composableBuilder(
     column: $table.showLikedPage,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get equalizerEnabled => $composableBuilder(
-    column: $table.equalizerEnabled,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get equalizerBandGains => $composableBuilder(
-    column: $table.equalizerBandGains,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get loudnessEnabled => $composableBuilder(
-    column: $table.loudnessEnabled,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get loudnessTargetGainDb => $composableBuilder(
-    column: $table.loudnessTargetGainDb,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -33859,8 +34740,38 @@ class $$AppSettingsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get playbackPitchSemitones => $composableBuilder(
+    column: $table.playbackPitchSemitones,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get lockPitchToSpeed => $composableBuilder(
+    column: $table.lockPitchToSpeed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get playbackPresets => $composableBuilder(
+    column: $table.playbackPresets,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedPlaybackPresetId => $composableBuilder(
+    column: $table.selectedPlaybackPresetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get albumGridDensity => $composableBuilder(
     column: $table.albumGridDensity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get gridArtworkSize => $composableBuilder(
+    column: $table.gridArtworkSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get homeRecommendationsAutoAdvance => $composableBuilder(
+    column: $table.homeRecommendationsAutoAdvance,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -34084,26 +34995,6 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get equalizerEnabled => $composableBuilder(
-    column: $table.equalizerEnabled,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get equalizerBandGains => $composableBuilder(
-    column: $table.equalizerBandGains,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get loudnessEnabled => $composableBuilder(
-    column: $table.loudnessEnabled,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get loudnessTargetGainDb => $composableBuilder(
-    column: $table.loudnessTargetGainDb,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get rollingCacheBudgetMb => $composableBuilder(
     column: $table.rollingCacheBudgetMb,
     builder: (column) => ColumnOrderings(column),
@@ -34245,10 +35136,41 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get playbackPitchSemitones => $composableBuilder(
+    column: $table.playbackPitchSemitones,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get lockPitchToSpeed => $composableBuilder(
+    column: $table.lockPitchToSpeed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get playbackPresets => $composableBuilder(
+    column: $table.playbackPresets,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get selectedPlaybackPresetId => $composableBuilder(
+    column: $table.selectedPlaybackPresetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get albumGridDensity => $composableBuilder(
     column: $table.albumGridDensity,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get gridArtworkSize => $composableBuilder(
+    column: $table.gridArtworkSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get homeRecommendationsAutoAdvance =>
+      $composableBuilder(
+        column: $table.homeRecommendationsAutoAdvance,
+        builder: (column) => ColumnOrderings(column),
+      );
 
   ColumnOrderings<double> get coverArtBorderRadius => $composableBuilder(
     column: $table.coverArtBorderRadius,
@@ -34468,26 +35390,6 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<bool> get equalizerEnabled => $composableBuilder(
-    column: $table.equalizerEnabled,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get equalizerBandGains => $composableBuilder(
-    column: $table.equalizerBandGains,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<bool> get loudnessEnabled => $composableBuilder(
-    column: $table.loudnessEnabled,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<double> get loudnessTargetGainDb => $composableBuilder(
-    column: $table.loudnessTargetGainDb,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<int> get rollingCacheBudgetMb => $composableBuilder(
     column: $table.rollingCacheBudgetMb,
     builder: (column) => column,
@@ -34623,10 +35525,41 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get playbackPitchSemitones => $composableBuilder(
+    column: $table.playbackPitchSemitones,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get lockPitchToSpeed => $composableBuilder(
+    column: $table.lockPitchToSpeed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get playbackPresets => $composableBuilder(
+    column: $table.playbackPresets,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get selectedPlaybackPresetId => $composableBuilder(
+    column: $table.selectedPlaybackPresetId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get albumGridDensity => $composableBuilder(
     column: $table.albumGridDensity,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get gridArtworkSize => $composableBuilder(
+    column: $table.gridArtworkSize,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get homeRecommendationsAutoAdvance =>
+      $composableBuilder(
+        column: $table.homeRecommendationsAutoAdvance,
+        builder: (column) => column,
+      );
 
   GeneratedColumn<double> get coverArtBorderRadius => $composableBuilder(
     column: $table.coverArtBorderRadius,
@@ -34814,10 +35747,6 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> showPlaylistsPage = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> showLikedPage = const Value.absent(),
-                Value<bool> equalizerEnabled = const Value.absent(),
-                Value<String?> equalizerBandGains = const Value.absent(),
-                Value<bool> loudnessEnabled = const Value.absent(),
-                Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
@@ -34847,7 +35776,14 @@ class $$AppSettingsTableTableTableManager
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
+                Value<double> playbackPitchSemitones = const Value.absent(),
+                Value<bool> lockPitchToSpeed = const Value.absent(),
+                Value<String> playbackPresets = const Value.absent(),
+                Value<String?> selectedPlaybackPresetId = const Value.absent(),
                 Value<int?> albumGridDensity = const Value.absent(),
+                Value<String> gridArtworkSize = const Value.absent(),
+                Value<bool> homeRecommendationsAutoAdvance =
+                    const Value.absent(),
                 Value<double> coverArtBorderRadius = const Value.absent(),
                 Value<double> nowPlayingArtBorderRadius = const Value.absent(),
                 Value<String> coverArtShape = const Value.absent(),
@@ -34893,10 +35829,6 @@ class $$AppSettingsTableTableTableManager
                 showPlaylistsPage: showPlaylistsPage,
                 showArtistsPage: showArtistsPage,
                 showLikedPage: showLikedPage,
-                equalizerEnabled: equalizerEnabled,
-                equalizerBandGains: equalizerBandGains,
-                loudnessEnabled: loudnessEnabled,
-                loudnessTargetGainDb: loudnessTargetGainDb,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
@@ -34926,7 +35858,13 @@ class $$AppSettingsTableTableTableManager
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
                 playbackSpeed: playbackSpeed,
+                playbackPitchSemitones: playbackPitchSemitones,
+                lockPitchToSpeed: lockPitchToSpeed,
+                playbackPresets: playbackPresets,
+                selectedPlaybackPresetId: selectedPlaybackPresetId,
                 albumGridDensity: albumGridDensity,
+                gridArtworkSize: gridArtworkSize,
+                homeRecommendationsAutoAdvance: homeRecommendationsAutoAdvance,
                 coverArtBorderRadius: coverArtBorderRadius,
                 nowPlayingArtBorderRadius: nowPlayingArtBorderRadius,
                 coverArtShape: coverArtShape,
@@ -34972,10 +35910,6 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> showPlaylistsPage = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> showLikedPage = const Value.absent(),
-                Value<bool> equalizerEnabled = const Value.absent(),
-                Value<String?> equalizerBandGains = const Value.absent(),
-                Value<bool> loudnessEnabled = const Value.absent(),
-                Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
@@ -35005,7 +35939,14 @@ class $$AppSettingsTableTableTableManager
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
+                Value<double> playbackPitchSemitones = const Value.absent(),
+                Value<bool> lockPitchToSpeed = const Value.absent(),
+                Value<String> playbackPresets = const Value.absent(),
+                Value<String?> selectedPlaybackPresetId = const Value.absent(),
                 Value<int?> albumGridDensity = const Value.absent(),
+                Value<String> gridArtworkSize = const Value.absent(),
+                Value<bool> homeRecommendationsAutoAdvance =
+                    const Value.absent(),
                 Value<double> coverArtBorderRadius = const Value.absent(),
                 Value<double> nowPlayingArtBorderRadius = const Value.absent(),
                 Value<String> coverArtShape = const Value.absent(),
@@ -35051,10 +35992,6 @@ class $$AppSettingsTableTableTableManager
                 showPlaylistsPage: showPlaylistsPage,
                 showArtistsPage: showArtistsPage,
                 showLikedPage: showLikedPage,
-                equalizerEnabled: equalizerEnabled,
-                equalizerBandGains: equalizerBandGains,
-                loudnessEnabled: loudnessEnabled,
-                loudnessTargetGainDb: loudnessTargetGainDb,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
@@ -35084,7 +36021,13 @@ class $$AppSettingsTableTableTableManager
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
                 playbackSpeed: playbackSpeed,
+                playbackPitchSemitones: playbackPitchSemitones,
+                lockPitchToSpeed: lockPitchToSpeed,
+                playbackPresets: playbackPresets,
+                selectedPlaybackPresetId: selectedPlaybackPresetId,
                 albumGridDensity: albumGridDensity,
+                gridArtworkSize: gridArtworkSize,
+                homeRecommendationsAutoAdvance: homeRecommendationsAutoAdvance,
                 coverArtBorderRadius: coverArtBorderRadius,
                 nowPlayingArtBorderRadius: nowPlayingArtBorderRadius,
                 coverArtShape: coverArtShape,
@@ -35140,6 +36083,428 @@ typedef $$AppSettingsTableTableProcessedTableManager =
         >,
       ),
       AppSettingsTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$EqPresetsTableTableCreateCompanionBuilder =
+    EqPresetsTableCompanion Function({
+      required String id,
+      required String name,
+      required String normalizedName,
+      required String presetJson,
+      Value<int> rowid,
+    });
+typedef $$EqPresetsTableTableUpdateCompanionBuilder =
+    EqPresetsTableCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> normalizedName,
+      Value<String> presetJson,
+      Value<int> rowid,
+    });
+
+class $$EqPresetsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $EqPresetsTableTable> {
+  $$EqPresetsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get normalizedName => $composableBuilder(
+    column: $table.normalizedName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get presetJson => $composableBuilder(
+    column: $table.presetJson,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$EqPresetsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $EqPresetsTableTable> {
+  $$EqPresetsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get normalizedName => $composableBuilder(
+    column: $table.normalizedName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get presetJson => $composableBuilder(
+    column: $table.presetJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$EqPresetsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $EqPresetsTableTable> {
+  $$EqPresetsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get normalizedName => $composableBuilder(
+    column: $table.normalizedName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get presetJson => $composableBuilder(
+    column: $table.presetJson,
+    builder: (column) => column,
+  );
+}
+
+class $$EqPresetsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $EqPresetsTableTable,
+          EqPresetsTableData,
+          $$EqPresetsTableTableFilterComposer,
+          $$EqPresetsTableTableOrderingComposer,
+          $$EqPresetsTableTableAnnotationComposer,
+          $$EqPresetsTableTableCreateCompanionBuilder,
+          $$EqPresetsTableTableUpdateCompanionBuilder,
+          (
+            EqPresetsTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $EqPresetsTableTable,
+              EqPresetsTableData
+            >,
+          ),
+          EqPresetsTableData,
+          PrefetchHooks Function()
+        > {
+  $$EqPresetsTableTableTableManager(
+    _$NavisDatabase db,
+    $EqPresetsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EqPresetsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EqPresetsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EqPresetsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> normalizedName = const Value.absent(),
+                Value<String> presetJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EqPresetsTableCompanion(
+                id: id,
+                name: name,
+                normalizedName: normalizedName,
+                presetJson: presetJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String normalizedName,
+                required String presetJson,
+                Value<int> rowid = const Value.absent(),
+              }) => EqPresetsTableCompanion.insert(
+                id: id,
+                name: name,
+                normalizedName: normalizedName,
+                presetJson: presetJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$EqPresetsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $EqPresetsTableTable,
+      EqPresetsTableData,
+      $$EqPresetsTableTableFilterComposer,
+      $$EqPresetsTableTableOrderingComposer,
+      $$EqPresetsTableTableAnnotationComposer,
+      $$EqPresetsTableTableCreateCompanionBuilder,
+      $$EqPresetsTableTableUpdateCompanionBuilder,
+      (
+        EqPresetsTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $EqPresetsTableTable,
+          EqPresetsTableData
+        >,
+      ),
+      EqPresetsTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$EqStateTableTableCreateCompanionBuilder =
+    EqStateTableCompanion Function({
+      Value<int> id,
+      Value<String?> configurationJson,
+      Value<String?> selectedPresetId,
+      Value<String?> originPresetId,
+      Value<String?> workspacesJson,
+      Value<bool> legacyResetNotice,
+    });
+typedef $$EqStateTableTableUpdateCompanionBuilder =
+    EqStateTableCompanion Function({
+      Value<int> id,
+      Value<String?> configurationJson,
+      Value<String?> selectedPresetId,
+      Value<String?> originPresetId,
+      Value<String?> workspacesJson,
+      Value<bool> legacyResetNotice,
+    });
+
+class $$EqStateTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $EqStateTableTable> {
+  $$EqStateTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get configurationJson => $composableBuilder(
+    column: $table.configurationJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedPresetId => $composableBuilder(
+    column: $table.selectedPresetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get originPresetId => $composableBuilder(
+    column: $table.originPresetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get workspacesJson => $composableBuilder(
+    column: $table.workspacesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get legacyResetNotice => $composableBuilder(
+    column: $table.legacyResetNotice,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$EqStateTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $EqStateTableTable> {
+  $$EqStateTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get configurationJson => $composableBuilder(
+    column: $table.configurationJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get selectedPresetId => $composableBuilder(
+    column: $table.selectedPresetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get originPresetId => $composableBuilder(
+    column: $table.originPresetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get workspacesJson => $composableBuilder(
+    column: $table.workspacesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get legacyResetNotice => $composableBuilder(
+    column: $table.legacyResetNotice,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$EqStateTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $EqStateTableTable> {
+  $$EqStateTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get configurationJson => $composableBuilder(
+    column: $table.configurationJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get selectedPresetId => $composableBuilder(
+    column: $table.selectedPresetId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get originPresetId => $composableBuilder(
+    column: $table.originPresetId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get workspacesJson => $composableBuilder(
+    column: $table.workspacesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get legacyResetNotice => $composableBuilder(
+    column: $table.legacyResetNotice,
+    builder: (column) => column,
+  );
+}
+
+class $$EqStateTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $EqStateTableTable,
+          EqStateTableData,
+          $$EqStateTableTableFilterComposer,
+          $$EqStateTableTableOrderingComposer,
+          $$EqStateTableTableAnnotationComposer,
+          $$EqStateTableTableCreateCompanionBuilder,
+          $$EqStateTableTableUpdateCompanionBuilder,
+          (
+            EqStateTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $EqStateTableTable,
+              EqStateTableData
+            >,
+          ),
+          EqStateTableData,
+          PrefetchHooks Function()
+        > {
+  $$EqStateTableTableTableManager(_$NavisDatabase db, $EqStateTableTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EqStateTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EqStateTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EqStateTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> configurationJson = const Value.absent(),
+                Value<String?> selectedPresetId = const Value.absent(),
+                Value<String?> originPresetId = const Value.absent(),
+                Value<String?> workspacesJson = const Value.absent(),
+                Value<bool> legacyResetNotice = const Value.absent(),
+              }) => EqStateTableCompanion(
+                id: id,
+                configurationJson: configurationJson,
+                selectedPresetId: selectedPresetId,
+                originPresetId: originPresetId,
+                workspacesJson: workspacesJson,
+                legacyResetNotice: legacyResetNotice,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> configurationJson = const Value.absent(),
+                Value<String?> selectedPresetId = const Value.absent(),
+                Value<String?> originPresetId = const Value.absent(),
+                Value<String?> workspacesJson = const Value.absent(),
+                Value<bool> legacyResetNotice = const Value.absent(),
+              }) => EqStateTableCompanion.insert(
+                id: id,
+                configurationJson: configurationJson,
+                selectedPresetId: selectedPresetId,
+                originPresetId: originPresetId,
+                workspacesJson: workspacesJson,
+                legacyResetNotice: legacyResetNotice,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$EqStateTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $EqStateTableTable,
+      EqStateTableData,
+      $$EqStateTableTableFilterComposer,
+      $$EqStateTableTableOrderingComposer,
+      $$EqStateTableTableAnnotationComposer,
+      $$EqStateTableTableCreateCompanionBuilder,
+      $$EqStateTableTableUpdateCompanionBuilder,
+      (
+        EqStateTableData,
+        BaseReferences<_$NavisDatabase, $EqStateTableTable, EqStateTableData>,
+      ),
+      EqStateTableData,
       PrefetchHooks Function()
     >;
 typedef $$ArtistsTableTableCreateCompanionBuilder =
@@ -52541,6 +53906,10 @@ class $NavisDatabaseManager {
       $$ServerConfigTableTableTableManager(_db, _db.serverConfigTable);
   $$AppSettingsTableTableTableManager get appSettingsTable =>
       $$AppSettingsTableTableTableManager(_db, _db.appSettingsTable);
+  $$EqPresetsTableTableTableManager get eqPresetsTable =>
+      $$EqPresetsTableTableTableManager(_db, _db.eqPresetsTable);
+  $$EqStateTableTableTableManager get eqStateTable =>
+      $$EqStateTableTableTableManager(_db, _db.eqStateTable);
   $$ArtistsTableTableTableManager get artistsTable =>
       $$ArtistsTableTableTableManager(_db, _db.artistsTable);
   $$AlbumsTableTableTableManager get albumsTable =>

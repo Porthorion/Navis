@@ -330,6 +330,38 @@ class WindowsNavisPlaybackHandler
       _delegate.setPlaybackSpeed(speed);
 
   @override
+  PlaybackAdjustments get playbackAdjustments => _delegate.playbackAdjustments;
+
+  @override
+  Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
+      _delegate.playbackAdjustmentsStream;
+
+  @override
+  PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities =>
+      _delegate.playbackAdjustmentCapabilities;
+
+  @override
+  Future<void> setPlaybackAdjustments(PlaybackAdjustments values) =>
+      _delegate.setPlaybackAdjustments(values);
+
+  @override
+  EqCapabilities get equalizerCapabilities => _delegate.equalizerCapabilities;
+
+  @override
+  EqApplicationState get equalizerState => _delegate.equalizerState;
+
+  @override
+  Stream<EqApplicationState> get equalizerStateStream =>
+      _delegate.equalizerStateStream;
+
+  @override
+  Future<void> setEqualizer(EqConfiguration values) =>
+      _delegate.setEqualizer(values);
+
+  @override
+  Future<void> refreshEqualizerState() => _delegate.refreshEqualizerState();
+
+  @override
   Future<void> setVolume(double volume) => _delegate.setVolume(volume);
 
   @override
@@ -542,6 +574,38 @@ class LinuxNavisPlaybackHandler
   @override
   Future<void> setPlaybackSpeed(double speed) =>
       _delegate.setPlaybackSpeed(speed);
+
+  @override
+  PlaybackAdjustments get playbackAdjustments => _delegate.playbackAdjustments;
+
+  @override
+  Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
+      _delegate.playbackAdjustmentsStream;
+
+  @override
+  PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities =>
+      _delegate.playbackAdjustmentCapabilities;
+
+  @override
+  Future<void> setPlaybackAdjustments(PlaybackAdjustments values) =>
+      _delegate.setPlaybackAdjustments(values);
+
+  @override
+  EqCapabilities get equalizerCapabilities => _delegate.equalizerCapabilities;
+
+  @override
+  EqApplicationState get equalizerState => _delegate.equalizerState;
+
+  @override
+  Stream<EqApplicationState> get equalizerStateStream =>
+      _delegate.equalizerStateStream;
+
+  @override
+  Future<void> setEqualizer(EqConfiguration values) =>
+      _delegate.setEqualizer(values);
+
+  @override
+  Future<void> refreshEqualizerState() => _delegate.refreshEqualizerState();
 
   @override
   Future<void> setVolume(double volume) => _delegate.setVolume(volume);

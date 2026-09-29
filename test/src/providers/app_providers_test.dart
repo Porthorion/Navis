@@ -1,3 +1,6 @@
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -46,6 +49,21 @@ class _MutableServerConfigState
 }
 
 class _FakePlaybackHandler implements NavisPlaybackHandler {
+  @override
+  EqCapabilities get equalizerCapabilities => EqCapabilities.unavailable;
+  @override
+  EqApplicationState get equalizerState => EqApplicationState(
+    desired: EqConfiguration.flat(),
+    applied: EqConfiguration.flat(),
+  );
+  @override
+  Stream<EqApplicationState> get equalizerStateStream => const Stream.empty();
+  @override
+  Future<void> setEqualizer(EqConfiguration values) async =>
+      throw UnsupportedError('This fake has no EQ backend');
+  @override
+  Future<void> refreshEqualizerState() async {}
+
   final StreamController<PlaybackSnapshot> _controller =
       StreamController<PlaybackSnapshot>.broadcast();
   final StreamController<PlaybackBufferState> _bufferController =
@@ -303,6 +321,21 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     this.volume = volume;
     volumeCalls.add(volume);
   }
+
+  @override
+  PlaybackAdjustments get playbackAdjustments => const PlaybackAdjustments();
+
+  @override
+  Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
+      const Stream.empty();
+
+  @override
+  PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities =>
+      PlaybackAdjustmentCapabilities.android;
+
+  @override
+  Future<void> setPlaybackAdjustments(PlaybackAdjustments values) =>
+      setPlaybackSpeed(values.speed);
 
   @override
   Future<void> setPlaybackSpeed(double speed) async {}
@@ -623,10 +656,7 @@ void main() {
                   showPlaylistsPage: true,
                   showArtistsPage: true,
                   showLikedPage: true,
-                  equalizerEnabled: false,
-                  equalizerBandGains: <double>[],
-                  loudnessEnabled: false,
-                  loudnessTargetGainDb: 0,
+
                   wifiOnlyDownloads: false,
                   autoDownloadStarredOnWifi: false,
                   customDownloadFolderEnabled: false,
@@ -1112,17 +1142,10 @@ void main() {
     );
 
     test(
-      'queueProvider clear resets persisted playback speed to 1.0',
+      'queueProvider clear retains playback adjustments',
       () async {
         final repository = _MockSettingsRepository();
         final handler = _FakePlaybackHandler();
-        AppSettingsModel? savedSettings;
-        when(
-          () => repository.saveSettings(any()),
-        ).thenAnswer((invocation) async {
-          savedSettings =
-              invocation.positionalArguments.first as AppSettingsModel;
-        });
         final container = ProviderContainer(
           overrides: [
             settingsRepositoryProvider.overrideWithValue(repository),
@@ -1146,9 +1169,11 @@ void main() {
         await container.read(queueProvider.notifier).clear();
 
         expect(handler.snapshot.queueSongIds, isEmpty);
-        verify(() => repository.saveSettings(any())).called(1);
-        expect(savedSettings, isNotNull);
-        expect(savedSettings!.playbackSpeed, 1);
+        verifyNever(() => repository.saveSettings(any()));
+        expect(
+          container.read(appSettingsProvider).requireValue.playbackSpeed,
+          1.5,
+        );
       },
     );
 

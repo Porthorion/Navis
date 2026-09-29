@@ -79,10 +79,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool showPlaylistsPage,
     required bool showArtistsPage,
     required bool showLikedPage,
-    required bool equalizerEnabled,
-    String? equalizerBandGains,
-    required bool loudnessEnabled,
-    double? loudnessTargetGainDb,
+
     required bool wifiOnlyDownloads,
     required bool autoDownloadStarredOnWifi,
     required bool customDownloadFolderEnabled,
@@ -106,8 +103,10 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool legacyInstantMixEnabled,
     required String replayGainMode,
     required double replayGainPreamp,
-    required double playbackSpeed,
+    double? playbackSpeed,
     int? albumGridDensity,
+    String gridArtworkSize = 'auto',
+    bool homeRecommendationsAutoAdvance = false,
     required String coverArtShape,
     required String nowPlayingArtShape,
     required String artistCardShape,
@@ -148,10 +147,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         showPlaylistsPage: Value(showPlaylistsPage),
         showArtistsPage: Value(showArtistsPage),
         showLikedPage: Value(showLikedPage),
-        equalizerEnabled: Value(equalizerEnabled),
-        equalizerBandGains: Value(equalizerBandGains),
-        loudnessEnabled: Value(loudnessEnabled),
-        loudnessTargetGainDb: Value(loudnessTargetGainDb),
+
         wifiOnlyDownloads: Value(wifiOnlyDownloads),
         autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
         customDownloadFolderEnabled: Value(customDownloadFolderEnabled),
@@ -175,8 +171,12 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         legacyInstantMixEnabled: Value(legacyInstantMixEnabled),
         replayGainMode: Value(replayGainMode),
         replayGainPreamp: Value(replayGainPreamp),
-        playbackSpeed: Value(playbackSpeed),
+        playbackSpeed: playbackSpeed == null
+            ? const Value.absent()
+            : Value(playbackSpeed),
         albumGridDensity: Value(albumGridDensity),
+        gridArtworkSize: Value(gridArtworkSize),
+        homeRecommendationsAutoAdvance: Value(homeRecommendationsAutoAdvance),
         coverArtShape: Value(coverArtShape),
         nowPlayingArtShape: Value(nowPlayingArtShape),
         artistCardShape: Value(artistCardShape),
@@ -245,7 +245,35 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  Future<void> updatePlaybackAdjustments({
+    required double speed,
+    required double pitchSemitones,
+    bool lockPitchToSpeed = false,
+    required String? selectedPresetId,
+    String? presetsJson,
+  }) async {
+    await getSettings();
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        playbackSpeed: Value(speed),
+        playbackPitchSemitones: Value(pitchSemitones),
+        lockPitchToSpeed: Value(lockPitchToSpeed),
+        selectedPlaybackPresetId: Value(selectedPresetId),
+        playbackPresets: presetsJson == null
+            ? const Value.absent()
+            : Value(presetsJson),
+      ),
+    );
+  }
+
   Future<void> resetDefaults() async {
+    await updatePlaybackAdjustments(
+      speed: 1,
+      pitchSemitones: 0,
+      selectedPresetId: 'none',
+    );
     await saveSettings(
       wifiMaxBitRate: null,
       wifiFormat: null,
@@ -260,10 +288,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       showPlaylistsPage: true,
       showArtistsPage: true,
       showLikedPage: true,
-      equalizerEnabled: false,
-      equalizerBandGains: null,
-      loudnessEnabled: false,
-      loudnessTargetGainDb: 0,
+
       wifiOnlyDownloads: true,
       autoDownloadStarredOnWifi: false,
       customDownloadFolderEnabled: false,
@@ -714,7 +739,33 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   // Appearance personalization helpers
   // ---------------------------------------------------------------------------
 
-  /// Targeted update for album grid density (null = auto).
+  Future<void> updateGridArtworkSize(String size) async {
+    await getSettings();
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        gridArtworkSize: Value(size),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateHomeRecommendationsAutoAdvance({
+    required bool enabled,
+  }) async {
+    await getSettings();
+    await (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        homeRecommendationsAutoAdvance: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for legacy album grid density (null = auto).
   Future<void> updateAlbumGridDensity(int? density) {
     return (update(
       appSettingsTable,

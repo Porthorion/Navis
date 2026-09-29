@@ -47,10 +47,12 @@ assert_no_blocking_warnings() {
   local patterns=(
     "It looks like you've created the database class NavisDatabase multiple times"
     "Tried to modify a provider while the widget tree was building"
+    "'node.built': is not true"
+    "'!child.attached': is not true"
   )
 
   for pattern in "${patterns[@]}"; do
-    if rg -q "${pattern}" "${log_file}"; then
+    if rg -F -q "${pattern}" "${log_file}"; then
       echo "[check] Blocking warning detected: ${pattern}" >&2
       echo "[check] See ${log_file} for details." >&2
       exit 1
@@ -59,6 +61,7 @@ assert_no_blocking_warnings() {
 }
 
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
+run_step "native equalizer response" ./tool/equalizer_native_test.sh
 run_step "format check" dart format --set-exit-if-changed .
 run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze --no-fatal-infos

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
+import 'package:navis/src/routing/content_layout.dart';
 
 double sanitizeDesktopPlaybackVolume(double? value) {
   if (value == null || !value.isFinite) {
@@ -60,10 +62,7 @@ class AppSettingsModel {
     required this.showPlaylistsPage,
     required this.showArtistsPage,
     required this.showLikedPage,
-    required this.equalizerEnabled,
-    required this.equalizerBandGains,
-    required this.loudnessEnabled,
-    required this.loudnessTargetGainDb,
+
     required this.wifiOnlyDownloads,
     required this.autoDownloadStarredOnWifi,
     required this.customDownloadFolderEnabled,
@@ -88,7 +87,13 @@ class AppSettingsModel {
     required this.replayGainMode,
     required this.replayGainPreamp,
     required this.playbackSpeed,
+    this.playbackPitchSemitones = 0,
+    this.lockPitchToSpeed = false,
+    this.playbackPresets = const [],
+    this.selectedPlaybackPresetId,
     required this.albumGridDensity,
+    this.gridArtworkSize = GridArtworkSize.auto,
+    this.homeRecommendationsAutoAdvance = false,
     required this.coverArtShape,
     required this.nowPlayingArtShape,
     required this.artistCardShape,
@@ -133,10 +138,7 @@ class AppSettingsModel {
       showPlaylistsPage = true,
       showArtistsPage = true,
       showLikedPage = true,
-      equalizerEnabled = false,
-      equalizerBandGains = const <double>[],
-      loudnessEnabled = false,
-      loudnessTargetGainDb = 0,
+
       wifiOnlyDownloads = true,
       autoDownloadStarredOnWifi = false,
       customDownloadFolderEnabled = false,
@@ -161,7 +163,13 @@ class AppSettingsModel {
       replayGainMode = 'off',
       replayGainPreamp = 0.0,
       playbackSpeed = 1.0,
+      playbackPitchSemitones = 0,
+      lockPitchToSpeed = false,
+      playbackPresets = const [],
+      selectedPlaybackPresetId = null,
       albumGridDensity = null,
+      gridArtworkSize = GridArtworkSize.auto,
+      homeRecommendationsAutoAdvance = false,
       coverArtShape = 'square',
       nowPlayingArtShape = 'rounded',
       artistCardShape = 'circle',
@@ -206,10 +214,7 @@ class AppSettingsModel {
   final bool showPlaylistsPage;
   final bool showArtistsPage;
   final bool showLikedPage;
-  final bool equalizerEnabled;
-  final List<double> equalizerBandGains;
-  final bool loudnessEnabled;
-  final double loudnessTargetGainDb;
+
   final bool wifiOnlyDownloads;
   final bool autoDownloadStarredOnWifi;
   final bool customDownloadFolderEnabled;
@@ -242,11 +247,18 @@ class AppSettingsModel {
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0).
   final double replayGainPreamp;
 
-  /// Playback speed multiplier (0.5–2.0).
+  /// Playback speed multiplier.
   final double playbackSpeed;
+  final double playbackPitchSemitones;
+  final bool lockPitchToSpeed;
+  final List<PlaybackPreset> playbackPresets;
+  final String? selectedPlaybackPresetId;
 
   /// Album grid column count override. Null = auto-compute from screen width.
   final int? albumGridDensity;
+
+  final GridArtworkSize gridArtworkSize;
+  final bool homeRecommendationsAutoAdvance;
 
   /// Shape preset for cover art in library/carousel cards: 'square', 'rounded', or 'circle'.
   final String coverArtShape;
@@ -350,10 +362,7 @@ class AppSettingsModel {
     bool? showPlaylistsPage,
     bool? showArtistsPage,
     bool? showLikedPage,
-    bool? equalizerEnabled,
-    List<double>? equalizerBandGains,
-    bool? loudnessEnabled,
-    double? loudnessTargetGainDb,
+
     bool? wifiOnlyDownloads,
     bool? autoDownloadStarredOnWifi,
     bool? customDownloadFolderEnabled,
@@ -378,7 +387,14 @@ class AppSettingsModel {
     String? replayGainMode,
     double? replayGainPreamp,
     double? playbackSpeed,
+    double? playbackPitchSemitones,
+    bool? lockPitchToSpeed,
+    List<PlaybackPreset>? playbackPresets,
+    String? selectedPlaybackPresetId,
+    bool clearSelectedPlaybackPresetId = false,
     int? albumGridDensity,
+    GridArtworkSize? gridArtworkSize,
+    bool? homeRecommendationsAutoAdvance,
     String? coverArtShape,
     String? nowPlayingArtShape,
     String? artistCardShape,
@@ -446,11 +462,7 @@ class AppSettingsModel {
       showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       showLikedPage: showLikedPage ?? this.showLikedPage,
-      equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
-      equalizerBandGains:
-          equalizerBandGains ?? List<double>.from(this.equalizerBandGains),
-      loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
-      loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
+
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       autoDownloadStarredOnWifi:
           autoDownloadStarredOnWifi ?? this.autoDownloadStarredOnWifi,
@@ -489,9 +501,19 @@ class AppSettingsModel {
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      playbackPitchSemitones:
+          playbackPitchSemitones ?? this.playbackPitchSemitones,
+      lockPitchToSpeed: lockPitchToSpeed ?? this.lockPitchToSpeed,
+      playbackPresets: playbackPresets ?? this.playbackPresets,
+      selectedPlaybackPresetId: clearSelectedPlaybackPresetId
+          ? null
+          : selectedPlaybackPresetId ?? this.selectedPlaybackPresetId,
       albumGridDensity: clearAlbumGridDensity
           ? null
           : albumGridDensity ?? this.albumGridDensity,
+      gridArtworkSize: gridArtworkSize ?? this.gridArtworkSize,
+      homeRecommendationsAutoAdvance:
+          homeRecommendationsAutoAdvance ?? this.homeRecommendationsAutoAdvance,
       coverArtShape: coverArtShape ?? this.coverArtShape,
       nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
       artistCardShape: artistCardShape ?? this.artistCardShape,

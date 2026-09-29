@@ -34,10 +34,7 @@ void main() {
       showPlaylistsPage: true,
       showArtistsPage: true,
       showLikedPage: true,
-      equalizerEnabled: false,
-      equalizerBandGains: <double>[],
-      loudnessEnabled: false,
-      loudnessTargetGainDb: 0,
+
       wifiOnlyDownloads: false,
       autoDownloadStarredOnWifi: false,
       customDownloadFolderEnabled: false,

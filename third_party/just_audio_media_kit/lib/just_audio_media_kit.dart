@@ -13,6 +13,10 @@ import 'package:universal_platform/universal_platform.dart';
 class JustAudioMediaKit extends JustAudioPlatform {
   JustAudioMediaKit();
 
+  /// Whether the registered just_audio backend is this adapter.
+  static bool get isRegistered =>
+      JustAudioPlatform.instance is JustAudioMediaKit;
+
   /// The internal MPV player's logLevel
   static MPVLogLevel mpvLogLevel = MPVLogLevel.error;
 
@@ -21,6 +25,9 @@ class JustAudioMediaKit extends JustAudioPlatform {
 
   /// Sets the name of the underlying window & process for native backend. This is visible inside the Windows' volume mixer.
   static String title = 'JustAudioMediaKit';
+
+  /// Optional explicit native audio output, normally left automatic.
+  static String? audioDevice;
 
   /// Sets the list of allowed protocols for native backend.
   static List<String> protocolWhitelist = const [
@@ -92,9 +99,11 @@ class JustAudioMediaKit extends JustAudioPlatform {
     }
 
     _logger.fine('instantiating new player ${request.id}');
-    final player = MediaKitPlayer(request.id);
+    final player =
+        MediaKitPlayer(request.id, equalizer: request.equalizerConfiguration);
     _players[request.id] = player;
     await player.ready();
+    if (audioDevice != null) await player.setAudioDevice(audioDevice!);
     _logger.fine('player ready! (players: $_players)');
     return player;
   }

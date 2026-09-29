@@ -1,3 +1,7 @@
+import 'package:navis/src/features/equalizer/data/eq_repository.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -43,6 +47,7 @@ import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart'
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/settings/data/battery_optimization_service.dart';
@@ -54,6 +59,7 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
@@ -356,6 +362,10 @@ class StreamingQuality {
   final int? maxBitRate;
   final String? format;
 }
+
+final eqRepositoryProvider = Provider<EqRepository>(
+  (ref) => EqRepository(ref.watch(navisDatabaseProvider).eqDao),
+);
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   final database = ref.watch(navisDatabaseProvider);
@@ -777,6 +787,12 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       );
     }
 
+    var hydratedEq = EqConfiguration.flat();
+    try {
+      hydratedEq = (await ref.read(eqRepositoryProvider).load()).configuration;
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning('EQ preload failed. $error\n$stackTrace');
+    }
     final volumeController = ref.read(playbackVolumeProvider.notifier);
     if (hydratedSettings != null && !_syncDiagnosticsMuted) {
       volumeController.hydrate(
@@ -900,21 +916,30 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       readRuntimeSettings: () {
         final settings =
             ref.read(appSettingsProvider).asData?.value ??
+            hydratedSettings ??
             const AppSettingsModel.defaults();
         final onCellular =
             ref.read(networkTypeProvider) == NetworkType.cellular;
+        final adjustments = ref
+            .read(playbackAdjustmentsProvider)
+            .asData
+            ?.value
+            .values;
         return PlaybackRuntimeSettings(
+          equalizer:
+              ref.read(equalizerProvider).asData?.value.configuration ??
+              hydratedEq,
           gaplessEnabled: settings.gaplessEnabled && !onCellular,
-          equalizerEnabled: settings.equalizerEnabled,
-          equalizerBandGains: settings.equalizerBandGains,
-          loudnessEnabled: settings.loudnessEnabled,
-          loudnessTargetGainDb: settings.loudnessTargetGainDb,
           crossfadeEnabled: settings.crossfadeEnabled && !onCellular,
           crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
           crossfadeType: settings.crossfadeType,
           replayGainMode: settings.replayGainMode,
           replayGainPreamp: settings.replayGainPreamp,
-          playbackSpeed: settings.playbackSpeed,
+          playbackSpeed: adjustments?.speed ?? settings.playbackSpeed,
+          playbackPitchSemitones:
+              adjustments?.pitchSemitones ?? settings.playbackPitchSemitones,
+          lockPitchToSpeed:
+              adjustments?.lockPitchToSpeed ?? settings.lockPitchToSpeed,
           albumQueueEnabled: settings.albumQueueEnabled,
           matchFlowEnabled: settings.matchFlowEnabled,
         );
@@ -1420,11 +1445,10 @@ final likedAlbumsProvider = StreamProvider<List<AlbumsTableData>>((ref) {
   return dao.watchLikedAlbums();
 });
 
-/// The 6 most recently liked albums, ordered by starred timestamp descending.
-/// Used by the liked tab to cap the album grid and avoid excessive scrolling.
+/// All recently liked albums; callers filter before taking a pane-sized preview.
 final likedAlbumsRecentProvider = StreamProvider<List<AlbumsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchRecentlyLikedAlbums(limit: 6);
+  return dao.watchRecentlyLikedAlbums(limit: null);
 });
 
 final albumListProvider = StreamProvider.family<List<AlbumsTableData>, String>((
@@ -2352,7 +2376,25 @@ final dynamicAlbumColorEnabledProvider = Provider<bool>((ref) {
   return settings.dynamicAlbumColorEnabled;
 });
 
-/// Album grid density override. Null = auto-compute from screen width.
+final gridArtworkSizeProvider = Provider<GridArtworkSize>((ref) {
+  return ref.watch(
+    appSettingsProvider.select(
+      (settings) =>
+          settings.asData?.value.gridArtworkSize ?? GridArtworkSize.auto,
+    ),
+  );
+});
+
+final homeRecommendationsAutoAdvanceProvider = Provider<bool>((ref) {
+  return ref.watch(
+    appSettingsProvider.select(
+      (settings) =>
+          settings.asData?.value.homeRecommendationsAutoAdvance ?? false,
+    ),
+  );
+});
+
+/// Legacy album grid density, retained for compatibility during migration.
 final albumGridDensityProvider = Provider<int?>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??

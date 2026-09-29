@@ -17,6 +17,7 @@ import 'package:navis/src/features/auth/presentation/session_route_provider.dart
 import 'package:navis/src/features/cache/presentation/library_cache_reset_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
@@ -25,6 +26,8 @@ import 'package:navis/src/features/library/presentation/required_library_rebuild
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
@@ -159,6 +162,141 @@ ProviderContainer _createContainerWithDatabase({
 }
 
 void main() {
+  for (final extra in <Object?>[
+    null,
+    'cover_art_album_album-1',
+    const AlbumDetailRouteRequest(openingHeroTag: 'cover_art_album_album-1'),
+  ]) {
+    for (final reduceMotion in [false, true]) {
+      testWidgets(
+        'desktop album route fades without source Hero for $extra, reduced=$reduceMotion',
+        (tester) async {
+          final container = _createContainerWithDatabase(
+            overrides: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
+              librarySyncControllerProvider.overrideWith(
+                _StaticLibrarySyncController.new,
+              ),
+            ],
+          );
+          final router = container.read(appRouterProvider);
+          GoRoute? albumRoute;
+          void visit(RouteBase route) {
+            if (route is GoRoute) {
+              if (route.path == 'albums/:id') albumRoute = route;
+              route.routes.forEach(visit);
+            } else if (route is StatefulShellRoute) {
+              for (final branch in route.branches) {
+                branch.routes.forEach(visit);
+              }
+            }
+          }
+
+          router.configuration.routes.forEach(visit);
+          expect(albumRoute, isNotNull);
+          final state = GoRouterState(
+            router.configuration,
+            uri: Uri.parse('/library/albums/album-1'),
+            matchedLocation: '/library/albums/album-1',
+            fullPath: '/library/albums/:id',
+            pathParameters: const {'id': 'album-1'},
+            pageKey: const ValueKey('album-1'),
+            extra: extra,
+          );
+          final clock = AnimationController(vsync: const TestVSync());
+          addTearDown(clock.dispose);
+          const preview = Center(child: Text('Album destination'));
+          await tester.pumpWidget(
+            MediaQuery(
+              data: MediaQueryData(
+                size: const Size(1200, 800),
+                disableAnimations: reduceMotion,
+              ),
+              child: Directionality(
+                textDirection: TextDirection.ltr,
+                child: AdaptiveContextScope(
+                  adaptiveContext: resolveAdaptiveContext(
+                    desktopRuntime: true,
+                    viewportSize: const Size(1200, 800),
+                    safePadding: EdgeInsets.zero,
+                  ),
+                  child: Builder(
+                    builder: (context) {
+                      final page = albumRoute!.pageBuilder!(
+                        context,
+                        state,
+                      ) as CustomTransitionPage<void>;
+                      expect(
+                        (page.child as AlbumDetailScreen).openingHeroTag,
+                        isNull,
+                      );
+                      expect(
+                        page.transitionDuration,
+                        reduceMotion
+                            ? Duration.zero
+                            : const Duration(milliseconds: 180),
+                      );
+                      expect(
+                        page.reverseTransitionDuration,
+                        page.transitionDuration,
+                      );
+                      clock.duration = page.transitionDuration;
+                      return AnimatedBuilder(
+                        animation: clock,
+                        builder: (context, _) => page.transitionsBuilder(
+                          context,
+                          clock,
+                          const AlwaysStoppedAnimation<double>(0),
+                          preview,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          );
+          clock.forward();
+          await tester.pump();
+          expect(find.byType(SlideTransition), findsNothing);
+          expect(find.byType(Hero), findsNothing);
+          if (reduceMotion) {
+            expect(find.byType(FadeTransition), findsNothing);
+            expect(clock.status, AnimationStatus.completed);
+          } else {
+            final position = tester.getRect(find.text('Album destination'));
+            await tester.pump(const Duration(milliseconds: 90));
+            final opacity = tester
+                .widget<FadeTransition>(find.byType(FadeTransition))
+                .opacity
+                .value;
+            expect(opacity, allOf(greaterThan(0), lessThan(1)));
+            expect(tester.getRect(find.text('Album destination')), position);
+            await tester.pump(const Duration(milliseconds: 90));
+            expect(clock.value, closeTo(1, 0.000001));
+            await tester.pump(const Duration(milliseconds: 1));
+            expect(clock.status, AnimationStatus.completed);
+            expect(
+              tester
+                  .widget<FadeTransition>(find.byType(FadeTransition))
+                  .opacity
+                  .value,
+              1,
+            );
+            clock.reverse();
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 180));
+            expect(clock.value, closeTo(0, 0.000001));
+            await tester.pump(const Duration(milliseconds: 1));
+            expect(clock.status, AnimationStatus.dismissed);
+          }
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+  }
   testWidgets('redirects unauthenticated user to /login', (tester) async {
     final container = _createContainerWithDatabase(
       overrides: [

@@ -64,6 +64,20 @@ abstract class NavisPlaybackHandler {
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode);
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode);
   Future<void> setPlaybackSpeed(double speed);
+  PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities;
+  PlaybackAdjustments get playbackAdjustments;
+  Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
+      const Stream.empty();
+  Future<void> setPlaybackAdjustments(PlaybackAdjustments values);
+  EqCapabilities get equalizerCapabilities => EqCapabilities.unavailable;
+  EqApplicationState get equalizerState => EqApplicationState(
+    desired: EqConfiguration.flat(),
+    applied: EqConfiguration.flat(),
+  );
+  Stream<EqApplicationState> get equalizerStateStream => const Stream.empty();
+  Future<void> setEqualizer(EqConfiguration values) =>
+      Future.error(UnsupportedError('Equalizer is unavailable.'));
+  Future<void> refreshEqualizerState() async {}
   Future<void> setVolume(double volume);
   Future<void> applyRuntimeSettings();
 
@@ -136,40 +150,35 @@ class PlaybackLoadFailure {
 class PlaybackRuntimeSettings {
   const PlaybackRuntimeSettings({
     required this.gaplessEnabled,
-    required this.equalizerEnabled,
-    required this.equalizerBandGains,
-    required this.loudnessEnabled,
-    required this.loudnessTargetGainDb,
+    this.equalizer,
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
     required this.replayGainMode,
     required this.replayGainPreamp,
     required this.playbackSpeed,
+    this.playbackPitchSemitones = 0,
+    this.lockPitchToSpeed = false,
     required this.albumQueueEnabled,
     required this.matchFlowEnabled,
   });
 
   const PlaybackRuntimeSettings.defaults()
     : gaplessEnabled = true,
-      equalizerEnabled = false,
-      equalizerBandGains = const <double>[],
-      loudnessEnabled = false,
-      loudnessTargetGainDb = 0,
+      equalizer = null,
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
       replayGainMode = 'off',
       replayGainPreamp = 0.0,
       playbackSpeed = 1.0,
+      playbackPitchSemitones = 0,
+      lockPitchToSpeed = false,
       albumQueueEnabled = false,
       matchFlowEnabled = false;
 
   final bool gaplessEnabled;
-  final bool equalizerEnabled;
-  final List<double> equalizerBandGains;
-  final bool loudnessEnabled;
-  final double loudnessTargetGainDb;
+  final EqConfiguration? equalizer;
   final bool crossfadeEnabled;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
@@ -180,8 +189,10 @@ class PlaybackRuntimeSettings {
   /// ReplayGain pre-amp adjustment in dB (-6 to +6).
   final double replayGainPreamp;
 
-  /// Playback speed multiplier (0.5-2.0).
+  /// Playback speed multiplier.
   final double playbackSpeed;
+  final double playbackPitchSemitones;
+  final bool lockPitchToSpeed;
 
   /// When true, tapping a song in Android Auto queues the full album and
   /// starts at the selected track (mirrors the mobile albumQueueEnabled setting).

@@ -39,6 +39,21 @@ Future<void> main() async {
   if (_isDesktopRuntime) {
     unawaited(UpdateService.cleanupStaledUpdates());
   }
+  if (_syncDiagnosticsRuntimeEnabled &&
+      _isAndroidRuntime &&
+      _syncDiagnosticsMode == SyncDiagnosticsMode.clone) {
+    final sidecar = await _androidDiagnosticsHandshakeChannel
+        .invokeMethod<bool>(
+          'isSidecar',
+        );
+    if (sidecar != true) {
+      throw StateError('Android clone diagnostics require a sidecar package.');
+    }
+    // Android must prepare its own scoped directory before Drift opens there.
+    await _androidDiagnosticsHandshakeChannel.invokeMethod<String>(
+      'artifactRoot',
+    );
+  }
   final diagnosticsDatabase = _openDiagnosticsDatabase();
   final desktopBootstrap = await _configureDesktopWindow(
     databaseOverride: diagnosticsDatabase,
@@ -160,6 +175,16 @@ void _initializeDesktopAudioBackend() {
 
   try {
     JustAudioMediaKit.title = 'Navis';
+    // An isolated diagnostics run can capture its own native PCM without
+    // changing the user's default output or routing other applications.
+    const diagnosticsAudioDevice = String.fromEnvironment(
+      'NAVIS_DIAGNOSTICS_AUDIO_DEVICE',
+    );
+    if (_syncDiagnosticsRuntimeEnabled &&
+        _syncDiagnosticsMode == SyncDiagnosticsMode.clone &&
+        diagnosticsAudioDevice.isNotEmpty) {
+      JustAudioMediaKit.audioDevice = diagnosticsAudioDevice;
+    }
     JustAudioMediaKit.ensureInitialized(
       linux: true,
       windows: true,

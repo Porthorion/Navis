@@ -7,6 +7,9 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
@@ -79,7 +82,13 @@ class NavisAudioHandler extends BaseAudioHandler
     Future<void> Function(String)? startPreferredMix,
     Future<void> Function(String)? togglePreferredMix,
     AudioPlayer? player,
-  }) : _libraryDao = libraryDao,
+    PlaybackAdjustmentCapabilities? adjustmentCapabilities,
+    EqCapabilities? equalizerCapabilities,
+    AudioPlayer Function()? crossfadePlayerFactory,
+  }) : _adjustmentCapabilities = adjustmentCapabilities,
+       _injectedEqualizerCapabilities = equalizerCapabilities,
+       _crossfadePlayerFactory = crossfadePlayerFactory,
+       _libraryDao = libraryDao,
        _playlistDao = playlistDao,
        _playQueueDao = playQueueDao,
        _matchFlowDao = matchFlowDao,
@@ -104,21 +113,18 @@ class NavisAudioHandler extends BaseAudioHandler
            ? PlaybackArtCache(reportNetworkUsage: reportNetworkUsage)
            : null {
     final runtime = _readRuntimeSettings();
+    _desiredEqualizer = runtime.equalizer ?? EqConfiguration.flat();
     if (player != null) {
-      _androidDspPipelineEnabled = false;
-      _androidEqualizer = null;
-      _androidLoudnessEnhancer = null;
+      _equalizerPipelineEnabled = equalizerCapabilities?.supported ?? false;
       _player = player;
     } else {
-      _androidDspPipelineEnabled =
-          _isAndroidRuntime &&
-          (runtime.equalizerEnabled || runtime.loudnessEnabled);
-      _player = _buildAudioPlayer(enableAndroidDsp: _androidDspPipelineEnabled);
+      _equalizerPipelineEnabled =
+          _isAndroidRuntime ||
+          (Platform.isLinux && JustAudioMediaKit.isRegistered);
+      _player = _buildAudioPlayer(enableEqualizer: _equalizerPipelineEnabled);
     }
     _crossfadeEnabled = runtime.crossfadeEnabled;
-    _crossfadePlayer = runtime.crossfadeEnabled
-        ? _buildBaseAudioPlayer()
-        : null;
+    _crossfadePlayer = runtime.crossfadeEnabled ? _newCrossfadePlayer() : null;
     _radioMetadataService = RadioMetadataService(
       handler: this,
       player: _player,
@@ -140,6 +146,13 @@ class NavisAudioHandler extends BaseAudioHandler
       readDownloadedSongIds: _rollingCacheManager.getPermanentlyCachedSongIds,
     );
   }
+
+  final PlaybackAdjustmentCapabilities? _adjustmentCapabilities;
+  final EqCapabilities? _injectedEqualizerCapabilities;
+  final AudioPlayer Function()? _crossfadePlayerFactory;
+
+  AudioPlayer _newCrossfadePlayer() =>
+      _crossfadePlayerFactory?.call() ?? _buildBaseAudioPlayer();
 
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
@@ -166,9 +179,7 @@ class NavisAudioHandler extends BaseAudioHandler
   // which AAOS uses for the background art behind playback controls.
   final PlaybackArtCache? _artCache;
   late AudioPlayer _player;
-  AndroidEqualizer? _androidEqualizer;
-  AndroidLoudnessEnhancer? _androidLoudnessEnhancer;
-  bool _androidDspPipelineEnabled = false;
+  bool _equalizerPipelineEnabled = false;
 
   final StreamController<PlaybackSnapshot> _snapshotController =
       StreamController<PlaybackSnapshot>.broadcast();
@@ -971,22 +982,8 @@ class NavisAudioHandler extends BaseAudioHandler
     mediaItem.add(updated);
   }
 
-  AudioPlayer _buildAudioPlayer({required bool enableAndroidDsp}) {
-    if (_isAndroidRuntime && enableAndroidDsp) {
-      _androidEqualizer = AndroidEqualizer();
-      _androidLoudnessEnhancer = AndroidLoudnessEnhancer();
-      return _buildBaseAudioPlayer(
-        audioPipeline: AudioPipeline(
-          androidAudioEffects: [
-            _androidEqualizer!,
-            _androidLoudnessEnhancer!,
-          ],
-        ),
-      );
-    }
-
-    _androidEqualizer = null;
-    _androidLoudnessEnhancer = null;
+  AudioPlayer _buildAudioPlayer({required bool enableEqualizer}) {
+    _equalizerPipelineEnabled = enableEqualizer;
     return _buildBaseAudioPlayer();
   }
 
@@ -997,6 +994,9 @@ class NavisAudioHandler extends BaseAudioHandler
     // is embedded in URL query params so no custom headers are needed.
     return AudioPlayer(
       audioPipeline: audioPipeline,
+      equalizerConfiguration: _equalizerPipelineEnabled
+          ? _equalizerMessage(_desiredEqualizer)
+          : null,
       userAgent: _isDesktopRuntime ? 'Navis Desktop' : null,
       useProxyForRequestHeaders: !_isDesktopRuntime,
     );
@@ -1248,17 +1248,19 @@ class NavisAudioHandler extends BaseAudioHandler
 
     final previousPlayer = _player;
     final previousInactiveDeck = _crossfadePlayer;
-    final previousSpeed = previousPlayer.speed;
     final previousLoopMode = previousPlayer.loopMode;
     final previousShuffleModeEnabled = previousPlayer.shuffleModeEnabled;
 
-    _player = _buildAudioPlayer(enableAndroidDsp: _androidDspPipelineEnabled);
+    _player = _buildAudioPlayer(enableEqualizer: _equalizerPipelineEnabled);
     _wirePlayerListeners();
     _rebindRadioMetadataServiceToActivePlayer();
 
     try {
       await _restoreActivePlayerVolume().timeout(_playerResetTimeout);
-      await _player.setSpeed(previousSpeed).timeout(_playerResetTimeout);
+      await _applyAdjustmentsToPlayer(
+        _player,
+        _appliedAdjustments,
+      ).timeout(_playerResetTimeout);
       await _player.setLoopMode(previousLoopMode).timeout(_playerResetTimeout);
       await _player
           .setShuffleModeEnabled(previousShuffleModeEnabled)
@@ -1270,7 +1272,7 @@ class NavisAudioHandler extends BaseAudioHandler
       );
     }
 
-    _crossfadePlayer = _crossfadeEnabled ? _buildBaseAudioPlayer() : null;
+    _crossfadePlayer = _crossfadeEnabled ? _newCrossfadePlayer() : null;
     final inactiveDeck = _crossfadePlayer;
     if (inactiveDeck != null) {
       try {
@@ -1282,7 +1284,10 @@ class NavisAudioHandler extends BaseAudioHandler
             .timeout(
               _playerResetTimeout,
             );
-        await inactiveDeck.setSpeed(previousSpeed).timeout(_playerResetTimeout);
+        await _applyAdjustmentsToPlayer(
+          inactiveDeck,
+          _appliedAdjustments,
+        ).timeout(_playerResetTimeout);
         await _setVolumeIfChanged(inactiveDeck, 0);
       } on Object catch (error, stackTrace) {
         AppLogger.warning(
@@ -1436,6 +1441,10 @@ class NavisAudioHandler extends BaseAudioHandler
     });
   }
 
+  ProcessingState? _eqObservedProcessingState;
+  int? _eqObservedIndex;
+  bool _eqRefreshInFlight = false;
+
   void _wirePlayerListeners() {
     _emitBufferState(
       songId: _radioStation == null ? _currentMediaItem?.id : null,
@@ -1444,6 +1453,24 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     _playbackEventSubscription = _player.playbackEventStream.listen(
       (_) {
+        final processing = _player.processingState;
+        final index = _player.currentIndex;
+        if (processing != _eqObservedProcessingState ||
+            index != _eqObservedIndex) {
+          _eqObservedProcessingState = processing;
+          _eqObservedIndex = index;
+          if (processing == ProcessingState.ready &&
+              equalizerCapabilities.supported) {
+            unawaited(
+              refreshEqualizerState().catchError((
+                Object error,
+                StackTrace trace,
+              ) {
+                AppLogger.warning('EQ status refresh failed: $error\n$trace');
+              }),
+            );
+          }
+        }
         _handleScrobbleSignals();
         _broadcastPlaybackState();
         _emitSnapshot();
@@ -1563,6 +1590,26 @@ class NavisAudioHandler extends BaseAudioHandler
         .listen((position) {
           if (!_positionController.isClosed) {
             _positionController.add(position);
+          }
+          // Paused edits may wait longer than the controller's bounded refresh
+          // window. Observe their first processed block when playback resumes.
+          if (equalizerCapabilities.supported &&
+              equalizerState.pending &&
+              _player.playing &&
+              !_eqRefreshInFlight) {
+            _eqRefreshInFlight = true;
+            unawaited(
+              refreshEqualizerState()
+                  .catchError((Object error) {
+                    _emitEqualizerState(
+                      const EqualizerStateMessage(
+                        enabled: false,
+                        reason: 'EQ status could not be verified. Review playback settings.',
+                      ),
+                    );
+                  })
+                  .whenComplete(() => _eqRefreshInFlight = false),
+            );
           }
           final startupTrace = _activeStartupTrace;
           if (startupTrace != null &&
@@ -2097,7 +2144,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (player.loopMode != _player.loopMode) {
       await player.setLoopMode(_player.loopMode);
     }
-    await player.setSpeed(_player.speed);
+    await _applyAdjustmentsToPlayer(player, _appliedAdjustments);
     await player.seek(Duration.zero, index: nextIndex);
   }
 
@@ -2651,7 +2698,7 @@ class NavisAudioHandler extends BaseAudioHandler
           'Disabling DSP for this session and rebuilding queue with direct '
           'stream sources. $error\n$stackTrace',
         );
-        await _rebuildPlayerWithoutAndroidDsp(force: true);
+        await _rebuildPlayerWithoutEqualizer(force: true);
       } else {
         _markPreparedLockCachingBypassed(
           prepared,
@@ -2687,7 +2734,7 @@ class NavisAudioHandler extends BaseAudioHandler
           'failure. Forcing plain player rebind and retrying once more. '
           '$retryError\n$retryStackTrace',
         );
-        await _rebuildPlayerWithoutAndroidDsp(force: true);
+        await _rebuildPlayerWithoutEqualizer(force: true);
         await _applyPreparedQueue(
           prepared,
           startIndex: clampedIndex,
@@ -2741,10 +2788,22 @@ class NavisAudioHandler extends BaseAudioHandler
   /// [_PreparedQueueItem]s with lock-caching fallback.  Used by the
   /// incremental queue operations ([addToQueue], [playNext]).
   Future<List<_PreparedQueueItem>> _prepareQueueItemsFromIds(
-    List<String> songIds,
-  ) async {
+    List<String> songIds, {
+    bool skipUnavailable = false,
+    OperationToken? token,
+  }) async {
     final songs = await _libraryDao.getSongsByIds(songIds);
     if (songs.isEmpty) return const <_PreparedQueueItem>[];
+    if (skipUnavailable) {
+      final prepared = <_PreparedQueueItem>[];
+      for (final song in songs) {
+        token?.checkCancelled();
+        final entry = await _prepareSingleItemForQueueFill(song);
+        token?.checkCancelled();
+        if (entry != null) prepared.add(entry);
+      }
+      return prepared;
+    }
     try {
       return await _prepareQueueItems(songs, preferLockCaching: true);
     } on PlaybackSourceUnavailableException {
@@ -3301,7 +3360,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     await inactiveDeck.setShuffleModeEnabled(_player.shuffleModeEnabled);
     await inactiveDeck.setLoopMode(_player.loopMode);
-    await inactiveDeck.setSpeed(_player.speed);
+    await _applyAdjustmentsToPlayer(inactiveDeck, _appliedAdjustments);
     await _setVolumeIfChanged(inactiveDeck, 0);
     await inactiveDeck.pause();
   }
@@ -3344,7 +3403,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'Disabling DSP pipeline for this session and retrying. '
         '$error\n$stackTrace',
       );
-      await _rebuildPlayerWithoutAndroidDsp(force: true);
+      await _rebuildPlayerWithoutEqualizer(force: true);
       try {
         if (generation > 0) {
           await _runTimedPlayerOperation(
@@ -3375,7 +3434,7 @@ class NavisAudioHandler extends BaseAudioHandler
           'instance and retrying one final time. '
           '$retryError\n$retryStackTrace',
         );
-        await _rebuildPlayerWithoutAndroidDsp(force: true);
+        await _rebuildPlayerWithoutEqualizer(force: true);
         if (generation > 0) {
           await _runTimedPlayerOperation(
             generation: generation,
@@ -3413,24 +3472,30 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
-  Future<void> _rebuildPlayerWithoutAndroidDsp({bool force = false}) async {
-    if (!_androidDspPipelineEnabled && !force) {
+  Future<void> _rebuildPlayerWithoutEqualizer({bool force = false}) async {
+    if (!_equalizerPipelineEnabled && !force) {
       return;
     }
 
     final previousPlayer = _player;
-    final previousSpeed = previousPlayer.speed;
     final previousLoopMode = previousPlayer.loopMode;
     final previousShuffleModeEnabled = previousPlayer.shuffleModeEnabled;
 
-    _androidDspPipelineEnabled = false;
+    _equalizerPipelineEnabled = false;
+    _emitEqualizerState(
+      const EqualizerStateMessage(
+        enabled: false,
+        reason:
+            'EQ was bypassed because the audio engine could not initialize it.',
+      ),
+    );
     await _disposePlayerListeners();
-    _player = _buildAudioPlayer(enableAndroidDsp: false);
+    _player = _buildAudioPlayer(enableEqualizer: false);
     _wirePlayerListeners();
     _rebindRadioMetadataServiceToActivePlayer();
 
     await _restoreActivePlayerVolume();
-    await _player.setSpeed(previousSpeed);
+    await _applyAdjustmentsToPlayer(_player, _appliedAdjustments);
     await _player.setLoopMode(previousLoopMode);
     await _player.setShuffleModeEnabled(previousShuffleModeEnabled);
 
@@ -3443,7 +3508,7 @@ class NavisAudioHandler extends BaseAudioHandler
         // Best-effort reset only.
       }
     }
-    _crossfadePlayer = _crossfadeEnabled ? _buildBaseAudioPlayer() : null;
+    _crossfadePlayer = _crossfadeEnabled ? _newCrossfadePlayer() : null;
   }
 
   @override
@@ -3789,7 +3854,11 @@ class NavisAudioHandler extends BaseAudioHandler
 
       // Prepare only the new songs and append their audio sources
       // incrementally – this does NOT interrupt current playback.
-      final prepared = await _prepareQueueItemsFromIds(songIds);
+      final prepared = await _prepareQueueItemsFromIds(
+        songIds,
+        skipUnavailable: true,
+        token: token,
+      );
       if (prepared.isEmpty) return;
 
       token.checkCancelled();
@@ -3801,12 +3870,22 @@ class NavisAudioHandler extends BaseAudioHandler
       final queueWasCompletedBeforeInsertion =
           _player.processingState == ProcessingState.completed;
       for (final entry in prepared) {
-        await _runTimedPlayerOperation(
-          generation: generation,
-          operation: 'add to queue append',
-          action: () => _player.addAudioSource(entry.audioSource),
-          songId: entry.song.id,
-        );
+        try {
+          await _runTimedPlayerOperation(
+            generation: generation,
+            operation: 'add to queue append',
+            action: () => _player.addAudioSource(entry.audioSource),
+            songId: entry.song.id,
+          );
+        } on OperationCancelledException {
+          rethrow;
+        } on Object {
+          token.checkCancelled();
+          if (!_isActiveLoadGeneration(generation)) return;
+          _lastFailedSongId = entry.song.id;
+          AppLogger.warning('Queue append source unavailable; skipping entry.');
+          continue;
+        }
         _queueItems.add(entry.mediaItem);
         final inactiveDeck = _crossfadePlayer;
         if (inactiveDeck != null) {
@@ -4383,68 +4462,30 @@ class NavisAudioHandler extends BaseAudioHandler
         await _disposeInactiveCrossfadeDeck();
       }
     } else if (_crossfadePlayer == null) {
-      final inactiveDeck = _buildBaseAudioPlayer();
+      final inactiveDeck = _newCrossfadePlayer();
       _crossfadePlayer = inactiveDeck;
     }
 
-    // Apply playback speed.
-    try {
-      await _player.setSpeed(
-        navisNormalizePlaybackSpeed(runtime.playbackSpeed),
-      );
-      final inactiveDeck = _crossfadePlayer;
-      if (inactiveDeck != null) {
-        await inactiveDeck.setSpeed(
-          navisNormalizePlaybackSpeed(runtime.playbackSpeed),
-        );
-      }
-    } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Failed to apply playback speed: $error\n$stackTrace',
-      );
+    var desired = PlaybackAdjustments(
+      speed: runtime.playbackSpeed,
+      lockPitchToSpeed:
+          playbackAdjustmentCapabilities.pitchSupported &&
+          runtime.lockPitchToSpeed,
+      pitchSemitones: playbackAdjustmentCapabilities.pitchSupported
+          ? runtime.playbackPitchSemitones
+          : 0,
+    );
+    if (!playbackAdjustmentCapabilities.supports(desired) &&
+        desired.lockPitchToSpeed) {
+      desired = desired.copyWith(pitchSemitones: 0, lockPitchToSpeed: false);
     }
+    await _setPlaybackAdjustments(desired);
 
     // Apply ReplayGain volume normalization for current track.
     _applyReplayGainVolume();
 
-    if (!_isAndroidRuntime) {
-      return;
-    }
-
-    if (!_androidDspPipelineEnabled &&
-        (runtime.equalizerEnabled || runtime.loudnessEnabled)) {
-      AppLogger.warning(
-        'Android DSP settings are enabled, but DSP effects are unavailable '
-        'for this session. Playback continues without DSP effects.',
-      );
-      return;
-    }
-
-    final equalizer = _androidEqualizer;
-    final loudnessEnhancer = _androidLoudnessEnhancer;
-    if (equalizer == null || loudnessEnhancer == null) {
-      return;
-    }
-
-    try {
-      final parameters = await equalizer.parameters;
-      final gains = runtime.equalizerBandGains;
-      for (var i = 0; i < parameters.bands.length; i++) {
-        final requestedGain = i < gains.length ? gains[i] : 0;
-        final clampedGain = requestedGain.clamp(
-          parameters.minDecibels,
-          parameters.maxDecibels,
-        );
-        await parameters.bands[i].setGain(clampedGain.toDouble());
-      }
-      await equalizer.setEnabled(runtime.equalizerEnabled);
-      await loudnessEnhancer.setTargetGain(runtime.loudnessTargetGainDb);
-      await loudnessEnhancer.setEnabled(runtime.loudnessEnabled);
-    } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Failed to apply Android DSP runtime settings: '
-        '$error\n$stackTrace',
-      );
+    if (equalizerCapabilities.supported) {
+      await _setEqualizer(runtime.equalizer ?? _desiredEqualizer);
     }
   }
 
@@ -4563,6 +4604,17 @@ class NavisAudioHandler extends BaseAudioHandler
       'playerBufferedPositionMs': _player.bufferedPosition.inMilliseconds,
       'userVolume': _userVolume,
       'effectivePlayerVolume': _player.volume,
+      'playbackSpeed': _appliedAdjustments.speed,
+      'playbackPitchSemitones': _appliedAdjustments.pitchSemitones,
+      'lockPitchToSpeed': _appliedAdjustments.lockPitchToSpeed,
+      'playerSpeed': _player.speed,
+      'playerPitchFactor': playbackAdjustmentCapabilities.pitchSupported
+          ? _player.pitch
+          : 1,
+      'crossfadeSpeed': _crossfadePlayer?.speed,
+      'crossfadePitchFactor': playbackAdjustmentCapabilities.pitchSupported
+          ? _crossfadePlayer?.pitch
+          : null,
       'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
       'navigation': <String, Object?>{
         'revision': _navigationIntent.revision,
@@ -4939,17 +4991,210 @@ class NavisAudioHandler extends BaseAudioHandler
     _emitSnapshot();
   }
 
+  PlaybackAdjustments _appliedAdjustments = const PlaybackAdjustments();
+  EqConfiguration _desiredEqualizer = EqConfiguration.flat();
+  Future<void> _equalizerLane = Future<void>.value();
+  final _equalizerController = BehaviorSubject<EqApplicationState>.seeded(
+    EqApplicationState(
+      desired: EqConfiguration.flat(),
+      applied: EqConfiguration.flat(),
+    ),
+  );
+
+  @override
+  EqCapabilities get equalizerCapabilities {
+    if (!_equalizerPipelineEnabled) return EqCapabilities.unavailable;
+    return _injectedEqualizerCapabilities ??
+        ((_isAndroidRuntime ||
+                (Platform.isLinux && JustAudioMediaKit.isRegistered))
+            ? EqCapabilities.available
+            : EqCapabilities.unavailable);
+  }
+
+  @override
+  EqApplicationState get equalizerState => _equalizerController.value;
+
+  @override
+  Stream<EqApplicationState> get equalizerStateStream =>
+      _equalizerController.stream;
+
+  EqualizerConfigurationMessage _equalizerMessage(EqConfiguration values) =>
+      EqualizerConfigurationMessage(
+        enabled: values.enabled,
+        preampDb: values.preampDb,
+        autoHeadroom: values.autoHeadroom,
+        filters: values.filters
+            .map(
+              (filter) => EqualizerFilterMessage(
+                type: filter.type.name,
+                frequencyHz: filter.frequencyHz,
+                gainDb: filter.gainDb,
+                q: filter.q,
+                enabled: filter.enabled,
+              ),
+            )
+            .toList(),
+      );
+
+  void _emitEqualizerState(EqualizerStateMessage native) {
+    if (_equalizerController.isClosed) return;
+    _equalizerController.add(
+      EqApplicationState(
+        desired: _desiredEqualizer,
+        applied: _desiredEqualizer.copyWith(enabled: native.enabled),
+        sampleRate: native.sampleRate,
+        responseSampleRate: native.responseSampleRate ?? native.sampleRate,
+        headroomDb: native.headroomDb,
+        reason: native.reason,
+        pending: native.pending,
+      ),
+    );
+  }
+
+  Future<void> _setEqualizer(EqConfiguration values) {
+    final work = _equalizerLane.then((_) async {
+      if (!values.isValid || !equalizerCapabilities.supported) {
+        throw ArgumentError('Unsupported equalizer configuration');
+      }
+      final previous = _desiredEqualizer;
+      final message = _equalizerMessage(values);
+      try {
+        AudioPlayer active;
+        AudioPlayer? inactive;
+        EqualizerStateMessage native;
+        do {
+          active = _player;
+          inactive = _crossfadePlayer;
+          native = await active.setEqualizer(message);
+          if (inactive != null) await inactive.setEqualizer(message);
+        } while (!identical(active, _player) ||
+            !identical(inactive, _crossfadePlayer));
+        _desiredEqualizer = values;
+        _emitEqualizerState(native);
+      } on Object {
+        try {
+          await _player.setEqualizer(_equalizerMessage(previous));
+          await _crossfadePlayer?.setEqualizer(_equalizerMessage(previous));
+        } on Object catch (rollbackError, stackTrace) {
+          AppLogger.warning('EQ rollback failed: $rollbackError\n$stackTrace');
+          _emitEqualizerState(
+            const EqualizerStateMessage(
+              enabled: false,
+              reason: 'EQ could not be restored after an audio-engine error. Review playback settings.',
+            ),
+          );
+        }
+        rethrow;
+      }
+    });
+    _equalizerLane = work.catchError((Object _) {});
+    return work;
+  }
+
+  @override
+  Future<void> setEqualizer(EqConfiguration values) async {
+    await _ready;
+    await _setEqualizer(values);
+  }
+
+  @override
+  Future<void> refreshEqualizerState() async {
+    if (!equalizerCapabilities.supported) return;
+    await _equalizerLane;
+    _emitEqualizerState(await _player.getEqualizerState());
+  }
+
+  Future<void> _adjustmentLane = Future<void>.value();
+  final _adjustmentController = BehaviorSubject<PlaybackAdjustments>.seeded(
+    const PlaybackAdjustments(),
+  );
+
+  @override
+  Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
+      _adjustmentController.stream;
+
+  @override
+  PlaybackAdjustments get playbackAdjustments => _appliedAdjustments;
+
+  @override
+  PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities {
+    if (_adjustmentCapabilities != null) return _adjustmentCapabilities;
+    if (JustAudioMediaKit.isRegistered && JustAudioMediaKit.pitch) {
+      return PlaybackAdjustmentCapabilities.mediaKit;
+    }
+    if (_isAndroidRuntime) return PlaybackAdjustmentCapabilities.android;
+    return const PlaybackAdjustmentCapabilities();
+  }
+
+  Future<void> _applyAdjustmentsToPlayer(
+    AudioPlayer player,
+    PlaybackAdjustments values,
+  ) async {
+    await player.setSpeed(values.speed);
+    if (playbackAdjustmentCapabilities.pitchSupported) {
+      await player.setPitch(values.pitchFactor);
+    }
+  }
+
+  Future<void> _setPlaybackAdjustments(
+    PlaybackAdjustments requested, {
+    double? speed,
+  }) {
+    final operation = _adjustmentLane.then((_) async {
+      final values = speed == null
+          ? requested
+          : _appliedAdjustments.copyWith(speed: speed);
+      if (!playbackAdjustmentCapabilities.supports(values)) {
+        throw ArgumentError('Unsupported speed/pitch adjustment');
+      }
+      final previous = _appliedAdjustments;
+      try {
+        AudioPlayer active;
+        AudioPlayer? inactive;
+        do {
+          active = _player;
+          inactive = _crossfadePlayer;
+          await _applyAdjustmentsToPlayer(active, values);
+          if (inactive != null)
+            await _applyAdjustmentsToPlayer(inactive, values);
+        } while (!identical(active, _player) ||
+            !identical(inactive, _crossfadePlayer));
+        _appliedAdjustments = values;
+        if (!_adjustmentController.isClosed) _adjustmentController.add(values);
+        _broadcastPlaybackState();
+      } on Object {
+        // A pair may fail halfway through, so restore both decks before
+        // reporting failure to the shared controls.
+        try {
+          await _applyAdjustmentsToPlayer(_player, previous);
+          final inactive = _crossfadePlayer;
+          if (inactive != null)
+            await _applyAdjustmentsToPlayer(inactive, previous);
+        } on Object catch (error, stackTrace) {
+          AppLogger.warning(
+            'Playback adjustment rollback failed: $error\n$stackTrace',
+          );
+        }
+        rethrow;
+      }
+    });
+    _adjustmentLane = operation.catchError((Object _) {});
+    return operation;
+  }
+
+  @override
+  Future<void> setPlaybackAdjustments(PlaybackAdjustments values) async {
+    await _ready;
+    await _setPlaybackAdjustments(values);
+  }
+
+  @override
+  Future<void> setSpeed(double speed) => setPlaybackSpeed(speed);
+
   @override
   Future<void> setPlaybackSpeed(double speed) async {
     await _ready;
-    final normalizedSpeed = navisNormalizePlaybackSpeed(speed);
-    try {
-      await _player.setSpeed(normalizedSpeed);
-    } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Failed to set playback speed directly: $error\n$stackTrace',
-      );
-    }
+    await _setPlaybackAdjustments(_appliedAdjustments, speed: speed);
   }
 
   @override
@@ -6332,6 +6577,8 @@ class NavisAudioHandler extends BaseAudioHandler
     await _ensurePlayerDisposalStarted();
     await _androidAutoBrowseNotifier.dispose();
     await _snapshotController.close();
+    await _adjustmentController.close();
+    await _equalizerController.close();
     await _transportVisualCueController.close();
     await _positionController.close();
     await _bufferStateController.close();
@@ -6718,10 +6965,10 @@ class NavisAudioHandler extends BaseAudioHandler
         await inactiveDeck.stop();
         await inactiveDeck.setAudioSources(const <AudioSource>[]);
       }
-      await inactiveDeck.setSpeed(1);
+      await _applyAdjustmentsToPlayer(inactiveDeck, _appliedAdjustments);
       await _setVolumeIfChanged(inactiveDeck, 0);
     }
-    await _player.setSpeed(1);
+    await _applyAdjustmentsToPlayer(_player, _appliedAdjustments);
     _updateScrobbleSession(null);
     queue.add(const <MediaItem>[]);
     _setCurrentMediaItem(null);

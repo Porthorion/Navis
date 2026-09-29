@@ -45,16 +45,6 @@ class AppSettingsTable extends Table {
 
   BoolColumn get showLikedPage => boolean().withDefault(const Constant(true))();
 
-  BoolColumn get equalizerEnabled =>
-      boolean().withDefault(const Constant(false))();
-
-  TextColumn get equalizerBandGains => text().nullable()();
-
-  BoolColumn get loudnessEnabled =>
-      boolean().withDefault(const Constant(false))();
-
-  RealColumn get loudnessTargetGainDb => real().nullable()();
-
   /// Rolling cache budget in megabytes. Default 2048 (2 GB).
   IntColumn get rollingCacheBudgetMb =>
       integer().withDefault(const Constant(2048))();
@@ -157,12 +147,30 @@ class AppSettingsTable extends Table {
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
   RealColumn get replayGainPreamp => real().withDefault(const Constant(0))();
 
-  /// Playback speed multiplier (0.5–2.0). Default 1.0.
+  /// Playback speed multiplier. Default 1.0.
   RealColumn get playbackSpeed => real().withDefault(const Constant(1))();
+
+  RealColumn get playbackPitchSemitones =>
+      real().withDefault(const Constant(0))();
+
+  BoolColumn get lockPitchToSpeed =>
+      boolean().withDefault(const Constant(false))();
+
+  /// JSON list of user presets; the immutable None preset is derived.
+  TextColumn get playbackPresets => text().withDefault(const Constant('[]'))();
+
+  /// Null denotes Custom.
+  TextColumn get selectedPlaybackPresetId => text().nullable()();
 
   /// Album grid column count override. Null = auto (computed from width).
   /// Valid explicit values: 1–4.
   IntColumn get albumGridDensity => integer().nullable()();
+
+  TextColumn get gridArtworkSize =>
+      text().withDefault(const Constant('auto'))();
+
+  BoolColumn get homeRecommendationsAutoAdvance =>
+      boolean().withDefault(const Constant(false))();
 
   /// Border radius (logical px) for cover art in library cards, carousels, etc.
   /// 0 = square, 24 = very rounded. Default 12.

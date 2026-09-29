@@ -1,3 +1,7 @@
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+
+import 'package:audio_service/audio_service.dart';
+
 import 'dart:async';
 import 'dart:io';
 
@@ -46,6 +50,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   ProcessingState state = ProcessingState.idle;
   bool isPlaying = false;
   int? index;
+  double appliedSpeed = 1;
+  double appliedPitch = 1;
+  bool failPitchOnce = false;
+  String? failAppendSongId;
   Completer<void>? seekGate;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
@@ -110,7 +118,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   double get volume => 1;
 
   @override
-  double get speed => 1;
+  double get speed => appliedSpeed;
+
+  @override
+  double get pitch => appliedPitch;
 
   @override
   LoopMode get loopMode => LoopMode.off;
@@ -135,7 +146,18 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> setVolume(double value) async {}
 
   @override
-  Future<void> setSpeed(double value) async {}
+  Future<void> setSpeed(double value) async {
+    appliedSpeed = value;
+  }
+
+  @override
+  Future<void> setPitch(double value) async {
+    if (failPitchOnce) {
+      failPitchOnce = false;
+      throw StateError('pitch failed');
+    }
+    appliedPitch = value;
+  }
 
   @override
   Future<void> setLoopMode(LoopMode value) async {}
@@ -184,6 +206,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> addAudioSource(AudioSource source) => _mutate(() async {
+    if (failAppendSongId != null &&
+        source is IndexedAudioSource &&
+        (source.tag as MediaItem?)?.id == failAppendSongId) {
+      throw StateError('append unavailable');
+    }
     _sources.add(source);
   });
 
@@ -215,7 +242,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
-  createHandler(Directory directory, int count) async {
+  createHandler(
+    Directory directory,
+    int count, {
+    bool crossfade = false,
+  }) async {
     final database = createTestDatabase();
     final songs = <SongsTableCompanion>[];
     for (var i = 0; i < count; i++) {
@@ -267,13 +298,140 @@ void main() {
         createClient: () => throw StateError('not used'),
         readReachable: () => false,
       ),
-      readRuntimeSettings: () => const PlaybackRuntimeSettings.defaults(),
+      readRuntimeSettings: () => PlaybackRuntimeSettings(
+        gaplessEnabled: true,
+
+        crossfadeEnabled: crossfade,
+        crossfadeDurationSeconds: 5,
+        crossfadeType: 'normal',
+        replayGainMode: 'off',
+        replayGainPreamp: 0,
+        playbackSpeed: 1,
+        albumQueueEnabled: false,
+        matchFlowEnabled: false,
+      ),
+      adjustmentCapabilities: PlaybackAdjustmentCapabilities.android,
+      crossfadePlayerFactory: _ControllableAudioPlayer.new,
       starSyncDao: database.starSyncDao,
       player: player,
     );
     await handler.waitUntilReady();
     return (handler, player, database);
   }
+
+  for (final preparationFailure in [true, false]) {
+    test(
+      'append skips ${preparationFailure ? 'unavailable sources' : 'failed native insertions'} and persists valid occurrences',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-append-',
+        );
+        final (handler, player, database) = await createHandler(directory, 4);
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue([
+          'song-0',
+          'song-0',
+        ], expandMatchFlows: false);
+        if (preparationFailure) {
+          await database.cacheDao.removeCachedTrack('song-2');
+        } else {
+          player.failAppendSongId = 'song-2';
+        }
+        await handler.addToQueue([
+          'song-1',
+          'song-2',
+          'song-3',
+        ], expandMatchFlows: false);
+        expect(handler.snapshot.queueSongIds, [
+          'song-0',
+          'song-0',
+          'song-1',
+          'song-3',
+        ]);
+        expect(handler.snapshot.currentIndex, 0);
+        expect(player.isPlaying, isTrue);
+        expect((await database.playQueueDao.getQueueItems()).map((s) => s.id), [
+          'song-0',
+          'song-0',
+          'song-1',
+          'song-3',
+        ]);
+      },
+    );
+  }
+
+  test(
+    'speed and pitch apply to both decks, survive clear, and rollback together',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_adjustment_decks_',
+      );
+      final (handler, player, database) = await createHandler(
+        directory,
+        2,
+        crossfade: true,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      const values = PlaybackAdjustments(speed: 1.2735, pitchSemitones: -2.37);
+      await handler.setPlaybackAdjustments(values);
+      var diagnostics = handler.collectPlaybackDiagnostics();
+      expect(player.appliedSpeed, values.speed);
+      expect(player.appliedPitch, closeTo(values.pitchFactor, 0.000001));
+      expect(diagnostics['crossfadeSpeed'], values.speed);
+      expect(
+        diagnostics['crossfadePitchFactor'],
+        closeTo(values.pitchFactor, 0.000001),
+      );
+      await handler.clearQueue();
+      diagnostics = handler.collectPlaybackDiagnostics();
+      expect(diagnostics['playerSpeed'], values.speed);
+      expect(
+        diagnostics['crossfadePitchFactor'],
+        closeTo(values.pitchFactor, 0.000001),
+      );
+      player.failPitchOnce = true;
+      await expectLater(
+        handler.setPlaybackAdjustments(
+          const PlaybackAdjustments(speed: 1.75, pitchSemitones: 2),
+        ),
+        throwsStateError,
+      );
+      expect(player.appliedSpeed, values.speed);
+      expect(player.appliedPitch, closeTo(values.pitchFactor, 0.000001));
+      await handler.setPlaybackSpeed(1.375);
+      expect(player.appliedPitch, closeTo(values.pitchFactor, 0.000001));
+      expect(player.appliedSpeed, 1.375);
+      final confirmations = <PlaybackAdjustments>[];
+      final subscription = handler.playbackAdjustmentsStream.listen(
+        confirmations.add,
+      );
+      const linked = PlaybackAdjustments(speed: 1.25, lockPitchToSpeed: true);
+      final lockOperation = handler.setPlaybackAdjustments(linked);
+      final directOperation = handler.setSpeed(1.3);
+      await Future.wait([lockOperation, directOperation]);
+      expect(player.appliedSpeed, 1.3);
+      expect(player.appliedPitch, 1.3);
+      expect(handler.playbackAdjustments.lockPitchToSpeed, isTrue);
+      expect(handler.collectPlaybackDiagnostics()['crossfadePitchFactor'], 1.3);
+      final frozen = handler.playbackAdjustments.copyWith(
+        lockPitchToSpeed: false,
+      );
+      await handler.setPlaybackAdjustments(frozen);
+      await handler.setPlaybackSpeed(1.5);
+      expect(player.appliedPitch, closeTo(1.3, 1e-14));
+      await Future<void>.delayed(Duration.zero);
+      expect(confirmations.last, handler.playbackAdjustments);
+      await subscription.cancel();
+    },
+  );
 
   test(
     'ignored seek during loading reloads the full queue at target',

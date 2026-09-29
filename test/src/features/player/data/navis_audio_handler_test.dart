@@ -381,9 +381,9 @@ void main() {
     });
 
     test('playback speed normalize helper clamps to supported range', () {
-      expect(navisNormalizePlaybackSpeed(0.25), 0.5);
+      expect(navisNormalizePlaybackSpeed(0.25), 0.25);
       expect(navisNormalizePlaybackSpeed(1.25), 1.25);
-      expect(navisNormalizePlaybackSpeed(2.5), 2.0);
+      expect(navisNormalizePlaybackSpeed(2.5), 2.5);
     });
 
     test('position-only playback changes are not structural changes', () {

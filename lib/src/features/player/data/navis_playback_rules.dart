@@ -539,7 +539,8 @@ Duration navisSanitizeSeekPosition(Duration position) {
 
 @visibleForTesting
 double navisNormalizePlaybackSpeed(double speed) {
-  return speed.clamp(0.5, 2.0);
+  if (!speed.isFinite || speed <= 0) throw ArgumentError.value(speed, 'speed');
+  return speed;
 }
 
 @visibleForTesting

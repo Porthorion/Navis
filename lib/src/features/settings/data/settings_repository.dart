@@ -1,8 +1,11 @@
 import 'dart:convert';
 
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/routing/content_layout.dart';
 
 class SettingsRepository {
   SettingsRepository(this._dao);
@@ -37,10 +40,7 @@ class SettingsRepository {
       showPlaylistsPage: settings.showPlaylistsPage,
       showArtistsPage: settings.showArtistsPage,
       showLikedPage: settings.showLikedPage,
-      equalizerEnabled: settings.equalizerEnabled,
-      equalizerBandGains: _encodeBandGains(settings.equalizerBandGains),
-      loudnessEnabled: settings.loudnessEnabled,
-      loudnessTargetGainDb: settings.loudnessTargetGainDb,
+
       wifiOnlyDownloads: settings.wifiOnlyDownloads,
       autoDownloadStarredOnWifi: settings.autoDownloadStarredOnWifi,
       customDownloadFolderEnabled: settings.customDownloadFolderEnabled,
@@ -64,8 +64,11 @@ class SettingsRepository {
       legacyInstantMixEnabled: settings.legacyInstantMixEnabled,
       replayGainMode: settings.replayGainMode,
       replayGainPreamp: settings.replayGainPreamp,
-      playbackSpeed: settings.playbackSpeed,
+      // Playback adjustments have a dedicated writer; stale screen snapshots
+      // must not overwrite the current sound or selected preset.
       albumGridDensity: settings.albumGridDensity,
+      gridArtworkSize: settings.gridArtworkSize.name,
+      homeRecommendationsAutoAdvance: settings.homeRecommendationsAutoAdvance,
       coverArtShape: settings.coverArtShape,
       nowPlayingArtShape: settings.nowPlayingArtShape,
       artistCardShape: settings.artistCardShape,
@@ -103,6 +106,42 @@ class SettingsRepository {
     );
   }
 
+  Future<void> savePlaybackAdjustments({
+    required PlaybackAdjustments values,
+    required String? selectedPresetId,
+    List<PlaybackPreset>? presets,
+  }) => _dao.updatePlaybackAdjustments(
+    speed: values.speed,
+    pitchSemitones: values.pitchSemitones,
+    lockPitchToSpeed: values.lockPitchToSpeed,
+    selectedPresetId: selectedPresetId,
+    presetsJson: presets == null
+        ? null
+        : jsonEncode(presets.map((p) => p.toJson()).toList()),
+  );
+
+  List<PlaybackPreset> _decodePlaybackPresets(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      final presets = <PlaybackPreset>[];
+      for (final item in decoded) {
+        final preset = PlaybackPreset.fromJson(item);
+        if (preset != null &&
+            !presets.any(
+              (p) =>
+                  p.id == preset.id ||
+                  p.name.toLowerCase() == preset.name.toLowerCase(),
+            )) {
+          presets.add(preset);
+        }
+      }
+      return List.unmodifiable(presets);
+    } on FormatException {
+      return const [];
+    }
+  }
+
   Future<void> resetDefaults() => _dao.resetDefaults();
 
   Future<void> saveDesktopPlaybackVolume({
@@ -133,10 +172,7 @@ class SettingsRepository {
       showPlaylistsPage: row.showPlaylistsPage,
       showArtistsPage: row.showArtistsPage,
       showLikedPage: row.showLikedPage,
-      equalizerEnabled: row.equalizerEnabled,
-      equalizerBandGains: _decodeBandGains(row.equalizerBandGains),
-      loudnessEnabled: row.loudnessEnabled,
-      loudnessTargetGainDb: row.loudnessTargetGainDb ?? 0,
+
       wifiOnlyDownloads: row.wifiOnlyDownloads,
       autoDownloadStarredOnWifi: row.autoDownloadStarredOnWifi,
       customDownloadFolderEnabled: row.customDownloadFolderEnabled,
@@ -161,7 +197,13 @@ class SettingsRepository {
       replayGainMode: row.replayGainMode,
       replayGainPreamp: row.replayGainPreamp,
       playbackSpeed: row.playbackSpeed,
+      playbackPitchSemitones: row.playbackPitchSemitones,
+      lockPitchToSpeed: row.lockPitchToSpeed,
+      playbackPresets: _decodePlaybackPresets(row.playbackPresets),
+      selectedPlaybackPresetId: row.selectedPlaybackPresetId,
       albumGridDensity: row.albumGridDensity,
+      gridArtworkSize: GridArtworkSize.parse(row.gridArtworkSize),
+      homeRecommendationsAutoAdvance: row.homeRecommendationsAutoAdvance,
       coverArtShape: row.coverArtShape,
       nowPlayingArtShape: row.nowPlayingArtShape,
       artistCardShape: row.artistCardShape,
@@ -195,31 +237,6 @@ class SettingsRepository {
       voyageDeviceLabel: null,
       voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
     );
-  }
-
-  String? _encodeBandGains(List<double> values) {
-    if (values.isEmpty) {
-      return null;
-    }
-    return jsonEncode(values);
-  }
-
-  List<double> _decodeBandGains(String? raw) {
-    if (raw == null || raw.trim().isEmpty) {
-      return const <double>[];
-    }
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) {
-        return const <double>[];
-      }
-      return decoded
-          .map((value) => value is num ? value.toDouble() : null)
-          .whereType<double>()
-          .toList(growable: false);
-    } on FormatException {
-      return const <double>[];
-    }
   }
 
   String? _encodeStringList(List<String>? values) {

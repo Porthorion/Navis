@@ -1,3 +1,4 @@
+import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,6 +32,7 @@ import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 import 'package:navis/src/features/library/presentation/unavailable_review_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
 import 'package:navis/src/routing/app_shell.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
@@ -296,16 +298,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           : null;
                       // Accept the former string payload for restored routes
                       // created before [AlbumDetailRouteRequest].
-                      final openingHeroTag =
-                          request?.openingHeroTag ??
-                          (state.extra is String
-                              ? state.extra! as String
-                              : null);
+                      final desktop = resolveAdaptiveContextFor(
+                        context,
+                      ).desktopRuntime;
+                      final openingHeroTag = desktop
+                          ? null
+                          : request?.openingHeroTag ??
+                                (state.extra is String
+                                    ? state.extra! as String
+                                    : null);
                       return buildSlideFadePage(
                         context: context,
                         key: state.pageKey,
                         heroDriven: openingHeroTag != null,
-                        fadeOnly: request?.fadeOnly ?? false,
+                        fadeOnly: desktop || (request?.fadeOnly ?? false),
                         child: AlbumDetailScreen(
                           albumId: state.pathParameters['id']!,
                           likedOnly:
@@ -333,6 +339,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       child: ListenBrainzWeeklyDetailScreen(
                         sourcePatch: state.pathParameters['sourcePatch']!,
                       ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'liked-artists',
+                    pageBuilder: (context, state) => buildSlideFadePage<void>(
+                      context: context,
+                      key: state.pageKey,
+                      child: const LikedArtistsAllScreen(),
                     ),
                   ),
                   GoRoute(
@@ -400,6 +414,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'external-services',
                     redirect: (context, state) => '/settings/server',
+                  ),
+                  GoRoute(
+                    path: 'equalizer',
+                    pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
+                      key: state.pageKey,
+                      child: const EqualizerScreen(),
+                    ),
                   ),
                   GoRoute(
                     path: 'playback',

@@ -7,6 +7,7 @@ import 'package:just_audio_platform_interface/just_audio_platform_interface.dart
 import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
 import 'src/set_property.dart';
+import 'src/equalizer_chain.dart';
 
 /// An [AudioPlayerPlatform] which wraps `package:media_kit`'s [Player]
 class MediaKitPlayer extends AudioPlayerPlatform {
@@ -51,7 +52,15 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     return medias[_player.state.playlist.index];
   }
 
-  MediaKitPlayer(super.id) {
+  EqualizerConfigurationMessage? _equalizer;
+  EqualizerStateMessage _eqState = const EqualizerStateMessage(enabled: false);
+  Future<void> _audioLane = Future<void>.value();
+  double _rate = 1;
+  double _pitch = 1;
+  double? _sampleRate;
+
+  MediaKitPlayer(super.id, {EqualizerConfigurationMessage? equalizer}) {
+    _equalizer = equalizer;
     _player = Player(
         configuration: PlayerConfiguration(
       pitch: JustAudioMediaKit.pitch,
@@ -72,6 +81,21 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     }
 
     _streamSubscriptions = [
+      _player.stream.audioParams.listen((params) {
+        final rate = params.sampleRate?.toDouble();
+        if (rate != _sampleRate) {
+          _sampleRate = rate;
+          if (_equalizer != null) {
+            unawaited(
+                _serializeAudio(() => _applyAudio()).catchError((Object error) {
+              _eqState = EqualizerStateMessage(
+                  enabled: false,
+                  sampleRate: _sampleRate,
+                  reason: 'Audio processing failed: $error');
+            }));
+          }
+        }
+      }),
       _player.stream.duration.listen((duration) {
         if (_currentMedia?.extras?['overrideDuration'] != null) return;
 
@@ -274,6 +298,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       }
       if (generation != _loadGeneration) return LoadResponse(duration: null);
       _mediaOpened = true;
+      if (_equalizer != null) await _serializeAudio(() => _applyAudio());
 
       if (request.initialPosition != null) {
         _setPosition = _position = request.initialPosition!;
@@ -304,6 +329,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     return PauseResponse();
   }
 
+  Future<void> setAudioDevice(String device) async {
+    await setProperty(_player, 'audio-device', device);
+  }
+
   @override
   Future<SetVolumeResponse> setVolume(SetVolumeRequest request) {
     return _player
@@ -311,14 +340,86 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         .then((value) => SetVolumeResponse());
   }
 
-  @override
-  Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) {
-    return _player.setRate(request.speed).then((_) => SetSpeedResponse());
+  Future<T> _serializeAudio<T>(Future<T> Function() operation) {
+    final result = _audioLane.then((_) => operation());
+    _audioLane =
+        result.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    return result;
+  }
+
+  Future<void> _applyAudio(
+      {double? rate,
+      double? pitch,
+      EqualizerConfigurationMessage? equalizer}) async {
+    await ready();
+    final nextRate = rate ?? _rate;
+    final nextPitch = pitch ?? _pitch;
+    final nextEq = equalizer ?? _equalizer!;
+    final chain = EqualizerChain.compile(nextEq,
+        speed: nextRate, pitch: nextPitch, sampleRate: _sampleRate);
+    final previous = EqualizerChain.compile(_equalizer!,
+        speed: _rate, pitch: _pitch, sampleRate: _sampleRate);
+    try {
+      await setProperty(_player, 'audio-pitch-correction', 'no');
+      await setProperty(_player, 'speed', nextPitch.toString());
+      await setProperty(_player, 'af', chain.filters);
+      await verifyOwnedAudioChain(_player, chain.filters, nextPitch);
+    } catch (_) {
+      try {
+        await setProperty(_player, 'speed', _pitch.toString());
+        await setProperty(_player, 'af', previous.filters);
+        await verifyOwnedAudioChain(_player, previous.filters, _pitch);
+      } catch (rollbackError) {
+        _eqState = EqualizerStateMessage(
+            enabled: false,
+            sampleRate: _sampleRate,
+            reason: 'Audio processing could not be restored: $rollbackError');
+      }
+      rethrow;
+    }
+    _rate = nextRate;
+    _pitch = nextPitch;
+    _equalizer = nextEq;
+    _eqState = chain.state;
+    _dataController.add(PlayerDataMessage(speed: _rate, pitch: _pitch));
   }
 
   @override
-  Future<SetPitchResponse> setPitch(SetPitchRequest request) =>
-      _player.setPitch(request.pitch).then((_) => SetPitchResponse());
+  Future<EqualizerStateMessage> setEqualizer(
+          EqualizerConfigurationMessage configuration) =>
+      _serializeAudio(() async {
+        if (_equalizer == null)
+          throw UnsupportedError('EQ pipeline unavailable');
+        await _applyAudio(equalizer: configuration);
+        return _eqState;
+      });
+
+  @override
+  Future<EqualizerStateMessage> getEqualizerState() async {
+    await _audioLane;
+    return _eqState;
+  }
+
+  @override
+  Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) async {
+    if (_equalizer == null) {
+      await _player.setRate(request.speed);
+    } else {
+      await _serializeAudio(() => _applyAudio(rate: request.speed));
+    }
+    return SetSpeedResponse();
+  }
+
+  @override
+  Future<SetPitchResponse> setPitch(SetPitchRequest request) async {
+    if (_equalizer == null) {
+      await _player.setPitch(request.pitch);
+      await verifyPlaybackAdjustments(_player);
+    } else {
+      await _serializeAudio(() => _applyAudio(pitch: request.pitch));
+    }
+    return SetPitchResponse();
+  }
 
   @override
   Future<SetLoopModeResponse> setLoopMode(SetLoopModeRequest request) async {

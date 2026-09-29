@@ -1,3 +1,5 @@
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +16,21 @@ import 'package:navis/src/utils/connectivity.dart';
 import '../../../../helpers/test_database.dart';
 
 class _RecordingPlaybackHandler implements NavisPlaybackHandler {
+  @override
+  EqCapabilities get equalizerCapabilities => EqCapabilities.unavailable;
+  @override
+  EqApplicationState get equalizerState => EqApplicationState(
+    desired: EqConfiguration.flat(),
+    applied: EqConfiguration.flat(),
+  );
+  @override
+  Stream<EqApplicationState> get equalizerStateStream => const Stream.empty();
+  @override
+  Future<void> setEqualizer(EqConfiguration values) async =>
+      throw UnsupportedError('This fake has no EQ backend');
+  @override
+  Future<void> refreshEqualizerState() async {}
+
   int replaceQueueCalls = 0;
   int replaceQueueWithDataCalls = 0;
   int playCalls = 0;
@@ -141,6 +158,21 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   @override
   Map<String, Object?> collectPlaybackDiagnostics() =>
       const <String, Object?>{};
+
+  @override
+  PlaybackAdjustments get playbackAdjustments => const PlaybackAdjustments();
+
+  @override
+  Stream<PlaybackAdjustments> get playbackAdjustmentsStream =>
+      const Stream.empty();
+
+  @override
+  PlaybackAdjustmentCapabilities get playbackAdjustmentCapabilities =>
+      PlaybackAdjustmentCapabilities.android;
+
+  @override
+  Future<void> setPlaybackAdjustments(PlaybackAdjustments values) =>
+      setPlaybackSpeed(values.speed);
 
   @override
   Future<void> setPlaybackSpeed(double speed) async {}

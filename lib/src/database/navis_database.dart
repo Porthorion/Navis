@@ -8,6 +8,8 @@ import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:drift/native.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
+import 'package:navis/src/database/daos/eq_dao.dart';
+import 'package:navis/src/database/tables/eq_tables.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/cache_system_state_dao.dart';
@@ -78,6 +80,8 @@ part 'navis_database.g.dart';
   tables: [
     ServerConfigTable,
     AppSettingsTable,
+    EqPresetsTable,
+    EqStateTable,
     ArtistsTable,
     AlbumsTable,
     SongsTable,
@@ -122,6 +126,7 @@ part 'navis_database.g.dart';
   ],
   daos: [
     AppSettingsDao,
+    EqDao,
     ServerDao,
     LibraryDao,
     PlaylistDao,
@@ -170,7 +175,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 80;
+  int get schemaVersion => 85;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -431,6 +436,154 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 80 && to >= 80) {
       await from79To80(migrator);
+    }
+    if (from < 81 && to >= 81) {
+      await from80To81(migrator);
+    }
+    if (from < 82 && to >= 82) {
+      await from81To82(migrator);
+    }
+    if (from < 83 && to >= 83) {
+      await from82To83(migrator);
+    }
+    if (from < 84 && to >= 84) {
+      await from83To84(migrator);
+    }
+    if (from < 85 && to >= 85) {
+      await from84To85(migrator);
+    }
+  }
+
+  Future<void> from84To85(Migrator migrator) async {
+    if (!await _columnExists('eq_state', 'workspaces_json')) {
+      await migrator.addColumn(eqStateTable, eqStateTable.workspacesJson);
+    }
+    final rows = await customSelect(
+      'SELECT id, configuration_json, selected_preset_id, origin_preset_id FROM eq_state WHERE workspaces_json IS NULL',
+    ).get();
+    for (final row in rows) {
+      final raw = row.readNullable<String>('configuration_json');
+      if (raw == null) continue;
+      try {
+        final curve = jsonDecode(raw) as Map<String, dynamic>;
+        final mode = curve['mode'] as String;
+        final identity =
+            row.readNullable<String>('selected_preset_id') ??
+            row.readNullable<String>('origin_preset_id') ??
+            'custom';
+        await customStatement(
+          'UPDATE eq_state SET workspaces_json = ? WHERE id = ?',
+          [
+            jsonEncode({
+              identity: {
+                'mode': mode,
+                'curves': {mode: curve},
+              },
+            }),
+            row.read<int>('id'),
+          ],
+        );
+      } on FormatException {
+        // Retain damaged legacy JSON for repository recovery reporting.
+      } on TypeError {
+        // Retain malformed legacy shapes as well as malformed JSON.
+      }
+    }
+  }
+
+  Future<void> from83To84(Migrator migrator) async {
+    if (!await _tableExists('eq_presets')) {
+      await migrator.createTable(eqPresetsTable);
+    }
+    if (!await _tableExists('eq_state')) {
+      await migrator.createTable(eqStateTable);
+    }
+    final hasLegacy = await _columnExists('app_settings', 'equalizer_enabled');
+    var affected = false;
+    if (hasLegacy) {
+      final row = await customSelect(
+        'SELECT equalizer_enabled, loudness_enabled, equalizer_band_gains '
+        'FROM app_settings WHERE id = 1',
+      ).getSingleOrNull();
+      affected =
+          row != null &&
+          (row.read<int>('equalizer_enabled') != 0 ||
+              row.read<int>('loudness_enabled') != 0 ||
+              (row.readNullable<String>('equalizer_band_gains')?.isNotEmpty ??
+                  false));
+    }
+    await into(eqStateTable).insert(
+      EqStateTableCompanion.insert(
+        id: const Value(1),
+        legacyResetNotice: Value(affected),
+      ),
+      mode: InsertMode.insertOrIgnore,
+    );
+    // SQLite shipped by sqlite3 3.x supports DROP COLUMN. Keeping this narrow
+    // preserves raw compatibility columns outside the generated Drift table.
+    for (final column in [
+      'equalizer_enabled',
+      'equalizer_band_gains',
+      'loudness_enabled',
+      'loudness_target_gain_db',
+    ]) {
+      if (await _columnExists('app_settings', column)) {
+        await customStatement('ALTER TABLE app_settings DROP COLUMN $column');
+      }
+    }
+  }
+
+  Future<void> from82To83(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'lock_pitch_to_speed')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.lockPitchToSpeed,
+      );
+    }
+  }
+
+  Future<void> from81To82(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'playback_pitch_semitones')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.playbackPitchSemitones,
+      );
+    }
+    if (!await _columnExists('app_settings', 'playback_presets')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.playbackPresets,
+      );
+    }
+    if (!await _columnExists('app_settings', 'selected_playback_preset_id')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.selectedPlaybackPresetId,
+      );
+    }
+  }
+
+  Future<void> from80To81(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'grid_artwork_size')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.gridArtworkSize,
+      );
+      await customStatement(
+        "UPDATE app_settings SET grid_artwork_size = CASE "
+        "WHEN album_grid_density IN (1, 2) THEN 'large' "
+        "WHEN album_grid_density = 3 THEN 'medium' "
+        "WHEN album_grid_density IN (4, 5) THEN 'small' ELSE 'auto' END;",
+      );
+    }
+    if (!await _columnExists(
+      'app_settings',
+      'home_recommendations_auto_advance',
+    )) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.homeRecommendationsAutoAdvance,
+      );
     }
   }
 
@@ -1351,27 +1504,27 @@ FROM scrobble_queue;
       );
     }
     if (!await _columnExists('app_settings', 'equalizer_enabled')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.equalizerEnabled,
+      await customStatement(
+        'ALTER TABLE app_settings ADD COLUMN '
+        'equalizer_enabled INTEGER NOT NULL DEFAULT 0',
       );
     }
     if (!await _columnExists('app_settings', 'equalizer_band_gains')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.equalizerBandGains,
+      await customStatement(
+        'ALTER TABLE app_settings ADD COLUMN '
+        'equalizer_band_gains TEXT',
       );
     }
     if (!await _columnExists('app_settings', 'loudness_enabled')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.loudnessEnabled,
+      await customStatement(
+        'ALTER TABLE app_settings ADD COLUMN '
+        'loudness_enabled INTEGER NOT NULL DEFAULT 0',
       );
     }
     if (!await _columnExists('app_settings', 'loudness_target_gain_db')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.loudnessTargetGainDb,
+      await customStatement(
+        'ALTER TABLE app_settings ADD COLUMN '
+        'loudness_target_gain_db REAL',
       );
     }
   }
@@ -1971,10 +2124,6 @@ FROM scrobble_queue;
         showArtistsPage: const Value(true),
         showLikedPage: const Value(true),
         libraryPageOrder: const Value(null),
-        equalizerEnabled: const Value(false),
-        equalizerBandGains: const Value(null),
-        loudnessEnabled: const Value(false),
-        loudnessTargetGainDb: const Value(0),
         rollingCacheBudgetMb: const Value(
           AppSettingsDao.defaultRollingCacheBudgetMb,
         ),

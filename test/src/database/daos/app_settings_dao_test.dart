@@ -1,4 +1,3 @@
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -10,7 +9,7 @@ void main() {
     late NavisDatabase database;
 
     setUp(() {
-      database = NavisDatabase(NativeDatabase.memory());
+      database = createTestDatabase();
     });
 
     tearDown(() async {
@@ -34,10 +33,7 @@ void main() {
           showPlaylistsPage: true,
           showArtistsPage: true,
           showLikedPage: true,
-          equalizerEnabled: true,
-          equalizerBandGains: '[1,2,3,4,5]',
-          loudnessEnabled: true,
-          loudnessTargetGainDb: 8,
+
           wifiOnlyDownloads: false,
           autoDownloadStarredOnWifi: false,
           customDownloadFolderEnabled: false,
@@ -78,10 +74,7 @@ void main() {
         expect(first.skipSilenceEnabled, isTrue);
         expect(first.showAlbumsPage, isFalse);
         expect(first.showRadioPage, isFalse);
-        expect(first.equalizerEnabled, isTrue);
-        expect(first.equalizerBandGains, '[1,2,3,4,5]');
-        expect(first.loudnessEnabled, isTrue);
-        expect(first.loudnessTargetGainDb, 8);
+
         expect(first.customDownloadFolderEnabled, isFalse);
         expect(first.customDownloadFolderPath, isNull);
 
@@ -99,10 +92,7 @@ void main() {
           showPlaylistsPage: true,
           showArtistsPage: true,
           showLikedPage: true,
-          equalizerEnabled: false,
-          equalizerBandGains: null,
-          loudnessEnabled: false,
-          loudnessTargetGainDb: 0,
+
           wifiOnlyDownloads: false,
           autoDownloadStarredOnWifi: false,
           customDownloadFolderEnabled: false,
@@ -143,10 +133,7 @@ void main() {
         expect(second.skipSilenceEnabled, isFalse);
         expect(second.showAlbumsPage, isTrue);
         expect(second.showRadioPage, isTrue);
-        expect(second.equalizerEnabled, isFalse);
-        expect(second.equalizerBandGains, isNull);
-        expect(second.loudnessEnabled, isFalse);
-        expect(second.loudnessTargetGainDb, 0);
+
         expect(second.customDownloadFolderEnabled, isFalse);
         expect(second.customDownloadFolderPath, isNull);
       },
@@ -168,10 +155,7 @@ void main() {
         showPlaylistsPage: true,
         showArtistsPage: true,
         showLikedPage: true,
-        equalizerEnabled: true,
-        equalizerBandGains: '[3,2,1]',
-        loudnessEnabled: true,
-        loudnessTargetGainDb: 6,
+
         wifiOnlyDownloads: true,
         autoDownloadStarredOnWifi: false,
         customDownloadFolderEnabled: false,
@@ -223,10 +207,7 @@ void main() {
       expect(settings.skipSilenceEnabled, isFalse);
       expect(settings.showAlbumsPage, isTrue);
       expect(settings.showRadioPage, isTrue);
-      expect(settings.equalizerEnabled, isFalse);
-      expect(settings.equalizerBandGains, isNull);
-      expect(settings.loudnessEnabled, isFalse);
-      expect(settings.loudnessTargetGainDb, 0);
+
       expect(settings.customDownloadFolderEnabled, isFalse);
       expect(settings.customDownloadFolderPath, isNull);
       expect(settings.dynamicAlbumColorEnabled, isFalse);

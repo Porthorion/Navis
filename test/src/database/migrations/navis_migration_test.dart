@@ -1,3 +1,6 @@
+import 'package:navis/src/features/equalizer/data/eq_repository.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -12,6 +15,255 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
+  test(
+    'v84 working curve migrates into its named draft without rounding',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_eq_draft_upgrade_',
+      );
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      final configuration = EqConfiguration(
+        mode: EqMode.advanced,
+        enabled: true,
+        preampDb: -3.12735,
+        filters: const [
+          EqFilter(
+            frequencyHz: 31.252345,
+            gainDb: 2.731,
+            q: 1.4142135623730951,
+          ),
+        ],
+      );
+      final repository = EqRepository(seed.eqDao);
+      await repository.savePreset(
+        EqPreset(
+          id: 'headphones',
+          name: 'Headphones',
+          configuration: configuration.copyWith(preampDb: 0),
+        ),
+      );
+      await repository.saveConfiguration(
+        configuration: configuration,
+        selectedPresetId: null,
+        originPresetId: 'headphones',
+      );
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      raw.execute('ALTER TABLE eq_state DROP COLUMN workspaces_json');
+      raw.execute('PRAGMA user_version = 84');
+      raw.close();
+      final migrated = createTestDatabase(file: file);
+      final stored = await EqRepository(migrated.eqDao).load();
+      expect(stored.selectedPresetId, 'headphones');
+      expect(stored.configuration, configuration);
+      expect(stored.workspaces['headphones']!.configuration, configuration);
+      expect(stored.presets.single.configuration.preampDb, 0);
+      expect(migrated.schemaVersion, 85);
+      await migrated.close();
+      await directory.delete(recursive: true);
+    },
+    skip: !sqliteAvailable,
+  );
+  for (final affected in [false, true]) {
+    test(
+      'v83 retires legacy EQ without converting it (affected=$affected)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis_eq_upgrade_',
+        );
+        final file = File(p.join(directory.path, 'fixture.sqlite'));
+        final seed = createTestDatabase(file: file);
+        await seed.appSettingsDao.getSettings();
+        await seed.customStatement(
+          'UPDATE app_settings SET playback_speed = 1.2735, replay_gain_preamp = -2.5',
+        );
+        await seed.close();
+        final raw = sqlite3.open(file.path);
+        raw.execute('DROP TABLE eq_presets');
+        raw.execute('DROP TABLE eq_state');
+        raw.execute(
+          'ALTER TABLE app_settings ADD COLUMN equalizer_enabled INTEGER NOT NULL DEFAULT 0',
+        );
+        raw.execute(
+          'ALTER TABLE app_settings ADD COLUMN equalizer_band_gains TEXT',
+        );
+        raw.execute(
+          'ALTER TABLE app_settings ADD COLUMN loudness_enabled INTEGER NOT NULL DEFAULT 0',
+        );
+        raw.execute(
+          'ALTER TABLE app_settings ADD COLUMN loudness_target_gain_db REAL NOT NULL DEFAULT 0',
+        );
+        if (affected)
+          raw.execute(
+            "UPDATE app_settings SET equalizer_enabled = 1, equalizer_band_gains = '1,2,3', loudness_enabled = 1, loudness_target_gain_db = 6",
+          );
+        raw.execute('PRAGMA user_version = 83');
+        raw.close();
+        final migrated = createTestDatabase(file: file);
+        final settings = (await migrated.appSettingsDao.getSettings())!;
+        expect(settings.playbackSpeed, 1.2735);
+        expect(settings.replayGainPreamp, -2.5);
+        final eq = (await migrated.eqDao.getState())!;
+        expect(eq.configurationJson, isNull);
+        expect(eq.legacyResetNotice, affected);
+        expect(await migrated.eqDao.getPresets(), isEmpty);
+        final columns =
+            (await migrated
+                    .customSelect('PRAGMA table_info(app_settings)')
+                    .get())
+                .map((r) => r.read<String>('name'));
+        expect(columns, isNot(contains('equalizer_enabled')));
+        expect(columns, isNot(contains('equalizer_band_gains')));
+        expect(columns, isNot(contains('loudness_enabled')));
+        expect(columns, isNot(contains('loudness_target_gain_db')));
+        await migrated.close();
+        final restarted = createTestDatabase(file: file);
+        expect((await restarted.eqDao.getState())!.legacyResetNotice, affected);
+        await restarted.eqDao.acknowledgeLegacyReset();
+        expect((await restarted.eqDao.getState())!.legacyResetNotice, isFalse);
+        await restarted.close();
+        await directory.delete(recursive: true);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test(
+    'v82 to v83 preserves precise legacy adjustments and defaults lock off',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis_lock_migration_',
+      );
+      final file = File(p.join(directory.path, 'navis.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.getSettings();
+      await seed.customStatement(
+        "UPDATE app_settings SET playback_speed = 1.2735, playback_pitch_semitones = 2.3456, playback_presets = '[{\"id\":\"legacy\",\"name\":\"Legacy\",\"speed\":1.2735,\"pitchSemitones\":2.3456}]'",
+      );
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      raw.execute('ALTER TABLE app_settings DROP COLUMN lock_pitch_to_speed');
+      raw.execute('PRAGMA user_version = 82');
+      raw.close();
+      final migrated = createTestDatabase(file: file);
+      final settings = (await migrated.appSettingsDao.getSettings())!;
+      expect(settings.playbackSpeed, 1.2735);
+      expect(settings.playbackPitchSemitones, 2.3456);
+      expect(settings.lockPitchToSpeed, isFalse);
+      expect(settings.playbackPresets, contains('2.3456'));
+      expect(
+        (await migrated.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        85,
+      );
+      await migrated.appSettingsDao.updatePlaybackAdjustments(
+        speed: 1.25,
+        pitchSemitones: 3.863137138648348,
+        lockPitchToSpeed: true,
+        selectedPresetId: null,
+      );
+      await migrated.close();
+      final restarted = createTestDatabase(file: file);
+      expect(
+        (await restarted.appSettingsDao.getSettings())!.lockPitchToSpeed,
+        isTrue,
+      );
+      await restarted.close();
+      await directory.delete(recursive: true);
+    },
+    skip: !sqliteAvailable,
+  );
+  test('v81 preserves exact speed and introduces pitch and presets', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'navis_adjustment_migration_',
+    );
+    final file = File(p.join(directory.path, 'fixture.sqlite'));
+    final seed = createTestDatabase(file: file);
+    await seed.appSettingsDao.getSettings();
+    await seed.close();
+    final raw = sqlite3.open(file.path);
+    raw.execute(
+      'ALTER TABLE app_settings DROP COLUMN playback_pitch_semitones',
+    );
+    raw.execute('ALTER TABLE app_settings DROP COLUMN playback_presets');
+    raw.execute(
+      'ALTER TABLE app_settings DROP COLUMN selected_playback_preset_id',
+    );
+    raw.execute(
+      "UPDATE app_settings SET playback_speed = 1.375, theme_mode = 'oled'",
+    );
+    raw.execute('PRAGMA user_version = 81');
+    raw.dispose();
+    final migrated = createTestDatabase(file: file);
+    addTearDown(() async {
+      await migrated.close();
+      await directory.delete(recursive: true);
+    });
+    final settings = (await migrated.appSettingsDao.getSettings())!;
+    expect(settings.playbackSpeed, 1.375);
+    expect(settings.playbackPitchSemitones, 0);
+    expect(settings.playbackPresets, '[]');
+    expect(settings.selectedPlaybackPresetId, isNull);
+    expect(settings.themeMode, 'oled');
+    expect(migrated.schemaVersion, 85);
+  }, skip: !sqliteAvailable);
+
+  for (final sample in <(int?, String)>[
+    (null, 'auto'),
+    (1, 'large'),
+    (2, 'large'),
+    (3, 'medium'),
+    (4, 'small'),
+    (5, 'small'),
+    (9, 'auto'),
+  ]) {
+    test(
+      'v80 artwork size migrates ${sample.$1} once and retains preferences',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis_artwork_migration_',
+        );
+        final file = File(p.join(directory.path, 'fixture.sqlite'));
+        final seed = createTestDatabase(file: file);
+        await seed.appSettingsDao.getSettings();
+        await seed.close();
+        final raw = sqlite3.open(file.path);
+        raw.execute('ALTER TABLE app_settings DROP COLUMN grid_artwork_size');
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN home_recommendations_auto_advance',
+        );
+        raw.execute(
+          "UPDATE app_settings SET album_grid_density = ?, home_density = 'compact', theme_mode = 'oled'",
+          [sample.$1],
+        );
+        raw.execute('PRAGMA user_version = 80');
+        raw.dispose();
+        var migrated = createTestDatabase(file: file);
+        final row = (await migrated.appSettingsDao.getSettings())!;
+        expect(row.gridArtworkSize, sample.$2);
+        expect(row.homeRecommendationsAutoAdvance, isFalse);
+        expect(row.homeDensity, 'compact');
+        expect(row.themeMode, 'oled');
+        expect(row.albumGridDensity, sample.$1);
+        await migrated.appSettingsDao.updateGridArtworkSize('medium');
+        await migrated.appSettingsDao.updateHomeRecommendationsAutoAdvance(
+          enabled: true,
+        );
+        await migrated.close();
+        migrated = createTestDatabase(file: file);
+        addTearDown(() async {
+          await migrated.close();
+          await directory.delete(recursive: true);
+        });
+        final restarted = (await migrated.appSettingsDao.getSettings())!;
+        expect(restarted.gridArtworkSize, 'medium');
+        expect(restarted.homeRecommendationsAutoAdvance, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
   test(
     'v77 catalog readiness migrates separately from full freshness',
     () async {
@@ -52,7 +304,7 @@ void main() {
       final ready = await migrated.librarySyncDao.getOrCreateState(1);
       expect(ready.initialCatalogUsableAt, isNotNull);
       expect(ready.lastCatalogSyncedAt, isNull);
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
     },
   );
 
@@ -119,7 +371,7 @@ void main() {
           .telemetryJson,
       '{"version":1}',
     );
-    expect(migrated.schemaVersion, 80);
+    expect(migrated.schemaVersion, 85);
     expect(
       await migrated.customSelect('PRAGMA foreign_key_check').get(),
       isEmpty,
@@ -214,7 +466,7 @@ void main() {
       final album = (await migrated.libraryDao.getAlbumById('kept'))!;
       expect(album.songsHydrated, isTrue);
       expect(album.songsVerifiedAt, isNull);
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
     },
   );
   test(
@@ -253,7 +505,7 @@ void main() {
       expect(pending.operation, 'star');
       expect(pending.attemptCount, 0);
       expect(pending.notBefore, isNull);
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
     },
   );
   test('latest schema opens with expected user_version', () async {
@@ -264,8 +516,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 80);
-    expect(pragmaRow.read<int>('user_version'), 80);
+    expect(database.schemaVersion, 85);
+    expect(pragmaRow.read<int>('user_version'), 85);
   }, skip: !sqliteAvailable);
 
   test('migrates v70 profiles to typed sync lifecycle storage', () async {
@@ -295,7 +547,7 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 80);
+    expect(migrated.schemaVersion, 85);
     final tables = await migrated
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
         .get();
@@ -340,7 +592,7 @@ void main() {
     final columns = await migrated
         .customSelect("PRAGMA table_info('library_sync_candidate_albums');")
         .get();
-    expect(migrated.schemaVersion, 80);
+    expect(migrated.schemaVersion, 85);
     expect(
       columns.map((row) => row.read<String>('name')),
       contains('recently_added_rank'),
@@ -386,7 +638,7 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 80);
+    expect(migrated.schemaVersion, 85);
     expect(
       (await migrated.libraryDao.getArtistById('ext-artist'))?.isExternal,
       isTrue,
@@ -433,7 +685,7 @@ void main() {
       final marker = await migrated
           .customSelect('SELECT * FROM cache_system_state;')
           .get();
-      expect(version.read<int>('user_version'), 80);
+      expect(version.read<int>('user_version'), 85);
       expect(marker, isEmpty);
     },
     skip: !sqliteAvailable,
@@ -471,7 +723,7 @@ void main() {
         .customSelect("PRAGMA table_info('albums');")
         .get();
 
-    expect(version.read<int>('user_version'), 80);
+    expect(version.read<int>('user_version'), 85);
     expect(
       columns.map((row) => row.read<String>('name')),
       contains('recently_added_rank'),
@@ -502,10 +754,7 @@ void main() {
     expect(settings.showPlaylistsPage, isTrue);
     expect(settings.showArtistsPage, isTrue);
     expect(settings.showLikedPage, isTrue);
-    expect(settings.equalizerEnabled, isFalse);
-    expect(settings.equalizerBandGains, isNull);
-    expect(settings.loudnessEnabled, isFalse);
-    expect(settings.loudnessTargetGainDb, 0);
+
     expect(
       settings.rollingCacheBudgetMb,
       AppSettingsDao.defaultRollingCacheBudgetMb,
@@ -606,7 +855,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 80);
+      expect(versionRow.read<int>('user_version'), 85);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -699,7 +948,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 80);
+      expect(versionRow.read<int>('user_version'), 85);
 
       final now = DateTime.utc(2026, 1, 1, 1);
       await migrated.scrobbleDao.enqueue(
@@ -782,7 +1031,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 80);
+      expect(versionRow.read<int>('user_version'), 85);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -901,7 +1150,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 80);
+      expect(versionRow.read<int>('user_version'), 85);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -937,10 +1186,7 @@ CREATE TABLE scrobble_queue (
       expect(settings.showPlaylistsPage, isTrue);
       expect(settings.showArtistsPage, isTrue);
       expect(settings.showLikedPage, isTrue);
-      expect(settings.equalizerEnabled, isFalse);
-      expect(settings.equalizerBandGains, isNull);
-      expect(settings.loudnessEnabled, isFalse);
-      expect(settings.loudnessTargetGainDb, 0);
+
       expect(
         settings.rollingCacheBudgetMb,
         AppSettingsDao.defaultRollingCacheBudgetMb,
@@ -1019,7 +1265,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 80);
+      expect(versionRow.read<int>('user_version'), 85);
 
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings?.customVoyageServers, isNull);
@@ -1096,7 +1342,7 @@ SET group_listening_enabled = 1,
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 80);
+      expect(versionRow.read<int>('user_version'), 85);
 
       for (final table in <String>['artists', 'albums', 'songs']) {
         final columns = await migrated
@@ -1213,7 +1459,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 80);
+      expect(version.read<int>('user_version'), 85);
       final state = await migrated.librarySyncDao.getOrCreateState(1);
       expect(state.conditionalIndexesMode, 'reliable');
       expect(state.bulkSearchMode, 'supported');
@@ -1292,7 +1538,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 80);
+      expect(version.read<int>('user_version'), 85);
       final tables = await migrated
           .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
           .get();
@@ -1374,7 +1620,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 80);
+      expect(version.read<int>('user_version'), 85);
       for (final table in <String>[
         'library_sync_candidate_artists',
         'library_sync_candidate_albums',
@@ -1433,7 +1679,7 @@ SET group_listening_enabled = 1,
       final version = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 80);
+      expect(version.read<int>('user_version'), 85);
       final settingsColumns = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
           .get();
@@ -1522,7 +1768,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
       final artist = await migrated.libraryDao.getArtistById(
         'ext-deezer-artist-1',
       );
@@ -1586,7 +1832,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings, isNotNull);
       expect(settings!.themeMode, 'oled');
@@ -1627,7 +1873,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
       final retained = await migrated.serverDao.getRetainedServer();
       expect(retained, isNotNull);
       expect(retained!.isAuthenticated, isTrue);
@@ -1658,7 +1904,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 80);
+    expect(migrated.schemaVersion, 85);
     final table = await migrated
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' "
@@ -1694,7 +1940,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 80);
+    expect(migrated.schemaVersion, 85);
     final column = await migrated
         .customSelect(
           "SELECT name FROM pragma_table_info('library_sync_state') "
@@ -1727,7 +1973,7 @@ SET group_listening_enabled = 1,
       await tempDir.delete(recursive: true);
     });
 
-    expect(migrated.schemaVersion, 80);
+    expect(migrated.schemaVersion, 85);
     final table = await migrated
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' "
@@ -1777,7 +2023,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
       final columns = await migrated
           .customSelect("PRAGMA table_info('library_sync_state');")
           .get();
@@ -1880,7 +2126,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
       for (final tableName in <String>[
         'library_scan_observation',
         'library_recovery_review',
@@ -1955,7 +2201,7 @@ SET group_listening_enabled = 1,
         await tempDir.delete(recursive: true);
       });
 
-      expect(migrated.schemaVersion, 80);
+      expect(migrated.schemaVersion, 85);
       final albumColumns = await migrated
           .customSelect("PRAGMA table_info('library_sync_candidate_albums');")
           .get();

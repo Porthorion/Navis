@@ -1,7 +1,12 @@
+import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +16,6 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/utils/format_utils.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
   const PlaybackSettingsScreen({super.key});
@@ -25,8 +29,6 @@ class _PlaybackSettingsScreenState
     extends ConsumerState<PlaybackSettingsScreen> {
   static const double _minReplayGainPreamp = -6;
   static const double _maxReplayGainPreamp = 6;
-  static const double _minPlaybackSpeed = 0.5;
-  static const double _maxPlaybackSpeed = 2;
   static const List<int?> _qualityOptions = <int?>[
     null,
     320,
@@ -58,16 +60,12 @@ class _PlaybackSettingsScreenState
   bool _albumQueueEnabled = false;
   bool _likedQueueEnabled = false;
   bool _matchFlowEnabled = false;
-  bool _equalizerEnabled = false;
-  List<double> _equalizerBandGains = List<double>.filled(5, 0);
-  bool _loudnessEnabled = false;
-  double _loudnessTargetGainDb = 0;
+
   bool _crossfadeEnabled = false;
   int _crossfadeDurationSeconds = 5;
   String _crossfadeType = 'normal';
   String _replayGainMode = 'off';
   double _replayGainPreamp = 0;
-  double _playbackSpeed = 1;
   bool _didHydrateForm = false;
   bool _isSaving = false;
   bool _isAutoSaving = false;
@@ -75,9 +73,6 @@ class _PlaybackSettingsScreenState
   bool _experimentalExpanded = false;
   String _lastSavedSignature = '';
   Timer? _autosaveDebounce;
-
-  bool get _supportsAndroidDsp =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +135,8 @@ class _PlaybackSettingsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  const EqualizerEntry(),
+                  const SizedBox(height: 16),
                   Text(
                     l10n.playbackSettingsWifiSectionTitle,
                     style: Theme.of(context).textTheme.titleMedium,
@@ -480,39 +477,8 @@ class _PlaybackSettingsScreenState
                       ),
                     ),
                   ],
-                  // ── Playback Speed section ─────────────────────────────────
                   const SizedBox(height: 24),
-                  Text(
-                    l10n.playbackSettingsPlaybackSpeedLabel,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    formatPlaybackSpeed(_playbackSpeed),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  Slider(
-                    value: _playbackSpeed.clamp(
-                      _minPlaybackSpeed,
-                      _maxPlaybackSpeed,
-                    ),
-                    min: _minPlaybackSpeed,
-                    max: _maxPlaybackSpeed,
-                    divisions: 6,
-                    label: formatPlaybackSpeed(_playbackSpeed),
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(
-                            () =>
-                                _playbackSpeed = _normalizePlaybackSpeed(value),
-                          ),
-                  ),
-                  Text(
-                    l10n.playbackSettingsPlaybackSpeedSubtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
+                  const PlaybackAdjustmentPanel(),
                   const SizedBox(height: 24),
                   _buildExperimentalSection(context, l10n),
                   const SizedBox(height: 20),
@@ -655,73 +621,6 @@ class _PlaybackSettingsScreenState
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/playback/match-flow'),
         ),
-      if (_supportsAndroidDsp) ...<Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-          child: Text(
-            l10n.playbackSettingsAndroidDspSectionTitle,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _equalizerEnabled,
-          onChanged: _isSaving
-              ? null
-              : (value) => setState(() => _equalizerEnabled = value),
-          title: Text(l10n.playbackSettingsEqualizerTitle),
-          subtitle: Text(l10n.playbackSettingsEqualizerSubtitle),
-        ),
-        if (_equalizerEnabled)
-          ...List<Widget>.generate(_equalizerBandGains.length, (index) {
-            final value = _equalizerBandGains[index];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  l10n.playbackSettingsEqualizerBandLabel(index + 1),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Slider(
-                  value: value.clamp(-12, 12),
-                  min: -12,
-                  max: 12,
-                  divisions: 24,
-                  label: value.toStringAsFixed(1),
-                  onChanged: _isSaving
-                      ? null
-                      : (nextValue) {
-                          setState(() {
-                            _equalizerBandGains[index] = nextValue;
-                          });
-                        },
-                ),
-              ],
-            );
-          }),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _loudnessEnabled,
-          onChanged: _isSaving
-              ? null
-              : (value) => setState(() => _loudnessEnabled = value),
-          title: Text(l10n.playbackSettingsLoudnessTitle),
-          subtitle: Text(l10n.playbackSettingsLoudnessSubtitle),
-        ),
-        if (_loudnessEnabled)
-          Slider(
-            value: _loudnessTargetGainDb.clamp(0, 20),
-            min: 0,
-            max: 20,
-            divisions: 20,
-            label: _loudnessTargetGainDb.toStringAsFixed(0),
-            onChanged: _isSaving
-                ? null
-                : (value) => setState(() => _loudnessTargetGainDb = value),
-          ),
-      ],
     ];
   }
 
@@ -739,16 +638,12 @@ class _PlaybackSettingsScreenState
     _albumQueueEnabled = settings.albumQueueEnabled;
     _likedQueueEnabled = settings.likedQueueEnabled;
     _matchFlowEnabled = settings.matchFlowEnabled;
-    _equalizerEnabled = settings.equalizerEnabled;
-    _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
-    _loudnessEnabled = settings.loudnessEnabled;
-    _loudnessTargetGainDb = settings.loudnessTargetGainDb;
+
     _crossfadeEnabled = settings.crossfadeEnabled;
     _crossfadeDurationSeconds = settings.crossfadeDurationSeconds;
     _crossfadeType = settings.crossfadeType;
     _replayGainMode = settings.replayGainMode;
     _replayGainPreamp = _normalizeReplayGainPreamp(settings.replayGainPreamp);
-    _playbackSpeed = _normalizePlaybackSpeed(settings.playbackSpeed);
     _lastSavedSignature = _formSignature();
   }
 
@@ -779,16 +674,12 @@ class _PlaybackSettingsScreenState
       _legacyInstantMixEnabled,
       _gaplessEnabled,
       _fullscreenModeLyrics,
-      _equalizerEnabled,
-      ..._equalizerBandGains,
-      _loudnessEnabled,
-      _loudnessTargetGainDb,
+
       _crossfadeEnabled,
       _crossfadeDurationSeconds,
       _crossfadeType,
       _replayGainMode,
       _replayGainPreamp,
-      _playbackSpeed,
       _albumQueueEnabled,
       _likedQueueEnabled,
       _matchFlowEnabled,
@@ -825,10 +716,7 @@ class _PlaybackSettingsScreenState
         showPlaylistsPage: ref.read(showPlaylistsPageProvider),
         showArtistsPage: ref.read(showArtistsPageProvider),
         showLikedPage: ref.read(showLikedPageProvider),
-        equalizerEnabled: _equalizerEnabled,
-        equalizerBandGains: _normalizeBandGains(_equalizerBandGains),
-        loudnessEnabled: _loudnessEnabled,
-        loudnessTargetGainDb: _loudnessTargetGainDb,
+
         wifiOnlyDownloads: ref.read(wifiOnlyDownloadsProvider),
         autoDownloadStarredOnWifi: currentSettings.autoDownloadStarredOnWifi,
         customDownloadFolderEnabled:
@@ -853,14 +741,18 @@ class _PlaybackSettingsScreenState
             legacyInstantMixLocked || _legacyInstantMixEnabled,
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
-        playbackSpeed: _normalizePlaybackSpeed(_playbackSpeed),
+        playbackSpeed: currentSettings.playbackSpeed,
         albumGridDensity: currentSettings.albumGridDensity,
+        gridArtworkSize: currentSettings.gridArtworkSize,
+        homeRecommendationsAutoAdvance:
+            currentSettings.homeRecommendationsAutoAdvance,
         coverArtShape: currentSettings.coverArtShape,
         nowPlayingArtShape: currentSettings.nowPlayingArtShape,
         artistCardShape: currentSettings.artistCardShape,
         artistViewMode: currentSettings.artistViewMode,
         desktopFocusPlayerModeEnabled:
             currentSettings.desktopFocusPlayerModeEnabled,
+        homeDensity: currentSettings.homeDensity,
         homeSectionOrder: currentSettings.homeSectionOrder,
         homeSectionsHidden: currentSettings.homeSectionsHidden,
         libraryPageOrder: currentSettings.libraryPageOrder,
@@ -886,7 +778,6 @@ class _PlaybackSettingsScreenState
       final handler = ref.read(audioHandlerProvider);
       if (handler != null) {
         await handler.applyRuntimeSettings();
-        await handler.setPlaybackSpeed(settings.playbackSpeed);
       }
       _lastSavedSignature = signature;
     } on Object {
@@ -933,11 +824,14 @@ class _PlaybackSettingsScreenState
     setState(() => _isSaving = true);
     try {
       await ref.read(settingsRepositoryProvider).resetDefaults();
+      await ref
+          .read(playbackAdjustmentsProvider.notifier)
+          .selectPreset(PlaybackPreset.noneId);
+      await ref.read(equalizerProvider.notifier).reset();
       const defaults = AppSettingsModel.defaults();
       final handler = ref.read(audioHandlerProvider);
       if (handler != null) {
         await handler.applyRuntimeSettings();
-        await handler.setPlaybackSpeed(defaults.playbackSpeed);
       }
       if (!mounted) {
         return;
@@ -976,23 +870,8 @@ class _PlaybackSettingsScreenState
     return trimmed.toLowerCase();
   }
 
-  List<double> _normalizeBandGains(List<double> values) {
-    if (values.length >= 5) {
-      return values.take(5).toList(growable: false);
-    }
-    return <double>[
-      ...values,
-      ...List<double>.filled(5 - values.length, 0),
-    ];
-  }
-
   double _normalizeReplayGainPreamp(double value) {
     return value.clamp(_minReplayGainPreamp, _maxReplayGainPreamp);
-  }
-
-  double _normalizePlaybackSpeed(double value) {
-    final clamped = value.clamp(_minPlaybackSpeed, _maxPlaybackSpeed);
-    return (clamped * 4).round() / 4;
   }
 
   @override

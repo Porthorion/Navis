@@ -155,3 +155,22 @@ This is **NOT NEEDED** in most cases, as `package:media_kit` will choose the rig
 This package is licensed under the `Unlicense` license, though
 please note that `package:media_kit` (which is a direct dependency of this package) is licensed under the `MIT` license.
 So please refer to [`package:media_kit`](https://github.com/media-kit/media-kit) for potential licensing issues.
+
+### Navis speed/pitch verification
+
+The local adapter reads mpv's actual pitch (`speed`) and scaletempo scale after
+pitch application. Upstream media-kit logs native setter errors without throwing;
+verification propagates rejected pairs to Navis so the handler can roll back both
+decks and the UI can report failure. This complements the existing force-seekable
+customization without changing progressive-stream resolution.
+
+### Navis equalizer integration
+
+When supplied a typed initial EQ configuration, the adapter owns the full
+labelled mpv tempo/EQ chain. Speed and pitch changes rebuild that same chain,
+verify native properties, and retain EQ. Validated numeric biquad commands use
+floating-point precision; imported text is never executed. Source rate changes
+recompile filters, and unsupported frequency/rate combinations bypass the
+complete profile with a reason. Linux has captured-output evidence; Navis gates
+Windows/macOS EQ until their separate validation. Callers without the optional
+configuration retain the upstream speed/pitch implementation.

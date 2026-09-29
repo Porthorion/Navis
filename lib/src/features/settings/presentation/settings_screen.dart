@@ -1,3 +1,4 @@
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -61,6 +62,16 @@ class SettingsScreen extends ConsumerWidget {
         subtitle: l10n.settingsPlaybackSubtitle,
         route: '/settings/playback',
         group: groupPlayback,
+      ),
+      _SettingsEntry(
+        icon: Icons.equalizer,
+        title: l10n.eqTitle,
+        subtitle: ref.watch(eqCapabilitiesProvider).supported
+            ? l10n.eqSubtitle
+            : l10n.eqUnavailable,
+        route: '/settings/equalizer',
+        group: groupPlayback,
+        enabled: ref.watch(eqCapabilitiesProvider).supported,
       ),
       _SettingsEntry(
         icon: Icons.palette_outlined,
@@ -133,7 +144,7 @@ class SettingsScreen extends ConsumerWidget {
                       ? null
                       : Text(entry.subtitle!),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push(entry.route),
+                  onTap: entry.enabled ? () => context.push(entry.route) : null,
                 ),
             ],
           ),
@@ -172,7 +183,7 @@ class SettingsScreen extends ConsumerWidget {
                       ? null
                       : Text(entry.subtitle!),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push(entry.route),
+                  onTap: entry.enabled ? () => context.push(entry.route) : null,
                 ),
               const SizedBox(height: 8),
             ] else ...<Widget>[
@@ -198,7 +209,9 @@ class SettingsScreen extends ConsumerWidget {
                             ? null
                             : Text(entry.subtitle!),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => context.push(entry.route),
+                        onTap: entry.enabled
+                            ? () => context.push(entry.route)
+                            : null,
                       ),
                   ],
                 ),
@@ -263,7 +276,7 @@ class SettingsScreen extends ConsumerWidget {
                   title: entry.title,
                   subtitle: entry.subtitle,
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push(entry.route),
+                  onTap: entry.enabled ? () => context.push(entry.route) : null,
                 ),
             ],
           ],
@@ -280,6 +293,7 @@ class _SettingsEntry {
     required this.subtitle,
     required this.route,
     required this.group,
+    this.enabled = true,
   });
 
   final IconData icon;
@@ -287,4 +301,5 @@ class _SettingsEntry {
   final String? subtitle;
   final String route;
   final String group;
+  final bool enabled;
 }
