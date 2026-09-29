@@ -1,9 +1,21 @@
+import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
+
 import 'dart:io';
+
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
+import 'package:navis/src/features/player/presentation/playback_quick_actions.dart';
+import 'package:navis/src/routing/desktop_commands.dart';
+import 'package:navis/src/common_widgets/navis_tooltip.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:path/path.dart' as p;
 
 class DiagnosticsPresentationUnavailable implements Exception {
@@ -73,6 +85,167 @@ class DiagnosticsPresentationController {
 
   static final RegExp _validLabel = RegExp(r'^[a-z0-9][a-z0-9_-]{0,47}$');
   static const double _capturePixelRatio = 1;
+  static const tooltipTargets = <String, String>{
+    'favorite': 'desktopPlayerFavoriteButton',
+    'lyrics': 'desktopPlayerLyricsButton',
+    'queue': 'desktopQueueButton',
+    'miniPlayer': 'desktopPlayerMiniPlayerButton',
+  };
+  static const _tooltipPointerDevice = 904;
+  static const libraryActions = {'openFirstAlbum', 'nextLikedAlbums'};
+  static const trackActions = {
+    'scrollToLast',
+    'revealFirst',
+    'more',
+    'download',
+    'downloadedTab',
+    'dragFirstToLast',
+  };
+
+  static const artistActions = {
+    'play',
+    'shuffle',
+    'cancel',
+    'queue',
+  };
+
+  Future<void> activateArtistControl({required String action}) async {
+    if (!artistActions.contains(action)) throw const FormatException();
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final key = action == 'queue'
+        ? 'desktopQueueButton'
+        : action == 'play' || action == 'shuffle'
+        ? 'artist-$action'
+        : 'artist-playback-$action';
+    final element = _findElement(
+      root,
+      (element) => element.widget.key == ValueKey<String>(key),
+    );
+    final widget = element?.widget;
+    final callback = switch (widget) {
+      ButtonStyleButton(:final onPressed) => onPressed,
+      Semantics(:final properties) => properties.onTap,
+      _ => null,
+    };
+    if (callback == null) throw const DiagnosticsPresentationUnavailable();
+    callback();
+    await waitForFrame();
+  }
+
+  /// Exercises mounted track controls only; the server gates this to clones.
+  Future<void> activateTrackControl({required String action}) async {
+    if (!trackActions.contains(action)) throw const FormatException();
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    if (action == 'downloadedTab') {
+      final downloads = _findElement(
+        root,
+        (element) =>
+            element.widget is DownloadsScreen &&
+            ModalRoute.of(element)?.isCurrent != false,
+      );
+      final tabs = downloads == null
+          ? null
+          : _findElement(downloads, (element) => element.widget is TabBar);
+      final controller = (tabs?.widget as TabBar?)?.controller;
+      if (controller == null) throw const DiagnosticsPresentationUnavailable();
+      controller.animateTo(1);
+    } else {
+      final rows = <Element>[];
+      void collect(Element element) {
+        if (element.widget is Offstage &&
+            (element.widget as Offstage).offstage) {
+          return;
+        }
+        if (element.widget is AdaptiveTrackRow &&
+            ModalRoute.of(element)?.isCurrent != false) {
+          rows.add(element);
+        }
+        element.visitChildElements(collect);
+      }
+
+      collect(root);
+      if (rows.isEmpty) throw const DiagnosticsPresentationUnavailable();
+      if (action == 'revealFirst') {
+        await Scrollable.ensureVisible(rows.first, alignment: .2);
+      } else if (action == 'scrollToLast') {
+        final scrollable = Scrollable.maybeOf(rows.last);
+        if (scrollable == null) {
+          throw const DiagnosticsPresentationUnavailable();
+        }
+        await scrollable.position.animateTo(
+          scrollable.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else if (action == 'dragFirstToLast') {
+        final handle = _findElement(
+          rows.first,
+          (element) => element.widget is ReorderableDragStartListener,
+        );
+        final box = handle?.findRenderObject();
+        final last = rows.last.findRenderObject();
+        if (box is! RenderBox || last is! RenderBox) {
+          throw const DiagnosticsPresentationUnavailable();
+        }
+        final start = box.localToGlobal(box.size.center(Offset.zero));
+        final end = Offset(
+          start.dx,
+          last.localToGlobal(Offset(0, last.size.height)).dy + 8,
+        );
+        final binding = GestureBinding.instance;
+        final viewId = View.of(root).viewId;
+        const pointer = 9281;
+        binding.handlePointerEvent(
+          PointerDownEvent(pointer: pointer, position: start, viewId: viewId),
+        );
+        var previous = start;
+        try {
+          for (var step = 1; step <= 12; step++) {
+            final position = Offset.lerp(start, end, step / 12)!;
+            binding.handlePointerEvent(
+              PointerMoveEvent(
+                pointer: pointer,
+                position: position,
+                delta: position - previous,
+                buttons: kPrimaryButton,
+                timeStamp: Duration(milliseconds: step * 30),
+                viewId: viewId,
+              ),
+            );
+            previous = position;
+            await waitForFrame();
+          }
+        } finally {
+          binding.handlePointerEvent(
+            PointerUpEvent(pointer: pointer, position: end, viewId: viewId),
+          );
+        }
+      } else if (action == 'download') {
+        final icon = _findElement(
+          rows.first,
+          (element) => element.widget is SongDownloadStatusIcon,
+        );
+        final callback = (icon?.widget as SongDownloadStatusIcon?)?.onDownload;
+        if (callback == null) throw const DiagnosticsPresentationUnavailable();
+        callback();
+      } else {
+        final button = _findElement(
+          rows.first,
+          (element) =>
+              element.widget is IconButton &&
+              (element.widget as IconButton).icon is Icon &&
+              ((element.widget as IconButton).icon as Icon).icon ==
+                  Icons.more_vert,
+        );
+        final callback = (button?.widget as IconButton?)?.onPressed;
+        if (callback == null) throw const DiagnosticsPresentationUnavailable();
+        callback();
+      }
+    }
+    await waitForFrame();
+  }
 
   static bool isValidLabel(String label) => _validLabel.hasMatch(label);
 
@@ -82,11 +255,447 @@ class DiagnosticsPresentationController {
     debugLabel: 'diagnosticsPresentationBoundary',
   );
   bool _appReady = false;
+  bool _tooltipPointerAdded = false;
+  SemanticsHandle? _tooltipSemantics;
 
   bool get appReady => _appReady;
 
   void markAppReady() {
     _appReady = true;
+  }
+
+  Future<Map<String, Object>?> activateEqualizerControl({
+    required String action,
+    int index = 0,
+    String? value,
+    double dx = 0,
+    double dy = 0,
+  }) async {
+    if (!dx.isFinite || !dy.isFinite || dx.abs() > 10000 || dy.abs() > 10000) {
+      throw const FormatException(
+        'EQ gesture coordinates must be finite and bounded.',
+      );
+    }
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final editor = _findElement(root, (e) => e.widget is EqualizerScreen);
+    if (editor is! StatefulElement || editor.state is! EqualizerScreenState) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    final screen = editor.state as EqualizerScreenState;
+    // Controller endpoints can change the curve without waiting for a frame;
+    // mounted controls must act on the rebuilt page, not a stale curve.
+    await waitForFrame();
+    if (!editor.mounted) throw const DiagnosticsPresentationUnavailable();
+    switch (action) {
+      case 'profileGraph':
+        return screen.profileGraph(index);
+      case 'selectBand':
+        screen.selectBand(index);
+      case 'dragBand':
+        screen.dragBand(index, dx, dy);
+        await screen.flushGraphEdits();
+      case 'cancelDrag':
+        screen.dragBand(index, dx, dy, cancel: true);
+        await screen.flushGraphEdits();
+      case 'edit':
+        screen.selectBand(index);
+        screen.editNumber('gain');
+      case 'frequency' || 'gain' || 'q' || 'preamp':
+        screen.editNumber(action);
+        if (value != null) await screen.typeNumber(value);
+      case 'apply' || 'done':
+        await screen.finishNumber();
+      case 'cancel':
+        await screen.cancelNumber();
+      default:
+        throw const FormatException('Unknown EQ presentation action.');
+    }
+    await waitForFrame();
+    return null;
+  }
+
+  Future<void> revealPlaybackAdjustments({required bool open}) async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    if (open) {
+      final settingsAction = _findElement(
+        root,
+        (element) =>
+            element.widget.key == const ValueKey('nowPlayingSettingsAction') &&
+            element.widget is IconButton,
+      );
+      (settingsAction?.widget as IconButton?)?.onPressed?.call();
+      await waitForFrame();
+      final entry = _findElement(
+        root,
+        (element) =>
+            element.widget.key ==
+                const ValueKey('playbackAdjustmentEntryPoint') &&
+            element.widget is ListTile,
+      );
+      final callback = (entry?.widget as ListTile?)?.onTap;
+      if (callback == null) throw const DiagnosticsPresentationUnavailable();
+      callback();
+      await waitForFrame();
+    }
+    final panel = _findElement(
+      root,
+      (element) => element.widget is PlaybackAdjustmentPanel,
+    );
+    if (panel == null) throw const DiagnosticsPresentationUnavailable();
+    await Scrollable.ensureVisible(panel, alignment: 0);
+    await waitForFrame();
+  }
+
+  /// Presses the first visible player Speed button through its production
+  /// callback and reports whether the panel opened as a popover or a sheet.
+  Future<String> openPlaybackQuickPanel({String target = 'speed'}) async {
+    await pressPlayerQuickButton(target: target);
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final panelKey = ValueKey<String>(
+      target == 'equalizer'
+          ? 'equalizerQuickPanel'
+          : 'playbackAdjustmentQuickPanel',
+    );
+    final panel = _findElement(
+      root,
+      (element) => element.widget.key == panelKey,
+    );
+    if (panel == null) throw const DiagnosticsPresentationUnavailable();
+    final popover = _findElement(
+      root,
+      (element) =>
+          element.widget.key ==
+          const ValueKey<String>('desktopAnchoredPopover'),
+    );
+    return popover == null ? 'sheet' : 'popover';
+  }
+
+  /// Presses the first visible player Speed (`speed`) or Equalizer
+  /// (`equalizer`) quick button through its production callback.
+  Future<void> pressPlayerQuickButton({required String target}) async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final button = _findElement(
+      root,
+      (element) =>
+          (target == 'equalizer'
+              ? element.widget is EqualizerQuickButton
+              : element.widget is PlaybackSpeedQuickButton) &&
+          _isOnstage(element),
+    );
+    final iconButton = button == null
+        ? null
+        : _findElement(button, (element) => element.widget is IconButton);
+    final callback = (iconButton?.widget as IconButton?)?.onPressed;
+    if (callback == null) throw const DiagnosticsPresentationUnavailable();
+    callback();
+    await waitForFrame();
+  }
+
+  /// Taps a mounted mini-EQ preset chip (`eq-quick-preset-<id>`).
+  Future<void> selectQuickEqualizerPreset(String id) async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final chip = _findElement(
+      root,
+      (element) =>
+          element.widget.key == ValueKey<String>('eq-quick-preset-$id') &&
+          element.widget is ChoiceChip,
+    );
+    final callback = (chip?.widget as ChoiceChip?)?.onSelected;
+    if (callback == null) throw const DiagnosticsPresentationUnavailable();
+    callback(true);
+    await waitForFrame();
+  }
+
+  /// Presses the mounted "Open Equalizer" action of a quick panel or card.
+  Future<void> openEqualizerFromQuickPanel() async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final action = _findElement(
+      root,
+      (element) =>
+          element.widget.key == const ValueKey<String>('eq-quick-open-page') &&
+          element.widget is ButtonStyleButton,
+    );
+    final callback = (action?.widget as ButtonStyleButton?)?.onPressed;
+    if (callback == null) throw const DiagnosticsPresentationUnavailable();
+    callback();
+    await waitForFrame();
+  }
+
+  /// Visible player quick controls with their enabled state and, for Speed,
+  /// the multiplier label shown instead of the icon.
+  List<Map<String, Object?>> playbackQuickControls() {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) return const [];
+    final controls = <Map<String, Object?>>[];
+    void visit(Element element) {
+      final widget = element.widget;
+      if ((widget is PlaybackSpeedQuickButton ||
+              widget is EqualizerQuickButton) &&
+          _isOnstage(element)) {
+        final iconButton = _findElement(
+          element,
+          (child) => child.widget is IconButton,
+        );
+        final label = _findElement(
+          element,
+          (child) =>
+              child.widget.key ==
+              const ValueKey<String>('playbackSpeedQuickLabel'),
+        );
+        if (iconButton != null) {
+          controls.add(<String, Object?>{
+            'key': switch (widget.key) {
+              ValueKey<String>(:final value) => value,
+              _ => null,
+            },
+            'kind': widget is PlaybackSpeedQuickButton ? 'speed' : 'equalizer',
+            'enabled': (iconButton.widget as IconButton).onPressed != null,
+            'label': (label?.widget as Text?)?.data,
+          });
+        }
+        return;
+      }
+      element.visitChildElements(visit);
+    }
+
+    visit(root);
+    return controls;
+  }
+
+  /// Sends [binding] through [HardwareKeyboard] so the shell's production
+  /// global shortcut handler receives the same key sequence as a keyboard.
+  Future<void> sendShortcut(
+    DesktopShortcutBinding binding,
+    TargetPlatform platform,
+  ) async {
+    final isApple = platform == TargetPlatform.macOS;
+    final modifiers = <(PhysicalKeyboardKey, LogicalKeyboardKey)>[
+      if (binding.primaryModifier && isApple)
+        (PhysicalKeyboardKey.metaLeft, LogicalKeyboardKey.metaLeft)
+      else if (binding.primaryModifier)
+        (PhysicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlLeft),
+      if (binding.alt)
+        (PhysicalKeyboardKey.altLeft, LogicalKeyboardKey.altLeft),
+      if (binding.shift)
+        (PhysicalKeyboardKey.shiftLeft, LogicalKeyboardKey.shiftLeft),
+    ];
+    final physical =
+        _shortcutPhysicalKeys[binding.key] ??
+        PhysicalKeyboardKey(binding.key.keyId);
+    final keyboard = HardwareKeyboard.instance;
+    final timeStamp = Duration(
+      microseconds: DateTime.now().microsecondsSinceEpoch,
+    );
+    for (final (physicalKey, logicalKey) in modifiers) {
+      keyboard.handleKeyEvent(
+        KeyDownEvent(
+          physicalKey: physicalKey,
+          logicalKey: logicalKey,
+          timeStamp: timeStamp,
+        ),
+      );
+    }
+    keyboard.handleKeyEvent(
+      KeyDownEvent(
+        physicalKey: physical,
+        logicalKey: binding.key,
+        timeStamp: timeStamp,
+      ),
+    );
+    keyboard.handleKeyEvent(
+      KeyUpEvent(
+        physicalKey: physical,
+        logicalKey: binding.key,
+        timeStamp: timeStamp,
+      ),
+    );
+    for (final (physicalKey, logicalKey) in modifiers.reversed) {
+      keyboard.handleKeyEvent(
+        KeyUpEvent(
+          physicalKey: physicalKey,
+          logicalKey: logicalKey,
+          timeStamp: timeStamp,
+        ),
+      );
+    }
+    await waitForFrame();
+  }
+
+  static final _shortcutPhysicalKeys =
+      <LogicalKeyboardKey, PhysicalKeyboardKey>{
+        LogicalKeyboardKey.period: PhysicalKeyboardKey.period,
+        LogicalKeyboardKey.comma: PhysicalKeyboardKey.comma,
+        LogicalKeyboardKey.digit0: PhysicalKeyboardKey.digit0,
+      };
+
+  bool _isOnstage(Element element) {
+    var visible = true;
+    element.visitAncestorElements((ancestor) {
+      final widget = ancestor.widget;
+      if (widget is Offstage && widget.offstage) {
+        visible = false;
+        return false;
+      }
+      return true;
+    });
+    return visible;
+  }
+
+  Future<void> activateLibraryControl({required String action}) async {
+    if (!libraryActions.contains(action)) throw const FormatException();
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    bool onstage(Element element) {
+      var visible = true;
+      element.visitAncestorElements((ancestor) {
+        final widget = ancestor.widget;
+        if (widget is Offstage && widget.offstage) {
+          visible = false;
+          return false;
+        }
+        return true;
+      });
+      return visible;
+    }
+
+    VoidCallback? callback;
+    if (action == 'openFirstAlbum') {
+      final element = _findElement(
+        root,
+        (element) =>
+            element.widget.key == const ValueKey('albumCardTapTarget') &&
+            element.widget is InkWell &&
+            onstage(element),
+      );
+      callback = (element?.widget as InkWell?)?.onTap;
+    } else {
+      final shelf = _findElement(
+        root,
+        (element) =>
+            element.widget.key == const ValueKey('liked-albums-shelf') &&
+            onstage(element),
+      );
+      final button = shelf == null
+          ? null
+          : _findElement(
+              shelf,
+              (element) =>
+                  element.widget.key ==
+                      const ValueKey('contentShelfNextButton') &&
+                  element.widget is IconButton,
+            );
+      callback = (button?.widget as IconButton?)?.onPressed;
+    }
+    if (callback == null) throw const DiagnosticsPresentationUnavailable();
+    callback();
+    await waitForFrame();
+  }
+
+  /// Drives bounded tooltip hover through Flutter's own input and semantics.
+  Future<bool> hoverTooltip({required String? target}) async {
+    if (target != null && !tooltipTargets.containsKey(target)) {
+      throw const FormatException('unsupported tooltip target');
+    }
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final viewId = View.of(root).viewId;
+    final binding = WidgetsBinding.instance;
+    if (target == null) {
+      if (_tooltipPointerAdded) {
+        binding.handlePointerEvent(
+          PointerRemovedEvent(
+            viewId: viewId,
+            kind: PointerDeviceKind.mouse,
+            device: _tooltipPointerDevice,
+          ),
+        );
+        _tooltipPointerAdded = false;
+      }
+    } else {
+      final element = _findElement(
+        root,
+        (element) =>
+            element.widget.key == ValueKey<String>(tooltipTargets[target]!),
+      );
+      final box = element?.findRenderObject();
+      if (box is! RenderBox || !box.attached || !box.hasSize) {
+        throw const DiagnosticsPresentationUnavailable();
+      }
+      _tooltipSemantics ??= binding.ensureSemantics();
+      final position = box.localToGlobal(box.size.center(Offset.zero));
+      if (!_tooltipPointerAdded) {
+        binding.handlePointerEvent(
+          PointerAddedEvent(
+            viewId: viewId,
+            kind: PointerDeviceKind.mouse,
+            device: _tooltipPointerDevice,
+            position: position,
+          ),
+        );
+        _tooltipPointerAdded = true;
+      }
+      binding.handlePointerEvent(
+        PointerHoverEvent(
+          viewId: viewId,
+          kind: PointerDeviceKind.mouse,
+          device: _tooltipPointerDevice,
+          position: position,
+        ),
+      );
+    }
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    var visible = false;
+    do {
+      await waitForFrame();
+      visible = _tooltipVisible;
+      if (visible == (target != null)) break;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    } while (DateTime.now().isBefore(deadline));
+    if (target == null) {
+      _tooltipSemantics?.dispose();
+      _tooltipSemantics = null;
+    }
+    return visible;
+  }
+
+  bool get _tooltipVisible {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    return _findElement(
+          root,
+          (element) => element.widget.key == NavisTooltip.defaultBubbleKey,
+        ) !=
+        null;
+  }
+
+  Element? _findElement(Element root, bool Function(Element) matches) {
+    if (matches(root)) return root;
+    Element? result;
+    root.visitChildElements((child) {
+      result ??= _findElement(child, matches);
+    });
+    return result;
+  }
+
+  /// Dismisses app-owned popup routes without navigating away from a page.
+  Future<void> dismissPopupRoutes() async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final element = _findElement(
+      root,
+      (element) => element.widget is Navigator,
+    );
+    if (element is! StatefulElement || element.state is! NavigatorState) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    (element.state as NavigatorState).popUntil((route) => route is! PopupRoute);
+    await waitForFrame();
   }
 
   Widget wrap(Widget child) {

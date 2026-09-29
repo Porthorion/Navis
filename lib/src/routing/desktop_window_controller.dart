@@ -558,9 +558,10 @@ class DesktopWindowController extends ChangeNotifier
   Future<void> setBoundsForDiagnostics(Rect bounds) async {
     final adapter = _adapter;
     if (adapter == null) return;
-    if (await adapter.isMaximized()) {
-      await adapter.unmaximize();
-    }
+    // A compositor can retain one maximized axis while reporting false here.
+    // Clear both axes and let the native configure event precede the resize.
+    await adapter.unmaximize();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     await adapter.setBounds(bounds);
     final deadline = DateTime.now().add(const Duration(seconds: 1));
     while (DateTime.now().isBefore(deadline)) {

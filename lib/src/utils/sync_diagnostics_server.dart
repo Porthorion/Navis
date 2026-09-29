@@ -1,8 +1,14 @@
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/equalizer/data/eq_import_parser.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +31,7 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -42,6 +49,7 @@ import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -443,6 +451,21 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/dismiss-popup') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await presentation.dismissPopupRoutes();
+        await _respond(request, HttpStatus.ok, {'status': 'dismissed'});
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/presentation/navigate') {
         if (!allowsMutations) {
           await _forbidden(request);
@@ -507,6 +530,105 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.ok, <String, Object?>{
           'targetCount': status.targetCount,
           'readyCount': status.readyCount,
+        });
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/presentation/track-action') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final action = body['action'];
+        if (body.length != 1 ||
+            action is! String ||
+            !DiagnosticsPresentationController.trackActions.contains(action))
+          throw const FormatException();
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await presentation.activateTrackControl(action: action);
+        await _respond(request, HttpStatus.ok, {'action': action});
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/library-action') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final action = body['action'];
+        if (body.length != 1 ||
+            action is! String ||
+            !DiagnosticsPresentationController.libraryActions.contains(
+              action,
+            )) {
+          throw const FormatException();
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await presentation.activateLibraryControl(action: action);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'action': action,
+          'actualLocation': _navigationDriver.location,
+        });
+        return;
+      }
+      if ((request.method == 'GET' || request.method == 'POST') &&
+          path == '/v1/presentation/appearance') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final dao = _container.read(navisDatabaseProvider).appSettingsDao;
+        if (request.method == 'POST') {
+          final body = await _readJson(request);
+          final size = body['gridArtworkSize'];
+          final autoAdvance = body['homeRecommendationsAutoAdvance'];
+          final artists = body['showArtistsPage'];
+          final radio = body['showRadioPage'];
+          if (body.keys.any(
+                (key) =>
+                    key != 'gridArtworkSize' &&
+                    key != 'homeRecommendationsAutoAdvance' &&
+                    key != 'showArtistsPage' &&
+                    key != 'showRadioPage',
+              ) ||
+              (size != null &&
+                  !const ['auto', 'small', 'medium', 'large'].contains(size)) ||
+              (autoAdvance != null && autoAdvance is! bool) ||
+              (artists != null && artists is! bool) ||
+              (radio != null && radio is! bool) ||
+              (size == null &&
+                  autoAdvance == null &&
+                  artists == null &&
+                  radio == null)) {
+            throw const FormatException();
+          }
+          if (size is String) await dao.updateGridArtworkSize(size);
+          if (autoAdvance is bool) {
+            await dao.updateHomeRecommendationsAutoAdvance(
+              enabled: autoAdvance,
+            );
+          }
+          if (artists is bool)
+            await dao.updateShowArtistsPage(enabled: artists);
+          if (radio is bool) await dao.updateShowRadioPage(enabled: radio);
+          await presentationController?.waitForFrame();
+        }
+        final settings = await dao.getSettings();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'gridArtworkSize': settings?.gridArtworkSize ?? 'auto',
+          'showArtistsPage': settings?.showArtistsPage ?? true,
+          'showRadioPage': settings?.showRadioPage ?? true,
+          'homeRecommendationsAutoAdvance':
+              settings?.homeRecommendationsAutoAdvance ?? false,
         });
         return;
       }
@@ -809,6 +931,42 @@ class SyncDiagnosticsServer {
           'intent': state?.cue?.intent.name,
           'sequence': state?.sequence,
         });
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/presentation/tooltip') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final target = body['target'];
+        if (target != null &&
+            (target is! String ||
+                !DiagnosticsPresentationController.tooltipTargets.containsKey(
+                  target,
+                ))) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error':
+                'target must be favorite, lyrics, queue, miniPlayer or null',
+          });
+          return;
+        }
+        try {
+          final visible = await presentation.hoverTooltip(
+            target: target as String?,
+          );
+          await _respond(request, HttpStatus.ok, <String, Object?>{
+            'target': target,
+            'visible': visible,
+          });
+        } on DiagnosticsPresentationUnavailable {
+          await _presentationUnavailable(request);
+        }
         return;
       }
       if (request.method == 'POST' && path == '/v1/presentation/screenshot') {
@@ -1503,6 +1661,377 @@ class SyncDiagnosticsServer {
         await _restoreServerStar(request);
         return;
       }
+      if (path == '/v1/equalizer' && request.method == 'GET') {
+        await _respond(request, HttpStatus.ok, await _equalizerStatus());
+        return;
+      }
+      if (path == '/v1/equalizer' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _waitForPlaybackHandler();
+        await _container.read(equalizerProvider.future);
+        final controller = _container.read(equalizerProvider.notifier);
+        final body = await _readJson(request);
+        final action = body['action'];
+        final current = _container.read(equalizerProvider).requireValue;
+        final matches = current.allPresets.where((p) => p.id == body['id']);
+        final preset = matches.firstOrNull;
+        var success = false;
+        try {
+          switch (action) {
+            case 'configure':
+              final configuration = EqConfiguration.fromJson(
+                body['configuration'] as Map<String, dynamic>,
+              );
+              success = await controller.setConfiguration(configuration);
+            case 'mode':
+              success = await controller.changeMode(
+                EqMode.values.byName(body['mode'] as String),
+              );
+            case 'custom':
+              success = await controller.selectCustom();
+            case 'discard':
+              success = await controller.discardChanges();
+            case 'retry':
+              success = await controller.retry();
+            case 'preview':
+              final token = controller.beginPreview();
+              success = await controller.preview(
+                EqConfiguration.fromJson(
+                  body['configuration'] as Map<String, dynamic>,
+                ),
+                token,
+              );
+            case 'cancelPreview':
+              success = await controller.retry();
+            case 'enable':
+              success = await controller.setEnabled(
+                enabled: body['enabled'] as bool,
+              );
+            case 'select':
+              if (preset != null)
+                success = await controller.selectPreset(preset);
+            case 'save':
+              success = await controller.saveAs(body['name'] as String) != null;
+            case 'update':
+              success = await controller.updatePreset();
+            case 'rename':
+              if (preset != null)
+                success = await controller.rename(
+                  preset,
+                  body['name'] as String,
+                );
+            case 'duplicate':
+              if (preset != null)
+                success =
+                    await controller.saveAs(
+                      body['name'] as String,
+                      imported: preset,
+                      activate: false,
+                    ) !=
+                    null;
+            case 'delete':
+              if (preset != null)
+                success = await controller.deletePreset(
+                  preset,
+                  discardDrafts: body['discardDrafts'] == true,
+                );
+            case 'restore':
+              success = await controller.restorePreset(
+                EqPreset.fromJson(body['preset'] as Map<String, dynamic>),
+              );
+            case 'import':
+              final imported = EqImportParser().parse(
+                body['text'] as String,
+                id: 'preview',
+                name: body['name'] as String,
+                fixedBand: body['fixedBand'] == true,
+              );
+              success =
+                  await controller.saveAs(
+                    body['name'] as String,
+                    imported: imported,
+                    activate: body['enable'] == true,
+                    enable: body['enable'] == true,
+                  ) !=
+                  null;
+            case 'undo':
+              await controller.undo();
+              success = true;
+            case 'redo':
+              await controller.redo();
+              success = true;
+            case 'reset':
+              await controller.reset();
+              success = true;
+            case 'acknowledgeReset':
+              await controller.acknowledgeLegacyReset();
+              success = true;
+          }
+        } on Object {
+          await _respond(request, HttpStatus.badRequest, {
+            'error': 'Invalid EQ action or payload',
+          });
+          return;
+        }
+        await _respond(
+          request,
+          success ? HttpStatus.ok : HttpStatus.badRequest,
+          await _equalizerStatus(),
+        );
+        return;
+      }
+      if (path == '/v1/playback/adjustments' && request.method == 'GET') {
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _playbackAdjustmentStatus(),
+        );
+        return;
+      }
+      if (path == '/v1/playback/adjustments' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _waitForPlaybackHandler();
+        final controller = _container.read(
+          playbackAdjustmentsProvider.notifier,
+        );
+        await _container.read(playbackAdjustmentsProvider.future);
+        final body = await _readJson(request);
+        final action = body['action'] ?? 'adjust';
+        var success = false;
+        if (action == 'adjust') {
+          final current = _container
+              .read(playbackAdjustmentsProvider)
+              .requireValue
+              .values;
+          final speed = body['speed'];
+          final percent = body['speedPercent'];
+          final pitch = body['pitchSemitones'];
+          final lock = body['lockPitchToSpeed'];
+          if ((speed != null && percent != null) ||
+              (speed != null && speed is! num) ||
+              (percent != null && percent is! num) ||
+              (pitch != null && pitch is! num) ||
+              (lock != null && lock is! bool) ||
+              (speed == null &&
+                  percent == null &&
+                  pitch == null &&
+                  lock == null)) {
+            await _respond(request, HttpStatus.badRequest, {
+              'error': 'Provide speed or speedPercent (not both), pitchSemitones, or lockPitchToSpeed',
+            });
+            return;
+          }
+          final locked = lock as bool? ?? current.lockPitchToSpeed;
+          if (locked && pitch != null) {
+            await _respond(request, HttpStatus.badRequest, {
+              'error': 'Unlock pitch before setting independent semitones',
+            });
+            return;
+          }
+          final values = current.copyWith(
+            speed: speed is num
+                ? speed.toDouble()
+                : percent is num
+                ? 1 + percent.toDouble() / 100
+                : null,
+            pitchSemitones: pitch is num ? pitch.toDouble() : null,
+            lockPitchToSpeed: locked,
+          );
+          success = await controller.setValues(values);
+        } else if (action == 'select' && body['id'] is String) {
+          success = await controller.selectPreset(body['id'] as String);
+        } else if ((action == 'save' || action == 'update') &&
+            body['name'] is String) {
+          if (action == 'update' && body['id'] is! String) {
+            await _respond(request, HttpStatus.badRequest, {
+              'error': 'id is required to update',
+            });
+            return;
+          }
+          success = await controller.savePreset(
+            body['name'] as String,
+            updateId: action == 'update' ? body['id'] as String : null,
+          );
+        } else if (action == 'rename' &&
+            body['id'] is String &&
+            body['name'] is String) {
+          success = await controller.renamePreset(
+            body['id'] as String,
+            body['name'] as String,
+          );
+        } else if (action == 'delete' && body['id'] is String) {
+          success = await controller.deletePreset(body['id'] as String);
+        } else {
+          await _respond(request, HttpStatus.badRequest, {
+            'error': 'Invalid adjustment action',
+          });
+          return;
+        }
+        await controller.flush();
+        final result = await _playbackAdjustmentStatus();
+        final failedSave = result['failure'] == 'persistence';
+        await _respond(
+          request,
+          success && !failedSave ? HttpStatus.ok : HttpStatus.badRequest,
+          result,
+        );
+        return;
+      }
+      if (path == '/v1/presentation/equalizer' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final interaction = await presentation.activateEqualizerControl(
+          action: body['action'] as String,
+          index: (body['index'] as num?)?.toInt() ?? 0,
+          value: body['value'] as String?,
+          dx: (body['dx'] as num?)?.toDouble() ?? 0,
+          dy: (body['dy'] as num?)?.toDouble() ?? 0,
+        );
+        await _respond(request, HttpStatus.ok, {
+          'status': 'visible',
+          if (interaction != null) 'profile': interaction,
+        });
+        return;
+      }
+      if (path == '/v1/presentation/adjustments' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        String? surface;
+        if (body['quick'] == true) {
+          surface = await presentation.openPlaybackQuickPanel();
+        } else {
+          await presentation.revealPlaybackAdjustments(
+            open: body['open'] == true,
+          );
+        }
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'status': 'visible',
+          'surface': ?surface,
+          'quickControls': presentation.playbackQuickControls(),
+        });
+        return;
+      }
+      if (path == '/v1/presentation/quick-panel' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final action = body['action'];
+        final target = body['target'] ?? 'speed';
+        final preset = body['preset'];
+        if (action is! String ||
+            !const {'open', 'press', 'preset', 'openPage'}.contains(action) ||
+            (target != 'speed' && target != 'equalizer') ||
+            (action == 'preset' && (preset is! String || preset.isEmpty))) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error':
+                'action must be open, press, preset (with preset) or openPage; '
+                'target must be speed or equalizer',
+          });
+          return;
+        }
+        String? surface;
+        switch (action) {
+          case 'open':
+            surface = await presentation.openPlaybackQuickPanel(
+              target: target as String,
+            );
+          case 'press':
+            await presentation.pressPlayerQuickButton(target: target as String);
+          case 'preset':
+            await presentation.selectQuickEqualizerPreset(preset as String);
+          case 'openPage':
+            await presentation.openEqualizerFromQuickPanel();
+        }
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'status': 'done',
+          'surface': ?surface,
+          ..._quickPanelState(presentation),
+        });
+        return;
+      }
+      if (path == '/v1/presentation/quick-panel' && request.method == 'GET') {
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await _respond(
+          request,
+          HttpStatus.ok,
+          _quickPanelState(presentation),
+        );
+        return;
+      }
+      if (path == '/v1/presentation/shortcut' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        const allowed = <DesktopCommandAction>{
+          DesktopCommandAction.speedUp,
+          DesktopCommandAction.speedDown,
+          DesktopCommandAction.speedReset,
+        };
+        final action = allowed
+            .where((candidate) => candidate.name == body['action'])
+            .firstOrNull;
+        if (action == null) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'action must be speedUp, speedDown or speedReset',
+          });
+          return;
+        }
+        final binding = _container.read(
+          desktopShortcutBindingsProvider,
+        )[action];
+        if (binding == null) {
+          await _respond(request, HttpStatus.conflict, <String, Object?>{
+            'error': 'shortcut is disabled',
+          });
+          return;
+        }
+        await presentation.sendShortcut(binding, defaultTargetPlatform);
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'action': action.name,
+          'binding': binding.formatLabel(defaultTargetPlatform),
+        });
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/playback/volume') {
         await _respond(
           request,
@@ -1602,6 +2131,20 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' && path == '/v1/playback/queue/clear') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        await _waitForPlaybackHandler();
+        await _container.read(queueProvider.notifier).clear();
+        await _respond(
+          request,
+          HttpStatus.ok,
+          await _playbackAdjustmentStatus(),
+        );
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/playback/queue') {
         if (!allowsMutations) {
           await _forbidden(request);
@@ -1650,6 +2193,89 @@ class SyncDiagnosticsServer {
           'status': 'starting',
           'songIds': songIds,
         });
+        return;
+      }
+      if (request.method == 'GET' && path == '/v1/artists/playback/status') {
+        await _respond(
+          request,
+          HttpStatus.ok,
+          _container.read(artistPlaybackControllerProvider).diagnostics(),
+        );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/artists/playback') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final command = body['command'];
+        final controller = _container.read(
+          artistPlaybackControllerProvider.notifier,
+        );
+        if (command == 'prepare') {
+          final id = body['artistId'];
+          final action = body['action'];
+          if (id is! String ||
+              id.trim().isEmpty ||
+              id.length > 256 ||
+              !const {'play', 'shuffle', 'add'}.contains(action) ||
+              body.keys.any(
+                (key) => !const {'command', 'artistId', 'action'}.contains(key),
+              )) {
+            await _respond(request, HttpStatus.badRequest, {
+              'error': 'artistId and a valid artist action are required',
+            });
+            return;
+          }
+          unawaited(
+            controller.prepare(
+              id.trim(),
+              ArtistPlaybackAction.values.byName(action as String),
+            ),
+          );
+        } else if (command == 'cancel' && body.length == 1) {
+          controller.cancel();
+        } else {
+          await _respond(request, HttpStatus.badRequest, {
+            'error': 'invalid artist playback command',
+          });
+          return;
+        }
+        await _respond(
+          request,
+          HttpStatus.accepted,
+          _container.read(artistPlaybackControllerProvider).diagnostics(),
+        );
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/presentation/artist-action') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final action = body['action'];
+        if (body.length != 1 ||
+            action is! String ||
+            !DiagnosticsPresentationController.artistActions.contains(action)) {
+          await _respond(request, HttpStatus.badRequest, {
+            'error': 'invalid artist presentation action',
+          });
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await presentation.activateArtistControl(action: action);
+        await _respond(
+          request,
+          HttpStatus.accepted,
+          _container.read(artistPlaybackControllerProvider).diagnostics(),
+        );
         return;
       }
       if (request.method == 'GET' && path == '/v1/playback/status') {
@@ -2147,6 +2773,93 @@ class SyncDiagnosticsServer {
     if (_syncLedger.length > 50) {
       _syncLedger.removeRange(0, _syncLedger.length - 50);
     }
+  }
+
+  Future<Map<String, Object?>> _equalizerStatus() async {
+    final handler = await _waitForPlaybackHandler();
+    await handler.waitUntilReady();
+    await _container.read(equalizerProvider.future);
+    await handler.refreshEqualizerState();
+    final state = _container.read(equalizerProvider).requireValue;
+    final persisted = await _container.read(eqRepositoryProvider).load();
+    final applied = handler.equalizerState;
+    return {
+      'supported': handler.equalizerCapabilities.supported,
+      'configuration': state.configuration.toJson(),
+      'selectedPresetId': state.selectedPresetId,
+      'originPresetId': state.originPresetId,
+      'dirty': state.dirty,
+      'draftPersisted': state.draftPersisted,
+      'interaction': _container
+          .read(equalizerProvider.notifier)
+          .interactionDiagnostics,
+      'workspaces': {
+        for (final e in state.workspaces.entries) e.key: e.value.toJson(),
+      },
+      'presets': [for (final p in state.presets) p.toJson()],
+      'pending': state.pending,
+      'failure': state.failure,
+      'legacyResetNotice': state.legacyResetNotice,
+      'persistedConfiguration': persisted.configuration.toJson(),
+      'persistedPresetId': persisted.selectedPresetId,
+      'application': {
+        'configuration': applied.applied.toJson(),
+        'enabled': applied.applied.enabled,
+        'sampleRate': applied.sampleRate,
+        'responseSampleRate': applied.responseSampleRate,
+        'headroomDb': applied.headroomDb,
+        'reason': applied.reason,
+        'pending': applied.pending,
+      },
+    };
+  }
+
+  /// Route, player overlay and quick-control state for quick-panel checks.
+  Map<String, Object?> _quickPanelState(
+    DiagnosticsPresentationController presentation,
+  ) => <String, Object?>{
+    'quickControls': presentation.playbackQuickControls(),
+    'location': _container.read(appRouterProvider).state.uri.toString(),
+    'playerOverlay': [
+      for (final route in _container.read(playerOverlayStackProvider))
+        route.name,
+    ],
+    'miniPlayer': _container
+        .read(desktopWindowControllerProvider)
+        .isMiniPlayerMode,
+  };
+
+  Future<Map<String, Object?>> _playbackAdjustmentStatus() async {
+    final handler = await _waitForPlaybackHandler();
+    await handler.waitUntilReady();
+    await _container.read(playbackAdjustmentsProvider.future);
+    final state = _container.read(playbackAdjustmentsProvider).requireValue;
+    final persisted = await _container
+        .read(settingsRepositoryProvider)
+        .getSettings();
+    final caps = handler.playbackAdjustmentCapabilities;
+    return {
+      'speed': state.values.speed,
+      'speedPercent': state.values.speedPercent,
+      'lockPitchToSpeed': state.values.lockPitchToSpeed,
+      'pitchSemitones': state.values.pitchSemitones,
+      'selectedPresetId': state.selectedPresetId,
+      'originPresetId': state.originPresetId,
+      'pending': state.pending,
+      'failure': state.failure?.name,
+      'presets': [for (final p in state.presets) p.toJson()],
+      'persistedSpeed': persisted.playbackSpeed,
+      'persistedLockPitchToSpeed': persisted.lockPitchToSpeed,
+      'persistedPitchSemitones': persisted.playbackPitchSemitones,
+      'persistedPresetId': persisted.selectedPlaybackPresetId,
+      'pitchSupported': caps.pitchSupported,
+      'minimumSpeed': caps.minimumSpeed,
+      'maximumSpeed': caps.maximumSpeed,
+      'minimumPitchFactor': caps.minimumPitchFactor,
+      'maximumPitchFactor': caps.maximumPitchFactor,
+      'minimumTempoRatio': caps.minimumTempoRatio,
+      'engine': handler.collectPlaybackDiagnostics(),
+    };
   }
 
   Future<Map<String, Object?>> _playbackVolumeStatus() async {

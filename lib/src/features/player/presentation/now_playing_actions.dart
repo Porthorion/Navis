@@ -177,6 +177,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           Icons.settings_outlined,
           color: colorScheme.onSurfaceVariant,
         ),
+        buttonKey: const ValueKey('nowPlayingSettingsAction'),
         label: l10n.settingsTitle,
         onTap: () {
           if (widget.wideEmbeddedMode && widget.onOpenSettingsPanel != null) {
@@ -205,11 +206,13 @@ class _NowPlayingActionButton extends StatelessWidget {
     required this.label,
     this.onTap,
     this.isDisabled = false,
+    this.buttonKey,
   });
 
   final Widget icon;
   final String label;
   final VoidCallback? onTap;
+  final Key? buttonKey;
 
   /// When true the button renders at 42 % opacity (greyed out) but [onTap]
   /// is still called if set — allowing an error snackbar to fire on tap.
@@ -219,7 +222,12 @@ class _NowPlayingActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Opacity(
       opacity: (onTap == null || isDisabled) ? 0.42 : 1,
-      child: IconButton(tooltip: label, onPressed: onTap, icon: icon),
+      child: IconButton(
+        key: buttonKey,
+        tooltip: label,
+        onPressed: onTap,
+        icon: icon,
+      ),
     );
   }
 }

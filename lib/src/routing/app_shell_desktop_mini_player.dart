@@ -205,7 +205,14 @@ class _DesktopMiniPlayerFloatingWindowControls extends StatelessWidget {
   }
 }
 
-enum _DesktopMiniPlayerAction { shuffle, repeat, queue, lyrics }
+enum _DesktopMiniPlayerAction {
+  shuffle,
+  repeat,
+  speedPitch,
+  equalizer,
+  queue,
+  lyrics,
+}
 
 class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
   const _DesktopMiniPlayerTightPlayback({
@@ -271,9 +278,26 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
       }
     }
 
-    void handleSecondaryAction(_DesktopMiniPlayerAction action) {
+    final shuffleOn = playback.shuffleMode == AudioServiceShuffleMode.all;
+    final repeatActive = playback.repeatMode != AudioServiceRepeatMode.none;
+    final repeatLabel = switch (playback.repeatMode) {
+      AudioServiceRepeatMode.one => l10n.nowPlayingRepeatOne,
+      AudioServiceRepeatMode.all ||
+      AudioServiceRepeatMode.group => l10n.nowPlayingRepeatAll,
+      AudioServiceRepeatMode.none => l10n.nowPlayingRepeatOff,
+    };
+    final eqSupported = ref.watch(eqCapabilitiesProvider).supported;
+
+    void handleSecondaryAction(
+      BuildContext menuContext,
+      _DesktopMiniPlayerAction action,
+    ) {
       final handler = ref.read(audioHandlerProvider);
       switch (action) {
+        case _DesktopMiniPlayerAction.speedPitch:
+          unawaited(showPlaybackAdjustmentQuickPanel(menuContext));
+        case _DesktopMiniPlayerAction.equalizer:
+          unawaited(showEqualizerQuickPanel(menuContext));
         case _DesktopMiniPlayerAction.shuffle:
           unawaited(
             handler?.setShuffleMode(
@@ -343,31 +367,63 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
             playback.isRadioMode ? Icons.stop_rounded : Icons.skip_next_rounded,
           ),
         ),
-        PopupMenuButton<_DesktopMiniPlayerAction>(
-          tooltip: l10n.nowPlayingMore,
-          onSelected: handleSecondaryAction,
-          itemBuilder: (context) => <PopupMenuEntry<_DesktopMiniPlayerAction>>[
-            if (!playback
-                .isRadioMode) ...<PopupMenuEntry<_DesktopMiniPlayerAction>>[
-              PopupMenuItem<_DesktopMiniPlayerAction>(
-                value: _DesktopMiniPlayerAction.shuffle,
-                child: Text(l10n.nowPlayingShuffle),
-              ),
-              PopupMenuItem<_DesktopMiniPlayerAction>(
-                value: _DesktopMiniPlayerAction.repeat,
-                child: Text(l10n.nowPlayingRepeatAll),
-              ),
-              PopupMenuItem<_DesktopMiniPlayerAction>(
-                value: _DesktopMiniPlayerAction.queue,
-                child: Text(l10n.nowPlayingQueue),
-              ),
-              PopupMenuItem<_DesktopMiniPlayerAction>(
-                value: _DesktopMiniPlayerAction.lyrics,
-                child: Text(l10n.nowPlayingLyrics),
-              ),
-            ],
-          ],
-          icon: const Icon(Icons.more_horiz_rounded),
+        Builder(
+          builder: (menuContext) => PopupMenuButton<_DesktopMiniPlayerAction>(
+            key: const ValueKey<String>('desktopMiniPlayerMoreButton'),
+            tooltip: l10n.nowPlayingMore,
+            onSelected: (action) => handleSecondaryAction(menuContext, action),
+            itemBuilder: (context) =>
+                <PopupMenuEntry<_DesktopMiniPlayerAction>>[
+                  if (!playback.isRadioMode) ...[
+                    _miniPlayerMenuItem(
+                      context,
+                      action: _DesktopMiniPlayerAction.shuffle,
+                      icon: Icons.shuffle,
+                      label: shuffleOn
+                          ? l10n.nowPlayingShuffle
+                          : l10n.nowPlayingShuffleOff,
+                      active: shuffleOn,
+                    ),
+                    _miniPlayerMenuItem(
+                      context,
+                      action: _DesktopMiniPlayerAction.repeat,
+                      icon: playback.repeatMode == AudioServiceRepeatMode.one
+                          ? Icons.repeat_one
+                          : Icons.repeat,
+                      label: repeatLabel,
+                      active: repeatActive,
+                    ),
+                    _miniPlayerMenuItem(
+                      context,
+                      action: _DesktopMiniPlayerAction.speedPitch,
+                      icon: Icons.speed,
+                      label: l10n.desktopMiniPlayerSpeedPitchAction,
+                    ),
+                  ],
+                  if (eqSupported)
+                    _miniPlayerMenuItem(
+                      context,
+                      action: _DesktopMiniPlayerAction.equalizer,
+                      icon: Icons.equalizer,
+                      label: l10n.eqTitle,
+                    ),
+                  if (!playback.isRadioMode) ...[
+                    _miniPlayerMenuItem(
+                      context,
+                      action: _DesktopMiniPlayerAction.queue,
+                      icon: Icons.queue_music_rounded,
+                      label: l10n.nowPlayingQueue,
+                    ),
+                    _miniPlayerMenuItem(
+                      context,
+                      action: _DesktopMiniPlayerAction.lyrics,
+                      icon: Icons.lyrics_outlined,
+                      label: l10n.nowPlayingLyrics,
+                    ),
+                  ],
+                ],
+            icon: const Icon(Icons.more_horiz_rounded),
+          ),
         ),
       ],
     );
@@ -771,4 +827,33 @@ class _DesktopWindowTransitionGate extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// A Mini Player overflow entry whose icon is tinted while its mode is on, so
+/// shuffle and repeat show their current state rather than a fixed label.
+PopupMenuItem<_DesktopMiniPlayerAction> _miniPlayerMenuItem(
+  BuildContext context, {
+  required _DesktopMiniPlayerAction action,
+  required IconData icon,
+  required String label,
+  bool active = false,
+}) {
+  final primary = Theme.of(context).colorScheme.primary;
+  return PopupMenuItem<_DesktopMiniPlayerAction>(
+    key: ValueKey<String>('desktopMiniPlayerMenu-${action.name}'),
+    value: action,
+    child: Row(
+      children: <Widget>[
+        Icon(icon, size: 20, color: active ? primary : null),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            label,
+            style: active ? TextStyle(color: primary) : null,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
 }

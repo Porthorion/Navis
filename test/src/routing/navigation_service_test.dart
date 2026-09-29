@@ -3,10 +3,55 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
+import '../../helpers/adaptive_test_harness.dart';
 import '../../helpers/test_theme.dart';
 
 void main() {
+  for (final scenario in [
+    (desktop: true, size: const Size(800, 600), fade: true),
+    (desktop: true, size: const Size(1920, 1080), fade: true),
+    (desktop: false, size: const Size(390, 844), fade: true),
+    (desktop: false, size: const Size(844, 390), fade: false),
+  ]) {
+    testWidgets(
+      'album opening policy at ${scenario.size}, desktop=${scenario.desktop}',
+      (tester) async {
+        setAdaptiveTestViewport(tester, scenario.size);
+        final router = _createRouter(heroTag: 'source-album-art');
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp.router(
+              theme: testTheme(),
+              routerConfig: router,
+              builder: (context, child) => AdaptiveContextScope(
+                adaptiveContext: resolveAdaptiveContext(
+                  desktopRuntime: scenario.desktop,
+                  viewportSize: scenario.size,
+                  safePadding: EdgeInsets.zero,
+                ),
+                child: child!,
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Open album'));
+        await tester.pumpAndSettle();
+        final request = router.state.extra! as AlbumDetailRouteRequest;
+        expect(request.fadeOnly, scenario.fade);
+        expect(
+          request.openingHeroTag,
+          scenario.fade ? isNull : 'source-album-art',
+        );
+        expect(find.text('Album album-1'), findsOneWidget);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('HomeScreen'), findsOneWidget);
+      },
+    );
+  }
   testWidgets('album drill-in from search returns to search on system back', (
     tester,
   ) async {
@@ -126,11 +171,14 @@ void main() {
   });
 }
 
-GoRouter _createRouter({String initialLocation = '/'}) {
+GoRouter _createRouter({String initialLocation = '/', String? heroTag}) {
   return GoRouter(
     initialLocation: initialLocation,
     routes: <RouteBase>[
-      GoRoute(path: '/', builder: (context, state) => const _HomePage()),
+      GoRoute(
+        path: '/',
+        builder: (context, state) => _HomePage(heroTag: heroTag),
+      ),
       GoRoute(
         path: '/search',
         builder: (context, state) => const _SearchPage(),
@@ -172,13 +220,16 @@ Future<void> _pumpRouter(WidgetTester tester, GoRouter router) {
 }
 
 class _HomePage extends ConsumerWidget {
-  const _HomePage();
+  const _HomePage({this.heroTag});
+
+  final String? heroTag;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return _ScaffoldWithActions(
       title: 'HomeScreen',
-      onOpenAlbum: () => NavService.openAlbumDetail(context, ref, 'album-1'),
+      onOpenAlbum: () =>
+          NavService.openAlbumDetail(context, ref, 'album-1', heroTag: heroTag),
     );
   }
 }

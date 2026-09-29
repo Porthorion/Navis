@@ -7,6 +7,8 @@ import 'package:audio_service/audio_service.dart'
     show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/routing/home_activity_scope.dart';
+import 'package:navis/src/common_widgets/desktop_playback_progress.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,7 +45,12 @@ import 'package:navis/src/features/player/presentation/now_playing_lyrics_screen
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
 import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
 import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
+import 'package:navis/src/features/player/presentation/playback_quick_actions.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
+import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/queue_screen.dart';
@@ -1300,6 +1307,43 @@ class _AppShellState extends ConsumerState<AppShell> {
             ref.read(librarySyncControllerProvider.notifier).forceFullSync(),
           );
           return;
+        case DesktopCommandAction.speedUp:
+        case DesktopCommandAction.speedDown:
+        case DesktopCommandAction.speedReset:
+          final result = await nudgePlaybackSpeed(
+            ref,
+            hundredths: switch (action) {
+              DesktopCommandAction.speedUp => 10,
+              DesktopCommandAction.speedDown => -10,
+              _ => null,
+            },
+          );
+          if (result == null || !mounted) return;
+          final l10n = AppLocalizations.of(context)!;
+          final speed =
+              ref
+                  .read(playbackAdjustmentsProvider)
+                  .asData
+                  ?.value
+                  .values
+                  .speed ??
+              1;
+          _appNoticeController.show(
+            duration: const Duration(milliseconds: 1200),
+            message: switch (result) {
+              PlaybackSpeedNudgeResult.changed =>
+                l10n.playbackSpeedChangedNotice(
+                  l10n.playbackSpeedMultiplierValue(
+                    formatAdjustmentNumber(speed, signed: false),
+                  ),
+                ),
+              PlaybackSpeedNudgeResult.minimumReached =>
+                l10n.playbackSpeedMinimumReached,
+              PlaybackSpeedNudgeResult.maximumReached =>
+                l10n.playbackSpeedMaximumReached,
+            },
+          );
+          return;
       }
     }
 
@@ -1927,7 +1971,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   ),
                             fullPlayer: ProviderScope(
                               overrides: [
-                                playerStateProvider.overrideWithValue(playback),
+                                playerStateProvider.overrideWithValue(
+                                  playback,
+                                ),
                               ],
                               child: NowPlayingScreen(
                                 onShowQueue: () =>
@@ -2030,6 +2076,13 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
 
+    final activeShell = HomeActivityScope(
+      active:
+          navigationShell.currentIndex == _homeBranchIndex &&
+          (ModalRoute.of(context)?.isCurrent ?? true),
+      child: shell,
+    );
+
     // Install/remove the global hardware-keyboard handler based on policy.
     if (adaptiveInputPolicy.enableDesktopCommandShortcuts ||
         adaptiveInputPolicy.enableEscapeOverlayPriority) {
@@ -2039,12 +2092,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
 
     if (!adaptiveInputPolicy.enableDeterministicTraversal) {
-      return shell;
+      return activeShell;
     }
 
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
-      child: Focus(focusNode: _shellFocusNode, autofocus: true, child: shell),
+      child: Focus(
+        focusNode: _shellFocusNode,
+        autofocus: true,
+        child: activeShell,
+      ),
     );
   }
 }

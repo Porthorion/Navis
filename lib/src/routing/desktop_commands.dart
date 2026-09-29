@@ -23,6 +23,9 @@ enum DesktopCommandAction {
   previousTrack,
   refreshLibrary,
   forceRescanLibrary,
+  speedUp,
+  speedDown,
+  speedReset,
 }
 
 @immutable
@@ -103,6 +106,9 @@ const List<DesktopCommandAction> configurableDesktopShortcutActions =
       DesktopCommandAction.goSettings,
       DesktopCommandAction.refreshLibrary,
       DesktopCommandAction.forceRescanLibrary,
+      DesktopCommandAction.speedUp,
+      DesktopCommandAction.speedDown,
+      DesktopCommandAction.speedReset,
     ];
 
 Map<DesktopCommandAction, DesktopShortcutBinding?>
@@ -137,6 +143,17 @@ defaultDesktopShortcutBindings() {
         DesktopCommandAction.forceRescanLibrary: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.keyR,
           shift: true,
+        ),
+        // Unshifted punctuation keeps the logical key stable across layouts
+        // (Shift+. reports '>' on many keyboards).
+        DesktopCommandAction.speedUp: const DesktopShortcutBinding(
+          key: LogicalKeyboardKey.period,
+        ),
+        DesktopCommandAction.speedDown: const DesktopShortcutBinding(
+          key: LogicalKeyboardKey.comma,
+        ),
+        DesktopCommandAction.speedReset: const DesktopShortcutBinding(
+          key: LogicalKeyboardKey.digit0,
         ),
       },
     ),

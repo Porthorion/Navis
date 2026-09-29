@@ -143,7 +143,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: 116,
+            height: DesktopPlaybackProgress.playerHeight(context),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final maxWidth = constraints.maxWidth;
@@ -164,49 +164,23 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     .clamp(184.0, 240.0)
                     .toDouble();
                 final useCompactVolume = maxWidth < 1008;
-                // The bar itself is fixed at 116 px. Measure against that
-                // contract rather than waiting for an impossible <=100 px
-                // outer constraint; otherwise the slider, labels, and
-                // transport row can overflow vertically on tall/narrow
-                // desktop windows.
-                final tightHeight = constraints.maxHeight <= 120;
-                final denseControls = maxWidth <= 820 || tightHeight;
-                final controlButtonExtent = tightHeight
-                    ? 36.0
-                    : (denseControls ? 40.0 : 44.0);
-                final primaryControlExtent = tightHeight
-                    ? 44.0
-                    : (denseControls ? 48.0 : 54.0);
-                final controlIconSize = tightHeight
-                    ? 20.0
-                    : (denseControls ? 22.0 : 24.0);
-                final primaryIconSize = tightHeight
-                    ? 24.0
-                    : (denseControls ? 26.0 : 28.0);
-                final verticalInset = tightHeight
-                    ? 4.0
-                    : (denseControls ? 6.0 : 8.0);
-                final sliderBottomSpacing = tightHeight
-                    ? 1.0
-                    : (denseControls ? 4.0 : 6.0);
-                final timeBottomSpacing = tightHeight
-                    ? 0.0
-                    : (denseControls ? 2.0 : 4.0);
-                final sliderTrackHeight = tightHeight ? 2.5 : 3.0;
-                final sliderThumbRadius = tightHeight ? 4.0 : 5.0;
-                final sliderOverlayRadius = tightHeight ? 8.0 : 11.0;
-                final sliderAreaHeight = tightHeight ? 28.0 : null;
-                final controlsAreaHeight = tightHeight
-                    ? primaryControlExtent
-                    : null;
-                final showTimeLabels = !tightHeight;
-                final timeStyle = Theme.of(context).textTheme.labelSmall
-                    ?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontSize: tightHeight ? 10 : null,
-                      height: tightHeight ? 1 : null,
-                    );
-
+                // Keep transport sizes stable when text increases bar height.
+                const controlButtonExtent = 36.0;
+                const primaryControlExtent = 44.0;
+                const controlIconSize = 20.0;
+                const primaryIconSize = 24.0;
+                const verticalInset = 4.0;
+                const sliderTrackHeight = 2.5;
+                const sliderThumbRadius = 4.0;
+                const sliderOverlayRadius = 8.0;
+                const controlsAreaHeight = primaryControlExtent;
+                final quickControlStyle = IconButton.styleFrom(
+                  minimumSize: const Size.square(controlButtonExtent),
+                  maximumSize: const Size.square(controlButtonExtent),
+                  shape: const CircleBorder(),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                );
                 Future<void> togglePlayPause() async {
                   final handler = ref.read(audioHandlerProvider);
                   if (handler == null) {
@@ -282,8 +256,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     label: tooltip,
                     onTap: onPressed,
                     excludeSemantics: true,
-                    child: Tooltip(
+                    child: NavisTooltip(
                       message: tooltip,
+                      excludeFromSemantics: true,
                       child: IconButton(
                         focusNode: focusNode,
                         style: IconButton.styleFrom(
@@ -585,126 +560,120 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: <Widget>[
-                                if (!playback.isRadioMode)
-                                  Padding(
-                                    padding: EdgeInsets.only(
-                                      bottom: sliderBottomSpacing,
-                                    ),
-                                    child: SizedBox(
-                                      height: sliderAreaHeight,
-                                      child: canSeek
-                                          ? SliderTheme(
-                                              data: SliderTheme.of(context)
-                                                  .copyWith(
-                                                    padding: EdgeInsets.zero,
-                                                    trackHeight:
-                                                        sliderTrackHeight,
-                                                    thumbShape:
-                                                        RoundSliderThumbShape(
-                                                          enabledThumbRadius:
-                                                              sliderThumbRadius,
-                                                        ),
-                                                    overlayShape:
-                                                        RoundSliderOverlayShape(
-                                                          overlayRadius:
-                                                              sliderOverlayRadius,
-                                                        ),
-                                                  ),
-                                              child: Slider(
-                                                value: sliderValue,
-                                                secondaryTrackValue:
-                                                    bufferedValue,
-                                                secondaryActiveColor:
-                                                    resolveBufferedSeekColor(
-                                                      context,
-                                                    ),
-                                                max: sliderMax,
-                                                onChangeStart: (value) {
-                                                  setState(() {
-                                                    _dragSliderValue = value;
-                                                  });
-                                                },
-                                                onChanged: (value) {
-                                                  setState(() {
-                                                    _dragSliderValue = value;
-                                                  });
-                                                },
-                                                onChangeEnd: (value) {
-                                                  setState(() {
-                                                    _dragSliderValue = null;
-                                                  });
-                                                  unawaited(
-                                                    ref
-                                                        .read(
-                                                          audioHandlerProvider,
-                                                        )
-                                                        ?.seek(
-                                                          Duration(
-                                                            milliseconds: value
-                                                                .round(),
-                                                          ),
-                                                        ),
-                                                  );
-                                                },
-                                              ),
-                                            )
-                                          : Align(
-                                              alignment: Alignment.center,
-                                              child: LinearProgressIndicator(
-                                                value: playback.isRadioMode
-                                                    ? (playback.processingState ==
-                                                                  AudioProcessingState
-                                                                      .loading ||
-                                                              playback.processingState ==
-                                                                  AudioProcessingState
-                                                                      .buffering
-                                                          ? null
-                                                          : 0.0)
-                                                    : progress,
-                                                minHeight: 3,
-                                                color: colors.primary,
-                                                backgroundColor: colors.primary
-                                                    .withValues(alpha: 0.12),
-                                              ),
-                                            ),
-                                    ),
-                                  ),
-                                if (!playback.isRadioMode && showTimeLabels)
-                                  Padding(
-                                    padding: EdgeInsets.fromLTRB(
-                                      4,
-                                      0,
-                                      4,
-                                      timeBottomSpacing,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: <Widget>[
-                                        Text(
-                                          formatDuration(
-                                            seekPreviewPosition,
-                                            showHours: true,
-                                          ),
-                                          style: timeStyle,
-                                        ),
-                                        Text(
+                                DesktopPlaybackProgress(
+                                  elapsed: hasPlayback
+                                      ? formatDuration(
                                           canSeek
-                                              ? formatDuration(
-                                                  duration,
-                                                  showHours: true,
-                                                )
-                                              : '--:--',
-                                          style: timeStyle,
+                                              ? seekPreviewPosition
+                                              : position,
+                                          showHours: true,
+                                        )
+                                      : '--:--',
+                                  total: canSeek
+                                      ? formatDuration(
+                                          duration,
+                                          showHours: true,
+                                        )
+                                      : '--:--',
+                                  isLive: playback.isRadioMode,
+                                  liveLabel: l10n.radioLive,
+                                  seekBar: canSeek
+                                      ? SliderTheme(
+                                          data: SliderTheme.of(context)
+                                              .copyWith(
+                                                padding: EdgeInsets.zero,
+                                                trackHeight: sliderTrackHeight,
+                                                thumbShape:
+                                                    RoundSliderThumbShape(
+                                                      enabledThumbRadius:
+                                                          sliderThumbRadius,
+                                                    ),
+                                                overlayShape:
+                                                    RoundSliderOverlayShape(
+                                                      overlayRadius:
+                                                          sliderOverlayRadius,
+                                                    ),
+                                              ),
+                                          child: Slider(
+                                            key: const ValueKey(
+                                              'desktopPlayerSeekSlider',
+                                            ),
+                                            value: sliderValue,
+                                            secondaryTrackValue: bufferedValue,
+                                            secondaryActiveColor:
+                                                resolveBufferedSeekColor(
+                                                  context,
+                                                ),
+                                            max: sliderMax,
+                                            onChangeStart: (value) {
+                                              setState(() {
+                                                _dragSliderValue = value;
+                                              });
+                                            },
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _dragSliderValue = value;
+                                              });
+                                            },
+                                            onChangeEnd: (value) {
+                                              setState(() {
+                                                _dragSliderValue = null;
+                                              });
+                                              unawaited(
+                                                ref
+                                                    .read(
+                                                      audioHandlerProvider,
+                                                    )
+                                                    ?.seek(
+                                                      Duration(
+                                                        milliseconds: value
+                                                            .round(),
+                                                      ),
+                                                    ),
+                                              );
+                                            },
+                                          ),
+                                        )
+                                      : Align(
+                                          alignment: Alignment.center,
+                                          child: LinearProgressIndicator(
+                                            value: playback.isRadioMode
+                                                ? (playback.processingState ==
+                                                              AudioProcessingState
+                                                                  .loading ||
+                                                          playback.processingState ==
+                                                              AudioProcessingState
+                                                                  .buffering
+                                                      ? null
+                                                      : 0.0)
+                                                : progress,
+                                            minHeight: 3,
+                                            color: colors.primary,
+                                            backgroundColor: colors.primary
+                                                .withValues(alpha: 0.12),
+                                          ),
                                         ),
-                                      ],
-                                    ),
-                                  ),
+                                ),
+                                const SizedBox(height: 1),
                                 SizedBox(
                                   height: controlsAreaHeight,
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
+                                      // EQ yields first when the rail
+                                      // narrows so transport keeps its room.
+                                      if (!playback.isRadioMode &&
+                                          !compactLayout)
+                                        EqualizerQuickButton(
+                                          key: const ValueKey<String>(
+                                            'desktopPlayerEqualizerButton',
+                                          ),
+                                          enabled: hasPlayback,
+                                          disabledTooltip: l10n
+                                              .desktopPlaybackUnavailableTooltip,
+                                          iconSize: controlIconSize,
+                                          style: quickControlStyle,
+                                        ),
                                       if (!playback.isRadioMode)
                                         IconButton(
                                           key: const ValueKey<String>(
@@ -912,6 +881,17 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                 ? colors.primary
                                                 : null,
                                           ),
+                                        ),
+                                      if (!playback.isRadioMode)
+                                        PlaybackSpeedQuickButton(
+                                          key: const ValueKey<String>(
+                                            'desktopPlayerSpeedButton',
+                                          ),
+                                          enabled: hasPlayback,
+                                          disabledTooltip: l10n
+                                              .desktopPlaybackUnavailableTooltip,
+                                          iconSize: controlIconSize,
+                                          style: quickControlStyle,
                                         ),
                                     ],
                                   ),

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -153,6 +155,66 @@ void main() {
       decoded[DesktopCommandAction.goHome],
       defaultDesktopShortcutBindings()[DesktopCommandAction.goHome],
     );
+  });
+
+  test('speed shortcuts are configurable with unique default bindings', () {
+    final defaults = defaultDesktopShortcutBindings();
+    for (final action in [
+      DesktopCommandAction.speedUp,
+      DesktopCommandAction.speedDown,
+      DesktopCommandAction.speedReset,
+    ]) {
+      expect(configurableDesktopShortcutActions, contains(action));
+      expect(defaults[action], isNotNull);
+      expect(isTextSensitiveDesktopCommand(action), isFalse);
+    }
+    final bindings = defaults.values.whereType<DesktopShortcutBinding>();
+    expect(bindings.toSet().length, bindings.length);
+    expect(
+      defaults[DesktopCommandAction.speedUp]!.formatLabel(TargetPlatform.linux),
+      'Ctrl+.',
+    );
+  });
+
+  test('bindings saved before speed shortcuts existed keep speed defaults', () {
+    final decoded = decodeDesktopShortcutBindings(
+      jsonEncode(<String, Object?>{'openQuickSearch': null}),
+    );
+    expect(decoded[DesktopCommandAction.openQuickSearch], isNull);
+    expect(
+      decoded[DesktopCommandAction.speedUp],
+      defaultDesktopShortcutBindings()[DesktopCommandAction.speedUp],
+    );
+  });
+
+  testWidgets('Ctrl+period and Ctrl+comma match the speed commands', (
+    tester,
+  ) async {
+    DesktopCommandAction? matched;
+    bool handler(KeyEvent event) {
+      if (event is KeyDownEvent &&
+          event.logicalKey != LogicalKeyboardKey.controlLeft) {
+        matched = matchAnyDesktopCommandForKeyEvent(
+          event,
+          TargetPlatform.linux,
+          enableShortcuts: true,
+          enableEscapeOverlay: false,
+        );
+      }
+      return false;
+    }
+
+    HardwareKeyboard.instance.addHandler(handler);
+    addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.period);
+    expect(matched, DesktopCommandAction.speedUp);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    expect(matched, DesktopCommandAction.speedDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+    expect(matched, DesktopCommandAction.speedReset);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
   });
 
   testWidgets(

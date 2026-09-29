@@ -334,6 +334,9 @@ class _DesktopShortcutsSettingsScreenState
       DesktopCommandAction.previousTrack => Icons.skip_previous_rounded,
       DesktopCommandAction.refreshLibrary => Icons.refresh_rounded,
       DesktopCommandAction.forceRescanLibrary => Icons.find_replace_rounded,
+      DesktopCommandAction.speedUp => Icons.fast_forward_rounded,
+      DesktopCommandAction.speedDown => Icons.slow_motion_video_rounded,
+      DesktopCommandAction.speedReset => Icons.speed_rounded,
     };
   }
 
@@ -360,6 +363,9 @@ class _DesktopShortcutsSettingsScreenState
         l10n.desktopShortcutsRefreshLibraryTitle,
       DesktopCommandAction.forceRescanLibrary =>
         l10n.desktopShortcutsForceRescanTitle,
+      DesktopCommandAction.speedUp => l10n.desktopShortcutsSpeedUpTitle,
+      DesktopCommandAction.speedDown => l10n.desktopShortcutsSpeedDownTitle,
+      DesktopCommandAction.speedReset => l10n.desktopShortcutsSpeedResetTitle,
     };
   }
 
@@ -392,6 +398,11 @@ class _DesktopShortcutsSettingsScreenState
         l10n.desktopShortcutsRefreshLibraryDescription,
       DesktopCommandAction.forceRescanLibrary =>
         l10n.desktopShortcutsForceRescanDescription,
+      DesktopCommandAction.speedUp => l10n.desktopShortcutsSpeedUpDescription,
+      DesktopCommandAction.speedDown =>
+        l10n.desktopShortcutsSpeedDownDescription,
+      DesktopCommandAction.speedReset =>
+        l10n.desktopShortcutsSpeedResetDescription,
     };
   }
 }

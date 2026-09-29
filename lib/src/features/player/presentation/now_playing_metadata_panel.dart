@@ -275,6 +275,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       playback: widget.playback,
       currentMediaItem: widget.currentMediaItem,
       playbackSpeed: widget.playbackSpeed,
+      adjustments: ref.watch(playbackAdjustmentsProvider).asData?.value.values,
     );
     final activeIndex = _pageIndex % pages.length;
     final page = pages[activeIndex];
@@ -413,6 +414,7 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
   required PlaybackSnapshot playback,
   required MediaItem? currentMediaItem,
   required double playbackSpeed,
+  PlaybackAdjustments? adjustments,
 }) {
   final transcodingApplied =
       (currentMediaItem?.extras?['transcodingApplied'] as bool?) ?? false;
@@ -438,8 +440,11 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
     ),
     _NowPlayingInfoPage(
       icon: Icons.speed_outlined,
-      semanticLabel: l10n.playbackSettingsPlaybackSpeedLabel,
-      value: _formatPlaybackRate(playbackSpeed),
+      semanticLabel: l10n.playbackSpeedPitchTitle,
+      value: formatPlaybackAdjustments(
+        l10n,
+        adjustments ?? PlaybackAdjustments(speed: playbackSpeed),
+      ),
     ),
     _NowPlayingInfoPage(
       icon: Icons.star_border,
@@ -476,6 +481,7 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
       playback: playback,
       currentMediaItem: currentMediaItem,
       playbackSpeed: playbackSpeed,
+      adjustments: ref.watch(playbackAdjustmentsProvider).asData?.value.values,
     );
     final infoPages = pages.where((page) => !page.isRatingPage).toList();
     _NowPlayingInfoPage? ratingPage;
@@ -812,12 +818,4 @@ String _formatDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month/${date.year}';
-}
-
-String _formatPlaybackRate(double playbackSpeed) {
-  if ((playbackSpeed - 1).abs() < 0.001) {
-    return '-';
-  }
-  final speedValue = formatPlaybackSpeed(playbackSpeed).replaceAll('×', '');
-  return 'x$speedValue';
 }

@@ -1,8 +1,16 @@
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
+import 'package:navis/src/features/player/presentation/playback_quick_actions.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +36,6 @@ import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
@@ -42,7 +49,6 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
-part 'now_playing_speed_sheet.dart';
 part 'now_playing_seek_bar.dart';
 part 'now_playing_metadata_panel.dart';
 part 'now_playing_transport_controls.dart';
@@ -706,32 +712,41 @@ void _showNowPlayingSettingsSheet(
   String? fullscreenLyricsTitle,
 }) {
   final l10n = AppLocalizations.of(context)!;
-  final playbackSpeed =
-      ref.read(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
 
-  showModalBottomSheet<void>(
+  final action = showModalBottomSheet<_SettingsSheetAction>(
     context: context,
     useRootNavigator: true,
-    builder: (sheetContext) => Consumer(
-      builder: (_, sheetRef, __) {
-        final currentSongRating = song == null
-            ? null
-            : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
-        final sheetVolume = sheetRef.watch(playbackVolumeProvider);
-        final isRemote = song != null && !isServerAddressableSongId(song.id);
-        final songDownloadState = song == null
-            ? SongDownloadState.none
-            : sheetRef.watch(songDownloadStateProvider(song.id));
-        final disabledColor = Theme.of(
-          context,
-        ).colorScheme.onSurface.withValues(alpha: 0.38);
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (sheetContext) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.62,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      snap: true,
+      builder: (_, scrollController) => Consumer(
+        builder: (_, sheetRef, __) {
+          final currentSongRating = song == null
+              ? null
+              : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
+          final sheetVolume = sheetRef.watch(playbackVolumeProvider);
+          final isRemote = song != null && !isServerAddressableSongId(song.id);
+          final songDownloadState = song == null
+              ? SongDownloadState.none
+              : sheetRef.watch(songDownloadStateProvider(song.id));
+          final disabledColor = Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.38);
+          final eqSupported = sheetRef.watch(eqCapabilitiesProvider).supported;
+          return SafeArea(
+            top: false,
+            child: ListView(
+              key: const ValueKey<String>('nowPlayingSettingsSheet'),
+              controller: scrollController,
+              padding: const EdgeInsets.only(bottom: 12),
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                   child: Row(
                     children: <Widget>[
                       Icon(
@@ -775,15 +790,33 @@ void _showNowPlayingSettingsSheet(
                   ),
                 ),
                 const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.speed),
-                  title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
-                  subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    _showPlaybackSpeedSheet(context, ref, playbackSpeed);
-                  },
+                _NowPlayingSoundSectionLabel(
+                  label: l10n.nowPlayingSoundSection,
                 ),
+                ListTile(
+                  key: const ValueKey('playbackAdjustmentEntryPoint'),
+                  leading: const Icon(Icons.speed),
+                  title: Text(l10n.playbackSpeedPitchTitle),
+                  subtitle: const PlaybackAdjustmentSummary(),
+                  trailing: const Icon(Icons.chevron_right),
+                  // The Speed & Pitch sheet opens once this one has closed,
+                  // so two sheets never animate at the same time.
+                  onTap: () => Navigator.of(
+                    sheetContext,
+                  ).pop(_SettingsSheetAction.speedPitch),
+                ),
+                if (eqSupported)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                    child: EqQuickCard(
+                      onOpenFullPage: () => Navigator.of(
+                        sheetContext,
+                      ).pop(_SettingsSheetAction.openEqualizer),
+                    ),
+                  )
+                else
+                  const EqualizerEntry(),
+                const Divider(height: 1),
                 if (song != null)
                   ListTile(
                     iconColor: isRemote ? disabledColor : null,
@@ -949,11 +982,50 @@ void _showNowPlayingSettingsSheet(
                   ),
               ],
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     ),
   );
+  unawaited(
+    action.then((value) {
+      if (!context.mounted) return;
+      switch (value) {
+        case _SettingsSheetAction.speedPitch:
+          unawaited(showPlaybackAdjustmentQuickPanel(context));
+        case _SettingsSheetAction.openEqualizer:
+          NavService.openEqualizer(context, ref);
+        case null:
+          break;
+      }
+    }),
+  );
+}
+
+/// Follow-up actions the settings sheet hands back once it has closed.
+enum _SettingsSheetAction { speedPitch, openEqualizer }
+
+class _NowPlayingSoundSectionLabel extends StatelessWidget {
+  const _NowPlayingSoundSectionLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+      child: Semantics(
+        header: true,
+        child: Text(
+          label,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 Future<void> _openFullscreenLyricsRoute(
@@ -965,19 +1037,6 @@ Future<void> _openFullscreenLyricsRoute(
     MaterialPageRoute<void>(
       builder: (_) => _FullscreenLyricsPage(songId: songId, title: title),
     ),
-  );
-}
-
-void _showPlaybackSpeedSheet(
-  BuildContext context,
-  WidgetRef ref,
-  double initialSpeed,
-) {
-  showModalBottomSheet<void>(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    builder: (context) => _PlaybackSpeedSheet(initialSpeed: initialSpeed),
   );
 }
 

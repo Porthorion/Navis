@@ -734,8 +734,6 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final playbackSpeed =
-        ref.watch(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
     final currentSongRating = song == null
         ? null
         : ref.watch(songRatingProvider(song!.id)).asData?.value;
@@ -750,12 +748,26 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
       children: <Widget>[
-        ListTile(
-          leading: const Icon(Icons.speed),
-          title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
-          subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
-          onTap: () => _showPlaybackSpeedSheet(context, ref, playbackSpeed),
+        _NowPlayingSoundSectionLabel(label: l10n.nowPlayingSoundSection),
+        Builder(
+          builder: (tileContext) => ListTile(
+            key: const ValueKey('playbackAdjustmentEntryPoint'),
+            leading: const Icon(Icons.speed),
+            title: Text(l10n.playbackSpeedPitchTitle),
+            subtitle: const PlaybackAdjustmentSummary(),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () =>
+                unawaited(showPlaybackAdjustmentQuickPanel(tileContext)),
+          ),
         ),
+        if (ref.watch(eqCapabilitiesProvider).supported)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
+            child: EqQuickCard(),
+          )
+        else
+          const EqualizerEntry(),
+        const Divider(height: 1),
         if (song != null)
           ListTile(
             iconColor: isRemote ? disabledColor : null,

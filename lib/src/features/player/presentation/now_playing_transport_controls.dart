@@ -124,15 +124,30 @@ class _TransportControls extends ConsumerWidget {
     // Below this threshold the volume slider overflows the Row and is moved to
     // the settings modal instead.
     const transportVolumeMinWidth = 480.0;
+    // Below these widths the EQ and Speed quick actions are dropped so the
+    // core transport keeps full-size targets; both stay in the settings sheet.
+    // The desktop volume slider keeps priority when both cannot fit.
+    final transportQuickActionsMinWidth = compact ? 340.0 : 440.0;
+    const transportQuickActionsExtraWidth = 112.0;
 
     final row = LayoutBuilder(
       builder: (context, constraints) {
         final effectiveShowVolume =
             showVolumeControl &&
             constraints.maxWidth >= transportVolumeMinWidth;
+        final showQuickActions =
+            constraints.maxWidth >= transportQuickActionsMinWidth &&
+            (!effectiveShowVolume ||
+                constraints.maxWidth >=
+                    transportVolumeMinWidth + transportQuickActionsExtraWidth);
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            if (showQuickActions)
+              EqualizerQuickButton(
+                key: const ValueKey<String>('nowPlayingEqualizerButton'),
+                visualDensity: compact ? VisualDensity.compact : null,
+              ),
             IconButton(
               icon: Icon(
                 Icons.shuffle,
@@ -226,6 +241,11 @@ class _TransportControls extends ConsumerWidget {
                 unawaited(handler?.setRepeatMode(next));
               },
             ),
+            if (showQuickActions)
+              PlaybackSpeedQuickButton(
+                key: const ValueKey<String>('nowPlayingSpeedButton'),
+                visualDensity: compact ? VisualDensity.compact : null,
+              ),
             if (showMiniPlayerToggle) ...<Widget>[
               SizedBox(width: compact ? 4 : 8),
               Consumer(

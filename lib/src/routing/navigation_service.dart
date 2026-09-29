@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
 
 /// The navigation intent behind a [NavService] operation.
 ///
@@ -19,9 +22,8 @@ enum AppNavigationIntent { drillIn, replace, switchTab, modal }
 
 /// Route configuration for an album opened from an interactive surface.
 ///
-/// Phone album pages use a fast, composed-page fade. Wider layouts preserve
-/// the shared-artwork Hero because their header geometry is intentionally
-/// different and benefits from the spatial continuity.
+/// Desktop and ordinary mobile album pages use a fast, composed-page fade.
+/// Compact mobile landscape preserves its shared-artwork Hero.
 @immutable
 class AlbumDetailRouteRequest {
   const AlbumDetailRouteRequest({
@@ -57,13 +59,13 @@ abstract final class NavService {
     final normalizedHeroTag = heroTag?.trim();
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final fadeOnly =
-        !adaptiveContext.useDesktopShell &&
+        adaptiveContext.desktopRuntime ||
         !adaptiveContext.useCompactWideLandscape;
     unawaited(
       context.push<void>(
         '/library/albums/$albumId',
         extra: AlbumDetailRouteRequest(
-          // A phone page fades in as one already-composed surface, so it must
+          // The page fades in as one already-composed surface, so it must
           // not pair with the tapped card's Hero during the route change.
           openingHeroTag:
               fadeOnly || normalizedHeroTag == null || normalizedHeroTag.isEmpty
@@ -181,6 +183,79 @@ abstract final class NavService {
     _prepareForNavigation(context, ref, AppNavigationIntent.replace);
     context.go('/settings/appearance');
   }
+
+  /// Open the full Equalizer page, dismissing popups and player overlays so
+  /// the page is visible.
+  ///
+  /// Closing the page returns the person to where they started: an expanded
+  /// Now Playing is re-expanded and Mini Player is restored, as long as they
+  /// came straight back rather than navigating somewhere else. The route lives
+  /// in the Settings branch, which the desktop Mini Player does not render, so
+  /// Mini Player first returns to the full view; when the window cannot leave
+  /// Mini Player, the page is shown directly over it.
+  static void openEqualizer(BuildContext context, WidgetRef ref) {
+    clearExitPrompt();
+    final router = GoRouter.of(context);
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final window = ref.read(desktopWindowControllerProvider);
+    final restoreNowPlaying = ref
+        .read(playerOverlayStackProvider)
+        .contains(PlayerOverlayRoute.nowPlaying);
+    final restoreMiniPlayer = window.isMiniPlayerMode;
+    final origin = router.state.uri.toString();
+    _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
+
+    void restoreOrigin(Object? _) {
+      if (router.state.uri.toString() != origin) {
+        return;
+      }
+      if (restoreMiniPlayer) {
+        final current = container.read(desktopWindowControllerProvider);
+        if (!current.isMiniPlayerMode) {
+          unawaited(current.setMiniPlayerMode(true));
+        }
+      } else if (restoreNowPlaying) {
+        container.read(playerOverlayStackProvider.notifier).expand();
+      }
+    }
+
+    if (!window.isMiniPlayerMode) {
+      unawaited(router.push<void>(_equalizerLocation).then(restoreOrigin));
+      return;
+    }
+    if (!window.desktopViewAvailable) {
+      // Popping this route reveals the Mini Player again.
+      rootNavigator.push(
+        MaterialPageRoute<void>(builder: (_) => const EqualizerScreen()),
+      );
+      return;
+    }
+    unawaited(
+      window
+          .setMiniPlayerMode(false)
+          .then((_) => router.push<void>(_equalizerLocation))
+          .then(restoreOrigin),
+    );
+  }
+
+  /// Leave the Equalizer page after persisting in-progress edits, returning
+  /// to wherever it was opened from (Settings when there is no history).
+  static Future<void> closeEqualizer(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    clearExitPrompt();
+    final router = GoRouter.of(context);
+    await ref.read(equalizerProvider.notifier).flushEdits();
+    if (router.canPop()) {
+      router.pop();
+    } else {
+      router.go('/settings');
+    }
+  }
+
+  static const _equalizerLocation = '/settings/equalizer';
 
   /// Navigate to the search screen and pre-fill the query.
   ///

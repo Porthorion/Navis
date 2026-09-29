@@ -534,6 +534,21 @@ capture_window_screenshot() {
     "$OUTPUT_ROOT/$prefix-path.txt"
 }
 
+resize_responsive_window() {
+  local response_prefix="$1" width="$2" height="$3"
+  local attempt
+  for attempt in 1 2 3 4; do
+    api POST /v1/presentation/window "{\"mode\":\"desktop\",\"width\":$width,\"height\":$height}" \
+      > "$OUTPUT_ROOT/$response_prefix-attempt-$attempt.json"
+    sleep 1
+    api GET /v1/presentation/window > "$OUTPUT_ROOT/$response_prefix.json"
+    if validate_window_response "$OUTPUT_ROOT/$response_prefix.json" desktop none "$width" "$height" >/dev/null 2>&1; then
+      return
+    fi
+  done
+  validate_window_response "$OUTPUT_ROOT/$response_prefix.json" desktop none "$width" "$height"
+}
+
 run_capture() {
   local prefix="$1"
   local capture_label="$prefix-$LABEL"
@@ -590,6 +605,29 @@ run_capture() {
   # presentation endpoint captures visual evidence.
   sleep 5
   wait_for_presentation "$OUTPUT_ROOT/$prefix-presentation-after.json"
+  if [[ "$LABEL" == "tooltip-semantics" ]]; then
+    for target in favorite lyrics queue miniPlayer; do
+      for cycle in 1 2 3; do
+        api POST /v1/presentation/tooltip "{\"target\":\"$target\"}" \
+          > "$OUTPUT_ROOT/$prefix-tooltip-$target-$cycle-shown.json"
+        python3 - "$OUTPUT_ROOT/$prefix-tooltip-$target-$cycle-shown.json" <<'PY'
+import json, sys
+if json.load(open(sys.argv[1], encoding="utf-8")).get("visible") is not True:
+    raise SystemExit("tooltip did not appear")
+PY
+        if [[ "$target" == "lyrics" && "$cycle" == "1" ]]; then
+          capture_window_screenshot "$prefix-tooltip" "$prefix-tooltip"
+        fi
+        api POST /v1/presentation/tooltip '{"target":null}' \
+          > "$OUTPUT_ROOT/$prefix-tooltip-$target-$cycle-hidden.json"
+        python3 - "$OUTPUT_ROOT/$prefix-tooltip-$target-$cycle-hidden.json" <<'PY'
+import json, sys
+if json.load(open(sys.argv[1], encoding="utf-8")).get("visible") is not False:
+    raise SystemExit("tooltip did not disappear")
+PY
+      done
+    done
+  fi
   if [[ -n "$FILTER_QUERY" ]]; then
     api POST /v1/presentation/library-filter "$(library_filter_body "$FILTER_QUERY")" \
       > "$OUTPUT_ROOT/$prefix-library-filter.json"
@@ -773,6 +811,91 @@ PY
     capture_window_screenshot \
       "$prefix-mini-screenshot" "$prefix-mini-player"
   fi
+  if [[ "$LABEL" == "responsive-layout" ]]; then
+    api GET /v1/presentation/appearance > "$OUTPUT_ROOT/$prefix-appearance-before.json"
+    if [[ "$prefix" == "restart" ]]; then
+      python3 - "$OUTPUT_ROOT/$prefix-appearance-before.json" <<'PYVERIFY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value["gridArtworkSize"] == "small"
+assert value["homeRecommendationsAutoAdvance"] is True
+assert value["showArtistsPage"] is True and value["showRadioPage"] is True
+PYVERIFY
+    fi
+    api POST /v1/presentation/appearance \
+      '{"gridArtworkSize":"auto","homeRecommendationsAutoAdvance":false,"showArtistsPage":true,"showRadioPage":true}' \
+      > "$OUTPUT_ROOT/$prefix-appearance-auto.json"
+    for width in 800 2560; do
+      if [[ "$width" == "800" ]]; then height=600; else height=1280; fi
+      resize_responsive_window "$prefix-responsive-window-$width" "$width" "$height"
+      for section in home albums liked artists radio; do
+        if [[ "$section" == "home" ]]; then location=/; else location="/library#$section"; fi
+        api POST /v1/presentation/navigate "{\"location\":\"$location\"}" \
+          > "$OUTPUT_ROOT/$prefix-responsive-$section-$width-navigation.json"
+        sleep 1
+        capture_window_screenshot "$prefix-responsive-$section-$width" "$prefix-$section-$width"
+      done
+    done
+    api POST /v1/presentation/navigate '{"location":"/library#liked"}' \
+      > "$OUTPUT_ROOT/$prefix-liked-scroll-navigation.json"
+    sleep 1
+    api POST /v1/presentation/library-scroll '{"pixels":500}' \
+      > "$OUTPUT_ROOT/$prefix-liked-scroll.json"
+    capture_window_screenshot "$prefix-liked-scrolled" "$prefix-liked-scrolled"
+    api POST /v1/presentation/navigate '{"location":"/library#albums"}' \
+      > "$OUTPUT_ROOT/$prefix-artwork-navigation.json"
+    for artwork in small large; do
+      api POST /v1/presentation/appearance "{\"gridArtworkSize\":\"$artwork\"}" \
+        > "$OUTPUT_ROOT/$prefix-artwork-$artwork.json"
+      sleep 1
+      capture_window_screenshot "$prefix-artwork-$artwork" "$prefix-artwork-$artwork"
+    done
+    api POST /v1/presentation/library-filter '{"query":"Hotel"}' \
+      > "$OUTPUT_ROOT/$prefix-responsive-filter.json"
+    sleep 1
+    capture_window_screenshot "$prefix-responsive-filtered" "$prefix-filtered"
+    api POST /v1/presentation/appearance \
+      '{"gridArtworkSize":"small","homeRecommendationsAutoAdvance":true}' \
+      > "$OUTPUT_ROOT/$prefix-appearance-persisted.json"
+    api POST /v1/presentation/navigate '{"location":"/"}' \
+      > "$OUTPUT_ROOT/$prefix-responsive-home-final.json"
+  fi
+  if [[ "$LABEL" == "responsive-polish" ]]; then
+    resize_responsive_window "$prefix-polish-wide" 1366 900
+    api POST /v1/presentation/navigate '{"location":"/library#albums"}' \
+      > "$OUTPUT_ROOT/$prefix-polish-albums-navigation.json"
+    sleep 1
+    capture_window_screenshot "$prefix-polish-albums" "$prefix-polish-albums"
+    api POST /v1/presentation/library-action '{"action":"openFirstAlbum"}' \
+      > "$OUTPUT_ROOT/$prefix-polish-open-album.json"
+    python3 - "$OUTPUT_ROOT/$prefix-polish-open-album.json" <<'PYALBUM'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value.get("actualLocation", "").startswith("/library/albums/")
+PYALBUM
+    capture_window_screenshot "$prefix-polish-album-detail" "$prefix-polish-album-detail"
+    resize_responsive_window "$prefix-polish-minimum" 800 600
+    capture_window_screenshot "$prefix-polish-album-minimum" "$prefix-polish-album-minimum"
+    api POST /v1/presentation/navigate '{"location":"/library#liked"}' \
+      > "$OUTPUT_ROOT/$prefix-polish-liked-navigation.json"
+    sleep 1
+    capture_window_screenshot "$prefix-polish-liked-before" "$prefix-polish-liked-before"
+    api POST /v1/presentation/library-action '{"action":"nextLikedAlbums"}' \
+      > "$OUTPUT_ROOT/$prefix-polish-next-liked.json"
+    capture_window_screenshot "$prefix-polish-liked-paged" "$prefix-polish-liked-paged"
+    python3 - "$OUTPUT_ROOT/$prefix-polish-liked-before.json" \
+      "$OUTPUT_ROOT/$prefix-polish-liked-paged.json" <<'PYPAGING'
+import json, sys
+before, after = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+assert before["sha256"] != after["sha256"], "Liked album paging did not change the rendered shelf"
+PYPAGING
+    api POST /v1/presentation/library-action '{"action":"openFirstAlbum"}' \
+      > "$OUTPUT_ROOT/$prefix-polish-open-liked-album.json"
+    resize_responsive_window "$prefix-polish-liked-wide" 1366 900
+    capture_window_screenshot "$prefix-polish-liked-album-detail" "$prefix-polish-liked-album-detail"
+    api POST /v1/presentation/navigate "$(navigation_body)" \
+      > "$OUTPUT_ROOT/$prefix-polish-final-navigation.json"
+  fi
   # Window transitions are asynchronous at the desktop compositor boundary.
   # Re-observe the settled Flutter surface before the acceptance capture so a
   # restart cannot record an intermediate artwork-only frame as visual proof.
@@ -826,7 +949,7 @@ run_capture restart
 shutdown_app restart
 
 if rg -n \
-  'Unhandled Exception|Tried to modify a provider while the widget tree was building|created the database class NavisDatabase multiple times' \
+  'Unhandled Exception|Tried to modify a provider while the widget tree was building|created the database class NavisDatabase multiple times|node\.built|!child\.attached|Another exception was thrown|EXCEPTION CAUGHT BY' \
   "$APP_LOG" > "$OUTPUT_ROOT/log-errors.txt"; then
   echo "Runtime log contains a hard-fail pattern. See $OUTPUT_ROOT/log-errors.txt" >&2
   exit 1
@@ -888,6 +1011,10 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
              if sys.argv[15] == "1" else [])
           + (["GET /v1/cache/status"]
              if sys.argv[16] == "cache-upgrade" else [])
+          + (["POST /v1/presentation/tooltip"]
+             if sys.argv[16] == "tooltip-semantics" else [])
+          + (["POST /v1/presentation/library-action"]
+             if sys.argv[16] == "responsive-polish" else [])
           + (["POST /v1/presentation/search"] if sys.argv[6] == "1" else [])
           + ([
               "POST /v1/presentation/search/play",

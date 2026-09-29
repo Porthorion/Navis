@@ -22,6 +22,7 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   bool alwaysOnTop = false;
   bool preventClose = false;
   int closeCalls = 0;
+  int unmaximizeCalls = 0;
   WindowListener? listener;
   final Completer<void> _closed = Completer<void>();
 
@@ -105,6 +106,7 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
 
   @override
   Future<void> unmaximize() async {
+    unmaximizeCalls++;
     maximized = false;
   }
 
@@ -621,6 +623,23 @@ void main() {
         expect(adapter.bounds, validBounds);
       },
     );
+
+    test('diagnostic resize clears native maximization even when its full-state flag is false', () async {
+      final adapter = _FakeWindowManagerAdapter(
+        bounds: const Rect.fromLTWH(0, 0, 2560, 600),
+      );
+      final controller = DesktopWindowController(
+        desktopRuntime: true,
+        stateFile: stateFile,
+        settingsRepository: repository,
+        adapter: adapter,
+      );
+      await controller.setBoundsForDiagnostics(
+        const Rect.fromLTWH(45, 45, 800, 600),
+      );
+      expect(adapter.unmaximizeCalls, 1);
+      expect(adapter.bounds.size, const Size(800, 600));
+    });
 
     test('diagnostic resize deterministically exits maximized state', () async {
       final adapter = _FakeWindowManagerAdapter(

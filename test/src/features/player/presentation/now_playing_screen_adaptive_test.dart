@@ -4,12 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/fake_eq_controller.dart';
 import '../../../../helpers/test_database.dart';
 
 const PlaybackSnapshot _songPlayback = PlaybackSnapshot(
@@ -679,5 +683,96 @@ void main() {
       greaterThan(0),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  group('mobile settings sheet Sound section', () {
+    Future<ProviderContainer> openSheet(
+      WidgetTester tester, {
+      required bool eqSupported,
+    }) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final container = _createContainer(
+        overrides: [
+          eqCapabilitiesProvider.overrideWithValue(
+            eqSupported ? EqCapabilities.available : EqCapabilities.unavailable,
+          ),
+          if (eqSupported)
+            equalizerProvider.overrideWith(
+              () => FakeEqController(
+                initial: EqState(
+                  configuration: EqConfiguration.flat().copyWith(
+                    enabled: true,
+                  ),
+                  presets: const [],
+                  selectedPresetId: 'builtin:bass',
+                ),
+              ),
+            ),
+        ],
+      );
+      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      await _pumpNowPlaying(
+        tester,
+        container,
+        platform: TargetPlatform.android,
+      );
+      await tester.tap(find.byKey(const ValueKey('nowPlayingSettingsAction')));
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    testWidgets('shows the inline mini equalizer under Sound', (tester) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+      await openSheet(tester, eqSupported: true);
+      expect(
+        find.byKey(const ValueKey('nowPlayingSettingsSheet')),
+        findsOneWidget,
+      );
+      expect(find.text('Sound'), findsOneWidget);
+      expect(find.byType(EqQuickCard), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('eq-quick-preset-builtin:bass')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(BottomSheet),
+        matchesGoldenFile('goldens/now_playing_settings_sound_390x844.png'),
+      );
+    });
+
+    testWidgets('Speed & Pitch opens after the settings sheet closes', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+      await openSheet(tester, eqSupported: true);
+      await tester.tap(
+        find.byKey(const ValueKey('playbackAdjustmentEntryPoint')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('nowPlayingSettingsSheet')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('playbackAdjustmentQuickPanel')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('unsupported backends keep the explanatory Equalizer row', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+      await openSheet(tester, eqSupported: false);
+      expect(find.byType(EqQuickCard), findsNothing);
+      expect(find.byKey(const ValueKey('equalizerEntryPoint')), findsOneWidget);
+    });
   });
 }

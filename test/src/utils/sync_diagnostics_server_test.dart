@@ -1,3 +1,5 @@
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -40,6 +42,298 @@ import '../../helpers/test_database.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;
+
+  test(
+    'artist diagnostics reject primary mutation and invalid clone commands',
+    () async {
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      final forbidden = await _request(
+        primary.port,
+        '/v1/artists/playback',
+        method: 'POST',
+        token: primary.token,
+        body: {'command': 'cancel'},
+      );
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+      await primary.close();
+      final clone = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(clone.close);
+      for (final body in [
+        {'command': 'prepare', 'artistId': '', 'action': 'play'},
+        {'command': 'prepare', 'artistId': 'artist', 'action': 'invalid'},
+        {'command': 'retry', 'extra': true},
+      ]) {
+        final invalid = await _request(
+          clone.port,
+          '/v1/artists/playback',
+          method: 'POST',
+          token: clone.token,
+          body: body,
+        );
+        expect(invalid.statusCode, HttpStatus.badRequest);
+      }
+      final conflict = await _request(
+        clone.port,
+        '/v1/artists/playback',
+        method: 'POST',
+        token: clone.token,
+        body: {'command': 'available'},
+      );
+      expect(conflict.statusCode, HttpStatus.badRequest);
+      final status = await _request(
+        clone.port,
+        '/v1/artists/playback/status',
+        token: clone.token,
+      );
+      final value = status.body;
+      expect(value.keys, isNot(contains('artistId')));
+      expect(value.keys, isNot(contains('unresolvedAlbumIds')));
+    },
+  );
+
+  test('track presentation actions reject primary mutation and invalid clone input', () async {
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+    );
+
+    final forbidden = await _request(
+      primary.port,
+      '/v1/presentation/track-action',
+      method: 'POST',
+      token: primary.token,
+      body: {'action': 'more'},
+    );
+    expect(forbidden.statusCode, HttpStatus.forbidden);
+    await primary.close();
+    final clone = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(clone.close);
+    for (final body in [
+      {'action': 'arbitraryClick'},
+      {'action': 'more', 'x': 1},
+    ]) {
+      final invalid = await _request(
+        clone.port,
+        '/v1/presentation/track-action',
+        method: 'POST',
+        token: clone.token,
+        body: body,
+      );
+      expect(invalid.statusCode, HttpStatus.badRequest);
+    }
+    final unavailable = await _request(
+      clone.port,
+      '/v1/presentation/track-action',
+      method: 'POST',
+      token: clone.token,
+      body: {'action': 'more'},
+    );
+    expect(unavailable.statusCode, HttpStatus.serviceUnavailable);
+  });
+
+  test('adjustments API applies both values and manages presets', () async {
+    registerFallbackValue(const PlaybackAdjustments());
+    final handler = _MockPlaybackHandler();
+    var applied = const PlaybackAdjustments();
+    when(() => handler.playbackAdjustments).thenAnswer((_) => applied);
+    when(() => handler.playbackAdjustmentsStream)
+        .thenAnswer((_) => const Stream.empty());
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
+    when(handler.waitUntilReady).thenAnswer((_) async {});
+    when(() => handler.playbackAdjustmentCapabilities)
+        .thenReturn(PlaybackAdjustmentCapabilities.android);
+    when(() => handler.setPlaybackAdjustments(any())).thenAnswer((i) async {
+      applied = i.positionalArguments.first as PlaybackAdjustments;
+    });
+    when(handler.collectPlaybackDiagnostics).thenAnswer(
+      (_) => {
+        'playbackSpeed': applied.speed,
+        'playbackPitchSemitones': applied.pitchSemitones,
+      },
+    );
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      handler: handler,
+    );
+    addTearDown(fixture.close);
+    final unauthorized = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      body: {'speedPercent': 25},
+    );
+    expect(unauthorized.statusCode, HttpStatus.unauthorized);
+    final changed = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'speedPercent': 13.75, 'pitchSemitones': -2.37},
+    );
+    expect(changed.statusCode, HttpStatus.ok);
+    expect(changed.body['persistedSpeed'], 1.1375);
+    expect(changed.body['persistedPitchSemitones'], -2.37);
+    final saved = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'action': 'save', 'name': 'Nightcore'},
+    );
+    expect(saved.statusCode, HttpStatus.ok);
+    final id = saved.body['selectedPresetId'];
+    final none = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'action': 'select', 'id': 'none'},
+    );
+    expect(none.body['speedPercent'], 0);
+    expect(none.body['pitchSemitones'], 0);
+    final restored = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'action': 'select', 'id': id},
+    );
+    expect(restored.body['pitchSemitones'], -2.37);
+    final immutable = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'action': 'delete', 'id': 'none'},
+    );
+    expect(immutable.statusCode, HttpStatus.badRequest);
+    final ambiguous = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'speed': 1.25, 'speedPercent': 25},
+    );
+    expect(ambiguous.statusCode, HttpStatus.badRequest);
+    expect(applied.speed, 1.1375);
+    final linked = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'speed': 1.25, 'lockPitchToSpeed': true},
+    );
+    expect(linked.body['speed'], 1.25);
+    expect(linked.body['lockPitchToSpeed'], isTrue);
+    expect(linked.body['persistedLockPitchToSpeed'], isTrue);
+    expect(applied.pitchFactor, 1.25);
+    final rejected = await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'pitchSemitones': 0},
+    );
+    expect(rejected.statusCode, HttpStatus.badRequest);
+    await _request(
+      fixture.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: fixture.token,
+      body: {'lockPitchToSpeed': false, 'speed': 1.5},
+    );
+    expect(applied.pitchFactor, closeTo(1.25, 1e-14));
+  });
+
+  test('adjustments API forbids primary mutation', () async {
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+    );
+    addTearDown(primary.close);
+    final forbidden = await _request(
+      primary.port,
+      '/v1/playback/adjustments',
+      method: 'POST',
+      token: primary.token,
+      body: {'speedPercent': 25},
+    );
+    expect(forbidden.statusCode, HttpStatus.forbidden);
+  });
+
+  test(
+    'appearance diagnostics validate targeted settings and remain clone-only',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/presentation/appearance',
+        method: 'POST',
+        body: {'gridArtworkSize': 'large'},
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+      for (final body in [
+        <String, Object?>{'gridArtworkSize': 'five'},
+        <String, Object?>{'homeRecommendationsAutoAdvance': 'true'},
+        <String, Object?>{'unknown': true},
+      ]) {
+        final invalid = await _request(
+          fixture.port,
+          '/v1/presentation/appearance',
+          method: 'POST',
+          token: fixture.token,
+          body: body,
+        );
+        expect(invalid.statusCode, HttpStatus.badRequest);
+      }
+      final changed = await _request(
+        fixture.port,
+        '/v1/presentation/appearance',
+        method: 'POST',
+        token: fixture.token,
+        body: {
+          'gridArtworkSize': 'small',
+          'homeRecommendationsAutoAdvance': true,
+        },
+      );
+      expect(changed.statusCode, HttpStatus.ok);
+      expect(changed.body, {
+        'gridArtworkSize': 'small',
+        'homeRecommendationsAutoAdvance': true,
+        'showArtistsPage': true,
+        'showRadioPage': true,
+      });
+      final observed = await _request(
+        fixture.port,
+        '/v1/presentation/appearance',
+        token: fixture.token,
+      );
+      expect(observed.body, changed.body);
+      final persisted = await fixture.container
+          .read(navisDatabaseProvider)
+          .appSettingsDao
+          .getSettings();
+      expect(persisted!.gridArtworkSize, 'small');
+      expect(persisted.homeRecommendationsAutoAdvance, isTrue);
+      await fixture.close();
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      addTearDown(primary.close);
+      for (final method in ['GET', 'POST']) {
+        final forbidden = await _request(
+          primary.port,
+          '/v1/presentation/appearance',
+          method: method,
+          token: primary.token,
+          body: method == 'POST' ? {'gridArtworkSize': 'large'} : null,
+        );
+        expect(forbidden.statusCode, HttpStatus.forbidden);
+      }
+    },
+  );
 
   test(
     'rapid playback endpoints use the handler and remain clone-only',
@@ -264,7 +558,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 80);
+    expect(authorized.body['schemaVersion'], 85);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {
@@ -915,6 +1209,7 @@ void main() {
       );
       when(() => presentation.appReady).thenReturn(true);
       when(presentation.waitForFrame).thenAnswer((_) async {});
+      when(presentation.dismissPopupRoutes).thenAnswer((_) async {});
       when(
         () => presentation.capture(label: any(named: 'label')),
       ).thenAnswer(
@@ -937,10 +1232,12 @@ void main() {
       addTearDown(fixture.close);
 
       for (final unauthorized in <(String, String)>[
+        ('POST', '/v1/presentation/tooltip'),
         ('GET', '/v1/presentation/window'),
         ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/dismiss-popup'),
         ('POST', '/v1/presentation/onboarding/complete'),
         ('GET', '/v1/presentation/home-warmup'),
         ('POST', '/v1/presentation/library-filter'),
@@ -955,6 +1252,15 @@ void main() {
         );
         expect(response.statusCode, HttpStatus.unauthorized);
       }
+
+      final dismissed = await _request(
+        fixture.port,
+        '/v1/presentation/dismiss-popup',
+        method: 'POST',
+        token: fixture.token,
+      );
+      expect(dismissed.statusCode, HttpStatus.ok);
+      verify(presentation.dismissPopupRoutes).called(1);
 
       final status = await _request(
         fixture.port,
@@ -1181,10 +1487,12 @@ void main() {
       );
       addTearDown(primary.close);
       for (final endpoint in <(String, String)>[
+        ('POST', '/v1/presentation/tooltip'),
         ('GET', '/v1/presentation/window'),
         ('POST', '/v1/presentation/window'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/dismiss-popup'),
         ('POST', '/v1/presentation/onboarding/complete'),
         ('GET', '/v1/presentation/home-warmup'),
         ('POST', '/v1/presentation/library-filter'),
@@ -1214,8 +1522,10 @@ void main() {
       final clone = await _startFixture(SyncDiagnosticsMode.clone);
       addTearDown(clone.close);
       for (final endpoint in <(String, String)>[
+        ('POST', '/v1/presentation/tooltip'),
         ('GET', '/v1/presentation/status'),
         ('POST', '/v1/presentation/navigate'),
+        ('POST', '/v1/presentation/dismiss-popup'),
         ('POST', '/v1/presentation/library-filter'),
         ('POST', '/v1/presentation/notice'),
         ('POST', '/v1/presentation/search'),
@@ -1232,6 +1542,109 @@ void main() {
       }
     },
   );
+
+  test('library actions are bounded, authenticated and clone-only', () async {
+    final presentation = _MockPresentationController();
+    final navigationDriver = _MockDiagnosticsNavigationDriver();
+    when(() => navigationDriver.location).thenReturn('/library');
+    for (final action in DiagnosticsPresentationController.libraryActions) {
+      when(() => presentation.activateLibraryControl(action: action))
+          .thenAnswer((_) async {});
+    }
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      presentationController: presentation,
+      navigationDriver: navigationDriver,
+    );
+    addTearDown(fixture.close);
+    final unauthorized = await _request(
+      fixture.port,
+      '/v1/presentation/library-action',
+      method: 'POST',
+      body: const {'action': 'openFirstAlbum'},
+    );
+    expect(unauthorized.statusCode, HttpStatus.unauthorized);
+    for (final body in <Map<String, Object?>>[
+      {},
+      {'action': 42},
+      {'action': 'arbitraryClick'},
+      {'action': 'openFirstAlbum', 'key': 'arbitrary'},
+    ]) {
+      final response = await _request(
+        fixture.port,
+        '/v1/presentation/library-action',
+        method: 'POST',
+        token: fixture.token,
+        body: body,
+      );
+      expect(response.statusCode, HttpStatus.badRequest);
+    }
+    for (final action in DiagnosticsPresentationController.libraryActions) {
+      final response = await _request(
+        fixture.port,
+        '/v1/presentation/library-action',
+        method: 'POST',
+        token: fixture.token,
+        body: {'action': action},
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.body['action'], action);
+      verify(() => presentation.activateLibraryControl(action: action))
+          .called(1);
+    }
+    await fixture.close();
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+      presentationController: presentation,
+    );
+    addTearDown(primary.close);
+    final forbidden = await _request(
+      primary.port,
+      '/v1/presentation/library-action',
+      method: 'POST',
+      token: primary.token,
+      body: const {'action': 'openFirstAlbum'},
+    );
+    expect(forbidden.statusCode, HttpStatus.forbidden);
+  });
+
+  test('tooltip control validates its bounded targets', () async {
+    final presentation = _MockPresentationController();
+    when(() => presentation.hoverTooltip(target: 'lyrics')).thenAnswer(
+      (_) async => true,
+    );
+    when(() => presentation.hoverTooltip(target: null)).thenAnswer(
+      (_) async => false,
+    );
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      presentationController: presentation,
+    );
+    addTearDown(fixture.close);
+    for (final target in <Object>['unknown', 42, <String>[]]) {
+      final invalid = await _request(
+        fixture.port,
+        '/v1/presentation/tooltip',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'target': target},
+      );
+      expect(invalid.statusCode, HttpStatus.badRequest);
+    }
+    for (final target in <String?>['lyrics', null]) {
+      final result = await _request(
+        fixture.port,
+        '/v1/presentation/tooltip',
+        method: 'POST',
+        token: fixture.token,
+        body: <String, Object?>{'target': target},
+      );
+      expect(result.statusCode, HttpStatus.ok);
+      expect(result.body['visible'], target != null);
+    }
+    verify(() => presentation.hoverTooltip(target: 'lyrics')).called(1);
+    verify(() => presentation.hoverTooltip(target: null)).called(1);
+  });
 
   test('primary mode permits only app-owned screenshot capture', () async {
     final presentation = _MockPresentationController();

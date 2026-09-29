@@ -3,12 +3,14 @@ import 'dart:ui' show SemanticsAction;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
+import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -75,6 +77,10 @@ class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
 
 class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
   int toggleLikeCalls = 0;
+  Duration? sought;
+
+  @override
+  Future<void> seek(Duration position) async => sought = position;
 
   @override
   Future<void> toggleLike() async {
@@ -247,6 +253,90 @@ const SongsTableData _remoteMetadataSong = SongsTableData(
 );
 
 void main() {
+  testWidgets(
+    'desktop times preview a drag and release through the existing handler',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 600);
+      addTearDown(tester.view.reset);
+      final handler = _RecordingLikePlaybackHandler();
+      final container = _createContainerWithDatabase(
+        overrides: [
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          audioHandlerProvider.overrideWithValue(handler),
+          playbackPositionProvider.overrideWith(
+            (ref) => Stream.value(const Duration(seconds: 42)),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('0:42'), findsWidgets);
+      expect(find.text('3:30'), findsWidgets);
+      final finder = find.byKey(const ValueKey('desktopPlayerSeekSlider'));
+      final slider = tester.widget<Slider>(finder);
+      slider.onChangeStart!(90000);
+      slider.onChanged!(90000);
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('desktopPlayerElapsed')))
+            .data,
+        '1:30',
+      );
+      expect(handler.sought, isNull);
+      tester.widget<Slider>(finder).onChangeEnd!(90000);
+      await tester.pump();
+      expect(handler.sought, const Duration(seconds: 90));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('desktop player tooltip cycles keep semantics consistent', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    final semantics = tester.ensureSemantics();
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(400, 250));
+    for (final key in <String>[
+      'desktopPlayerFavoriteButton',
+      'desktopPlayerLyricsButton',
+      'desktopQueueButton',
+      'desktopPlayerMiniPlayerButton',
+    ]) {
+      final target = find.byKey(ValueKey<String>(key));
+      expect(target, findsOneWidget);
+      final semanticNode = tester.getSemantics(target);
+      final semanticId = semanticNode.id;
+      final label = semanticNode.label;
+      for (var cycle = 0; cycle < 3; cycle++) {
+        await mouse.moveTo(tester.getCenter(target));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.byKey(NavisTooltip.defaultBubbleKey), findsOneWidget);
+        expect(tester.getSemantics(target).id, semanticId);
+        expect(tester.getSemantics(target).label, label);
+        await mouse.moveTo(const Offset(400, 250));
+        await tester.pumpAndSettle();
+        expect(find.byKey(NavisTooltip.defaultBubbleKey), findsNothing);
+        expect(tester.takeException(), isNull);
+      }
+    }
+    await mouse.removePointer();
+    semantics.dispose();
+  });
   IconButton desktopActionButton(WidgetTester tester, String key) {
     return tester.widget<IconButton>(
       find.descendant(
@@ -1285,14 +1375,29 @@ void main() {
       );
     }
     expect(
-      find.byTooltip('Favorite is unavailable for radio'),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is NavisTooltip &&
+            widget.message == 'Favorite is unavailable for radio',
+      ),
       findsOneWidget,
     );
     expect(
-      find.byTooltip('Lyrics are unavailable for radio'),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is NavisTooltip &&
+            widget.message == 'Lyrics are unavailable for radio',
+      ),
       findsOneWidget,
     );
-    expect(find.byTooltip('Queue is unavailable for radio'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is NavisTooltip &&
+            widget.message == 'Queue is unavailable for radio',
+      ),
+      findsOneWidget,
+    );
     expect(
       desktopActionButton(tester, 'desktopPlayerMiniPlayerButton').onPressed,
       isNotNull,
