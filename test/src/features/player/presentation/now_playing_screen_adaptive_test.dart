@@ -732,10 +732,7 @@ void main() {
       );
       expect(find.text('Sound'), findsOneWidget);
       expect(find.byType(EqQuickCard), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('eq-quick-preset-builtin:bass')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('eq-quick-preset')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await expectLater(
         find.byType(BottomSheet),
@@ -775,4 +772,66 @@ void main() {
       expect(find.byKey(const ValueKey('equalizerEntryPoint')), findsOneWidget);
     });
   });
+
+  for (final eqSupported in [true, false]) {
+    for (final width in [320.0, 360.0, 412.0]) {
+      testWidgets(
+        'transport keeps Play centred at $width px (EQ supported: $eqSupported)',
+        (tester) async {
+          if (!sqliteAvailable) {
+            return;
+          }
+          setAdaptiveTestViewport(tester, Size(width, 860));
+          final container = _createContainer(
+            overrides: [
+              eqCapabilitiesProvider.overrideWithValue(
+                eqSupported
+                    ? EqCapabilities.available
+                    : EqCapabilities.unavailable,
+              ),
+              if (eqSupported)
+                equalizerProvider.overrideWith(FakeEqController.new),
+            ],
+          );
+          container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+          await _pumpNowPlaying(
+            tester,
+            container,
+            platform: TargetPlatform.android,
+          );
+          final play = find.descendant(
+            of: find.byTooltip('Pause'),
+            matching: find.byType(FilledButton),
+          );
+          final eq = find.byKey(const ValueKey('nowPlayingEqualizerButton'));
+          final speed = find.byKey(const ValueKey('nowPlayingSpeedButton'));
+          expect(tester.getCenter(play).dx, closeTo(width / 2, 0.5));
+          expect(tester.takeException(), isNull);
+          if (width < 360) {
+            // Very small screens keep the core transport only; Speed and EQ
+            // stay reachable from the settings sheet.
+            expect(eq, findsNothing);
+            expect(speed, findsNothing);
+            return;
+          }
+          // The flanking quick actions are mirror images of each other.
+          expect(
+            tester.getSize(eq).width,
+            closeTo(tester.getSize(speed).width, 0.01),
+          );
+          expect(
+            tester.getCenter(play).dx - tester.getCenter(eq).dx,
+            closeTo(
+              tester.getCenter(speed).dx - tester.getCenter(play).dx,
+              0.5,
+            ),
+          );
+          expect(
+            find.byKey(const ValueKey('equalizerQuickPlaceholder')),
+            eqSupported ? findsNothing : findsOneWidget,
+          );
+        },
+      );
+    }
+  }
 }

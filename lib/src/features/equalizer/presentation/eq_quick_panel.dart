@@ -1,10 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/common_widgets/quick_panel.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
@@ -129,7 +127,7 @@ class EqQuickControls extends ConsumerWidget {
             opacity: enabled ? 1 : 0.4,
             duration: const Duration(milliseconds: 180),
             child: SizedBox(
-              height: inline ? 88 : 104,
+              height: inline ? 136 : 176,
               child: ExcludeSemantics(
                 child: EqGraphEditor(
                   configuration: value.configuration,
@@ -167,27 +165,57 @@ class EqQuickControls extends ConsumerWidget {
     }
 
     final customDraft = value.hasDraft(eqCustomWorkspace);
-    final chips = <Widget>[
+    DropdownMenuEntry<String> entry(String id, String label, IconData icon) =>
+        DropdownMenuEntry<String>(
+          value: id,
+          label: label,
+          leadingIcon: Icon(icon, size: 20),
+        );
+    final entries = <DropdownMenuEntry<String>>[
       if (value.selectedPresetId == null || customDraft)
-        _PresetChip(
-          id: eqCustomWorkspace,
-          label: '${l10n.eqCustom}${customDraft ? '*' : ''}',
-          selected: value.selectedPresetId == null,
-          enabled: !value.pending,
-          onSelected: () => unawaited(select(null)),
+        entry(
+          eqCustomWorkspace,
+          '${l10n.eqCustom}${customDraft ? '*' : ''}',
+          Icons.edit_outlined,
         ),
-      for (final preset in [...value.presets, ...EqPreset.builtIns])
-        _PresetChip(
-          id: preset.id,
-          label: '${preset.name}${value.hasDraft(preset.id) ? '*' : ''}',
-          avatar: preset.source != null
-              ? const Icon(Icons.headphones_outlined, size: 18)
-              : null,
-          selected: value.selectedPresetId == preset.id,
-          enabled: !value.pending,
-          onSelected: () => unawaited(select(preset)),
+      for (final preset in value.presets)
+        entry(
+          preset.id,
+          '${preset.name}${value.hasDraft(preset.id) ? '*' : ''}',
+          preset.source != null ? Icons.headphones_outlined : Icons.tune,
+        ),
+      for (final preset in EqPreset.builtIns)
+        entry(
+          preset.id,
+          '${preset.name}${value.hasDraft(preset.id) ? '*' : ''}',
+          Icons.graphic_eq,
         ),
     ];
+    final selected = value.selectedPresetId ?? eqCustomWorkspace;
+    final selectedEntry = entries.where((e) => e.value == selected).firstOrNull;
+    // Keyed by the shown selection so a change made elsewhere (for example on
+    // the full page) refreshes the field text.
+    final presetPicker = KeyedSubtree(
+      key: ValueKey<String>('eq-quick-preset-${selectedEntry?.label}'),
+      child: DropdownMenu<String>(
+        key: const ValueKey<String>('eq-quick-preset'),
+        enabled: !value.pending,
+        expandedInsets: EdgeInsets.zero,
+        requestFocusOnTap: false,
+        menuHeight: 320,
+        label: Text(l10n.eqPresets),
+        leadingIcon: selectedEntry?.leadingIcon,
+        initialSelection: selectedEntry?.value,
+        dropdownMenuEntries: entries,
+        onSelected: (id) {
+          if (id == null) return;
+          final preset = value.allPresets
+              .where((candidate) => candidate.id == id)
+              .firstOrNull;
+          unawaited(select(id == eqCustomWorkspace ? null : preset));
+        },
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -222,112 +250,9 @@ class EqQuickControls extends ConsumerWidget {
             ),
           ),
         graph,
-        SizedBox(height: inline ? 10 : 14),
-        if (!inline) ...[
-          Text(l10n.eqPresets, style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: chips),
-        ] else
-          _InlineChipRow(children: chips),
+        SizedBox(height: inline ? 12 : 16),
+        presetPicker,
       ],
-    );
-  }
-}
-
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({
-    required this.id,
-    required this.label,
-    required this.selected,
-    required this.enabled,
-    required this.onSelected,
-    this.avatar,
-  });
-
-  final String id;
-  final String label;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onSelected;
-  final Widget? avatar;
-
-  @override
-  Widget build(BuildContext context) {
-    return ChoiceChip(
-      key: ValueKey<String>('eq-quick-preset-$id'),
-      avatar: avatar,
-      showCheckmark: false,
-      label: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 200),
-        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      ),
-      selected: selected,
-      onSelected: enabled ? (_) => onSelected() : null,
-    );
-  }
-}
-
-/// A single scrolling row of chips that brings the selected chip into view.
-class _InlineChipRow extends StatefulWidget {
-  const _InlineChipRow({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  State<_InlineChipRow> createState() => _InlineChipRowState();
-}
-
-class _InlineChipRowState extends State<_InlineChipRow> {
-  final _scroll = ScrollController();
-  final _selectedKey = GlobalKey();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Reveal the selected chip within this row only; ensureVisible would
-      // also scroll any enclosing sheet or list.
-      final target = _selectedKey.currentContext?.findRenderObject();
-      if (!mounted || target is! RenderBox || !_scroll.hasClients) return;
-      final viewport = RenderAbstractViewport.maybeOf(target);
-      if (viewport == null) return;
-      final position = _scroll.position;
-      _scroll.jumpTo(
-        viewport
-            .getOffsetToReveal(target, 0.5)
-            .offset
-            .clamp(position.minScrollExtent, position.maxScrollExtent),
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ScrollEdgeFade(
-      controller: _scroll,
-      axis: Axis.horizontal,
-      child: SingleChildScrollView(
-        key: const ValueKey<String>('eq-quick-chip-row'),
-        controller: _scroll,
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final chip in widget.children)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: 8),
-                child: chip is _PresetChip && chip.selected
-                    ? KeyedSubtree(key: _selectedKey, child: chip)
-                    : chip,
-              ),
-          ],
-        ),
-      ),
     );
   }
 }

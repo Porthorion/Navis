@@ -92,6 +92,30 @@ void main() {
     return container;
   }
 
+  String presetText(WidgetTester tester) => tester
+      .widget<TextField>(
+        find.descendant(
+          of: find.byKey(const ValueKey('playbackPresetDropdown')),
+          matching: find.byType(TextField),
+        ),
+      )
+      .controller!
+      .text;
+
+  Future<void> presetAction(WidgetTester tester, String key) async {
+    await tester.tap(find.byKey(const ValueKey('playbackPresetActions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey(key)));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> choosePreset(WidgetTester tester, String label) async {
+    await tester.tap(find.byKey(const ValueKey('playbackPresetDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label).last);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets(
     'buttons, fractional dragging, exact input and reset are independent',
     (tester) async {
@@ -174,26 +198,19 @@ void main() {
     final container = await mount(tester);
     await tester.tap(find.byKey(const ValueKey('adjustment-speed-plus')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save as new'));
-    await tester.pumpAndSettle();
+    await presetAction(tester, 'playbackPresetSaveNew');
     await tester.enterText(
       find.byKey(const ValueKey('playbackPresetNameInput')),
       'Nightcore',
     );
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect(
-      container
-          .read(playbackAdjustmentsProvider)
-          .requireValue
-          .presets
-          .single
-          .name,
-      'Nightcore',
-    );
+    final state = container.read(playbackAdjustmentsProvider).requireValue;
+    expect(state.presets.single.name, 'Nightcore');
+    expect(presetText(tester), 'Nightcore');
     await tester.tap(find.byKey(const ValueKey('adjustment-speed-plus')));
     await tester.pumpAndSettle();
-    expect(find.text('Custom'), findsOneWidget);
+    expect(presetText(tester), 'Custom');
     expect(
       container
           .read(playbackAdjustmentsProvider)
@@ -204,8 +221,7 @@ void main() {
           .speed,
       1.1,
     );
-    await tester.tap(find.text('Update preset'));
-    await tester.pumpAndSettle();
+    await presetAction(tester, 'playbackPresetUpdate');
     expect(
       container
           .read(playbackAdjustmentsProvider)
@@ -216,6 +232,7 @@ void main() {
           .speed,
       1.2,
     );
+    expect(presetText(tester), 'Nightcore');
   });
 
   testWidgets('unsupported pitch hides pitch controls and keeps speed', (
@@ -260,33 +277,56 @@ void main() {
     ).called(1);
   });
 
-  testWidgets('preset chips replace the dropdown and show Custom edits', (
+  testWidgets('preset dropdown shows Normal, Custom edits and reselects', (
     tester,
   ) async {
     final container = await mount(tester);
-    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
     expect(
-      tester
-          .widget<ChoiceChip>(
-            find.byKey(const ValueKey('playbackPreset-none')),
-          )
-          .selected,
-      isTrue,
+      find.byType(ChoiceChip).evaluate().where((e) {
+        final key = e.widget.key;
+        return key is ValueKey<String> &&
+            key.value.startsWith('playbackPreset');
+      }),
+      isEmpty,
     );
-    expect(find.text('Normal'), findsOneWidget);
+    expect(presetText(tester), 'Normal');
     await tester.tap(find.byKey(const ValueKey('adjustment-speed-plus')));
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('playbackPreset-custom')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const ValueKey('playbackPreset-none')));
-    await tester.pumpAndSettle();
+    expect(presetText(tester), 'Custom');
+    await choosePreset(tester, 'Normal');
     expect(
       container.read(playbackAdjustmentsProvider).requireValue.values.isNone,
       isTrue,
     );
-    expect(find.byKey(const ValueKey('playbackPreset-custom')), findsNothing);
+    expect(presetText(tester), 'Normal');
+  });
+
+  testWidgets('presets the backend cannot play are disabled', (tester) async {
+    await mount(
+      tester,
+      pitchSupported: false,
+      settings:
+          const AsyncData(
+            AppSettingsModel.defaults(),
+          ).whenData(
+            (settings) => settings.copyWith(
+              playbackPresets: const [
+                PlaybackPreset(
+                  id: 'user:deep',
+                  name: 'Deep',
+                  values: PlaybackAdjustments(pitchSemitones: -3),
+                ),
+              ],
+            ),
+          ),
+    );
+    final menu = tester.widget<DropdownMenu<String>>(
+      find.byKey(const ValueKey('playbackPresetDropdown')),
+    );
+    final deep = menu.dropdownMenuEntries.singleWhere(
+      (entry) => entry.value == 'user:deep',
+    );
+    expect(deep.enabled, isFalse);
   });
 
   testWidgets('holding a stepper repeats and saves once on release', (
@@ -506,13 +546,9 @@ void main() {
       await controller.savePreset(name);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Manage presets'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(name.trim()).last);
-      await tester.pumpAndSettle();
+      expect(presetText(tester), name.trim());
+      await presetAction(tester, 'playbackPresetRename');
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Rename'));
-      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('playbackPresetNameInput')),
         'Fast',
@@ -528,16 +564,23 @@ void main() {
             .name,
         'Fast',
       );
-      await tester.tap(find.text('Manage presets'));
+      await presetAction(tester, 'playbackPresetDelete');
+      // Deleting asks first; cancelling keeps the preset.
+      await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Fast').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Delete'));
+      expect(
+        container.read(playbackAdjustmentsProvider).requireValue.presets,
+        hasLength(1),
+      );
+      await presetAction(tester, 'playbackPresetDelete');
+      await tester.tap(
+        find.byKey(const ValueKey('playbackPresetDeleteConfirm')),
+      );
       await tester.pumpAndSettle();
       final state = container.read(playbackAdjustmentsProvider).requireValue;
       expect(state.values, values);
       expect(state.presets, isEmpty);
-      expect(find.text('Custom'), findsOneWidget);
+      expect(presetText(tester), 'Custom');
       expect(tester.takeException(), isNull);
     },
   );

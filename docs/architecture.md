@@ -1080,7 +1080,9 @@ where more content lies, and an optional pinned footer. Desktop runtimes host it
 in `showDesktopAnchoredPopover`, which grows from the anchor, draws a tail at it,
 and lets the transparent barrier swallow the next click so pressing the same
 button again closes the panel. Touch layouts use a content-sized bottom sheet
-capped at 88% of the screen.
+capped at 88% of the screen; because sheets extend behind Android's navigation
+bar, the last pinned row adds the live bottom padding (3-button, gesture or
+none) plus any keyboard inset.
 
 `showPlaybackAdjustmentQuickPanel` (`playback_quick_actions.dart`) puts the same
 `PlaybackAdjustmentPanel` used in Playback Settings into that shell, with its own
@@ -1088,9 +1090,12 @@ header and combined reset moved to the pinned header and footer. Entry points ar
 `PlaybackSpeedQuickButton` beside Repeat in the Now Playing transport and desktop
 player bar, the Speed & Pitch row of the Now Playing settings sheet/panel, and the
 compact desktop Mini Player menu. The button shows the multiplier when speed is
-not 1× and tints its icon for pitch-only changes. Transport rows drop the quick
-buttons below 340 logical pixels (440 non-compact) and yield to the desktop
-volume slider; the desktop bar drops EQ first below its compact breakpoint.
+not 1× and tints its icon for pitch-only changes. Both quick buttons share
+`quickActionGlyphSlot`, so the transport row is symmetric and Play stays exactly
+centred; backends without EQ keep an invisible same-size slot. Compact rows
+narrower than 360 logical pixels switch to dense slots with no gaps, drop the
+quick buttons only below 296 (440 non-compact), and yield to the desktop volume
+slider; the desktop bar drops EQ first below its compact breakpoint.
 Configurable desktop shortcuts (default Ctrl/Cmd+`.`, `,` and `0`) step speed by
 0.10 or reset it through `nudgePlaybackSpeed`, preserving pitch settings, and
 confirm with an app notice.
@@ -1099,14 +1104,16 @@ confirm with an app notice.
 bar) and is hidden when `eqCapabilitiesProvider` is unsupported. It opens
 `showEqualizerQuickPanel`, a mini equalizer built from `EqQuickControls`
 (`features/equalizer/presentation/eq_quick_panel.dart`): the on/off switch in the
-header, a read-only `EqGraphEditor` response (fitted to at least ±12 dB so gentle
-curves stay visible, dimmed while off) that opens the full page, and preset
-chips ordered Custom (only with a draft or while selected), your presets
-(imports marked with headphones), then built-ins. Choosing a chip selects it with
+header, a read-only `EqGraphEditor` response (176 px in the panel, 136 px
+inline, fitted to at least ±12 dB so gentle curves stay visible, dimmed while
+off) that opens the full page, and a preset `DropdownMenu` ordered Custom (only
+with a draft or while selected), your presets (imports marked with headphones),
+then built-ins; its menu scrolls, so any number of AutoEQ profiles stays
+compact. Choosing an entry selects it with
 `selectPreset(enable: true)`, so picking a sound also turns the EQ on; drafts are
 kept exactly as on the full page. The Now Playing settings sheet and the wide
 settings panel show the same controls inline as `EqQuickCard` in a "Sound"
-section (a single scrolling chip row); unsupported backends keep the disabled
+section; unsupported backends keep the disabled
 `EqualizerEntry` explanation. The settings sheet is a draggable
 `DraggableScrollableSheet` and returns a follow-up action, so Speed & Pitch or
 the Equalizer page opens only after it has closed.
@@ -1125,8 +1132,10 @@ control is edited; approximation markers distinguish them from the hundredth gri
 New input uses integer hundredths: rulers/arrows/accessibility actions step 0.01,
 Shift+Arrow and speed buttons step 0.10, independent pitch buttons step one
 semitone; holding a − or + button repeats every 120 ms and persists once on
-release. Speed quick-pick chips (0.5–2×, filtered by the backend range) and preset
-chips select values in one tap. Exact entry allows two decimals and decimal
+release. Speed quick-pick chips (0.5–2×, filtered by the backend range) select
+values in one tap. Presets use a `DropdownMenu` (Custom while edited, Normal,
+then saved presets; unsupported ones disabled) with a ⋮ menu to save, update,
+rename or delete (with confirmation) the current or originating preset. Exact entry allows two decimals and decimal
 commas, validated inline.
 
 Rulers move continuously under a fixed marker with ticks at 0.01 and labels at
@@ -1135,8 +1144,12 @@ highlight and outer 15% fades keep the center readable. Release settles onto the
 nearest supported tick over 140 ms with ease-out motion; the animation never
 writes to the engine. Reduced motion and discrete actions settle immediately.
 Preset/reset changes cancel gestures and settling. Drag accumulators clamp at
-finite bounds so reversing at an endpoint responds immediately. Dragging across
-the neutral value emits one selection haptic. Endpoint feedback and the
+finite bounds so reversing at an endpoint responds immediately. While dragging,
+`rulerTickFeedback` reports the strongest ruler line crossed per update: every
+0.01 line gives a selection click (throttled to one per 12 ms of pointer time),
+0.10 lines a light impact and the neutral value a medium impact; settling,
+keyboard and buttons stay silent, and the platform touch-feedback setting
+applies. Endpoint feedback and the
 available bounds appear only once a limit is reached, explaining the disabled
 button. Locked pitch remains visible with read-only controls; unsupported
 backends hide the pitch control and lock and show a single availability note.

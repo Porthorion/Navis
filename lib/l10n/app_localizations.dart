@@ -7037,18 +7037,6 @@ abstract class AppLocalizations {
   /// **'Save as new'**
   String get playbackPresetSaveNew;
 
-  /// No description provided for @playbackPresetUpdate.
-  ///
-  /// In en, this message translates to:
-  /// **'Update preset'**
-  String get playbackPresetUpdate;
-
-  /// No description provided for @playbackPresetManage.
-  ///
-  /// In en, this message translates to:
-  /// **'Manage presets'**
-  String get playbackPresetManage;
-
   /// No description provided for @playbackPresetName.
   ///
   /// In en, this message translates to:
@@ -7192,6 +7180,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unavailable on this audio backend'**
   String get playbackPresetUnsupported;
+
+  /// No description provided for @playbackPresetActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset actions'**
+  String get playbackPresetActions;
+
+  /// No description provided for @playbackPresetUpdateNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Update “{name}”'**
+  String playbackPresetUpdateNamed(String name);
+
+  /// No description provided for @playbackPresetRenameNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename “{name}”…'**
+  String playbackPresetRenameNamed(String name);
+
+  /// No description provided for @playbackPresetDeleteNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{name}”'**
+  String playbackPresetDeleteNamed(String name);
+
+  /// No description provided for @playbackPresetDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{name}”?'**
+  String playbackPresetDeleteConfirm(String name);
 
   /// No description provided for @playbackAdjustmentRange.
   ///

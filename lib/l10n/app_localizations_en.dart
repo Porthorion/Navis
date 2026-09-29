@@ -4022,12 +4022,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackPresetSaveNew => 'Save as new';
 
   @override
-  String get playbackPresetUpdate => 'Update preset';
-
-  @override
-  String get playbackPresetManage => 'Manage presets';
-
-  @override
   String get playbackPresetName => 'Preset name';
 
   @override
@@ -4112,6 +4106,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackPresetUnsupported => 'Unavailable on this audio backend';
+
+  @override
+  String get playbackPresetActions => 'Preset actions';
+
+  @override
+  String playbackPresetUpdateNamed(String name) {
+    return 'Update “$name”';
+  }
+
+  @override
+  String playbackPresetRenameNamed(String name) {
+    return 'Rename “$name”…';
+  }
+
+  @override
+  String playbackPresetDeleteNamed(String name) {
+    return 'Delete “$name”';
+  }
+
+  @override
+  String playbackPresetDeleteConfirm(String name) {
+    return 'Delete “$name”?';
+  }
 
   @override
   String playbackAdjustmentRange(String minimum, String maximum) {

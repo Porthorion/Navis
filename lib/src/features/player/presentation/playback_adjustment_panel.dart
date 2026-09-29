@@ -129,10 +129,6 @@ class _PlaybackAdjustmentPanelState
         ],
       ),
       data: (data) {
-        final selected = data.selectedPresetId;
-        final origin = data.presets
-            .where((p) => p.id == data.originPresetId)
-            .firstOrNull;
         final pitchSupported = capabilities.pitchSupported;
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -160,86 +156,7 @@ class _PlaybackAdjustmentPanelState
               ),
               const SizedBox(height: 12),
             ],
-            Text(l10n.playbackPresetLabel, style: theme.textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (selected == null)
-                  ChoiceChip(
-                    key: const ValueKey('playbackPreset-custom'),
-                    label: Text(l10n.playbackPresetCustom),
-                    selected: true,
-                    onSelected: (_) {},
-                  ),
-                _presetChip(
-                  id: PlaybackPreset.noneId,
-                  name: l10n.playbackPresetNone,
-                  selected: selected == PlaybackPreset.noneId,
-                  supported: true,
-                ),
-                for (final preset in data.presets)
-                  _presetChip(
-                    id: preset.id,
-                    name: preset.name,
-                    selected: selected == preset.id,
-                    supported: capabilities.supports(preset.values),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                TextButton.icon(
-                  onPressed: data.pending ? null : _saveAsNew,
-                  icon: const Icon(Icons.add),
-                  label: Text(l10n.playbackPresetSaveNew),
-                ),
-                if (origin != null)
-                  TextButton(
-                    onPressed: data.pending
-                        ? null
-                        : () => unawaited(
-                            _controller.savePreset(
-                              origin.name,
-                              updateId: origin.id,
-                            ),
-                          ),
-                    child: Text(l10n.playbackPresetUpdate),
-                  ),
-                if (data.presets.isNotEmpty)
-                  PopupMenuButton<String>(
-                    tooltip: l10n.playbackPresetManage,
-                    onSelected: _manage,
-                    itemBuilder: (_) => [
-                      for (final preset in data.presets)
-                        PopupMenuItem(
-                          value: preset.id,
-                          child: Text(
-                            preset.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      child: Text(
-                        l10n.playbackPresetManage,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            _presetPicker(data, capabilities),
             const Divider(height: 24),
             _control(
               keyName: 'speed',
@@ -370,31 +287,150 @@ class _PlaybackAdjustmentPanelState
     );
   }
 
-  Widget _presetChip({
-    required String id,
-    required String name,
-    required bool selected,
-    required bool supported,
-  }) {
+  /// Preset dropdown plus an actions menu. A dropdown stays compact however
+  /// many presets exist; managing them acts on the current preset (or the one
+  /// being edited) instead of a separate picker.
+  Widget _presetPicker(
+    PlaybackAdjustmentState data,
+    PlaybackAdjustmentCapabilities capabilities,
+  ) {
     final l10n = AppLocalizations.of(context)!;
-    final chip = ChoiceChip(
-      key: ValueKey('playbackPreset-$id'),
-      label: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 220),
-        child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+    const customId = 'custom';
+    final selected = data.selectedPresetId;
+    final origin = data.presets
+        .where((p) => p.id == data.originPresetId)
+        .firstOrNull;
+    final target =
+        data.presets.where((p) => p.id == selected).firstOrNull ?? origin;
+    final entries = <DropdownMenuEntry<String>>[
+      if (selected == null)
+        DropdownMenuEntry(
+          value: customId,
+          label: l10n.playbackPresetCustom,
+          leadingIcon: const Icon(Icons.tune, size: 20),
+        ),
+      DropdownMenuEntry(
+        value: PlaybackPreset.noneId,
+        label: l10n.playbackPresetNone,
+        leadingIcon: const Icon(Icons.restart_alt, size: 20),
       ),
-      selected: selected,
-      onSelected: supported
-          ? (_) {
-              if (selected) return;
-              _cancelRulers();
-              unawaited(_controller.selectPreset(id));
-            }
-          : null,
+      for (final preset in data.presets)
+        DropdownMenuEntry(
+          value: preset.id,
+          label: preset.name,
+          leadingIcon: const Icon(Icons.speed, size: 20),
+          enabled: capabilities.supports(preset.values),
+          trailingIcon: capabilities.supports(preset.values)
+              ? null
+              : Tooltip(
+                  message: l10n.playbackPresetUnsupported,
+                  child: const Icon(Icons.block, size: 18),
+                ),
+        ),
+    ];
+    final shown = selected ?? customId;
+    final shownEntry = entries.where((e) => e.value == shown).firstOrNull;
+    Widget menuLabel(String text) => ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 260),
+      child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
-    return supported
-        ? chip
-        : Tooltip(message: l10n.playbackPresetUnsupported, child: chip);
+    return Row(
+      children: [
+        Expanded(
+          // Keyed by the shown selection so external changes (presets,
+          // edits, the pinned reset) refresh the field text.
+          child: KeyedSubtree(
+            key: ValueKey<String>('playbackPreset-$shown-${shownEntry?.label}'),
+            child: DropdownMenu<String>(
+              key: const ValueKey<String>('playbackPresetDropdown'),
+              enabled: !data.pending,
+              expandedInsets: EdgeInsets.zero,
+              requestFocusOnTap: false,
+              menuHeight: 320,
+              label: Text(l10n.playbackPresetLabel),
+              leadingIcon: shownEntry?.leadingIcon,
+              initialSelection: shown,
+              dropdownMenuEntries: entries,
+              onSelected: (id) {
+                if (id == null || id == customId || id == selected) return;
+                _cancelRulers();
+                unawaited(_controller.selectPreset(id));
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        MenuAnchor(
+          builder: (context, menu, _) => IconButton(
+            key: const ValueKey<String>('playbackPresetActions'),
+            tooltip: l10n.playbackPresetActions,
+            onPressed: data.pending
+                ? null
+                : () => menu.isOpen ? menu.close() : menu.open(),
+            icon: const Icon(Icons.more_vert),
+          ),
+          menuChildren: [
+            MenuItemButton(
+              key: const ValueKey<String>('playbackPresetSaveNew'),
+              leadingIcon: const Icon(Icons.add),
+              onPressed: () => unawaited(_saveAsNew()),
+              child: Text(l10n.playbackPresetSaveNew),
+            ),
+            if (origin != null)
+              MenuItemButton(
+                key: const ValueKey<String>('playbackPresetUpdate'),
+                leadingIcon: const Icon(Icons.save_outlined),
+                onPressed: () => unawaited(
+                  _controller.savePreset(origin.name, updateId: origin.id),
+                ),
+                child: menuLabel(l10n.playbackPresetUpdateNamed(origin.name)),
+              ),
+            if (target != null) ...[
+              MenuItemButton(
+                key: const ValueKey<String>('playbackPresetRename'),
+                leadingIcon: const Icon(Icons.edit_outlined),
+                onPressed: () => unawaited(_nameDialog(rename: target)),
+                child: menuLabel(l10n.playbackPresetRenameNamed(target.name)),
+              ),
+              MenuItemButton(
+                key: const ValueKey<String>('playbackPresetDelete'),
+                leadingIcon: const Icon(Icons.delete_outline),
+                onPressed: () => unawaited(_confirmDelete(target)),
+                child: menuLabel(l10n.playbackPresetDeleteNamed(target.name)),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmDelete(PlaybackPreset preset) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          l10n.playbackPresetDeleteConfirm(preset.name),
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.playbackAdjustmentCancel),
+          ),
+          FilledButton(
+            key: const ValueKey<String>('playbackPresetDeleteConfirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.playbackPresetDelete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await _controller.deletePreset(preset.id);
+    }
   }
 
   Widget _control({
@@ -631,36 +667,6 @@ class _PlaybackAdjustmentPanelState
         },
       ),
     );
-  }
-
-  Future<void> _manage(String id) async {
-    final preset = ref
-        .read(playbackAdjustmentsProvider)
-        .requireValue
-        .presets
-        .where((p) => p.id == id)
-        .firstOrNull;
-    if (preset == null) return;
-    final l10n = AppLocalizations.of(context)!;
-    final action = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(preset.name, maxLines: 2, overflow: TextOverflow.ellipsis),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.of(context).pop('rename'),
-            child: Text(l10n.playbackPresetRename),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.of(context).pop('delete'),
-            child: Text(l10n.playbackPresetDelete),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-    if (action == 'rename') await _nameDialog(rename: preset);
-    if (action == 'delete') await _controller.deletePreset(id);
   }
 
   @override

@@ -4,8 +4,9 @@ Navis has a dedicated Equalizer page at `/settings/equalizer`, reachable from
 Settings, Playback, and the player's compact equalizer surfaces. The Equalizer
 button beside Shuffle in the Now Playing transport (beside Instant Mix on the
 desktop player bar) and the compact desktop Mini Player menu open a mini
-equalizer: on/off, a small read-only response graph and one-tap preset chips,
-with **Open Equalizer** (or a tap on the graph) for editing. The Now Playing
+equalizer: on/off, a read-only response graph and a preset dropdown (your
+presets, imported headphone profiles and built-ins), with **Open Equalizer** (or
+a tap on the graph) for editing. The Now Playing
 settings sheet shows the same controls inline in its Sound section. Choosing a
 preset there turns the EQ on; drafts behave exactly as on this page. The player
 button is hidden, and settings entries disabled, when the backend has no EQ; it

@@ -13,6 +13,7 @@ void main() {
     int items = 40,
     bool reduceMotion = false,
     Alignment anchorAlignment = Alignment.bottomCenter,
+    double bottomInset = 0,
   }) async {
     setAdaptiveTestViewport(
       tester,
@@ -21,8 +22,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(disableAnimations: reduceMotion),
+          data: MediaQuery.of(context).copyWith(
+            disableAnimations: reduceMotion,
+            padding: EdgeInsets.only(bottom: bottomInset),
+            viewPadding: EdgeInsets.only(bottom: bottomInset),
+          ),
           child: AdaptiveContextScope(
             adaptiveContext: resolveAdaptiveContext(
               desktopRuntime: desktop,
@@ -185,5 +189,28 @@ void main() {
     );
     expect(fade.fadesLeading, isFalse);
     expect(fade.fadesTrailing, isFalse);
+  });
+
+  for (final inset in [48.0, 16.0]) {
+    testWidgets('sheet footer clears a ${inset.toInt()} px navigation bar', (
+      tester,
+    ) async {
+      await pumpHost(tester, desktop: false, bottomInset: inset);
+      await open(tester);
+      final reset = tester.getRect(find.text('Reset'));
+      expect(reset.bottom, lessThanOrEqualTo(844 - inset));
+      // The sheet surface itself still reaches the screen edge.
+      expect(tester.getRect(find.byType(BottomSheet)).bottom, 844);
+    });
+  }
+
+  testWidgets('desktop popovers ignore the bottom inset', (tester) async {
+    await pumpHost(tester, desktop: true, items: 2, bottomInset: 48);
+    await open(tester);
+    final footer = tester.getRect(
+      find.byKey(const ValueKey('quickPanelFooter')),
+    );
+    final reset = tester.getRect(find.text('Reset'));
+    expect(footer.bottom - reset.bottom, lessThan(30));
   });
 }

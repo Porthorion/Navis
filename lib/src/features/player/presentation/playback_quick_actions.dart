@@ -130,6 +130,7 @@ class PlaybackSpeedQuickButton extends ConsumerWidget {
     this.style,
     this.iconSize,
     this.visualDensity,
+    this.dense = false,
     super.key,
   });
 
@@ -138,6 +139,9 @@ class PlaybackSpeedQuickButton extends ConsumerWidget {
   final ButtonStyle? style;
   final double? iconSize;
   final VisualDensity? visualDensity;
+
+  /// Narrow transport rows use a smaller glyph slot and padding.
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -159,37 +163,58 @@ class PlaybackSpeedQuickButton extends ConsumerWidget {
     final foreground = enabled && active ? colors.primary : null;
     return IconButton(
       tooltip: tooltip,
-      style: style,
+      style: quickActionDenseStyle(style, dense: dense),
       iconSize: size,
       visualDensity: visualDensity,
       onPressed: enabled
           ? () => unawaited(showPlaybackAdjustmentQuickPanel(context))
           : null,
-      icon: SizedBox(
-        width: size + 12,
-        height: size,
-        child: Center(
-          child: speedChanged
-              ? FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    l10n.playbackSpeedMultiplierValue(
-                      formatCompactAdjustmentNumber(values.speed),
-                    ),
-                    key: const ValueKey<String>('playbackSpeedQuickLabel'),
-                    maxLines: 1,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: foreground,
-                    ),
+      icon: quickActionGlyphSlot(
+        dense: dense,
+        size,
+        speedChanged
+            ? FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  l10n.playbackSpeedMultiplierValue(
+                    formatCompactAdjustmentNumber(values.speed),
                   ),
-                )
-              : Icon(Icons.speed, size: size, color: foreground),
-        ),
+                  key: const ValueKey<String>('playbackSpeedQuickLabel'),
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: foreground,
+                  ),
+                ),
+              )
+            : Icon(Icons.speed, size: size, color: foreground),
       ),
     );
   }
 }
+
+/// Fixed-width glyph area shared by the player quick buttons.
+///
+/// The Speed button swaps its icon for a label such as `1.25×`, so both
+/// quick buttons reserve the same slot; flanking the transport with equal
+/// widths keeps Play exactly centred.
+Widget quickActionGlyphSlot(
+  double size,
+  Widget child, {
+  bool dense = false,
+}) => SizedBox(
+  width: size + (dense ? 4 : 12),
+  height: size,
+  child: Center(child: child),
+);
+
+/// Tighter padding for [dense] quick buttons on narrow transport rows.
+ButtonStyle? quickActionDenseStyle(ButtonStyle? style, {required bool dense}) =>
+    dense
+    ? (style ?? const ButtonStyle()).merge(
+        IconButton.styleFrom(padding: const EdgeInsets.all(4)),
+      )
+    : style;
 
 /// Location of the full Equalizer page.
 const equalizerRouteLocation = '/settings/equalizer';
@@ -208,6 +233,8 @@ class EqualizerQuickButton extends ConsumerWidget {
     this.style,
     this.iconSize,
     this.visualDensity,
+    this.placeholderWhenUnsupported = false,
+    this.dense = false,
     super.key,
   });
 
@@ -217,10 +244,36 @@ class EqualizerQuickButton extends ConsumerWidget {
   final double? iconSize;
   final VisualDensity? visualDensity;
 
+  /// Keeps an invisible slot of the same size when the backend has no EQ, so
+  /// a symmetric transport row stays centred.
+  final bool placeholderWhenUnsupported;
+
+  /// Narrow transport rows use a smaller glyph slot and padding.
+  final bool dense;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!ref.watch(eqCapabilitiesProvider).supported) {
-      return const SizedBox.shrink();
+      if (!placeholderWhenUnsupported) return const SizedBox.shrink();
+      final size = iconSize ?? IconTheme.of(context).size ?? 24;
+      return Visibility(
+        key: const ValueKey<String>('equalizerQuickPlaceholder'),
+        visible: false,
+        maintainSize: true,
+        maintainAnimation: true,
+        maintainState: true,
+        child: IconButton(
+          style: quickActionDenseStyle(style, dense: dense),
+          iconSize: size,
+          visualDensity: visualDensity,
+          onPressed: null,
+          icon: quickActionGlyphSlot(
+            size,
+            const SizedBox.shrink(),
+            dense: dense,
+          ),
+        ),
+      );
     }
     final router = GoRouter.maybeOf(context);
     if (router == null) return _button(context, ref, onPage: false);
@@ -237,6 +290,7 @@ class EqualizerQuickButton extends ConsumerWidget {
   Widget _button(BuildContext context, WidgetRef ref, {required bool onPage}) {
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
+    final size = iconSize ?? IconTheme.of(context).size ?? 24;
     final state = ref.watch(equalizerProvider).asData?.value;
     final eqOn = state?.configuration.enabled ?? false;
     final tooltip = !enabled && disabledTooltip != null
@@ -250,23 +304,29 @@ class EqualizerQuickButton extends ConsumerWidget {
       tooltip: tooltip,
       isSelected: onPage,
       style: onPage
-          ? (style ?? const ButtonStyle()).merge(
-              IconButton.styleFrom(
-                backgroundColor: colors.secondaryContainer,
-                foregroundColor: colors.onSecondaryContainer,
-              ),
-            )
-          : style,
-      iconSize: iconSize,
+          ? (quickActionDenseStyle(style, dense: dense) ?? const ButtonStyle())
+                .merge(
+                  IconButton.styleFrom(
+                    backgroundColor: colors.secondaryContainer,
+                    foregroundColor: colors.onSecondaryContainer,
+                  ),
+                )
+          : quickActionDenseStyle(style, dense: dense),
+      iconSize: size,
       visualDensity: visualDensity,
       onPressed: !enabled
           ? null
           : onPage
           ? () => unawaited(NavService.closeEqualizer(context, ref))
           : () => unawaited(showEqualizerQuickPanel(context)),
-      icon: Icon(
-        Icons.equalizer,
-        color: enabled && eqOn && !onPage ? colors.primary : null,
+      icon: quickActionGlyphSlot(
+        dense: dense,
+        size,
+        Icon(
+          Icons.equalizer,
+          size: size,
+          color: enabled && eqOn && !onPage ? colors.primary : null,
+        ),
       ),
     );
   }

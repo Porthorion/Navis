@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_graph_editor.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_painter.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -88,6 +89,28 @@ void main() {
     failure: failure,
   );
 
+  DropdownMenu<String> picker(WidgetTester tester) =>
+      tester.widget<DropdownMenu<String>>(
+        find.byKey(const ValueKey('eq-quick-preset')),
+      );
+
+  String pickerText(WidgetTester tester) => tester
+      .widget<TextField>(
+        find.descendant(
+          of: find.byKey(const ValueKey('eq-quick-preset')),
+          matching: find.byType(TextField),
+        ),
+      )
+      .controller!
+      .text;
+
+  Future<void> choose(WidgetTester tester, String label) async {
+    await tester.tap(find.byKey(const ValueKey('eq-quick-preset')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label).last);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('choosing a preset while off selects it and turns the EQ on', (
     tester,
   ) async {
@@ -100,19 +123,10 @@ void main() {
           .opacity,
       0.4,
     );
-    await tester.tap(
-      find.byKey(const ValueKey('eq-quick-preset-builtin:bass')),
-    );
-    await tester.pumpAndSettle();
+    expect(pickerText(tester), 'Flat');
+    await choose(tester, 'Bass boost');
     expect(fake.calls, ['select:builtin:bass:true']);
-    expect(
-      tester
-          .widget<ChoiceChip>(
-            find.byKey(const ValueKey('eq-quick-preset-builtin:bass')),
-          )
-          .selected,
-      isTrue,
-    );
+    expect(pickerText(tester), 'Bass boost');
     expect(
       tester
           .widget<AnimatedOpacity>(
@@ -127,10 +141,7 @@ void main() {
     tester,
   ) async {
     final fake = await pump(tester, initial: state(selected: 'builtin:flat'));
-    await tester.tap(
-      find.byKey(const ValueKey('eq-quick-preset-builtin:flat')),
-    );
-    await tester.pumpAndSettle();
+    await choose(tester, 'Flat');
     expect(fake.calls, ['enable:true']);
   });
 
@@ -149,26 +160,64 @@ void main() {
         },
       ),
     );
-    final chips = tester
-        .widgetList<ChoiceChip>(find.byType(ChoiceChip))
-        .map((chip) => (chip.key! as ValueKey<String>).value)
-        .toList();
-    expect(chips, [
-      'eq-quick-preset-custom',
-      'eq-quick-preset-user:hd650',
-      'eq-quick-preset-builtin:flat',
-      'eq-quick-preset-builtin:bass',
-      'eq-quick-preset-builtin:vocal',
+    final entries = picker(tester).dropdownMenuEntries;
+    expect(entries.map((entry) => entry.value), [
+      eqCustomWorkspace,
+      'user:hd650',
+      'builtin:flat',
+      'builtin:bass',
+      'builtin:vocal',
     ]);
-    expect(find.text('Custom*'), findsOneWidget);
-    expect(find.byIcon(Icons.headphones_outlined), findsOneWidget);
+    expect(entries.first.label, 'Custom*');
+    expect(
+      entries.map((entry) => (entry.leadingIcon! as Icon).icon),
+      [
+        Icons.edit_outlined,
+        Icons.headphones_outlined,
+        Icons.graphic_eq,
+        Icons.graphic_eq,
+        Icons.graphic_eq,
+      ],
+    );
   });
 
   testWidgets('without a draft, Custom only appears while selected', (
     tester,
   ) async {
     await pump(tester, initial: state(selected: 'builtin:flat'));
-    expect(find.byKey(const ValueKey('eq-quick-preset-custom')), findsNothing);
+    expect(
+      picker(tester).dropdownMenuEntries.map((entry) => entry.value),
+      isNot(contains(eqCustomWorkspace)),
+    );
+  });
+
+  testWidgets('the picker is disabled while a change is applying', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      initial: state(selected: 'builtin:flat').copyWith(pending: true),
+    );
+    expect(picker(tester).enabled, isFalse);
+  });
+
+  testWidgets('graph is larger in the panel than in the inline card', (
+    tester,
+  ) async {
+    await pump(tester, initial: state(selected: 'builtin:flat'));
+    expect(
+      tester.getSize(find.byType(EqGraphEditor)).height,
+      176,
+    );
+    await pump(
+      tester,
+      initial: state(selected: 'builtin:flat'),
+      layout: EqQuickLayout.inline,
+    );
+    expect(
+      tester.getSize(find.byType(EqGraphEditor)).height,
+      136,
+    );
   });
 
   testWidgets('failure offers Retry and the graph opens the full page', (
@@ -203,7 +252,7 @@ void main() {
     expect(fake.calls, ['enable:false']);
     await tester.tap(find.byKey(const ValueKey('eq-quick-open-page')));
     expect(opened, 1);
-    expect(find.byKey(const ValueKey('eq-quick-chip-row')), findsOneWidget);
+    expect(find.byKey(const ValueKey('eq-quick-preset')), findsOneWidget);
   });
 
   for (final size in [const Size(320, 640), const Size(390, 844)]) {

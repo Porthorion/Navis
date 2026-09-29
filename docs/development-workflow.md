@@ -1196,7 +1196,7 @@ label; poll `GET /v1/playback/adjustments` for the applied speed.
 Clone-only `POST /v1/presentation/quick-panel` drives the player quick panels
 through production callbacks: `action` `open` or `press` with `target`
 `speed`/`equalizer` (press the button; `open` also requires the panel and
-returns `surface`), `preset` with a mini-EQ preset id (taps its chip), or
+returns `surface`), `preset` with a mini-EQ preset id (chooses it in the preset dropdown), or
 `openPage` (taps Open Equalizer). `GET /v1/presentation/quick-panel` reports
 `quickControls`, the top route `location`, the `playerOverlay` stack and
 `miniPlayer`, so return-to-origin can be polled. The script covers the Speed

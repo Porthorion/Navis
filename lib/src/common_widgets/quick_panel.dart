@@ -92,6 +92,14 @@ class _QuickPanelScaffoldState extends State<QuickPanelScaffold> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    // Sheets extend behind Android's navigation bar (the modal route only
+    // guards the top), so the last pinned row adds the live bottom inset:
+    // taller for 3-button navigation, thin for gestures, and the keyboard
+    // when it is open. Popovers sit inside the window and need none.
+    final systemInset = widget.sheet
+        ? MediaQuery.paddingOf(context).bottom +
+              MediaQuery.viewInsetsOf(context).bottom
+        : 0.0;
     final divider = Divider(
       height: 1,
       thickness: 1,
@@ -160,7 +168,12 @@ class _QuickPanelScaffoldState extends State<QuickPanelScaffold> {
                 child: SingleChildScrollView(
                   key: const ValueKey<String>('quickPanelBody'),
                   controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    12,
+                    16,
+                    16 + (widget.footer == null ? systemInset : 0),
+                  ),
                   child: widget.body,
                 ),
               ),
@@ -170,7 +183,7 @@ class _QuickPanelScaffoldState extends State<QuickPanelScaffold> {
             divider,
             Padding(
               key: const ValueKey<String>('quickPanelFooter'),
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 10 + systemInset),
               child: widget.footer,
             ),
           ],

@@ -82,6 +82,14 @@ labelled "Pitch follows speed" and the None preset "Normal"; stored ids and
 values are unchanged, so no migration is needed. New presets cannot be named
 Normal; an existing preset with that name still loads.
 
+## 2026-09-29 — Preset chips and Manage presets replaced by dropdowns
+
+Speed & Pitch presets and the mini Equalizer now pick presets from a dropdown
+instead of chip rows, which grew unwieldy with many presets or AutoEQ profiles.
+The separate Save as new, Update and Manage presets controls (and its preset
+picker dialog) became a ⋮ actions menu that acts on the current or originating
+preset; deleting now asks for confirmation. Stored presets are unchanged.
+
 ## 2026-09-29 — Player EQ button no longer opens the full page
 
 The player Equalizer button (and the desktop Mini Player menu entry) now opens a

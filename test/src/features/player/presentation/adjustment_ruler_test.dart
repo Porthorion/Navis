@@ -5,24 +5,33 @@ import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 
 void main() {
-  test('detent is detected when a drag lands on or crosses neutral', () {
-    expect(crossesDetent(0.98, 1.02, 1), isTrue);
-    expect(crossesDetent(1.02, 0.98, 1), isTrue);
-    expect(crossesDetent(0.98, 1, 1), isTrue);
-    expect(crossesDetent(1, 1.02, 1), isFalse);
-    expect(crossesDetent(1.02, 1.05, 1), isFalse);
-    expect(crossesDetent(-0.5, 0.5, 0), isTrue);
+  test('ticks report the strongest ruler line crossed', () {
+    expect(rulerTickFeedback(1.004, 1.006, 1), RulerTick.none);
+    expect(rulerTickFeedback(1.01, 1.018, 1), RulerTick.none);
+    expect(rulerTickFeedback(1.004, 1.012, 1), RulerTick.minor);
+    expect(rulerTickFeedback(1.018, 1.02, 1), RulerTick.minor);
+    expect(rulerTickFeedback(1.022, 1.018, 1), RulerTick.minor);
+    expect(rulerTickFeedback(1.02, 1.018, 1), RulerTick.none);
+    expect(rulerTickFeedback(1.095, 1.105, 1), RulerTick.major);
+    expect(rulerTickFeedback(1.105, 1.095, 1), RulerTick.major);
+    expect(rulerTickFeedback(0.995, 1.005, 1), RulerTick.neutral);
+    expect(rulerTickFeedback(1.05, 0.95, 1), RulerTick.neutral);
+    expect(rulerTickFeedback(-0.105, -0.095, 0), RulerTick.major);
+    expect(rulerTickFeedback(0.004, -0.004, 0), RulerTick.neutral);
+    expect(rulerTickFeedback(1, 1, 1), RulerTick.none);
   });
 
-  testWidgets('dragging across the neutral value emits one selection click', (
-    tester,
-  ) async {
+  Future<List<Object?>> scriptedDrag(
+    WidgetTester tester, {
+    required Duration step,
+  }) async {
     final haptics = <Object?>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (call) async {
-        if (call.method == 'HapticFeedback.vibrate')
+        if (call.method == 'HapticFeedback.vibrate') {
           haptics.add(call.arguments);
+        }
         return null;
       },
     );
@@ -32,7 +41,7 @@ void main() {
         null,
       ),
     );
-    var value = 0.95;
+    var value = 0.965;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -49,11 +58,59 @@ void main() {
         ),
       ),
     );
-    // Moving the scale left raises the value: 0.95 → about 1.05.
-    await tester.drag(find.byType(AdjustmentRuler), const Offset(-80, 0));
+    var time = Duration.zero;
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(AdjustmentRuler)),
+    );
+    // Get past the drag slop, then clear the haptic log so only the
+    // scripted 8 px (0.01) steps are measured.
+    await gesture.moveBy(const Offset(-30, 0), timeStamp: time);
+    await tester.pump();
+    haptics.clear();
+    for (var i = 0; i < 6; i++) {
+      time += step;
+      await gesture.moveBy(const Offset(-8, 0), timeStamp: time);
+      await tester.pump();
+    }
+    await gesture.up();
     await tester.pumpAndSettle();
-    expect(value, greaterThan(1));
-    expect(haptics, ['HapticFeedbackType.selectionClick']);
+    return haptics;
+  }
+
+  testWidgets('every line crossed while dragging produces a tick', (
+    tester,
+  ) async {
+    final haptics = await scriptedDrag(
+      tester,
+      step: const Duration(milliseconds: 16),
+    );
+    // Six 0.01 steps from just below 1.00: five minor lines and exactly one
+    // firmer tap where the drag passes 1.00.
+    expect(
+      haptics.where((h) => h == 'HapticFeedbackType.selectionClick'),
+      hasLength(5),
+    );
+    expect(
+      haptics.where((h) => h == 'HapticFeedbackType.mediumImpact'),
+      hasLength(1),
+    );
+  });
+
+  testWidgets('fast swipes throttle minor ticks but keep the neutral tap', (
+    tester,
+  ) async {
+    final haptics = await scriptedDrag(
+      tester,
+      step: const Duration(milliseconds: 2),
+    );
+    expect(
+      haptics.where((h) => h == 'HapticFeedbackType.selectionClick').length,
+      lessThan(5),
+    );
+    expect(
+      haptics.where((h) => h == 'HapticFeedbackType.mediumImpact'),
+      hasLength(1),
+    );
   });
 
   for (final reducedMotion in [false, true]) {

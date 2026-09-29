@@ -395,19 +395,28 @@ class DiagnosticsPresentationController {
     await waitForFrame();
   }
 
-  /// Taps a mounted mini-EQ preset chip (`eq-quick-preset-<id>`).
+  /// Chooses a preset in the mounted mini-EQ dropdown (`eq-quick-preset`)
+  /// through its production selection callback.
   Future<void> selectQuickEqualizerPreset(String id) async {
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
-    final chip = _findElement(
+    final picker = _findElement(
       root,
       (element) =>
-          element.widget.key == ValueKey<String>('eq-quick-preset-$id') &&
-          element.widget is ChoiceChip,
+          element.widget.key == const ValueKey<String>('eq-quick-preset') &&
+          element.widget is DropdownMenu<String>,
     );
-    final callback = (chip?.widget as ChoiceChip?)?.onSelected;
-    if (callback == null) throw const DiagnosticsPresentationUnavailable();
-    callback(true);
+    final menu = picker?.widget as DropdownMenu<String>?;
+    final available =
+        menu?.enabled == true &&
+        menu!.dropdownMenuEntries.any(
+          (entry) => entry.value == id && entry.enabled,
+        );
+    final callback = menu?.onSelected;
+    if (!available || callback == null) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    callback(id);
     await waitForFrame();
   }
 

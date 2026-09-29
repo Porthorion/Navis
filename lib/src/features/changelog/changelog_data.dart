@@ -80,7 +80,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'The Speed & Pitch panel is quicker to use: one-tap speeds from 0.5× to 2×, preset chips, hold-to-repeat − and + buttons, a haptic tick at 1.00×, supported ranges shown only at a limit, and pitch controls hidden where the audio backend cannot change pitch',
+        'The Speed & Pitch panel is quicker to use: one-tap speeds from 0.5× to 2×, a compact preset dropdown with a menu to save, update, rename or delete presets, hold-to-repeat − and + buttons, haptic ticks on every ruler line as you drag (stronger at each 0.10 and at 1.00×), supported ranges shown only at a limit, and pitch controls hidden where the audio backend cannot change pitch',
       ),
       ChangelogEntry(
         'On desktop, Ctrl+. and Ctrl+, (Cmd on macOS) change playback speed by 0.10× and Ctrl+0 resets it, with a brief confirmation; all three can be reassigned in Desktop Shortcuts',
@@ -91,7 +91,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'A mini Equalizer in the player lets you turn EQ on or off, see the response and switch between your presets and imported headphone profiles in one tap (choosing one turns EQ on), with Open Equalizer for detailed editing',
+        'A mini Equalizer in the player lets you turn EQ on or off, see a larger response graph and pick any of your presets or imported headphone profiles from a dropdown (choosing one turns EQ on), with Open Equalizer for detailed editing',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -99,6 +99,10 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Leaving the Equalizer page returns you to where you opened it, re-opening Now Playing or the Mini Player; on desktop its back arrow no longer always jumps to Settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The full-screen player keeps Play centred with the Equalizer and Speed buttons, including on narrow phones, and the Speed & Pitch and Equalizer sheets now sit above Android navigation buttons and gesture bars',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

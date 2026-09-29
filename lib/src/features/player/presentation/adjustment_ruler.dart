@@ -6,15 +6,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
-/// Whether moving from [from] to [to] lands on or passes over [detent].
+/// Strength of the haptic tick for a ruler movement.
+enum RulerTick { none, minor, major, neutral }
+
+/// Which ruler lines a drag from [from] to [to] crossed or landed on.
 ///
-/// Dragging emits a selection haptic at the neutral value (1.00× speed or
-/// 0 semitones) so it can be found without looking at the readout.
+/// Lines sit on every hundredth (the minor ticks) and every tenth (the
+/// labelled major ticks). The line the drag started on does not count, so a
+/// finger resting on a line stays quiet. Crossing [resetValue] (1.00× speed
+/// or 0 semitones) outranks a major line, which outranks a minor one.
 @visibleForTesting
-bool crossesDetent(double from, double to, double detent) {
-  if (from == to) return false;
-  if (to == detent) return true;
-  return (from - detent).sign != (to - detent).sign && from != detent;
+RulerTick rulerTickFeedback(double from, double to, double resetValue) {
+  if (from == to) return RulerTick.none;
+  const epsilon = 1e-9;
+  final start = from * 100;
+  final end = to * 100;
+  final int first;
+  final int last;
+  if (end > start) {
+    first = (start + epsilon).floor() + 1;
+    last = (end + epsilon).floor();
+  } else {
+    first = (end - epsilon).ceil();
+    last = (start - epsilon).ceil() - 1;
+  }
+  if (last < first) return RulerTick.none;
+  final reset = (resetValue * 100).round();
+  if (reset >= first && reset <= last) return RulerTick.neutral;
+  if ((first / 10).ceil() * 10 <= last) return RulerTick.major;
+  return RulerTick.minor;
 }
 
 /// A continuous visual scale that settles onto supported hundredths.
@@ -88,6 +108,29 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
       _visualValue = widget.value;
     } else if (!_dragging && !_settle.isAnimating) {
       _visualValue = widget.value;
+    }
+  }
+
+  /// Minor ticks closer together than this are skipped so fast swipes do
+  /// not saturate the vibration motor; major and neutral ticks always fire.
+  static const _minorTickSpacing = Duration(milliseconds: 12);
+  Duration? _lastMinorTick;
+
+  void _tick(RulerTick tick, Duration? at) {
+    switch (tick) {
+      case RulerTick.none:
+        return;
+      case RulerTick.minor:
+        final last = _lastMinorTick;
+        if (at != null && last != null && at - last < _minorTickSpacing) {
+          return;
+        }
+        _lastMinorTick = at;
+        unawaited(HapticFeedback.selectionClick());
+      case RulerTick.major:
+        unawaited(HapticFeedback.lightImpact());
+      case RulerTick.neutral:
+        unawaited(HapticFeedback.mediumImpact());
     }
   }
 
@@ -226,13 +269,10 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                     if (widget.range.maximum != null) {
                       value = math.min(value, widget.range.maximum!);
                     }
-                    if (crossesDetent(
-                      _visualValue,
-                      value,
-                      widget.resetValue,
-                    )) {
-                      unawaited(HapticFeedback.selectionClick());
-                    }
+                    _tick(
+                      rulerTickFeedback(_visualValue, value, widget.resetValue),
+                      details.sourceTimeStamp,
+                    );
                     setState(() => _visualValue = value);
                     _send(value);
                   }

@@ -1743,8 +1743,6 @@
   "playbackPresetNone": "Normal",
   "playbackPresetCustom": "Custom",
   "playbackPresetSaveNew": "Save as new",
-  "playbackPresetUpdate": "Update preset",
-  "playbackPresetManage": "Manage presets",
   "playbackPresetName": "Preset name",
   "playbackPresetRename": "Rename",
   "playbackPresetDelete": "Delete",
@@ -1779,6 +1777,31 @@
   "playbackPitchLockUnsupportedRange": "Pitch cannot follow this speed on this audio backend. Choose a speed within the supported linked range.",
   "playbackAdjustmentPrecision": "Enter a number with no more than two decimal places.",
   "playbackPresetUnsupported": "Unavailable on this audio backend",
+  "playbackPresetActions": "Preset actions",
+  "playbackPresetUpdateNamed": "Update “{name}”",
+  "@playbackPresetUpdateNamed": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "playbackPresetRenameNamed": "Rename “{name}”…",
+  "@playbackPresetRenameNamed": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "playbackPresetDeleteNamed": "Delete “{name}”",
+  "@playbackPresetDeleteNamed": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "playbackPresetDeleteConfirm": "Delete “{name}”?",
+  "@playbackPresetDeleteConfirm": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
   "playbackAdjustmentRange": "Available range: {minimum} to {maximum}",
   "@playbackAdjustmentRange": {
     "placeholders": {
