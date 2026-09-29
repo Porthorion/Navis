@@ -832,6 +832,42 @@ abstract class AppLocalizations {
   /// **'Force a complete rescan of all library files'**
   String get desktopShortcutsForceRescanDescription;
 
+  /// No description provided for @desktopShortcutsSpeedUpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Increase Playback Speed'**
+  String get desktopShortcutsSpeedUpTitle;
+
+  /// No description provided for @desktopShortcutsSpeedUpDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed up playback by 0.10×'**
+  String get desktopShortcutsSpeedUpDescription;
+
+  /// No description provided for @desktopShortcutsSpeedDownTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Decrease Playback Speed'**
+  String get desktopShortcutsSpeedDownTitle;
+
+  /// No description provided for @desktopShortcutsSpeedDownDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Slow down playback by 0.10×'**
+  String get desktopShortcutsSpeedDownDescription;
+
+  /// No description provided for @desktopShortcutsSpeedResetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Playback Speed'**
+  String get desktopShortcutsSpeedResetTitle;
+
+  /// No description provided for @desktopShortcutsSpeedResetDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Return playback to 1.00× speed'**
+  String get desktopShortcutsSpeedResetDescription;
+
   /// No description provided for @desktopShortcutsSpace.
   ///
   /// In en, this message translates to:
@@ -1590,24 +1626,6 @@ abstract class AppLocalizations {
   /// **'Android Audio Effects'**
   String get playbackSettingsAndroidDspSectionTitle;
 
-  /// No description provided for @playbackSettingsEqualizerTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable Equalizer'**
-  String get playbackSettingsEqualizerTitle;
-
-  /// No description provided for @playbackSettingsEqualizerSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Adjust frequency bands for Android playback.'**
-  String get playbackSettingsEqualizerSubtitle;
-
-  /// No description provided for @playbackSettingsEqualizerBandLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Band {index}'**
-  String playbackSettingsEqualizerBandLabel(int index);
-
   /// No description provided for @playbackSettingsLoudnessTitle.
   ///
   /// In en, this message translates to:
@@ -1835,12 +1853,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open lyrics in fullscreen directly from Now Playing.'**
   String get playbackSettingsFullscreenLyricsSubtitle;
-
-  /// No description provided for @playbackSettingsPlaybackSpeedSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.'**
-  String get playbackSettingsPlaybackSpeedSubtitle;
 
   /// No description provided for @playbackSettingsAlbumQueueTitle.
   ///
@@ -6898,6 +6910,1284 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unavailable items ({count})'**
   String unavailableReviewEntryWithCount(Object count);
+
+  /// No description provided for @appearanceArtworkSizeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Artwork size'**
+  String get appearanceArtworkSizeLabel;
+
+  /// No description provided for @appearanceArtworkSizeSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Controls artwork size in album and artist grids. Columns adjust to the available space.'**
+  String get appearanceArtworkSizeSub;
+
+  /// No description provided for @appearanceArtworkSizeSmall.
+  ///
+  /// In en, this message translates to:
+  /// **'Small'**
+  String get appearanceArtworkSizeSmall;
+
+  /// No description provided for @appearanceArtworkSizeMedium.
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get appearanceArtworkSizeMedium;
+
+  /// No description provided for @appearanceArtworkSizeLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Large'**
+  String get appearanceArtworkSizeLarge;
+
+  /// No description provided for @appearanceRecommendationsAutoAdvance.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically advance recommendations'**
+  String get appearanceRecommendationsAutoAdvance;
+
+  /// No description provided for @appearanceRecommendationsAutoAdvanceSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Move through You Might Like automatically. You can always swipe manually.'**
+  String get appearanceRecommendationsAutoAdvanceSub;
+
+  /// No description provided for @contentShelfPrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous items'**
+  String get contentShelfPrevious;
+
+  /// No description provided for @contentShelfNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next items'**
+  String get contentShelfNext;
+
+  /// No description provided for @trackColumnTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get trackColumnTitle;
+
+  /// No description provided for @trackColumnNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'#'**
+  String get trackColumnNumber;
+
+  /// No description provided for @trackColumnNumberDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Track number'**
+  String get trackColumnNumberDescription;
+
+  /// No description provided for @trackColumnArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist'**
+  String get trackColumnArtist;
+
+  /// No description provided for @trackColumnAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get trackColumnAlbum;
+
+  /// No description provided for @trackColumnDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get trackColumnDuration;
+
+  /// No description provided for @playbackSpeedPitchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed & Pitch'**
+  String get playbackSpeedPitchTitle;
+
+  /// No description provided for @playbackPitchLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pitch'**
+  String get playbackPitchLabel;
+
+  /// No description provided for @playbackPresetLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset'**
+  String get playbackPresetLabel;
+
+  /// No description provided for @playbackPresetNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get playbackPresetNone;
+
+  /// No description provided for @playbackPresetCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get playbackPresetCustom;
+
+  /// No description provided for @playbackPresetSaveNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as new'**
+  String get playbackPresetSaveNew;
+
+  /// No description provided for @playbackPresetUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update preset'**
+  String get playbackPresetUpdate;
+
+  /// No description provided for @playbackPresetManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage presets'**
+  String get playbackPresetManage;
+
+  /// No description provided for @playbackPresetName.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset name'**
+  String get playbackPresetName;
+
+  /// No description provided for @playbackPresetRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get playbackPresetRename;
+
+  /// No description provided for @playbackPresetDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get playbackPresetDelete;
+
+  /// No description provided for @playbackPresetNameInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a unique name. Normal is reserved.'**
+  String get playbackPresetNameInvalid;
+
+  /// No description provided for @playbackPitchUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Pitch control is unavailable on this audio backend.'**
+  String get playbackPitchUnavailable;
+
+  /// No description provided for @playbackAdjustmentUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This adjustment is outside the audio backend’s supported range.'**
+  String get playbackAdjustmentUnsupported;
+
+  /// No description provided for @playbackAdjustmentApplyFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not apply the adjustment. The previous values have been restored.'**
+  String get playbackAdjustmentApplyFailure;
+
+  /// No description provided for @playbackAdjustmentSaveFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save your changes. Retry to keep them after restart.'**
+  String get playbackAdjustmentSaveFailure;
+
+  /// No description provided for @playbackAdjustmentLoadFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load playback adjustments.'**
+  String get playbackAdjustmentLoadFailure;
+
+  /// No description provided for @playbackAdjustmentRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get playbackAdjustmentRetry;
+
+  /// No description provided for @playbackAdjustmentResetBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset speed & pitch'**
+  String get playbackAdjustmentResetBoth;
+
+  /// No description provided for @playbackAdjustmentCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get playbackAdjustmentCancel;
+
+  /// No description provided for @playbackAdjustmentApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get playbackAdjustmentApply;
+
+  /// No description provided for @playbackAdjustmentSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get playbackAdjustmentSave;
+
+  /// No description provided for @playbackPitchSemitonesValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} semitones'**
+  String playbackPitchSemitonesValue(String value);
+
+  /// No description provided for @playbackAdjustmentReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get playbackAdjustmentReset;
+
+  /// No description provided for @playbackAdjustmentInvalidNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a finite decimal number.'**
+  String get playbackAdjustmentInvalidNumber;
+
+  /// No description provided for @playbackSpeedMultiplierValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{value}×'**
+  String playbackSpeedMultiplierValue(String value);
+
+  /// No description provided for @playbackPitchLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Pitch follows speed'**
+  String get playbackPitchLock;
+
+  /// No description provided for @playbackPitchLockSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Faster sounds higher, like a record player.'**
+  String get playbackPitchLockSubtitle;
+
+  /// No description provided for @playbackPitchFollowsSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Follows playback speed'**
+  String get playbackPitchFollowsSpeed;
+
+  /// No description provided for @playbackPitchLockUnsupportedRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Pitch cannot follow this speed on this audio backend. Choose a speed within the supported linked range.'**
+  String get playbackPitchLockUnsupportedRange;
+
+  /// No description provided for @playbackAdjustmentPrecision.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a number with no more than two decimal places.'**
+  String get playbackAdjustmentPrecision;
+
+  /// No description provided for @playbackPresetUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable on this audio backend'**
+  String get playbackPresetUnsupported;
+
+  /// No description provided for @playbackAdjustmentRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Available range: {minimum} to {maximum}'**
+  String playbackAdjustmentRange(String minimum, String maximum);
+
+  /// No description provided for @playbackAdjustmentMinimum.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum: {value}'**
+  String playbackAdjustmentMinimum(String value);
+
+  /// No description provided for @playbackAdjustmentMaximum.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum: {value}'**
+  String playbackAdjustmentMaximum(String value);
+
+  /// No description provided for @playbackSpeedMinimumReached.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum supported speed reached'**
+  String get playbackSpeedMinimumReached;
+
+  /// No description provided for @playbackSpeedMaximumReached.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum supported speed reached'**
+  String get playbackSpeedMaximumReached;
+
+  /// No description provided for @playbackPitchMinimumReached.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum supported pitch reached'**
+  String get playbackPitchMinimumReached;
+
+  /// No description provided for @playbackPitchMaximumReached.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum supported pitch reached'**
+  String get playbackPitchMaximumReached;
+
+  /// No description provided for @playbackAdjustmentIncreaseBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Increase by {step}'**
+  String playbackAdjustmentIncreaseBy(String step);
+
+  /// No description provided for @playbackAdjustmentDecreaseBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Decrease by {step}'**
+  String playbackAdjustmentDecreaseBy(String step);
+
+  /// No description provided for @playbackQuickAdjustmentsTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed & Pitch: {summary}'**
+  String playbackQuickAdjustmentsTooltip(String summary);
+
+  /// No description provided for @playbackQuickEqualizerTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Equalizer: {preset}'**
+  String playbackQuickEqualizerTooltip(String preset);
+
+  /// No description provided for @playbackQuickEqualizerOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Equalizer: Off'**
+  String get playbackQuickEqualizerOff;
+
+  /// No description provided for @playbackSpeedChangedNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback speed {value}'**
+  String playbackSpeedChangedNotice(String value);
+
+  /// No description provided for @desktopMiniPlayerSpeedPitchAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed & Pitch…'**
+  String get desktopMiniPlayerSpeedPitchAction;
+
+  /// No description provided for @eqQuickOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Equalizer'**
+  String get eqQuickOpen;
+
+  /// No description provided for @eqQuickClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Equalizer'**
+  String get eqQuickClose;
+
+  /// No description provided for @eqQuickEditHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Equalizer to edit'**
+  String get eqQuickEditHint;
+
+  /// No description provided for @nowPlayingSoundSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound'**
+  String get nowPlayingSoundSection;
+
+  /// No description provided for @eqTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Equalizer'**
+  String get eqTitle;
+
+  /// No description provided for @eqSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shape your sound and save headphone profiles'**
+  String get eqSubtitle;
+
+  /// No description provided for @eqUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Equalizer is unavailable with this audio engine.'**
+  String get eqUnavailable;
+
+  /// No description provided for @eqEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable equalizer'**
+  String get eqEnable;
+
+  /// No description provided for @eqCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get eqCustom;
+
+  /// No description provided for @eqSimple.
+  ///
+  /// In en, this message translates to:
+  /// **'Simple · 5 bands'**
+  String get eqSimple;
+
+  /// No description provided for @eqTenBand.
+  ///
+  /// In en, this message translates to:
+  /// **'10 bands'**
+  String get eqTenBand;
+
+  /// No description provided for @eqAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get eqAdvanced;
+
+  /// No description provided for @eqImportedFixed.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported fixed bands'**
+  String get eqImportedFixed;
+
+  /// No description provided for @eqMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing mode'**
+  String get eqMode;
+
+  /// No description provided for @eqPresets.
+  ///
+  /// In en, this message translates to:
+  /// **'Presets'**
+  String get eqPresets;
+
+  /// No description provided for @eqBuiltIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Built in'**
+  String get eqBuiltIn;
+
+  /// No description provided for @eqSaveAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as new'**
+  String get eqSaveAs;
+
+  /// No description provided for @eqUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update preset'**
+  String get eqUpdate;
+
+  /// No description provided for @eqRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get eqRename;
+
+  /// No description provided for @eqDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate'**
+  String get eqDuplicate;
+
+  /// No description provided for @eqDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get eqDelete;
+
+  /// No description provided for @eqExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get eqExport;
+
+  /// No description provided for @eqImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get eqImport;
+
+  /// No description provided for @eqImportFile.
+  ///
+  /// In en, this message translates to:
+  /// **'From file'**
+  String get eqImportFile;
+
+  /// No description provided for @eqImportPaste.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste settings'**
+  String get eqImportPaste;
+
+  /// No description provided for @eqAutoEq.
+  ///
+  /// In en, this message translates to:
+  /// **'Find headphones in AutoEQ'**
+  String get eqAutoEq;
+
+  /// No description provided for @eqName.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset name'**
+  String get eqName;
+
+  /// No description provided for @eqSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get eqSave;
+
+  /// No description provided for @eqSaveEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Save and enable'**
+  String get eqSaveEnable;
+
+  /// No description provided for @eqCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get eqCancel;
+
+  /// No description provided for @eqUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get eqUndo;
+
+  /// No description provided for @eqRedo.
+  ///
+  /// In en, this message translates to:
+  /// **'Redo'**
+  String get eqRedo;
+
+  /// No description provided for @eqReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to flat'**
+  String get eqReset;
+
+  /// No description provided for @eqResetBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset band'**
+  String get eqResetBand;
+
+  /// No description provided for @eqPreamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Preamp'**
+  String get eqPreamp;
+
+  /// No description provided for @eqAutoHeadroom.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic headroom'**
+  String get eqAutoHeadroom;
+
+  /// No description provided for @eqAutoHeadroomDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Reduce gain when the combined curve would exceed 0 dB. The authored preamp stays unchanged.'**
+  String get eqAutoHeadroomDescription;
+
+  /// No description provided for @eqClippingRisk.
+  ///
+  /// In en, this message translates to:
+  /// **'Positive gain may clip. Lower preamp or enable automatic headroom.'**
+  String get eqClippingRisk;
+
+  /// No description provided for @eqResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Configured frequency response'**
+  String get eqResponse;
+
+  /// No description provided for @eqResponseDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The curve includes preamp and headroom. It is not a measured headphone response.'**
+  String get eqResponseDescription;
+
+  /// No description provided for @eqApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied'**
+  String get eqApplied;
+
+  /// No description provided for @eqBypassed.
+  ///
+  /// In en, this message translates to:
+  /// **'Bypassed'**
+  String get eqBypassed;
+
+  /// No description provided for @eqPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for audio'**
+  String get eqPending;
+
+  /// No description provided for @eqApplying.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying…'**
+  String get eqApplying;
+
+  /// No description provided for @eqLegacyReset.
+  ///
+  /// In en, this message translates to:
+  /// **'The experimental equalizer and loudness booster have been replaced. Equalizer starts disabled with a flat curve; please create or import your new profiles.'**
+  String get eqLegacyReset;
+
+  /// No description provided for @eqDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get eqDismiss;
+
+  /// No description provided for @eqAddFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Add filter'**
+  String get eqAddFilter;
+
+  /// No description provided for @eqEditFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit filter'**
+  String get eqEditFilter;
+
+  /// No description provided for @eqFrequency.
+  ///
+  /// In en, this message translates to:
+  /// **'Frequency'**
+  String get eqFrequency;
+
+  /// No description provided for @eqGain.
+  ///
+  /// In en, this message translates to:
+  /// **'Gain'**
+  String get eqGain;
+
+  /// No description provided for @eqQ.
+  ///
+  /// In en, this message translates to:
+  /// **'Q'**
+  String get eqQ;
+
+  /// No description provided for @eqType.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter type'**
+  String get eqType;
+
+  /// No description provided for @eqPeaking.
+  ///
+  /// In en, this message translates to:
+  /// **'Peaking'**
+  String get eqPeaking;
+
+  /// No description provided for @eqLowShelf.
+  ///
+  /// In en, this message translates to:
+  /// **'Low shelf'**
+  String get eqLowShelf;
+
+  /// No description provided for @eqHighShelf.
+  ///
+  /// In en, this message translates to:
+  /// **'High shelf'**
+  String get eqHighShelf;
+
+  /// No description provided for @eqLowPass.
+  ///
+  /// In en, this message translates to:
+  /// **'Low pass'**
+  String get eqLowPass;
+
+  /// No description provided for @eqHighPass.
+  ///
+  /// In en, this message translates to:
+  /// **'High pass'**
+  String get eqHighPass;
+
+  /// No description provided for @eqNotch.
+  ///
+  /// In en, this message translates to:
+  /// **'Notch'**
+  String get eqNotch;
+
+  /// No description provided for @eqRemoveFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove filter'**
+  String get eqRemoveFilter;
+
+  /// No description provided for @eqFilterEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter enabled'**
+  String get eqFilterEnabled;
+
+  /// No description provided for @eqNoFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'No filters. Add one to shape the curve.'**
+  String get eqNoFilters;
+
+  /// No description provided for @eqModeChangeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start a new flat curve?'**
+  String get eqModeChangeTitle;
+
+  /// No description provided for @eqModeChangeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing to a fixed-band mode starts a new Custom draft. Saved presets stay in your library. Undo restores the previous curve.'**
+  String get eqModeChangeDescription;
+
+  /// No description provided for @eqContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get eqContinue;
+
+  /// No description provided for @eqImportText.
+  ///
+  /// In en, this message translates to:
+  /// **'AutoEQ ParametricEQ / FixedBandEQ text, or Navis preset JSON'**
+  String get eqImportText;
+
+  /// No description provided for @eqFixedImport.
+  ///
+  /// In en, this message translates to:
+  /// **'This is a FixedBandEQ profile'**
+  String get eqFixedImport;
+
+  /// No description provided for @eqImportPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview preset'**
+  String get eqImportPreview;
+
+  /// No description provided for @eqPreviewDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Review before saving. Importing does not change playback until you choose Save and enable.'**
+  String get eqPreviewDescription;
+
+  /// No description provided for @eqSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get eqSource;
+
+  /// No description provided for @eqTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Target'**
+  String get eqTarget;
+
+  /// No description provided for @eqOriginalSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Original source settings are retained with this preset. Your edits do not change its source attribution.'**
+  String get eqOriginalSource;
+
+  /// No description provided for @eqSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search headphones'**
+  String get eqSearch;
+
+  /// No description provided for @eqRecommendedOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended results only'**
+  String get eqRecommendedOnly;
+
+  /// No description provided for @eqRefreshCatalogue.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh catalogue'**
+  String get eqRefreshCatalogue;
+
+  /// No description provided for @eqCatalogueOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Search is available offline. Downloading a new profile requires a connection. Saved presets always work offline.'**
+  String get eqCatalogueOffline;
+
+  /// No description provided for @eqAttribution.
+  ///
+  /// In en, this message translates to:
+  /// **'AutoEQ by Jaakko Pasanen and contributors · MIT licence'**
+  String get eqAttribution;
+
+  /// No description provided for @eqNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching headphones. Try the full index or import a profile.'**
+  String get eqNoResults;
+
+  /// No description provided for @eqDownloadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not download this profile. Check your connection and try again.'**
+  String get eqDownloadError;
+
+  /// No description provided for @eqRefreshError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not refresh. The existing catalogue is still available.'**
+  String get eqRefreshError;
+
+  /// No description provided for @eqImportError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the preset file.'**
+  String get eqImportError;
+
+  /// No description provided for @eqExportError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not export the preset.'**
+  String get eqExportError;
+
+  /// No description provided for @eqPresetDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset deleted. The current sound is preserved as Custom.'**
+  String get eqPresetDeleted;
+
+  /// No description provided for @eqNameInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name of 1–120 characters.'**
+  String get eqNameInvalid;
+
+  /// No description provided for @eqNumberInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a finite number in the supported range.'**
+  String get eqNumberInvalid;
+
+  /// No description provided for @eqApplyFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'EQ could not be applied. Your saved settings are retained.'**
+  String get eqApplyFailure;
+
+  /// No description provided for @eqHeadroom.
+  ///
+  /// In en, this message translates to:
+  /// **'Additional headroom: {value} dB'**
+  String eqHeadroom(String value);
+
+  /// No description provided for @eqSampleRate.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio: {value} Hz'**
+  String eqSampleRate(String value);
+
+  /// No description provided for @eqFilterCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} filters'**
+  String eqFilterCount(int count);
+
+  /// No description provided for @eqCatalogueRevision.
+  ///
+  /// In en, this message translates to:
+  /// **'Catalogue revision: {revision}'**
+  String eqCatalogueRevision(String revision);
+
+  /// No description provided for @eqRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Supported range: {min} to {max}'**
+  String eqRange(String min, String max);
+
+  /// No description provided for @eqDraftSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft saved on this device'**
+  String get eqDraftSaved;
+
+  /// No description provided for @eqDraftSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving draft…'**
+  String get eqDraftSaving;
+
+  /// No description provided for @eqSaveChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes'**
+  String get eqSaveChanges;
+
+  /// No description provided for @eqDiscardChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes'**
+  String get eqDiscardChanges;
+
+  /// No description provided for @eqDiscardDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard all mode drafts for this preset and restore its saved settings?'**
+  String get eqDiscardDescription;
+
+  /// No description provided for @eqDiscardDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard and delete'**
+  String get eqDiscardDelete;
+
+  /// No description provided for @eqDeleteDraftDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This preset has drafts. Save them as a new preset or discard them before deleting.'**
+  String get eqDeleteDraftDescription;
+
+  /// No description provided for @eqApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get eqApply;
+
+  /// No description provided for @eqEditBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit band'**
+  String get eqEditBand;
+
+  /// No description provided for @eqEditAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit in Advanced'**
+  String get eqEditAdvanced;
+
+  /// No description provided for @eqFixedBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed frequency and Q'**
+  String get eqFixedBand;
+
+  /// No description provided for @eqBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Band {number}'**
+  String eqBand(int number);
+
+  /// No description provided for @eqDraftNotSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft could not be saved'**
+  String get eqDraftNotSaved;
+
+  /// No description provided for @artistPlaybackPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading artist queue'**
+  String get artistPlaybackPreparing;
+
+  /// No description provided for @artistPlaybackProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Loaded {completed} of {total} albums'**
+  String artistPlaybackProgress(int completed, int total);
+
+  /// No description provided for @queueTrackUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable · skipped automatically'**
+  String get queueTrackUnavailable;
+
+  /// No description provided for @eqChooseBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Select band'**
+  String get eqChooseBand;
+
+  /// No description provided for @eqFilterResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter response'**
+  String get eqFilterResponse;
+
+  /// No description provided for @eqFitResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit response'**
+  String get eqFitResponse;
+
+  /// No description provided for @eqOutputResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Output response'**
+  String get eqOutputResponse;
+
+  /// No description provided for @eqWider.
+  ///
+  /// In en, this message translates to:
+  /// **'Wider'**
+  String get eqWider;
+
+  /// No description provided for @eqNarrower.
+  ///
+  /// In en, this message translates to:
+  /// **'Narrower'**
+  String get eqNarrower;
+
+  /// No description provided for @eqCalculatingOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Calculating output response…'**
+  String get eqCalculatingOutput;
+
+  /// No description provided for @eqAttenuation.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic attenuation'**
+  String get eqAttenuation;
+
+  /// No description provided for @eqEffectiveOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Effective output gain'**
+  String get eqEffectiveOutput;
+
+  /// No description provided for @eqOutputSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Output settings'**
+  String get eqOutputSettings;
+
+  /// No description provided for @eqNumericPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Live preview. Choose Done to keep this value or Cancel to restore it.'**
+  String get eqNumericPreview;
+
+  /// No description provided for @eqNotApplicable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not applicable'**
+  String get eqNotApplicable;
+
+  /// No description provided for @eqFixed.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed'**
+  String get eqFixed;
+
+  /// No description provided for @eqBandEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Band enabled'**
+  String get eqBandEnabled;
+
+  /// No description provided for @eqNoBands.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a band to start shaping your sound.'**
+  String get eqNoBands;
+
+  /// No description provided for @eqAddBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Add band'**
+  String get eqAddBand;
+
+  /// No description provided for @eqDeleteBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete band'**
+  String get eqDeleteBand;
+
+  /// No description provided for @eqGraphDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag a band on the graph, or tap a value to enter it exactly. The graph is a calculated filter response, not a measurement of your headphones.'**
+  String get eqGraphDescription;
+
+  /// No description provided for @eqDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get eqDone;
+
+  /// No description provided for @eqAdvancedDraftExists.
+  ///
+  /// In en, this message translates to:
+  /// **'This preset already has an Advanced draft. Resume it or create a new preset from the current curve to keep both.'**
+  String get eqAdvancedDraftExists;
+
+  /// No description provided for @eqResumeAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume Advanced draft'**
+  String get eqResumeAdvanced;
+
+  /// No description provided for @eqCreateCurvePreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a new preset from this curve'**
+  String get eqCreateCurvePreset;
+
+  /// No description provided for @eqPreampDrag.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag up or down to adjust preamp, or tap to enter a value'**
+  String get eqPreampDrag;
+
+  /// No description provided for @eqIncrease.
+  ///
+  /// In en, this message translates to:
+  /// **'Increase value'**
+  String get eqIncrease;
+
+  /// No description provided for @eqDecrease.
+  ///
+  /// In en, this message translates to:
+  /// **'Decrease value'**
+  String get eqDecrease;
+
+  /// No description provided for @eqBandOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Band off'**
+  String get eqBandOff;
+
+  /// No description provided for @eqSimpleShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Simple'**
+  String get eqSimpleShort;
+
+  /// No description provided for @eqTenBandShort.
+  ///
+  /// In en, this message translates to:
+  /// **'10-band'**
+  String get eqTenBandShort;
+
+  /// No description provided for @eqImportedShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported'**
+  String get eqImportedShort;
+
+  /// No description provided for @eqEnterExact.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to enter an exact value'**
+  String get eqEnterExact;
+
+  /// No description provided for @eqFixedInMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed in this mode. Use Edit in Advanced to change it.'**
+  String get eqFixedInMode;
+
+  /// No description provided for @eqBandwidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Bandwidth'**
+  String get eqBandwidth;
+
+  /// No description provided for @eqBands.
+  ///
+  /// In en, this message translates to:
+  /// **'Bands'**
+  String get eqBands;
+
+  /// No description provided for @eqDiscard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get eqDiscard;
+
+  /// No description provided for @eqYourPresets.
+  ///
+  /// In en, this message translates to:
+  /// **'Your presets'**
+  String get eqYourPresets;
+
+  /// No description provided for @eqBuiltInPresets.
+  ///
+  /// In en, this message translates to:
+  /// **'Built in'**
+  String get eqBuiltInPresets;
+
+  /// No description provided for @eqUnsavedWork.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsaved work'**
+  String get eqUnsavedWork;
+
+  /// No description provided for @eqAutoEqHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search measured headphone corrections. Works offline.'**
+  String get eqAutoEqHint;
+
+  /// No description provided for @eqRecommended.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get eqRecommended;
+
+  /// No description provided for @eqResultCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 result} other{{count} results}}'**
+  String eqResultCount(int count);
+
+  /// No description provided for @eqAuthoredPreamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Preamp you set'**
+  String get eqAuthoredPreamp;
+
+  /// No description provided for @eqOutputExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Output gain combines your preamp with any automatic attenuation. The band curve on the graph does not include it.'**
+  String get eqOutputExplanation;
+
+  /// No description provided for @eqFilterOn.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get eqFilterOn;
+
+  /// No description provided for @eqFilterOffShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get eqFilterOffShort;
+
+  /// No description provided for @eqEditingValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{band} · {parameter}'**
+  String eqEditingValue(String band, String parameter);
+
+  /// No description provided for @eqCloseLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Close presets'**
+  String get eqCloseLibrary;
 }
 
 class _AppLocalizationsDelegate

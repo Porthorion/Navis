@@ -84,6 +84,8 @@ Run before each commit/PR:
 
 Checks performed:
 - Linux desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
+- Native EQ response/PCM fixtures (`tool/equalizer_native_test.sh`), using an
+  available JDK or the Android Studio JDK selected by `ANDROID_STUDIO_JDK`
 - Dart formatting (`dart format --set-exit-if-changed .`)
 - code generation (`build_runner`)
 - static analysis (`flutter analyze --no-fatal-infos`)
@@ -251,6 +253,27 @@ only for their OS-owned integration. They do not replace the Navis API for
 ordinary Flutter state. If the affected target is unavailable, mark the work
 unverified or blocked; only the user may explicitly accept deferred validation.
 
+### Artist playback diagnostics
+
+Run `python3 tool/artist_playback_diagnostics.py` for the artist queue regression.
+It copies the configured database into a disposable profile, points only that
+copy at a loopback Subsonic fixture with three releases, and starts with tracks
+for one release. It verifies playback starts before hydration completes,
+uninterrupted queue growth, whole-artist Play and Shuffle, persisted queue
+membership, advancing native and remote playback, repeated append occurrences,
+automatic partial recovery, an expanded cached release, offline unavailable
+rows, and clean restart. App-owned compact progress, queue, and complete screenshots and
+redacted results are stored under `build/artist-playback-diagnostics/`; inspect
+those PNGs before handoff. The fixture uses process-local credentials and muted playback.
+
+Authenticated `GET /v1/artists/playback/status` returns preparation stage, counts,
+elapsed time, and completeness flags without artist/album IDs or request errors.
+Clone-only `POST /v1/artists/playback` accepts `command=prepare` with `artistId`
+and `action=play|shuffle|add`, or `command=cancel` for a pending selection.
+Clone-only `POST /v1/presentation/artist-action` activates mounted
+`play`, `shuffle`, `cancel`, or the desktop `queue` control. These endpoints
+exercise the production controller and buttons; they do not supply queue rows.
+
 ### Windows SMTC diagnostics
 
 Run `tool/windows_smtc_diagnostics.ps1` from an isolated current-build
@@ -271,6 +294,17 @@ metadata.
 ```
 
 ### Desktop app API
+
+For repeated desktop tooltip accessibility failures, run
+`./tool/presentation_diagnostics.sh clone / tooltip-semantics`. It exercises
+all four persistent player action tooltips three times on Home, with app-owned
+semantics enabled, captures the hovered tooltip, and repeats after clean restart.
+The authenticated clone-only `POST /v1/presentation/tooltip` accepts `target`
+values `favorite`, `lyrics`, `queue`, `miniPlayer`, or `null` to dismiss. It
+dispatches Flutter mouse events to the production controls; it does not use the
+operating-system accessibility bridge. Inspect both `*-tooltip` screenshots.
+The runner rejects Flutter exception banners and the `node.built` and
+`!child.attached` assertion signatures in its runtime log.
 
 Linux and Windows profile diagnostics share the authenticated control-plane
 contract. Android production builds remain observation-only. The planned SAF
@@ -448,6 +482,57 @@ signature, digest, dimensions, containment, and permissions, and records the
 artifact paths under `build/presentation-diagnostics/`. The agent must open and
 inspect both PNGs; the script intentionally cannot certify visual correctness
 from file existence alone.
+
+For the responsive layout acceptance matrix, use:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/presentation_diagnostics.sh clone / responsive-layout
+```
+
+This visits Home, Albums, Liked, Artists and Radio at 800×600 and 2560×1280,
+then records Liked scroll position, Small/Large artwork and a filtered collection
+on both launches. The large window fits within the local 2560×1380 work area;
+window bounds are checked rather than treating a compositor-clamped resize as
+success. It enables Artists/Radio only in the isolated clone. The authenticated,
+clone-only `GET/POST /v1/presentation/appearance` endpoint accepts only
+`gridArtworkSize` (auto/small/medium/large),
+`homeRecommendationsAutoAdvance` (boolean), `showArtistsPage` and `showRadioPage`
+(booleans). Updates use targeted production DAO methods; the response contains
+only those preferences. It rejects unknown keys/types and primary certification.
+The script verifies Small and enabled auto-advance persist across clean restart;
+desktop recommendations remain manual even with that touch preference enabled.
+Inspect the additional PNGs as well as the final pair; file validation alone
+is not visual acceptance. Phone touch/carousel/orientation needs an isolated
+Android sidecar; Linux resizing does not certify that runtime.
+
+The follow-up `responsive-polish` label exercises the actual album-card and
+Liked Albums paging callbacks at 1366×900 and 800×600 before and after restart:
+
+```bash
+NAVIS_DIAGNOSTICS_PRIMARY_DB=/absolute/path/to/navis.sqlite.sqlite \
+  ./tool/presentation_diagnostics.sh clone /library#liked responsive-polish
+```
+
+Its authenticated clone-only `POST /v1/presentation/library-action` accepts
+exactly one `action`: `openFirstAlbum` or `nextLikedAlbums`. It invokes only
+the existing onstage album-card callback or the Next button within the keyed
+Liked Albums shelf; arbitrary keys, coordinates and other actions are rejected.
+Unavailable controls fail explicitly. The endpoint does not construct a queue,
+directly write library data or bypass navigation owners. Inspect every extra screenshot,
+including the wide numbered header and the before/after paged shelf. Timed
+widget tests verify the transition itself; settled screenshots do not measure
+animation duration.
+
+For mobile track-layout diagnostics, clone-only
+`POST /v1/presentation/track-action` accepts exactly one `action`: `scrollToLast`,
+`revealFirst`, `more`, `download`, `downloadedTab`, or `dragFirstToLast`. It
+exercises mounted shared rows through their scroll owner, menu/download callbacks, Downloads tab
+controller, or Flutter touch events on the playlist drag handle. It accepts no
+coordinates, arbitrary widget keys, track IDs or destructive delete action.
+Missing controls fail explicitly; primary diagnostics reject every mutation.
+Use a populated isolated emulator fixture, inspect app-owned captures at phone
+and landscape dimensions, and distinguish these from component-only coverage.
 
 To validate a mandatory cache-contract renewal without modifying the primary
 profile, use `cache-upgrade` as the label. The isolated clone starts with its
@@ -1068,3 +1153,99 @@ counter. Capture evidence before its opportunistic seven-day detail pruning;
 aggregate terminal history lasts 90 days. API tests cover redaction, migration,
 recovery and correlation; runtime certification should compare the same attempt
 before and after a clean restart.
+
+### Speed, pitch and preset diagnostics
+
+Run `./tool/playback_adjustment_diagnostics.sh` for an isolated Linux profile,
+synthetic local tone, paired/crossfade settings and track transition,
+preset save/select/delete, queue clearing, clean restart and app-owned Settings
+and Now Playing screenshots. Open and inspect the PNGs listed
+in its screenshot JSON artifacts. The primary database and its downloads are
+read-only inputs; the tone and all changes belong to the disposable clone.
+The clone disables scrobbling for its synthetic tracks. The audio check requires
+`pactl`, `parec` and Python NumPy: it creates a private null sink, captures its
+monitor, verifies that locked 1.25× turns 440 Hz into approximately 550 Hz,
+and confirms that unlocking and changing speed retains that pitch. It also checks
+legacy precise values and linked preset restoration after a clean restart. Only this diagnostic process's streams are routed there;
+the sink is removed on exit. `NAVIS_DIAGNOSTICS_AUDIO_DEVICE` selects the mpv
+device only in clone diagnostics (normally audio output remains automatic).
+
+`GET /v1/playback/adjustments` reports current/persisted adjustments, selected
+identity, presets, backend constraints and engine state. Clone-only
+`POST /v1/playback/adjustments` accepts multiplier `speed`, `pitchSemitones`
+and boolean `lockPitchToSpeed`, or
+`action` (`select`, `save`, `update`, `rename`, `delete`) with `id`/`name` as
+appropriate. Legacy `speedPercent` remains supported; supplying both speed
+representations is rejected. Independent pitch entry requires unlocking. GET
+retains percentage fields alongside multiplier and current/persisted lock fields.
+It invokes the production controller and flushes persistence.
+Clone-only `POST /v1/playback/queue/clear` clears through the queue controller
+and returns adjustment state so retention can be checked.
+Invalid, unsupported and failed changes return a failure state. None cannot be
+updated/deleted. `POST /v1/presentation/adjustments` reveals the Settings panel;
+with `open: true`, it activates the existing Now Playing entry point before
+revealing the panel. With `quick: true` it instead presses the first visible
+player Speed button (desktop bar or Now Playing transport) through its
+production callback and returns `surface` (`popover` or `sheet`). Every
+response lists `quickControls`: visible Speed/Equalizer quick buttons with
+their key, enabled state and the Speed multiplier label. Clone-only
+`POST /v1/presentation/shortcut` accepts `action` `speedUp`, `speedDown` or
+`speedReset`, sends that action's current binding through `HardwareKeyboard`
+to the shell's production global shortcut handler, and returns the chord
+label; poll `GET /v1/playback/adjustments` for the applied speed.
+Clone-only `POST /v1/presentation/quick-panel` drives the player quick panels
+through production callbacks: `action` `open` or `press` with `target`
+`speed`/`equalizer` (press the button; `open` also requires the panel and
+returns `surface`), `preset` with a mini-EQ preset id (taps its chip), or
+`openPage` (taps Open Equalizer). `GET /v1/presentation/quick-panel` reports
+`quickControls`, the top route `location`, the `playerOverlay` stack and
+`miniPlayer`, so return-to-origin can be polled. The script covers the Speed
+popover, the shortcut round trip and its notice, the EQ popover and preset
+selection (asserted through `GET /v1/equalizer`), and opening and closing the
+Equalizer page from both the desktop view and Mini Player.
+These controls require normal diagnostics authentication and mutation is
+forbidden in primary-certification mode.
+
+### Equalizer diagnostics
+
+See [equalizer.md](equalizer.md) for the platform support and precision contract.
+`./tool/equalizer_diagnostics.sh` uses a copied SQLite profile, generated local
+tones, and a disposable PulseAudio sink. It captures actual output for a 12 dB
+cut, automatic headroom, bypass, and a pitch-shifted cut, verifies persistence
+across a clean restart, verifies named/mode drafts and temporary editor
+preview/cancel against captured audio, and captures compact/wide graph and
+inline-editor app-owned EQ screenshots. Graph drag/Undo/cancel checks and a
+32-band sustained-drag profile expose measured frame timings and bounded queues.
+It never installs over or edits the primary profile.
+
+The Android driver validates a running isolated sidecar via its owned API:
+
+```bash
+python3 tool/android_equalizer_diagnostics.py \
+  --handshake <private-handshake> --output <evidence-directory> \
+  --serial <android-serial> --package <sidecar-package>
+```
+
+Seed the local tone fixtures before launch, keep its database under its private `files/` folder,
+and forward the handshake port without printing the token. It checks native
+headroom/status, controls, track transition, presets, and background progress,
+then checks retained mode drafts and editor preview/cancel, and retrieves the
+PNGs from the app's screenshot endpoint. The navigation response must actually
+resolve to `/settings/equalizer`; a redirected login screenshot is not EQ evidence.
+`--fixture-url http://127.0.0.1:<port>` can connect the local auth-lifecycle test
+server after an Android reverse-port mapping; its fixed synthetic credentials
+stay inside the test profile. `POST /v1/presentation/dismiss-popup` closes only
+app-owned popup routes before capture and is clone-only. Physical-device
+listening, Bluetooth, and OEM routes remain separate validation.
+
+Clone-only `POST /v1/presentation/equalizer` operates mounted production controls:
+`selectBand`, `dragBand`/`cancelDrag` with zero-based band `index` and finite
+`dx`/`dy` in a 600×300 reference graph, `frequency`/`gain`/`q`/`preamp` with a text
+`value`, and `done`/`cancel`. `edit` and `apply` remain inline-editor aliases.
+`profileGraph` exercises 180 rendered updates in one canceled graph gesture and
+returns frame timing measurements; the sidecar driver supplies 32 active filters.
+GET EQ status includes preview/checkpoint queue occupancy and cumulative
+preview-command/workspace-write counters. `POST /v1/equalizer` additionally supports
+`mode`, `custom`, `discard`, `retry`, `preview`, and `cancelPreview`; draft deletion
+requires explicit `discardDrafts: true`. All retain normal authentication and
+primary-certification mutation restrictions.

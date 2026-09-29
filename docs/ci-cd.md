@@ -13,6 +13,15 @@ presets. Their profile-mode clone and fixture flows are documented in
 replacements. Changes to their launch or preparation behavior require focused
 scenario tests, the Linux app/API runtime loop, and this repository gate.
 
+Artist queue changes additionally verify early playback and background queue
+growth without a modal using `python3 tool/artist_playback_diagnostics.py`.
+This bounded Linux fixture gate verifies a three-release artist starting with
+one loaded album, Play/Shuffle membership, remote streaming, automatic partial
+recovery, expanded cached release hydration, repeated append occurrences,
+queue persistence and clean restart. It uses a disposable copied database,
+loopback server, process-local credentials and app-owned screenshots; inspect
+its PNGs as described in `docs/development-workflow.md`.
+
 ## Quality Gate (`tool/check.sh`)
 
 Run before every commit (automatically enforced if the pre-commit hook is enabled):
@@ -24,15 +33,25 @@ Run before every commit (automatically enforced if the pre-commit hook is enable
 Checks performed (in order, fail-fast):
 1. `/tmp` disk-space preflight
 2. Linux desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
-3. `dart format --set-exit-if-changed .`
-4. `dart run build_runner build`
-5. `flutter analyze --no-fatal-infos`
-6. Drift migration tests
-7. Critical routing/provider/playback/library sync test suite
-8. Full `flutter test`
-9. Coverage when `CI=true`
+3. Native equalizer response/PCM fixtures (`tool/equalizer_native_test.sh`)
+4. `dart format --set-exit-if-changed .`
+5. `dart run build_runner build`
+6. `flutter analyze --no-fatal-infos`
+7. Drift migration tests
+8. Critical routing/provider/playback/library sync test suite
+9. Full `flutter test`
+10. Coverage when `CI=true`
+
+Native EQ fixtures use an available JDK, or Android Studio's bundled JDK.
+`ANDROID_STUDIO_JDK` may select an alternate JDK directory. They validate
+filter responses, measured PCM gain, headroom, channel isolation, and bypass;
+they do not replace Android build and actual device/runtime validation.
 
 The script also checks `/tmp` disk space before starting to prevent misleading test hangs.
+Captured test logs also reject the repeated `node.built` and `!child.attached`
+semantics assertions. The focused runtime gate for these failures is
+`./tool/presentation_diagnostics.sh clone / tooltip-semantics`; it checks the
+Home player tooltips with app-owned semantics before and after clean restart.
 
 Android Auto projection manifest validation is available as a focused manual
 gate:
@@ -520,3 +539,52 @@ and test independent `frameBuild`, `frameRaster` and `frameSpan` timing, the
 5,000-sample cap and atomic window reset. Runtime evidence must state library
 size, playback/sync activity and renderer; a no-sync scrolling control cannot
 stand in for playback-under-sync certification.
+
+### Responsive layout evidence
+
+For changes to bounded grids, adaptive song rows, Home shelves/carousel,
+station cards or desktop playback-time layout, run the focused geometry,
+settings migration, occurrence-action, timer and shell regressions, then the
+normal full gate. `tool/presentation_diagnostics.sh clone / responsive-layout`
+records the initial/restarted Linux pane matrix, preference persistence and
+clean logs through authenticated production owners. Its extra captures must
+be opened and assessed; Android touch and orientation require separate
+sidecar runtime evidence. The clone-only appearance endpoint contract tests
+protect input validation, targeted persistence and certification-mode isolation.
+
+For the album-motion/number-header follow-up, the `responsive-polish` label
+adds real album-opening and scoped Liked paging actions on both launches.
+Inspect all captures and retain the timed route, hover/accessibility, keyboard
+paging and number-column alignment tests. The library-action contract tests
+reject unsupported payloads, unauthenticated requests and primary certification.
+
+Playback adjustment changes additionally use
+`./tool/playback_adjustment_diagnostics.sh` for the isolated Linux runtime,
+native PCM frequency checks (440→550 Hz at locked 1.25×, unchanged pitch after
+unlocking), linked preset persistence, the desktop player Speed popover and
+speed-shortcut round trip, the mini Equalizer popover, preset selection and
+return-to-origin navigation, and restart loop. Capture requires PulseAudio/PipeWire
+tools and NumPy. The quality gate includes the new conversion/controller, paired
+handler, storage, API and responsive widget regression tests through the full
+suite; native device/host coverage must still be reported separately.
+
+### Equalizer release evidence
+
+The quality gate includes native JVM response/PCM fixtures as well as Dart,
+controller, migration, and adaptive widget tests. `tool/equalizer_diagnostics.sh`
+adds real Linux output measurements and restart/screenshots; APK builds and the
+isolated Android API driver add native bridge/lifecycle evidence. These checks
+do not replace physical Android listening or Windows/macOS runtime validation.
+See [equalizer.md](equalizer.md).
+
+EQ validation includes the v85 working-draft migration, independent
+preset/mode recovery, grouped editing history, precision-preserving band
+editors, and clone-only presentation controls. The Linux EQ diagnostics driver
+checks preview/cancel with captured PCM as well as persistence and screenshots;
+the Android driver checks the corresponding native status and mounted controls
+in an isolated sidecar.
+
+Graph EQ validation additionally covers coordinate mapping, precise inline
+editing, gesture cancellation/grouped Undo, checkpoint failures and stale edits,
+overlap selection, keyboard/large-text layouts, AutoEQ round trips, and a measured
+32-band runtime profile through authenticated presentation diagnostics.

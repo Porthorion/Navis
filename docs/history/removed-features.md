@@ -44,3 +44,80 @@ screen remains only for flows where no usable catalog exists — initial login,
 destructive cache reset, cache upgrade, and playback recovery. See
 `docs/architecture.md` (Sync Flow → Repair sessions) and
 `Fix_Stale_Cache_Plan.md` (Phase B).
+
+## Fixed album grid column density (2026-09-28)
+
+The former Grid Density preference set a fixed column count and Auto stopped
+at five columns. Wide panes therefore enlarged artwork rather than showing
+more content. Artwork size replaces the active layout meaning with bounded
+card sizes and a column count derived from the pane. Schema 81 preserves the
+legacy column and migrates its preference once (1/2 → Large, 3 → Medium,
+4/5 → Small, null/invalid → Auto). Compact Liked and Home previews use their
+own shelf geometry. See the [responsive layout plan](../completed-plans/Responsive_Layout_Overhaul_Plan.md)
+and [adaptive architecture](../architecture.md#collection-pane-geometry).
+
+## 2026-09-28 — Stepped speed controls and queue-clear reset replaced
+
+The 0.25× slider stops and generic 0.5×–2× clamp are replaced by shared Speed &
+Pitch rulers, exact decimal input and local named presets. Actual backend limits
+remain centralized in capabilities. Clearing a queue no longer resets playback
+speed; both adjustments persist until changed or None is selected. This is an
+explicit product decision recorded in `Playback_Speed_Pitch_Presets_Plan.md`.
+
+## 2026-09-28 — Percentage speed presentation replaced
+
+Speed readouts now use two-decimal multipliers and 0.10 buttons, with fine
+hundredth rulers and a saved pitch-lock mode. The diagnostics percentage API
+remains compatible, and legacy precise values/presets keep their exact sound
+until edited. Both controls expose actual supported bounds; None restores
+1×, zero pitch and lock off.
+
+## 2026-09-29 — Speed & Pitch dropdown and disabled pitch controls replaced
+
+The preset dropdown is replaced by preset chips, the ±0.10/±1 text buttons by
+hold-to-repeat icon steppers, and the always-visible "Available range" line by
+range text shown only at a limit. On backends without pitch, the pitch ruler
+and lock are hidden rather than shown disabled. "Lock Pitch to Speed" is now
+labelled "Pitch follows speed" and the None preset "Normal"; stored ids and
+values are unchanged, so no migration is needed. New presets cannot be named
+Normal; an existing preset with that name still loads.
+
+## 2026-09-29 — Player EQ button no longer opens the full page
+
+The player Equalizer button (and the desktop Mini Player menu entry) now opens a
+compact equalizer panel instead of navigating straight to
+`/settings/equalizer`; the full page is one tap away through Open Equalizer or
+the graph. The Now Playing settings sheet replaces its Equalizer row with an
+inline card on supported backends. On desktop, the Equalizer page's back arrow
+now returns to where the page was opened rather than always to the Settings
+root.
+
+## Experimental equalizer and loudness booster (2026-09-29)
+
+The old Playback Experimental controls and their current-schema fields have
+been removed. They used Android system effects with limited, device-dependent
+bands. Schema v84 discards the old values without approximation or recovery and
+starts the replacement disabled/flat, with a one-time notice for affected users.
+The dedicated Equalizer page, native filters, authored preamp, and automatic
+headroom replace them; historical migration steps remain. See
+[equalizer.md](../equalizer.md) and the accepted `EQ_System_Plan.md`.
+
+## 2026-09-29 — Equalizer band-card editing replaced
+
+The scrolling per-band cards, modal band editor, and duplicate mini graph that
+pinned after scrolling are replaced by the large interactive graph and selected
+band controls. Exact input previews inline with Done/Cancel. Existing saved
+presets, v85 draft workspaces, AutoEQ provenance, and native processing retain
+their contracts; this presentation change requires no migration. See
+[equalizer.md](../equalizer.md).
+
+## 2026-09-29 — Equalizer band dropdown and duplicate controls replaced
+
+The graph-first page previously selected bands with a dropdown, repeated the
+selected band's summary inside the graph, placed the Q slider under the plot,
+and showed preamp both in the graph toolbar and in the band controls. A band chip
+strip, three value tiles, an inspector Q control, and one preamp control per
+layout replace them; the mode dropdown became a segmented control, and draft
+status moved beside the preset name. Saved presets, drafts, AutoEQ provenance,
+diagnostics actions, and audio behaviour are unchanged; no migration is needed.
+See [equalizer.md](../equalizer.md#editing-workspace).

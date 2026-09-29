@@ -127,6 +127,12 @@
   "desktopShortcutsRefreshLibraryDescription": "Sync new changes to the library",
   "desktopShortcutsForceRescanTitle": "Force Full Rescan",
   "desktopShortcutsForceRescanDescription": "Force a complete rescan of all library files",
+  "desktopShortcutsSpeedUpTitle": "Increase Playback Speed",
+  "desktopShortcutsSpeedUpDescription": "Speed up playback by 0.10×",
+  "desktopShortcutsSpeedDownTitle": "Decrease Playback Speed",
+  "desktopShortcutsSpeedDownDescription": "Slow down playback by 0.10×",
+  "desktopShortcutsSpeedResetTitle": "Reset Playback Speed",
+  "desktopShortcutsSpeedResetDescription": "Return playback to 1.00× speed",
   "desktopShortcutsSpace": "Space",
   "desktopShortcutsPreviousBindingMac": "← or Option+,",
   "desktopShortcutsPreviousBinding": "← or Alt+",
@@ -366,16 +372,6 @@
   "playbackSettingsShowRadioPageTitle": "Show Radio Page",
   "playbackSettingsShowRadioPageSubtitle": "Display the Radio tab in bottom navigation.",
   "playbackSettingsAndroidDspSectionTitle": "Android Audio Effects",
-  "playbackSettingsEqualizerTitle": "Enable Equalizer",
-  "playbackSettingsEqualizerSubtitle": "Adjust frequency bands for Android playback.",
-  "playbackSettingsEqualizerBandLabel": "Band {index}",
-  "@playbackSettingsEqualizerBandLabel": {
-    "placeholders": {
-      "index": {
-        "type": "int"
-      }
-    }
-  },
   "playbackSettingsLoudnessTitle": "Enable Loudness Enhancer",
   "playbackSettingsLoudnessSubtitle": "Apply target gain in dB on Android playback.",
   "playbackSettingsSaveAction": "Save",
@@ -428,7 +424,6 @@
   "playbackSettingsCloseAction": "Close",
   "playbackSettingsFullscreenLyricsTitle": "Fullscreen Mode Lyrics",
   "playbackSettingsFullscreenLyricsSubtitle": "Open lyrics in fullscreen directly from Now Playing.",
-  "playbackSettingsPlaybackSpeedSubtitle": "Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.",
   "playbackSettingsAlbumQueueTitle": "Album Queue",
   "playbackSettingsAlbumQueueSubtitle": "Tapping a track in an album queues the entire album and starts playback at that track.",
   "playbackSettingsExperimentalTitle": "Experimental",
@@ -1725,5 +1720,318 @@
   "@unavailableReviewRefSongs": { "placeholders": { "count": { "type": "int" } } },
   "unavailableReviewRefNone": "No local references to carry over.",
   "unavailableReviewEntry": "Unavailable items",
-  "unavailableReviewEntryWithCount": "Unavailable items ({count})"
+  "unavailableReviewEntryWithCount": "Unavailable items ({count})",
+
+  "appearanceArtworkSizeLabel": "Artwork size",
+  "appearanceArtworkSizeSub": "Controls artwork size in album and artist grids. Columns adjust to the available space.",
+  "appearanceArtworkSizeSmall": "Small",
+  "appearanceArtworkSizeMedium": "Medium",
+  "appearanceArtworkSizeLarge": "Large",
+  "appearanceRecommendationsAutoAdvance": "Automatically advance recommendations",
+  "appearanceRecommendationsAutoAdvanceSub": "Move through You Might Like automatically. You can always swipe manually.",
+  "contentShelfPrevious": "Previous items",
+  "contentShelfNext": "Next items",
+  "trackColumnTitle": "Title",
+  "trackColumnNumber": "#",
+  "trackColumnNumberDescription": "Track number",
+  "trackColumnArtist": "Artist",
+  "trackColumnAlbum": "Album",
+  "trackColumnDuration": "Time",
+  "playbackSpeedPitchTitle": "Speed & Pitch",
+  "playbackPitchLabel": "Pitch",
+  "playbackPresetLabel": "Preset",
+  "playbackPresetNone": "Normal",
+  "playbackPresetCustom": "Custom",
+  "playbackPresetSaveNew": "Save as new",
+  "playbackPresetUpdate": "Update preset",
+  "playbackPresetManage": "Manage presets",
+  "playbackPresetName": "Preset name",
+  "playbackPresetRename": "Rename",
+  "playbackPresetDelete": "Delete",
+  "playbackPresetNameInvalid": "Choose a unique name. Normal is reserved.",
+  "playbackPitchUnavailable": "Pitch control is unavailable on this audio backend.",
+  "playbackAdjustmentUnsupported": "This adjustment is outside the audio backend’s supported range.",
+  "playbackAdjustmentApplyFailure": "Could not apply the adjustment. The previous values have been restored.",
+  "playbackAdjustmentSaveFailure": "Could not save your changes. Retry to keep them after restart.",
+  "playbackAdjustmentLoadFailure": "Could not load playback adjustments.",
+  "playbackAdjustmentRetry": "Retry",
+  "playbackAdjustmentResetBoth": "Reset speed & pitch",
+  "playbackAdjustmentCancel": "Cancel",
+  "playbackAdjustmentApply": "Apply",
+  "playbackAdjustmentSave": "Save",
+  "playbackPitchSemitonesValue": "{value} semitones",
+  "@playbackPitchSemitonesValue": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "playbackAdjustmentReset": "Reset",
+  "playbackAdjustmentInvalidNumber": "Enter a finite decimal number.",
+  "playbackSpeedMultiplierValue": "{value}×",
+  "@playbackSpeedMultiplierValue": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "playbackPitchLock": "Pitch follows speed",
+  "playbackPitchLockSubtitle": "Faster sounds higher, like a record player.",
+  "playbackPitchFollowsSpeed": "Follows playback speed",
+  "playbackPitchLockUnsupportedRange": "Pitch cannot follow this speed on this audio backend. Choose a speed within the supported linked range.",
+  "playbackAdjustmentPrecision": "Enter a number with no more than two decimal places.",
+  "playbackPresetUnsupported": "Unavailable on this audio backend",
+  "playbackAdjustmentRange": "Available range: {minimum} to {maximum}",
+  "@playbackAdjustmentRange": {
+    "placeholders": {
+      "minimum": {"type": "String"},
+      "maximum": {"type": "String"}
+    }
+  },
+  "playbackAdjustmentMinimum": "Minimum: {value}",
+  "@playbackAdjustmentMinimum": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "playbackAdjustmentMaximum": "Maximum: {value}",
+  "@playbackAdjustmentMaximum": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "playbackSpeedMinimumReached": "Minimum supported speed reached",
+  "playbackSpeedMaximumReached": "Maximum supported speed reached",
+  "playbackPitchMinimumReached": "Minimum supported pitch reached",
+  "playbackPitchMaximumReached": "Maximum supported pitch reached",
+  "playbackAdjustmentIncreaseBy": "Increase by {step}",
+  "@playbackAdjustmentIncreaseBy": {
+    "placeholders": {
+      "step": {"type": "String"}
+    }
+  },
+  "playbackAdjustmentDecreaseBy": "Decrease by {step}",
+  "@playbackAdjustmentDecreaseBy": {
+    "placeholders": {
+      "step": {"type": "String"}
+    }
+  },
+  "playbackQuickAdjustmentsTooltip": "Speed & Pitch: {summary}",
+  "@playbackQuickAdjustmentsTooltip": {
+    "placeholders": {
+      "summary": {"type": "String"}
+    }
+  },
+  "playbackQuickEqualizerTooltip": "Equalizer: {preset}",
+  "@playbackQuickEqualizerTooltip": {
+    "placeholders": {
+      "preset": {"type": "String"}
+    }
+  },
+  "playbackQuickEqualizerOff": "Equalizer: Off",
+  "playbackSpeedChangedNotice": "Playback speed {value}",
+  "@playbackSpeedChangedNotice": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "desktopMiniPlayerSpeedPitchAction": "Speed & Pitch…",
+  "eqQuickOpen": "Open Equalizer",
+  "eqQuickClose": "Close Equalizer",
+  "eqQuickEditHint": "Open Equalizer to edit",
+  "nowPlayingSoundSection": "Sound",
+  "eqTitle": "Equalizer",
+  "eqSubtitle": "Shape your sound and save headphone profiles",
+  "eqUnavailable": "Equalizer is unavailable with this audio engine.",
+  "eqEnable": "Enable equalizer",
+  "eqCustom": "Custom",
+  "eqSimple": "Simple · 5 bands",
+  "eqTenBand": "10 bands",
+  "eqAdvanced": "Advanced",
+  "eqImportedFixed": "Imported fixed bands",
+  "eqMode": "Editing mode",
+  "eqPresets": "Presets",
+  "eqBuiltIn": "Built in",
+  "eqSaveAs": "Save as new",
+  "eqUpdate": "Update preset",
+  "eqRename": "Rename",
+  "eqDuplicate": "Duplicate",
+  "eqDelete": "Delete",
+  "eqExport": "Export",
+  "eqImport": "Import",
+  "eqImportFile": "From file",
+  "eqImportPaste": "Paste settings",
+  "eqAutoEq": "Find headphones in AutoEQ",
+  "eqName": "Preset name",
+  "eqSave": "Save",
+  "eqSaveEnable": "Save and enable",
+  "eqCancel": "Cancel",
+  "eqUndo": "Undo",
+  "eqRedo": "Redo",
+  "eqReset": "Reset to flat",
+  "eqResetBand": "Reset band",
+  "eqPreamp": "Preamp",
+  "eqAutoHeadroom": "Automatic headroom",
+  "eqAutoHeadroomDescription": "Reduce gain when the combined curve would exceed 0 dB. The authored preamp stays unchanged.",
+  "eqClippingRisk": "Positive gain may clip. Lower preamp or enable automatic headroom.",
+  "eqResponse": "Configured frequency response",
+  "eqResponseDescription": "The curve includes preamp and headroom. It is not a measured headphone response.",
+  "eqApplied": "Applied",
+  "eqBypassed": "Bypassed",
+  "eqPending": "Waiting for audio",
+  "eqApplying": "Applying…",
+  "eqLegacyReset": "The experimental equalizer and loudness booster have been replaced. Equalizer starts disabled with a flat curve; please create or import your new profiles.",
+  "eqDismiss": "Dismiss",
+  "eqAddFilter": "Add filter",
+  "eqEditFilter": "Edit filter",
+  "eqFrequency": "Frequency",
+  "eqGain": "Gain",
+  "eqQ": "Q",
+  "eqType": "Filter type",
+  "eqPeaking": "Peaking",
+  "eqLowShelf": "Low shelf",
+  "eqHighShelf": "High shelf",
+  "eqLowPass": "Low pass",
+  "eqHighPass": "High pass",
+  "eqNotch": "Notch",
+  "eqRemoveFilter": "Remove filter",
+  "eqFilterEnabled": "Filter enabled",
+  "eqNoFilters": "No filters. Add one to shape the curve.",
+  "eqModeChangeTitle": "Start a new flat curve?",
+  "eqModeChangeDescription": "Changing to a fixed-band mode starts a new Custom draft. Saved presets stay in your library. Undo restores the previous curve.",
+  "eqContinue": "Continue",
+  "eqImportText": "AutoEQ ParametricEQ / FixedBandEQ text, or Navis preset JSON",
+  "eqFixedImport": "This is a FixedBandEQ profile",
+  "eqImportPreview": "Preview preset",
+  "eqPreviewDescription": "Review before saving. Importing does not change playback until you choose Save and enable.",
+  "eqSource": "Source",
+  "eqTarget": "Target",
+  "eqOriginalSource": "Original source settings are retained with this preset. Your edits do not change its source attribution.",
+  "eqSearch": "Search headphones",
+  "eqRecommendedOnly": "Recommended results only",
+  "eqRefreshCatalogue": "Refresh catalogue",
+  "eqCatalogueOffline": "Search is available offline. Downloading a new profile requires a connection. Saved presets always work offline.",
+  "eqAttribution": "AutoEQ by Jaakko Pasanen and contributors · MIT licence",
+  "eqNoResults": "No matching headphones. Try the full index or import a profile.",
+  "eqDownloadError": "Could not download this profile. Check your connection and try again.",
+  "eqRefreshError": "Could not refresh. The existing catalogue is still available.",
+  "eqImportError": "Could not read the preset file.",
+  "eqExportError": "Could not export the preset.",
+  "eqPresetDeleted": "Preset deleted. The current sound is preserved as Custom.",
+  "eqNameInvalid": "Enter a name of 1–120 characters.",
+  "eqNumberInvalid": "Enter a finite number in the supported range.",
+  "eqApplyFailure": "EQ could not be applied. Your saved settings are retained.",
+  "eqHeadroom": "Additional headroom: {value} dB",
+  "@eqHeadroom": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "eqSampleRate": "Audio: {value} Hz",
+  "@eqSampleRate": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "eqFilterCount": "{count} filters",
+  "@eqFilterCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "eqCatalogueRevision": "Catalogue revision: {revision}",
+  "@eqCatalogueRevision": {
+    "placeholders": {
+      "revision": {"type": "String"}
+    }
+  },
+  "eqRange": "Supported range: {min} to {max}",
+  "@eqRange": {
+    "placeholders": {
+      "min": {"type": "String"},
+      "max": {"type": "String"}
+    }
+  },
+  "eqDraftSaved": "Draft saved on this device",
+  "eqDraftSaving": "Saving draft…",
+  "eqSaveChanges": "Save changes",
+  "eqDiscardChanges": "Discard changes",
+  "eqDiscardDescription": "Discard all mode drafts for this preset and restore its saved settings?",
+  "eqDiscardDelete": "Discard and delete",
+  "eqDeleteDraftDescription": "This preset has drafts. Save them as a new preset or discard them before deleting.",
+  "eqApply": "Apply",
+  "eqEditBand": "Edit band",
+  "eqEditAdvanced": "Edit in Advanced",
+  "eqFixedBand": "Fixed frequency and Q",
+  "eqBand": "Band {number}",
+  "@eqBand": {
+    "placeholders": {
+      "number": {"type": "int"}
+    }
+  },
+  "eqDraftNotSaved": "Draft could not be saved",
+  "artistPlaybackPreparing": "Loading artist queue",
+  "artistPlaybackProgress": "Loaded {completed} of {total} albums",
+  "@artistPlaybackProgress": {
+    "placeholders": {
+      "completed": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "queueTrackUnavailable": "Unavailable · skipped automatically",
+  "eqChooseBand": "Select band",
+  "eqFilterResponse": "Filter response",
+  "eqFitResponse": "Fit response",
+  "eqOutputResponse": "Output response",
+  "eqWider": "Wider",
+  "eqNarrower": "Narrower",
+  "eqCalculatingOutput": "Calculating output response…",
+  "eqAttenuation": "Automatic attenuation",
+  "eqEffectiveOutput": "Effective output gain",
+  "eqOutputSettings": "Output settings",
+  "eqNumericPreview": "Live preview. Choose Done to keep this value or Cancel to restore it.",
+  "eqNotApplicable": "Not applicable",
+  "eqFixed": "Fixed",
+  "eqBandEnabled": "Band enabled",
+  "eqNoBands": "Add a band to start shaping your sound.",
+  "eqAddBand": "Add band",
+  "eqDeleteBand": "Delete band",
+  "eqGraphDescription": "Drag a band on the graph, or tap a value to enter it exactly. The graph is a calculated filter response, not a measurement of your headphones.",
+  "eqDone": "Done",
+  "eqAdvancedDraftExists": "This preset already has an Advanced draft. Resume it or create a new preset from the current curve to keep both.",
+  "eqResumeAdvanced": "Resume Advanced draft",
+  "eqCreateCurvePreset": "Create a new preset from this curve",
+  "eqPreampDrag": "Drag up or down to adjust preamp, or tap to enter a value",
+  "eqIncrease": "Increase value",
+  "eqDecrease": "Decrease value",
+  "eqBandOff": "Band off",
+  "eqSimpleShort": "Simple",
+  "eqTenBandShort": "10-band",
+  "eqImportedShort": "Imported",
+  "eqEnterExact": "Tap to enter an exact value",
+  "eqFixedInMode": "Fixed in this mode. Use Edit in Advanced to change it.",
+  "eqBandwidth": "Bandwidth",
+  "eqBands": "Bands",
+  "eqDiscard": "Discard",
+  "eqYourPresets": "Your presets",
+  "eqBuiltInPresets": "Built in",
+  "eqUnsavedWork": "Unsaved work",
+  "eqAutoEqHint": "Search measured headphone corrections. Works offline.",
+  "eqRecommended": "Recommended",
+  "eqResultCount": "{count, plural, =1{1 result} other{{count} results}}",
+  "@eqResultCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "eqAuthoredPreamp": "Preamp you set",
+  "eqOutputExplanation": "Output gain combines your preamp with any automatic attenuation. The band curve on the graph does not include it.",
+  "eqFilterOn": "On",
+  "eqFilterOffShort": "Off",
+  "eqEditingValue": "{band} · {parameter}",
+  "@eqEditingValue": {
+    "placeholders": {
+      "band": {"type": "String"},
+      "parameter": {"type": "String"}
+    }
+  },
+  "eqCloseLibrary": "Close presets"
 }

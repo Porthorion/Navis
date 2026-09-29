@@ -410,6 +410,26 @@ class AppLocalizationsEn extends AppLocalizations {
       'Force a complete rescan of all library files';
 
   @override
+  String get desktopShortcutsSpeedUpTitle => 'Increase Playback Speed';
+
+  @override
+  String get desktopShortcutsSpeedUpDescription => 'Speed up playback by 0.10×';
+
+  @override
+  String get desktopShortcutsSpeedDownTitle => 'Decrease Playback Speed';
+
+  @override
+  String get desktopShortcutsSpeedDownDescription =>
+      'Slow down playback by 0.10×';
+
+  @override
+  String get desktopShortcutsSpeedResetTitle => 'Reset Playback Speed';
+
+  @override
+  String get desktopShortcutsSpeedResetDescription =>
+      'Return playback to 1.00× speed';
+
+  @override
   String get desktopShortcutsSpace => 'Space';
 
   @override
@@ -883,18 +903,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsAndroidDspSectionTitle => 'Android Audio Effects';
 
   @override
-  String get playbackSettingsEqualizerTitle => 'Enable Equalizer';
-
-  @override
-  String get playbackSettingsEqualizerSubtitle =>
-      'Adjust frequency bands for Android playback.';
-
-  @override
-  String playbackSettingsEqualizerBandLabel(int index) {
-    return 'Band $index';
-  }
-
-  @override
   String get playbackSettingsLoudnessTitle => 'Enable Loudness Enhancer';
 
   @override
@@ -1025,10 +1033,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get playbackSettingsFullscreenLyricsSubtitle =>
       'Open lyrics in fullscreen directly from Now Playing.';
-
-  @override
-  String get playbackSettingsPlaybackSpeedSubtitle =>
-      'Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.';
 
   @override
   String get playbackSettingsAlbumQueueTitle => 'Album Queue';
@@ -3950,4 +3954,725 @@ class AppLocalizationsEn extends AppLocalizations {
   String unavailableReviewEntryWithCount(Object count) {
     return 'Unavailable items ($count)';
   }
+
+  @override
+  String get appearanceArtworkSizeLabel => 'Artwork size';
+
+  @override
+  String get appearanceArtworkSizeSub =>
+      'Controls artwork size in album and artist grids. Columns adjust to the available space.';
+
+  @override
+  String get appearanceArtworkSizeSmall => 'Small';
+
+  @override
+  String get appearanceArtworkSizeMedium => 'Medium';
+
+  @override
+  String get appearanceArtworkSizeLarge => 'Large';
+
+  @override
+  String get appearanceRecommendationsAutoAdvance =>
+      'Automatically advance recommendations';
+
+  @override
+  String get appearanceRecommendationsAutoAdvanceSub =>
+      'Move through You Might Like automatically. You can always swipe manually.';
+
+  @override
+  String get contentShelfPrevious => 'Previous items';
+
+  @override
+  String get contentShelfNext => 'Next items';
+
+  @override
+  String get trackColumnTitle => 'Title';
+
+  @override
+  String get trackColumnNumber => '#';
+
+  @override
+  String get trackColumnNumberDescription => 'Track number';
+
+  @override
+  String get trackColumnArtist => 'Artist';
+
+  @override
+  String get trackColumnAlbum => 'Album';
+
+  @override
+  String get trackColumnDuration => 'Time';
+
+  @override
+  String get playbackSpeedPitchTitle => 'Speed & Pitch';
+
+  @override
+  String get playbackPitchLabel => 'Pitch';
+
+  @override
+  String get playbackPresetLabel => 'Preset';
+
+  @override
+  String get playbackPresetNone => 'Normal';
+
+  @override
+  String get playbackPresetCustom => 'Custom';
+
+  @override
+  String get playbackPresetSaveNew => 'Save as new';
+
+  @override
+  String get playbackPresetUpdate => 'Update preset';
+
+  @override
+  String get playbackPresetManage => 'Manage presets';
+
+  @override
+  String get playbackPresetName => 'Preset name';
+
+  @override
+  String get playbackPresetRename => 'Rename';
+
+  @override
+  String get playbackPresetDelete => 'Delete';
+
+  @override
+  String get playbackPresetNameInvalid =>
+      'Choose a unique name. Normal is reserved.';
+
+  @override
+  String get playbackPitchUnavailable =>
+      'Pitch control is unavailable on this audio backend.';
+
+  @override
+  String get playbackAdjustmentUnsupported =>
+      'This adjustment is outside the audio backend’s supported range.';
+
+  @override
+  String get playbackAdjustmentApplyFailure =>
+      'Could not apply the adjustment. The previous values have been restored.';
+
+  @override
+  String get playbackAdjustmentSaveFailure =>
+      'Could not save your changes. Retry to keep them after restart.';
+
+  @override
+  String get playbackAdjustmentLoadFailure =>
+      'Could not load playback adjustments.';
+
+  @override
+  String get playbackAdjustmentRetry => 'Retry';
+
+  @override
+  String get playbackAdjustmentResetBoth => 'Reset speed & pitch';
+
+  @override
+  String get playbackAdjustmentCancel => 'Cancel';
+
+  @override
+  String get playbackAdjustmentApply => 'Apply';
+
+  @override
+  String get playbackAdjustmentSave => 'Save';
+
+  @override
+  String playbackPitchSemitonesValue(String value) {
+    return '$value semitones';
+  }
+
+  @override
+  String get playbackAdjustmentReset => 'Reset';
+
+  @override
+  String get playbackAdjustmentInvalidNumber =>
+      'Enter a finite decimal number.';
+
+  @override
+  String playbackSpeedMultiplierValue(String value) {
+    return '$value×';
+  }
+
+  @override
+  String get playbackPitchLock => 'Pitch follows speed';
+
+  @override
+  String get playbackPitchLockSubtitle =>
+      'Faster sounds higher, like a record player.';
+
+  @override
+  String get playbackPitchFollowsSpeed => 'Follows playback speed';
+
+  @override
+  String get playbackPitchLockUnsupportedRange =>
+      'Pitch cannot follow this speed on this audio backend. Choose a speed within the supported linked range.';
+
+  @override
+  String get playbackAdjustmentPrecision =>
+      'Enter a number with no more than two decimal places.';
+
+  @override
+  String get playbackPresetUnsupported => 'Unavailable on this audio backend';
+
+  @override
+  String playbackAdjustmentRange(String minimum, String maximum) {
+    return 'Available range: $minimum to $maximum';
+  }
+
+  @override
+  String playbackAdjustmentMinimum(String value) {
+    return 'Minimum: $value';
+  }
+
+  @override
+  String playbackAdjustmentMaximum(String value) {
+    return 'Maximum: $value';
+  }
+
+  @override
+  String get playbackSpeedMinimumReached => 'Minimum supported speed reached';
+
+  @override
+  String get playbackSpeedMaximumReached => 'Maximum supported speed reached';
+
+  @override
+  String get playbackPitchMinimumReached => 'Minimum supported pitch reached';
+
+  @override
+  String get playbackPitchMaximumReached => 'Maximum supported pitch reached';
+
+  @override
+  String playbackAdjustmentIncreaseBy(String step) {
+    return 'Increase by $step';
+  }
+
+  @override
+  String playbackAdjustmentDecreaseBy(String step) {
+    return 'Decrease by $step';
+  }
+
+  @override
+  String playbackQuickAdjustmentsTooltip(String summary) {
+    return 'Speed & Pitch: $summary';
+  }
+
+  @override
+  String playbackQuickEqualizerTooltip(String preset) {
+    return 'Equalizer: $preset';
+  }
+
+  @override
+  String get playbackQuickEqualizerOff => 'Equalizer: Off';
+
+  @override
+  String playbackSpeedChangedNotice(String value) {
+    return 'Playback speed $value';
+  }
+
+  @override
+  String get desktopMiniPlayerSpeedPitchAction => 'Speed & Pitch…';
+
+  @override
+  String get eqQuickOpen => 'Open Equalizer';
+
+  @override
+  String get eqQuickClose => 'Close Equalizer';
+
+  @override
+  String get eqQuickEditHint => 'Open Equalizer to edit';
+
+  @override
+  String get nowPlayingSoundSection => 'Sound';
+
+  @override
+  String get eqTitle => 'Equalizer';
+
+  @override
+  String get eqSubtitle => 'Shape your sound and save headphone profiles';
+
+  @override
+  String get eqUnavailable =>
+      'Equalizer is unavailable with this audio engine.';
+
+  @override
+  String get eqEnable => 'Enable equalizer';
+
+  @override
+  String get eqCustom => 'Custom';
+
+  @override
+  String get eqSimple => 'Simple · 5 bands';
+
+  @override
+  String get eqTenBand => '10 bands';
+
+  @override
+  String get eqAdvanced => 'Advanced';
+
+  @override
+  String get eqImportedFixed => 'Imported fixed bands';
+
+  @override
+  String get eqMode => 'Editing mode';
+
+  @override
+  String get eqPresets => 'Presets';
+
+  @override
+  String get eqBuiltIn => 'Built in';
+
+  @override
+  String get eqSaveAs => 'Save as new';
+
+  @override
+  String get eqUpdate => 'Update preset';
+
+  @override
+  String get eqRename => 'Rename';
+
+  @override
+  String get eqDuplicate => 'Duplicate';
+
+  @override
+  String get eqDelete => 'Delete';
+
+  @override
+  String get eqExport => 'Export';
+
+  @override
+  String get eqImport => 'Import';
+
+  @override
+  String get eqImportFile => 'From file';
+
+  @override
+  String get eqImportPaste => 'Paste settings';
+
+  @override
+  String get eqAutoEq => 'Find headphones in AutoEQ';
+
+  @override
+  String get eqName => 'Preset name';
+
+  @override
+  String get eqSave => 'Save';
+
+  @override
+  String get eqSaveEnable => 'Save and enable';
+
+  @override
+  String get eqCancel => 'Cancel';
+
+  @override
+  String get eqUndo => 'Undo';
+
+  @override
+  String get eqRedo => 'Redo';
+
+  @override
+  String get eqReset => 'Reset to flat';
+
+  @override
+  String get eqResetBand => 'Reset band';
+
+  @override
+  String get eqPreamp => 'Preamp';
+
+  @override
+  String get eqAutoHeadroom => 'Automatic headroom';
+
+  @override
+  String get eqAutoHeadroomDescription =>
+      'Reduce gain when the combined curve would exceed 0 dB. The authored preamp stays unchanged.';
+
+  @override
+  String get eqClippingRisk =>
+      'Positive gain may clip. Lower preamp or enable automatic headroom.';
+
+  @override
+  String get eqResponse => 'Configured frequency response';
+
+  @override
+  String get eqResponseDescription =>
+      'The curve includes preamp and headroom. It is not a measured headphone response.';
+
+  @override
+  String get eqApplied => 'Applied';
+
+  @override
+  String get eqBypassed => 'Bypassed';
+
+  @override
+  String get eqPending => 'Waiting for audio';
+
+  @override
+  String get eqApplying => 'Applying…';
+
+  @override
+  String get eqLegacyReset =>
+      'The experimental equalizer and loudness booster have been replaced. Equalizer starts disabled with a flat curve; please create or import your new profiles.';
+
+  @override
+  String get eqDismiss => 'Dismiss';
+
+  @override
+  String get eqAddFilter => 'Add filter';
+
+  @override
+  String get eqEditFilter => 'Edit filter';
+
+  @override
+  String get eqFrequency => 'Frequency';
+
+  @override
+  String get eqGain => 'Gain';
+
+  @override
+  String get eqQ => 'Q';
+
+  @override
+  String get eqType => 'Filter type';
+
+  @override
+  String get eqPeaking => 'Peaking';
+
+  @override
+  String get eqLowShelf => 'Low shelf';
+
+  @override
+  String get eqHighShelf => 'High shelf';
+
+  @override
+  String get eqLowPass => 'Low pass';
+
+  @override
+  String get eqHighPass => 'High pass';
+
+  @override
+  String get eqNotch => 'Notch';
+
+  @override
+  String get eqRemoveFilter => 'Remove filter';
+
+  @override
+  String get eqFilterEnabled => 'Filter enabled';
+
+  @override
+  String get eqNoFilters => 'No filters. Add one to shape the curve.';
+
+  @override
+  String get eqModeChangeTitle => 'Start a new flat curve?';
+
+  @override
+  String get eqModeChangeDescription =>
+      'Changing to a fixed-band mode starts a new Custom draft. Saved presets stay in your library. Undo restores the previous curve.';
+
+  @override
+  String get eqContinue => 'Continue';
+
+  @override
+  String get eqImportText =>
+      'AutoEQ ParametricEQ / FixedBandEQ text, or Navis preset JSON';
+
+  @override
+  String get eqFixedImport => 'This is a FixedBandEQ profile';
+
+  @override
+  String get eqImportPreview => 'Preview preset';
+
+  @override
+  String get eqPreviewDescription =>
+      'Review before saving. Importing does not change playback until you choose Save and enable.';
+
+  @override
+  String get eqSource => 'Source';
+
+  @override
+  String get eqTarget => 'Target';
+
+  @override
+  String get eqOriginalSource =>
+      'Original source settings are retained with this preset. Your edits do not change its source attribution.';
+
+  @override
+  String get eqSearch => 'Search headphones';
+
+  @override
+  String get eqRecommendedOnly => 'Recommended results only';
+
+  @override
+  String get eqRefreshCatalogue => 'Refresh catalogue';
+
+  @override
+  String get eqCatalogueOffline =>
+      'Search is available offline. Downloading a new profile requires a connection. Saved presets always work offline.';
+
+  @override
+  String get eqAttribution =>
+      'AutoEQ by Jaakko Pasanen and contributors · MIT licence';
+
+  @override
+  String get eqNoResults =>
+      'No matching headphones. Try the full index or import a profile.';
+
+  @override
+  String get eqDownloadError =>
+      'Could not download this profile. Check your connection and try again.';
+
+  @override
+  String get eqRefreshError =>
+      'Could not refresh. The existing catalogue is still available.';
+
+  @override
+  String get eqImportError => 'Could not read the preset file.';
+
+  @override
+  String get eqExportError => 'Could not export the preset.';
+
+  @override
+  String get eqPresetDeleted =>
+      'Preset deleted. The current sound is preserved as Custom.';
+
+  @override
+  String get eqNameInvalid => 'Enter a name of 1–120 characters.';
+
+  @override
+  String get eqNumberInvalid => 'Enter a finite number in the supported range.';
+
+  @override
+  String get eqApplyFailure =>
+      'EQ could not be applied. Your saved settings are retained.';
+
+  @override
+  String eqHeadroom(String value) {
+    return 'Additional headroom: $value dB';
+  }
+
+  @override
+  String eqSampleRate(String value) {
+    return 'Audio: $value Hz';
+  }
+
+  @override
+  String eqFilterCount(int count) {
+    return '$count filters';
+  }
+
+  @override
+  String eqCatalogueRevision(String revision) {
+    return 'Catalogue revision: $revision';
+  }
+
+  @override
+  String eqRange(String min, String max) {
+    return 'Supported range: $min to $max';
+  }
+
+  @override
+  String get eqDraftSaved => 'Draft saved on this device';
+
+  @override
+  String get eqDraftSaving => 'Saving draft…';
+
+  @override
+  String get eqSaveChanges => 'Save changes';
+
+  @override
+  String get eqDiscardChanges => 'Discard changes';
+
+  @override
+  String get eqDiscardDescription =>
+      'Discard all mode drafts for this preset and restore its saved settings?';
+
+  @override
+  String get eqDiscardDelete => 'Discard and delete';
+
+  @override
+  String get eqDeleteDraftDescription =>
+      'This preset has drafts. Save them as a new preset or discard them before deleting.';
+
+  @override
+  String get eqApply => 'Apply';
+
+  @override
+  String get eqEditBand => 'Edit band';
+
+  @override
+  String get eqEditAdvanced => 'Edit in Advanced';
+
+  @override
+  String get eqFixedBand => 'Fixed frequency and Q';
+
+  @override
+  String eqBand(int number) {
+    return 'Band $number';
+  }
+
+  @override
+  String get eqDraftNotSaved => 'Draft could not be saved';
+
+  @override
+  String get artistPlaybackPreparing => 'Loading artist queue';
+
+  @override
+  String artistPlaybackProgress(int completed, int total) {
+    return 'Loaded $completed of $total albums';
+  }
+
+  @override
+  String get queueTrackUnavailable => 'Unavailable · skipped automatically';
+
+  @override
+  String get eqChooseBand => 'Select band';
+
+  @override
+  String get eqFilterResponse => 'Filter response';
+
+  @override
+  String get eqFitResponse => 'Fit response';
+
+  @override
+  String get eqOutputResponse => 'Output response';
+
+  @override
+  String get eqWider => 'Wider';
+
+  @override
+  String get eqNarrower => 'Narrower';
+
+  @override
+  String get eqCalculatingOutput => 'Calculating output response…';
+
+  @override
+  String get eqAttenuation => 'Automatic attenuation';
+
+  @override
+  String get eqEffectiveOutput => 'Effective output gain';
+
+  @override
+  String get eqOutputSettings => 'Output settings';
+
+  @override
+  String get eqNumericPreview =>
+      'Live preview. Choose Done to keep this value or Cancel to restore it.';
+
+  @override
+  String get eqNotApplicable => 'Not applicable';
+
+  @override
+  String get eqFixed => 'Fixed';
+
+  @override
+  String get eqBandEnabled => 'Band enabled';
+
+  @override
+  String get eqNoBands => 'Add a band to start shaping your sound.';
+
+  @override
+  String get eqAddBand => 'Add band';
+
+  @override
+  String get eqDeleteBand => 'Delete band';
+
+  @override
+  String get eqGraphDescription =>
+      'Drag a band on the graph, or tap a value to enter it exactly. The graph is a calculated filter response, not a measurement of your headphones.';
+
+  @override
+  String get eqDone => 'Done';
+
+  @override
+  String get eqAdvancedDraftExists =>
+      'This preset already has an Advanced draft. Resume it or create a new preset from the current curve to keep both.';
+
+  @override
+  String get eqResumeAdvanced => 'Resume Advanced draft';
+
+  @override
+  String get eqCreateCurvePreset => 'Create a new preset from this curve';
+
+  @override
+  String get eqPreampDrag =>
+      'Drag up or down to adjust preamp, or tap to enter a value';
+
+  @override
+  String get eqIncrease => 'Increase value';
+
+  @override
+  String get eqDecrease => 'Decrease value';
+
+  @override
+  String get eqBandOff => 'Band off';
+
+  @override
+  String get eqSimpleShort => 'Simple';
+
+  @override
+  String get eqTenBandShort => '10-band';
+
+  @override
+  String get eqImportedShort => 'Imported';
+
+  @override
+  String get eqEnterExact => 'Tap to enter an exact value';
+
+  @override
+  String get eqFixedInMode =>
+      'Fixed in this mode. Use Edit in Advanced to change it.';
+
+  @override
+  String get eqBandwidth => 'Bandwidth';
+
+  @override
+  String get eqBands => 'Bands';
+
+  @override
+  String get eqDiscard => 'Discard';
+
+  @override
+  String get eqYourPresets => 'Your presets';
+
+  @override
+  String get eqBuiltInPresets => 'Built in';
+
+  @override
+  String get eqUnsavedWork => 'Unsaved work';
+
+  @override
+  String get eqAutoEqHint =>
+      'Search measured headphone corrections. Works offline.';
+
+  @override
+  String get eqRecommended => 'Recommended';
+
+  @override
+  String eqResultCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count results',
+      one: '1 result',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get eqAuthoredPreamp => 'Preamp you set';
+
+  @override
+  String get eqOutputExplanation =>
+      'Output gain combines your preamp with any automatic attenuation. The band curve on the graph does not include it.';
+
+  @override
+  String get eqFilterOn => 'On';
+
+  @override
+  String get eqFilterOffShort => 'Off';
+
+  @override
+  String eqEditingValue(String band, String parameter) {
+    return '$band · $parameter';
+  }
+
+  @override
+  String get eqCloseLibrary => 'Close presets';
 }

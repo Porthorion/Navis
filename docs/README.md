@@ -11,6 +11,7 @@ product contracts.
 |---|---|
 | Project overview, support, quick start | [../README.md](../README.md) |
 | Agent workflow and documentation rules | [agentic-engineering.md](agentic-engineering.md) and [../AGENTS.md](../AGENTS.md) |
+| Equalizer, AutoEQ, presets, DSP, and platform limits | [equalizer.md](equalizer.md) |
 | Architecture, providers, data flows, routing, platform integration | [architecture.md](architecture.md) |
 | Bootstrap, local validation, diagnostics API, runtime evidence | [development-workflow.md](development-workflow.md) |
 | Dependency audits, upgrade batches, replacement decisions, and regression gates | [dependency-upgrades.md](dependency-upgrades.md) |
@@ -33,6 +34,38 @@ release guides, and platform readiness documents describe maintained
 workflows or explicit current gaps.
 
 ### Plans, audits, and evidence
+
+[Production EQ plan](../EQ_System_Plan.md) records the accepted replacement
+for experimental EQ, native processing, presets, AutoEQ, and validation.
+Implementation and validation are in progress; the plan is not a current
+capability claim.
+
+[Speed, pitch and presets](completed-plans/Playback_Speed_Pitch_Presets_Plan.md) records the
+accepted controls, persistence, platform boundaries and implementation evidence.
+
+[Responsive Layout Overhaul Plan](completed-plans/Responsive_Layout_Overhaul_Plan.md)
+records the completed Android/desktop layout overhaul, accepted decisions,
+ordered implementation packages, final validation evidence and external
+platform coverage limits. Automotive integration remains separate.
+
+[Responsive layout polish](completed-plans/Responsive_Layout_Polish_Plan.md) records the completed
+follow-up desktop album fade, Liked Albums Next tooltip and numeric column
+headings, with separate acceptance evidence.
+
+[Mobile track-layout repair](audits/mobile-track-layout-repair-2026-09-28.md)
+records the compact-row regression, its shared correction, caller audit,
+geometry coverage, and separate Android/Linux runtime evidence.
+
+[Polestar 4 automotive investigation](audits/polestar-4-automotive-investigation-2026-09-28.md)
+preserves the direct-install driving lockout report, Android Auto/AAOS findings,
+user preferences, and open questions. Automotive work is deferred separately
+from ordinary responsive-layout work; this is not an implementation plan or a
+claim of native AAOS support.
+
+[Dependency Upgrade Plan](../Dependency_Upgrade_Plan.md) records the
+2026-09-27 dependency inventory, compatible targets, major migrations,
+intentional holds, and execution/validation gates. Its checkboxes describe
+planned work, not completed upgrades.
 
 [Sync Improvement Plan — 1.4.0](../Sync_Improvement_Plan_1-4-0.md) records the
 2026-09-19 sync audit, tested defects, live-server measurements, and phased

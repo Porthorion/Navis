@@ -348,7 +348,9 @@ and Android profile builds:
    permission command before starting the request loop. On Android, the host
    receives the handshake from the app-owned native bridge in
    `getExternalFilesDir()/navis-diagnostics`; raw Dart I/O cannot create the
-   scoped-storage path. The bridge validates the bounded record and replaces
+   scoped-storage path. Clone Android bootstrap now asks that existing native
+   bridge to prepare the scoped directory before Drift opens, and checks the
+   sidecar identity first. The bridge validates the bounded record and replaces
    it before the loopback server begins serving.
    The headless background-sync callback is also retained as a
    `@pragma('vm:entry-point')` root-library forwarder in `main.dart`: Android's
@@ -511,12 +513,16 @@ Contexts:
 - `now_playing` - Now playing screen
 - `mini_player` - Mini player
 
-For album-detail navigation, the entry surface passes its already-rendered tag
-to `NavService.openAlbumDetail(..., heroTag: tag)`. The router forwards that
-tag to `AlbumDetailScreen`, which uses it verbatim so Home, Library, Search,
-Artist, and Genre entry surfaces pair with the destination Hero. Deep links,
-context menus, and other entries without visible source art omit the tag and
-use the route-only fallback. `HeroCoverArt` preserves the source image's cache
+Desktop and ordinary mobile album-detail navigation use the composed-page
+180 ms `MotionPolicy.surface` fade in both directions; reduced motion is
+immediate. Desktop requests omit the opening artwork tag, and the album route
+enforces that policy for direct, replacement and legacy payloads too. Desktop
+detail artwork uses the `album_detail` context so its fallback cannot match
+the Library card's `album` tag, while the detail-to-artwork-viewer Hero remains
+available. Compact mobile landscape retains its existing shared-artwork flight:
+the entry passes its rendered tag to `NavService.openAlbumDetail(...,
+heroTag: tag)` and the destination uses it verbatim. `HeroCoverArt` preserves
+the source image's cache
 size and clipping shape for both push and pop; destination-specific shuttles
 and additional album-route travel must not replace that shared flight.
 
@@ -646,6 +652,15 @@ below. Contextually invalid actions keep their slots and expose localized
 disabled semantics rather than changing player geometry. There is no separate
 `/now-playing` route.
 
+Favorite, Lyrics, Queue, and Mini Player use the shared `NavisTooltip` hover
+overlay, also used by Remote indicators. Their accessible label, enabled state,
+and tap action stay on the stable target node. The pointer-transparent bubble
+is a visual-only `OverlayEntry`: Material tooltips use `OverlayPortal`, which
+can leave stale accessibility children when shown below excluded semantics
+on Flutter 3.47.1. Removing or hiding the target removes and disposes its entry;
+desktop action tooltips also retain long-press display. Other Material tooltips
+remain outside excluded semantics subtrees.
+
 ### Navigation Intent
 
 Feature code should call `NavService` from `lib/src/routing/navigation_service.dart` instead
@@ -727,6 +742,78 @@ The policy is resolved from `AdaptiveContext` by `AdaptiveShell` and propagated 
 `AdaptiveInputPolicyScope`. This allows feature screens to adapt their affordances
 independently of layout decisions.
 
+### Collection pane geometry
+
+`routing/content_layout.dart` owns pure geometry for bounded album/artist grids,
+preview capacity, track-row modes, and station cards. Geometry takes the usable
+content pane after navigation and padding; shell classification remains owned
+by `AdaptiveContext`. Album and artist grids have no column ceiling: wider
+panes add cards while minimum and maximum extents bound their size. Spare width
+centers the grid, while sparse final rows retain leading alignment.
+`ResponsiveContentSliverGrid` builds collection cells lazily and reserves
+measured two-line artist labels at the current text scale.
+
+Schema 81 adds `grid_artwork_size` (`auto`, `small`, `medium`, `large`) and
+`home_recommendations_auto_advance` (default false). Migration translates the
+legacy `album_grid_density` once: null/invalid → Auto, 1/2 → Large, 3 → Medium,
+4/5 → Small. The legacy column remains for compatibility; current collection
+grids use artwork size. Auto and Medium share the recommended geometry.
+Settings remain installation-local. Targeted updates and full settings drafts
+must preserve both new fields.
+
+Home's recent-liked source watches the complete existing recent order; preview
+callers filter downloaded content before deriving two screenfuls from pane
+capacity. Liked uses one artist shelf and one album shelf before songs, and
+keeps Play/Shuffle beside the song section even when only album tracks are
+liked. `ContentShelf` preserves its controller on resize and shows pointer
+arrows only when more content lies in that direction. Liked Albums suppresses
+only its Next arrow's visual tooltip through `showNextTooltip: false`; its
+localized accessible name and keyboard/paging behavior remain intact. Other
+Home sampling limits remain unchanged. Album pagination checks the post-layout viewport
+buffer as well as scroll events, including zero scroll extent, and stops on
+loading, errors, incomplete responses, or collection exhaustion.
+
+`AdaptiveTrackRow` and `AdaptiveTrackHeader` share pane/text-scale column
+geometry. Compact rows stack metadata, medium rows separate Artist, wide rows
+separate Artist and Album. Desktop columns reserve duration outside trailing
+actions. Constrained mobile rows measure the formatted duration and place it at
+the end of the secondary metadata line, retaining leading artwork/numbers and
+48px action targets beside a flexible text block. Long metadata truncates first;
+Remote labels, duration and badges may use additional lines inside that block.
+Controls move below only when the remaining text area is narrower than 96px
+scaled by the current text scaler, and align to the trailing edge. Duration
+stays with the text. Normal artwork rows retain their 64px minimum height.
+Rows with enough room keep their existing inline duration arrangement. Headers
+appear only for full collections. Numbered collections set
+`numberColumnExtent` to label their existing numeric area with `#` and the
+accessible description Track number: 32px for album/playlist/genre/weekly
+lists and 30px within the 82px Artist Top Tracks leading area. Artwork-only
+lists leave it null, and compact headers stay hidden. Specialized callers
+retain their queue and playlist occurrence callbacks. Artist previews explicitly
+reserve 96px for their two mobile actions.
+Downloaded library rows use the same presentation; transfer progress is separate.
+
+Desktop recommendation artwork and previews are bounded; narrow desktop panes
+use the existing cover card while retaining selected identity. Touch recommendations
+are manual by default. The opt-in controller advances after eight eligible seconds
+and pauses at least ten seconds after interaction. Home activity, route/modals,
+quick search/player overlays, lifecycle, reduced motion, dragging and at-least-half
+viewport visibility gate a single timer. Desktop remains manual. Data refresh
+retains a stable item or chooses the nearest remaining index.
+
+`DesktopPlaybackProgress` always presents elapsed/total times for ordinary media,
+including seek previews. Measured labels sit beside the seek bar or below it;
+long scaled labels can occupy separate lines. Unknown duration uses `--:--`;
+radio displays LIVE. Accessibility can grow the normal 116px player without
+altering transport-button sizes. Radio uses lazy bounded 280–360px station cards
+(single full-width column in narrow panes), scaled name space, a safe hostname,
+play/stop controls and explicit Now Playing text. Full credential-bearing stream
+URLs remain playback inputs and are never displayed in cards.
+
+The [responsive layout plan](completed-plans/Responsive_Layout_Overhaul_Plan.md)
+records the completed implementation and validation evidence; implementation
+is not a claim of native Android Automotive support.
+
 ### Desktop window modes
 
 `DesktopWindowController` owns `desktop` and `miniPlayer` modes above the
@@ -791,6 +878,12 @@ handling. Commands are guarded before dispatch:
   descendent, preventing transport hotkeys from interfering with search/text fields
 - **Route-current guard** — shortcuts that target a specific screen only fire when that
   screen is the active route in the navigator stack
+
+Configurable bindings persist per action; a saved map that predates an action
+keeps that action's default. Playback speed up/down/reset (`speedUp`,
+`speedDown`, `speedReset`) default to the primary modifier with unshifted `.`,
+`,` and `0`, because Shift changes the logical key of punctuation on many
+layouts.
 
 ## Update Checker
 
@@ -891,6 +984,194 @@ tracks restore as an ordinary queue after restart, without restarting refills.
    track-keyed `bufferStateStream`
 6. UI reacts to structural snapshots without rebuilding for routine position
    or buffer ticks; timeline widgets subscribe to the lightweight streams
+
+Artist Play, Shuffle, and Add to Queue share `ArtistPlaybackController` and
+`ArtistPlaybackResolver`. A transactional DAO snapshot applies the same primary
+and Featured In release membership as the artist page, then selects all tracks
+by album ID, including remote editions and directly credited loose tracks.
+Artist metadata is refreshed through the existing targeted sync lane; only
+incomplete albums request track hydration. Artist metadata refresh preserves
+completed album track snapshots, including provisional remote albums. A larger
+advertised track count reopens a previously complete album; mixed local/external
+responses may validly contain more rows than the local count. Invalid
+artist identities, duplicate release IDs, and underfilled advertised release
+lists produce a partial result without replacing stored metadata.
+
+An artist action publishes the first transactional local snapshot immediately;
+known playable tracks start through the handler's existing two-phase load before
+metadata hydration finishes. With no local tracks, the first available album
+starts playback as soon as its target completes. Missing local releases are
+hydrated first, then artist metadata is refreshed and newly advertised or enlarged
+releases are hydrated. Each snapshot admits only new song IDs in a batch, so
+background filling never replaces or restarts an already started queue. The
+artist page shows compact progress and an optional stop-loading button; menus
+close normally, navigation and playback controls remain available, and no
+preparation or failure modal appears. Identical in-flight submissions coalesce;
+a different artist or action starts a new selection.
+
+The controller reserves the queue selection generation and rejects late work
+after another selection, queue clear, recommendation/radio activation, session
+change, or cancellation. Stopping loading preserves playback and stops further
+admissions; already admitted native work and shared sync work may finish. Empty
+results cannot clear the queue. Offline selection verifies permanent/rolling
+cached audio through the storage locator abstraction; online remote tracks retain
+direct streaming. A failed starting source advances to the next known track.
+Identified tracks omitted by preparation stay in `retainedArtistQueueProvider`
+as grey removable rows in both queue views, separate from native playable
+indexes. These retained rows last for the current session and clear on queue
+replacement/clear, radio, or account changes. Unresolved releases with no track
+identities cannot create queue rows.
+
+Play orders known releases chronologically and tracks by disc then track. Newly
+loaded tracks join the upcoming queue in that order while keeping the current
+song and played prefix in place. Shuffle randomizes available tracks and inserts
+new batches randomly among upcoming tracks, without restarting the current song.
+Once a user edits the queue, filling preserves that order and appends subsequent
+batches. Removed song IDs are not reintroduced by later snapshots. Artist Add to
+Queue uses the same incremental batches and preserves every existing occurrence;
+ordering applies only to the new suffix. Native append prepares sources
+independently and continues past an unavailable source or failed insertion,
+then persists successful entries. Upcoming reorders also persist through the
+native handler without resetting playback position.
+These whole-artist actions disable Match Flow expansion to preserve the selected set
+and remote source identities.
+
+Android Auto artist playback still uses its separate local-only album traversal;
+sharing this preparation policy and an appropriate car failure surface is a
+follow-up, outside this phone/desktop change.
+
+Equalizer state lives in `equalizerProvider` / `EqController`, with a dedicated
+`EqRepository` and v85 `eq_presets` / singleton `eq_state` storage. The singleton
+atomically persists selection, current curve, and per-preset/per-mode workspaces.
+Saved presets, drafts, temporary previews, and applied audio state are separate;
+master bypass does not mark a preset modified. The graph editor owns only selection
+and temporary text input. Identity-bound graph sessions publish immediate working
+curves, coalesce native previews, checkpoint at most every 250 ms, and flush the
+final atomic workspace on release or backgrounding. Numeric previews become a
+persistent draft only on Done; cancel restores the previous curve. One gesture is
+one Undo step. Graph geometry maps authored parameters independently of headroom
+and resolves overlapping pointer targets; import previews reuse its renderer.
+`EqualizerScreen` composes presentation-only pieces — `EqGraphEditor` with its
+`EqGraphPainter`, `EqBandInspector`, `EqNumberEditor`, and `EqActionBar` — and
+chooses stacked or side-by-side layouts from `AdaptiveContext` and constraints;
+none of them own persistent state or issue native commands directly. The root
+hydrates EQ before audio creation; general settings saves omit its fields.
+The handler applies typed configurations to both decks and reports desired
+versus applied status. Android uses the vendored just_audio Media3 PCM processor;
+Linux's tracked media-kit adapter owns a combined EQ/tempo chain. Unsupported
+backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
+headroom, migration, and validation limits are maintained in
+[equalizer.md](equalizer.md).
+
+Speed and pitch share a long-lived `playbackAdjustmentsProvider` controller.
+Speed is stored and displayed as a multiplier (`1.00×`); independent pitch uses
+signed semitones. `PlaybackAdjustments` owns `lockPitchToSpeed` and derives the
+effective pitch centrally: locked engine pitch equals speed exactly, while the
+readout is `12 × log₂(speed)` rounded to two decimals. Unlocking captures the
+full-precision derived semitone value, preserving the sound. Speed-only reset
+retains lock; combined reset applies the immutable built-in preset shown as
+Normal (stored id `none`: 1×, zero pitch, lock off); new presets cannot use the
+names None or Normal. The lock is labelled "Pitch follows speed".
+
+Player quick panels share `showQuickPanel`/`QuickPanelScaffold`
+(`common_widgets/quick_panel.dart`): a pinned title with a live summary, an
+optional header control, a scrolling body with edge fades that appear only
+where more content lies, and an optional pinned footer. Desktop runtimes host it
+in `showDesktopAnchoredPopover`, which grows from the anchor, draws a tail at it,
+and lets the transparent barrier swallow the next click so pressing the same
+button again closes the panel. Touch layouts use a content-sized bottom sheet
+capped at 88% of the screen.
+
+`showPlaybackAdjustmentQuickPanel` (`playback_quick_actions.dart`) puts the same
+`PlaybackAdjustmentPanel` used in Playback Settings into that shell, with its own
+header and combined reset moved to the pinned header and footer. Entry points are
+`PlaybackSpeedQuickButton` beside Repeat in the Now Playing transport and desktop
+player bar, the Speed & Pitch row of the Now Playing settings sheet/panel, and the
+compact desktop Mini Player menu. The button shows the multiplier when speed is
+not 1× and tints its icon for pitch-only changes. Transport rows drop the quick
+buttons below 340 logical pixels (440 non-compact) and yield to the desktop
+volume slider; the desktop bar drops EQ first below its compact breakpoint.
+Configurable desktop shortcuts (default Ctrl/Cmd+`.`, `,` and `0`) step speed by
+0.10 or reset it through `nudgePlaybackSpeed`, preserving pitch settings, and
+confirm with an app notice.
+
+`EqualizerQuickButton` sits beside Shuffle (beside Instant Mix on the desktop
+bar) and is hidden when `eqCapabilitiesProvider` is unsupported. It opens
+`showEqualizerQuickPanel`, a mini equalizer built from `EqQuickControls`
+(`features/equalizer/presentation/eq_quick_panel.dart`): the on/off switch in the
+header, a read-only `EqGraphEditor` response (fitted to at least ±12 dB so gentle
+curves stay visible, dimmed while off) that opens the full page, and preset
+chips ordered Custom (only with a draft or while selected), your presets
+(imports marked with headphones), then built-ins. Choosing a chip selects it with
+`selectPreset(enable: true)`, so picking a sound also turns the EQ on; drafts are
+kept exactly as on the full page. The Now Playing settings sheet and the wide
+settings panel show the same controls inline as `EqQuickCard` in a "Sound"
+section (a single scrolling chip row); unsupported backends keep the disabled
+`EqualizerEntry` explanation. The settings sheet is a draggable
+`DraggableScrollableSheet` and returns a follow-up action, so Speed & Pitch or
+the Equalizer page opens only after it has closed.
+
+`NavService.openEqualizer` records whether Now Playing was expanded or Mini
+Player active and restores that when the pushed page is popped back to the same
+location (not when the person navigates elsewhere). Mini Player first returns to
+the full view because `/settings/equalizer` lives in the Settings branch; when
+it cannot, the page is pushed over Mini Player. `NavService.closeEqualizer`
+flushes edits and pops (Settings when there is no history); the desktop back
+arrow and the selected "Close Equalizer" state of `EqualizerQuickButton` (shown
+while `GoRouter.state` is on the page) both use it.
+
+Existing precise settings and presets stay exact until that
+control is edited; approximation markers distinguish them from the hundredth grid.
+New input uses integer hundredths: rulers/arrows/accessibility actions step 0.01,
+Shift+Arrow and speed buttons step 0.10, independent pitch buttons step one
+semitone; holding a − or + button repeats every 120 ms and persists once on
+release. Speed quick-pick chips (0.5–2×, filtered by the backend range) and preset
+chips select values in one tap. Exact entry allows two decimals and decimal
+commas, validated inline.
+
+Rulers move continuously under a fixed marker with ticks at 0.01 and labels at
+0.10 (eight logical pixels per minor tick). A recessed themed surface, center
+highlight and outer 15% fades keep the center readable. Release settles onto the
+nearest supported tick over 140 ms with ease-out motion; the animation never
+writes to the engine. Reduced motion and discrete actions settle immediately.
+Preset/reset changes cancel gestures and settling. Drag accumulators clamp at
+finite bounds so reversing at an endpoint responds immediately. Dragging across
+the neutral value emits one selection haptic. Endpoint feedback and the
+available bounds appear only once a limit is reached, explaining the disabled
+button. Locked pitch remains visible with read-only controls; unsupported
+backends hide the pitch control and lock and show a single availability note.
+
+Capabilities follow the initialized backend, including debug macOS and fallback.
+Android Media3 limits speed/pitch factors to 0.1–8. Desktop media-kit uses mpv
+pitch (0.01–100) and scaletempo speed/pitch ratio (minimum 0.01). Selectable
+ranges account for the other value and lock mode, rounding finite ends inward
+onto hundredths while retaining genuinely unbounded ends. Invalid pairs are
+rejected before native setters. Unsupported linked presets remain saved and
+visibly unavailable. Restoration retains supported speed with unchanged pitch
+and a notice; it does not rewrite presets.
+
+The controller coalesces previews, serializes application and database writes,
+and flushes on interaction completion and panel dismissal. Handler confirmed
+adjustments streams (including platform wrappers) propagate outside/OS speed
+changes into shared state and persistence without replaying setters or overwriting
+newer previews. Legacy direct speed setters read the latest pair inside the
+handler lane. Both decks, recreation, source recovery and swaps preserve the
+pair and lock mode. Native failure rolls both values back; storage failure remains
+visible and retryable. Queue clearing does not reset adjustments.
+
+General settings saves omit controller-owned fields, preventing stale autosaves
+from overwriting adjustments. Schema v82 introduced pitch, user preset JSON and
+selected identity; the stepwise v82→83 migration adds lock defaulting to false.
+Older JSON without the flag remains independent and preserves exact values.
+Presets retain lock mode and use unique names ignoring case; None is reserved,
+immutable and derived in code. Manual edits become Custom with an originating
+preset for explicit Update. Deletion keeps the sound; settings reset retains
+user presets.
+
+The vendored media-kit adapter verifies the actual mpv pitch and filter scale
+because upstream setter errors are logged rather than thrown. Verification failure
+propagates to the handler's paired rollback and the UI. The existing progressive
+stream force-seekable customization remains in place.
 
 Desktop volume follows a parallel local-settings path:
 
@@ -1181,12 +1462,13 @@ states without starting audio or modifying a queue.
    local and remote entries. Each indicator owns one stable semantic node in
    the normal tree. The desktop hover explanation is a pointer-transparent,
    visual-only `OverlayEntry` with inherited themes and no semantic children;
-   it intentionally avoids Material `Tooltip`/`RawTooltip` and their
-   `OverlayPortal` semantics reparenting on Flutter 3.44.
-   Ordinary Desktop View song lists share `DesktopSongActions`: local songs
-   receive direct Like and Download controls beside More at widths of at least
-   1100 logical pixels, while compact widths retain More and remote-only songs
-   receive no local-server controls. Whole-entity playback preserves a mixed
+   it uses the shared `NavisTooltip` to avoid Material `Tooltip`/`RawTooltip`
+   and their `OverlayPortal` semantics reparenting on Flutter 3.47.1.
+   Browsing song rows share `DesktopSongActions`: the enclosing adaptive row's
+   wide mode shows local Like and Download beside More; compact and medium
+   modes retain More. Mode depends on usable pane width and text scale. Generic
+   callers without a row scope retain the 1100px window-width fallback.
+   Remote-only songs receive no local-server controls. Whole-entity playback preserves a mixed
    supplied local/remote list without identity-canonicalizing it into local
    rows or applying ID-based Match Flow expansion, so a matched remote source
    remains in the requested queue.
@@ -1599,3 +1881,12 @@ precision. Newest-feed header discrepancies only invalidate track hydration when
 the album is new/unhydrated or track-relevant fields change. Genre, rating,
 play-count and creation-date updates alone preserve verified tracks; independent
 age-based verification still covers song-only metadata changes.
+
+### Sync cancellation drain
+
+`LibrarySyncController.cancelAndWait` drains startup work, the engine, automatic
+check completion (including its durable next-deadline write), and timer-arm tasks
+before returning. Cancellation suppresses automatic rearming until the session's
+existing restart path enables it again. Diagnostics shutdown and sign-out use
+this barrier before database disposal; synchronous provider disposal alone
+cannot await these owners.

@@ -36,6 +36,101 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Artist Play and Shuffle start available tracks immediately while all releases, including remote and featured albums, fill the queue in the background; Add to Queue also fills progressively, and unavailable tracks remain visible',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'EQ now centers on an interactive graph with draggable bands, Q and preamp controls, precise inline input, grouped Undo, and live preview. Named drafts survive preset/mode changes and restarts, with explicit save/discard and protected Advanced work. Added a dedicated Equalizer on Android and Linux with Simple, 10-band and Advanced filters, live response, automatic headroom, exact local presets and import/export; other audio backends show their availability limits',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The Equalizer page is easier to read and edit on phones, tablets and desktops: the selected band has its own shaded curve and numbered handle, dense profiles stay legible, a band strip reaches every filter, and frequency, gain and Q each appear once with clear units, Fixed markers and exact entry. Dragging shows live values above your finger, the mouse wheel adjusts Q, preamp has a single control, draft status sits beside the preset name, and landscape phones place the controls beside the graph',
+      ),
+      ChangelogEntry(
+        'Find headphone profiles in the offline AutoEQ catalogue, preview parametric or fixed-band imports, and keep original source settings with saved presets',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Replaced the experimental EQ and loudness booster; existing experimental settings reset to disabled and flat with a one-time notice, while named presets survive Playback Settings reset',
+      ),
+      ChangelogEntry(
+        'Fixed oversized mobile song rows in Liked, albums and playlists; duration stays with track details and Download and More remain beside the track when space allows',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Playback speed now uses readable multipliers such as 1.00×, with smooth rulers, precise 0.01 steps, exact decimal entry, 0.10 speed buttons and clear supported limits in Playback Settings and Now Playing',
+      ),
+      ChangelogEntry(
+        'Added independent pitch control on Android and desktop media-kit playback; pitch remains unavailable with the default Apple playback backend',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Added Pitch follows speed for natural, record-player-style pitch changes as speed changes; turning it off keeps the exact current pitch, and existing precise settings and presets retain their sound until edited',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Save, update, rename and delete local speed and pitch presets, including their pitch lock mode, from Playback Settings or Now Playing; the built-in Normal preset restores 1.00× speed, zero pitch and an unlocked pitch control',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Speed and pitch adjustments stay active across queue changes, playback recovery, crossfades and app restarts, with limits and feedback based on what the active audio backend supports',
+      ),
+      ChangelogEntry(
+        'Speed & Pitch and the Equalizer are one tap away in the player: Equalizer sits beside Shuffle (beside Instant Mix on the desktop bar) and a Speed button beside Repeat shows the current speed, such as 1.25×. Each opens a compact panel with its title, summary and main action always in view, as a sheet on phones or a popover pointing at the button on desktop; press the button again to close it',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The Speed & Pitch panel is quicker to use: one-tap speeds from 0.5× to 2×, preset chips, hold-to-repeat − and + buttons, a haptic tick at 1.00×, supported ranges shown only at a limit, and pitch controls hidden where the audio backend cannot change pitch',
+      ),
+      ChangelogEntry(
+        'On desktop, Ctrl+. and Ctrl+, (Cmd on macOS) change playback speed by 0.10× and Ctrl+0 resets it, with a brief confirmation; all three can be reassigned in Desktop Shortcuts',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The compact desktop Mini Player menu now shows whether Shuffle and Repeat are on and adds Speed & Pitch and Equalizer',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'A mini Equalizer in the player lets you turn EQ on or off, see the response and switch between your presets and imported headphone profiles in one tap (choosing one turns EQ on), with Open Equalizer for detailed editing',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'The Now Playing settings sheet is taller and draggable, with a Sound section holding Speed & Pitch and the mini Equalizer, and it closes before Speed & Pitch opens instead of stacking two sheets',
+      ),
+      ChangelogEntry(
+        'Leaving the Equalizer page returns you to where you opened it, re-opening Now Playing or the Mini Player; on desktop its back arrow no longer always jumps to Settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Desktop albums open and close with a fast fade that respects reduced motion, and the Liked Albums Next arrow keeps its accessible label without hover text',
+      ),
+      ChangelogEntry(
+        'Album and artist grids fit more columns on wide screens without oversized artwork; choose Auto, Small, Medium or Large artwork in Appearance, and album pages load enough items to fill the available view',
+      ),
+      ChangelogEntry(
+        'Liked artists and albums now use compact horizontal previews with See all, bringing liked songs closer to the top; Home Recently Liked previews also adapt to the available width',
+      ),
+      ChangelogEntry(
+        'Downloaded-only liked previews now filter the complete collection before choosing visible items, so eligible downloads beyond the old six-item preview are no longer missed',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Song rows show artist, album and duration columns when space permits, with aligned headings and a # track-number heading in full collections; repeated playlist tracks keep their individual actions',
+      ),
+      ChangelogEntry(
+        'You Might Like stays compact on desktop; automatic recommendation cycling on touch devices is now optional, disabled by default, and pauses during interaction or when the page is inactive',
+      ),
+      ChangelogEntry(
+        'The desktop player keeps elapsed and total playback times visible in small windows and with enlarged text, including a time preview while seeking',
+      ),
+      ChangelogEntry(
+        'Radio stations now use compact cards that adapt to the available width instead of stretching across wide windows',
+      ),
+      ChangelogEntry(
+        'Desktop player action tooltips no longer corrupt accessibility state or flood logs with repeated Flutter semantics assertions while browsing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Check for updates on mobile data now reaches its bounded newest-album check even when an automatic index probe is pending',
         type: ChangelogEntryType.fix,
       ),
@@ -44,11 +139,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Repair Library and full syncs now complete on servers that rescan constantly instead of deferring forever, releasing the promotion once the server goes quiet and recording the decision',
+        'Repair Library and full syncs recover after repeated server rescans once a stable scan is observed, instead of remaining deferred indefinitely',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Automatic checks now widen their discovery window when the library is far behind the server and hand a persistent backlog to a full reconciliation, so new albums can no longer be silently missed for weeks',
+        'Automatic checks widen their discovery window when the library is far behind the server and schedule a full reconciliation when the backlog persists',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -57,10 +152,6 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Most Played Tracks now orders plays with the same count deterministically by how recently a song was played, so the section stops shuffling between refreshes',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Servers that report missing artwork with an HTTP 200 error page now trigger the same targeted refresh as a 404, and error documents are never saved as artwork even with a misleading content type',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -84,11 +175,15 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Corrupt cached cover art is evicted and refetched once automatically, missing covers trigger one targeted metadata refresh instead of repeated failures, and explicit repairs refetch changed artwork through targeted revisions',
+        'Corrupt cached artwork is evicted and refetched once; missing covers trigger a targeted metadata refresh, including HTTP 200 error pages, and error documents are never cached as artwork',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Navis now detects server library rescans and refreshes changed metadata automatically on the next check',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Upgrading schedules a one-time resumable library repair to apply the recovery changes to existing catalogs, while preserving downloads and respecting mobile-data consent',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -100,11 +195,19 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Cover art refreshes are targeted: changed covers reload without clearing the whole artwork cache, and server error pages are never saved as artwork',
+        'Changed covers reload after library repairs without clearing unrelated artwork, and cached or downloaded images respect memory decode limits',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Rapid Next, Previous and queue selections track the latest requested position, and older playback work no longer overrides a later Pause command',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Library sync preserves tracks and newer local edits when server responses are incomplete, and keeps external results out of the server catalog',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Remote favorites now appear in Liked with their metadata without adding external releases to your server library',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -136,16 +239,16 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Permanent downloads in Android custom folders now survive server removals and identity relinking instead of being mistaken for missing files',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Cancelling sync also cancels waiting repairs, while mixed local and remote album responses preserve their correct library membership',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Library metadata and Recently Added updates avoid unnecessary database work during checks and repairs',
+        'Large library checks, repairs and album-detail loading now yield during metadata processing and avoid unnecessary database writes to keep browsing responsive',
         type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Cover artwork respects its memory decode limits for cached and downloaded images while preserving shared hero artwork',
-        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Sync diagnostics retain bounded phase, retry and pending-work evidence across restarts to help explain incomplete checks and repairs',
@@ -160,8 +263,16 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Server mix and Last.fm Same Vibes now keep useful partial results and report failed queue additions accurately',
+        'Server mix uses standard Subsonic recommendations with compatibility fallbacks, while Last.fm Same Vibes keeps partial matches and fills gaps from your server',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Mixes and Instant Radio preserve the existing queue when preparation fails, report actual track additions, and cancel stale refills when stopped or replaced',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Instant Radio respects Home Liked only and Downloaded only filters, with visible loading, fallback and retry feedback',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Android Auto Instant Radio now uses the same personal radio as Home',
