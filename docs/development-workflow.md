@@ -386,8 +386,15 @@ shuffle/repeat, timeline progress, and clean restart. It writes only under its
 specified output root and never prints the bearer token, server URL, or media
 metadata.
 
+Run it with Windows PowerShell in a multithreaded apartment from the signed-in
+desktop session (GMTC is per interactive session, and blocking WinRT calls in
+the default single-threaded apartment are cancelled). Over SSH, start it with a
+scheduled task that uses an `Interactive` principal. It first turns shuffle and
+repeat off through GMTC, so a source database from an earlier run cannot change
+the Next and Previous targets.
+
 ```powershell
-.\tool\windows_smtc_diagnostics.ps1 `
+powershell.exe -MTA -File .\tool\windows_smtc_diagnostics.ps1 `
   -SourceDatabase C:\path\to\navis.sqlite.sqlite `
   -CredentialFile C:\path\to\diagnostics-password `
   -SongId first-song-id -SecondSongId second-song-id
