@@ -170,7 +170,16 @@ class PermanentDownloadPathResolver {
     if (reservedPaths.contains(candidatePath)) {
       return false;
     }
-    return !File(candidatePath).existsSync();
+    if (!File(candidatePath).existsSync()) return true;
+    // Taken only by the file itself, named through another spelling of its
+    // folder (a link, junction or mapped drive).
+    try {
+      return existingPath != null &&
+          File(existingPath).existsSync() &&
+          FileSystemEntity.identicalSync(candidatePath, existingPath);
+    } on FileSystemException {
+      return false;
+    }
   }
 
   String _normalizeExtension(String rawExtension) {

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
@@ -351,6 +352,84 @@ void main() {
         PermanentDownloadMatchOrigin.manifest,
       );
     });
+
+    test(
+      'a download stored through a linked folder is already registered',
+      () async {
+        final real = Directory('${root.path}/real')..createSync();
+        final link = Link('${root.path}/link')..createSync(real.path);
+        // A name no title matches: only the path can recognise it.
+        final file = File('${link.path}/Rips/track 07.flac')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: file.path,
+            fileSize: 1,
+            format: 'flac',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime(2026),
+          ),
+        );
+
+        final preview = await service('profile').preview(Directory(link.path));
+
+        expect(
+          preview.items.single.disposition,
+          PermanentDownloadImportDisposition.alreadyRegistered,
+        );
+        expect(
+          preview.items.single.relativePath,
+          'Rips/track 07.flac',
+        );
+      },
+      skip: Platform.isWindows,
+    );
+
+    test(
+      'sidecar keys written with backslashes still match and are rewritten',
+      () async {
+        final file = File('${root.path}/Jack Harlow/Hello Miss Johnson.flac')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+        // A sidecar written on Windows by an older build.
+        final manifest = sqlite3.open('${root.path}/.navis-downloads.sqlite');
+        manifest.execute(
+          'CREATE TABLE download_records (relative_path TEXT PRIMARY KEY, '
+          'song_id TEXT NOT NULL, profile_fingerprint TEXT NOT NULL, '
+          'file_size INTEGER NOT NULL, format TEXT NOT NULL, '
+          'updated_at INTEGER NOT NULL)',
+        );
+        await service('profile').recordDownloaded(
+          root: root,
+          file: file,
+          songId: 'song-1',
+          format: 'flac',
+        );
+        manifest.execute(
+          "UPDATE download_records SET relative_path = replace(relative_path, '/', '\\')",
+        );
+        manifest.close();
+
+        final preview = await service('profile').preview(root);
+        expect(
+          preview.items.single.matchOrigin,
+          PermanentDownloadMatchOrigin.manifest,
+        );
+
+        await service('profile').commit(preview);
+        final reopened = sqlite3.open('${root.path}/.navis-downloads.sqlite');
+        addTearDown(reopened.close);
+        expect(
+          reopened
+              .select('SELECT relative_path FROM download_records')
+              .map((row) => row['relative_path']),
+          <String>['Jack Harlow/Hello Miss Johnson.flac'],
+        );
+      },
+    );
 
     test('rejects a sidecar record from another profile', () async {
       final artist = Directory('${root.path}/Jack Harlow')..createSync();

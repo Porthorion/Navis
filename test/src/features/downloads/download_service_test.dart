@@ -1385,6 +1385,61 @@ void main() {
     );
 
     test(
+      'startup cleanup keeps downloads stored through the other folder spelling',
+      () async {
+        final sandbox = await Directory.systemTemp.createTemp('navis_support_');
+        addTearDown(() => sandbox.delete(recursive: true));
+        final real = Directory('${sandbox.path}/real')..createSync();
+        final link = Link('${sandbox.path}/link')..createSync(real.path);
+        final file = File('${real.path}/audio/permanent/Artist/Song.mp3')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+        final orphan = File('${real.path}/audio/permanent/Artist/Stray.mp3')
+          ..writeAsBytesSync(<int>[4]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: file.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song',
+            artistName: const Value('Artist'),
+          ),
+        ]);
+        final linkedService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          // The app data folder reached through a link.
+          readApplicationSupportDirectory: () async => Directory(link.path),
+        );
+        addTearDown(linkedService.stop);
+
+        await linkedService.start();
+
+        expect(file.existsSync(), isTrue);
+        expect(orphan.existsSync(), isFalse);
+      },
+      skip: !sqliteAvailable || Platform.isWindows,
+    );
+
+    test(
       'removeDownloadedTrack prunes empty artist folders but keeps root folder',
       () async {
         final customDir = await Directory.systemTemp.createTemp(

@@ -19,6 +19,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     show BaseCacheManager;
+import 'package:navis/src/features/downloads/data/download_path_identity.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
@@ -1054,7 +1055,14 @@ class DownloadService {
       if (!await permDir.exists()) return;
 
       final knownEntries = await _cacheDao.getPermanentEntries();
-      final knownPaths = knownEntries.map((e) => e.filePath).toSet();
+      // Compared by key, so a stored path spelled differently (letter case
+      // on Windows, a linked folder) never gets a real download deleted.
+      final identity = await DownloadRootIdentity.resolve(permDir.path);
+      final knownKeys = <String>{
+        for (final entry in knownEntries)
+          if (identity.keyFor(entry.filePath) case final key?)
+            identity.lookupKey(key),
+      };
 
       await for (final entity in permDir.list(recursive: true)) {
         if (entity is! File) {
@@ -1070,7 +1078,8 @@ class DownloadService {
         final basePath = path.endsWith('.mime')
             ? path.substring(0, path.length - '.mime'.length)
             : path;
-        if (!knownPaths.contains(basePath)) {
+        final key = identity.keyFor(basePath);
+        if (key != null && !knownKeys.contains(identity.lookupKey(key))) {
           AppLogger.info(
             'DownloadService: Removing orphaned file $path',
           );
@@ -1391,7 +1400,10 @@ class DownloadService {
           customDownloadFolderPath: customDownloadFolderPath,
         );
         reservedTargetPaths.add(targetPath);
-        if (p.equals(entry.filePath, targetPath)) {
+        if (p.equals(entry.filePath, targetPath) ||
+            (!sourceWasSaf &&
+                await _isSameFile(entry.filePath, targetPath))) {
+          // Already in place, possibly named through a linked folder.
           continue;
         }
 
@@ -1557,6 +1569,16 @@ class DownloadService {
     return ext.isEmpty ? 'bin' : ext;
   }
 
+  static Future<bool> _isSameFile(String a, String b) async {
+    try {
+      return await File(a).exists() &&
+          await File(b).exists() &&
+          await FileSystemEntity.identical(a, b);
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   Future<void> _movePermanentFileSet(
     String sourcePath,
     String targetPath,
@@ -1586,6 +1608,10 @@ class DownloadService {
     }
 
     if (await destination.exists()) {
+      // The same file reached through another spelling of its folder (a
+      // link, junction or mapped drive): deleting the "destination" would
+      // delete the only copy.
+      if (await _isSameFile(source.path, destination.path)) return;
       await destination.delete();
     }
 

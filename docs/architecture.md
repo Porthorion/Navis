@@ -1845,7 +1845,13 @@ contract.
 6. A custom permanent-download root is user-owned: Navis records known files
    in its root `.navis-downloads.sqlite` sidecar and can adopt existing files
    only after an explicit preview/confirmation. The sidecar maps relative file
-   paths to a profile fingerprint and song ID; supported media tags are a
+   paths to a profile fingerprint and song ID. Paths inside a download folder
+   are compared by key (`DownloadRootIdentity`): the path relative to the
+   folder with `/` separators, reached through either the configured or the
+   link-resolved spelling of the folder, and case-insensitive on Windows only.
+   Sidecar keys written with `\` by older builds still match and are rewritten
+   on the next write, and moves never treat the same file under another
+   spelling as a separate destination. Supported media tags are a
    best-effort additional identity source. Unknown, ambiguous, and
    profile-mismatched files remain untouched.
    Android uses a persisted Storage Access Framework tree URI rather than a
