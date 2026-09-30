@@ -199,6 +199,55 @@ void main() {
       expect(preview.items, isEmpty);
     });
 
+    test(
+      'an unreadable subfolder is reported without ending the scan',
+      () async {
+        File('${root.path}/Unknown/Elsewhere.flac')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[1]);
+        final locked = Directory('${root.path}/Locked')..createSync();
+        File('${locked.path}/hidden.flac').writeAsBytesSync(<int>[1]);
+        await Process.run('chmod', <String>['000', locked.path]);
+        addTearDown(() => Process.run('chmod', <String>['755', locked.path]));
+
+        final preview = await service('profile').preview(root);
+
+        expect(preview.unmatchedCount, 1);
+        expect(preview.inaccessibleCount, 1);
+      },
+      skip: !Platform.isLinux || Platform.environment['USER'] == 'root',
+    );
+
+    test('bookkeeping files and folder link loops are skipped', () async {
+      File('${root.path}/Unknown/Elsewhere.flac')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1]);
+      File('${root.path}/Unknown/Elsewhere.flac.mime').writeAsStringSync('x');
+      File('${root.path}/Unknown/Next.flac.navis-part')
+          .writeAsBytesSync(<int>[1]);
+      File('${root.path}/.navis-saf-transfer-1.flac')
+          .writeAsBytesSync(<int>[1]);
+      Link('${root.path}/Unknown/loop').createSync(root.path);
+
+      final preview = await service('profile').preview(root);
+
+      expect(preview.items.map((item) => item.relativePath), <String>[
+        'Unknown/Elsewhere.flac',
+      ]);
+    }, skip: Platform.isWindows);
+
+    test('a damaged manifest does not stop the scan', () async {
+      File('${root.path}/$permanentDownloadManifestFileName')
+          .writeAsStringSync('not a database');
+      File('${root.path}/Unknown/Elsewhere.flac')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1]);
+
+      final preview = await service('profile').preview(root);
+
+      expect(preview.unmatchedCount, 1);
+    });
+
     test('keeps duplicate legacy title and artist matches ambiguous', () async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[
         SongsTableCompanion.insert(

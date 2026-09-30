@@ -1291,6 +1291,19 @@
   "downloadsCustomFolderSaved": "Download folder updated.",
   "downloadsCustomFolderDisabled": "Custom download folder disabled.",
   "downloadsCustomFolderUpdating": "Moving downloaded tracks...",
+  "downloadsScanError": "Could not scan the downloads folder.",
+  "downloadsRescanImported": "{count, plural, =0{No existing downloads imported.} =1{1 existing download imported.} other{{count} existing downloads imported.}}",
+  "@downloadsRescanImported": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "downloadsManualImported": "{count, plural, =0{No matched downloads imported.} =1{1 matched download imported.} other{{count} matched downloads imported.}}",
+  "@downloadsManualImported": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "downloadsCustomFolderError": "Could not update download folder: {message}",
   "@downloadsCustomFolderError": {
     "placeholders": {

@@ -2843,6 +2843,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsCustomFolderUpdating => 'Moving downloaded tracks...';
 
   @override
+  String get downloadsScanError => 'Could not scan the downloads folder.';
+
+  @override
+  String downloadsRescanImported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count existing downloads imported.',
+      one: '1 existing download imported.',
+      zero: 'No existing downloads imported.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String downloadsManualImported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count matched downloads imported.',
+      one: '1 matched download imported.',
+      zero: 'No matched downloads imported.',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String downloadsCustomFolderError(String message) {
     return 'Could not update download folder: $message';
   }

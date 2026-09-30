@@ -4949,6 +4949,24 @@ abstract class AppLocalizations {
   /// **'Moving downloaded tracks...'**
   String get downloadsCustomFolderUpdating;
 
+  /// No description provided for @downloadsScanError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not scan the downloads folder.'**
+  String get downloadsScanError;
+
+  /// No description provided for @downloadsRescanImported.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No existing downloads imported.} =1{1 existing download imported.} other{{count} existing downloads imported.}}'**
+  String downloadsRescanImported(int count);
+
+  /// No description provided for @downloadsManualImported.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No matched downloads imported.} =1{1 matched download imported.} other{{count} matched downloads imported.}}'**
+  String downloadsManualImported(int count);
+
   /// No description provided for @downloadsCustomFolderError.
   ///
   /// In en, this message translates to:
