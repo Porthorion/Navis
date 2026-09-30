@@ -3308,6 +3308,8 @@ class _RandomAlbumsHeroCarouselState
   static const int _kVirtualLoopCycles = 10000;
   late PageController _pageController;
   double _viewportFraction = 0.66;
+  double? _pendingViewportFraction;
+  Timer? _viewportFractionTimer;
   late List<HomeRandomShowcaseItem> _displayedAlbums;
   late final RecommendationAutoAdvance _autoAdvance;
   final GlobalKey _viewportKey = GlobalKey();
@@ -3464,13 +3466,7 @@ class _RandomAlbumsHeroCarouselState
     );
 
     if (oldWidget.desktopMode != widget.desktopMode) {
-      final currentPage = _currentVirtualPage;
-      final previousController = _pageController;
-      _pageController = PageController(
-        viewportFraction: _viewportFraction,
-        initialPage: currentPage,
-      );
-      previousController.dispose();
+      _replacePageController(_viewportFraction);
     }
 
     if (widget.freezeListUpdates && _displayedAlbums.isNotEmpty) {
@@ -3537,6 +3533,7 @@ class _RandomAlbumsHeroCarouselState
     WidgetsBinding.instance.removeObserver(this);
     _homeScrollPosition?.removeListener(_onHomeScroll);
     _autoAdvance.dispose();
+    _viewportFractionTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -3583,23 +3580,48 @@ class _RandomAlbumsHeroCarouselState
   }
 
   /// Page controllers fix their viewport fraction, so a new width that needs
-  /// a different peek swaps in a controller at the same page.
+  /// a different peek swaps in a controller at the same page. The swap waits
+  /// until the width has settled and no drag or page animation is running,
+  /// so resizing a window or rotating a phone replaces it once, not per frame.
   void _syncViewportFraction(double fraction) {
-    if ((fraction - _viewportFraction).abs() < 0.005) return;
+    if ((fraction - _viewportFraction).abs() < 0.005) {
+      _pendingViewportFraction = null;
+      _viewportFractionTimer?.cancel();
+      return;
+    }
+    if (_pendingViewportFraction == fraction) return;
+    _pendingViewportFraction = fraction;
+    _viewportFractionTimer?.cancel();
+    _viewportFractionTimer = Timer(
+      const Duration(milliseconds: 200),
+      _applyPendingViewportFraction,
+    );
+  }
+
+  void _applyPendingViewportFraction() {
+    final fraction = _pendingViewportFraction;
+    if (!mounted || fraction == null) return;
+    if (_gestureActive || _pageScrolling) {
+      _viewportFractionTimer = Timer(
+        const Duration(milliseconds: 200),
+        _applyPendingViewportFraction,
+      );
+      return;
+    }
+    _pendingViewportFraction = null;
+    setState(() => _replacePageController(fraction));
+  }
+
+  void _replacePageController(double fraction) {
+    final previous = _pageController;
     _viewportFraction = fraction;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _pageController.viewportFraction == _viewportFraction) {
-        return;
-      }
-      final previous = _pageController;
-      setState(() {
-        _pageController = PageController(
-          viewportFraction: _viewportFraction,
-          initialPage: _currentVirtualPage,
-        );
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
-    });
+    _pageController = PageController(
+      viewportFraction: fraction,
+      initialPage: _currentVirtualPage,
+    );
+    // The old controller is still attached until the next frame rebuilds the
+    // PageView with the new one.
+    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
   }
 
   @override

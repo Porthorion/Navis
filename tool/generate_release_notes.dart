@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Resizing the window or rotating your phone no longer interrupts a swipe in You Might Like or rebuilds the carousel on every frame',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'Shuffling or playing an artist with many remote albums no longer slows the app down: each newly loaded release joins the queue in one step, the Queue opens straight away while releases load, and long queues hand only the next few dozen songs to the player at a time, so starting, skipping and editing them stays instant',
         type: _EntryType.improvement,
       ),

@@ -1527,6 +1527,58 @@ void main() {
   );
 
   testWidgets(
+    'You Might Like keeps one page controller while the width keeps changing',
+    (tester) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        nativeTouch: true,
+        randomAlbums: <HomeRandomShowcaseItem>[
+          for (var i = 0; i < 3; i++)
+            HomeRandomShowcaseAlbum(
+              id: 'resize-$i',
+              name: 'Resize $i',
+              artist: 'Artist $i',
+              coverArtId: 'cover-resize-$i',
+              source: HomeRandomShowcaseSource.serverRandom,
+            ),
+        ],
+      );
+
+      final carousel = find.byKey(
+        const ValueKey<String>('home-random-hero-carousel'),
+      );
+      PageController controller() =>
+          tester.widget<PageView>(carousel).controller!;
+      final initial = controller();
+
+      // A continuous resize, one width per frame, keeps the controller.
+      for (var width = 390.0; width <= 560; width += 10) {
+        view.physicalSize = Size(width, 844);
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(identical(controller(), initial), isTrue);
+      }
+
+      // Once the width settles, the peek is corrected with a single swap.
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
+      final settled = controller();
+      expect(identical(settled, initial), isFalse);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(identical(controller(), settled), isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'You Might Like shows square covers with details and Play below',
     (tester) async {
       final view = tester.view;
