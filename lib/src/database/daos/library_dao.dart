@@ -2857,90 +2857,149 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return const PreservedProvisionalTree();
     }
 
-    final artistPlaceholders = List.filled(artistIds.length, '?').join(',');
-    final albumPlaceholders = List.filled(albumIds.length, '?').join(',');
-    final songPlaceholders = List.filled(protectedIds.length, '?').join(',');
-    final predicates = <String>[
-      if (artistIds.isNotEmpty) 's.artist_id IN ($artistPlaceholders)',
-      if (albumIds.isNotEmpty) 's.album_id IN ($albumPlaceholders)',
-    ];
-    final rows = await customSelect(
-      '''
-      SELECT DISTINCT s.id, s.album_id, s.artist_id
-      FROM songs s
-      LEFT JOIN cached_tracks c ON c.song_id = s.id
-      WHERE (
-          c.download_status = 'complete'
-          ${protectedIds.isEmpty ? '' : 'OR s.id IN ($songPlaceholders)'}
-        )
-        AND (${predicates.join(' OR ')});
-      ''',
-      variables: <Variable<Object>>[
-        ...protectedIds.map(Variable<String>.new),
-        ...artistIds.map(Variable<String>.new),
-        ...albumIds.map(Variable<String>.new),
-      ],
-      readsFrom: {songsTable, cachedTracksTable},
-    ).get();
-    final cachedProtectedSongIds = rows
-        .map((row) => row.read<String>('id'))
-        .toSet();
-    final protectedAlbumIds = rows
-        .map((row) => row.readNullable<String>('album_id'))
-        .whereType<String>()
-        .toSet();
-    final protectedArtistIds = rows
-        .map((row) => row.readNullable<String>('artist_id'))
-        .whereType<String>()
-        .toSet();
-    if (cachedProtectedSongIds.isEmpty) {
-      return const PreservedProvisionalTree();
-    }
-
-    final protectedSongRows =
-        await (select(songsTable)..where(
-              (table) =>
-                  table.id.isIn(cachedProtectedSongIds.toList()) |
-                  (protectedAlbumIds.isNotEmpty
-                      ? table.albumId.isIn(protectedAlbumIds.toList())
-                      : const Constant(false)) |
-                  (protectedArtistIds.isNotEmpty
-                      ? table.artistId.isIn(protectedArtistIds.toList())
-                      : const Constant(false)),
-            ))
-            .get();
-    final retainedSongIds = protectedSongRows.map((song) => song.id).toSet();
-
-    await transaction(() async {
-      await (update(songsTable)..where(
-            (table) => table.id.isIn(retainedSongIds.toList()),
-          ))
-          .write(
-            const SongsTableCompanion(isProvisional: Value(true)),
+    // A server rebuild can make every album and artist stale at once, far
+    // more ids than one statement may bind, so the ids go through a
+    // temporary table and every query joins it.
+    return transaction(() async {
+      await _resetPreservationIds();
+      await _fillPreservationIds(<String, List<String>>{
+        'artist': artistIds,
+        'album': albumIds,
+        'song': protectedIds,
+      });
+      final rows = await customSelect(
+        '''
+        SELECT DISTINCT s.id, s.album_id, s.artist_id
+        FROM songs s
+        LEFT JOIN cached_tracks c ON c.song_id = s.id
+        WHERE (
+            c.download_status = 'complete'
+            OR s.id IN (SELECT id FROM $_preservationIdsTable WHERE kind = 'song')
+          )
+          AND (
+            s.artist_id IN (
+              SELECT id FROM $_preservationIdsTable WHERE kind = 'artist'
+            )
+            OR s.album_id IN (
+              SELECT id FROM $_preservationIdsTable WHERE kind = 'album'
+            )
           );
-      if (protectedAlbumIds.isNotEmpty) {
-        await (update(albumsTable)..where(
-              (table) => table.id.isIn(protectedAlbumIds.toList()),
-            ))
-            .write(
-              const AlbumsTableCompanion(isProvisional: Value(true)),
-            );
+        ''',
+        readsFrom: {songsTable, cachedTracksTable},
+      ).get();
+      final cachedProtectedSongIds = rows
+          .map((row) => row.read<String>('id'))
+          .toSet();
+      final protectedAlbumIds = rows
+          .map((row) => row.readNullable<String>('album_id'))
+          .whereType<String>()
+          .toSet();
+      final protectedArtistIds = rows
+          .map((row) => row.readNullable<String>('artist_id'))
+          .whereType<String>()
+          .toSet();
+      if (cachedProtectedSongIds.isEmpty) {
+        await _clearPreservationIds();
+        return const PreservedProvisionalTree();
       }
-      if (protectedArtistIds.isNotEmpty) {
-        await (update(artistsTable)..where(
-              (table) => table.id.isIn(protectedArtistIds.toList()),
-            ))
-            .write(
-              const ArtistsTableCompanion(isProvisional: Value(true)),
-            );
-      }
+
+      await _fillPreservationIds(<String, List<String>>{
+        'protected-song': cachedProtectedSongIds.toList(growable: false),
+        'protected-album': protectedAlbumIds.toList(growable: false),
+        'protected-artist': protectedArtistIds.toList(growable: false),
+      });
+      final retainedRows = await customSelect(
+        '''
+        SELECT id FROM songs
+        WHERE id IN (
+            SELECT id FROM $_preservationIdsTable WHERE kind = 'protected-song'
+          )
+          OR album_id IN (
+            SELECT id FROM $_preservationIdsTable WHERE kind = 'protected-album'
+          )
+          OR artist_id IN (
+            SELECT id FROM $_preservationIdsTable WHERE kind = 'protected-artist'
+          );
+        ''',
+        readsFrom: {songsTable},
+      ).get();
+      final retainedSongIds = retainedRows
+          .map((row) => row.read<String>('id'))
+          .toSet();
+      await _fillPreservationIds(<String, List<String>>{
+        'retained-song': retainedSongIds.toList(growable: false),
+      });
+      await customUpdate(
+        '''
+        UPDATE songs SET is_provisional = 1
+        WHERE id IN (
+          SELECT id FROM $_preservationIdsTable WHERE kind = 'retained-song'
+        );
+        ''',
+        updates: {songsTable},
+        updateKind: UpdateKind.update,
+      );
+      await customUpdate(
+        '''
+        UPDATE albums SET is_provisional = 1
+        WHERE id IN (
+          SELECT id FROM $_preservationIdsTable WHERE kind = 'protected-album'
+        );
+        ''',
+        updates: {albumsTable},
+        updateKind: UpdateKind.update,
+      );
+      await customUpdate(
+        '''
+        UPDATE artists SET is_provisional = 1
+        WHERE id IN (
+          SELECT id FROM $_preservationIdsTable WHERE kind = 'protected-artist'
+        );
+        ''',
+        updates: {artistsTable},
+        updateKind: UpdateKind.update,
+      );
+      await _clearPreservationIds();
+      return PreservedProvisionalTree(
+        artistIds: protectedArtistIds,
+        albumIds: protectedAlbumIds,
+        songIds: retainedSongIds,
+      );
     });
-    return PreservedProvisionalTree(
-      artistIds: protectedArtistIds,
-      albumIds: protectedAlbumIds,
-      songIds: retainedSongIds,
-    );
   }
+
+  static const _preservationIdsTable = 'temp.navis_preservation_ids';
+
+  /// Adds ids to the connection-local table that
+  /// [preserveCachedLegacyRowsAsProvisional] joins, in chunks within SQLite's
+  /// bound-variable limit.
+  Future<void> _fillPreservationIds(Map<String, List<String>> idsByKind) async {
+    for (final MapEntry(key: kind, value: ids) in idsByKind.entries) {
+      for (final chunk in _sqlVariableChunks(ids)) {
+        await customStatement(
+          'INSERT OR IGNORE INTO $_preservationIdsTable (kind, id) VALUES '
+          '${List<String>.filled(chunk.length, '(?, ?)').join(', ')};',
+          <Object?>[
+            for (final id in chunk) ...<Object?>[kind, id],
+          ],
+        );
+      }
+    }
+  }
+
+  /// Creates the table on this connection if needed, empty. Temporary
+  /// tables are per connection, so every use runs inside one transaction.
+  Future<void> _resetPreservationIds() async {
+    await customStatement(
+      'CREATE TEMP TABLE IF NOT EXISTS navis_preservation_ids '
+      '(kind TEXT NOT NULL, id TEXT NOT NULL, PRIMARY KEY (kind, id)) '
+      'WITHOUT ROWID;',
+    );
+    await _clearPreservationIds();
+  }
+
+  Future<void> _clearPreservationIds() =>
+      customStatement('DELETE FROM $_preservationIdsTable;');
 
   Future<void> deleteLocalOnlySong(String songId) async {
     final id = songId.trim();
