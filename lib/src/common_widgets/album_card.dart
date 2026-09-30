@@ -207,8 +207,20 @@ class _AlbumCardHoverPlay extends ConsumerStatefulWidget {
 class _AlbumCardHoverPlayState extends ConsumerState<_AlbumCardHoverPlay> {
   bool _hovered = false;
 
+  /// The button is only built while hovered or fading out; a grid shows
+  /// dozens of cards, and an invisible button still costs build work.
+  bool _buttonMounted = false;
+
   void _setHovered(bool value) {
-    if (_hovered != value) setState(() => _hovered = value);
+    if (_hovered == value) return;
+    setState(() {
+      _hovered = value;
+      if (value) _buttonMounted = true;
+    });
+  }
+
+  void _handleFadeEnd() {
+    if (!_hovered && _buttonMounted) setState(() => _buttonMounted = false);
   }
 
   @override
@@ -229,17 +241,21 @@ class _AlbumCardHoverPlayState extends ConsumerState<_AlbumCardHoverPlay> {
               duration: motion.reduceMotion
                   ? Duration.zero
                   : const Duration(milliseconds: 120),
-              child: IconButton.filled(
-                key: const ValueKey<String>('albumCardHoverPlay'),
-                tooltip: l10n.libraryAlbumMenuPlay,
-                iconSize: 28,
-                constraints: const BoxConstraints(
-                  minWidth: 52,
-                  minHeight: 52,
-                ),
-                onPressed: () => unawaited(playAlbumById(ref, widget.albumId)),
-                icon: const Icon(Icons.play_arrow_rounded),
-              ),
+              onEnd: _handleFadeEnd,
+              child: !_buttonMounted
+                  ? const SizedBox.square(dimension: 52)
+                  : IconButton.filled(
+                      key: const ValueKey<String>('albumCardHoverPlay'),
+                      tooltip: l10n.libraryAlbumMenuPlay,
+                      iconSize: 28,
+                      constraints: const BoxConstraints(
+                        minWidth: 52,
+                        minHeight: 52,
+                      ),
+                      onPressed: () =>
+                          unawaited(playAlbumById(ref, widget.albumId)),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                    ),
             ),
           ),
         ),

@@ -131,24 +131,29 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       LinuxNavisPlaybackHandler(createBaseHandler()),
     );
   } else {
-    initFuture = AudioService.init(
-      builder: createBaseHandler,
-      config: AudioServiceConfig(
-        androidNotificationChannelId: 'playback',
-        androidNotificationChannelName: 'Playback',
-        androidNotificationIcon: 'drawable/ic_stat_navis_light',
-        androidNotificationOngoing: false,
-        androidStopForegroundOnPause: false,
-        androidBrowsableRootExtras: const <String, dynamic>{
-          AndroidAutoConstants.contentStyleSupportedKey: true,
-          AndroidAutoConstants.contentStyleBrowsableHintKey:
-              AndroidAutoConstants.contentStyleGrid,
-          AndroidAutoConstants.contentStylePlayableHintKey:
-              AndroidAutoConstants.contentStyleList,
-          AndroidAutoConstants.searchSupportedKey: true,
-        },
-      ),
-    ).then<NavisPlaybackHandler>((handler) => handler);
+    // The system (notification, lock screen, Bluetooth, Android Auto,
+    // CarPlay) sees real listening time; the app keeps the track-time handler.
+    initFuture =
+        AudioService.init(
+          builder: () => RealTimeProjectionAudioHandler(createBaseHandler()),
+          config: AudioServiceConfig(
+            androidNotificationChannelId: 'playback',
+            androidNotificationChannelName: 'Playback',
+            androidNotificationIcon: 'drawable/ic_stat_navis_light',
+            androidNotificationOngoing: false,
+            androidStopForegroundOnPause: false,
+            androidBrowsableRootExtras: const <String, dynamic>{
+              AndroidAutoConstants.contentStyleSupportedKey: true,
+              AndroidAutoConstants.contentStyleBrowsableHintKey:
+                  AndroidAutoConstants.contentStyleGrid,
+              AndroidAutoConstants.contentStylePlayableHintKey:
+                  AndroidAutoConstants.contentStyleList,
+              AndroidAutoConstants.searchSupportedKey: true,
+            },
+          ),
+        ).then<NavisPlaybackHandler>(
+          (handler) => handler.inner as NavisPlaybackHandler,
+        );
   }
 
   final cache = _NavisAudioHandlerInitCacheEntry(initFuture);

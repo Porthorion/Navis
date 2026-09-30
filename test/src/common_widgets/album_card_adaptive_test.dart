@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,5 +100,43 @@ void main() {
       expect(gradient.colors.last, theme.scaffoldBackgroundColor);
     }
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop hover Play is built only while hovered', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          subsonicApiProvider.overrideWithValue(null),
+          coverArtShapeProvider.overrideWithValue('rounded'),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 200,
+                child: AlbumCard(album: _album, onTap: () {}),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final play = find.byKey(const ValueKey<String>('albumCardHoverPlay'));
+    expect(play, findsNothing);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.byType(AlbumCard)));
+    await tester.pumpAndSettle();
+    expect(play, findsOneWidget);
+
+    await mouse.moveTo(Offset.zero);
+    await tester.pumpAndSettle();
+    expect(play, findsNothing);
   });
 }

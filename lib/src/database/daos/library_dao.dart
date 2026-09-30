@@ -526,6 +526,86 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return rows.map((row) => row.read(albumsTable.id)!).toSet();
   }
 
+  /// Download progress for every album that has a permanently downloaded or
+  /// queued track. Albums without download activity are omitted. Counts use
+  /// the same track set as an album's detail list.
+  Stream<List<AlbumDownloadSummary>> watchAlbumDownloadSummaries() {
+    return customSelect(
+      '''
+      WITH active_albums AS (
+        SELECT DISTINCT s.album_id FROM songs s
+        WHERE s.album_id IS NOT NULL AND s.id IN (
+          SELECT song_id FROM cached_tracks WHERE cache_type = 'permanent'
+          UNION
+          SELECT song_id FROM download_queue WHERE song_id IS NOT NULL
+        )
+      ),
+      queue AS (
+        SELECT song_id, status, progress FROM download_queue
+        WHERE id IN (
+          SELECT MAX(id) FROM download_queue
+          WHERE song_id IS NOT NULL
+          GROUP BY song_id
+        )
+      )
+      SELECT s.album_id AS album_id,
+        COUNT(*) AS total,
+        SUM(CASE WHEN c.cache_type = 'permanent' THEN 1 ELSE 0 END)
+          AS downloaded,
+        SUM(CASE WHEN c.cache_type IS NOT 'permanent'
+            AND q.status = 'downloading'
+          THEN MIN(MAX(q.progress, 0.0), 1.0) ELSE 0.0 END) AS in_flight,
+        MAX(CASE WHEN c.cache_type IS NOT 'permanent'
+            AND q.status IN ('downloading', 'queued', 'failed')
+          THEN 1 ELSE 0 END) AS queued
+      FROM songs s
+      JOIN active_albums a ON a.album_id = s.album_id
+      LEFT JOIN cached_tracks c ON c.song_id = s.id
+      LEFT JOIN queue q ON q.song_id = s.id
+      WHERE (s.is_provisional = 0 OR s.is_external = 1)
+        AND s.server_deleted_at IS NULL
+      GROUP BY s.album_id
+      ''',
+      readsFrom: {songsTable, cachedTracksTable, downloadQueueTable},
+    ).watch().map(
+      (rows) => <AlbumDownloadSummary>[
+        for (final row in rows)
+          AlbumDownloadSummary(
+            albumId: row.read<String>('album_id'),
+            totalTrackCount: row.read<int>('total'),
+            downloadedTrackCount: row.read<int>('downloaded'),
+            inFlightProgress: row.read<double>('in_flight'),
+            queued: row.read<int>('queued') == 1,
+          ),
+      ],
+    );
+  }
+
+  /// Whether Instant Radio has at least one eligible local song: a catalog
+  /// song, or a downloaded one retained after server deletion, optionally
+  /// restricted to liked and/or downloaded songs.
+  Stream<bool> watchHasRadioCandidate({
+    required bool likedOnly,
+    required bool downloadedOnly,
+  }) {
+    return customSelect(
+      '''
+      SELECT EXISTS (
+        SELECT 1 FROM songs s
+        WHERE s.is_external = 0
+          AND s.is_provisional = 0
+          AND (
+            s.server_deleted_at IS NULL
+            OR s.id IN (SELECT song_id FROM cached_tracks)
+          )
+          ${likedOnly ? 'AND s.starred IS NOT NULL' : ''}
+          ${downloadedOnly ? "AND s.id IN (SELECT song_id FROM cached_tracks WHERE cache_type = 'permanent')" : ''}
+      ) AS has_candidate
+      ''',
+      readsFrom: {songsTable, cachedTracksTable},
+    ).watchSingle().map((row) => row.read<bool>('has_candidate'));
+  }
+
   /// Songs that are permanently downloaded or in the download queue, keyed
   /// by ID. One query replaces a per-row song watch on the Downloads screen.
   Stream<Map<String, SongsTableData>> watchDownloadRelatedSongs() {
@@ -3638,4 +3718,23 @@ class _SongSearchMatch {
   final String songId;
   final String title;
   final int score;
+}
+
+/// Per-album download counts from [LibraryDao.watchAlbumDownloadSummaries].
+class AlbumDownloadSummary {
+  const AlbumDownloadSummary({
+    required this.albumId,
+    required this.totalTrackCount,
+    required this.downloadedTrackCount,
+    required this.inFlightProgress,
+    required this.queued,
+  });
+
+  final String albumId;
+  final int totalTrackCount;
+  final int downloadedTrackCount;
+
+  /// Sum of in-progress download fractions for tracks not yet downloaded.
+  final double inFlightProgress;
+  final bool queued;
 }

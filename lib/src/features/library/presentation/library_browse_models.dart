@@ -39,4 +39,22 @@ class AlbumTileDownloadState {
   final int totalTrackCount;
   final bool queued;
   final double progress;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AlbumTileDownloadState &&
+      other.fullyDownloaded == fullyDownloaded &&
+      other.downloadedTrackCount == downloadedTrackCount &&
+      other.totalTrackCount == totalTrackCount &&
+      other.queued == queued &&
+      other.progress == progress;
+
+  @override
+  int get hashCode => Object.hash(
+    fullyDownloaded,
+    downloadedTrackCount,
+    totalTrackCount,
+    queued,
+    progress,
+  );
 }

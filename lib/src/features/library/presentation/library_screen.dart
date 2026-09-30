@@ -556,7 +556,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final syncState = ref.watch(librarySyncControllerProvider);
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final visibleSections = ref.watch(visibleLibrarySectionsProvider);
     if (visibleSections.isEmpty) {
@@ -672,12 +671,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       children: <Widget>[
         Column(
           children: <Widget>[
-            _SyncStatusBanner(
-              syncState: syncState,
-              onRetry: _refreshLibrary,
-              onCancel: () {
-                ref.read(librarySyncControllerProvider.notifier).cancelSync();
-              },
+            // Only the banner follows sync progress, so progress updates do not
+            // rebuild the active tab.
+            Consumer(
+              builder: (context, ref, _) => _SyncStatusBanner(
+                syncState: ref.watch(librarySyncControllerProvider),
+                onRetry: _refreshLibrary,
+                onCancel: () {
+                  ref.read(librarySyncControllerProvider.notifier).cancelSync();
+                },
+              ),
             ),
             if (_typeFilterQuery.isNotEmpty)
               _TypeFilterBadge(

@@ -21,13 +21,24 @@ import 'package:navis/src/routing/navigation_service.dart';
 /// Used by quick-play affordances such as the desktop album-card hover
 /// button. Does nothing when the album has no tracks yet.
 Future<void> playAlbumById(WidgetRef ref, String albumId) async {
-  final album = await ref.read(albumProvider(albumId).future);
+  final album = await _readAlbumOnce(ref, albumId);
   final songs = album?.songs ?? const <SongsTableData>[];
   if (songs.isEmpty) return;
   ref
       .read(librarySyncControllerProvider.notifier)
       .registerAlbumInteraction(albumId);
   await ref.read(queueProvider.notifier).replaceWithTableData(songs);
+}
+
+/// Reads an album's current rows. `albumProvider` is auto-disposed, so a
+/// listener keeps it alive until the first value arrives.
+Future<AlbumWithSongs?> _readAlbumOnce(WidgetRef ref, String albumId) async {
+  final subscription = ref.listenManual(albumProvider(albumId), (_, _) {});
+  try {
+    return await ref.read(albumProvider(albumId).future);
+  } finally {
+    subscription.close();
+  }
 }
 
 /// Actions: Open, Play, Add to Queue, Like/Unlike, Download.
@@ -191,8 +202,8 @@ Future<void> _showDesktopAlbumContextMenu(
   required Offset anchor,
 }) async {
   final l10n = AppLocalizations.of(context)!;
-  final albumAsync = ref.read(albumProvider(albumId));
-  final album = albumAsync.asData?.value;
+  final album = await _readAlbumOnce(ref, albumId);
+  if (!context.mounted) return;
   final songs = album?.songs ?? const <SongsTableData>[];
   final isStarred = album?.album.starred != null;
   final isFullyDownloaded =

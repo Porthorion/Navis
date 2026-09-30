@@ -1350,7 +1350,9 @@ final artistAlbumSectionsProvider =
           );
     });
 
-final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
+// Auto-disposed: album cards, menus and the Now Playing panel each watch an
+// album briefly, and every instance holds two live database watches.
+final albumProvider = StreamProvider.autoDispose.family<AlbumWithSongs?, String>((
   ref,
   albumId,
 ) {
@@ -1564,64 +1566,47 @@ final albumYearSectionsProvider =
       });
     });
 
-final albumTileDownloadStateProvider =
-    Provider.family<AlbumTileDownloadState, String>((ref, albumId) {
-      final albumAsync = ref.watch(albumProvider(albumId));
-      final cachedTypes = ref.watch(cachedSongTypesProvider).asData?.value;
-      final queue = ref.watch(downloadQueueProvider).asData?.value;
-      final album = albumAsync.asData?.value;
-      if (album == null || cachedTypes == null || queue == null) {
-        return const AlbumTileDownloadState.idle();
-      }
+/// Download badges for every album with download activity, from one query.
+final albumDownloadSummariesProvider =
+    StreamProvider<Map<String, AlbumTileDownloadState>>((ref) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchAlbumDownloadSummaries().map(
+        (summaries) => <String, AlbumTileDownloadState>{
+          for (final summary in summaries)
+            summary.albumId: albumTileDownloadStateFromSummary(summary),
+        },
+      );
+    });
 
-      final songs = album.songs;
-      if (songs.isEmpty) {
-        return const AlbumTileDownloadState.idle();
-      }
+@visibleForTesting
+AlbumTileDownloadState albumTileDownloadStateFromSummary(
+  AlbumDownloadSummary summary,
+) {
+  final total = summary.totalTrackCount;
+  if (total <= 0) return const AlbumTileDownloadState.idle();
+  final downloaded = summary.downloadedTrackCount;
+  return AlbumTileDownloadState(
+    fullyDownloaded: downloaded >= total,
+    downloadedTrackCount: downloaded,
+    totalTrackCount: total,
+    queued: summary.queued,
+    progress: ((downloaded + summary.inFlightProgress) / total).clamp(
+      0.0,
+      1.0,
+    ),
+  );
+}
 
-      final queueBySongId = <String, DownloadQueueTableData>{
-        for (final item in queue)
-          if (item.songId != null) item.songId!: item,
-      };
-      var completeCount = 0;
-      var completedProgress = 0.0;
-      var inFlightProgress = 0.0;
-      var hasQueued = false;
-      for (final song in songs) {
-        final cacheType = cachedTypes[song.id];
-        if (cacheType == CacheType.permanent) {
-          completeCount += 1;
-          completedProgress += 1;
-          continue;
-        }
-        final item = queueBySongId[song.id];
-        if (item == null) {
-          continue;
-        }
-        if (item.status == DownloadStatus.downloading) {
-          inFlightProgress += item.progress.clamp(0.0, 1.0);
-          hasQueued = true;
-          continue;
-        }
-        if (item.status == DownloadStatus.queued ||
-            item.status == DownloadStatus.failed) {
-          hasQueued = true;
-        }
-      }
-
-      final totalTrackCount = songs.length;
-      final progress = totalTrackCount == 0
-          ? 0.0
-          : ((completedProgress + inFlightProgress) / totalTrackCount).clamp(
-              0.0,
-              1.0,
-            );
-      return AlbumTileDownloadState(
-        fullyDownloaded: completeCount >= totalTrackCount,
-        downloadedTrackCount: completeCount,
-        totalTrackCount: totalTrackCount,
-        queued: hasQueued,
-        progress: progress,
+/// One album card's download badge. Cards select their own entry, so a card
+/// rebuilds only when its album's state changes.
+final albumTileDownloadStateProvider = Provider.autoDispose
+    .family<AlbumTileDownloadState, String>((ref, albumId) {
+      return ref.watch(
+        albumDownloadSummariesProvider.select(
+          (summaries) =>
+              summaries.asData?.value[albumId] ??
+              const AlbumTileDownloadState.idle(),
+        ),
       );
     });
 

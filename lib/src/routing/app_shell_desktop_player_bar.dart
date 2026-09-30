@@ -66,30 +66,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         (resolvedArtistId.isNotEmpty ||
             (widget.songArtist ?? '').trim().isNotEmpty);
 
-    final livePosition = ref.watch(playbackPositionProvider).asData?.value;
-    final bufferState =
-        ref.watch(playbackBufferStateProvider).asData?.value ??
-        const PlaybackBufferState.idle();
-    final position = livePosition ?? playback.position;
+    // Position and buffer ticks (5-10 Hz) are watched only by the progress
+    // leaf below, so the rest of the bar does not rebuild on every tick.
     final duration = playback.duration;
     final durationMs = duration.inMilliseconds;
     final canSeek = !playback.isRadioMode && durationMs > 0;
     final sliderMax = canSeek ? durationMs.toDouble() : 1.0;
-    final positionMs = canSeek
-        ? position.inMilliseconds.clamp(0, durationMs).toDouble()
-        : 0.0;
-    final sliderValue = canSeek
-        ? ((_dragSliderValue ?? positionMs).clamp(0.0, sliderMax))
-        : 0.0;
-    final bufferedValue = resolveBufferedSeekValue(
-      currentSongId: playback.currentSongId,
-      bufferState: bufferState,
-      duration: duration,
-    );
-    final seekPreviewPosition = Duration(milliseconds: sliderValue.round());
-    final progress = duration.inMilliseconds > 0
-        ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
-        : 0.0;
 
     final preferredMixMode = ref.watch(preferredMixModeProvider);
     final instantMix = ref.watch(instantMixProvider);
@@ -568,99 +550,145 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: <Widget>[
-                                DesktopPlaybackProgress(
-                                  elapsed: hasPlayback
-                                      ? formatDuration(
-                                          canSeek
-                                              ? seekPreviewPosition
-                                              : position,
-                                          showHours: true,
-                                        )
-                                      : '--:--',
-                                  total: canSeek
-                                      ? formatDuration(
-                                          duration,
-                                          showHours: true,
-                                        )
-                                      : '--:--',
-                                  isLive: playback.isRadioMode,
-                                  liveLabel: l10n.radioLive,
-                                  seekBar: canSeek
-                                      ? SliderTheme(
-                                          data: SliderTheme.of(context)
-                                              .copyWith(
-                                                padding: EdgeInsets.zero,
-                                                trackHeight: sliderTrackHeight,
-                                                thumbShape:
-                                                    RoundSliderThumbShape(
-                                                      enabledThumbRadius:
-                                                          sliderThumbRadius,
-                                                    ),
-                                                overlayShape:
-                                                    RoundSliderOverlayShape(
-                                                      overlayRadius:
-                                                          sliderOverlayRadius,
-                                                    ),
-                                              ),
-                                          child: Slider(
-                                            key: const ValueKey(
-                                              'desktopPlayerSeekSlider',
-                                            ),
-                                            value: sliderValue,
-                                            secondaryTrackValue: bufferedValue,
-                                            secondaryActiveColor:
-                                                resolveBufferedSeekColor(
-                                                  context,
-                                                ),
-                                            max: sliderMax,
-                                            onChangeStart: (value) {
-                                              setState(() {
-                                                _dragSliderValue = value;
-                                              });
-                                            },
-                                            onChanged: (value) {
-                                              setState(() {
-                                                _dragSliderValue = value;
-                                              });
-                                            },
-                                            onChangeEnd: (value) {
-                                              setState(() {
-                                                _dragSliderValue = null;
-                                              });
-                                              unawaited(
-                                                ref
-                                                    .read(
-                                                      audioHandlerProvider,
-                                                    )
-                                                    ?.seek(
-                                                      Duration(
-                                                        milliseconds: value
-                                                            .round(),
+                                RepaintBoundary(
+                                  child: Consumer(
+                                    builder: (context, ref, _) {
+                                      final position =
+                                          ref
+                                              .watch(playbackPositionProvider)
+                                              .asData
+                                              ?.value ??
+                                          playback.position;
+                                      final bufferState =
+                                          ref
+                                              .watch(
+                                                playbackBufferStateProvider,
+                                              )
+                                              .asData
+                                              ?.value ??
+                                          const PlaybackBufferState.idle();
+                                      final positionMs = canSeek
+                                          ? position.inMilliseconds
+                                                .clamp(0, durationMs)
+                                                .toDouble()
+                                          : 0.0;
+                                      final sliderValue = canSeek
+                                          ? ((_dragSliderValue ?? positionMs)
+                                                .clamp(0.0, sliderMax))
+                                          : 0.0;
+                                      final bufferedValue =
+                                          resolveBufferedSeekValue(
+                                            currentSongId:
+                                                playback.currentSongId,
+                                            bufferState: bufferState,
+                                            duration: duration,
+                                          );
+                                      final seekPreviewPosition = Duration(
+                                        milliseconds: sliderValue.round(),
+                                      );
+                                      final progress = durationMs > 0
+                                          ? (position.inMilliseconds /
+                                                    durationMs)
+                                                .clamp(0.0, 1.0)
+                                          : 0.0;
+                                      return DesktopPlaybackProgress(
+                                        elapsed: hasPlayback
+                                            ? formatDuration(
+                                                canSeek
+                                                    ? seekPreviewPosition
+                                                    : position,
+                                                showHours: true,
+                                              )
+                                            : '--:--',
+                                        total: canSeek
+                                            ? formatDuration(
+                                                duration,
+                                                showHours: true,
+                                              )
+                                            : '--:--',
+                                        isLive: playback.isRadioMode,
+                                        liveLabel: l10n.radioLive,
+                                        seekBar: canSeek
+                                            ? SliderTheme(
+                                                data: SliderTheme.of(context).copyWith(
+                                                  padding: EdgeInsets.zero,
+                                                  trackHeight:
+                                                      sliderTrackHeight,
+                                                  thumbShape:
+                                                      RoundSliderThumbShape(
+                                                        enabledThumbRadius:
+                                                            sliderThumbRadius,
                                                       ),
-                                                    ),
-                                              );
-                                            },
-                                          ),
-                                        )
-                                      : Align(
-                                          alignment: Alignment.center,
-                                          child: LinearProgressIndicator(
-                                            value: playback.isRadioMode
-                                                ? (playback.processingState ==
-                                                              AudioProcessingState
-                                                                  .loading ||
-                                                          playback.processingState ==
-                                                              AudioProcessingState
-                                                                  .buffering
-                                                      ? null
-                                                      : 0.0)
-                                                : progress,
-                                            minHeight: 3,
-                                            color: colors.primary,
-                                            backgroundColor: colors.primary
-                                                .withValues(alpha: 0.12),
-                                          ),
-                                        ),
+                                                  overlayShape:
+                                                      RoundSliderOverlayShape(
+                                                        overlayRadius:
+                                                            sliderOverlayRadius,
+                                                      ),
+                                                ),
+                                                child: Slider(
+                                                  key: const ValueKey(
+                                                    'desktopPlayerSeekSlider',
+                                                  ),
+                                                  value: sliderValue,
+                                                  secondaryTrackValue:
+                                                      bufferedValue,
+                                                  secondaryActiveColor:
+                                                      resolveBufferedSeekColor(
+                                                        context,
+                                                      ),
+                                                  max: sliderMax,
+                                                  onChangeStart: (value) {
+                                                    setState(() {
+                                                      _dragSliderValue = value;
+                                                    });
+                                                  },
+                                                  onChanged: (value) {
+                                                    setState(() {
+                                                      _dragSliderValue = value;
+                                                    });
+                                                  },
+                                                  onChangeEnd: (value) {
+                                                    setState(() {
+                                                      _dragSliderValue = null;
+                                                    });
+                                                    unawaited(
+                                                      ref
+                                                          .read(
+                                                            audioHandlerProvider,
+                                                          )
+                                                          ?.seek(
+                                                            Duration(
+                                                              milliseconds:
+                                                                  value.round(),
+                                                            ),
+                                                          ),
+                                                    );
+                                                  },
+                                                ),
+                                              )
+                                            : Align(
+                                                alignment: Alignment.center,
+                                                child: LinearProgressIndicator(
+                                                  value: playback.isRadioMode
+                                                      ? (playback.processingState ==
+                                                                    AudioProcessingState
+                                                                        .loading ||
+                                                                playback.processingState ==
+                                                                    AudioProcessingState
+                                                                        .buffering
+                                                            ? null
+                                                            : 0.0)
+                                                      : progress,
+                                                  minHeight: 3,
+                                                  color: colors.primary,
+                                                  backgroundColor: colors
+                                                      .primary
+                                                      .withValues(alpha: 0.12),
+                                                ),
+                                              ),
+                                      );
+                                    },
+                                  ),
                                 ),
                                 const SizedBox(height: 1),
                                 SizedBox(

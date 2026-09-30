@@ -604,7 +604,9 @@ class _AppShellState extends ConsumerState<AppShell> {
         ref.read(initialSyncCompletionWarningProvider.notifier).consume();
       });
     }
-    ref.watch(librarySyncControllerProvider);
+    // Keep the sync controller alive without rebuilding the shell on each of
+    // its progress updates.
+    ref.listen(librarySyncControllerProvider, (_, _) {});
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(listenBrainzFeedbackDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);

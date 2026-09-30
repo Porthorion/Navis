@@ -1286,6 +1286,18 @@ every source. A restore timeout keeps the saved queue instead of deleting it.
 Permanent-download pruning and orphan rolling-file cleanup still run before
 readiness because they guard partial-file ownership.
 
+On Android and Apple platforms audio_service is given
+`RealTimeProjectionAudioHandler`, a `CompositeAudioHandler` around the real
+handler; the app itself keeps the unwrapped handler. The app, lyrics and
+seeking use track time with a separate speed, but Bluetooth AVRCP has no rate
+field and many head units, headphones and lock screens tick at 1×. The
+projection therefore publishes position, buffered position and duration
+divided by the speed, reports 1×, and multiplies system seek requests back to
+track time. At 1× it forwards values unchanged, and metadata is republished
+only when the item or speed changes. Linux MPRIS keeps the spec's track-time
+Position and publishes Rate on every speed change. Windows SMTC does not yet
+publish a playback rate.
+
 Queue replacement prefetches lyrics only for the selected song and the next
 two. `lyricsProvider` watches just the playing item's lookup metadata, so a
 track change or artwork re-emit does not re-run every cached lookup.

@@ -1100,7 +1100,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final syncState = ref.watch(librarySyncControllerProvider);
+    // Home sections only need to know whether sync is running; the logo
+    // watches detailed progress itself.
+    final syncRunning = ref.watch(
+      librarySyncControllerProvider.select((state) => state.isRunning),
+    );
     ref.listen(homeScrollToTopRequestProvider, (previous, next) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -1144,7 +1148,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: <Widget>[
                 _HomeSyncLogo(
                   size: 48,
-                  syncState: syncState,
                   pullProgress: 0,
                   showImmediateRefreshRing: false,
                 ),
@@ -1169,14 +1172,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: <Widget>[
                 _HomeSyncLogo(
                   size: 60,
-                  syncState: syncState,
                   pullProgress: useCustomHomePullRefresh
                       ? _homePullProgress
                       : 0,
                   showImmediateRefreshRing:
                       useCustomHomePullRefresh &&
                       _homeImmediateTriggerRingVisible &&
-                      !syncState.isRunning,
+                      !syncRunning,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1202,12 +1204,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Center(
               child: _HomeSyncLogo(
                 size: 96,
-                syncState: syncState,
                 pullProgress: useCustomHomePullRefresh ? _homePullProgress : 0,
                 showImmediateRefreshRing:
                     useCustomHomePullRefresh &&
                     _homeImmediateTriggerRingVisible &&
-                    !syncState.isRunning,
+                    !syncRunning,
               ),
             ),
           ),
@@ -1224,7 +1225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               sectionId,
               downloadedOnly,
               likedOnly,
-              syncState.isRunning,
+              syncRunning,
               homeDensity,
               desktopRuntime,
               desktopMode,
@@ -1731,10 +1732,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-class _HomeSyncLogo extends StatelessWidget {
+class _HomeSyncLogo extends ConsumerWidget {
   const _HomeSyncLogo({
     required this.size,
-    required this.syncState,
     this.pullProgress = 0,
     this.showImmediateRefreshRing = false,
   });
@@ -1742,12 +1742,12 @@ class _HomeSyncLogo extends StatelessWidget {
   static const Key ringKey = ValueKey<String>('home-sync-ring');
 
   final double size;
-  final LibrarySyncState syncState;
   final double pullProgress;
   final bool showImmediateRefreshRing;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final syncState = ref.watch(librarySyncControllerProvider);
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final accentColors = NavisAccentColors.of(context);
@@ -4198,21 +4198,18 @@ class _SongListSection extends ConsumerWidget {
 
 enum _HomeActionRowVariant { mobile, desktop, compactWide }
 
-final _homeRadioCatalogProvider = FutureProvider<List<SongsTableData>>((
-  ref,
-) async {
-  ref.watch(likedSongsProvider);
-  final db = ref.read(navisDatabaseProvider);
-  final catalog = await db.libraryDao.getAllSongs();
-  final cached = await db.cacheDao.getCachedTracks();
-  final localOnly = await db.libraryDao.getSongsByIds(
-    cached.map((entry) => entry.songId),
-  );
-  return <String, SongsTableData>{
-    for (final song in catalog) song.id: song,
-    for (final song in localOnly) song.id: song,
-  }.values.toList(growable: false);
-});
+/// Whether Instant Radio has anything to play under the Home filters. One
+/// `EXISTS` query instead of loading the whole catalog on every song write.
+final _homeRadioAvailableProvider = StreamProvider.autoDispose
+    .family<bool, ({bool likedOnly, bool downloadedOnly})>((ref, filters) {
+      return ref
+          .watch(navisDatabaseProvider)
+          .libraryDao
+          .watchHasRadioCandidate(
+            likedOnly: filters.likedOnly,
+            downloadedOnly: filters.downloadedOnly,
+          );
+    });
 
 class _HomeActionRow extends ConsumerWidget {
   const _HomeActionRow({required this.variant});
@@ -4226,20 +4223,17 @@ class _HomeActionRow extends ConsumerWidget {
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final radioState = ref.watch(personalRadioProvider);
-    final catalog =
-        ref.watch(_homeRadioCatalogProvider).asData?.value ??
-        const <SongsTableData>[];
-    final downloadedIds = downloadedOnly
-        ? (ref.watch(downloadedSongIdsProvider).asData?.value ??
-              const <String>{})
-        : const <String>{};
-    final radioAvailable = catalog.any(
-      (song) =>
-          !song.isExternal &&
-          !song.isProvisional &&
-          (!likedOnly || song.starred != null) &&
-          (!downloadedOnly || downloadedIds.contains(song.id)),
-    );
+    final radioAvailable =
+        ref
+            .watch(
+              _homeRadioAvailableProvider((
+                likedOnly: likedOnly,
+                downloadedOnly: downloadedOnly,
+              )),
+            )
+            .asData
+            ?.value ??
+        false;
 
     void toggleLikedOnly() {
       ref.read(homeLikedOnlyFilterProvider.notifier).enabled = !likedOnly;

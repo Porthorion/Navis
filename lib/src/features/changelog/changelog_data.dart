@@ -36,6 +36,22 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'At speeds other than 1.00×, Bluetooth, car and headphone displays, the lock screen, notification and Android Auto now show real listening time, so a 3:00 song at 1.50× shows 2:00 and the elapsed time stays in step; seeking from them lands where you expect. Linux desktop media widgets now follow speed changes made in the app',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Local search now finds Arabic, Japanese, Chinese and accented titles, artists and albums (for example "beyonce" finds Beyoncé), and searching only punctuation no longer shows unrelated songs. Offline and on-device search results appear in a fraction of the time on large libraries',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Large queues start instantly and finish loading in seconds: shuffling a big artist, playing thousands of liked or downloaded songs, or reopening the app with a long saved queue no longer stalls the queue, and a long saved queue is never discarded at startup',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Navis is lighter and smoother with big libraries: less CPU while music plays, lower memory while browsing albums and downloads, fewer database stalls during sync and queue changes, and lyrics, mini players and download progress update without redrawing the whole screen',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Artist Play and Shuffle start available tracks immediately while all releases, including remote and featured albums, fill the queue in the background; Add to Queue also fills progressively, and unavailable tracks remain visible',
         type: ChangelogEntryType.fix,
       ),

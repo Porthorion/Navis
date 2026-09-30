@@ -6,6 +6,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -34,6 +35,7 @@ class LinuxMprisBridge {
   StreamSubscription<PlaybackSnapshot>? _snapshotSubscription;
   StreamSubscription<MediaItem?>? _mediaItemSubscription;
   StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<PlaybackAdjustments>? _adjustmentsSubscription;
 
   bool _isDisposed = false;
 
@@ -91,6 +93,13 @@ class LinuxMprisBridge {
     _positionSubscription = _handler.positionStream.listen((position) {
       _mprisObject?.updatePosition(position);
     });
+
+    // MPRIS clients extrapolate Position with Rate, so publish every speed
+    // change, including ones made in the app, not only MPRIS SetRate.
+    _adjustmentsSubscription = _handler.playbackAdjustmentsStream.listen(
+      (adjustments) => _mprisObject?.updateRate(adjustments.speed),
+    );
+    _mprisObject?.updateRate(_handler.playbackAdjustments.speed);
 
     unawaited(_syncSnapshot(_handler.snapshot));
     unawaited(_syncMediaItem(_handler.currentMediaItem));
@@ -224,6 +233,7 @@ class LinuxMprisBridge {
     await _snapshotSubscription?.cancel();
     await _mediaItemSubscription?.cancel();
     await _positionSubscription?.cancel();
+    await _adjustmentsSubscription?.cancel();
     final client = _dbusClient;
     _dbusClient = null;
     _mprisObject = null;
