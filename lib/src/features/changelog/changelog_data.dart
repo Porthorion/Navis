@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'On desktop, seeking in a streamed song that had finished caching no longer empties the rest of the queue; playback continues from the cached file with every queued song kept',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A download interrupted by a crash, power loss or closing the app no longer leaves a half-written song under its real name in your Downloads folder; unfinished downloads use a temporary name that Navis removes on the next start, and the retried download keeps the normal file name',
         type: ChangelogEntryType.fix,
       ),

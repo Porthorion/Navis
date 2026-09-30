@@ -1348,6 +1348,13 @@ later edits in the lane consistent. Songs past the release window go back to
 the tail. An edit the Dart queue applied first (remove, move) stays applied;
 an insert that timed out is not applied.
 
+A seek that does not land on a remote stream is recovered by reloading the
+whole logical queue at the current song and position
+(`_rebuildQueueForSeekRecovery`); when the desktop sidecar file for the
+current song is complete, that song is loaded from the file instead of the
+stream. Either way every queued song, the deferred tail and the user's repeat
+mode are kept.
+
 The queue lane (`NavisSupersedingLane`) has four kinds of work. Replacements
 supersede everything; navigation cancels replacements and idle work but lets
 queued edits finish first; edits (add, play next, remove, reorder, merges,

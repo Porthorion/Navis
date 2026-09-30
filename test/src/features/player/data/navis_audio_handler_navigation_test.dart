@@ -9,6 +9,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
@@ -329,15 +331,28 @@ void main() {
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
     NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     List<_ControllableAudioPlayer>? rebuiltPlayers,
+    // Songs stream from a server, with desktop sidecar caching.
+    bool sidecarStreams = false,
   }) async {
     final database = createTestDatabase();
+    final apiClient = sidecarStreams
+        ? SubsonicApiClient(
+            baseUrl: 'https://example.com',
+            authConfig: const SubsonicAuthConfig(
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+            enableLogging: false,
+          )
+        : null;
     final songs = <SongsTableCompanion>[];
     for (var i = 0; i < count; i++) {
       final id = 'song-$i';
       songs.add(SongsTableCompanion.insert(id: id, title: 'Song $i'));
     }
     await database.libraryDao.upsertSongs(songs);
-    for (var i = 0; i < count; i++) {
+    for (var i = 0; i < count && !sidecarStreams; i++) {
       final id = 'song-$i';
       final file = File('${directory.path}/$id.mp3');
       await file.writeAsBytes(<int>[1, 2, 3]);
@@ -371,12 +386,13 @@ void main() {
         cacheDao: database.cacheDao,
         libraryDao: database.libraryDao,
         rollingCacheManager: cache,
-        readApiClient: () => null,
+        readApiClient: () => apiClient,
         readStreamingQuality: () => const StreamingQuality(label: 'original'),
         readRollingCacheDirectory: () async => directory,
         readCachedPlaybackFirst: () => true,
+        readUsesSidecarRollingCache: () => sidecarStreams,
       ),
-      readApiClient: () => null,
+      readApiClient: () => apiClient,
       rollingCacheManager: cache,
       readRollingCacheBudgetBytes: () => 1024 * 1024,
       scrobbleService: _NoopScrobbleService(),
@@ -881,6 +897,46 @@ void main() {
       expect(handler.snapshot.queueSongIds, expected);
     });
   });
+
+  test(
+    'a seek served from a completed sidecar file keeps the whole queue',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis-sidecar-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        5,
+        sidecarStreams: true,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = List<String>.generate(5, (i) => 'song-$i');
+      await handler.replaceQueue(ids, startIndex: 1, expandMatchFlows: false);
+      expect(player.sourceIds, ids);
+      final sidecar =
+          handler.queue.value[1].extras!['sidecarCacheFilePath'] as String;
+      // The stream finished caching; the fake player never lands a seek.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await File(sidecar).writeAsBytes(List<int>.filled(64, 1));
+      bool served() =>
+          handler.queue.value.length == 5 &&
+          handler.queue.value[1].extras!['sourceKind'] == 'file' &&
+          player.sourceIds.length == 5 &&
+          !handler.snapshot.isLoading;
+
+      await handler.seek(const Duration(seconds: 30));
+      for (var i = 0; i < 300 && !served(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      expect(player.sourceIds, ids);
+      expect(player.index, 1);
+      expect(handler.snapshot.queueSongIds, ids);
+      expect(handler.queue.value[1].extras!['sourceKind'], 'file');
+    },
+  );
 
   group('released queue window', () {
     const window = NavisQueueWindow(

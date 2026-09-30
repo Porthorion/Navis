@@ -3436,6 +3436,8 @@ class NavisAudioHandler extends BaseAudioHandler
     required OperationToken token,
     Duration initialPosition = Duration.zero,
     bool preferLockCaching = true,
+    // A start source the caller already has (a completed sidecar file).
+    _PreparedQueueItem? preparedStart,
   }) async {
     if (songs.isEmpty) {
       await _clearQueueInternal(persist: persist);
@@ -3449,25 +3451,29 @@ class NavisAudioHandler extends BaseAudioHandler
 
     // Resolve the target song's playback source.
     _PreparedQueueItem startItem;
-    try {
-      startItem = await _prepareSingleItem(
-        startSong,
-        preferLockCaching: preferLockCaching,
-      );
-    } on PlaybackSourceUnavailableException {
-      rethrow;
-    } on Object catch (error, stackTrace) {
-      if (!preferLockCaching) {
+    if (preparedStart != null) {
+      startItem = preparedStart;
+    } else {
+      try {
+        startItem = await _prepareSingleItem(
+          startSong,
+          preferLockCaching: preferLockCaching,
+        );
+      } on PlaybackSourceUnavailableException {
         rethrow;
+      } on Object catch (error, stackTrace) {
+        if (!preferLockCaching) {
+          rethrow;
+        }
+        AppLogger.warning(
+          'Phase 1 lock-cached source failed for song=${startSong.id}. '
+          'Retrying with direct stream. $error\n$stackTrace',
+        );
+        startItem = await _prepareSingleItem(
+          startSong,
+          preferLockCaching: false,
+        );
       }
-      AppLogger.warning(
-        'Phase 1 lock-cached source failed for song=${startSong.id}. '
-        'Retrying with direct stream. $error\n$stackTrace',
-      );
-      startItem = await _prepareSingleItem(
-        startSong,
-        preferLockCaching: false,
-      );
     }
 
     // Phase 1 loads only the start song's audio source into the player at
@@ -6975,6 +6981,9 @@ class NavisAudioHandler extends BaseAudioHandler
     });
   }
 
+  /// Reloads the queue with the current song played from its completed
+  /// sidecar file, which seeks without a network round-trip. The whole
+  /// logical queue is kept.
   Future<bool> _trySeekViaCompletedSidecarFile(
     Duration position, {
     required bool autoPlay,
@@ -6997,93 +7006,72 @@ class NavisAudioHandler extends BaseAudioHandler
     if (song == null) {
       return false;
     }
-
-    final mediaItem = item;
-    final fileSource = AudioSource.uri(
-      Uri.file(cacheFile.path),
-      tag: mediaItem,
+    final extras = item.extras ?? const <String, Object?>{};
+    final source = ResolvedPlaybackSource.file(
+      songId: song.id,
+      uri: Uri.file(cacheFile.path),
+      cachedFilePath: cacheFile.path,
+      metadata: ResolvedPlaybackMetadata(
+        format: extras['resolvedFormat'] as String?,
+        bitRate: extras['resolvedBitRate'] as int?,
+        sampleRate: extras['resolvedSampleRate'] as int?,
+        isTranscoded: extras['transcodingApplied'] as bool? ?? false,
+      ),
     );
-    final previousShuffle = _player.shuffleModeEnabled;
-    final queueGeneration = _supersedeQueueWork(
-      isLoading: true,
-      loadingSongId: song.id,
+    final mediaItem = item.copyWith(
+      extras: <String, Object?>{
+        ...extras,
+        'sourceKind': PlaybackSourceKind.file.name,
+        'localSource': true,
+        'cachedFilePath': cacheFile.path,
+      },
     );
     try {
-      await _queueLane.run((queueToken) async {
-        _checkQueueWorkCurrent(queueToken, queueGeneration);
-        token.checkCancelled();
-        if (!_isCurrentTransportIntent(transportGeneration)) {
-          return;
-        }
-        await _setAudioSourcesWithFallback(
-          audioSources: <AudioSource>[fileSource],
-          preload: true,
-          initialIndex: 0,
-          initialPosition: position,
-          generation: queueGeneration,
-          songId: song.id,
-        );
-        await _clearDeferredTail();
-        _queueItems
-          ..clear()
-          ..add(
-            mediaItem.copyWith(
-              extras: <String, Object?>{
-                ...?mediaItem.extras,
-                'sourceKind': PlaybackSourceKind.file.name,
-                'localSource': true,
-                'cachedFilePath': cacheFile.path,
-              },
-            ),
-          );
-        queue.add(List<MediaItem>.unmodifiable(_queueItems));
-        _setCurrentMediaItem(_queueItems.first);
-      });
+      return await _rebuildQueueForSeekRecovery(
+        position,
+        autoPlay: autoPlay,
+        token: token,
+        transportGeneration: transportGeneration,
+        preparedStart: _PreparedQueueItem(
+          song: song,
+          source: source,
+          mediaItem: mediaItem,
+          audioSource: source.asAudioSource(tag: mediaItem),
+        ),
+      );
+    } on OperationCancelledException {
+      rethrow;
     } on Object catch (error, stackTrace) {
       AppLogger.debug(
         'Sidecar file seek fallback failed for ${song.id}: '
         '$error\n$stackTrace',
       );
-      _completeQueueLoad(queueGeneration, loadingSongId: song.id, failed: true);
       return false;
     }
-    token.checkCancelled();
-    if (!_isCurrentTransportIntent(transportGeneration)) {
-      return true;
-    }
-    // The user's repeat mode, not the native one saved before the rebuild
-    // (which is off while songs are deferred).
-    await _syncNativeLoopMode();
-    await _player.setShuffleModeEnabled(previousShuffle);
-    final landed = _player.position;
-    if ((position - landed).abs() >= const Duration(seconds: 2)) {
-      await _player.seek(position);
-    }
-    if (autoPlay) {
-      unawaited(_player.play());
-    }
-    _completeQueueLoad(queueGeneration);
-    return true;
   }
 
-  Future<void> _rebuildQueueForSeekRecovery(
+  /// Reloads the whole logical queue at the current song and [position],
+  /// with the current song from [preparedStart] when given. Returns whether
+  /// the player was rebuilt.
+  Future<bool> _rebuildQueueForSeekRecovery(
     Duration position, {
     required bool autoPlay,
     required OperationToken token,
     required int transportGeneration,
     String reason = 'seek recovery — switched to direct stream',
+    _PreparedQueueItem? preparedStart,
   }) async {
     final currentIndex = _resolveCurrentQueueMetadata().currentIndex;
     if (currentIndex == null ||
         currentIndex < 0 ||
         currentIndex >= _queueItems.length) {
-      return;
+      return false;
     }
 
     // The logical queue, so a deferred tail survives the rebuild.
     final queueSongIds = _logicalQueueIds;
     if (queueSongIds.isEmpty) {
-      return;
+      return false;
     }
 
     final orderedSongs = (await _rowsForDeferredEntries(
@@ -7094,7 +7082,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'Seek recovery could not rebuild the full queue from the local songs '
         'table. Skipping direct-stream fallback.',
       );
-      return;
+      return false;
     }
 
     final previousShuffleModeEnabled = _player.shuffleModeEnabled;
@@ -7106,7 +7094,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
     token.checkCancelled();
     if (!_isCurrentTransportIntent(transportGeneration)) {
-      return;
+      return false;
     }
     final queueGeneration = _supersedeQueueWork(
       isLoading: true,
@@ -7114,22 +7102,32 @@ class NavisAudioHandler extends BaseAudioHandler
       pendingLogicalQueueSongIds: queueSongIds.length > 1 ? queueSongIds : null,
     );
     _PreparedQueueItem? startItem;
-    await _queueLane.run((queueToken) async {
-      _checkQueueWorkCurrent(queueToken, queueGeneration);
-      startItem = await _replaceQueuePhase1(
-        songs: orderedSongs,
-        startIndex: currentIndex,
-        autoPlay: false,
-        persist: false,
-        generation: queueGeneration,
-        token: queueToken,
-        initialPosition: position,
-        preferLockCaching: false,
+    try {
+      await _queueLane.run((queueToken) async {
+        _checkQueueWorkCurrent(queueToken, queueGeneration);
+        startItem = await _replaceQueuePhase1(
+          songs: orderedSongs,
+          startIndex: currentIndex,
+          autoPlay: false,
+          persist: false,
+          generation: queueGeneration,
+          token: queueToken,
+          initialPosition: position,
+          preferLockCaching: false,
+          preparedStart: preparedStart,
+        );
+      });
+    } on Object {
+      _completeQueueLoad(
+        queueGeneration,
+        loadingSongId: currentSongId,
+        failed: true,
       );
-    });
+      rethrow;
+    }
     token.checkCancelled();
     if (!_isCurrentTransportIntent(transportGeneration)) {
-      return;
+      return true;
     }
     await _syncNativeLoopMode();
     await _player.setShuffleModeEnabled(previousShuffleModeEnabled);
@@ -7139,7 +7137,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await _player.seek(position);
       token.checkCancelled();
       if (!_isCurrentTransportIntent(transportGeneration)) {
-        return;
+        return true;
       }
     }
     if (autoPlay) {
@@ -7148,7 +7146,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final recoveredStartItem = startItem;
     if (recoveredStartItem == null || orderedSongs.length <= 1) {
       _completeQueueLoad(queueGeneration);
-      return;
+      return true;
     }
     unawaited(
       _queueLane.run((queueToken) async {
@@ -7181,6 +7179,7 @@ class NavisAudioHandler extends BaseAudioHandler
         }
       }),
     );
+    return true;
   }
 
   void _syncRemotePlaybackStallWatchdog() {
