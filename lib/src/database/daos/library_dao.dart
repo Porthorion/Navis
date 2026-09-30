@@ -306,6 +306,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         artistId: artistId,
         artistName: artist?.name,
         relatedAlbumIds: relatedAlbumIds,
+        // Refreshed just before the transaction. Refreshing inside it could
+        // join a single-flight refresh started outside, which waits for this
+        // transaction to release the database: a deadlock.
+        refreshIndex: false,
       );
       final buckets = _buildArtistAlbumBuckets(
         albums: visibleAlbums,
@@ -407,10 +411,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   /// Writes every missing or stale `album_artist_index` row. Single-flight;
   /// concurrent callers share one refresh. Returns the rows written.
+  ///
+  /// A failure is logged and reported as 0 rows: artist pages then read the
+  /// index as it is, and the next call retries.
   Future<int> refreshAlbumArtistIndex() {
     return _albumArtistIndexRefresh ??= _refreshAlbumArtistIndex()
-        .catchError((Object error) {
-          AppLogger.debug('Album artist index refresh skipped: $error');
+        .catchError((Object error, StackTrace stackTrace) {
+          AppLogger.warning(
+            'Album artist index refresh failed '
+            '(${error.runtimeType}): $error\n$stackTrace',
+          );
           return 0;
         })
         .whenComplete(() => _albumArtistIndexRefresh = null);
@@ -418,6 +428,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<int> _refreshAlbumArtistIndex({int batchSize = 1000}) async {
     var written = 0;
+    final writtenIds = <String>{};
     while (true) {
       final rows = await customSelect(
         '''
@@ -432,6 +443,15 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         readsFrom: {albumsTable, albumArtistIndexTable},
       ).get();
       if (rows.isEmpty) break;
+      // Rows written in this refresh that are selected again would be
+      // rewritten forever: their stored source never matches the query's.
+      if (rows.every((row) => writtenIds.contains(row.read<String>('id')))) {
+        AppLogger.warning(
+          'Album artist index refresh made no progress on ${rows.length} '
+          'albums; stopping.',
+        );
+        break;
+      }
       final raw = <(String, String?, String?, String)>[
         for (final row in rows)
           (
@@ -469,6 +489,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         );
       }
       written += rows.length;
+      writtenIds.addAll(entries.map((entry) => entry.albumId));
       if (rows.length < batchSize) break;
     }
     if (written > 0) {
@@ -488,8 +509,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     required String artistId,
     required String? artistName,
     required Iterable<String> relatedAlbumIds,
+    bool refreshIndex = true,
   }) async {
-    await refreshAlbumArtistIndex();
+    if (refreshIndex) await refreshAlbumArtistIndex();
     final idKey = '\u001fi:${artistId.trim()}\u001f';
     final name = normalizeMetadata(artistName ?? '');
     final byKey = await customSelect(
