@@ -6,6 +6,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
+import 'src/audio_request_batch.dart';
 import 'src/set_property.dart';
 import 'src/equalizer_chain.dart';
 
@@ -364,14 +365,16 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     final nextEq = equalizer ?? _equalizer!;
     final chain = EqualizerChain.compile(nextEq,
         speed: nextRate, pitch: nextPitch, sampleRate: _sampleRate);
-    final previous = EqualizerChain.compile(_equalizer!,
-        speed: _rate, pitch: _pitch, sampleRate: _sampleRate);
     try {
       await setProperty(_player, 'audio-pitch-correction', 'no');
       await setProperty(_player, 'speed', nextPitch.toString());
       await setProperty(_player, 'af', chain.filters);
       await verifyOwnedAudioChain(_player, chain.filters, nextPitch);
     } catch (_) {
+      // Only needed to roll back, and compiling a chain with the EQ on is
+      // not free.
+      final previous = EqualizerChain.compile(_equalizer!,
+          speed: _rate, pitch: _pitch, sampleRate: _sampleRate);
       try {
         await setProperty(_player, 'speed', _pitch.toString());
         await setProperty(_player, 'af', previous.filters);
@@ -391,15 +394,18 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _dataController.add(PlayerDataMessage(speed: _rate, pitch: _pitch));
   }
 
+  late final AudioRequestBatch<EqualizerConfigurationMessage> _audioRequests =
+      AudioRequestBatch<EqualizerConfigurationMessage>(
+          ({rate, pitch, equalizer}) => _serializeAudio(() =>
+              _applyAudio(rate: rate, pitch: pitch, equalizer: equalizer)));
+
   @override
   Future<EqualizerStateMessage> setEqualizer(
-          EqualizerConfigurationMessage configuration) =>
-      _serializeAudio(() async {
-        if (_equalizer == null)
-          throw UnsupportedError('EQ pipeline unavailable');
-        await _applyAudio(equalizer: configuration);
-        return _eqState;
-      });
+      EqualizerConfigurationMessage configuration) async {
+    if (_equalizer == null) throw UnsupportedError('EQ pipeline unavailable');
+    await _audioRequests.request(equalizer: configuration);
+    return _eqState;
+  }
 
   @override
   Future<EqualizerStateMessage> getEqualizerState() async {
@@ -412,7 +418,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (_equalizer == null) {
       await _player.setRate(request.speed);
     } else {
-      await _serializeAudio(() => _applyAudio(rate: request.speed));
+      await _audioRequests.request(rate: request.speed);
     }
     return SetSpeedResponse();
   }
@@ -423,7 +429,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       await _player.setPitch(request.pitch);
       await verifyPlaybackAdjustments(_player);
     } else {
-      await _serializeAudio(() => _applyAudio(pitch: request.pitch));
+      await _audioRequests.request(pitch: request.pitch);
     }
     return SetPitchResponse();
   }

@@ -6063,10 +6063,13 @@ class NavisAudioHandler extends BaseAudioHandler
     AudioPlayer player,
     PlaybackAdjustments values,
   ) async {
-    await player.setSpeed(values.speed);
-    if (playbackAdjustmentCapabilities.pitchSupported) {
-      await player.setPitch(values.pitchFactor);
-    }
+    // Issued together so the desktop backend can apply both with one audio
+    // filter rebuild; every failure is still observed.
+    await Future.wait(<Future<void>>[
+      player.setSpeed(values.speed),
+      if (playbackAdjustmentCapabilities.pitchSupported)
+        player.setPitch(values.pitchFactor),
+    ]);
   }
 
   Future<void> _setPlaybackAdjustments(
