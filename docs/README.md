@@ -65,7 +65,7 @@ geometry coverage, and separate Android/Linux runtime evidence.
 [Performance audit](audits/performance-audit-2026-09-30.md) records the
 2026-09-30 loading, playback, search, memory and rendering measurements
 against a 56k-track library, the changes made, before/after results, the
-pending UX-overlap batch and known limits.
+follow-up after the UX merge, and known limits.
 
 [Polestar 4 automotive investigation](audits/polestar-4-automotive-investigation-2026-09-28.md)
 preserves the direct-install driving lockout report, Android Auto/AAOS findings,

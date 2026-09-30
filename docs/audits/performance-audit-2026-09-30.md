@@ -79,15 +79,34 @@ Artist shuffle still hydrates stale releases one at a time; before the
 reorder and publish changes, one Android probe showed 192 full-queue rewrites
 (22 s of database writer time) for 16 releases.
 
-## Pending (overlaps uncommitted UX work)
+## Follow-up after merging the UX work
 
-These changes touch files with uncommitted edits from the concurrent UX
-session and wait for that work to land: `albumProvider` auto-dispose with an
-aggregated album download summary (2,322 live instances after one deep grid
-scroll), the desktop player bar position leaf, `ref.listen` for sync state in
-the shell and narrower Home/Library sync watches, Home's radio catalog
-(`getAllSongs` on every song write, the main source of DB contention during
-artist hydration), grid cover decode size, and the changelog/release notes.
+The UX foundation (`94e80ed5`) was committed and merged before a second batch:
+
+- the shell listens to sync state; Home and Library watch only what they show;
+- album download badges read one aggregated query, and `albumProvider` is
+  auto-disposed (25 live badge entries after a deep scroll instead of 2,320
+  album streams);
+- Home's Instant Radio availability is an `EXISTS` query;
+- the desktop player bar watches position only in its progress leaf;
+- the desktop album-card hover Play button is built only while hovered;
+- at non-1× speeds, the system media session shows real listening time
+  (`RealTimeProjectionAudioHandler`), so Bluetooth, car and lock-screen
+  clocks stay correct, and Linux MPRIS publishes Rate on every speed change.
+
+Post-merge Linux run: idle while playing 8.3 % CPU (baseline 25.9 %), cold
+restart with a saved queue ready in 1.0 s, artist shuffle 9.1 s, local search
+p50 41 ms. Library deep scroll, measured per thread on the same warm profile:
+
+| Build | Build p50 | Raster p50 | Build frames >16 ms | Raster frames >16 ms |
+|---|---|---|---|---|
+| Before UX merge (perf only) | 3.5 ms | 3.5 ms | 0 | 17–24 |
+| UX commit alone | 6.3 ms | 7.2 ms | 5–6 | 16–19 |
+| Merged, final | 3.1 ms | 5.8 ms | 0–1 | 7–10 |
+
+The remaining raster increase comes from the new card visuals. On the Android
+emulator at 1.5×, the media session reported 4,020 ms while the track was at
+6,028 ms, with speed 1.0.
 
 ## Known limits
 
