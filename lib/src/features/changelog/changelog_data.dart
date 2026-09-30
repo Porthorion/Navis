@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'After a server rebuilds its library, songs and artists it still has are no longer hidden until the next full sync when you had downloads from the rebuilt albums',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Very long queues stay light: songs you have played are released from the player after a while and come back when you go back to them, and jumping far ahead or back in a long queue loads only the songs around the one you picked (if it cannot load, the song that was playing continues)',
         type: ChangelogEntryType.improvement,
       ),

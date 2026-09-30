@@ -2912,13 +2912,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       final cachedProtectedSongIds = rows
           .map((row) => row.read<String>('id'))
           .toSet();
+      // Only stale parents are kept as provisional trees. A preserved song
+      // may belong to an album or artist the new snapshot still has; that
+      // parent and its other songs are current and stay canonical.
+      final staleAlbums = albumIds.toSet();
+      final staleArtists = artistIds.toSet();
       final protectedAlbumIds = rows
           .map((row) => row.readNullable<String>('album_id'))
           .whereType<String>()
+          .where(staleAlbums.contains)
           .toSet();
       final protectedArtistIds = rows
           .map((row) => row.readNullable<String>('artist_id'))
           .whereType<String>()
+          .where(staleArtists.contains)
           .toSet();
       if (cachedProtectedSongIds.isEmpty) {
         await _clearPreservationIds();

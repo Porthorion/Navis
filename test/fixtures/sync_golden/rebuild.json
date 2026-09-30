@@ -269,7 +269,7 @@
         "id": "ar-plain",
         "name": "Plain Artist",
         "artist_mbid": null,
-        "is_provisional": 1,
+        "is_provisional": 0,
         "starred": 0
       }
     ],
@@ -398,18 +398,7 @@
         "album_id": "al-keep",
         "artist_id": "ar-plain",
         "recording_mbid": null,
-        "is_provisional": 1,
-        "server_deleted": 0,
-        "starred": 0,
-        "user_rating": null
-      },
-      {
-        "id": "s-keep-2",
-        "title": "Keep Two",
-        "album_id": "al-keep",
-        "artist_id": "ar-plain",
-        "recording_mbid": null,
-        "is_provisional": 1,
+        "is_provisional": 0,
         "server_deleted": 0,
         "starred": 0,
         "user_rating": null
@@ -486,7 +475,7 @@
         "album_id": "al-new",
         "artist_id": "ar-plain",
         "recording_mbid": null,
-        "is_provisional": 1,
+        "is_provisional": 0,
         "server_deleted": 0,
         "starred": 0,
         "user_rating": null
@@ -530,7 +519,7 @@
         "album_id": "al-plain2",
         "artist_id": "ar-plain",
         "recording_mbid": null,
-        "is_provisional": 1,
+        "is_provisional": 0,
         "server_deleted": 0,
         "starred": 0,
         "user_rating": null
@@ -541,7 +530,7 @@
         "album_id": "al-plain2",
         "artist_id": "ar-plain",
         "recording_mbid": null,
-        "is_provisional": 1,
+        "is_provisional": 0,
         "server_deleted": 0,
         "starred": 0,
         "user_rating": null
@@ -552,7 +541,7 @@
         "album_id": "al-plain2",
         "artist_id": "ar-plain",
         "recording_mbid": null,
-        "is_provisional": 1,
+        "is_provisional": 0,
         "server_deleted": 0,
         "starred": 0,
         "user_rating": null
@@ -611,12 +600,6 @@
         "download_status": "complete"
       },
       {
-        "song_id": "s-keep-2",
-        "file_path": "rolling-s-keep-2.mp3",
-        "cache_type": "rolling",
-        "download_status": "complete"
-      },
-      {
         "song_id": "s-mb-2",
         "file_path": "permanent-s-mb-2.mp3",
         "cache_type": "permanent",
@@ -633,8 +616,7 @@
       "permanent-s-gone-1.mp3",
       "permanent-s-mb-2.mp3",
       "permanent-s-plain-1.mp3",
-      "rolling-s-gone-2.mp3",
-      "rolling-s-keep-2.mp3"
+      "rolling-s-gone-2.mp3"
     ],
     "queue": [
       "s-mb-1",
@@ -793,17 +775,6 @@
         "artist_id": "ar-plain",
         "recording_mbid": null,
         "is_provisional": 0,
-        "server_deleted": 0,
-        "starred": 0,
-        "user_rating": null
-      },
-      {
-        "id": "s-keep-2",
-        "title": "Keep Two",
-        "album_id": "al-keep",
-        "artist_id": "ar-plain",
-        "recording_mbid": null,
-        "is_provisional": 1,
         "server_deleted": 0,
         "starred": 0,
         "user_rating": null
@@ -1006,12 +977,6 @@
         "download_status": "complete"
       },
       {
-        "song_id": "s-keep-2",
-        "file_path": "rolling-s-keep-2.mp3",
-        "cache_type": "rolling",
-        "download_status": "complete"
-      },
-      {
         "song_id": "s-mb2-2",
         "file_path": "permanent-s-mb-2.mp3",
         "cache_type": "permanent",
@@ -1028,8 +993,7 @@
       "permanent-s-gone-1.mp3",
       "permanent-s-mb-2.mp3",
       "permanent-s-plain-1.mp3",
-      "rolling-s-gone-2.mp3",
-      "rolling-s-keep-2.mp3"
+      "rolling-s-gone-2.mp3"
     ],
     "queue": [
       "s-mb2-1",
