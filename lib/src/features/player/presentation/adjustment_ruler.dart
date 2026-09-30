@@ -51,6 +51,7 @@ class AdjustmentRuler extends StatefulWidget {
     this.pixelsPerUnit = 800,
     this.interactionToken = 0,
     this.enabled = true,
+    this.readOnly = false,
     super.key,
   });
 
@@ -64,6 +65,10 @@ class AdjustmentRuler extends StatefulWidget {
   final double pixelsPerUnit;
   final int interactionToken;
   final bool enabled;
+
+  /// Shown at full contrast while another control drives the value (Pitch
+  /// Lock): input stays off like [enabled] false, but nothing is greyed out.
+  final bool readOnly;
 
   @override
   State<AdjustmentRuler> createState() => _AdjustmentRulerState();
@@ -371,7 +376,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                       value: _visualValue,
                       range: widget.range,
                       pixelsPerUnit: widget.pixelsPerUnit,
-                      color: widget.enabled
+                      color: widget.enabled || widget.readOnly
                           ? colors.onSurfaceVariant
                           : colors.outline,
                       accent: colors.primary,

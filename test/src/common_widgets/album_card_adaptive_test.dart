@@ -134,6 +134,12 @@ void main() {
     await mouse.moveTo(tester.getCenter(find.byType(AlbumCard)));
     await tester.pumpAndSettle();
     expect(play, findsOneWidget);
+    // No hover tooltip; screen readers still get a labelled button.
+    expect(tester.widget<IconButton>(play).tooltip, isNull);
+    expect(find.byType(Tooltip), findsNothing);
+    final handle = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('Play album'), findsOneWidget);
+    handle.dispose();
 
     await mouse.moveTo(Offset.zero);
     await tester.pumpAndSettle();

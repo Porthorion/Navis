@@ -49,6 +49,59 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('narrow row actions keep every column under its heading', (
+    tester,
+  ) async {
+    for (final width in <double>[1000, 800]) {
+      setAdaptiveTestViewport(tester, Size(width, 600));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Column(
+              children: [
+                const AdaptiveTrackHeader(),
+                AdaptiveTrackRow(
+                  title: 'A long song title',
+                  artist: 'An artist',
+                  album: 'An album',
+                  duration: 223,
+                  leading: const Icon(Icons.music_note),
+                  // Narrower than the width the header reserves: three
+                  // compact icons when wide, the More button alone when not.
+                  actions: SizedBox(
+                    width: width == 1000 ? 120 : 40,
+                    height: 40,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.text('An artist')).left,
+        tester.getRect(find.text('Artist')).left,
+        reason: 'artist at $width',
+      );
+      if (width == 1000) {
+        expect(
+          tester.getRect(find.text('An album')).left,
+          tester.getRect(find.text('Album')).left,
+        );
+      }
+      expect(
+        tester.getRect(find.text('3:43')).right,
+        closeTo(tester.getRect(find.text('Time')).right, 0.5),
+        reason: 'time at $width',
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('album track lists omit the repeated album at every width', (
     tester,
   ) async {

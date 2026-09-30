@@ -1223,7 +1223,7 @@ finite bounds so reversing at an endpoint responds immediately. While dragging,
 settling and keyboard steps stay silent, and the platform touch-feedback setting
 applies. Endpoint feedback and the
 available bounds appear only once a limit is reached, explaining the disabled
-button. Locked pitch remains visible with read-only controls; unsupported
+button. With Pitch Lock on, the pitch heading shows a link icon ("Follows playback speed" as tooltip and label), the ruler is read-only at full contrast (`AdjustmentRuler.readOnly`) and still glides with speed, and the inert −/Reset/+ row is hidden; unsupported
 backends hide the pitch control and lock and show a single availability note.
 
 Capabilities follow the initialized backend, including debug macOS and fallback.

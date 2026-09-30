@@ -206,6 +206,28 @@ void main() {
     },
   );
 
+  testWidgets('a read-only ruler ignores drags', (tester) async {
+    var changes = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdjustmentRuler(
+            value: 1,
+            label: 'Pitch',
+            valueLabel: '1.00',
+            enabled: false,
+            readOnly: true,
+            onChanged: (_) => changes++,
+            onChangeEnd: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.drag(find.byType(AdjustmentRuler), const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(changes, 0);
+  });
+
   group('external value changes glide like a swipe', () {
     Future<(List<Object?>, double Function(), void Function(double))> pumpRuler(
       WidgetTester tester, {

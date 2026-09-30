@@ -243,12 +243,28 @@ class AdaptiveTrackRow extends StatelessWidget {
             mode == TrackRowMode.compact &&
             (availableMetadata < 160 ||
                 MediaQuery.textScalerOf(context).scale(14) > 18.2);
-        final actionWidget = actionExtent == null
-            ? actions
-            : SizedBox(
-                width: actionExtent,
-                child: Align(alignment: Alignment.centerRight, child: actions),
-              );
+        // Column rows reserve at least the action width AdaptiveTrackHeader
+        // reserves; otherwise narrower actions widen the flex columns and
+        // every value drifts right of its heading. Wider actions keep their
+        // natural width rather than overflowing.
+        final Widget? actionWidget;
+        if (actionExtent != null) {
+          actionWidget = SizedBox(
+            width: actionExtent,
+            child: Align(alignment: Alignment.centerRight, child: actions),
+          );
+        } else if (actions != null && mode != TrackRowMode.compact) {
+          actionWidget = ConstrainedBox(
+            constraints: BoxConstraints(minWidth: estimatedActions.toDouble()),
+            child: Align(
+              alignment: Alignment.centerRight,
+              widthFactor: 1,
+              child: actions,
+            ),
+          );
+        } else {
+          actionWidget = actions;
+        }
         final compactMobile =
             crowded && !resolveAdaptiveContextFor(context).desktopRuntime;
         final mobileTextWidth =

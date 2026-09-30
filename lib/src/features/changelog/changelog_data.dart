@@ -315,7 +315,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'On desktop, album cards show a Play button on hover, song-row actions stay quiet until you point at or focus a row (liked and downloaded songs keep their icons), content stays centred on very wide windows, and album track lists no longer repeat the album name in every row. A failed library sync now shows a calm, dismissible notice instead of a bright red bar. Now Playing on phones shows dots under the details line so it is clear that tapping it reveals more, and the artist and album links are quieter',
+        'On desktop, album cards show a Play button on hover, song-row actions stay quiet until you point at or focus a row (liked and downloaded songs keep their icons), and album track lists no longer repeat the album name in every row. A failed library sync now shows a calm, dismissible notice instead of a bright red bar. Now Playing on phones shows dots under the details line so it is clear that tapping it reveals more, and the artist and album links are quieter',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -332,6 +332,14 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'You Might Like on phones shows whole, uncropped square covers in a swipeable cover flow, with the title, artist, year, song count and why it was picked beneath, a Play button on the focused cover, and a soft wash of the cover\'s colours behind it. On desktop the track list gains the same reason line and Play and Shuffle buttons',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Song tables on desktop now line up Artist, Album and Time exactly under their headings, and desktop pages use the full window width on wide displays',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'While Pitch Lock is on, the pitch control shows a link icon and keeps its values at full contrast instead of greying them out, without the inactive step buttons',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(

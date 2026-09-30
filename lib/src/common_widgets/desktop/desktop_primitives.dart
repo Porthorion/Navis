@@ -18,24 +18,8 @@ class DesktopFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Content stays full-width on ordinary displays; very wide windows centre
-    // it at a readable maximum so table columns do not drift apart. Extra
-    // padding (rather than Align) keeps the parent's constraints tight.
-    final maxWidth = NavisTokens.of(context).frameMaxWidthUltraWide;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final framed = Padding(padding: padding, child: child);
-        if (!constraints.hasBoundedWidth || constraints.maxWidth <= maxWidth) {
-          return framed;
-        }
-        return Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: (constraints.maxWidth - maxWidth) / 2,
-          ),
-          child: framed,
-        );
-      },
-    );
+    // Desktop pages use the full window width, matching Home.
+    return Padding(padding: padding, child: child);
   }
 }
 

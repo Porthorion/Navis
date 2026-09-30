@@ -205,6 +205,7 @@ class _PlaybackAdjustmentPanelState
                 ),
                 range: capabilities.pitchRange(data.values),
                 enabled: !data.values.lockPitchToSpeed,
+                linked: data.values.lockPitchToSpeed,
                 onChanged: (value) => unawaited(
                   _controller.setValues(
                     ref
@@ -215,14 +216,6 @@ class _PlaybackAdjustmentPanelState
                   ),
                 ),
               ),
-              if (data.values.lockPitchToSpeed)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    l10n.playbackPitchFollowsSpeed,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
             ] else
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -444,6 +437,7 @@ class _PlaybackAdjustmentPanelState
     double resetValue = 0,
     int buttonHundredths = 100,
     bool enabled = true,
+    bool linked = false,
   }) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
@@ -476,7 +470,29 @@ class _PlaybackAdjustmentPanelState
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text(label, style: theme.textTheme.titleSmall),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(label, style: theme.textTheme.titleSmall),
+                ),
+                if (linked) ...[
+                  const SizedBox(width: 6),
+                  // Pitch is driven by speed: say so on the heading rather
+                  // than greying out the values.
+                  Tooltip(
+                    message: l10n.playbackPitchFollowsSpeed,
+                    child: Icon(
+                      Icons.link_rounded,
+                      key: ValueKey('adjustment-$keyName-linked'),
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                      semanticLabel: l10n.playbackPitchFollowsSpeed,
+                    ),
+                  ),
+                ],
+              ],
+            ),
             TextButton(
               key: ValueKey('adjustment-$keyName-value'),
               style: TextButton.styleFrom(
@@ -554,41 +570,45 @@ class _PlaybackAdjustmentPanelState
           resetValue: resetValue,
           interactionToken: _interactionToken,
           enabled: enabled,
+          readOnly: linked,
         ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _RepeatingStepButton(
-              key: ValueKey('adjustment-$keyName-minus'),
-              icon: Icons.remove,
-              tooltip: l10n.playbackAdjustmentDecreaseBy(stepLabel),
-              enabled: enabled && lower < value,
-              onStep: () => _step(keyName, -buttonHundredths),
-              onEnd: _flush,
-            ),
-            TextButton(
-              key: ValueKey('adjustment-$keyName-reset'),
-              onPressed:
-                  enabled && range.contains(resetValue) && value != resetValue
-                  ? () {
-                      _cancelRulers();
-                      onChanged(resetValue);
-                      _flush();
-                    }
-                  : null,
-              child: Text(l10n.playbackAdjustmentReset),
-            ),
-            _RepeatingStepButton(
-              key: ValueKey('adjustment-$keyName-plus'),
-              icon: Icons.add,
-              tooltip: l10n.playbackAdjustmentIncreaseBy(stepLabel),
-              enabled: enabled && upper > value,
-              onStep: () => _step(keyName, buttonHundredths),
-              onEnd: _flush,
-            ),
-          ],
-        ),
+        // Every step button is inert while linked, so the row is omitted.
+        if (!linked) ...[
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _RepeatingStepButton(
+                key: ValueKey('adjustment-$keyName-minus'),
+                icon: Icons.remove,
+                tooltip: l10n.playbackAdjustmentDecreaseBy(stepLabel),
+                enabled: enabled && lower < value,
+                onStep: () => _step(keyName, -buttonHundredths),
+                onEnd: _flush,
+              ),
+              TextButton(
+                key: ValueKey('adjustment-$keyName-reset'),
+                onPressed:
+                    enabled && range.contains(resetValue) && value != resetValue
+                    ? () {
+                        _cancelRulers();
+                        onChanged(resetValue);
+                        _flush();
+                      }
+                    : null,
+                child: Text(l10n.playbackAdjustmentReset),
+              ),
+              _RepeatingStepButton(
+                key: ValueKey('adjustment-$keyName-plus'),
+                icon: Icons.add,
+                tooltip: l10n.playbackAdjustmentIncreaseBy(stepLabel),
+                enabled: enabled && upper > value,
+                onStep: () => _step(keyName, buttonHundredths),
+                onEnd: _flush,
+              ),
+            ],
+          ),
+        ],
         if (enabled && (atMinimum || atMaximum)) ...[
           Text(
             speed

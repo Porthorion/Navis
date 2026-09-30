@@ -484,15 +484,20 @@ void main() {
         .values;
     expect(linked.pitchFactor, 1.25);
     expect(find.text('+3.86 semitones'), findsOneWidget);
-    expect(find.text('Follows playback speed'), findsOneWidget);
+    // Linked pitch: a link icon on the heading instead of a caption, no
+    // inert step buttons, and a read-only ruler shown at full contrast.
+    expect(find.text('Follows playback speed'), findsNothing);
     expect(
-      tester
-          .widget<AdjustmentRuler>(
-            find.byKey(const ValueKey('adjustment-pitch-ruler')),
-          )
-          .enabled,
-      isFalse,
+      find.byKey(const ValueKey('adjustment-pitch-linked')),
+      findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('adjustment-pitch-minus')), findsNothing);
+    expect(find.byKey(const ValueKey('adjustment-pitch-plus')), findsNothing);
+    final lockedRuler = tester.widget<AdjustmentRuler>(
+      find.byKey(const ValueKey('adjustment-pitch-ruler')),
+    );
+    expect(lockedRuler.enabled, isFalse);
+    expect(lockedRuler.readOnly, isTrue);
     expect(
       tester
           .widget<TextButton>(
@@ -530,6 +535,14 @@ void main() {
           .values
           .pitchSemitones,
       linked.pitchSemitones,
+    );
+    expect(
+      find.byKey(const ValueKey('adjustment-pitch-linked')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('adjustment-pitch-minus')),
+      findsOneWidget,
     );
     await tester.tap(find.byKey(const ValueKey('adjustment-speed-plus')));
     await tester.pumpAndSettle();

@@ -244,17 +244,24 @@ class _AlbumCardHoverPlayState extends ConsumerState<_AlbumCardHoverPlay> {
               onEnd: _handleFadeEnd,
               child: !_buttonMounted
                   ? const SizedBox.square(dimension: 52)
-                  : IconButton.filled(
-                      key: const ValueKey<String>('albumCardHoverPlay'),
-                      tooltip: l10n.libraryAlbumMenuPlay,
-                      iconSize: 28,
-                      constraints: const BoxConstraints(
-                        minWidth: 52,
-                        minHeight: 52,
+                  // Announced to screen readers without a hover tooltip;
+                  // the play glyph speaks for itself to pointer users.
+                  : Semantics(
+                      container: true,
+                      button: true,
+                      label: l10n.libraryAlbumMenuPlay,
+                      excludeSemantics: true,
+                      child: IconButton.filled(
+                        key: const ValueKey<String>('albumCardHoverPlay'),
+                        iconSize: 28,
+                        constraints: const BoxConstraints(
+                          minWidth: 52,
+                          minHeight: 52,
+                        ),
+                        onPressed: () =>
+                            unawaited(playAlbumById(ref, widget.albumId)),
+                        icon: const Icon(Icons.play_arrow_rounded),
                       ),
-                      onPressed: () =>
-                          unawaited(playAlbumById(ref, widget.albumId)),
-                      icon: const Icon(Icons.play_arrow_rounded),
                     ),
             ),
           ),
