@@ -1,10 +1,23 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/listenbrainz_api_client.dart';
+import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+class _OfflineListenBrainz extends ListenBrainzApiClient {
+  @override
+  Future<ListenBrainzTokenDetails> validateTokenDetails(String userToken) {
+    throw DioException(
+      requestOptions: RequestOptions(path: '/1/validate-token'),
+      type: DioExceptionType.connectionError,
+    );
+  }
+}
 
 void main() {
   testWidgets('renders a shell-free full-screen customization flow', (
@@ -163,5 +176,52 @@ void main() {
     expect(find.text('ListenBrainz connected'), findsOneWidget);
     expect(find.text('Connected as navis-user.'), findsOneWidget);
     expect(find.text('Update'), findsOneWidget);
+  });
+
+  testWidgets('a network failure while validating shows a readable message', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          customColorPresetsProvider.overrideWithValue(
+            const AsyncData(<int>[]),
+          ),
+          listenBrainzApiClientProvider.overrideWithValue(
+            _OfflineListenBrainz(),
+          ),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: OnboardingScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (var step = 0; step < 3; step++) {
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+    }
+    await tester.enterText(find.byType(TextField).first, 'token');
+    final validate = find.widgetWithText(FilledButton, 'Validate and connect');
+    await tester.scrollUntilVisible(
+      validate,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(validate);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'ListenBrainz is unavailable. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('DioException'), findsNothing);
   });
 }

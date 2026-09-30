@@ -111,7 +111,9 @@ class _ShowcaseCoverCard extends ConsumerWidget {
       onTap = listenBrainz.isLoading || playlist == null
           ? null
           : () => _showListenBrainzDiscoverDetail(context, ref, playlist);
-      semanticLabel = listenBrainz.displayTitle;
+      semanticLabel = listenBrainz.localizedTitle(
+        AppLocalizations.of(context)!,
+      );
     }
 
     return Semantics(
@@ -198,7 +200,9 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
     final item = this.item;
     final title = item is HomeRandomShowcaseAlbum
         ? item.name
-        : (item as HomeRandomShowcaseListenBrainz).displayTitle;
+        : (item as HomeRandomShowcaseListenBrainz).localizedTitle(
+            AppLocalizations.of(context)!,
+          );
     final subtitle = item is HomeRandomShowcaseAlbum
         ? (item.artist?.trim() ?? '')
         : _listenBrainzSubtitle(l10n, item as HomeRandomShowcaseListenBrainz);

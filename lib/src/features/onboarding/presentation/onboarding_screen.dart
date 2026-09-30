@@ -9,8 +9,10 @@ import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/home/presentation/home_onboarding_warmup.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/external_service_messages.dart';
 import 'package:navis/src/features/settings/presentation/listenbrainz_connection_status.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -188,21 +190,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         final result = await ref
             .read(lastFmApiClientFactoryProvider)(key)
             .validateApiKey();
+        if (!mounted) return;
         if (!result.valid) {
-          throw StateError(
-            result.message ?? l10n.configurationLastFmApiKeyInvalid,
+          setState(
+            () => _serviceError = lastFmApiKeyFailureMessage(result, l10n),
           );
+          return;
         }
       }
+      if (!mounted) return;
       setState(
         () => _draft = current.copyWith(
           lastFmApiKey: key.isEmpty ? null : key,
           clearLastFmApiKey: key.isEmpty,
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning('Last.fm key validation failed. $error\n$stackTrace');
       if (mounted) {
-        setState(() => _serviceError = '$error');
+        setState(
+          () => _serviceError = l10n.configurationLastFmApiKeyValidationFailed,
+        );
       }
     } finally {
       if (mounted) setState(() => _lastFmBusy = false);
@@ -228,12 +236,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final details = await ref
           .read(listenBrainzApiClientProvider)
           .validateTokenDetails(token);
+      if (!mounted) return;
       if (!details.valid) {
-        throw StateError(l10n.configurationListenBrainzTokenInvalid);
+        setState(
+          () => _serviceError = l10n.configurationListenBrainzTokenInvalid,
+        );
+        return;
       }
       await ref
           .read(externalScrobbleCredentialStoreProvider)
           .saveListenBrainzToken(token);
+      if (!mounted) return;
       setState(
         () => _draft = current.copyWith(
           listenBrainzTokenValid: true,
@@ -241,9 +254,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           listenBrainzUserName: details.userName,
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'ListenBrainz token validation failed. $error\n$stackTrace',
+      );
       if (mounted) {
-        setState(() => _serviceError = '$error');
+        setState(
+          () => _serviceError = l10n.configurationListenBrainzUnavailable,
+        );
       }
     } finally {
       if (mounted) setState(() => _listenBrainzBusy = false);

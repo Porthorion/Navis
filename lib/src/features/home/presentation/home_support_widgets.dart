@@ -450,7 +450,7 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        playlist.displayTitle,
+                        playlist.localizedTitle(AppLocalizations.of(context)!),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.headlineSmall?.copyWith(

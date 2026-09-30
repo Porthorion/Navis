@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals;
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -406,7 +407,7 @@ class _ListenBrainzWeeklyDetailContentState
           title: Opacity(
             opacity: toolbarTitleOpacity,
             child: Text(
-              playlist.displayTitle,
+              playlist.localizedTitle(AppLocalizations.of(context)!),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -445,7 +446,7 @@ class _ListenBrainzWeeklyDetailContentState
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Text(
-                        playlist.displayTitle,
+                        playlist.localizedTitle(AppLocalizations.of(context)!),
                         style: textTheme.displayMedium?.copyWith(
                           color: Colors.white,
                           shadows: <Shadow>[
@@ -854,7 +855,9 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
     final date = _listenBrainzGenerationDate(playlist);
     final metadata = <String>[
       l10n.weeklyPlaylistServiceName,
-      _formatListenBrainzDate(date),
+      DateFormat.yMMMd(
+        Localizations.localeOf(context).toLanguageTag(),
+      ).format(date),
       l10n.weeklyPlaylistTrackCount(playlist.totalCount),
       _listenBrainzAvailabilityText(playlist, l10n),
     ].join(' • ');
@@ -866,7 +869,7 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
       children: <Widget>[
         if (showTitle) ...<Widget>[
           Text(
-            playlist.displayTitle,
+            playlist.localizedTitle(l10n),
             textAlign: textAlign,
             maxLines: compact ? 3 : 2,
             overflow: TextOverflow.ellipsis,
@@ -906,24 +909,6 @@ DateTime _listenBrainzGenerationDate(ListenBrainzDiscoverPlaylist playlist) {
     }
   }
   return DateTime.now();
-}
-
-String _formatListenBrainzDate(DateTime date) {
-  const months = <String>[
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return '${months[date.month - 1]} ${date.day}, ${date.year}';
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
@@ -2774,7 +2759,7 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text(
-                    item.displayTitle,
+                    item.localizedTitle(AppLocalizations.of(context)!),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -3836,7 +3821,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
     final metadataParts = <String>[
       if (album.year != null && album.year! > 0) album.year.toString(),
       if (album.songCount != null && album.songCount! > 0)
-        '${album.songCount} tracks',
+        AppLocalizations.of(context)!.playlistsSongCount(album.songCount!),
     ];
     return Card(
       margin: EdgeInsets.zero,
@@ -4000,7 +3985,7 @@ class _RandomListenBrainzHeroCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      item.displayTitle,
+                      item.localizedTitle(AppLocalizations.of(context)!),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(

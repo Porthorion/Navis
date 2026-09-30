@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Setup shows a clear message when ListenBrainz or Last.fm validation fails instead of a technical error, and Home dates, track counts and weekly playlist names follow your language',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'On desktop, album and artist shelves and the You Might Like cover strip can be scrolled by dragging with the mouse',
         type: _EntryType.improvement,
       ),
