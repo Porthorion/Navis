@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -187,6 +188,7 @@ Widget _buildLibraryScreen({
   TextScaler? textScaler,
   String artistViewMode = 'list',
   AdaptiveContext? adaptiveContext,
+  bool active = true,
 }) {
   return ProviderScope(
     overrides: withTestDatabase(
@@ -215,15 +217,19 @@ Widget _buildLibraryScreen({
             ),
       home: DesktopNavigationPresentationScope(
         iconsOnly: desktopIconsOnly,
-        child: Builder(
-          builder: (context) => textScaler == null
-              ? const LibraryScreen()
-              : MediaQuery(
-                  data: MediaQuery.of(context).copyWith(
-                    textScaler: textScaler,
+        // The shell disables tickers for branches behind the visible tab.
+        child: TickerMode(
+          enabled: active,
+          child: Builder(
+            builder: (context) => textScaler == null
+                ? const LibraryScreen()
+                : MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      textScaler: textScaler,
+                    ),
+                    child: const LibraryScreen(),
                   ),
-                  child: const LibraryScreen(),
-                ),
+          ),
         ),
       ),
     ),
@@ -424,6 +430,34 @@ void main() {
   );
 
   group('LibraryScreen', () {
+    for (final active in [true, false]) {
+      _testWidgetsWithCleanup(
+        'type-to-filter ${active ? 'captures' : 'ignores'} keys when the '
+        'Library tab is ${active ? 'visible' : 'hidden'}',
+        (tester) async {
+          await tester.pumpWidget(
+            _buildLibraryScreen(
+              active: active,
+              overrides: [
+                librarySyncControllerProvider.overrideWith(
+                  () =>
+                      _FakeLibrarySyncController(const LibrarySyncState.idle()),
+                ),
+              ],
+            ),
+          );
+          await tester.pumpAndSettle();
+          final handled = await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+          await tester.pumpAndSettle();
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(LibraryScreen)),
+          );
+          expect(handled, active);
+          expect(container.read(libraryTypeFilterActiveProvider), active);
+        },
+      );
+    }
+
     _testWidgetsWithCleanup(
       'Liked artist See all works when Artists is hidden',
       (tester) async {

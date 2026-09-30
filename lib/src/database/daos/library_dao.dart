@@ -188,6 +188,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   static const _safeSqlVariableChunkSize = 500;
 
+  /// Splits [ids] so no statement exceeds SQLite's bound-variable limit.
+  static Iterable<List<String>> _sqlVariableChunks(List<String> ids) sync* {
+    for (
+      var start = 0;
+      start < ids.length;
+      start += _safeSqlVariableChunkSize
+    ) {
+      yield ids.sublist(
+        start,
+        math.min(start + _safeSqlVariableChunkSize, ids.length),
+      );
+    }
+  }
+
   Stream<List<ArtistsTableData>> watchArtists({bool likedOnly = false}) {
     final query = select(artistsTable)
       ..orderBy([(table) => OrderingTerm.asc(table.name)]);
@@ -2422,9 +2436,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     if (ids.isEmpty) {
       return const <ArtistsTableData>[];
     }
-    final rows = await (select(
-      artistsTable,
-    )..where((table) => table.id.isIn(ids))).get();
+    final rows = <ArtistsTableData>[
+      for (final chunk in _sqlVariableChunks(ids))
+        ...await (select(
+          artistsTable,
+        )..where((table) => table.id.isIn(chunk))).get(),
+    ];
     final byId = <String, ArtistsTableData>{
       for (final row in rows) row.id: row,
     };
@@ -2453,9 +2470,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     if (ids.isEmpty) {
       return const <AlbumsTableData>[];
     }
-    final rows = await (select(
-      albumsTable,
-    )..where((table) => table.id.isIn(ids))).get();
+    final rows = <AlbumsTableData>[
+      for (final chunk in _sqlVariableChunks(ids))
+        ...await (select(
+          albumsTable,
+        )..where((table) => table.id.isIn(chunk))).get(),
+    ];
     final byId = <String, AlbumsTableData>{for (final row in rows) row.id: row};
     return ids
         .map((id) => byId[id])
@@ -2761,11 +2781,15 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return;
     }
     await transaction(() async {
-      final songs = await (select(
-        songsTable,
-      )..where((table) => table.albumId.isIn(ids))).get();
-      await _handleRemovedServerSongs(songs);
-      await (delete(albumsTable)..where((table) => table.id.isIn(ids))).go();
+      for (final chunk in _sqlVariableChunks(ids)) {
+        final songs = await (select(
+          songsTable,
+        )..where((table) => table.albumId.isIn(chunk))).get();
+        await _handleRemovedServerSongs(songs);
+        await (delete(
+          albumsTable,
+        )..where((table) => table.id.isIn(chunk))).go();
+      }
     });
   }
 

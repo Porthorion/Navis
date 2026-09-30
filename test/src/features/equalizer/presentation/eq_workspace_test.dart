@@ -456,6 +456,25 @@ void main() {
     );
   }, skip: !sqliteAvailable);
 
+  testWidgets('exact entry accepts a comma decimal separator', (tester) async {
+    final container = await mount(tester, size: _desktop, desktop: true);
+    await tester.tap(find.byKey(const ValueKey('eq-input-gain')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('eq-edit-gain')), '-4,5');
+    await tester.tap(find.byKey(const ValueKey('eq-number-done')));
+    await tester.pumpAndSettle();
+    expect(
+      container
+          .read(equalizerProvider)
+          .requireValue
+          .configuration
+          .filters
+          .single
+          .gainDb,
+      -4.5,
+    );
+  }, skip: !sqliteAvailable);
+
   testWidgets('typing keeps the caret where the user placed it', (
     tester,
   ) async {

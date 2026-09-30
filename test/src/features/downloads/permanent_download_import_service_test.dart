@@ -189,6 +189,16 @@ void main() {
       expect(await database.cacheDao.getPermanentEntries(), isEmpty);
     });
 
+    test('ignores an interrupted identity-tag rewrite copy', () async {
+      File('${root.path}/Unknown/Elsewhere.flac.navis-writing')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[1]);
+
+      final preview = await service('profile').preview(root);
+
+      expect(preview.items, isEmpty);
+    });
+
     test('keeps duplicate legacy title and artist matches ambiguous', () async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[
         SongsTableCompanion.insert(

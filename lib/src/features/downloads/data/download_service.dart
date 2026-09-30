@@ -850,12 +850,22 @@ class DownloadService {
               lastAccessedAt: DateTime.now(),
             ),
           );
-          await _permanentDownloadImportService.recordDownloaded(
-            root: await _permanentDirectory(),
-            file: destFile,
-            songId: songId,
-            format: format,
-          );
+          // The download is registered; the sidecar record and identity tags
+          // are bookkeeping and must never cost the user the finished file
+          // (for example while antivirus briefly locks the sidecar).
+          try {
+            await _permanentDownloadImportService.recordDownloaded(
+              root: await _permanentDirectory(),
+              file: destFile,
+              songId: songId,
+              format: format,
+            );
+          } on Object catch (error, stackTrace) {
+            AppLogger.warning(
+              'DownloadService: Could not record $songId in the download '
+              'folder sidecar: $error\n$stackTrace',
+            );
+          }
         }
 
         // Remove from queue.
@@ -1195,10 +1205,14 @@ class DownloadService {
     }
     try {
       final targetDirectory = await _permanentDirectory();
+      final customDownloadFolderEnabled = _readCustomDownloadFolderEnabled();
       await _relocatePermanentDownloads(
         targetDirectory: targetDirectory,
-        customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
+        customDownloadFolderEnabled: customDownloadFolderEnabled,
         customDownloadFolderPath: _readCustomDownloadFolderPath(),
+        // A custom root is user-owned: files already inside it, including
+        // adopted ones, keep their names and are never rewritten.
+        keepEntriesInsideTarget: customDownloadFolderEnabled,
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
@@ -1311,6 +1325,7 @@ class DownloadService {
     required bool customDownloadFolderEnabled,
     required String? customDownloadFolderPath,
     bool rollbackOnFailure = false,
+    bool keepEntriesInsideTarget = false,
   }) async {
     final currentRootIsSaf = _isSafRoot(_readCustomDownloadFolderPath());
     final currentRootDirectory = currentRootIsSaf
@@ -1358,6 +1373,12 @@ class DownloadService {
           continue;
         }
 
+        if (keepEntriesInsideTarget &&
+            !sourceWasSaf &&
+            p.isWithin(targetDirectory.path, entry.filePath)) {
+          reservedTargetPaths.add(entry.filePath);
+          continue;
+        }
         final song = songsById[entry.songId];
         final storedFormat = _resolveStoredFormat(entry, song: song);
         final targetPath = await _resolvePermanentPathForEntry(

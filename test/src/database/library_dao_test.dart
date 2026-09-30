@@ -23,6 +23,15 @@ void main() {
       await database.close();
     });
 
+    test('id lookups and deletes stay within the SQL variable limit', () async {
+      // More ids than SQLite's default bound-variable limit (32766), as when a
+      // server rebuild regenerates every album id.
+      final ids = [for (var i = 0; i < 40000; i++) 'missing-$i'];
+      expect(await database.libraryDao.getAlbumsByIds(ids), isEmpty);
+      expect(await database.libraryDao.getArtistsByIds(ids), isEmpty);
+      await database.libraryDao.deleteAlbumsByIds(ids);
+    }, skip: !sqliteAvailable);
+
     test('metadata upserts never execute primary-key updates', () async {
       // UPDATE OF observes column assignment even when the value is unchanged.
       // Rejecting it guards against expensive foreign-key rechecks while the

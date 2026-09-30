@@ -654,6 +654,31 @@ void main() {
     expect(handler.snapshot.queueSongIds, isNot(ids));
   });
 
+  test('skipping right after a queue edit still persists the edit', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
+    final (handler, player, database) = await createHandler(directory, 6);
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    final ids = List<String>.generate(6, (index) => 'song-$index');
+    await handler.replaceQueueWithData(
+      await database.libraryDao.getSongsByIds(ids),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+
+    await handler.reorderQueue(5, 1);
+    await handler.skipToNext();
+    await Future<void>.delayed(const Duration(milliseconds: 2500));
+
+    expect(handler.snapshot.queueSongIds, isNot(ids));
+    expect(
+      (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+      handler.snapshot.queueSongIds,
+    );
+  });
+
   test('burst keeps latest target and serializes player mutations', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
     final (handler, player, database) = await createHandler(directory, 20);
@@ -819,6 +844,28 @@ void main() {
       expect(player.sourceIds, ids(17));
       expect(handler.snapshot.queueSongIds, ids(60));
     });
+
+    test(
+      'songs that cannot play yet stay deferred instead of dropping',
+      () async {
+        final (handler, player, database) = await windowed(60);
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        // Without a cached copy or a session the tail cannot resolve for now.
+        for (final id in ids(60, 9)) {
+          await database.cacheDao.removeCachedTrack(id);
+        }
+        player.moveTo(6);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(player.sourceIds, ids(9));
+        expect(handler.snapshot.queueSongIds, ids(60));
+        expect(handler.collectPlaybackDiagnostics()['deferredLength'], 51);
+        await handler.debugFlushQueuePersistence();
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+          ids(60),
+        );
+      },
+    );
 
     test('a near jump into the tail releases through it and seeks', () async {
       final (handler, player, _) = await windowed(60);

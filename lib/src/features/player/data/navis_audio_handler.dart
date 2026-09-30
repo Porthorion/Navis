@@ -1159,10 +1159,14 @@ class NavisAudioHandler extends BaseAudioHandler
     bool navigation = false,
   }) {
     _clearQueueReplacementMetadataAnchor();
-    _queueItemsPersistTimer?.cancel();
-    _queueItemsPersistTimer = null;
-    _queueItemsPersistContext = null;
-    _queueItemsPersistFirstScheduledAt = null;
+    // Navigation keeps the queue, so a coalesced save of an earlier edit
+    // must still land; any other supersession persists its own queue.
+    if (!navigation) {
+      _queueItemsPersistTimer?.cancel();
+      _queueItemsPersistTimer = null;
+      _queueItemsPersistContext = null;
+      _queueItemsPersistFirstScheduledAt = null;
+    }
     _pendingLogicalQueueSongIds = pendingLogicalQueueSongIds == null
         ? null
         : List<String>.unmodifiable(pendingLogicalQueueSongIds);
@@ -1337,44 +1341,57 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Moves up to [count] songs from the front of the deferred tail into the
   /// native player with a single append; songs that cannot be resolved are
-  /// dropped. [token] is honoured only before the native call: an append that
-  /// succeeded is always committed, so the Dart queue never diverges from the
-  /// player. Returns, per released tail entry, its offset from the old end
+  /// dropped. A song that is only unavailable for now (offline, or no
+  /// session) stays deferred with every song after it, and when nothing can
+  /// be released this throws [PlaybackSourceTemporarilyUnavailableException]
+  /// so callers retry later. [token] is honoured only before the native
+  /// call: an append that succeeded is always committed, so the Dart queue
+  /// never diverges from the player. Returns, per released tail entry, its offset from the old end
   /// of the materialised queue, or null when it was dropped.
   Future<List<int?>> _releaseTail({
     required int count,
     OperationToken? token,
   }) async {
     if (_deferredTail.isEmpty || count <= 0) return const <int?>[];
-    final take = math.min(count, _deferredTail.length);
+    var take = math.min(count, _deferredTail.length);
     final entries = _deferredTail.sublist(0, take);
     final queueRevision = _queueItems.revision;
     final tailRevision = _deferredTail.revision;
     final rows = await _rowsForDeferredEntries(entries);
     token?.checkCancelled();
-    final prepared = <_PreparedQueueItem>[];
-    final offsets = <int?>[];
+    final resolved = <_PreparedQueueItem?>[];
+    var retryFrom = rows.length;
     for (
       var start = 0;
-      start < rows.length;
+      start < rows.length && retryFrom == rows.length;
       start += _queueFillBatchSizeLimit
     ) {
-      final chunk = rows.sublist(
-        start,
-        math.min(start + _queueFillBatchSizeLimit, rows.length),
+      final end = math.min(start + _queueFillBatchSizeLimit, rows.length);
+      resolved.addAll(
+        await Future.wait([
+          for (var i = start; i < end; i++)
+            if (rows[i] case final row?)
+              _prepareSingleItemForQueueFill(
+                row,
+                onRetryLater: () => retryFrom = math.min(retryFrom, i),
+              )
+            else
+              Future<_PreparedQueueItem?>.value(),
+        ]),
       );
-      final resolved = await Future.wait(
-        chunk.map(
-          (row) => row == null
-              ? Future<_PreparedQueueItem?>.value()
-              : _prepareSingleItemForQueueFill(row),
-        ),
-      );
-      for (final item in resolved) {
-        offsets.add(item == null ? null : prepared.length);
-        if (item != null) prepared.add(item);
-      }
       token?.checkCancelled();
+    }
+    take = math.min(take, retryFrom);
+    if (take == 0) {
+      throw const PlaybackSourceTemporarilyUnavailableException(
+        'Deferred songs are not playable right now.',
+      );
+    }
+    final prepared = <_PreparedQueueItem>[];
+    final offsets = <int?>[];
+    for (final item in resolved.take(take)) {
+      offsets.add(item == null ? null : prepared.length);
+      if (item != null) prepared.add(item);
     }
     // The lane serialises queue work, but a restore outside it (Android Auto
     // resume) can replace the queue meanwhile; release nothing then.
@@ -3261,9 +3278,12 @@ class NavisAudioHandler extends BaseAudioHandler
     );
   }
 
+  /// [onRetryLater] is called instead of logging a skip when the song may
+  /// become playable again (offline, or no session yet).
   Future<_PreparedQueueItem?> _prepareSingleItemForQueueFill(
-    SongsTableData song,
-  ) async {
+    SongsTableData song, {
+    void Function()? onRetryLater,
+  }) async {
     try {
       return await _prepareSingleItem(song, preferLockCaching: true);
     } on OperationCancelledException {
@@ -3279,6 +3299,15 @@ class NavisAudioHandler extends BaseAudioHandler
       return await _prepareSingleItem(song, preferLockCaching: false);
     } on OperationCancelledException {
       rethrow;
+    } on PlaybackSourceTemporarilyUnavailableException catch (error) {
+      if (onRetryLater == null) {
+        AppLogger.warning(
+          'Queue fill source unavailable for song=${song.id}; skipping. '
+          '$error',
+        );
+      }
+      onRetryLater?.call();
+      return null;
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'Queue fill source unavailable for song=${song.id}; skipping. '
@@ -4950,7 +4979,11 @@ class NavisAudioHandler extends BaseAudioHandler
       // The player needs a following song before its last materialised one
       // goes; otherwise removing the current song would end playback.
       if (index == _queueItems.length - 1 && _deferredTail.isNotEmpty) {
-        await _releaseTail(count: _queueWindow.page);
+        try {
+          await _releaseTail(count: _queueWindow.page);
+        } on PlaybackSourceTemporarilyUnavailableException {
+          // Nothing playable follows yet; the removal still applies.
+        }
       }
 
       // Remove the audio source and queue item incrementally — this does NOT
@@ -5032,7 +5065,11 @@ class NavisAudioHandler extends BaseAudioHandler
             oldIndex == (_player.currentIndex ?? -1)) {
           // Keep the playing song in the player: release through the target
           // so the move stays inside the window.
-          await _releaseTail(count: adjustedIndex - materialized + 1);
+          try {
+            await _releaseTail(count: adjustedIndex - materialized + 1);
+          } on PlaybackSourceTemporarilyUnavailableException {
+            // The target stays deferred; the move below handles that.
+          }
           materialized = _queueItems.length;
         }
         if (adjustedIndex < materialized) {
@@ -5802,8 +5839,13 @@ class NavisAudioHandler extends BaseAudioHandler
       // Native shuffle orders only what the player holds, so a deferred tail
       // is released first; shuffled queues then stay fully materialised.
       if (enabled) {
-        while (_deferredTail.isNotEmpty) {
-          await _releaseTail(count: _queueFillBatchSizeLimit);
+        try {
+          while (_deferredTail.isNotEmpty) {
+            await _releaseTail(count: _queueFillBatchSizeLimit);
+          }
+        } on PlaybackSourceTemporarilyUnavailableException {
+          // Unplayable-for-now songs stay deferred and join the shuffled
+          // player once a later release can resolve them.
         }
       }
       await _player.setShuffleModeEnabled(enabled);

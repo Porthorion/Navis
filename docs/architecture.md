@@ -1327,7 +1327,9 @@ always lists the whole logical queue, so the Queue UI shows and edits every
 song; tapping a deferred song within 64 of the window releases through it and
 seeks, farther taps rebuild the player around it, and removes and reorders
 inside the tail are Dart-only. Songs that cannot be resolved when released are
-dropped. Turning shuffle on releases the whole tail first (native shuffle
+dropped, except that a song that is only unplayable for now (offline without a
+cached copy, or no server session) stays deferred with every song after it and
+the release backs off and retries. Turning shuffle on releases the whole tail first (native shuffle
 orders only what the player holds), and repeat-all stays off natively until
 nothing is deferred, so the player never wraps early; the reported repeat mode
 is the user's. `GET /v1/playback/status` reports `materializedLength`,
@@ -1340,7 +1342,8 @@ queued edits finish first; edits (add, play next, remove, reorder, merges,
 alias updates) run in FIFO order and are never silently dropped; idle work
 (tail releases) runs only on an empty lane. Edits apply one batched native
 call where possible, fall back to per-song inserts only when a batch fails,
-and coalesce their queue save (at most 2 s). A successful native call made by
+and coalesce their queue save (at most 2 s); navigation keeps a pending
+coalesced save, so an edit followed at once by a skip is still persisted. A successful native call made by
 an edit is always committed even if a newer command superseded it, so the
 Dart queue never diverges from the player.
 
@@ -1858,7 +1861,8 @@ contract.
    manual-review screen; its local-song picker shows cover art and ranks exact
    title matches with liked songs (including liked-album tracks) first. Closing
    that review leaves unresolved user files untouched. Adopted files are never
-   modified: the sidecar is their identity record, and adoption writes sidecar
+   modified or moved: startup normalization leaves every file already inside a
+   custom root where it is, the sidecar is their identity record, and adoption writes sidecar
    records in one transaction and cache rows in chunks of 250 (one
    `cached_tracks` notification per chunk). Only files Navis downloads itself
    carry identity tags; they are written to the local file, off the UI

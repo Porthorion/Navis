@@ -792,7 +792,8 @@ class PermanentDownloadImportService {
     final name = p.basename(path);
     return name == permanentDownloadManifestFileName ||
         name == '$permanentDownloadManifestFileName-wal' ||
-        name == '$permanentDownloadManifestFileName-shm';
+        name == '$permanentDownloadManifestFileName-shm' ||
+        name.endsWith(identityRewriteSuffix);
   }
 
   String _profileFingerprint() {

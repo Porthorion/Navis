@@ -37,6 +37,9 @@ class QueueSpy extends QueueController {
   int appends = 0;
   Future<void> Function(List<SongsTableData>)? onReplace;
   Set<String> skippedAppendIds = {};
+
+  /// Batches containing one of these ids fail as a native timeout would.
+  Set<String> throwingAppendIds = {};
   final List<(int, int)> moves = [];
   @override
   Future<void> reorder(int oldIndex, int newIndex) async {
@@ -75,6 +78,11 @@ class QueueSpy extends QueueController {
   @override
   Future<List<String>> insertRuns(List<QueueInsertRun> runs) async {
     appends++;
+    if (runs.any(
+      (run) => run.songs.any((song) => throwingAppendIds.contains(song.id)),
+    )) {
+      throw TimeoutException('native insert timed out');
+    }
     final skipped = <String>[];
     final ordered = List.of(runs)..sort((a, b) => b.index.compareTo(a.index));
     for (final run in ordered) {
@@ -957,6 +965,18 @@ void main() {
       ]);
     },
   );
+  test('a batch that throws is retained as unavailable, not lost', () async {
+    final queue = QueueSpy()..throwingAppendIds = {'track-album-2'};
+    final container = containerFor(resolver, queue);
+    await container
+        .read(artistPlaybackControllerProvider.notifier)
+        .prepare('artist', ArtistPlaybackAction.add);
+    expect(queue.ids, ['previous', 'track-album-1', 'track-album-3']);
+    expect(container.read(retainedArtistQueueProvider).map((s) => s.id), [
+      'track-album-2',
+    ]);
+  });
+
   test('failed appended occurrence remains visible even if its ID is already queued', () async {
     final queue = QueueSpy()
       ..ids = ['track-album-1']

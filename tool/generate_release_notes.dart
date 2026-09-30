@@ -73,6 +73,14 @@ const List<_Version> _changelogs = [
         type: _EntryType.fix,
       ),
       _Entry(
+        'Queue edits made just before skipping are saved, songs later in a long queue stay queued while you are offline or signed out instead of disappearing, and artist tracks that fail to join the queue stay visible as unavailable',
+        type: _EntryType.fix,
+      ),
+      _Entry(
+        'Files adopted from a custom Downloads folder keep their names and folders after a restart, a finished download is kept even when its folder record cannot be written, typing on other tabs no longer sets a hidden Library filter, and Equalizer values accept a comma as the decimal separator',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'Artist pages open faster on large libraries and stay smooth while their releases load',
         type: _EntryType.improvement,
       ),

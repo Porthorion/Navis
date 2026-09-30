@@ -459,8 +459,29 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
                 ),
               );
             }
-          } on Object {
-            AppLogger.warning('Artist queue batch could not finish.');
+          } on Object catch (error, stackTrace) {
+            AppLogger.warning(
+              'Artist queue batch could not finish. $error\n$stackTrace',
+            );
+            // The handler keeps whatever part of the batch it committed;
+            // every other song is retained as unavailable, not lost.
+            final added = <String, int>{};
+            for (final id in ref.read(queueProvider)) {
+              added[id] = (added[id] ?? 0) + 1;
+            }
+            for (final id in before) {
+              added[id] = (added[id] ?? 0) - 1;
+            }
+            final lost = <String>[];
+            for (final song in songs) {
+              final count = added[song.id] ?? 0;
+              if (count > 0) {
+                added[song.id] = count - 1;
+              } else {
+                lost.add(song.id);
+              }
+            }
+            skipped = lost;
           }
           if (!_owns(generation)) return;
           final byId = {for (final song in songs) song.id: song};

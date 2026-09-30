@@ -158,7 +158,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
 
   EqConfiguration? _typedConfiguration() {
     if (!_inputTouched) return _numberBase;
-    final number = double.tryParse(_input.text.trim());
+    final number = double.tryParse(_input.text.trim().replaceAll(',', '.'));
     final (minimum, maximum) = EqParameter.range(_parameter!);
     if (number == null ||
         !number.isFinite ||
