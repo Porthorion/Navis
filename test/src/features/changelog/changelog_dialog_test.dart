@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 void main() {
   testWidgets('bug-fix-only release is labeled clearly', (tester) async {
@@ -57,10 +59,9 @@ void main() {
     await tester.tap(find.text(l10n.changelogDialogViewAll));
     await tester.pumpAndSettle();
 
-    expect(
-      router.routerDelegate.currentConfiguration.uri.path,
-      '/settings/about/changelog',
-    );
+    // Opening the changelog pushes it, so Back returns to the origin.
+    expect(router.state.uri.path, AppRoutes.changelog);
+    expect(router.canPop(), isTrue);
     expect(find.text(l10n.aboutChangelog), findsOneWidget);
     expect(find.text('Version ${changelogs.first.version}'), findsOneWidget);
 
@@ -125,7 +126,7 @@ GoRouter _createRouter(ChangelogVersion version) {
         ),
       ),
       GoRoute(
-        path: '/settings/about/changelog',
+        path: AppRoutes.changelog,
         builder: (context, state) => const ChangelogScreen(),
       ),
     ],
@@ -134,10 +135,12 @@ GoRouter _createRouter(ChangelogVersion version) {
 
 Future<void> _pumpRouter(WidgetTester tester, GoRouter router) {
   return tester.pumpWidget(
-    MaterialApp.router(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: router,
+    ProviderScope(
+      child: MaterialApp.router(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
     ),
   );
 }

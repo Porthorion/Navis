@@ -8626,6 +8626,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Get API key'**
   String get onboardingLastFmGetApiKey;
+
+  /// No description provided for @routeNotFoundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Page not found'**
+  String get routeNotFoundTitle;
+
+  /// No description provided for @routeNotFoundMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This page is no longer available.'**
+  String get routeNotFoundMessage;
+
+  /// No description provided for @routeNotFoundGoHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Home'**
+  String get routeNotFoundGoHome;
+
+  /// No description provided for @navigationBackTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get navigationBackTooltip;
+
+  /// No description provided for @navigationForwardTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward'**
+  String get navigationForwardTooltip;
 }
 
 class _AppLocalizationsDelegate

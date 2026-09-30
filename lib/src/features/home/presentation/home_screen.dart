@@ -1301,7 +1301,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<AlbumsTableData>>(
             title: l10n.homeRecentlyLikedAlbumsTitle,
-            onSeeAll: () => context.push('/library/liked-albums'),
+            onSeeAll: () => NavService.openLikedAlbums(context, ref),
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,

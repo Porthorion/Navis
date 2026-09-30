@@ -13,6 +13,7 @@ import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_url_validation.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -439,7 +440,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
       // Initial catalog sync now runs from the normal shell so a successful
       // login always lands on Home immediately.
-      context.go('/');
+      context.go(AppRoutes.home);
     } on Object catch (error) {
       if (!mounted) {
         return;

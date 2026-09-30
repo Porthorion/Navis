@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
@@ -1943,7 +1942,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       title: l10n.libraryLikedAlbumsSectionTitle,
                       compact: compactTitles,
                       padding: sectionHeaderPadding,
-                      onSeeAll: () => context.push('/library/liked-albums'),
+                      onSeeAll: () => NavService.openLikedAlbums(context, ref),
                     ),
                   ),
                 if (filteredAlbums.isNotEmpty)
@@ -2135,7 +2134,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _openLikedArtistsAll() {
     if (!ref.read(showArtistsPageProvider)) {
-      context.push('/library/liked-artists');
+      NavService.openLikedArtists(context, ref);
       return;
     }
     if (mounted) {
@@ -2702,7 +2701,7 @@ class _UnavailableReviewSliver extends ConsumerWidget {
         child: ActionChip(
           avatar: const Icon(Icons.playlist_remove),
           label: Text(l10n.unavailableReviewEntryWithCount(pendingCount)),
-          onPressed: () => context.push('/settings/unavailable-items'),
+          onPressed: () => NavService.openUnavailableItems(context, ref),
         ),
       ),
     );

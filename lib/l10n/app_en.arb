@@ -2201,5 +2201,10 @@
   "onboardingLastFmDescription": "A Last.fm API key enables Same Vibes similar-song queues and artist top tracks. It does not enable Last.fm scrobbling.",
   "onboardingLastFmApiKeyLabel": "Last.fm API Key",
   "onboardingLastFmValidateKey": "Validate key",
-  "onboardingLastFmGetApiKey": "Get API key"
+  "onboardingLastFmGetApiKey": "Get API key",
+  "routeNotFoundTitle": "Page not found",
+  "routeNotFoundMessage": "This page is no longer available.",
+  "routeNotFoundGoHome": "Go to Home",
+  "navigationBackTooltip": "Back",
+  "navigationForwardTooltip": "Forward"
 }

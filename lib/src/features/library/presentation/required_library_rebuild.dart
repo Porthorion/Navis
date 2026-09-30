@@ -1,3 +1,5 @@
+import 'package:navis/src/routing/app_routes.dart';
+
 enum RequiredLibraryRebuildReason {
   initialLogin,
   manualCacheReset,
@@ -28,7 +30,7 @@ String requiredLibraryRebuildRoute(
   bool allowMeteredBroadOverride = false,
   bool homeWarmupEligible = false,
 }) {
-  return '/library-rebuild?reason=${reason.routeValue}'
+  return '${AppRoutes.libraryRebuild}?reason=${reason.routeValue}'
       '${allowMeteredBroadOverride ? '&metered=1' : ''}'
       '${homeWarmupEligible ? '&homeWarmupEligible=1' : ''}';
 }

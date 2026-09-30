@@ -26,6 +26,7 @@ import 'package:navis/src/features/library/presentation/required_library_rebuild
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:riverpod/src/framework.dart' show Override;
@@ -165,7 +166,9 @@ void main() {
   for (final extra in <Object?>[
     null,
     'cover_art_album_album-1',
-    const AlbumDetailRouteRequest(openingHeroTag: 'cover_art_album_album-1'),
+    // NavService never sends a Hero tag on desktop; the route trusts the
+    // request it builds.
+    const AlbumDetailRouteRequest(fadeOnly: true),
   ]) {
     for (final reduceMotion in [false, true]) {
       testWidgets(
@@ -923,6 +926,53 @@ void main() {
     expect(router.state.matchedLocation, '/library');
   });
 
+  testWidgets('every AppRoutes location resolves to a real route', (
+    tester,
+  ) async {
+    final container = _createContainerWithDatabase(
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+      ],
+    );
+    final configuration = container.read(appRouterProvider).configuration;
+    final locations = <String>[
+      AppRoutes.home,
+      AppRoutes.library,
+      AppRoutes.search,
+      AppRoutes.settings,
+      AppRoutes.login,
+      AppRoutes.initialSync,
+      AppRoutes.libraryRebuild,
+      AppRoutes.onboardingReview,
+      AppRoutes.album('al/bum?#1'),
+      AppRoutes.artist('artist 1'),
+      AppRoutes.artistTopTracks('artist-1'),
+      AppRoutes.playlist('playlist-1'),
+      AppRoutes.listenBrainzWeekly('patch/1'),
+      AppRoutes.likedAlbums,
+      AppRoutes.likedArtists,
+      AppRoutes.matchFlow,
+      AppRoutes.matchFlowSearch('flow-1'),
+      AppRoutes.changelog,
+      AppRoutes.privacy,
+      for (final page in SettingsPage.values) page.location,
+    ];
+    for (final location in locations) {
+      final match = configuration.findMatch(Uri.parse(location));
+      expect(match.isError, isFalse, reason: location);
+      expect(match.isEmpty, isFalse, reason: location);
+    }
+    expect(
+      configuration
+          .findMatch(Uri.parse(AppRoutes.album('al/bum?#1')))
+          .pathParameters['id'],
+      'al/bum?#1',
+    );
+  });
+
   testWidgets('contains all expected route paths', (tester) async {
     final container = _createContainerWithDatabase(
       overrides: [
@@ -1046,44 +1096,105 @@ void main() {
     );
   });
 
-  test('feature code does not use raw entity or branch replacement routes', () {
-    final libDir = Directory('lib');
-    final violations = <String>[];
-    final directEntityRoute = RegExp(
-      r'''(?:this\.)?context\.(?:go|push)\(\s*['"]/library/(?:albums|artists|playlists)''',
-    );
-    final branchReplacement = RegExp(
-      r'''(?:this\.)?context\.go\(\s*['"]/(?:library|settings)''',
-    );
-    final approvedFiles = <String>{
-      'lib/src/routing/navigation_service.dart',
-      'lib/src/routing/app_router.dart',
+  group('navigation source guard', () {
+    // Files outside lib/src/routing that may drive the router directly, and
+    // why. Every entry must still contain a direct call, so stale entries fail.
+    const allowedDirectRouterFiles = <String, String>{
+      'lib/src/features/auth/presentation/login_screen.dart':
+          'signing in replaces the whole app location',
+      'lib/src/features/settings/presentation/server_settings_screen.dart':
+          'signing out replaces the whole app location',
+      'lib/src/features/onboarding/presentation/onboarding_screen.dart':
+          'finishing first-run onboarding enters the app',
+      'lib/src/features/library/presentation/required_library_rebuild_screen.dart':
+          'a completed rebuild leaves the full-screen flow',
+      'lib/src/features/settings/presentation/cache_settings_screen.dart':
+          'a cache reset enters the full-screen rebuild flow',
+      'lib/src/features/player/presentation/playback_recovery_provider.dart':
+          'playback recovery enters the full-screen rebuild flow',
+      'lib/src/utils/sync_diagnostics_server.dart':
+          'the diagnostics API drives the router deliberately',
     };
+    final directRouterCall = RegExp(
+      r'(?:\b(?:context|router|_router)|GoRouter\.of\([^)]*\)|'
+      r'read\(\s*appRouterProvider\s*\)|\b_router\(\))\s*\.\s*'
+      r'(?:go|push|pushReplacement|replace|restore)\s*(?:<[^>]*>)?\s*\(',
+    );
+    final routeLiteral = RegExp(
+      r'''['"]/(?:library|settings|search|login|onboarding|initial-sync)\b''',
+    );
 
-    for (final entity in libDir.listSync(recursive: true)) {
-      if (entity is! File || !entity.path.endsWith('.dart')) {
-        continue;
-      }
-      final path = entity.path;
-      if (approvedFiles.contains(path)) {
-        continue;
-      }
-      final lines = entity.readAsLinesSync();
-      for (var i = 0; i < lines.length; i++) {
-        final line = lines[i];
-        if (directEntityRoute.hasMatch(line) ||
-            branchReplacement.hasMatch(line)) {
-          violations.add('$path:${i + 1}: ${line.trim()}');
+    Iterable<({String path, String source})> libSources() sync* {
+      for (final entity in Directory('lib').listSync(recursive: true)) {
+        final path = entity.path.replaceAll(r'\', '/');
+        if (entity is! File ||
+            !path.endsWith('.dart') ||
+            path.endsWith('.g.dart') ||
+            path.endsWith('.freezed.dart') ||
+            path.startsWith('lib/l10n/')) {
+          continue;
         }
+        yield (path: path, source: _blankComments(entity.readAsStringSync()));
       }
     }
 
-    expect(
-      violations,
-      isEmpty,
-      reason:
-          'Use NavService for entity drill-in and tab/branch navigation:\n'
-          '${violations.join('\n')}',
-    );
+    String location(String source, int offset) =>
+        '${'\n'.allMatches(source.substring(0, offset)).length + 1}';
+
+    test('feature code navigates through NavService', () {
+      final violations = <String>[];
+      final unusedAllowances = allowedDirectRouterFiles.keys.toSet();
+      for (final file in libSources()) {
+        if (file.path.startsWith('lib/src/routing/')) {
+          continue;
+        }
+        final matches = directRouterCall.allMatches(file.source).toList();
+        if (matches.isEmpty) {
+          continue;
+        }
+        if (unusedAllowances.remove(file.path)) {
+          continue;
+        }
+        for (final match in matches) {
+          violations.add(
+            '${file.path}:${location(file.source, match.start)}: '
+            '${match.group(0)}',
+          );
+        }
+      }
+      expect(
+        violations,
+        isEmpty,
+        reason: 'Use NavService for app navigation:\n${violations.join('\n')}',
+      );
+      expect(
+        unusedAllowances,
+        isEmpty,
+        reason: 'Remove stale direct-router allowances.',
+      );
+    });
+
+    test('route locations are only written in app_routes.dart', () {
+      final violations = <String>[
+        for (final file in libSources())
+          if (file.path != 'lib/src/routing/app_routes.dart')
+            for (final match in routeLiteral.allMatches(file.source))
+              '${file.path}:${location(file.source, match.start)}: '
+                  '${match.group(0)}',
+      ];
+      expect(
+        violations,
+        isEmpty,
+        reason: 'Build locations with AppRoutes:\n${violations.join('\n')}',
+      );
+    });
   });
+}
+
+/// Replaces comments with spaces, keeping newlines so offsets map to lines.
+String _blankComments(String source) {
+  return source.replaceAllMapped(
+    RegExp(r'//[^\n]*|/\*[\s\S]*?\*/'),
+    (match) => match.group(0)!.replaceAll(RegExp(r'[^\n]'), ' '),
+  );
 }

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 import '../../helpers/adaptive_test_harness.dart';
+import '../../helpers/navigation_shell_harness.dart';
 import '../../helpers/test_theme.dart';
 
 void main() {
@@ -19,7 +21,9 @@ void main() {
       'album opening policy at ${scenario.size}, desktop=${scenario.desktop}',
       (tester) async {
         setAdaptiveTestViewport(tester, scenario.size);
-        final router = _createRouter(heroTag: 'source-album-art');
+        final router = createNavigationShellHarnessRouter(
+          heroTag: 'source-album-art',
+        );
         addTearDown(router.dispose);
         await tester.pumpWidget(
           ProviderScope(
@@ -52,82 +56,50 @@ void main() {
       },
     );
   }
-  testWidgets('album drill-in from search returns to search on system back', (
-    tester,
-  ) async {
-    final router = _createRouter(initialLocation: '/search');
-    await _pumpRouter(tester, router);
 
-    await tester.tap(find.text('Open album'));
-    await tester.pumpAndSettle();
-    expect(find.text('Album album-1'), findsOneWidget);
+  for (final origin in [
+    (location: AppRoutes.home, title: 'HomeScreen', tab: ShellBranch.home),
+    (
+      location: AppRoutes.search,
+      title: 'SearchScreen',
+      tab: ShellBranch.search,
+    ),
+    (
+      location: AppRoutes.library,
+      title: 'LibraryScreen',
+      tab: ShellBranch.library,
+    ),
+    (
+      location: AppRoutes.artist('artist-1'),
+      title: 'Artist artist-1',
+      tab: ShellBranch.library,
+    ),
+    (
+      location: AppRoutes.playlist('playlist-1'),
+      title: 'Playlist playlist-1',
+      tab: ShellBranch.library,
+    ),
+  ]) {
+    testWidgets('album drill-in from ${origin.location} keeps the '
+        '${origin.tab.name} tab and back returns there', (tester) async {
+      final router = await _pumpHarness(tester, origin.location);
 
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-    expect(find.text('SearchScreen'), findsOneWidget);
-  });
+      await tester.tap(find.text('Open album').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Album album-1'), findsOneWidget);
+      expect(find.text('tab:${origin.tab.name}'), findsOneWidget);
 
-  testWidgets('artist drill-in from search returns to search on system back', (
-    tester,
-  ) async {
-    final router = _createRouter(initialLocation: '/search');
-    await _pumpRouter(tester, router);
-
-    await tester.tap(find.text('Open artist'));
-    await tester.pumpAndSettle();
-    expect(find.text('Artist artist-1'), findsOneWidget);
-
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-    expect(find.text('SearchScreen'), findsOneWidget);
-  });
-
-  testWidgets('home album drill-in returns to home', (tester) async {
-    final router = _createRouter();
-    await _pumpRouter(tester, router);
-
-    await tester.tap(find.text('Open album'));
-    await tester.pumpAndSettle();
-    expect(find.text('Album album-1'), findsOneWidget);
-
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-    expect(find.text('HomeScreen'), findsOneWidget);
-  });
-
-  testWidgets('library album drill-in returns to library root', (tester) async {
-    final router = _createRouter(initialLocation: '/library');
-    await _pumpRouter(tester, router);
-
-    await tester.tap(find.text('Open album'));
-    await tester.pumpAndSettle();
-    expect(find.text('Album album-1'), findsOneWidget);
-
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-    expect(find.text('LibraryScreen'), findsOneWidget);
-  });
-
-  testWidgets('artist detail album drill-in returns to artist detail', (
-    tester,
-  ) async {
-    final router = _createRouter(initialLocation: '/library/artists/artist-1');
-    await _pumpRouter(tester, router);
-
-    await tester.tap(find.text('Open album'));
-    await tester.pumpAndSettle();
-    expect(find.text('Album album-1'), findsOneWidget);
-
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-    expect(find.text('Artist artist-1'), findsOneWidget);
-  });
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text(origin.title), findsOneWidget);
+      expect(router.state.uri.path, origin.location);
+    });
+  }
 
   testWidgets('album detail artist drill-in returns to album detail', (
     tester,
   ) async {
-    final router = _createRouter(initialLocation: '/library/albums/album-1');
-    await _pumpRouter(tester, router);
+    await _pumpHarness(tester, AppRoutes.album('album-1'));
 
     await tester.tap(find.text('Open artist'));
     await tester.pumpAndSettle();
@@ -138,204 +110,87 @@ void main() {
     expect(find.text('Album album-1'), findsOneWidget);
   });
 
-  testWidgets('playlist detail entity drill-in returns to playlist detail', (
+  testWidgets('switching tabs preserves the stack pushed on another tab', (
     tester,
   ) async {
-    final router = _createRouter(
-      initialLocation: '/library/playlists/playlist-1',
-    );
-    await _pumpRouter(tester, router);
-
+    await _pumpHarness(tester, AppRoutes.home);
     await tester.tap(find.text('Open album'));
     await tester.pumpAndSettle();
-    expect(find.text('Album album-1'), findsOneWidget);
 
-    await tester.binding.handlePopRoute();
+    await tester.tap(find.text('go:settings'));
     await tester.pumpAndSettle();
-    expect(find.text('Playlist playlist-1'), findsOneWidget);
+    expect(find.text('SettingsScreen'), findsOneWidget);
+
+    await tester.tap(find.text('go:home'));
+    await tester.pumpAndSettle();
+    expect(find.text('Album album-1'), findsOneWidget);
+    expect(find.text('tab:home'), findsOneWidget);
   });
 
-  testWidgets('replacement detail navigation does not preserve source route', (
+  testWidgets(
+    'returning to Library from an unavailable page opened on Home does not '
+    'leave the page on Home',
+    (tester) async {
+      await _pumpHarness(tester, AppRoutes.home);
+      await tester.tap(find.text('Open album'));
+      await tester.pumpAndSettle();
+
+      final albumPage = find.ancestor(
+        of: find.text('Album album-1'),
+        matching: find.byType(HarnessPage),
+      );
+      await tester.tap(
+        find.descendant(
+          of: albumPage,
+          matching: find.text('Return to library'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('tab:library'), findsOneWidget);
+      expect(find.text('LibraryScreen'), findsOneWidget);
+
+      await tester.tap(find.text('go:home'));
+      await tester.pumpAndSettle();
+      expect(find.text('HomeScreen'), findsOneWidget);
+      expect(find.text('Album album-1'), findsNothing);
+    },
+  );
+
+  testWidgets('back pops to the parent, then falls back at a tab root', (
     tester,
   ) async {
-    final router = _createRouter(initialLocation: '/search');
-    await _pumpRouter(tester, router);
+    final router = await _pumpHarness(tester, SettingsPage.cache.location);
 
-    await tester.tap(find.text('Replace album'));
+    await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('Album album-1'), findsOneWidget);
+    expect(router.state.uri.path, AppRoutes.settings);
 
-    await tester.binding.handlePopRoute();
+    await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('SearchScreen'), findsNothing);
+    expect(router.state.uri.path, AppRoutes.home);
+    expect(find.text('HomeScreen'), findsOneWidget);
+  });
+
+  testWidgets('entity ids are encoded into a single path segment', (
+    tester,
+  ) async {
+    const awkwardId = 'al/bum?one#two three%';
+    final router = await _pumpHarness(tester, AppRoutes.home);
+
+    router.go(AppRoutes.album(awkwardId));
+    await tester.pumpAndSettle();
+    expect(find.text('Album $awkwardId'), findsOneWidget);
   });
 }
 
-GoRouter _createRouter({String initialLocation = '/', String? heroTag}) {
-  return GoRouter(
-    initialLocation: initialLocation,
-    routes: <RouteBase>[
-      GoRoute(
-        path: '/',
-        builder: (context, state) => _HomePage(heroTag: heroTag),
-      ),
-      GoRoute(
-        path: '/search',
-        builder: (context, state) => const _SearchPage(),
-      ),
-      GoRoute(
-        path: '/library',
-        builder: (context, state) => const _LibraryPage(),
-        routes: <RouteBase>[
-          GoRoute(
-            path: 'albums/:id',
-            builder: (context, state) =>
-                _AlbumPage(albumId: state.pathParameters['id']!),
-          ),
-          GoRoute(
-            path: 'artists/:id',
-            builder: (context, state) =>
-                _ArtistPage(artistId: state.pathParameters['id']!),
-          ),
-          GoRoute(
-            path: 'playlists/:id',
-            builder: (context, state) =>
-                _PlaylistPage(playlistId: state.pathParameters['id']!),
-          ),
-        ],
-      ),
-    ],
-  );
-}
-
-Future<void> _pumpRouter(WidgetTester tester, GoRouter router) {
-  return tester.pumpWidget(
+Future<GoRouter> _pumpHarness(WidgetTester tester, String location) async {
+  final router = createNavigationShellHarnessRouter(initialLocation: location);
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
     ProviderScope(
-      child: MaterialApp.router(
-        theme: testTheme(),
-        routerConfig: router,
-      ),
+      child: MaterialApp.router(theme: testTheme(), routerConfig: router),
     ),
   );
-}
-
-class _HomePage extends ConsumerWidget {
-  const _HomePage({this.heroTag});
-
-  final String? heroTag;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _ScaffoldWithActions(
-      title: 'HomeScreen',
-      onOpenAlbum: () =>
-          NavService.openAlbumDetail(context, ref, 'album-1', heroTag: heroTag),
-    );
-  }
-}
-
-class _SearchPage extends ConsumerWidget {
-  const _SearchPage();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _ScaffoldWithActions(
-      title: 'SearchScreen',
-      onOpenAlbum: () => NavService.openAlbumDetail(context, ref, 'album-1'),
-      onOpenArtist: () => NavService.openArtistDetail(context, ref, 'artist-1'),
-      onReplaceAlbum: () =>
-          NavService.replaceWithAlbumDetail(context, ref, 'album-1'),
-    );
-  }
-}
-
-class _LibraryPage extends ConsumerWidget {
-  const _LibraryPage();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _ScaffoldWithActions(
-      title: 'LibraryScreen',
-      onOpenAlbum: () => NavService.openAlbumDetail(context, ref, 'album-1'),
-    );
-  }
-}
-
-class _AlbumPage extends ConsumerWidget {
-  const _AlbumPage({required this.albumId});
-
-  final String albumId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _ScaffoldWithActions(
-      title: 'Album $albumId',
-      onOpenArtist: () => NavService.openArtistDetail(context, ref, 'artist-1'),
-    );
-  }
-}
-
-class _ArtistPage extends ConsumerWidget {
-  const _ArtistPage({required this.artistId});
-
-  final String artistId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _ScaffoldWithActions(
-      title: 'Artist $artistId',
-      onOpenAlbum: () => NavService.openAlbumDetail(context, ref, 'album-1'),
-    );
-  }
-}
-
-class _PlaylistPage extends ConsumerWidget {
-  const _PlaylistPage({required this.playlistId});
-
-  final String playlistId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _ScaffoldWithActions(
-      title: 'Playlist $playlistId',
-      onOpenAlbum: () => NavService.openAlbumDetail(context, ref, 'album-1'),
-    );
-  }
-}
-
-class _ScaffoldWithActions extends StatelessWidget {
-  const _ScaffoldWithActions({
-    required this.title,
-    this.onOpenAlbum,
-    this.onOpenArtist,
-    this.onReplaceAlbum,
-  });
-
-  final String title;
-  final VoidCallback? onOpenAlbum;
-  final VoidCallback? onOpenArtist;
-  final VoidCallback? onReplaceAlbum;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: <Widget>[
-          Text(title),
-          if (onOpenAlbum != null)
-            TextButton(onPressed: onOpenAlbum, child: const Text('Open album')),
-          if (onOpenArtist != null)
-            TextButton(
-              onPressed: onOpenArtist,
-              child: const Text('Open artist'),
-            ),
-          if (onReplaceAlbum != null)
-            TextButton(
-              onPressed: onReplaceAlbum,
-              child: const Text('Replace album'),
-            ),
-        ],
-      ),
-    );
-  }
+  await tester.pumpAndSettle();
+  return router;
 }

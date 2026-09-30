@@ -15,6 +15,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 /// A deliberately shell-free, one-time customization experience.
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -138,7 +140,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       if (!mounted) return;
       await Future<void>.delayed(const Duration(milliseconds: 260));
       if (!mounted) return;
-      context.go(widget.reviewMode ? '/settings' : '/');
+      if (widget.reviewMode) {
+        NavService.back(context, fallback: AppRoutes.settings);
+      } else {
+        context.go(AppRoutes.home);
+      }
     } on Object {
       if (mounted) {
         setState(() => _serviceError = l10n.onboardingSaveFailed);

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
@@ -19,6 +18,7 @@ import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 import 'package:url_launcher/url_launcher.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 /// Displays app version, open-source licenses, and repository links.
 class AboutScreen extends ConsumerStatefulWidget {
@@ -76,7 +76,8 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             ? IconButton(
                 tooltip: l10n.syncSettingsBackToSettings,
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => NavService.returnToSettings(context, ref),
+                onPressed: () =>
+                    NavService.back(context, fallback: AppRoutes.settings),
               )
             : null,
         title: Text(l10n.aboutTitle),
@@ -460,13 +461,13 @@ class _AboutIdentity extends StatelessWidget {
   }
 }
 
-class _AboutInformation extends StatelessWidget {
+class _AboutInformation extends ConsumerWidget {
   const _AboutInformation({required this.onShowLicenses});
 
   final VoidCallback onShowLicenses;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     return Column(
       children: <Widget>[
@@ -483,14 +484,14 @@ class _AboutInformation extends StatelessWidget {
           title: Text(l10n.aboutChangelog),
           subtitle: Text(l10n.aboutChangelogSub),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/settings/about/changelog'),
+          onTap: () => NavService.openChangelog(context),
         ),
         ListTile(
           leading: const Icon(Icons.privacy_tip_outlined),
           title: Text(l10n.privacyTitle),
           subtitle: Text(l10n.privacySub),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/settings/about/privacy'),
+          onTap: () => NavService.openPrivacy(context, ref),
         ),
       ],
     );

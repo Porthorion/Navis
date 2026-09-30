@@ -249,7 +249,7 @@ class _ChangelogDiscoveryCardState
 
   void _openChangelog(BuildContext context, String version) {
     _markSeen(version);
-    NavService.openAboutChangelog(context);
+    NavService.openChangelog(context);
   }
 
   @override

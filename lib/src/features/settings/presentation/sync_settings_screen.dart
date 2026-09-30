@@ -13,6 +13,7 @@ import 'package:navis/src/features/library/presentation/unavailable_review_scree
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class SyncSettingsScreen extends ConsumerWidget {
   const SyncSettingsScreen({super.key});
@@ -70,7 +71,8 @@ class SyncSettingsScreen extends ConsumerWidget {
             ? IconButton(
                 tooltip: l10n.syncSettingsBackToSettings,
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => NavService.returnToSettings(context, ref),
+                onPressed: () =>
+                    NavService.back(context, fallback: AppRoutes.settings),
               )
             : null,
         title: Text(l10n.syncSettingsTitle),

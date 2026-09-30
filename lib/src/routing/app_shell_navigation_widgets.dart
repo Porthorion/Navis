@@ -1,10 +1,5 @@
 part of 'app_shell.dart';
 
-const int _homeBranchIndex = 0;
-const int _libraryBranchIndex = 1;
-const int _searchBranchIndex = 2;
-const int _settingsBranchIndex = 3;
-
 class _ShellDestination {
   const _ShellDestination({required this.icon, required this.label});
 
@@ -222,7 +217,7 @@ class _RailSidebar extends ConsumerWidget {
                           ),
                           label: _librarySectionShellLabel(context, section),
                           selected:
-                              selectedIndex == 1 &&
+                              selectedIndex == ShellBranch.library.index &&
                               selectedLibrarySection == section,
                           onTap: () => onLibrarySectionSelected(section),
                         ),

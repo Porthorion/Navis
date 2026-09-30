@@ -1,10 +1,11 @@
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -32,35 +33,35 @@ class SettingsScreen extends ConsumerWidget {
         icon: Icons.storage_outlined,
         title: l10n.settingsServerTitle,
         subtitle: l10n.settingsServerSubtitle,
-        route: '/settings/server',
+        page: SettingsPage.server,
         group: groupConnection,
       ),
       _SettingsEntry(
         icon: Icons.folder_copy_outlined,
         title: l10n.settingsCacheTitle,
         subtitle: l10n.settingsCacheSubtitle,
-        route: '/settings/cache',
+        page: SettingsPage.cache,
         group: groupDeviceStorageCache,
       ),
       _SettingsEntry(
         icon: Icons.download_outlined,
         title: l10n.downloadsTitle,
         subtitle: l10n.settingsDownloadsSubtitle,
-        route: '/settings/downloads',
+        page: SettingsPage.downloads,
         group: groupStorage,
       ),
       _SettingsEntry(
         icon: Icons.sync_outlined,
         title: l10n.settingsSyncTitle,
         subtitle: l10n.settingsSyncSubtitle,
-        route: '/settings/sync',
+        page: SettingsPage.sync,
         group: groupLibrarySynchronization,
       ),
       _SettingsEntry(
         icon: Icons.graphic_eq_outlined,
         title: l10n.settingsPlaybackTitle,
         subtitle: l10n.settingsPlaybackSubtitle,
-        route: '/settings/playback',
+        page: SettingsPage.playback,
         group: groupPlayback,
       ),
       _SettingsEntry(
@@ -69,7 +70,7 @@ class SettingsScreen extends ConsumerWidget {
         subtitle: ref.watch(eqCapabilitiesProvider).supported
             ? l10n.eqSubtitle
             : l10n.eqUnavailable,
-        route: '/settings/equalizer',
+        page: SettingsPage.equalizer,
         group: groupPlayback,
         enabled: ref.watch(eqCapabilitiesProvider).supported,
       ),
@@ -77,8 +78,8 @@ class SettingsScreen extends ConsumerWidget {
         icon: Icons.palette_outlined,
         title: l10n.settingsAppearanceTitle,
         subtitle: l10n.settingsAppearanceSubtitle,
-        route: '/settings/appearance',
-        group: groupPlayback,
+        page: SettingsPage.appearance,
+        group: groupOther,
       ),
     ];
     final List<_SettingsEntry> desktopEntries = [
@@ -87,7 +88,7 @@ class SettingsScreen extends ConsumerWidget {
           icon: Icons.picture_in_picture_alt_outlined,
           title: l10n.desktopWindowTitle,
           subtitle: l10n.desktopWindowSubtitle,
-          route: '/settings/desktop-window',
+          page: SettingsPage.desktopWindow,
           group: groupDesktop,
         ),
       if (adaptiveContext.desktopRuntime)
@@ -95,7 +96,7 @@ class SettingsScreen extends ConsumerWidget {
           icon: Icons.keyboard_command_key_rounded,
           title: l10n.settingsDesktopShortcutsTitle,
           subtitle: l10n.settingsDesktopShortcutsSubtitle,
-          route: '/settings/shortcuts',
+          page: SettingsPage.shortcuts,
           group: groupDesktop,
         ),
     ];
@@ -103,14 +104,13 @@ class SettingsScreen extends ConsumerWidget {
       icon: Icons.info_outline,
       title: l10n.aboutTitle,
       subtitle: null,
-      route: '/settings/about',
+      page: SettingsPage.about,
       group: groupOther,
     );
     final _SettingsEntry quickCustomizationEntry = _SettingsEntry(
       icon: Icons.auto_awesome_outlined,
       title: l10n.settingsRunQuickCustomizationTitle,
       subtitle: l10n.settingsRunQuickCustomizationSubtitle,
-      route: '/onboarding?review=1',
       group: groupOther,
     );
     // Desktop entries come between core and About so About is always last.
@@ -158,7 +158,7 @@ class SettingsScreen extends ConsumerWidget {
                         : Text(entry.subtitle!),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: entry.enabled
-                        ? () => context.push(entry.route)
+                        ? () => _open(context, ref, entry)
                         : null,
                   ),
               ],
@@ -199,7 +199,9 @@ class SettingsScreen extends ConsumerWidget {
                       ? null
                       : Text(entry.subtitle!),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: entry.enabled ? () => context.push(entry.route) : null,
+                  onTap: entry.enabled
+                      ? () => _open(context, ref, entry)
+                      : null,
                 ),
               const SizedBox(height: 8),
             ] else ...<Widget>[
@@ -226,7 +228,7 @@ class SettingsScreen extends ConsumerWidget {
                             : Text(entry.subtitle!),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: entry.enabled
-                            ? () => context.push(entry.route)
+                            ? () => _open(context, ref, entry)
                             : null,
                       ),
                   ],
@@ -292,7 +294,9 @@ class SettingsScreen extends ConsumerWidget {
                   title: entry.title,
                   subtitle: entry.subtitle,
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: entry.enabled ? () => context.push(entry.route) : null,
+                  onTap: entry.enabled
+                      ? () => _open(context, ref, entry)
+                      : null,
                 ),
             ],
           ],
@@ -302,20 +306,31 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
+void _open(BuildContext context, WidgetRef ref, _SettingsEntry entry) {
+  final page = entry.page;
+  if (page == null) {
+    NavService.openOnboardingReview(context, ref);
+  } else {
+    NavService.openSettingsPage(context, ref, page);
+  }
+}
+
 class _SettingsEntry {
   const _SettingsEntry({
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.route,
     required this.group,
+    this.page,
     this.enabled = true,
   });
 
   final IconData icon;
   final String title;
   final String? subtitle;
-  final String route;
+
+  /// The Settings page this entry opens; null opens the onboarding review.
+  final SettingsPage? page;
   final String group;
   final bool enabled;
 }

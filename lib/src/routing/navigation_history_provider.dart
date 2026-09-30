@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 /// Immutable snapshot of the navigation history.
 ///
@@ -59,7 +60,7 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
     ref.listen(librarySectionProvider, (prev, next) {
       if (_suppressRecord) return;
       if (_isLibraryRoot(router.state.uri)) {
-        _record('/library#${next.name}');
+        _record('${AppRoutes.library}#${next.name}');
       }
     });
 
@@ -129,15 +130,15 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
     if (normalized == null) {
       return;
     }
-    if (normalized.startsWith('/library#')) {
-      final sectionName = normalized.substring('/library#'.length);
+    if (normalized.startsWith('${AppRoutes.library}#')) {
+      final sectionName = normalized.substring('${AppRoutes.library}#'.length);
       final section = LibrarySection.values.firstWhere(
         (s) => s.name == sectionName,
         orElse: () => LibrarySection.albums,
       );
       // Navigate to the library root if not already there.
       if (!_isLibraryRoot(router.state.uri)) {
-        router.go('/library');
+        router.go(AppRoutes.library);
       }
       ref.read(librarySectionProvider.notifier).setSection(section);
     } else {
@@ -151,7 +152,7 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
       final section = uri.fragment.isNotEmpty
           ? _librarySectionFromName(uri.fragment)
           : ref.read(librarySectionProvider);
-      return '/library#${section.name}';
+      return '${AppRoutes.library}#${section.name}';
     }
     return uri.toString();
   }
@@ -165,17 +166,17 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
       final section = uri.fragment.isNotEmpty
           ? _librarySectionFromName(uri.fragment)
           : ref.read(librarySectionProvider);
-      return '/library#${section.name}';
+      return '${AppRoutes.library}#${section.name}';
     }
-    if (uri.path == '/library' && uri.fragment.isNotEmpty) {
+    if (uri.path == AppRoutes.library && uri.fragment.isNotEmpty) {
       final section = _librarySectionFromName(uri.fragment);
-      return '/library#${section.name}';
+      return '${AppRoutes.library}#${section.name}';
     }
     return uri.toString();
   }
 
   bool _isLibraryRoot(Uri uri) {
-    return uri.path == '/library' && uri.query.isEmpty;
+    return uri.path == AppRoutes.library && uri.query.isEmpty;
   }
 
   LibrarySection _librarySectionFromName(String name) {

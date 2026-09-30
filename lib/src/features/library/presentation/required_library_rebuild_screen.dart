@@ -10,6 +10,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class RequiredLibraryRebuildScreen extends ConsumerStatefulWidget {
   const RequiredLibraryRebuildScreen({
@@ -77,8 +78,10 @@ class _RequiredLibraryRebuildScreenState
               warmupEligible && onboardingRequired && widget.homeWarmupEligible;
           context.go(
             onboardingRequired
-                ? (shouldWarmHome ? '/onboarding?homeWarmup=1' : '/onboarding')
-                : '/',
+                ? (shouldWarmHome
+                      ? '${AppRoutes.onboarding}?homeWarmup=1'
+                      : AppRoutes.onboarding)
+                : AppRoutes.home,
           );
         }
       });

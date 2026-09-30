@@ -16,6 +16,7 @@ import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
   const AppearanceSettingsScreen({super.key});
@@ -64,7 +65,8 @@ class AppearanceSettingsScreen extends ConsumerWidget {
             ? IconButton(
                 tooltip: l10n.syncSettingsBackToSettings,
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => NavService.returnToSettings(context, ref),
+                onPressed: () =>
+                    NavService.back(context, fallback: AppRoutes.settings),
               )
             : null,
         title: Text(l10n.appearanceTitle),

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -13,6 +12,7 @@ import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/features/match_flow/presentation/match_flow_error_message.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 final matchFlowsProvider = StreamProvider<List<MatchFlowWithSongs>>((ref) {
   return ref.watch(matchFlowDaoProvider).watchFlowsWithSongs();
@@ -481,7 +481,7 @@ class _RenameMatchFlowDialogState extends State<_RenameMatchFlowDialog> {
   }
 }
 
-class _MatchFlowContents extends StatelessWidget {
+class _MatchFlowContents extends ConsumerWidget {
   const _MatchFlowContents({
     required this.flow,
     required this.enabled,
@@ -495,7 +495,7 @@ class _MatchFlowContents extends StatelessWidget {
   final ValueChanged<String> onRemove;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     return Opacity(
@@ -559,9 +559,8 @@ class _MatchFlowContents extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () => context.push(
-                  '/settings/playback/match-flow/${flow.flow.id}/search',
-                ),
+                onPressed: () =>
+                    NavService.openMatchFlowSearch(context, ref, flow.flow.id),
                 icon: const Icon(Icons.add),
                 label: Text(l10n.matchFlowAddSongAction),
               ),

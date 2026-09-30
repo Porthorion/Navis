@@ -56,6 +56,7 @@ import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 enum SyncDiagnosticsMode {
   clone,
@@ -3031,7 +3032,7 @@ class SyncDiagnosticsServer {
       return;
     }
 
-    _navigationDriver.go('/search');
+    _navigationDriver.go(AppRoutes.search);
     _presentationSearchSongs = const <String, Song>{};
     _container.read(searchFilterProvider.notifier).select(filter);
     _container.read(searchQueryProvider.notifier).submit(query);
@@ -3824,7 +3825,7 @@ bool _isValidDiagnosticsLocation(String value) {
 /// `/library#liked` drives the same section provider as the visible rail.
 LibrarySection? _librarySectionForDiagnosticsLocation(String value) {
   final uri = Uri.tryParse(value);
-  if (uri == null || uri.path != '/library' || uri.fragment.isEmpty) {
+  if (uri == null || uri.path != AppRoutes.library || uri.fragment.isEmpty) {
     return null;
   }
   for (final section in LibrarySection.values) {

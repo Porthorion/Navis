@@ -4951,4 +4951,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingLastFmGetApiKey => 'Get API key';
+
+  @override
+  String get routeNotFoundTitle => 'Page not found';
+
+  @override
+  String get routeNotFoundMessage => 'This page is no longer available.';
+
+  @override
+  String get routeNotFoundGoHome => 'Go to Home';
+
+  @override
+  String get navigationBackTooltip => 'Back';
+
+  @override
+  String get navigationForwardTooltip => 'Forward';
 }

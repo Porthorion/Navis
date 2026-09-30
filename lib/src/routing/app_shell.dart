@@ -7,6 +7,7 @@ import 'package:audio_service/audio_service.dart'
     show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
 import 'package:navis/src/common_widgets/desktop_playback_progress.dart';
 import 'package:flutter/scheduler.dart';
@@ -853,11 +854,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       playerOverlayStackProvider.select((stack) => stack.isNotEmpty),
     );
     final navigationShell = widget.navigationShell;
+    // Every branch is a visible destination, in branch order.
     final visibleBranchIndices = <int>[
-      _homeBranchIndex,
-      _libraryBranchIndex,
-      _searchBranchIndex,
-      _settingsBranchIndex,
+      for (final branch in ShellBranch.values) branch.index,
     ];
     final selectedVisibleIndex = visibleBranchIndices.indexOf(
       navigationShell.currentIndex,
@@ -1065,7 +1064,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
       _navExpandRequestNotifier.value++;
       final branchIndex = visibleBranchIndices[index];
-      if (branchIndex == _libraryBranchIndex) {
+      if (branchIndex == ShellBranch.library.index) {
         final nextLibrarySection = visibleLibrarySections.isEmpty
             ? LibrarySection.albums
             : visibleLibrarySections.first;
@@ -1073,56 +1072,24 @@ class _AppShellState extends ConsumerState<AppShell> {
             .read(librarySectionProvider.notifier)
             .setSection(nextLibrarySection);
       }
-      if (branchIndex == _searchBranchIndex) {
+      if (branchIndex == ShellBranch.search.index) {
         ref.read(searchFocusRequestProvider.notifier).increment();
       }
-      if (branchIndex == _homeBranchIndex &&
+      if (branchIndex == ShellBranch.home.index &&
           branchIndex == navigationShell.currentIndex) {
         ref.read(homeScrollToTopRequestProvider.notifier).request();
       }
-      if (branchIndex == _libraryBranchIndex &&
+      if (branchIndex == ShellBranch.library.index &&
           branchIndex == navigationShell.currentIndex) {
         ref.read(libraryScrollToTopRequestProvider.notifier).request();
       }
-      switch (branchIndex) {
-        case _homeBranchIndex:
-          NavService.switchToHome(
-            context,
-            ref,
-            navigationShell,
-            branchIndex: branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
-          );
-        case _libraryBranchIndex:
-          NavService.switchToLibrary(
-            context,
-            ref,
-            navigationShell,
-            branchIndex: branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
-          );
-        case _searchBranchIndex:
-          NavService.switchToSearch(
-            context,
-            ref,
-            navigationShell,
-            branchIndex: branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
-          );
-        case _settingsBranchIndex:
-          NavService.switchToSettings(
-            context,
-            ref,
-            navigationShell,
-            branchIndex: branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
-          );
-        default:
-          navigationShell.goBranch(
-            branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
-          );
-      }
+      NavService.switchTab(
+        context,
+        ref,
+        navigationShell,
+        ShellBranch.fromIndex(branchIndex),
+        initialLocation: branchIndex == navigationShell.currentIndex,
+      );
     }
 
     void onLibrarySectionSelected(LibrarySection section) {
@@ -1134,14 +1101,14 @@ class _AppShellState extends ConsumerState<AppShell> {
         overlay.collapse();
       }
       final wasSameSection =
-          navigationShell.currentIndex == _libraryBranchIndex &&
+          navigationShell.currentIndex == ShellBranch.library.index &&
           selectedLibrarySection == section;
       ref.read(librarySectionProvider.notifier).setSection(section);
-      NavService.switchToLibrary(
+      NavService.switchTab(
         context,
         ref,
         navigationShell,
-        branchIndex: _libraryBranchIndex,
+        ShellBranch.library,
         initialLocation: true,
       );
       if (wasSameSection) {
@@ -1173,7 +1140,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         );
       }
       _closeQuickSearchOverlay();
-      onDestinationSelected(2);
+      onDestinationSelected(ShellBranch.search.index);
     }
 
     Future<void> executeDesktopCommand(DesktopCommandAction action) async {
@@ -1186,7 +1153,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       );
       switch (action) {
         case DesktopCommandAction.focusSearch:
-          onDestinationSelected(2);
+          onDestinationSelected(ShellBranch.search.index);
           return;
         case DesktopCommandAction.openQuickSearch:
           _openQuickSearchOverlay();
@@ -1246,11 +1213,11 @@ class _AppShellState extends ConsumerState<AppShell> {
           }
           return;
         case DesktopCommandAction.goHome:
-          onDestinationSelected(0);
+          onDestinationSelected(ShellBranch.home.index);
           return;
         case DesktopCommandAction.goLibrary:
-          if (navigationShell.currentIndex != _libraryBranchIndex) {
-            onDestinationSelected(1);
+          if (navigationShell.currentIndex != ShellBranch.library.index) {
+            onDestinationSelected(ShellBranch.library.index);
           } else {
             // Already on library — cycle to the next available section.
             final availableSections = visibleLibrarySections;
@@ -1265,10 +1232,10 @@ class _AppShellState extends ConsumerState<AppShell> {
           }
           return;
         case DesktopCommandAction.goSearch:
-          onDestinationSelected(2);
+          onDestinationSelected(ShellBranch.search.index);
           return;
         case DesktopCommandAction.goSettings:
-          onDestinationSelected(3);
+          onDestinationSelected(ShellBranch.settings.index);
           return;
         case DesktopCommandAction.playPause:
           final handler = ref.read(audioHandlerProvider);
@@ -1376,7 +1343,6 @@ class _AppShellState extends ConsumerState<AppShell> {
               ref: ref,
               context: context,
               navigationShell: navigationShell,
-              homeBranchIndex: _homeBranchIndex,
               noticeController: _appNoticeController,
             );
             return true;
@@ -1399,7 +1365,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ref: ref,
                 context: context,
                 navigationShell: navigationShell,
-                homeBranchIndex: _homeBranchIndex,
                 noticeController: _appNoticeController,
               );
             },
@@ -1485,7 +1450,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                             ref: ref,
                             context: context,
                             navigationShell: navigationShell,
-                            homeBranchIndex: _homeBranchIndex,
                             noticeController: _appNoticeController,
                           );
                         },
@@ -1657,7 +1621,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               ref: ref,
                                               context: context,
                                               navigationShell: navigationShell,
-                                              homeBranchIndex: _homeBranchIndex,
                                               noticeController:
                                                   _appNoticeController,
                                             );
@@ -1903,7 +1866,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     ref: ref,
                                     context: context,
                                     navigationShell: navigationShell,
-                                    homeBranchIndex: _homeBranchIndex,
                                     noticeController: _appNoticeController,
                                   );
                                 },
@@ -2081,7 +2043,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     final activeShell = HomeActivityScope(
       active:
-          navigationShell.currentIndex == _homeBranchIndex &&
+          navigationShell.currentIndex == ShellBranch.home.index &&
           (ModalRoute.of(context)?.isCurrent ?? true),
       child: shell,
     );

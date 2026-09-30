@@ -15,6 +15,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class CacheSettingsScreen extends ConsumerStatefulWidget {
   const CacheSettingsScreen({super.key});
@@ -391,7 +392,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
             ? IconButton(
                 tooltip: l10n.syncSettingsBackToSettings,
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => NavService.returnToSettings(context, ref),
+                onPressed: () =>
+                    NavService.back(context, fallback: AppRoutes.settings),
               )
             : null,
         title: Text(l10n.cacheSettingsTitle),

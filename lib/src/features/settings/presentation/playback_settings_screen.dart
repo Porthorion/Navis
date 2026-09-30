@@ -10,13 +10,13 @@ import 'package:navis/src/features/player/presentation/playback_adjustment_panel
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
   const PlaybackSettingsScreen({super.key});
@@ -96,7 +96,8 @@ class _PlaybackSettingsScreenState
             ? IconButton(
                 tooltip: l10n.syncSettingsBackToSettings,
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => NavService.returnToSettings(context, ref),
+                onPressed: () =>
+                    NavService.back(context, fallback: AppRoutes.settings),
               )
             : null,
         title: Text(l10n.settingsPlaybackTitle),
@@ -618,7 +619,7 @@ class _PlaybackSettingsScreenState
           leading: const Icon(Icons.account_tree_outlined),
           title: Text(l10n.matchFlowManageTitle),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/settings/playback/match-flow'),
+          onTap: () => NavService.openMatchFlow(context, ref),
         ),
     ];
   }

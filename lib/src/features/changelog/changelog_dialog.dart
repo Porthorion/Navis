@@ -25,7 +25,7 @@ Future<void> showChangelogDialog(
         unawaited(markChangelogSeen(version.version));
         Navigator.of(dialogContext).pop();
         if (context.mounted) {
-          NavService.openAboutChangelog(context);
+          NavService.openChangelog(context);
         }
       },
     ),
