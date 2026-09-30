@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
 
 import 'dart:io';
@@ -681,6 +683,71 @@ class DiagnosticsPresentationController {
           (element) => element.widget.key == NavisTooltip.defaultBubbleKey,
         ) !=
         null;
+  }
+
+  /// Sends the platform back request, as Android's back button or gesture
+  /// does, through the app's root back-button dispatcher.
+  Future<void> systemBack() async {
+    // The same message the Android embedding sends on back.
+    final message = SystemChannels.navigation.codec.encodeMethodCall(
+      const MethodCall('popRoute'),
+    );
+    final delivered = Completer<void>();
+    ServicesBinding.instance.channelBuffers.push(
+      SystemChannels.navigation.name,
+      message,
+      (_) => delivered.complete(),
+    );
+    await delivered.future;
+    await waitForFrame();
+  }
+
+  /// Taps the visible shell destination at [index] with a real pointer, on
+  /// whichever navigation the current layout shows (bottom bar, rail or
+  /// compact rail).
+  Future<void> tapNavigationDestination(int index) async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    Element? target = _findElement(
+      root,
+      (element) =>
+          element.widget.key == ValueKey<String>('railNavTile-$index') ||
+          element.widget.key == ValueKey<String>('compactRailNavTile-$index'),
+    );
+    if (target == null) {
+      final bar = _findElement(
+        root,
+        (element) => element.widget is NavigationBar,
+      );
+      final destinations = <Element>[];
+      void collect(Element element) {
+        if (element.widget is NavigationDestination) {
+          destinations.add(element);
+          return;
+        }
+        element.visitChildElements(collect);
+      }
+
+      bar?.visitChildElements(collect);
+      if (index < destinations.length) {
+        target = destinations[index];
+      }
+    }
+    final box = target?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    final position = box.localToGlobal(box.size.center(Offset.zero));
+    final binding = GestureBinding.instance;
+    final viewId = View.of(root).viewId;
+    const pointer = 9282;
+    binding.handlePointerEvent(
+      PointerDownEvent(pointer: pointer, position: position, viewId: viewId),
+    );
+    binding.handlePointerEvent(
+      PointerUpEvent(pointer: pointer, position: position, viewId: viewId),
+    );
+    await waitForFrame();
   }
 
   Element? _findElement(Element root, bool Function(Element) matches) {

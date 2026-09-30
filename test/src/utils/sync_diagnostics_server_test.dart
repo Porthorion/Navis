@@ -1248,6 +1248,10 @@ void main() {
       when(() => presentation.appReady).thenReturn(true);
       when(presentation.waitForFrame).thenAnswer((_) async {});
       when(presentation.dismissPopupRoutes).thenAnswer((_) async {});
+      when(presentation.systemBack).thenAnswer((_) async {});
+      when(
+        () => presentation.tapNavigationDestination(any()),
+      ).thenAnswer((_) async {});
       when(
         () => presentation.capture(label: any(named: 'label')),
       ).thenAnswer(
@@ -1417,6 +1421,36 @@ void main() {
         '/library?section=liked',
         reason: 'a rejected location must not navigate',
       );
+
+      final back = await _request(
+        fixture.port,
+        '/v1/presentation/system-back',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{},
+      );
+      expect(back.statusCode, HttpStatus.ok);
+      expect(back.body['location'], isA<String>());
+      verify(presentation.systemBack).called(1);
+
+      final tab = await _request(
+        fixture.port,
+        '/v1/presentation/tab',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'branch': 'settings'},
+      );
+      expect(tab.statusCode, HttpStatus.ok);
+      verify(() => presentation.tapNavigationDestination(3)).called(1);
+
+      final badTab = await _request(
+        fixture.port,
+        '/v1/presentation/tab',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'branch': 'radio'},
+      );
+      expect(badTab.statusCode, HttpStatus.badRequest);
 
       final invalidLibraryFilter = await _request(
         fixture.port,

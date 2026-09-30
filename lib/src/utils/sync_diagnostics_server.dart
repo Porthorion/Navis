@@ -58,6 +58,7 @@ import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/navigation_history_provider.dart';
 
 enum SyncDiagnosticsMode {
   clone,
@@ -2008,6 +2009,49 @@ class SyncDiagnosticsServer {
         );
         return;
       }
+      if (path == '/v1/presentation/system-back' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await presentation.systemBack();
+        await _respond(request, HttpStatus.ok, _navigationState());
+        return;
+      }
+      if (path == '/v1/presentation/tab' && request.method == 'POST') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final branch = ShellBranch.values
+            .where((candidate) => candidate.name == body['branch'])
+            .firstOrNull;
+        if (branch == null) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'branch must be home, library, search or settings',
+          });
+          return;
+        }
+        try {
+          await presentation.tapNavigationDestination(branch.index);
+        } on DiagnosticsPresentationUnavailable {
+          await _presentationUnavailable(request);
+          return;
+        }
+        await _respond(request, HttpStatus.ok, _navigationState());
+        return;
+      }
       if (path == '/v1/presentation/shortcut' && request.method == 'POST') {
         if (!allowsMutations) {
           await _forbidden(request);
@@ -2846,6 +2890,17 @@ class SyncDiagnosticsServer {
   }
 
   /// Route, player overlay and quick-control state for quick-panel checks.
+  /// Location, shell tab and player overlays after a navigation control.
+  Map<String, Object?> _navigationState() => <String, Object?>{
+    'location': _navigationDriver.location,
+    'librarySection': _container.read(librarySectionProvider).name,
+    'playerOverlay': [
+      for (final route in _container.read(playerOverlayStackProvider))
+        route.name,
+    ],
+    'navigation': _container.read(navigationHistoryProvider).stack,
+  };
+
   Map<String, Object?> _quickPanelState(
     DiagnosticsPresentationController presentation,
   ) => <String, Object?>{

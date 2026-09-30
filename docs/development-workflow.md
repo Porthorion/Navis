@@ -222,7 +222,15 @@ presentation. Open the resulting Sync Settings screenshot and verify the
 `Last library change` summary matches the authenticated ledger counts; a later
 no-op operation must not displace that destructive-operation explanation.
 
-The endpoint accepts only locations that match an app route. Library section
+Clone-only `POST /v1/presentation/system-back` delivers the same `popRoute`
+message the Android embedding sends for the back button or gesture, and
+`POST /v1/presentation/tab` with `{"branch": "home|library|search|settings"}`
+sends a real pointer tap to the visible bottom-bar or rail destination. Both
+return the location, Library section, player overlay stack and desktop history,
+so phone and tablet navigation can be driven on an emulator without injected
+OS input.
+
+The navigate endpoint accepts only locations that match an app route. Library section
 destinations use the canonical `/library?section=<name>` location, which the
 shell maps to the production `librarySectionProvider` exactly as the sidebar and
 navigation history do; the older `/library#<name>` form is still accepted and
