@@ -84,6 +84,13 @@ abstract final class AppRoutes {
   static const likedArtistsSegment = 'liked-artists';
   static const likedAlbumsSegment = 'liked-albums';
 
+  /// Query parameter naming the Library section shown at [library].
+  static const librarySectionParam = 'section';
+
+  /// The Library root showing the section named [sectionName].
+  static String librarySection(String sectionName) =>
+      _withQuery(library, <String, String>{librarySectionParam: sectionName});
+
   static String album(String id) => '$library/albums/${_encode(id)}';
   static String artist(String id) => '$library/artists/${_encode(id)}';
   static String artistTopTracks(String id) =>

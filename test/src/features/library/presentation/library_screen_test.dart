@@ -32,6 +32,8 @@ import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/test_theme.dart';
 
+import 'package:navis/src/routing/library_section_navigation_scope.dart';
+
 class _FakeLibrarySyncController extends LibrarySyncController {
   _FakeLibrarySyncController(
     this._initialState, {
@@ -184,6 +186,7 @@ Widget _buildLibraryScreen({
   required List<Object?> overrides,
   bool showPlaylistsPage = false,
   bool desktopIconsOnly = false,
+  bool sidebarShowsSections = false,
   TextScaler? textScaler,
   String artistViewMode = 'list',
   AdaptiveContext? adaptiveContext,
@@ -213,17 +216,21 @@ Widget _buildLibraryScreen({
               adaptiveContext: adaptiveContext,
               child: child!,
             ),
-      home: DesktopNavigationPresentationScope(
-        iconsOnly: desktopIconsOnly,
-        child: Builder(
-          builder: (context) => textScaler == null
-              ? const LibraryScreen()
-              : MediaQuery(
-                  data: MediaQuery.of(context).copyWith(
-                    textScaler: textScaler,
+      home: LibrarySectionNavigationScope(
+        sidebarAllowsSections: sidebarShowsSections,
+        sectionsFit: ValueNotifier<bool>(true),
+        child: DesktopNavigationPresentationScope(
+          iconsOnly: desktopIconsOnly,
+          child: Builder(
+            builder: (context) => textScaler == null
+                ? const LibraryScreen()
+                : MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      textScaler: textScaler,
+                    ),
+                    child: const LibraryScreen(),
                   ),
-                  child: const LibraryScreen(),
-                ),
+          ),
         ),
       ),
     ),
@@ -313,6 +320,7 @@ Future<void> _pumpLibraryScreen(
   required List<Object?> overrides,
   bool showPlaylistsPage = false,
   bool desktopIconsOnly = false,
+  bool sidebarShowsSections = false,
   TextScaler? textScaler,
   bool settle = true,
   String artistViewMode = 'list',
@@ -323,6 +331,7 @@ Future<void> _pumpLibraryScreen(
       overrides: overrides,
       showPlaylistsPage: showPlaylistsPage,
       desktopIconsOnly: desktopIconsOnly,
+      sidebarShowsSections: sidebarShowsSections,
       textScaler: textScaler,
       artistViewMode: artistViewMode,
       adaptiveContext: adaptiveContext,
@@ -831,6 +840,11 @@ void main() {
           find.byKey(const ValueKey<String>('libraryDesktopWorkspaceToolbar')),
           findsOneWidget,
         );
+        // An icon-only sidebar has no section links, so the page offers them.
+        expect(
+          find.byKey(const ValueKey<String>('libraryDesktopSectionTabs')),
+          findsOneWidget,
+        );
         expect(find.text('Library'), findsOneWidget);
         expect(find.byType(DesktopPanel), findsNothing);
         expect(tester.takeException(), isNull);
@@ -855,6 +869,7 @@ void main() {
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
           ],
+          sidebarShowsSections: true,
         );
 
         expect(

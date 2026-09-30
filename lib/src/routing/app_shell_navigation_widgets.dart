@@ -97,6 +97,7 @@ class _RailSidebar extends ConsumerWidget {
     this.radioArtUrl,
     this.navbarAutohide = false,
     this.onToggleAutohide,
+    this.librarySectionsFit,
   });
 
   final List<_ShellDestination> destinations;
@@ -122,6 +123,10 @@ class _RailSidebar extends ConsumerWidget {
   final String navbarStyle;
   final bool navbarAutohide;
   final VoidCallback? onToggleAutohide;
+
+  /// Receives whether the Library section links fit this sidebar's height,
+  /// so the Library page can show its own section bar when they do not.
+  final ValueNotifier<bool>? librarySectionsFit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -182,11 +187,22 @@ class _RailSidebar extends ConsumerWidget {
                     baseNavHeight +
                     (librarySubSectionCount * subNavTileEstimatedHeight) +
                     subNavTrailingGap;
+                final librarySectionsFitHeight =
+                    navViewportHeight >=
+                    (inlineLibraryNavHeight + railCutoffSlack);
+                final sectionsFit = librarySectionsFit;
+                if (sectionsFit != null &&
+                    sectionsFit.value != librarySectionsFitHeight) {
+                  // Reported after layout; the notifier drives the Library
+                  // page, which must not change while this sidebar lays out.
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    sectionsFit.value = librarySectionsFitHeight;
+                  });
+                }
                 final showLibrarySectionsInline =
                     !iconsOnly &&
                     showLibrarySubNavigation &&
-                    navViewportHeight >=
-                        (inlineLibraryNavHeight + railCutoffSlack);
+                    librarySectionsFitHeight;
                 final visibleNavContentHeight = showLibrarySectionsInline
                     ? inlineLibraryNavHeight
                     : baseNavHeight;

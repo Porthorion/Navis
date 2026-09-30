@@ -45,6 +45,7 @@ import '../../helpers/test_database.dart';
 import '../../helpers/test_theme.dart';
 
 import 'package:navis/src/features/home/presentation/home_screen.dart';
+import 'package:navis/src/routing/app_routes.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -2164,9 +2165,25 @@ void main() {
       expect(find.text('Library - Liked'), findsOneWidget);
       expect(container.read(librarySectionProvider), LibrarySection.liked);
 
+      // Re-selecting Library keeps the section it was showing.
       await tester.tap(libraryMain);
       await tester.pumpAndSettle();
+      expect(find.text('Library - Liked'), findsOneWidget);
+      expect(container.read(librarySectionProvider), LibrarySection.liked);
+      final router = container.read(appRouterProvider);
+      expect(router.state.uri.toString(), AppRoutes.librarySection('liked'));
 
+      // So does returning from another tab.
+      await tester.tap(find.byKey(const ValueKey('railNavTile-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(libraryMain);
+      await tester.pumpAndSettle();
+      expect(find.text('Library - Liked'), findsOneWidget);
+      expect(container.read(librarySectionProvider), LibrarySection.liked);
+
+      // A Library location names its section.
+      router.go(AppRoutes.librarySection('albums'));
+      await tester.pumpAndSettle();
       expect(find.text('Library - Albums'), findsOneWidget);
       expect(container.read(librarySectionProvider), LibrarySection.albums);
     },

@@ -1390,7 +1390,11 @@ void main() {
         body: const <String, Object?>{'location': '/library#liked'},
       );
       expect(likedNavigation.statusCode, HttpStatus.ok);
-      expect(likedNavigation.body['actualLocation'], '/library#liked');
+      // The older fragment form is accepted and normalised to the section URL.
+      expect(
+        likedNavigation.body['actualLocation'],
+        '/library?section=liked',
+      );
       expect(
         fixture.container.read(librarySectionProvider),
         LibrarySection.liked,

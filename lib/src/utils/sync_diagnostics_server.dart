@@ -57,6 +57,7 @@ import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 enum SyncDiagnosticsMode {
   clone,
@@ -491,8 +492,12 @@ class SyncDiagnosticsServer {
           });
           return;
         }
-        _navigationDriver.go(location);
         final librarySection = _librarySectionForDiagnosticsLocation(location);
+        _navigationDriver.go(
+          librarySection == null
+              ? location
+              : AppRoutes.librarySection(librarySection.name),
+        );
         if (librarySection != null) {
           _container
               .read(librarySectionProvider.notifier)
@@ -3820,13 +3825,16 @@ bool _isValidDiagnosticsLocation(String value) {
       !uri.hasAuthority;
 }
 
-/// Decodes the virtual Library destinations used by desktop navigation
-/// history. The diagnostics route uses this so that an app-API navigation to
-/// `/library#liked` drives the same section provider as the visible rail.
+/// Decodes the Library section of a diagnostics location:
+/// `/library?section=liked`, or the older `/library#liked` form.
 LibrarySection? _librarySectionForDiagnosticsLocation(String value) {
   final uri = Uri.tryParse(value);
-  if (uri == null || uri.path != AppRoutes.library || uri.fragment.isEmpty) {
+  if (uri == null || uri.path != AppRoutes.library) {
     return null;
+  }
+  final fromQuery = NavService.librarySectionForLocation(uri);
+  if (fromQuery != null || uri.fragment.isEmpty) {
+    return fromQuery;
   }
   for (final section in LibrarySection.values) {
     if (section.name == uri.fragment) {

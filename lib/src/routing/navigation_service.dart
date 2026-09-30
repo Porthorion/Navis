@@ -14,6 +14,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 
 /// Route configuration for an album opened from an interactive surface.
 ///
@@ -119,6 +120,53 @@ abstract final class NavService {
       return;
     }
     _drillIn(context, ref, AppRoutes.listenBrainzWeekly(normalized));
+  }
+
+  /// Show a Library section, replacing the Library tab's pages.
+  ///
+  /// The section is part of the Library location, so returning to the tab,
+  /// desktop history and diagnostics all restore it.
+  static void openLibrarySection(
+    BuildContext context,
+    WidgetRef ref,
+    LibrarySection section,
+  ) {
+    clearExitPrompt();
+    _prepareForNavigation(context, ref);
+    ref.read(librarySectionProvider.notifier).setSection(section);
+    context.go(AppRoutes.librarySection(section.name));
+  }
+
+  /// Keep the Library location in step with a section chosen inside the
+  /// Library page (a tab swipe), without other navigation side effects.
+  static void recordLibrarySection(
+    BuildContext context,
+    LibrarySection section,
+  ) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      return;
+    }
+    final uri = router.state.uri;
+    if (uri.path != AppRoutes.library ||
+        uri.queryParameters[AppRoutes.librarySectionParam] == section.name) {
+      return;
+    }
+    router.go(AppRoutes.librarySection(section.name));
+  }
+
+  /// The Library section named by [uri], when it is the Library root.
+  static LibrarySection? librarySectionForLocation(Uri uri) {
+    if (uri.path != AppRoutes.library) {
+      return null;
+    }
+    final name = uri.queryParameters[AppRoutes.librarySectionParam];
+    for (final section in LibrarySection.values) {
+      if (section.name == name) {
+        return section;
+      }
+    }
+    return null;
   }
 
   /// Open the full list of liked albums from the current context.
