@@ -105,6 +105,10 @@ modify unrelated dirty work. Report actual validation and any uncertainty.
 - Retired Listen Together/Voyage has compatibility fields only. Do not revive
   its session, transport, settings, queue sync, or UI without an explicit
   product decision and a recorded decision/history update.
+- Genres are not a Navis concept (product decision 2026-09-30). Do not add a
+  genre page, route, Library section, Home shelf, search filter, Android Auto
+  node, sync/scan input, catalog-change signal, recommendation input or
+  diagnostics field without an explicit product decision.
 - Runtime control comes from the authenticated Navis diagnostics API. Do not
   use AT-SPI, OCR, xdotool, window scraping, or desktop accessibility traversal
   as a substitute; see `development-workflow.md` for the narrow exception.

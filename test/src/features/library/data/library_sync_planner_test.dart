@@ -108,22 +108,6 @@ void main() {
     expect(plan.reason, 'starredFresh');
   });
 
-  test('genre target is disabled without scheduling a request', () {
-    final plan = planner.plan(
-      context(
-        request: const LibrarySyncRequest(
-          trigger: LibrarySyncTrigger.interaction,
-          intent: LibrarySyncIntent.checkForUpdates,
-          target: LibrarySyncTarget.genres(),
-        ),
-      ),
-    );
-
-    expect(plan.kind, LibrarySyncPlanKind.targetedHydration);
-    expect(plan.shouldExecute, isFalse);
-    expect(plan.reason, 'genresDisabled');
-  });
-
   test('explicit playlist-header refresh bypasses auxiliary freshness', () {
     final plan = planner.plan(
       context(

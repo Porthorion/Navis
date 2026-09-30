@@ -258,17 +258,23 @@ void main() {
           }).type,
           NavisAndroidAutoSearchType.playlist,
         );
-        final genreSearch = navisAndroidAutoSearchRequest('', {
-          AndroidAutoConstants.mediaGenreKey: 'Jazz',
-        });
-        expect(genreSearch.type, NavisAndroidAutoSearchType.general);
-        expect(genreSearch.term, 'Jazz');
         expect(
           navisAndroidAutoSearchRequest('', {
             AndroidAutoConstants.mediaTitleKey: 'Feeling Good',
           }).type,
           NavisAndroidAutoSearchType.title,
         );
+      });
+
+      test('a genre voice intent is only a raw-query search', () {
+        // Genres are not a Navis concept: the platform genre focus and extra
+        // are ignored and the spoken query is searched as typed.
+        final request = navisAndroidAutoSearchRequest('jazz music', {
+          AndroidAutoConstants.mediaFocusKey: 'vnd.android.cursor.item/genre',
+          'android.intent.extra.genre': 'Jazz',
+        });
+        expect(request.type, NavisAndroidAutoSearchType.general);
+        expect(request.term, 'jazz music');
       });
 
       test('plain query uses general search', () {

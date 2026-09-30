@@ -262,15 +262,6 @@ Future<void> _seedAuthenticatedData(
         ),
       );
   await database
-      .into(database.genresTable)
-      .insert(
-        GenresTableCompanion.insert(
-          name: 'Rock',
-          songCount: const Value(1),
-          albumCount: const Value(1),
-        ),
-      );
-  await database
       .into(database.playlistsTable)
       .insert(
         PlaylistsTableCompanion.insert(id: 'playlist-1', name: 'Playlist 1'),

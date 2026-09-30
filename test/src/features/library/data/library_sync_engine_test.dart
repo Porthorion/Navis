@@ -400,7 +400,6 @@ void main() {
         final artistRows = await database.select(database.artistsTable).get();
         final albumRows = await database.select(database.albumsTable).get();
         final songRows = await database.select(database.songsTable).get();
-        final genreRows = await database.select(database.genresTable).get();
         final playlistRows = await database
             .select(database.playlistsTable)
             .get();
@@ -409,7 +408,6 @@ void main() {
         expect(artistRows.length, 2);
         expect(albumRows.length, 2);
         expect(songRows.length, 2);
-        expect(genreRows, isEmpty);
         expect(playlistRows.length, 1);
         expect(api.calls, isNot(contains('getGenres')));
         expect(serverConfig?.lastSynced, isNotNull);
@@ -4471,7 +4469,6 @@ void main() {
         expect(api.calls, isNot(contains('getGenres')));
         expect(state.starredSynchronized, isTrue);
         expect(state.playlistHeadersSynchronized, isTrue);
-        expect(state.genresSynchronized, isFalse);
         final persisted = await database.librarySyncDao.getOrCreateState(1);
         expect(persisted.lastAuxiliarySyncedAt, isNotNull);
         expect(
@@ -5036,7 +5033,7 @@ void main() {
     );
 
     test(
-      'catalog sync does not request the unused genre endpoint',
+      'catalog sync makes no genre request',
       () async {
         await saveSession(
           lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
@@ -5052,11 +5049,9 @@ void main() {
         );
         final state = await engine.syncIfStale();
         final config = await serverConfigRepository.getActiveServer();
-        final storedGenres = await database.select(database.genresTable).get();
 
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(config?.lastSynced, isNotNull);
-        expect(storedGenres, isEmpty);
         expect(api.calls, isNot(contains('getGenres')));
       },
       skip: !sqliteAvailable,

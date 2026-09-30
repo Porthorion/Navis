@@ -28,7 +28,6 @@ enum LibrarySyncStage {
   persistingMetadata,
   fetchingSongs,
   fetchingStarred,
-  fetchingGenres,
   fetchingPlaylists,
   collectingCandidate,
   validatingCandidate,
@@ -65,10 +64,8 @@ class LibrarySyncState {
     this.nextRetryAt,
     this.lastCatalogUpdatedAt,
     this.lastAuxiliarySyncedAt,
-    this.lastGenresSyncedAt,
     this.starredSynchronized = false,
     this.playlistHeadersSynchronized = false,
-    this.genresSynchronized = false,
     this.apiRequests = 0,
     this.endpointRequests = const <String, int>{},
     this.apiRetries = 0,
@@ -146,10 +143,8 @@ class LibrarySyncState {
   final DateTime? nextRetryAt;
   final DateTime? lastCatalogUpdatedAt;
   final DateTime? lastAuxiliarySyncedAt;
-  final DateTime? lastGenresSyncedAt;
   final bool starredSynchronized;
   final bool playlistHeadersSynchronized;
-  final bool genresSynchronized;
   final int apiRequests;
   final Map<String, int> endpointRequests;
   final int apiRetries;
@@ -225,11 +220,8 @@ class LibrarySyncState {
     bool clearLastCatalogUpdatedAt = false,
     DateTime? lastAuxiliarySyncedAt,
     bool clearLastAuxiliarySyncedAt = false,
-    DateTime? lastGenresSyncedAt,
-    bool clearLastGenresSyncedAt = false,
     bool? starredSynchronized,
     bool? playlistHeadersSynchronized,
-    bool? genresSynchronized,
     int? apiRequests,
     Map<String, int>? endpointRequests,
     int? apiRetries,
@@ -310,13 +302,9 @@ class LibrarySyncState {
       lastAuxiliarySyncedAt: clearLastAuxiliarySyncedAt
           ? null
           : lastAuxiliarySyncedAt ?? this.lastAuxiliarySyncedAt,
-      lastGenresSyncedAt: clearLastGenresSyncedAt
-          ? null
-          : lastGenresSyncedAt ?? this.lastGenresSyncedAt,
       starredSynchronized: starredSynchronized ?? this.starredSynchronized,
       playlistHeadersSynchronized:
           playlistHeadersSynchronized ?? this.playlistHeadersSynchronized,
-      genresSynchronized: genresSynchronized ?? this.genresSynchronized,
       apiRequests: apiRequests ?? this.apiRequests,
       endpointRequests: endpointRequests ?? this.endpointRequests,
       apiRetries: apiRetries ?? this.apiRetries,

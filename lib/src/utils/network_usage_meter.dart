@@ -169,7 +169,6 @@ NetworkUsageCategory networkUsageCategoryForSubsonicPath(String path) {
     case '/rest/search3.view':
     case '/rest/getPlaylists.view':
     case '/rest/getPlaylist.view':
-    case '/rest/getGenres.view':
     case '/rest/getAlbumInfo2.view':
     case '/rest/getArtistInfo2.view':
       return NetworkUsageCategory.librarySync;

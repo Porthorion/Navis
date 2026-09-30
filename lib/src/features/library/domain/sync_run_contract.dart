@@ -63,7 +63,6 @@ enum SyncEndpoint {
   album,
   playlists,
   starred,
-  genres,
   bulkSongs,
 }
 
@@ -208,8 +207,7 @@ SyncRunRequest syncRunRequestFromLegacy(
       LibrarySyncIntent.repair => SyncRunIntent.repairLibrary,
     },
     LibrarySyncTargetKind.starred ||
-    LibrarySyncTargetKind.playlistHeaders ||
-    LibrarySyncTargetKind.genres => SyncRunIntent.auxiliaryRefresh,
+    LibrarySyncTargetKind.playlistHeaders => SyncRunIntent.auxiliaryRefresh,
     _ => SyncRunIntent.targetHydration,
   };
   final origin = switch (request.caller) {

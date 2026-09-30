@@ -252,6 +252,21 @@ Listen Together / Voyage is retired for now. There are no active Listen
 Together UI entry points and no active Voyage HTTP, websocket, session,
 playback sync, or queue coordination paths.
 
+#### Genres are not a Navis concept
+
+By product decision (2026-09-30) Navis has no genre page, route, Library
+section, Home shelf, search filter, Android Auto node, sync/scan input,
+catalog-change signal, recommendation input or diagnostics field. Server
+`genre` fields are ignored when albums are decoded, so a genre-only server edit
+is not a catalog change. Schema 87 dropped the `genres` table, the
+`albums.genre`, `library_sync_candidate_albums.genre` and
+`library_sync_state.last_genres_synced_at` columns, and purged retired
+`@genres` sync work and genre-target run history (`target_kind = 6`).
+`test/src/architecture/no_genre_feature_test.dart` fails on any `genre`
+mention in `lib/` outside generated files, historical changelog data and that
+migration step. An Android Auto genre voice intent is an ordinary raw-query
+search.
+
 ### Import Guidelines
 
 1. **Feature code should import from feature providers first**:
@@ -846,7 +861,7 @@ stays with the text. Normal artwork rows retain their 64px minimum height.
 Rows with enough room keep their existing inline duration arrangement. Headers
 appear only for full collections. Numbered collections set
 `numberColumnExtent` to label their existing numeric area with `#` and the
-accessible description Track number: 32px for album/playlist/genre/weekly
+accessible description Track number: 32px for album/playlist/weekly
 lists and 30px within the 82px Artist Top Tracks leading area. Artwork-only
 lists leave it null, and compact headers stay hidden. Specialized callers
 retain their queue and playlist occurrence callbacks. Artist previews explicitly
@@ -1621,10 +1636,8 @@ states without starting audio or modifying a queue.
     `markAuxiliarySyncedAt` writer, and the retired per-server
     capabilities-JSON timestamp is no longer read or written. The
     catalog circuit breaker does not suppress these independent endpoints.
-    Genre metadata is not a synchronized domain because Navis has no consumer
-    for it. A legacy queued genre target is marked complete during recovery;
-    cached genre rows remain untouched for compatibility and no `getGenres`
-    request is scheduled.
+    Genres are not synchronized: there is no genre target, endpoint or stored
+    genre data (see "Genres are not a Navis concept").
     Starred reconciliation
     excludes queued local star/unstar actions until they reach the server.
     Playlist headers upsert without replacing parent rows, so an unchanged
@@ -2045,7 +2058,7 @@ while checks inside the interval can continue pending-only work.
 
 Album/artist header timestamp comparisons use Drift's whole-second storage
 precision. Newest-feed header discrepancies only invalidate track hydration when
-the album is new/unhydrated or track-relevant fields change. Genre, rating,
+the album is new/unhydrated or track-relevant fields change. Rating,
 play-count and creation-date updates alone preserve verified tracks; independent
 age-based verification still covers song-only metadata changes.
 

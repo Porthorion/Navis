@@ -66,6 +66,11 @@ flows and platform contracts.
   `tool/generate_release_notes.dart`.
 - Listen Together/Voyage is retired. Do not restore its networking, sessions,
   settings, queue sync, or visible UI without an explicit product decision.
+- Genres are not a Navis concept: no genre page, route, Library section, Home
+  shelf, search filter, Android Auto node, sync/scan input, catalog-change
+  signal, recommendation input or diagnostics field without an explicit
+  product decision. `test/src/architecture/no_genre_feature_test.dart`
+  enforces this for `lib/`.
 - Never commit credentials, put real values in examples, reset unrelated work,
   weaken tests/security, or silently make public breaking changes.
 

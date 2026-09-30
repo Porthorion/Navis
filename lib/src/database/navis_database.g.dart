@@ -6758,15 +6758,6 @@ class $AlbumsTableTable extends AlbumsTable
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _genreMeta = const VerificationMeta('genre');
-  @override
-  late final GeneratedColumn<String> genre = GeneratedColumn<String>(
-    'genre',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _coverArtMeta = const VerificationMeta(
     'coverArt',
   );
@@ -6956,7 +6947,6 @@ class $AlbumsTableTable extends AlbumsTable
     songCount,
     duration,
     year,
-    genre,
     coverArt,
     coverArtRevision,
     releaseMbid,
@@ -7026,12 +7016,6 @@ class $AlbumsTableTable extends AlbumsTable
       context.handle(
         _yearMeta,
         year.isAcceptableOrUnknown(data['year']!, _yearMeta),
-      );
-    }
-    if (data.containsKey('genre')) {
-      context.handle(
-        _genreMeta,
-        genre.isAcceptableOrUnknown(data['genre']!, _genreMeta),
       );
     }
     if (data.containsKey('cover_art')) {
@@ -7194,10 +7178,6 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.int,
         data['${effectivePrefix}year'],
       ),
-      genre: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}genre'],
-      ),
       coverArt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
@@ -7285,7 +7265,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   final int? songCount;
   final int? duration;
   final int? year;
-  final String? genre;
   final String? coverArt;
 
   /// Incremented on targeted artwork recovery so cached cover bytes keyed to
@@ -7343,7 +7322,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.songCount,
     this.duration,
     this.year,
-    this.genre,
     this.coverArt,
     this.coverArtRevision,
     this.releaseMbid,
@@ -7384,9 +7362,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     }
     if (!nullToAbsent || year != null) {
       map['year'] = Variable<int>(year);
-    }
-    if (!nullToAbsent || genre != null) {
-      map['genre'] = Variable<String>(genre);
     }
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
@@ -7448,9 +7423,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ? const Value.absent()
           : Value(duration),
       year: year == null && nullToAbsent ? const Value.absent() : Value(year),
-      genre: genre == null && nullToAbsent
-          ? const Value.absent()
-          : Value(genre),
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
@@ -7507,7 +7479,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       songCount: serializer.fromJson<int?>(json['songCount']),
       duration: serializer.fromJson<int?>(json['duration']),
       year: serializer.fromJson<int?>(json['year']),
-      genre: serializer.fromJson<String?>(json['genre']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       coverArtRevision: serializer.fromJson<int?>(json['coverArtRevision']),
       releaseMbid: serializer.fromJson<String?>(json['releaseMbid']),
@@ -7539,7 +7510,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'songCount': serializer.toJson<int?>(songCount),
       'duration': serializer.toJson<int?>(duration),
       'year': serializer.toJson<int?>(year),
-      'genre': serializer.toJson<String?>(genre),
       'coverArt': serializer.toJson<String?>(coverArt),
       'coverArtRevision': serializer.toJson<int?>(coverArtRevision),
       'releaseMbid': serializer.toJson<String?>(releaseMbid),
@@ -7567,7 +7537,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<int?> songCount = const Value.absent(),
     Value<int?> duration = const Value.absent(),
     Value<int?> year = const Value.absent(),
-    Value<String?> genre = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
     Value<int?> coverArtRevision = const Value.absent(),
     Value<String?> releaseMbid = const Value.absent(),
@@ -7592,7 +7561,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     songCount: songCount.present ? songCount.value : this.songCount,
     duration: duration.present ? duration.value : this.duration,
     year: year.present ? year.value : this.year,
-    genre: genre.present ? genre.value : this.genre,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     coverArtRevision: coverArtRevision.present
         ? coverArtRevision.value
@@ -7633,7 +7601,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       songCount: data.songCount.present ? data.songCount.value : this.songCount,
       duration: data.duration.present ? data.duration.value : this.duration,
       year: data.year.present ? data.year.value : this.year,
-      genre: data.genre.present ? data.genre.value : this.genre,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
       coverArtRevision: data.coverArtRevision.present
           ? data.coverArtRevision.value
@@ -7685,7 +7652,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('songCount: $songCount, ')
           ..write('duration: $duration, ')
           ..write('year: $year, ')
-          ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
           ..write('coverArtRevision: $coverArtRevision, ')
           ..write('releaseMbid: $releaseMbid, ')
@@ -7715,7 +7681,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     songCount,
     duration,
     year,
-    genre,
     coverArt,
     coverArtRevision,
     releaseMbid,
@@ -7744,7 +7709,6 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.songCount == this.songCount &&
           other.duration == this.duration &&
           other.year == this.year &&
-          other.genre == this.genre &&
           other.coverArt == this.coverArt &&
           other.coverArtRevision == this.coverArtRevision &&
           other.releaseMbid == this.releaseMbid &&
@@ -7771,7 +7735,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<int?> songCount;
   final Value<int?> duration;
   final Value<int?> year;
-  final Value<String?> genre;
   final Value<String?> coverArt;
   final Value<int?> coverArtRevision;
   final Value<String?> releaseMbid;
@@ -7797,7 +7760,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.songCount = const Value.absent(),
     this.duration = const Value.absent(),
     this.year = const Value.absent(),
-    this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.coverArtRevision = const Value.absent(),
     this.releaseMbid = const Value.absent(),
@@ -7824,7 +7786,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.songCount = const Value.absent(),
     this.duration = const Value.absent(),
     this.year = const Value.absent(),
-    this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.coverArtRevision = const Value.absent(),
     this.releaseMbid = const Value.absent(),
@@ -7852,7 +7813,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<int>? songCount,
     Expression<int>? duration,
     Expression<int>? year,
-    Expression<String>? genre,
     Expression<String>? coverArt,
     Expression<int>? coverArtRevision,
     Expression<String>? releaseMbid,
@@ -7879,7 +7839,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (songCount != null) 'song_count': songCount,
       if (duration != null) 'duration': duration,
       if (year != null) 'year': year,
-      if (genre != null) 'genre': genre,
       if (coverArt != null) 'cover_art': coverArt,
       if (coverArtRevision != null) 'cover_art_revision': coverArtRevision,
       if (releaseMbid != null) 'release_mbid': releaseMbid,
@@ -7909,7 +7868,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<int?>? songCount,
     Value<int?>? duration,
     Value<int?>? year,
-    Value<String?>? genre,
     Value<String?>? coverArt,
     Value<int?>? coverArtRevision,
     Value<String?>? releaseMbid,
@@ -7936,7 +7894,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       songCount: songCount ?? this.songCount,
       duration: duration ?? this.duration,
       year: year ?? this.year,
-      genre: genre ?? this.genre,
       coverArt: coverArt ?? this.coverArt,
       coverArtRevision: coverArtRevision ?? this.coverArtRevision,
       releaseMbid: releaseMbid ?? this.releaseMbid,
@@ -7984,9 +7941,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     }
     if (year.present) {
       map['year'] = Variable<int>(year.value);
-    }
-    if (genre.present) {
-      map['genre'] = Variable<String>(genre.value);
     }
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
@@ -8050,7 +8004,6 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('songCount: $songCount, ')
           ..write('duration: $duration, ')
           ..write('year: $year, ')
-          ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
           ..write('coverArtRevision: $coverArtRevision, ')
           ..write('releaseMbid: $releaseMbid, ')
@@ -10165,273 +10118,6 @@ class SongSearchTextTableCompanion
           ..write('songId: $songId, ')
           ..write('source: $source, ')
           ..write('searchText: $searchText')
-          ..write(')'))
-        .toString();
-  }
-}
-
-class $GenresTableTable extends GenresTable
-    with TableInfo<$GenresTableTable, GenresTableData> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $GenresTableTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-    'name',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _songCountMeta = const VerificationMeta(
-    'songCount',
-  );
-  @override
-  late final GeneratedColumn<int> songCount = GeneratedColumn<int>(
-    'song_count',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _albumCountMeta = const VerificationMeta(
-    'albumCount',
-  );
-  @override
-  late final GeneratedColumn<int> albumCount = GeneratedColumn<int>(
-    'album_count',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [name, songCount, albumCount];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'genres';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<GenresTableData> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('name')) {
-      context.handle(
-        _nameMeta,
-        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_nameMeta);
-    }
-    if (data.containsKey('song_count')) {
-      context.handle(
-        _songCountMeta,
-        songCount.isAcceptableOrUnknown(data['song_count']!, _songCountMeta),
-      );
-    }
-    if (data.containsKey('album_count')) {
-      context.handle(
-        _albumCountMeta,
-        albumCount.isAcceptableOrUnknown(data['album_count']!, _albumCountMeta),
-      );
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {name};
-  @override
-  GenresTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return GenresTableData(
-      name: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}name'],
-      )!,
-      songCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}song_count'],
-      ),
-      albumCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}album_count'],
-      ),
-    );
-  }
-
-  @override
-  $GenresTableTable createAlias(String alias) {
-    return $GenresTableTable(attachedDatabase, alias);
-  }
-}
-
-class GenresTableData extends DataClass implements Insertable<GenresTableData> {
-  final String name;
-  final int? songCount;
-  final int? albumCount;
-  const GenresTableData({required this.name, this.songCount, this.albumCount});
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['name'] = Variable<String>(name);
-    if (!nullToAbsent || songCount != null) {
-      map['song_count'] = Variable<int>(songCount);
-    }
-    if (!nullToAbsent || albumCount != null) {
-      map['album_count'] = Variable<int>(albumCount);
-    }
-    return map;
-  }
-
-  GenresTableCompanion toCompanion(bool nullToAbsent) {
-    return GenresTableCompanion(
-      name: Value(name),
-      songCount: songCount == null && nullToAbsent
-          ? const Value.absent()
-          : Value(songCount),
-      albumCount: albumCount == null && nullToAbsent
-          ? const Value.absent()
-          : Value(albumCount),
-    );
-  }
-
-  factory GenresTableData.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return GenresTableData(
-      name: serializer.fromJson<String>(json['name']),
-      songCount: serializer.fromJson<int?>(json['songCount']),
-      albumCount: serializer.fromJson<int?>(json['albumCount']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'name': serializer.toJson<String>(name),
-      'songCount': serializer.toJson<int?>(songCount),
-      'albumCount': serializer.toJson<int?>(albumCount),
-    };
-  }
-
-  GenresTableData copyWith({
-    String? name,
-    Value<int?> songCount = const Value.absent(),
-    Value<int?> albumCount = const Value.absent(),
-  }) => GenresTableData(
-    name: name ?? this.name,
-    songCount: songCount.present ? songCount.value : this.songCount,
-    albumCount: albumCount.present ? albumCount.value : this.albumCount,
-  );
-  GenresTableData copyWithCompanion(GenresTableCompanion data) {
-    return GenresTableData(
-      name: data.name.present ? data.name.value : this.name,
-      songCount: data.songCount.present ? data.songCount.value : this.songCount,
-      albumCount: data.albumCount.present
-          ? data.albumCount.value
-          : this.albumCount,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('GenresTableData(')
-          ..write('name: $name, ')
-          ..write('songCount: $songCount, ')
-          ..write('albumCount: $albumCount')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(name, songCount, albumCount);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is GenresTableData &&
-          other.name == this.name &&
-          other.songCount == this.songCount &&
-          other.albumCount == this.albumCount);
-}
-
-class GenresTableCompanion extends UpdateCompanion<GenresTableData> {
-  final Value<String> name;
-  final Value<int?> songCount;
-  final Value<int?> albumCount;
-  final Value<int> rowid;
-  const GenresTableCompanion({
-    this.name = const Value.absent(),
-    this.songCount = const Value.absent(),
-    this.albumCount = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  GenresTableCompanion.insert({
-    required String name,
-    this.songCount = const Value.absent(),
-    this.albumCount = const Value.absent(),
-    this.rowid = const Value.absent(),
-  }) : name = Value(name);
-  static Insertable<GenresTableData> custom({
-    Expression<String>? name,
-    Expression<int>? songCount,
-    Expression<int>? albumCount,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (name != null) 'name': name,
-      if (songCount != null) 'song_count': songCount,
-      if (albumCount != null) 'album_count': albumCount,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  GenresTableCompanion copyWith({
-    Value<String>? name,
-    Value<int?>? songCount,
-    Value<int?>? albumCount,
-    Value<int>? rowid,
-  }) {
-    return GenresTableCompanion(
-      name: name ?? this.name,
-      songCount: songCount ?? this.songCount,
-      albumCount: albumCount ?? this.albumCount,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (songCount.present) {
-      map['song_count'] = Variable<int>(songCount.value);
-    }
-    if (albumCount.present) {
-      map['album_count'] = Variable<int>(albumCount.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('GenresTableCompanion(')
-          ..write('name: $name, ')
-          ..write('songCount: $songCount, ')
-          ..write('albumCount: $albumCount, ')
-          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -19704,17 +19390,6 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
-  static const VerificationMeta _lastGenresSyncedAtMeta =
-      const VerificationMeta('lastGenresSyncedAt');
-  @override
-  late final GeneratedColumn<DateTime> lastGenresSyncedAt =
-      GeneratedColumn<DateTime>(
-        'last_genres_synced_at',
-        aliasedName,
-        true,
-        type: DriftSqlType.dateTime,
-        requiredDuringInsert: false,
-      );
   static const VerificationMeta _lastAuditAtMeta = const VerificationMeta(
     'lastAuditAt',
   );
@@ -19992,7 +19667,6 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
     lastCatalogSyncedAt,
     initialCatalogUsableAt,
     lastAuxiliarySyncedAt,
-    lastGenresSyncedAt,
     lastAuditAt,
     auditOffset,
     failureStreak,
@@ -20229,15 +19903,6 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         lastAuxiliarySyncedAt.isAcceptableOrUnknown(
           data['last_auxiliary_synced_at']!,
           _lastAuxiliarySyncedAtMeta,
-        ),
-      );
-    }
-    if (data.containsKey('last_genres_synced_at')) {
-      context.handle(
-        _lastGenresSyncedAtMeta,
-        lastGenresSyncedAt.isAcceptableOrUnknown(
-          data['last_genres_synced_at']!,
-          _lastGenresSyncedAtMeta,
         ),
       );
     }
@@ -20543,10 +20208,6 @@ class $LibrarySyncStateTableTable extends LibrarySyncStateTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_auxiliary_synced_at'],
       ),
-      lastGenresSyncedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}last_genres_synced_at'],
-      ),
       lastAuditAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_audit_at'],
@@ -20672,7 +20333,6 @@ class LibrarySyncStateTableData extends DataClass
   /// server album details pending. This is readiness, not full freshness.
   final DateTime? initialCatalogUsableAt;
   final DateTime? lastAuxiliarySyncedAt;
-  final DateTime? lastGenresSyncedAt;
   final DateTime? lastAuditAt;
   final int auditOffset;
   final int failureStreak;
@@ -20732,7 +20392,6 @@ class LibrarySyncStateTableData extends DataClass
     this.lastCatalogSyncedAt,
     this.initialCatalogUsableAt,
     this.lastAuxiliarySyncedAt,
-    this.lastGenresSyncedAt,
     this.lastAuditAt,
     required this.auditOffset,
     required this.failureStreak,
@@ -20819,9 +20478,6 @@ class LibrarySyncStateTableData extends DataClass
       map['last_auxiliary_synced_at'] = Variable<DateTime>(
         lastAuxiliarySyncedAt,
       );
-    }
-    if (!nullToAbsent || lastGenresSyncedAt != null) {
-      map['last_genres_synced_at'] = Variable<DateTime>(lastGenresSyncedAt);
     }
     if (!nullToAbsent || lastAuditAt != null) {
       map['last_audit_at'] = Variable<DateTime>(lastAuditAt);
@@ -20950,9 +20606,6 @@ class LibrarySyncStateTableData extends DataClass
       lastAuxiliarySyncedAt: lastAuxiliarySyncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastAuxiliarySyncedAt),
-      lastGenresSyncedAt: lastGenresSyncedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(lastGenresSyncedAt),
       lastAuditAt: lastAuditAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastAuditAt),
@@ -21064,9 +20717,6 @@ class LibrarySyncStateTableData extends DataClass
       lastAuxiliarySyncedAt: serializer.fromJson<DateTime?>(
         json['lastAuxiliarySyncedAt'],
       ),
-      lastGenresSyncedAt: serializer.fromJson<DateTime?>(
-        json['lastGenresSyncedAt'],
-      ),
       lastAuditAt: serializer.fromJson<DateTime?>(json['lastAuditAt']),
       auditOffset: serializer.fromJson<int>(json['auditOffset']),
       failureStreak: serializer.fromJson<int>(json['failureStreak']),
@@ -21152,7 +20802,6 @@ class LibrarySyncStateTableData extends DataClass
       'lastAuxiliarySyncedAt': serializer.toJson<DateTime?>(
         lastAuxiliarySyncedAt,
       ),
-      'lastGenresSyncedAt': serializer.toJson<DateTime?>(lastGenresSyncedAt),
       'lastAuditAt': serializer.toJson<DateTime?>(lastAuditAt),
       'auditOffset': serializer.toJson<int>(auditOffset),
       'failureStreak': serializer.toJson<int>(failureStreak),
@@ -21222,7 +20871,6 @@ class LibrarySyncStateTableData extends DataClass
     Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
     Value<DateTime?> initialCatalogUsableAt = const Value.absent(),
     Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
-    Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
     Value<DateTime?> lastAuditAt = const Value.absent(),
     int? auditOffset,
     int? failureStreak,
@@ -21301,9 +20949,6 @@ class LibrarySyncStateTableData extends DataClass
     lastAuxiliarySyncedAt: lastAuxiliarySyncedAt.present
         ? lastAuxiliarySyncedAt.value
         : this.lastAuxiliarySyncedAt,
-    lastGenresSyncedAt: lastGenresSyncedAt.present
-        ? lastGenresSyncedAt.value
-        : this.lastGenresSyncedAt,
     lastAuditAt: lastAuditAt.present ? lastAuditAt.value : this.lastAuditAt,
     auditOffset: auditOffset ?? this.auditOffset,
     failureStreak: failureStreak ?? this.failureStreak,
@@ -21427,9 +21072,6 @@ class LibrarySyncStateTableData extends DataClass
       lastAuxiliarySyncedAt: data.lastAuxiliarySyncedAt.present
           ? data.lastAuxiliarySyncedAt.value
           : this.lastAuxiliarySyncedAt,
-      lastGenresSyncedAt: data.lastGenresSyncedAt.present
-          ? data.lastGenresSyncedAt.value
-          : this.lastGenresSyncedAt,
       lastAuditAt: data.lastAuditAt.present
           ? data.lastAuditAt.value
           : this.lastAuditAt,
@@ -21530,7 +21172,6 @@ class LibrarySyncStateTableData extends DataClass
           ..write('lastCatalogSyncedAt: $lastCatalogSyncedAt, ')
           ..write('initialCatalogUsableAt: $initialCatalogUsableAt, ')
           ..write('lastAuxiliarySyncedAt: $lastAuxiliarySyncedAt, ')
-          ..write('lastGenresSyncedAt: $lastGenresSyncedAt, ')
           ..write('lastAuditAt: $lastAuditAt, ')
           ..write('auditOffset: $auditOffset, ')
           ..write('failureStreak: $failureStreak, ')
@@ -21588,7 +21229,6 @@ class LibrarySyncStateTableData extends DataClass
     lastCatalogSyncedAt,
     initialCatalogUsableAt,
     lastAuxiliarySyncedAt,
-    lastGenresSyncedAt,
     lastAuditAt,
     auditOffset,
     failureStreak,
@@ -21641,7 +21281,6 @@ class LibrarySyncStateTableData extends DataClass
           other.lastCatalogSyncedAt == this.lastCatalogSyncedAt &&
           other.initialCatalogUsableAt == this.initialCatalogUsableAt &&
           other.lastAuxiliarySyncedAt == this.lastAuxiliarySyncedAt &&
-          other.lastGenresSyncedAt == this.lastGenresSyncedAt &&
           other.lastAuditAt == this.lastAuditAt &&
           other.auditOffset == this.auditOffset &&
           other.failureStreak == this.failureStreak &&
@@ -21695,7 +21334,6 @@ class LibrarySyncStateTableCompanion
   final Value<DateTime?> lastCatalogSyncedAt;
   final Value<DateTime?> initialCatalogUsableAt;
   final Value<DateTime?> lastAuxiliarySyncedAt;
-  final Value<DateTime?> lastGenresSyncedAt;
   final Value<DateTime?> lastAuditAt;
   final Value<int> auditOffset;
   final Value<int> failureStreak;
@@ -21742,7 +21380,6 @@ class LibrarySyncStateTableCompanion
     this.lastCatalogSyncedAt = const Value.absent(),
     this.initialCatalogUsableAt = const Value.absent(),
     this.lastAuxiliarySyncedAt = const Value.absent(),
-    this.lastGenresSyncedAt = const Value.absent(),
     this.lastAuditAt = const Value.absent(),
     this.auditOffset = const Value.absent(),
     this.failureStreak = const Value.absent(),
@@ -21790,7 +21427,6 @@ class LibrarySyncStateTableCompanion
     this.lastCatalogSyncedAt = const Value.absent(),
     this.initialCatalogUsableAt = const Value.absent(),
     this.lastAuxiliarySyncedAt = const Value.absent(),
-    this.lastGenresSyncedAt = const Value.absent(),
     this.lastAuditAt = const Value.absent(),
     this.auditOffset = const Value.absent(),
     this.failureStreak = const Value.absent(),
@@ -21838,7 +21474,6 @@ class LibrarySyncStateTableCompanion
     Expression<DateTime>? lastCatalogSyncedAt,
     Expression<DateTime>? initialCatalogUsableAt,
     Expression<DateTime>? lastAuxiliarySyncedAt,
-    Expression<DateTime>? lastGenresSyncedAt,
     Expression<DateTime>? lastAuditAt,
     Expression<int>? auditOffset,
     Expression<int>? failureStreak,
@@ -21897,8 +21532,6 @@ class LibrarySyncStateTableCompanion
         'initial_catalog_usable_at': initialCatalogUsableAt,
       if (lastAuxiliarySyncedAt != null)
         'last_auxiliary_synced_at': lastAuxiliarySyncedAt,
-      if (lastGenresSyncedAt != null)
-        'last_genres_synced_at': lastGenresSyncedAt,
       if (lastAuditAt != null) 'last_audit_at': lastAuditAt,
       if (auditOffset != null) 'audit_offset': auditOffset,
       if (failureStreak != null) 'failure_streak': failureStreak,
@@ -21960,7 +21593,6 @@ class LibrarySyncStateTableCompanion
     Value<DateTime?>? lastCatalogSyncedAt,
     Value<DateTime?>? initialCatalogUsableAt,
     Value<DateTime?>? lastAuxiliarySyncedAt,
-    Value<DateTime?>? lastGenresSyncedAt,
     Value<DateTime?>? lastAuditAt,
     Value<int>? auditOffset,
     Value<int>? failureStreak,
@@ -22013,7 +21645,6 @@ class LibrarySyncStateTableCompanion
           initialCatalogUsableAt ?? this.initialCatalogUsableAt,
       lastAuxiliarySyncedAt:
           lastAuxiliarySyncedAt ?? this.lastAuxiliarySyncedAt,
-      lastGenresSyncedAt: lastGenresSyncedAt ?? this.lastGenresSyncedAt,
       lastAuditAt: lastAuditAt ?? this.lastAuditAt,
       auditOffset: auditOffset ?? this.auditOffset,
       failureStreak: failureStreak ?? this.failureStreak,
@@ -22136,11 +21767,6 @@ class LibrarySyncStateTableCompanion
     if (lastAuxiliarySyncedAt.present) {
       map['last_auxiliary_synced_at'] = Variable<DateTime>(
         lastAuxiliarySyncedAt.value,
-      );
-    }
-    if (lastGenresSyncedAt.present) {
-      map['last_genres_synced_at'] = Variable<DateTime>(
-        lastGenresSyncedAt.value,
       );
     }
     if (lastAuditAt.present) {
@@ -22266,7 +21892,6 @@ class LibrarySyncStateTableCompanion
           ..write('lastCatalogSyncedAt: $lastCatalogSyncedAt, ')
           ..write('initialCatalogUsableAt: $initialCatalogUsableAt, ')
           ..write('lastAuxiliarySyncedAt: $lastAuxiliarySyncedAt, ')
-          ..write('lastGenresSyncedAt: $lastGenresSyncedAt, ')
           ..write('lastAuditAt: $lastAuditAt, ')
           ..write('auditOffset: $auditOffset, ')
           ..write('failureStreak: $failureStreak, ')
@@ -23771,15 +23396,6 @@ class $LibrarySyncCandidateAlbumsTableTable
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _genreMeta = const VerificationMeta('genre');
-  @override
-  late final GeneratedColumn<String> genre = GeneratedColumn<String>(
-    'genre',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _coverArtMeta = const VerificationMeta(
     'coverArt',
   );
@@ -23922,7 +23538,6 @@ class $LibrarySyncCandidateAlbumsTableTable
     songCount,
     duration,
     year,
-    genre,
     coverArt,
     releaseMbid,
     songsHydrated,
@@ -24004,12 +23619,6 @@ class $LibrarySyncCandidateAlbumsTableTable
       context.handle(
         _yearMeta,
         year.isAcceptableOrUnknown(data['year']!, _yearMeta),
-      );
-    }
-    if (data.containsKey('genre')) {
-      context.handle(
-        _genreMeta,
-        genre.isAcceptableOrUnknown(data['genre']!, _genreMeta),
       );
     }
     if (data.containsKey('cover_art')) {
@@ -24147,10 +23756,6 @@ class $LibrarySyncCandidateAlbumsTableTable
         DriftSqlType.int,
         data['${effectivePrefix}year'],
       ),
-      genre: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}genre'],
-      ),
       coverArt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
@@ -24219,7 +23824,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
   final int? songCount;
   final int? duration;
   final int? year;
-  final String? genre;
   final String? coverArt;
 
   /// MusicBrainz release ID supplied by OpenSubsonic responses, promoted
@@ -24251,7 +23855,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     this.songCount,
     this.duration,
     this.year,
-    this.genre,
     this.coverArt,
     this.releaseMbid,
     required this.songsHydrated,
@@ -24290,9 +23893,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     }
     if (!nullToAbsent || year != null) {
       map['year'] = Variable<int>(year);
-    }
-    if (!nullToAbsent || genre != null) {
-      map['genre'] = Variable<String>(genre);
     }
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
@@ -24346,9 +23946,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
           ? const Value.absent()
           : Value(duration),
       year: year == null && nullToAbsent ? const Value.absent() : Value(year),
-      genre: genre == null && nullToAbsent
-          ? const Value.absent()
-          : Value(genre),
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
@@ -24397,7 +23994,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       songCount: serializer.fromJson<int?>(json['songCount']),
       duration: serializer.fromJson<int?>(json['duration']),
       year: serializer.fromJson<int?>(json['year']),
-      genre: serializer.fromJson<String?>(json['genre']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       releaseMbid: serializer.fromJson<String?>(json['releaseMbid']),
       songsHydrated: serializer.fromJson<bool>(json['songsHydrated']),
@@ -24425,7 +24021,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       'songCount': serializer.toJson<int?>(songCount),
       'duration': serializer.toJson<int?>(duration),
       'year': serializer.toJson<int?>(year),
-      'genre': serializer.toJson<String?>(genre),
       'coverArt': serializer.toJson<String?>(coverArt),
       'releaseMbid': serializer.toJson<String?>(releaseMbid),
       'songsHydrated': serializer.toJson<bool>(songsHydrated),
@@ -24451,7 +24046,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     Value<int?> songCount = const Value.absent(),
     Value<int?> duration = const Value.absent(),
     Value<int?> year = const Value.absent(),
-    Value<String?> genre = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
     Value<String?> releaseMbid = const Value.absent(),
     bool? songsHydrated,
@@ -24474,7 +24068,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     songCount: songCount.present ? songCount.value : this.songCount,
     duration: duration.present ? duration.value : this.duration,
     year: year.present ? year.value : this.year,
-    genre: genre.present ? genre.value : this.genre,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     releaseMbid: releaseMbid.present ? releaseMbid.value : this.releaseMbid,
     songsHydrated: songsHydrated ?? this.songsHydrated,
@@ -24509,7 +24102,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
       songCount: data.songCount.present ? data.songCount.value : this.songCount,
       duration: data.duration.present ? data.duration.value : this.duration,
       year: data.year.present ? data.year.value : this.year,
-      genre: data.genre.present ? data.genre.value : this.genre,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
       releaseMbid: data.releaseMbid.present
           ? data.releaseMbid.value
@@ -24551,7 +24143,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
           ..write('songCount: $songCount, ')
           ..write('duration: $duration, ')
           ..write('year: $year, ')
-          ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
           ..write('releaseMbid: $releaseMbid, ')
           ..write('songsHydrated: $songsHydrated, ')
@@ -24579,7 +24170,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
     songCount,
     duration,
     year,
-    genre,
     coverArt,
     releaseMbid,
     songsHydrated,
@@ -24606,7 +24196,6 @@ class LibrarySyncCandidateAlbumsTableData extends DataClass
           other.songCount == this.songCount &&
           other.duration == this.duration &&
           other.year == this.year &&
-          other.genre == this.genre &&
           other.coverArt == this.coverArt &&
           other.releaseMbid == this.releaseMbid &&
           other.songsHydrated == this.songsHydrated &&
@@ -24632,7 +24221,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
   final Value<int?> songCount;
   final Value<int?> duration;
   final Value<int?> year;
-  final Value<String?> genre;
   final Value<String?> coverArt;
   final Value<String?> releaseMbid;
   final Value<bool> songsHydrated;
@@ -24656,7 +24244,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
     this.songCount = const Value.absent(),
     this.duration = const Value.absent(),
     this.year = const Value.absent(),
-    this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.releaseMbid = const Value.absent(),
     this.songsHydrated = const Value.absent(),
@@ -24681,7 +24268,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
     this.songCount = const Value.absent(),
     this.duration = const Value.absent(),
     this.year = const Value.absent(),
-    this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.releaseMbid = const Value.absent(),
     this.songsHydrated = const Value.absent(),
@@ -24709,7 +24295,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
     Expression<int>? songCount,
     Expression<int>? duration,
     Expression<int>? year,
-    Expression<String>? genre,
     Expression<String>? coverArt,
     Expression<String>? releaseMbid,
     Expression<bool>? songsHydrated,
@@ -24734,7 +24319,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
       if (songCount != null) 'song_count': songCount,
       if (duration != null) 'duration': duration,
       if (year != null) 'year': year,
-      if (genre != null) 'genre': genre,
       if (coverArt != null) 'cover_art': coverArt,
       if (releaseMbid != null) 'release_mbid': releaseMbid,
       if (songsHydrated != null) 'songs_hydrated': songsHydrated,
@@ -24761,7 +24345,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
     Value<int?>? songCount,
     Value<int?>? duration,
     Value<int?>? year,
-    Value<String?>? genre,
     Value<String?>? coverArt,
     Value<String?>? releaseMbid,
     Value<bool>? songsHydrated,
@@ -24786,7 +24369,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
       songCount: songCount ?? this.songCount,
       duration: duration ?? this.duration,
       year: year ?? this.year,
-      genre: genre ?? this.genre,
       coverArt: coverArt ?? this.coverArt,
       releaseMbid: releaseMbid ?? this.releaseMbid,
       songsHydrated: songsHydrated ?? this.songsHydrated,
@@ -24838,9 +24420,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
     }
     if (year.present) {
       map['year'] = Variable<int>(year.value);
-    }
-    if (genre.present) {
-      map['genre'] = Variable<String>(genre.value);
     }
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
@@ -24894,7 +24473,6 @@ class LibrarySyncCandidateAlbumsTableCompanion
           ..write('songCount: $songCount, ')
           ..write('duration: $duration, ')
           ..write('year: $year, ')
-          ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
           ..write('releaseMbid: $releaseMbid, ')
           ..write('songsHydrated: $songsHydrated, ')
@@ -32767,7 +32345,6 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final $SongsTableTable songsTable = $SongsTableTable(this);
   late final $SongSearchTextTableTable songSearchTextTable =
       $SongSearchTextTableTable(this);
-  late final $GenresTableTable genresTable = $GenresTableTable(this);
   late final $AlbumInfoCacheTableTable albumInfoCacheTable =
       $AlbumInfoCacheTableTable(this);
   late final $ExternalLyricsCacheTableTable externalLyricsCacheTable =
@@ -32889,7 +32466,6 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     albumsTable,
     songsTable,
     songSearchTextTable,
-    genresTable,
     albumInfoCacheTable,
     externalLyricsCacheTable,
     playlistsTable,
@@ -37309,7 +36885,6 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<int?> songCount,
       Value<int?> duration,
       Value<int?> year,
-      Value<String?> genre,
       Value<String?> coverArt,
       Value<int?> coverArtRevision,
       Value<String?> releaseMbid,
@@ -37337,7 +36912,6 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<int?> songCount,
       Value<int?> duration,
       Value<int?> year,
-      Value<String?> genre,
       Value<String?> coverArt,
       Value<int?> coverArtRevision,
       Value<String?> releaseMbid,
@@ -37439,11 +37013,6 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<int> get year => $composableBuilder(
     column: $table.year,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get genre => $composableBuilder(
-    column: $table.genre,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -37615,11 +37184,6 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get genre => $composableBuilder(
-    column: $table.genre,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
     builder: (column) => ColumnOrderings(column),
@@ -37750,9 +37314,6 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<int> get year =>
       $composableBuilder(column: $table.year, builder: (column) => column);
-
-  GeneratedColumn<String> get genre =>
-      $composableBuilder(column: $table.genre, builder: (column) => column);
 
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
@@ -37906,7 +37467,6 @@ class $$AlbumsTableTableTableManager
                 Value<int?> songCount = const Value.absent(),
                 Value<int?> duration = const Value.absent(),
                 Value<int?> year = const Value.absent(),
-                Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<int?> coverArtRevision = const Value.absent(),
                 Value<String?> releaseMbid = const Value.absent(),
@@ -37932,7 +37492,6 @@ class $$AlbumsTableTableTableManager
                 songCount: songCount,
                 duration: duration,
                 year: year,
-                genre: genre,
                 coverArt: coverArt,
                 coverArtRevision: coverArtRevision,
                 releaseMbid: releaseMbid,
@@ -37960,7 +37519,6 @@ class $$AlbumsTableTableTableManager
                 Value<int?> songCount = const Value.absent(),
                 Value<int?> duration = const Value.absent(),
                 Value<int?> year = const Value.absent(),
-                Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<int?> coverArtRevision = const Value.absent(),
                 Value<String?> releaseMbid = const Value.absent(),
@@ -37986,7 +37544,6 @@ class $$AlbumsTableTableTableManager
                 songCount: songCount,
                 duration: duration,
                 year: year,
-                genre: genre,
                 coverArt: coverArt,
                 coverArtRevision: coverArtRevision,
                 releaseMbid: releaseMbid,
@@ -39722,170 +39279,6 @@ typedef $$SongSearchTextTableTableProcessedTableManager =
         >,
       ),
       SongSearchTextTableData,
-      PrefetchHooks Function()
-    >;
-typedef $$GenresTableTableCreateCompanionBuilder =
-    GenresTableCompanion Function({
-      required String name,
-      Value<int?> songCount,
-      Value<int?> albumCount,
-      Value<int> rowid,
-    });
-typedef $$GenresTableTableUpdateCompanionBuilder =
-    GenresTableCompanion Function({
-      Value<String> name,
-      Value<int?> songCount,
-      Value<int?> albumCount,
-      Value<int> rowid,
-    });
-
-class $$GenresTableTableFilterComposer
-    extends Composer<_$NavisDatabase, $GenresTableTable> {
-  $$GenresTableTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get songCount => $composableBuilder(
-    column: $table.songCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get albumCount => $composableBuilder(
-    column: $table.albumCount,
-    builder: (column) => ColumnFilters(column),
-  );
-}
-
-class $$GenresTableTableOrderingComposer
-    extends Composer<_$NavisDatabase, $GenresTableTable> {
-  $$GenresTableTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get songCount => $composableBuilder(
-    column: $table.songCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get albumCount => $composableBuilder(
-    column: $table.albumCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$GenresTableTableAnnotationComposer
-    extends Composer<_$NavisDatabase, $GenresTableTable> {
-  $$GenresTableTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<int> get songCount =>
-      $composableBuilder(column: $table.songCount, builder: (column) => column);
-
-  GeneratedColumn<int> get albumCount => $composableBuilder(
-    column: $table.albumCount,
-    builder: (column) => column,
-  );
-}
-
-class $$GenresTableTableTableManager
-    extends
-        RootTableManager<
-          _$NavisDatabase,
-          $GenresTableTable,
-          GenresTableData,
-          $$GenresTableTableFilterComposer,
-          $$GenresTableTableOrderingComposer,
-          $$GenresTableTableAnnotationComposer,
-          $$GenresTableTableCreateCompanionBuilder,
-          $$GenresTableTableUpdateCompanionBuilder,
-          (
-            GenresTableData,
-            BaseReferences<_$NavisDatabase, $GenresTableTable, GenresTableData>,
-          ),
-          GenresTableData,
-          PrefetchHooks Function()
-        > {
-  $$GenresTableTableTableManager(_$NavisDatabase db, $GenresTableTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$GenresTableTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$GenresTableTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$GenresTableTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> name = const Value.absent(),
-                Value<int?> songCount = const Value.absent(),
-                Value<int?> albumCount = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => GenresTableCompanion(
-                name: name,
-                songCount: songCount,
-                albumCount: albumCount,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String name,
-                Value<int?> songCount = const Value.absent(),
-                Value<int?> albumCount = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => GenresTableCompanion.insert(
-                name: name,
-                songCount: songCount,
-                albumCount: albumCount,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
-              .toList(),
-          prefetchHooksCallback: null,
-        ),
-      );
-}
-
-typedef $$GenresTableTableProcessedTableManager =
-    ProcessedTableManager<
-      _$NavisDatabase,
-      $GenresTableTable,
-      GenresTableData,
-      $$GenresTableTableFilterComposer,
-      $$GenresTableTableOrderingComposer,
-      $$GenresTableTableAnnotationComposer,
-      $$GenresTableTableCreateCompanionBuilder,
-      $$GenresTableTableUpdateCompanionBuilder,
-      (
-        GenresTableData,
-        BaseReferences<_$NavisDatabase, $GenresTableTable, GenresTableData>,
-      ),
-      GenresTableData,
       PrefetchHooks Function()
     >;
 typedef $$AlbumInfoCacheTableTableCreateCompanionBuilder =
@@ -46016,7 +45409,6 @@ typedef $$LibrarySyncStateTableTableCreateCompanionBuilder =
       Value<DateTime?> lastCatalogSyncedAt,
       Value<DateTime?> initialCatalogUsableAt,
       Value<DateTime?> lastAuxiliarySyncedAt,
-      Value<DateTime?> lastGenresSyncedAt,
       Value<DateTime?> lastAuditAt,
       Value<int> auditOffset,
       Value<int> failureStreak,
@@ -46065,7 +45457,6 @@ typedef $$LibrarySyncStateTableTableUpdateCompanionBuilder =
       Value<DateTime?> lastCatalogSyncedAt,
       Value<DateTime?> initialCatalogUsableAt,
       Value<DateTime?> lastAuxiliarySyncedAt,
-      Value<DateTime?> lastGenresSyncedAt,
       Value<DateTime?> lastAuditAt,
       Value<int> auditOffset,
       Value<int> failureStreak,
@@ -46238,11 +45629,6 @@ class $$LibrarySyncStateTableTableFilterComposer
 
   ColumnFilters<DateTime> get lastAuxiliarySyncedAt => $composableBuilder(
     column: $table.lastAuxiliarySyncedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get lastGenresSyncedAt => $composableBuilder(
-    column: $table.lastGenresSyncedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -46497,11 +45883,6 @@ class $$LibrarySyncStateTableTableOrderingComposer
 
   ColumnOrderings<DateTime> get lastAuxiliarySyncedAt => $composableBuilder(
     column: $table.lastAuxiliarySyncedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get lastGenresSyncedAt => $composableBuilder(
-    column: $table.lastGenresSyncedAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -46762,11 +46143,6 @@ class $$LibrarySyncStateTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<DateTime> get lastGenresSyncedAt => $composableBuilder(
-    column: $table.lastGenresSyncedAt,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<DateTime> get lastAuditAt => $composableBuilder(
     column: $table.lastAuditAt,
     builder: (column) => column,
@@ -46968,7 +46344,6 @@ class $$LibrarySyncStateTableTableTableManager
                 Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
                 Value<DateTime?> initialCatalogUsableAt = const Value.absent(),
                 Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
-                Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
                 Value<DateTime?> lastAuditAt = const Value.absent(),
                 Value<int> auditOffset = const Value.absent(),
                 Value<int> failureStreak = const Value.absent(),
@@ -47019,7 +46394,6 @@ class $$LibrarySyncStateTableTableTableManager
                 lastCatalogSyncedAt: lastCatalogSyncedAt,
                 initialCatalogUsableAt: initialCatalogUsableAt,
                 lastAuxiliarySyncedAt: lastAuxiliarySyncedAt,
-                lastGenresSyncedAt: lastGenresSyncedAt,
                 lastAuditAt: lastAuditAt,
                 auditOffset: auditOffset,
                 failureStreak: failureStreak,
@@ -47070,7 +46444,6 @@ class $$LibrarySyncStateTableTableTableManager
                 Value<DateTime?> lastCatalogSyncedAt = const Value.absent(),
                 Value<DateTime?> initialCatalogUsableAt = const Value.absent(),
                 Value<DateTime?> lastAuxiliarySyncedAt = const Value.absent(),
-                Value<DateTime?> lastGenresSyncedAt = const Value.absent(),
                 Value<DateTime?> lastAuditAt = const Value.absent(),
                 Value<int> auditOffset = const Value.absent(),
                 Value<int> failureStreak = const Value.absent(),
@@ -47121,7 +46494,6 @@ class $$LibrarySyncStateTableTableTableManager
                 lastCatalogSyncedAt: lastCatalogSyncedAt,
                 initialCatalogUsableAt: initialCatalogUsableAt,
                 lastAuxiliarySyncedAt: lastAuxiliarySyncedAt,
-                lastGenresSyncedAt: lastGenresSyncedAt,
                 lastAuditAt: lastAuditAt,
                 auditOffset: auditOffset,
                 failureStreak: failureStreak,
@@ -48012,7 +47384,6 @@ typedef $$LibrarySyncCandidateAlbumsTableTableCreateCompanionBuilder =
       Value<int?> songCount,
       Value<int?> duration,
       Value<int?> year,
-      Value<String?> genre,
       Value<String?> coverArt,
       Value<String?> releaseMbid,
       Value<bool> songsHydrated,
@@ -48038,7 +47409,6 @@ typedef $$LibrarySyncCandidateAlbumsTableTableUpdateCompanionBuilder =
       Value<int?> songCount,
       Value<int?> duration,
       Value<int?> year,
-      Value<String?> genre,
       Value<String?> coverArt,
       Value<String?> releaseMbid,
       Value<bool> songsHydrated,
@@ -48110,11 +47480,6 @@ class $$LibrarySyncCandidateAlbumsTableTableFilterComposer
 
   ColumnFilters<int> get year => $composableBuilder(
     column: $table.year,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get genre => $composableBuilder(
-    column: $table.genre,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -48233,11 +47598,6 @@ class $$LibrarySyncCandidateAlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get genre => $composableBuilder(
-    column: $table.genre,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
     builder: (column) => ColumnOrderings(column),
@@ -48336,9 +47696,6 @@ class $$LibrarySyncCandidateAlbumsTableTableAnnotationComposer
 
   GeneratedColumn<int> get year =>
       $composableBuilder(column: $table.year, builder: (column) => column);
-
-  GeneratedColumn<String> get genre =>
-      $composableBuilder(column: $table.genre, builder: (column) => column);
 
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
@@ -48444,7 +47801,6 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 Value<int?> songCount = const Value.absent(),
                 Value<int?> duration = const Value.absent(),
                 Value<int?> year = const Value.absent(),
-                Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<String?> releaseMbid = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
@@ -48468,7 +47824,6 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 songCount: songCount,
                 duration: duration,
                 year: year,
-                genre: genre,
                 coverArt: coverArt,
                 releaseMbid: releaseMbid,
                 songsHydrated: songsHydrated,
@@ -48494,7 +47849,6 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 Value<int?> songCount = const Value.absent(),
                 Value<int?> duration = const Value.absent(),
                 Value<int?> year = const Value.absent(),
-                Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<String?> releaseMbid = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
@@ -48518,7 +47872,6 @@ class $$LibrarySyncCandidateAlbumsTableTableTableManager
                 songCount: songCount,
                 duration: duration,
                 year: year,
-                genre: genre,
                 coverArt: coverArt,
                 releaseMbid: releaseMbid,
                 songsHydrated: songsHydrated,
@@ -54359,8 +53712,6 @@ class $NavisDatabaseManager {
       $$SongsTableTableTableManager(_db, _db.songsTable);
   $$SongSearchTextTableTableTableManager get songSearchTextTable =>
       $$SongSearchTextTableTableTableManager(_db, _db.songSearchTextTable);
-  $$GenresTableTableTableManager get genresTable =>
-      $$GenresTableTableTableManager(_db, _db.genresTable);
   $$AlbumInfoCacheTableTableTableManager get albumInfoCacheTable =>
       $$AlbumInfoCacheTableTableTableManager(_db, _db.albumInfoCacheTable);
   $$ExternalLyricsCacheTableTableTableManager get externalLyricsCacheTable =>

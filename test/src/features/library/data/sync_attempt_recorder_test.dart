@@ -7,7 +7,7 @@ import 'package:navis/src/features/library/data/sync_attempt_recorder.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 
 SyncRequestScope _scope() => SyncRequestScope(
-  allowedEndpoints: {'getGenres'},
+  allowedEndpoints: {'getPlaylists'},
   maxRequests: 100,
   maxNewestPages: 1,
   maxAlbumHydrations: 1,

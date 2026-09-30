@@ -1120,12 +1120,6 @@ abstract class AppLocalizations {
   /// **'Starred and Playlist Headers'**
   String get syncSettingsLastAuxiliaryUpdateLabel;
 
-  /// No description provided for @syncSettingsLastGenresUpdateLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Genres'**
-  String get syncSettingsLastGenresUpdateLabel;
-
   /// No description provided for @syncSettingsLastLibraryChangeLabel.
   ///
   /// In en, this message translates to:
@@ -2754,12 +2748,6 @@ abstract class AppLocalizations {
   /// **'Songs'**
   String get libraryTabSongs;
 
-  /// No description provided for @libraryTabGenres.
-  ///
-  /// In en, this message translates to:
-  /// **'Genres'**
-  String get libraryTabGenres;
-
   /// No description provided for @librarySyncRunning.
   ///
   /// In en, this message translates to:
@@ -2819,12 +2807,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Updating liked items'**
   String get librarySyncStageStarred;
-
-  /// No description provided for @librarySyncStageGenres.
-  ///
-  /// In en, this message translates to:
-  /// **'Fetching genres'**
-  String get librarySyncStageGenres;
 
   /// No description provided for @librarySyncStagePlaylists.
   ///
@@ -3041,30 +3023,6 @@ abstract class AppLocalizations {
   /// **'Sort Songs By'**
   String get librarySongsSortLabel;
 
-  /// No description provided for @libraryGenresEmptyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'No Genres Found'**
-  String get libraryGenresEmptyTitle;
-
-  /// No description provided for @libraryGenresEmptySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Run a sync to populate your library.'**
-  String get libraryGenresEmptySubtitle;
-
-  /// No description provided for @libraryGenresErrorTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Could Not Load Genres'**
-  String get libraryGenresErrorTitle;
-
-  /// No description provided for @libraryGenresCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{albums} albums • {songs} songs'**
-  String libraryGenresCount(int albums, int songs);
-
   /// No description provided for @librarySortRecentlyAdded.
   ///
   /// In en, this message translates to:
@@ -3184,54 +3142,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'\"{title}\" added to play next.'**
   String librarySongPlayNextQueued(Object title);
-
-  /// No description provided for @libraryGenreDetailTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'{genre}'**
-  String libraryGenreDetailTitle(Object genre);
-
-  /// No description provided for @libraryGenreAlbumsTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Albums'**
-  String get libraryGenreAlbumsTab;
-
-  /// No description provided for @libraryGenreSongsTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Songs'**
-  String get libraryGenreSongsTab;
-
-  /// No description provided for @libraryGenreAlbumsEmptyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'No Albums in This Genre'**
-  String get libraryGenreAlbumsEmptyTitle;
-
-  /// No description provided for @libraryGenreAlbumsEmptySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Sync to refresh genre albums.'**
-  String get libraryGenreAlbumsEmptySubtitle;
-
-  /// No description provided for @libraryGenreSongsEmptyTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'No Songs in This Genre'**
-  String get libraryGenreSongsEmptyTitle;
-
-  /// No description provided for @libraryGenreSongsEmptySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Sync to refresh genre songs.'**
-  String get libraryGenreSongsEmptySubtitle;
-
-  /// No description provided for @libraryGenreLoadErrorTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Could Not Load Genre'**
-  String get libraryGenreLoadErrorTitle;
 
   /// No description provided for @artistCardAlbumCount.
   ///

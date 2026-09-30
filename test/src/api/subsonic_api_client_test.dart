@@ -176,42 +176,24 @@ void main() {
       );
     }
 
-    test(
-      'decodes protocol genre value and permits explicit empty snapshots',
-      () async {
-        final dio = Dio();
-        dio.interceptors.add(
-          InterceptorsWrapper(
-            onRequest: (options, handler) {
-              handler.resolve(
-                Response<dynamic>(
-                  requestOptions: options,
-                  statusCode: 200,
-                  data: ok(
-                    options.path.contains('Genres')
-                        ? {
-                            'genres': {
-                              'genre': [
-                                {
-                                  'value': ' Rock ',
-                                  'songCount': 2,
-                                  'albumCount': 1,
-                                },
-                              ],
-                            },
-                          }
-                        : {'playlists': <String, dynamic>{}},
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-        final client = createClient(dio: dio);
-        expect((await client.getGenres()).single.name, 'Rock');
-        expect(await client.getPlaylists(), isEmpty);
-      },
-    );
+    test('permits explicit empty playlist snapshots', () async {
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok({'playlists': <String, dynamic>{}}),
+              ),
+            );
+          },
+        ),
+      );
+      final client = createClient(dio: dio);
+      expect(await client.getPlaylists(), isEmpty);
+    });
 
     test('ping succeeds and returns server api version', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
@@ -530,55 +512,6 @@ void main() {
           'Alpha',
           'Beta',
         ]);
-      },
-    );
-
-    test(
-      'getGenres skips malformed genres and parses numeric fields',
-      () async {
-        final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
-        final client = createClient(dio: dio);
-
-        dio.interceptors.add(
-          InterceptorsWrapper(
-            onRequest: (options, handler) {
-              handler.resolve(
-                Response<dynamic>(
-                  requestOptions: options,
-                  statusCode: 200,
-                  data: ok(<String, dynamic>{
-                    'genres': <String, dynamic>{
-                      'genre': <Map<String, dynamic>>[
-                        <String, dynamic>{'name': null, 'songCount': 7},
-                        <String, dynamic>{
-                          'name': ' Rock ',
-                          'songCount': '10',
-                          'albumCount': '2',
-                        },
-                        <String, dynamic>{'name': ''},
-                        <String, dynamic>{'songCount': 3},
-                        <String, dynamic>{
-                          'name': 'Jazz',
-                          'songCount': 4.0,
-                          'albumCount': 1,
-                        },
-                      ],
-                    },
-                  }),
-                ),
-              );
-            },
-          ),
-        );
-
-        final genres = await client.getGenres();
-        expect(genres, hasLength(2));
-        expect(genres.first.name, 'Rock');
-        expect(genres.first.songCount, 10);
-        expect(genres.first.albumCount, 2);
-        expect(genres.last.name, 'Jazz');
-        expect(genres.last.songCount, 4);
-        expect(genres.last.albumCount, 1);
       },
     );
 

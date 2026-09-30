@@ -93,7 +93,7 @@ class AudioMuseApiClient {
     return _parseRecommendations(response.data);
   }
 
-  /// Generates an AI mix from a seed (artist, album, genre, or mood keyword).
+  /// Generates an AI mix from an artist, album, or mood-keyword seed.
   Future<AudioMuseMix> generateMix({
     required String seedType,
     required String seedId,
