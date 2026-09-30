@@ -7,6 +7,7 @@ import 'package:audio_service/audio_service.dart'
     show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/features/settings/presentation/settings_scroll_provider.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
@@ -1190,6 +1191,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (branchIndex == ShellBranch.home.index &&
           branchIndex == navigationShell.currentIndex) {
         ref.read(homeScrollToTopRequestProvider.notifier).request();
+      }
+      if (branchIndex == ShellBranch.settings.index &&
+          branchIndex == navigationShell.currentIndex) {
+        ref.read(settingsScrollToTopRequestProvider.notifier).request();
       }
       if (branchIndex == ShellBranch.library.index &&
           branchIndex == navigationShell.currentIndex) {

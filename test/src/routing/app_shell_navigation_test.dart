@@ -47,6 +47,7 @@ import '../../helpers/test_theme.dart';
 
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -2661,6 +2662,96 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('re-selecting Settings scrolls its list back to the top', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 560);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    Finder destination(ShellBranch branch) => find
+        .descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(NavigationDestination),
+        )
+        .at(branch.index);
+
+    await tester.tap(destination(ShellBranch.settings));
+    await tester.pumpAndSettle();
+    final list = find.descendant(
+      of: find.byType(SettingsScreen),
+      matching: find.byType(Scrollable),
+    );
+    await tester.drag(list.first, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    final position = tester.state<ScrollableState>(list.first).position;
+    expect(position.pixels, greaterThan(0));
+
+    await tester.tap(destination(ShellBranch.settings));
+    await tester.pumpAndSettle();
+    expect(position.pixels, 0);
+  });
+
+  testWidgets('re-selecting Search scrolls its list back to the top', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 560);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+    final history = container.read(navisDatabaseProvider).historyDao;
+    await tester.runAsync(() async {
+      for (var i = 0; i < 20; i++) {
+        await history.saveSearchQuery('query $i');
+      }
+    });
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    Finder destination(ShellBranch branch) => find
+        .descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(NavigationDestination),
+        )
+        .at(branch.index);
+
+    await tester.tap(destination(ShellBranch.search));
+    await tester.pumpAndSettle();
+    // Let the database stream deliver the recent searches.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+    final list = find.text('query 1');
+    expect(list, findsOneWidget);
+    final scrollable = find
+        .ancestor(of: list, matching: find.byType(Scrollable))
+        .first;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    await tester.drag(scrollable, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(0));
+
+    await tester.tap(destination(ShellBranch.search));
+    await tester.pumpAndSettle();
+    expect(position.pixels, 0);
+  });
 
   testWidgets('Search focuses its field only when re-selected', (
     tester,

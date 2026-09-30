@@ -39,6 +39,8 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  // Shared by the results and recent-search lists; only one is shown.
+  final _listScrollController = ScrollController();
   // Filter chips navigate to the relevant section; no inline expansion tracking needed.
   late final ProviderSubscription<int> _focusRequestSubscription;
   late final ProviderSubscription<bool> _playerExpandedSubscription;
@@ -65,6 +67,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return;
         }
         _lastFocusRequest = next;
+        // Re-selecting Search returns its list to the top and focuses the
+        // field, ready for a new query.
+        if (_listScrollController.hasClients) {
+          unawaited(
+            _listScrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            ),
+          );
+        }
         _requestSearchFocus(selectAllIfHasText: true);
       },
     );
@@ -87,6 +100,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _playerExpandedSubscription.close();
     _controller.dispose();
     _focusNode.dispose();
+    _listScrollController.dispose();
     super.dispose();
   }
 
@@ -415,6 +429,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (state.isWaitingForApi) const LinearProgressIndicator(),
             Expanded(
               child: ListView(
+                controller: _listScrollController,
                 padding: desktopMode
                     ? const EdgeInsets.fromLTRB(16, 6, 16, 20)
                     : EdgeInsets.zero,
@@ -495,6 +510,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           );
         }
         return ListView(
+          controller: _listScrollController,
           padding: desktopMode
               ? (compactWideLandscapeMode
                     ? const EdgeInsets.fromLTRB(0, 8, 0, 8)

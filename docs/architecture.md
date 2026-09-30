@@ -762,8 +762,8 @@ well as the root) and the player overlay stack before moving.
   when its path is under another branch (an album opened from Home stays on
   Home).
 - **Tab switches** use `switchTab(ShellBranch)`; re-selecting the current tab
-  returns it to its root. Re-selecting Library keeps its section; re-selecting
-  Search focuses its field.
+  returns it to its root and scrolls it to the top. Re-selecting Library keeps
+  its section; re-selecting Search also focuses its field.
 - **Library sections** use `openLibrarySection`, which writes
   `/library?section=…`. The shell follows that location into
   `librarySectionProvider` from the router's change notification (never during

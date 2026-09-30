@@ -3,15 +3,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/features/settings/presentation/settings_scroll_provider.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  // Shared by the phone, tablet and desktop lists; only one is shown.
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(settingsScrollToTopRequestProvider, (previous, next) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
     final l10n = AppLocalizations.of(context)!;
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
@@ -134,6 +158,7 @@ class SettingsScreen extends ConsumerWidget {
         body: SafeArea(
           top: portraitPhone,
           child: ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.only(top: 12),
             children: <Widget>[
               for (final group in groups.entries) ...<Widget>[
@@ -173,6 +198,7 @@ class SettingsScreen extends ConsumerWidget {
           ? (compactWideLandscapeMode ? double.infinity : 980.0)
           : 860.0;
       final tabletList = ListView(
+        controller: _scrollController,
         padding: EdgeInsets.fromLTRB(
           compactHorizontalInset,
           12,
@@ -264,6 +290,7 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       body: SafeArea(
         child: ListView(
+          controller: _scrollController,
           padding: EdgeInsets.fromLTRB(
             24,
             desktopIconsOnly ? 20 : 16,

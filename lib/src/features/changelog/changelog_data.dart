@@ -64,7 +64,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Search only raises the keyboard when you tap Search again or press Ctrl+K, and the selected tab shows a filled icon',
+        'Search only raises the keyboard when you tap Search again or press Ctrl+K; tapping the current tab again scrolls Home, Library, Search and Settings back to the top, and the selected tab shows a filled icon',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
