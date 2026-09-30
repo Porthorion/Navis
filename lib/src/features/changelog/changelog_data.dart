@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Signing out and removing local data, or switching servers, no longer deletes music files from your own Downloads folder; only files Navis keeps in its private storage are removed',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Downloads kept in a folder reached through a link, junction or mapped drive are recognised on rescan and are no longer renamed or deleted at startup, and a Downloads folder shared between Windows and other systems keeps its matches',
         type: ChangelogEntryType.fix,
       ),

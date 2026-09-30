@@ -1853,7 +1853,10 @@ contract.
    on the next write, and moves never treat the same file under another
    spelling as a separate destination. Supported media tags are a
    best-effort additional identity source. Unknown, ambiguous, and
-   profile-mismatched files remain untouched.
+   profile-mismatched files remain untouched. Resetting server data (a full
+   sign-out or server switch) removes the library rows but deletes only
+   Navis-owned audio files; files inside the custom folder and Android SAF
+   documents stay where they are.
    Android uses a persisted Storage Access Framework tree URI rather than a
    filesystem path. The cached-track storage kind distinguishes Android SAF
    document locators from ordinary filesystem entries; SAF reads, writes,

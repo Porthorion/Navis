@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'dart:async';
 
+import 'package:path/path.dart' as p;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -238,6 +240,7 @@ class ServerDataResetService {
 
   Future<void> reset() async {
     final cachedTracks = await _database.cacheDao.getCachedTracks();
+    final userFolder = await _userOwnedDownloadFolder();
     await _database.transaction(() async {
       await _database.delete(_database.librarySyncWorkTable).go();
       await _database.delete(_database.librarySyncLocalMutationsTable).go();
@@ -269,7 +272,16 @@ class ServerDataResetService {
       await _database.delete(_database.librarySyncStateTable).go();
       await _database.serverDao.clearSyncTimestamps();
     });
+    var kept = 0;
     for (final track in cachedTracks) {
+      // A custom download folder and a chosen Android folder are the
+      // user's: their files stay, as they would without Navis.
+      if (track.storageKind == 'androidSaf' ||
+          track.filePath.startsWith('content://') ||
+          (userFolder != null && userFolder.contains(track.filePath))) {
+        kept++;
+        continue;
+      }
       try {
         await deleteFileWithSuffixes(track.filePath);
       } on Object catch (error) {
@@ -278,6 +290,9 @@ class ServerDataResetService {
         );
       }
     }
+    if (kept > 0) {
+      AppLogger.info('Server reset kept $kept file(s) in the user folder.');
+    }
     try {
       await _clearCoverArt?.call();
     } on Object catch (error) {
@@ -285,5 +300,35 @@ class ServerDataResetService {
         'Server cover-art reset failed: ${error.runtimeType}.',
       );
     }
+  }
+
+  Future<_UserFolder?> _userOwnedDownloadFolder() async {
+    final settings = await _database.appSettingsDao.getSettings();
+    final path = settings?.customDownloadFolderPath?.trim();
+    if (settings?.customDownloadFolderEnabled != true ||
+        path == null ||
+        path.isEmpty ||
+        path.startsWith('content://')) {
+      return null;
+    }
+    String? resolved;
+    try {
+      resolved = await Directory(path).resolveSymbolicLinks();
+    } on FileSystemException {
+      resolved = null;
+    }
+    return _UserFolder(<String>{p.normalize(path), ?resolved});
+  }
+}
+
+/// A user-chosen download folder, as configured and link-resolved.
+class _UserFolder {
+  const _UserFolder(this._roots);
+
+  final Set<String> _roots;
+
+  bool contains(String filePath) {
+    final normalized = p.normalize(filePath);
+    return _roots.any((root) => p.isWithin(root, normalized));
   }
 }

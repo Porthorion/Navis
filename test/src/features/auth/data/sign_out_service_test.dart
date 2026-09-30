@@ -135,6 +135,52 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test(
+      'full wipe keeps files in the user download folder and Android folders',
+      () async {
+        final navisFile = File('${tmpDir.path}/track.mp3')
+          ..writeAsStringSync('audio');
+        final userFolder = Directory('${tmpDir.path}/My Music')..createSync();
+        final userFile = File('${userFolder.path}/Artist/Song.flac')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('mine');
+        await _seedAuthenticatedData(database, repository, navisFile.path);
+        await database.appSettingsDao.updateCustomDownloadFolderPath(
+          userFolder.path,
+        );
+        await database.appSettingsDao.updateCustomDownloadFolderEnabled(
+          enabled: true,
+        );
+        for (final (songId, path, kind) in <(String, String, String)>[
+          ('song-user', userFile.path, 'filesystem'),
+          ('song-saf', 'content://tree/music/document/a', 'androidSaf'),
+        ]) {
+          await database.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: songId,
+              filePath: path,
+              storageKind: Value(kind),
+              fileSize: 4,
+              format: 'flac',
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime(2026),
+            ),
+          );
+        }
+
+        await service.signOut(wipeLocalData: true);
+
+        expect(navisFile.existsSync(), isFalse);
+        expect(userFile.existsSync(), isTrue);
+        expect(
+          await database.select(database.cachedTracksTable).get(),
+          isEmpty,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('full wipe tolerates missing cached files', () async {
       final missingPath = '${tmpDir.path}/missing-track.mp3';
       await _seedAuthenticatedData(database, repository, missingPath);
