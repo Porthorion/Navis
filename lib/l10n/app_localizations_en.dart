@@ -3049,22 +3049,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutChangelogSub => 'See every version\'s changes and bug fixes.';
 
   @override
-  String get whatsNewTitle => 'What\'s New';
-
-  @override
-  String get changelogDialogBugFixesTitle => 'Bug Fixes';
-
-  @override
-  String get changelogDialogOtherBugFixes => 'Other bug fixes';
-
-  @override
   String get changelogSpecialThanks => 'Special Thanks';
-
-  @override
-  String get changelogDialogViewAll => 'View full changelog';
-
-  @override
-  String get changelogDialogGotIt => 'Got it';
 
   @override
   String get changelogDiscoveryTitle => 'What’s New';
@@ -3075,13 +3060,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get changelogDiscoveryFixesSummary =>
-      'This update includes reliability and polish improvements.';
-
-  @override
-  String get changelogDiscoveryAction => 'View Updates';
-
-  @override
   String get changelogDiscoveryDismiss => 'Dismiss update notes';
 
   @override
@@ -3090,7 +3068,119 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String changelogDiscoveryCheckOut(String version) {
+    return 'Check out $version';
+  }
+
+  @override
+  String changelogDiscoveryCheckOutNamed(String version, String codename) {
+    return 'Check out $version “$codename”';
+  }
+
+  @override
+  String changelogDiscoveryUpdatedTo(String version) {
+    return 'Updated to $version';
+  }
+
+  @override
+  String changelogDiscoveryMore(int count) {
+    return '+$count';
+  }
+
+  @override
   String get changelogEmpty => 'No Changelog Entries Yet.';
+
+  @override
+  String get changelogMajorRelease => 'Major release';
+
+  @override
+  String get changelogEntryTypeNew => 'New';
+
+  @override
+  String get changelogEntryTypeImproved => 'Improved';
+
+  @override
+  String get changelogEntryTypeFixed => 'Fixed';
+
+  @override
+  String get changelogFilterAll => 'All';
+
+  @override
+  String changelogNewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count new',
+      one: '1 new',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String changelogImprovedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count improved',
+      one: '1 improved',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String changelogFixedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count fixes',
+      one: '1 fix',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String changelogChangeCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count changes',
+      one: '1 change',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String changelogShowAllFixes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Show $count more fixes',
+      one: 'Show 1 more fix',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get changelogShowFewerFixes => 'Show fewer fixes';
+
+  @override
+  String get changelogEarlierReleases => 'Earlier releases';
+
+  @override
+  String get changelogReleases => 'Releases';
+
+  @override
+  String changelogPartOf(String version) {
+    return 'Part of $version';
+  }
+
+  @override
+  String changelogPartOfNamed(String version, String codename) {
+    return 'Part of $version “$codename”';
+  }
+
+  @override
+  String get changelogHighlights => 'Highlights';
 
   @override
   String get aboutLicenses => 'Open-source licenses';

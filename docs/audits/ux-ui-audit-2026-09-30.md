@@ -124,3 +124,21 @@ titles over darkened art. They now show uncropped covers with the details and
 the recommendation reason below, a Play button on the focused cover, and a
 colour wash. Desktop gained the reason line and Play/Shuffle. See
 `docs/architecture.md` → *Home: You Might Like*.
+
+## Changelog redesign
+
+Follow-up decisions:
+- **Major releases** are every `x.y.0` and get a curated banner: optional
+  codename and icon, date, counts and 3–5 highlights.
+- **Home** stays an inline card. For a major it reads "Check out 1.4 “Navi”"
+  with highlight badges and no description; a patch is a single row.
+- **One source.** The release-notes tool now reads the app's changelog data
+  instead of a hand-synced copy.
+
+The Settings changelog used to be one flat list of about 430 paragraph-length
+entries, with fixes tinted in the error colour. It now groups each release
+into New / Improved / Fixed with filters, collapses long fix lists, shows
+older releases as an expandable timeline, and uses a two-pane layout on
+desktop. The unused post-update dialog was removed. See
+`docs/architecture.md` → *Changelog and What's New*.
+

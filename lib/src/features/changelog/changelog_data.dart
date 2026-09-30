@@ -1,11 +1,22 @@
 /// Static changelog entries for each version.
 ///
+/// This file is the single source of truth for both the in-app changelog and
+/// the Forgejo release notes (`tool/generate_release_notes.dart` imports it),
+/// so it must stay plain Dart with no imports.
+///
 /// When preparing a release, add a new [ChangelogVersion] at the top of
-/// [changelogs] with a concise human-readable summary of the changes.
+/// [changelogs]. Every `x.y.0` release is a major release: give it 3–5
+/// [ChangelogVersion.highlights] and, optionally, a [ChangelogVersion.codename]
+/// and [ChangelogVersion.iconAsset].
 class ChangelogVersion {
   const ChangelogVersion({
     required this.version,
     required this.entries,
+    this.released,
+    this.codename,
+    this.iconAsset,
+    this.summary,
+    this.highlights = const <ChangelogHighlight>[],
     this.specialThanks = const <String>[],
   });
 
@@ -15,10 +26,58 @@ class ChangelogVersion {
   /// Bullet-point style change descriptions.
   final List<ChangelogEntry> entries;
 
+  /// Release date as `YYYY-MM-DD`, or null when unknown or not yet released.
+  final String? released;
+
+  /// Optional name for a major release, shown as "Check out 1.4 “Navi”".
+  final String? codename;
+
+  /// Optional bundled SVG or PNG under `assets/changelog/`, centred in the
+  /// release banner. The UI falls back to a sparkles icon when it is null or
+  /// fails to load.
+  final String? iconAsset;
+
+  /// Optional one or two sentences, shown only in the changelog banner.
+  final String? summary;
+
+  /// The headline changes of a major release, shown as cards and badges.
+  final List<ChangelogHighlight> highlights;
+
   /// People to thank for feedback or ideas that shaped this release.
   ///
   /// This is displayed in its own section after the release entries.
   final List<String> specialThanks;
+
+  List<int>? get _parts {
+    final parts = version.split('.');
+    if (parts.length != 3) return null;
+    final numbers = parts.map(int.tryParse).toList();
+    if (numbers.any((n) => n == null)) return null;
+    return numbers.cast<int>();
+  }
+
+  /// Every `x.y.0` release is a major release and gets the banner treatment.
+  bool get isMajor => _parts?[2] == 0;
+
+  /// `1.4` for a major release, the full version otherwise.
+  String get displayVersion {
+    final parts = _parts;
+    if (parts == null || parts[2] != 0) return version;
+    return '${parts[0]}.${parts[1]}';
+  }
+
+  /// The `x.y` series this release belongs to, e.g. `1.4` for `1.4.2`.
+  String? get series {
+    final parts = _parts;
+    return parts == null ? null : '${parts[0]}.${parts[1]}';
+  }
+
+  /// [released] as a date, or null when absent or malformed.
+  DateTime? get releasedDate =>
+      released == null ? null : DateTime.tryParse(released!);
+
+  int countOf(ChangelogEntryType type) =>
+      entries.where((entry) => entry.type == type).length;
 }
 
 class ChangelogEntry {
@@ -30,11 +89,80 @@ class ChangelogEntry {
 
 enum ChangelogEntryType { fix, improvement, newFeature }
 
+/// A headline change of a major release.
+class ChangelogHighlight {
+  const ChangelogHighlight({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final ChangelogHighlightIcon icon;
+
+  /// A short name, two or three words.
+  final String title;
+
+  /// One short line describing the change.
+  final String body;
+}
+
+/// Icons a highlight can use. Presentation maps them to Material icons so
+/// this file needs no Flutter import.
+enum ChangelogHighlightIcon {
+  sparkle,
+  equalizer,
+  speed,
+  headphones,
+  performance,
+  search,
+  library,
+  sync,
+  desktop,
+  player,
+  download,
+  setup,
+  audio,
+  queue,
+}
+
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.4.0',
+    codename: 'Navi',
+    highlights: [
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.equalizer,
+        title: 'Equalizer',
+        body:
+            'Drag bands on a live graph, or build 10-band and advanced filters',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.headphones,
+        title: 'AutoEQ',
+        body: 'Import a correction profile for your headphones',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.speed,
+        title: 'Speed and pitch',
+        body: 'Precise speeds, independent pitch, Pitch Lock and presets',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.performance,
+        title: 'Built for big libraries',
+        body: 'Huge queues start instantly and browsing stays smooth',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.search,
+        title: 'Search every script',
+        body: 'Arabic, Japanese, Chinese and accented titles are found',
+      ),
+    ],
     entries: [
+      ChangelogEntry(
+        'The changelog is easier to read: each major release opens with a banner of its highlights, changes are grouped into New, Improved and Fixed with filters, long fix lists fold away, and older releases sit on a timeline you can expand; on desktop, releases are listed beside the one you are reading. After an update, Home shows a compact “Check out” card with the release’s highlights instead of a long description',
+        type: ChangelogEntryType.improvement,
+      ),
       ChangelogEntry(
         'Shuffling or playing an artist with many remote albums no longer slows the app down: each newly loaded release joins the queue in one step, the Queue opens straight away while releases load, and long queues hand only the next few dozen songs to the player at a time, so starting, skipping and editing them stays instant',
         type: ChangelogEntryType.improvement,
@@ -386,6 +514,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.3.1',
+    released: '2026-08-26',
     entries: [
       ChangelogEntry(
         "Recently Added now follows your server's complete newest-feed order through manual refreshes and library rebuilds, never the time Navis synced an album",
@@ -403,6 +532,29 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.3.0',
+    released: '2026-08-26',
+    highlights: [
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.setup,
+        title: 'First-run setup',
+        body: 'Pick appearance, playback, downloads and scrobbling up front',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.sync,
+        title: 'Repair or rebuild',
+        body: 'Fix the library without losing anything, or start fresh',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.library,
+        title: 'Remote releases',
+        body: 'Artist pages show every release, clearly labelled',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.audio,
+        title: 'Vorbis streaming',
+        body: 'Transcode to Vorbis alongside MP3, AAC and Opus',
+      ),
+    ],
     entries: [
       ChangelogEntry(
         'Now Playing shows a compact transcode indicator beside the active audio quality instead of a text prefix',
@@ -455,6 +607,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.10',
+    released: '2026-08-25',
     entries: [
       ChangelogEntry(
         'Manual library refresh now always runs catalog discovery instead of being mistaken for a queued album-detail update',
@@ -481,6 +634,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.9',
+    released: '2026-08-23',
     entries: [
       ChangelogEntry(
         'Existing downloads now reconcile faster, import clear matches automatically, and offer a cover-art review screen for files needing a manual match',
@@ -498,6 +652,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.8',
+    released: '2026-08-21',
     entries: [
       ChangelogEntry(
         'Android custom download folders now work through the system folder picker, with safe import, offline playback, rescans, and preservation of unrelated files',
@@ -507,6 +662,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.7',
+    released: '2026-08-21',
     entries: [
       ChangelogEntry(
         'Navis can now safely import existing permanent downloads from a custom folder, preserving files it cannot identify and remembering imported tracks for future installs',
@@ -516,6 +672,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.6',
+    released: '2026-08-21',
     entries: [
       ChangelogEntry(
         'First-time setup, Repair Library, and library cache rebuilds now use a dedicated full-screen progress experience and open Home only after the rebuilt catalog is ready',
@@ -565,6 +722,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.5',
+    released: '2026-08-17',
     entries: [
       ChangelogEntry(
         'Playback startup now offers cache reset and sign-out recovery controls instead of trapping you on a loading screen',
@@ -1002,6 +1160,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.4',
+    released: '2026-08-13',
     entries: [
       ChangelogEntry(
         'Check for updates on mobile data now safely finds recent changed albums instead of stopping at an unchanged server cursor',
@@ -1084,6 +1243,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.3',
+    released: '2026-08-11',
     entries: [
       ChangelogEntry('Loving you is as easy as 123'),
       ChangelogEntry(
@@ -1131,6 +1291,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.1',
+    released: '2026-08-11',
     entries: [
       ChangelogEntry(
         'Library sync is now more reliable: background, manual, and repair requests share one coordinated operation so progress and failures stay accurate instead of briefly disappearing',
@@ -1152,6 +1313,29 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.2.0',
+    released: '2026-08-10',
+    highlights: [
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.desktop,
+        title: 'Desktop View',
+        body: 'A consistent workspace down to 800×600',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.player,
+        title: 'Mini Player',
+        body: 'Playback and volume in a compact window',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.sync,
+        title: 'Guided first sync',
+        body: 'Clear progress, offline retry and mobile-data consent',
+      ),
+      ChangelogHighlight(
+        icon: ChangelogHighlightIcon.queue,
+        title: 'Now playing everywhere',
+        body: 'The current song is highlighted in every list',
+      ),
+    ],
     entries: [
       ChangelogEntry(
         'New connections now open Home immediately while the initial library sync continues in the background with visible progress and retryable failures; failed automatic syncs remain visible until a meaningful retry result replaces them',
@@ -1269,6 +1453,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.1.1',
+    released: '2026-08-05',
     entries: [
       ChangelogEntry(
         'Seeking on desktop no longer hangs while a track is still caching; playback stays on a seekable stream while the rolling cache fills in the background',
@@ -1282,6 +1467,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.1.0',
+    released: '2026-08-05',
     entries: [
       ChangelogEntry(
         'Background library sync stays on unmetered networks by default, with updates-available notices and one-time mobile-data sync when you need it',
@@ -1303,6 +1489,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.15',
+    released: '2026-07-30',
     entries: [
       ChangelogEntry(
         'Metadata sync now keeps individual artist and album failures pending, retries only unfinished items, and preserves the server cursor until verification completes',
@@ -1320,6 +1507,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.14',
+    released: '2026-07-26',
     entries: [
       ChangelogEntry(
         'Clearing the final queue item now closes the fullscreen player smoothly and leaves phone Back navigation responsive immediately',
@@ -1337,6 +1525,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.13',
+    released: '2026-07-26',
     entries: [
       ChangelogEntry(
         'Library refreshes now use the server sync cursor, verify newest albums, and continue large updates in bounded batches instead of requiring Force Full Sync',
@@ -1390,6 +1579,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.10',
+    released: '2026-07-12',
     entries: [
       ChangelogEntry(
         'Search category filters now show only matching results, so Songs no longer includes albums or artists when cached and server results are mixed',
@@ -1403,6 +1593,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.9',
+    released: '2026-07-07',
     entries: [
       ChangelogEntry(
         'Artist pages now include a virtual "This is" playlist powered by up to 50 Last.fm top tracks, with unmatched tracks kept visible for search',
@@ -1412,6 +1603,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.8',
+    released: '2026-06-30',
     entries: [
       ChangelogEntry(
         'Android stable releases now clean stale build outputs and verify APK contents before publishing so self-updates install the current app code',
@@ -1429,6 +1621,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.7',
+    released: '2026-06-30',
     entries: [
       ChangelogEntry(
         'Released a fresh stable version so older 1.0.6 installs detect the Listen Together retirement update correctly',
@@ -1446,6 +1639,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.6',
+    released: '2026-06-30',
     entries: [
       ChangelogEntry(
         'Artist Top Tracks now honor Album Queue by queueing the resolved ranked top tracks and starting at the tapped song',
@@ -1467,6 +1661,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.5',
+    released: '2026-06-28',
     entries: [
       ChangelogEntry(
         'Re-introduced smart in-app updates: Forgejo/sideload Android builds can self-update, Google Play installs are redirected to the Play Store, and desktop keeps the existing updater',
@@ -1532,6 +1727,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.4',
+    released: '2026-06-22',
     entries: [
       ChangelogEntry(
         'You Might Like can now include your ListenBrainz weekly recommendations, and song likes sync to ListenBrainz recording feedback when connected',
@@ -1577,6 +1773,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.3',
+    released: '2026-06-15',
     entries: [
       ChangelogEntry(
         'Android releases are now prepared for Google Play, with Android self-updates removed, Play release tooling added, privacy information added, and release safety checks documented',
@@ -1646,6 +1843,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.2',
+    released: '2026-05-19',
     entries: [
       ChangelogEntry(
         'Custom download folders for permanent downloads — pick your own destination and Navis will move existing downloads there automatically',
@@ -1667,6 +1865,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.1',
+    released: '2026-05-19',
     entries: [
       ChangelogEntry(
         'Liked-tab play, shuffle, and queue-all actions now include tracks from liked albums, while deduplicating overlaps with individually liked songs and respecting current filters',
@@ -1676,6 +1875,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '1.0.0',
+    released: '2026-05-19',
     entries: [
       // New
       ChangelogEntry(
@@ -1716,6 +1916,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.9.9',
+    released: '2026-04-18',
     entries: [
       ChangelogEntry(
         'Playback stays responsive while songs, radio streams, and queue changes are loading — stuck remote sources no longer trap the app until restart',
@@ -1737,6 +1938,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.9.8',
+    released: '2026-04-12',
     entries: [
       // New
       ChangelogEntry(
@@ -1785,6 +1987,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.9.7',
+    released: '2026-04-10',
     entries: [
       // New
       ChangelogEntry(
@@ -1840,6 +2043,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.9.6',
+    released: '2026-04-08',
     entries: [
       // New
       ChangelogEntry(
@@ -1896,6 +2100,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.9.5',
+    released: '2026-04-03',
     entries: [
       // New
       ChangelogEntry(
@@ -1944,6 +2149,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.9.4',
+    released: '2026-04-02',
     entries: [
       // New
       ChangelogEntry(
@@ -2008,6 +2214,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.3.0',
+    released: '2026-03-01',
     entries: [
       // New
       ChangelogEntry(
@@ -2031,6 +2238,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.2.12',
+    released: '2026-02-28',
     entries: [
       // Improved
       ChangelogEntry(
@@ -2054,6 +2262,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.2.11',
+    released: '2026-02-28',
     entries: [
       // New
       ChangelogEntry(
@@ -2077,6 +2286,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.2.10',
+    released: '2026-02-27',
     entries: [
       // New
       ChangelogEntry(
@@ -2099,6 +2309,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.2.9',
+    released: '2026-02-27',
     entries: [
       // Improved
       ChangelogEntry(
@@ -2120,6 +2331,7 @@ const List<ChangelogVersion> changelogs = [
   ),
   ChangelogVersion(
     version: '0.2.8',
+    released: '2026-02-27',
     entries: [
       // New
       ChangelogEntry(

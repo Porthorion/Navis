@@ -856,16 +856,7 @@ void main() {
     expect(find.text('Custom Voyage'), findsNothing);
   });
 
-  testWidgets('ordinary release notes stay in context on Home', (tester) async {
-    const version = ChangelogVersion(
-      version: '9.9.9',
-      entries: <ChangelogEntry>[
-        ChangelogEntry(
-          'Album navigation is now smoother and more reliable.',
-          type: ChangelogEntryType.improvement,
-        ),
-      ],
-    );
+  testWidgets('major release notes stay in context on Home', (tester) async {
     final view = tester.view;
     view.devicePixelRatio = 1;
     view.physicalSize = const Size(390, 844);
@@ -878,7 +869,12 @@ void main() {
       tester,
       database: database,
       overrides: <Override>[
-        changelogToShowProvider.overrideWith((ref) async => version),
+        changelogToShowProvider.overrideWith(
+          (ref) async => const ChangelogDiscovery(
+            current: _majorRelease,
+            featured: _majorRelease,
+          ),
+        ),
       ],
     );
 
@@ -887,6 +883,11 @@ void main() {
       find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
       findsOneWidget,
     );
+    expect(find.text('Check out 9.9 “Aurora”'), findsOneWidget);
+    expect(find.text('Equalizer'), findsOneWidget);
+    expect(find.text('+1'), findsOneWidget);
+    // The card carries badges only, never the release's description.
+    expect(find.text(_majorRelease.entries.first.text), findsNothing);
     await expectLater(
       find.byType(HomeScreen),
       matchesGoldenFile('goldens/home_changelog_discovery_card.png'),
@@ -902,16 +903,15 @@ void main() {
     );
   });
 
-  testWidgets('release-note discovery stays usable at 200 percent text scale', (
+  testWidgets('patch release notes show a compact row on Home', (
     tester,
   ) async {
-    const version = ChangelogVersion(
-      version: '9.9.9',
+    const patch = ChangelogVersion(
+      version: '9.9.1',
       entries: <ChangelogEntry>[
-        ChangelogEntry(
-          'Album navigation is now smoother and more reliable.',
-          type: ChangelogEntryType.improvement,
-        ),
+        ChangelogEntry('Fixed one thing', type: ChangelogEntryType.fix),
+        ChangelogEntry('Fixed another thing', type: ChangelogEntryType.fix),
+        ChangelogEntry('Improved a third thing'),
       ],
     );
     final view = tester.view;
@@ -925,9 +925,43 @@ void main() {
     await _pumpHomeWithAppSettings(
       tester,
       database: database,
+      overrides: <Override>[
+        changelogToShowProvider.overrideWith(
+          (ref) async => const ChangelogDiscovery(current: patch),
+        ),
+      ],
+    );
+
+    expect(find.text('Updated to 9.9.1'), findsOneWidget);
+    expect(find.text('1 improved · 2 fixes'), findsOneWidget);
+    await expectLater(
+      find.byType(HomeScreen),
+      matchesGoldenFile('goldens/home_changelog_discovery_patch_card.png'),
+    );
+  });
+
+  testWidgets('release-note discovery stays usable at 200 percent text scale', (
+    tester,
+  ) async {
+    final view = tester.view;
+    view.devicePixelRatio = 1;
+    view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
       textScaler: const TextScaler.linear(2),
       overrides: <Override>[
-        changelogToShowProvider.overrideWith((ref) async => version),
+        changelogToShowProvider.overrideWith(
+          (ref) async => const ChangelogDiscovery(
+            current: _majorRelease,
+            featured: _majorRelease,
+          ),
+        ),
       ],
     );
 
@@ -3229,3 +3263,36 @@ void main() {
     });
   });
 }
+
+const ChangelogVersion _majorRelease = ChangelogVersion(
+  version: '9.9.0',
+  codename: 'Aurora',
+  entries: <ChangelogEntry>[
+    ChangelogEntry(
+      'Album navigation is now smoother and more reliable.',
+      type: ChangelogEntryType.newFeature,
+    ),
+  ],
+  highlights: <ChangelogHighlight>[
+    ChangelogHighlight(
+      icon: ChangelogHighlightIcon.equalizer,
+      title: 'Equalizer',
+      body: 'Shape the sound',
+    ),
+    ChangelogHighlight(
+      icon: ChangelogHighlightIcon.speed,
+      title: 'Speed and pitch',
+      body: 'Precise control',
+    ),
+    ChangelogHighlight(
+      icon: ChangelogHighlightIcon.headphones,
+      title: 'AutoEQ',
+      body: 'Headphone profiles',
+    ),
+    ChangelogHighlight(
+      icon: ChangelogHighlightIcon.performance,
+      title: 'Faster',
+      body: 'Big libraries',
+    ),
+  ],
+);

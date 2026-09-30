@@ -5309,41 +5309,11 @@ abstract class AppLocalizations {
   /// **'See every version\'s changes and bug fixes.'**
   String get aboutChangelogSub;
 
-  /// No description provided for @whatsNewTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'What\'s New'**
-  String get whatsNewTitle;
-
-  /// No description provided for @changelogDialogBugFixesTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Bug Fixes'**
-  String get changelogDialogBugFixesTitle;
-
-  /// No description provided for @changelogDialogOtherBugFixes.
-  ///
-  /// In en, this message translates to:
-  /// **'Other bug fixes'**
-  String get changelogDialogOtherBugFixes;
-
   /// No description provided for @changelogSpecialThanks.
   ///
   /// In en, this message translates to:
   /// **'Special Thanks'**
   String get changelogSpecialThanks;
-
-  /// No description provided for @changelogDialogViewAll.
-  ///
-  /// In en, this message translates to:
-  /// **'View full changelog'**
-  String get changelogDialogViewAll;
-
-  /// No description provided for @changelogDialogGotIt.
-  ///
-  /// In en, this message translates to:
-  /// **'Got it'**
-  String get changelogDialogGotIt;
 
   /// No description provided for @changelogDiscoveryTitle.
   ///
@@ -5357,18 +5327,6 @@ abstract class AppLocalizations {
   /// **'Version {version}'**
   String changelogDiscoveryVersion(String version);
 
-  /// No description provided for @changelogDiscoveryFixesSummary.
-  ///
-  /// In en, this message translates to:
-  /// **'This update includes reliability and polish improvements.'**
-  String get changelogDiscoveryFixesSummary;
-
-  /// No description provided for @changelogDiscoveryAction.
-  ///
-  /// In en, this message translates to:
-  /// **'View Updates'**
-  String get changelogDiscoveryAction;
-
   /// No description provided for @changelogDiscoveryDismiss.
   ///
   /// In en, this message translates to:
@@ -5381,11 +5339,131 @@ abstract class AppLocalizations {
   /// **'What’s new in version {version}'**
   String changelogDiscoverySemanticLabel(String version);
 
+  /// No description provided for @changelogDiscoveryCheckOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Check out {version}'**
+  String changelogDiscoveryCheckOut(String version);
+
+  /// No description provided for @changelogDiscoveryCheckOutNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Check out {version} “{codename}”'**
+  String changelogDiscoveryCheckOutNamed(String version, String codename);
+
+  /// No description provided for @changelogDiscoveryUpdatedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated to {version}'**
+  String changelogDiscoveryUpdatedTo(String version);
+
+  /// No description provided for @changelogDiscoveryMore.
+  ///
+  /// In en, this message translates to:
+  /// **'+{count}'**
+  String changelogDiscoveryMore(int count);
+
   /// No description provided for @changelogEmpty.
   ///
   /// In en, this message translates to:
   /// **'No Changelog Entries Yet.'**
   String get changelogEmpty;
+
+  /// No description provided for @changelogMajorRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Major release'**
+  String get changelogMajorRelease;
+
+  /// No description provided for @changelogEntryTypeNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get changelogEntryTypeNew;
+
+  /// No description provided for @changelogEntryTypeImproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Improved'**
+  String get changelogEntryTypeImproved;
+
+  /// No description provided for @changelogEntryTypeFixed.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed'**
+  String get changelogEntryTypeFixed;
+
+  /// No description provided for @changelogFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get changelogFilterAll;
+
+  /// No description provided for @changelogNewCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 new} other{{count} new}}'**
+  String changelogNewCount(int count);
+
+  /// No description provided for @changelogImprovedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 improved} other{{count} improved}}'**
+  String changelogImprovedCount(int count);
+
+  /// No description provided for @changelogFixedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 fix} other{{count} fixes}}'**
+  String changelogFixedCount(int count);
+
+  /// No description provided for @changelogChangeCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 change} other{{count} changes}}'**
+  String changelogChangeCount(int count);
+
+  /// No description provided for @changelogShowAllFixes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Show 1 more fix} other{Show {count} more fixes}}'**
+  String changelogShowAllFixes(int count);
+
+  /// No description provided for @changelogShowFewerFixes.
+  ///
+  /// In en, this message translates to:
+  /// **'Show fewer fixes'**
+  String get changelogShowFewerFixes;
+
+  /// No description provided for @changelogEarlierReleases.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier releases'**
+  String get changelogEarlierReleases;
+
+  /// No description provided for @changelogReleases.
+  ///
+  /// In en, this message translates to:
+  /// **'Releases'**
+  String get changelogReleases;
+
+  /// No description provided for @changelogPartOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Part of {version}'**
+  String changelogPartOf(String version);
+
+  /// No description provided for @changelogPartOfNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Part of {version} “{codename}”'**
+  String changelogPartOfNamed(String version, String codename);
+
+  /// No description provided for @changelogHighlights.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlights'**
+  String get changelogHighlights;
 
   /// No description provided for @aboutLicenses.
   ///

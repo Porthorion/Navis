@@ -526,6 +526,50 @@ header adds the same reason line and a compact Play/Shuffle pair.
 Paging, auto-advance and the test/diagnostics keys
 `home-random-hero-carousel(-page-N)` are unchanged.
 
+### Changelog and What's New (`lib/src/features/changelog/`)
+
+**Data.** `changelog_data.dart` is a `const` list of `ChangelogVersion`s,
+newest first. It has no imports, so it is the single source for the app and
+for `tool/generate_release_notes.dart`, which renders a Forgejo release body
+through `release_notes_markdown.dart`.
+- Every `x.y.0` release is major (`isMajor`) and shows as `1.4`
+  (`displayVersion`).
+- A release can carry `released` (`YYYY-MM-DD`), `codename`, `summary`,
+  `highlights` and `iconAsset` (SVG or PNG under `assets/changelog/`).
+  `ChangelogReleaseIcon` falls back to a sparkles icon when there is none or
+  it fails to load.
+- Highlight icons are a `ChangelogHighlightIcon` enum, mapped to Material
+  icons in `changelog_style.dart`, so the data file needs no Flutter import.
+- `changelog_data_test.dart` enforces valid, descending versions and dates,
+  3–5 highlights for majors from 1.2.0 on, and that icon files exist.
+
+**Home card (`ChangelogDiscoveryCard`).** It is inline and non-blocking
+(design-ux-audit D5). `changelogToShowProvider` calls
+`resolveChangelogDiscovery`: it returns nothing once the running version is
+recorded in `changelog_seen_version.txt` (Application Support), otherwise the
+running release plus the newest *major* in the unseen range
+(last seen, current]. So a jump from 1.3.1 to 1.4.1 still features 1.4.
+- With a featured major: "Check out 1.4 “Navi”", the release icon, up to
+  three highlight badges and "+N". It shows no description.
+- Patch only: one row, "Updated to 1.4.1 · 1 improved · 2 fixes".
+- Tapping opens `/settings/about/changelog?version=<featured or current>`.
+  Opening or dismissing records the running version as seen.
+
+**Changelog screen (`/settings/about/changelog`).**
+- Phones show the focused release (the `version` query parameter, else the
+  newest) in full, then an "Earlier releases" timeline of
+  `ChangelogTimelineTile`s that expand in place.
+  - A major gets `ChangelogReleaseHero` (a centred banner with icon, version,
+    codename, summary and counts) and `ChangelogHighlights` (a horizontal
+    strip).
+  - A patch gets a compact header and a "Part of 1.4 “Navi”" row that
+    focuses its major.
+- The desktop shell shows a version rail (majors lead, their patches are
+  indented) beside the selected release, whose highlights become a grid.
+- `ChangelogReleaseDetails` groups entries into New, Improved and Fixed with
+  filter chips. Fixes past five collapse behind "Show N more fixes" and use a
+  neutral colour, not the error role.
+
 ### Common Widgets (`lib/src/common_widgets/`)
 
 Reusable UI components used across features:

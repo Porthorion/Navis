@@ -482,7 +482,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         pageBuilder: (context, state) => buildSlideFadePage(
                           context: context,
                           key: state.pageKey,
-                          child: const ChangelogScreen(),
+                          child: ChangelogScreen(
+                            initialVersion:
+                                state.uri.queryParameters['version'],
+                          ),
                         ),
                       ),
                       GoRoute(

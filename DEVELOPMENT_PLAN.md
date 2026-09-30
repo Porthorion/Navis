@@ -3079,7 +3079,7 @@ These rules govern how the AI agent writes code in this project. The human revie
 
 23. **Secrets and sensitive logging hygiene.** Never commit credentials, tokens, or server-specific secrets. Never log passwords/auth tokens, even in debug mode.
 
-24. **Maintain the changelog.** Every user-visible change — fix, improvement, or new feature — requires a matching entry in `lib/src/features/changelog/changelog_data.dart` **and** `tool/generate_release_notes.dart`. Both files must stay in sync (same versions, same content).
+24. **Maintain the changelog.** Every user-visible change — fix, improvement, or new feature — requires a matching entry in `lib/src/features/changelog/changelog_data.dart`. It is the single source for the in-app changelog and for the Forgejo release notes, which `tool/generate_release_notes.dart` renders from it.
 
     **Entry format:**
     - Use `ChangelogEntryType.fix` for bug fixes
@@ -3092,9 +3092,13 @@ These rules govern how the AI agent writes code in this project. The human revie
     - Start with the area affected: "Fixed [area] [problem]" / "Improved [area] [how]" / "Added [feature] [where/how]"
 
     **Workflow:**
-    1. When making a user-visible change, add an entry to the current version's `ChangelogVersion` at the top of both `changelog_data.dart` and `generate_release_notes.dart`
+    1. When making a user-visible change, add an entry to the current version's `ChangelogVersion` at the top of `changelog_data.dart`
     2. If a `ChangelogVersion` for the current development version does not exist yet, create one at the top
-    3. Before releasing, ensure a `ChangelogVersion` entry exists for the version being released — the release script will fail gracefully with a warning if it is missing
+    3. Before releasing, ensure a `ChangelogVersion` entry exists for the version being released and set its `released: 'YYYY-MM-DD'` date — the release script will fail gracefully with a warning if it is missing
+
+    **Major releases (every `x.y.0`)** get the changelog banner and the Home "Check out 1.4 “Navi”" card:
+    - Add 3–5 `highlights` (`ChangelogHighlight` with an icon, a two-to-three-word title and a one-line body); `changelog_data_test.dart` enforces this from 1.2.0 on
+    - Optionally add a `codename`, a one-or-two-sentence `summary` (banner only) and an `iconAsset` (SVG or PNG under `assets/changelog/`; a sparkles icon is shown without one)
 
 ---
 
