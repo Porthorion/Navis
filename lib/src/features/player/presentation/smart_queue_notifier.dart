@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart'
+    show OperationCancelledException;
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -124,6 +126,9 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
       }
     } on SubsonicNotFoundException {
       state = SmartQueueState(error: SmartQueueError.unsupported);
+    } on OperationCancelledException {
+      // A queue replacement discarded the append; not a failure.
+      state = state.copyWith(refilling: false);
     } on Exception catch (e) {
       AppLogger.debug('SmartQueue refill error: $e');
       state = SmartQueueState(error: SmartQueueError.networkError);

@@ -75,6 +75,11 @@ enum NavisLaneWorkKind {
   /// Waits in FIFO order behind the active work and cancels only idle work.
   edit,
 
+  /// The rest of a queue whose first song is already loaded (restore and
+  /// seek recovery). Waits in order and cancels nothing, so a command made
+  /// between the two phases survives; replacements and navigation cancel it.
+  fill,
+
   /// Opportunistic background work (releasing more of a deferred queue).
   /// Admitted only when the lane is empty; any other submission cancels it.
   idle,
@@ -143,6 +148,10 @@ class NavisSupersedingLane {
     _cancelIdle();
     return _submit(_SupersedingWork(operation, NavisLaneWorkKind.edit));
   }
+
+  /// Runs [operation] as [NavisLaneWorkKind.fill] work.
+  Future<void> fill(Future<void> Function(OperationToken token) operation) =>
+      _submit(_SupersedingWork(operation, NavisLaneWorkKind.fill));
 
   /// Starts [operation] as [NavisLaneWorkKind.idle] work if the lane is
   /// empty. Returns null, without running it, when anything else is active or

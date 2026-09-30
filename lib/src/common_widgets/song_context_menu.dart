@@ -11,6 +11,8 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart'
+    show OperationCancelledException;
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -410,7 +412,12 @@ Future<void> _showDesktopSongContextMenu(
       );
       return;
     case _SongContextAction.addQueue:
-      await ref.read(queueProvider.notifier).add(song.id);
+      try {
+        await ref.read(queueProvider.notifier).add(song.id);
+      } on OperationCancelledException {
+        // A queue replacement arrived first and discarded the edit.
+        return;
+      }
       if (context.mounted) {
         _showQueueActionToast(
           context,
@@ -419,7 +426,12 @@ Future<void> _showDesktopSongContextMenu(
       }
       return;
     case _SongContextAction.playNext:
-      await ref.read(queueProvider.notifier).playNext(song.id);
+      try {
+        await ref.read(queueProvider.notifier).playNext(song.id);
+      } on OperationCancelledException {
+        // A queue replacement arrived first and discarded the edit.
+        return;
+      }
       if (context.mounted) {
         _showQueueActionToast(
           context,

@@ -824,6 +824,78 @@ void main() {
     expect(player.currentIndex, 1);
   });
 
+  test(
+    'an edit made after a navigation never overtakes one made before it',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis-fifo-');
+      final (handler, player, database) = await createHandler(directory, 10);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = List<String>.generate(10, (i) => 'song-$i');
+      // Hold the replacement in its native load.
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..loadGate = gate
+        ..loadEntered = entered;
+      final replacing = handler.replaceQueue(ids, expandMatchFlows: false);
+      await entered.future;
+
+      // A waits for the load a later navigation completes; B arrives after
+      // that navigation.
+      final first = handler.addToQueue(<String>[
+        'song-1',
+      ], expandMatchFlows: false);
+      final navigation = handler.playFromIndex(2);
+      final second = handler.addToQueue(<String>[
+        'song-2',
+      ], expandMatchFlows: false);
+      gate.complete();
+      await Future.wait(<Future<void>>[replacing, first, navigation, second])
+          .timeout(const Duration(seconds: 5));
+
+      expect(handler.snapshot.queueSongIds, <String>[
+        ...ids,
+        'song-1',
+        'song-2',
+      ]);
+    },
+  );
+
+  test('an edit a replacement discards reports it was cancelled', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-cancel-');
+    final (handler, player, database) = await createHandler(directory, 10);
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    final ids = List<String>.generate(10, (i) => 'song-$i');
+    final gate = Completer<void>();
+    final entered = Completer<void>();
+    player
+      ..loadGate = gate
+      ..loadEntered = entered;
+    final replacing = handler.replaceQueue(ids, expandMatchFlows: false);
+    await entered.future;
+
+    final edit = handler.addToQueue(<String>[
+      'song-1',
+    ], expandMatchFlows: false);
+    final replacement = handler.replaceQueue(
+      ids.reversed.toList(),
+      expandMatchFlows: false,
+    );
+    gate.complete();
+
+    await expectLater(edit, throwsA(isA<OperationCancelledException>()));
+    await Future.wait(<Future<void>>[replacing, replacement]);
+    expect(handler.snapshot.queueSongIds, ids.reversed.toList());
+  });
+
   group('a queue edit whose native call never returns', () {
     const timeouts = NavisPlaybackTimeouts(
       load: Duration(milliseconds: 150),

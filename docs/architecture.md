@@ -1361,11 +1361,18 @@ current song is complete, that song is loaded from the file instead of the
 stream. Either way every queued song, the deferred tail and the user's repeat
 mode are kept.
 
-The queue lane (`NavisSupersedingLane`) has four kinds of work. Replacements
-supersede everything; navigation cancels replacements and idle work but lets
-queued edits finish first; edits (add, play next, remove, reorder, merges,
-alias updates) run in FIFO order and are never silently dropped; idle work
-(tail releases) runs only on an empty lane. Edits apply one batched native
+The queue lane (`NavisSupersedingLane`) has five kinds of work. Replacements
+supersede everything; navigation cancels replacements, fills and idle work
+but lets queued edits finish first; edits (add, play next, remove, reorder,
+merges, alias updates) run in FIFO order and are never silently dropped;
+fills (the second phase of a restore or seek recovery) wait in order and
+cancel nothing, so a skip or edit made between the two phases survives; idle
+work (tail releases) runs only on an empty lane. An edit that finds a load
+still in progress goes to the back of the lane once; later edits that reach
+the front first follow it, so edits apply in the order they were made. An
+edit a replacement discards completes with `OperationCancelledException`
+rather than success; callers treat that as superseded, not as an error.
+Edits apply one batched native
 call where possible, fall back to per-song inserts only when a batch fails,
 and coalesce their queue save (at most 2 s); navigation keeps a pending
 coalesced save, so an edit followed at once by a skip is still persisted. A successful native call made by

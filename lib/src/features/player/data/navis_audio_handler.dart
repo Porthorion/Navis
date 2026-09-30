@@ -275,6 +275,10 @@ class NavisAudioHandler extends BaseAudioHandler
   late final Future<void> _ready;
   Future<bool>? _prepareQueueForUserPlayInFlight;
   final NavisSupersedingLane _queueLane = NavisSupersedingLane();
+  int _queueEditSequence = 0;
+
+  /// Edits waiting at the back of the queue lane for a load to finish.
+  final Set<int> _requeuedQueueEdits = <int>{};
   final _seekLane = NavisSupersedingLane();
   final _playbackLane = _SerializationLane();
   final PlaybackNavigationIntent _navigationIntent = PlaybackNavigationIntent();
@@ -2895,7 +2899,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
     unawaited(
-      _queueLane.run((token) async {
+      _queueLane.fill((token) async {
         try {
           _checkQueueWorkCurrent(token, generation);
           await _replaceQueuePhase2(
@@ -4646,25 +4650,36 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Runs a queue edit in order behind other queue work. An edit that finds
   /// a replacement still loading (its owner was superseded by a navigation
   /// queued after this edit) waits for that once, so it applies to the
-  /// finished queue rather than the half-built one.
+  /// finished queue rather than the half-built one. Waiting means going to
+  /// the back of the lane, so later edits that reach the front first go
+  /// back too: edits always apply in the order they were made.
   Future<void> _enqueueQueueEdit(
     Future<void> Function(OperationToken token) edit,
   ) {
     final done = Completer<void>();
+    final sequence = ++_queueEditSequence;
     var waitedForLoad = false;
     Future<void> attempt() async {
       var requeue = false;
+      OperationToken? ran;
       try {
         await _queueLane.enqueue((token) async {
           await _ready;
-          if (!waitedForLoad && _pendingLogicalQueueSongIds != null) {
-            waitedForLoad = true;
+          final behindWaitingEdit = _requeuedQueueEdits.any(
+            (earlier) => earlier < sequence,
+          );
+          if (behindWaitingEdit ||
+              (!waitedForLoad && _pendingLogicalQueueSongIds != null)) {
+            if (!behindWaitingEdit) waitedForLoad = true;
+            _requeuedQueueEdits.add(sequence);
             requeue = true;
             return;
           }
+          ran = token;
           await edit(token);
         });
       } on Object catch (error, stackTrace) {
+        _requeuedQueueEdits.remove(sequence);
         if (!done.isCompleted) done.completeError(error, stackTrace);
         return;
       }
@@ -4672,7 +4687,15 @@ class NavisAudioHandler extends BaseAudioHandler
         unawaited(attempt());
         return;
       }
-      if (!done.isCompleted) done.complete();
+      _requeuedQueueEdits.remove(sequence);
+      if (done.isCompleted) return;
+      // A replacement discarded the edit before it ran or stopped it midway;
+      // report that rather than success.
+      if (ran == null || ran!.isCancelled) {
+        done.completeError(OperationCancelledException());
+      } else {
+        done.complete();
+      }
     }
 
     unawaited(attempt());
@@ -7177,7 +7200,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return true;
     }
     unawaited(
-      _queueLane.run((queueToken) async {
+      _queueLane.fill((queueToken) async {
         try {
           _checkQueueWorkCurrent(queueToken, queueGeneration);
           await _replaceQueuePhase2(
