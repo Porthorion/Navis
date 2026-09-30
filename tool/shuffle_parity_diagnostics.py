@@ -5,7 +5,13 @@ Starts a loopback Subsonic fixture with a 40-song album, launches an isolated
 muted Linux profile against an empty database, turns shuffle on, presses Next
 five times and lets two tracks advance on their own. After each step it
 compares the reported `songId` with the song media_kit/mpv is actually playing
-(`native.mediaKitCurrent` in `GET /v1/playback/status`). Results are written to
+(`native.mediaKitCurrent` in `GET /v1/playback/status`).
+
+It then queues 2,000 songs (the album 50 times), jumps far ahead, near, far
+back and to both ends, presses Previous across the released head and lets
+songs play on, checking parity, that the reported index is the one asked for,
+that head + materialised + tail add up to the queue, and that the native
+playlist stays bounded (the released window). Results are written to
 build/shuffle-parity-diagnostics/<timestamp>/report.json; the exit status is 1
 when any sample disagrees.
 
@@ -90,6 +96,11 @@ class Handler(fixture.Handler):
         return super().do_GET()
 
 
+LONG_QUEUE = [song['id'] for song in SONGS] * 50
+# behind + trimSlack + current + ahead + a page released early.
+NATIVE_BOUND = 32 + 16 + 1 + 32 + 32
+
+
 def wait_until(check, timeout, description):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -159,6 +170,34 @@ def main():
                         'agrees': agrees, 'shuffle': status.get('shuffleMode')})
         return agrees
 
+    def window_sample(step, expected_index=None):
+        status = api('/v1/playback/status')
+        playing = (status.get('native') or {}).get('mediaKitCurrent') or []
+        reported = status.get('songId')
+        actual = playing[0] if playing else None
+        parts = (status.get('deferredHeadLength', 0) + status.get('materializedLength', 0)
+                 + status.get('deferredLength', 0))
+        checks = {
+            'parity': actual is not None and reported is not None and (
+                actual == reported or actual.startswith(f'{reported}_')),
+            'index': expected_index is None or status.get('currentIndex') == expected_index,
+            'song': expected_index is None or reported == LONG_QUEUE[expected_index],
+            'parts': parts == len(LONG_QUEUE) and status.get('queueLength') == len(LONG_QUEUE),
+            'bounded': status.get('playerSequenceLength', 0) <= NATIVE_BOUND,
+        }
+        samples.append({'step': step, 'reported': reported, 'mediaKit': actual,
+                        'agrees': all(checks.values()), 'checks': checks,
+                        'currentIndex': status.get('currentIndex'),
+                        'head': status.get('deferredHeadLength'),
+                        'materialized': status.get('materializedLength'),
+                        'tail': status.get('deferredLength'),
+                        'playerSequenceLength': status.get('playerSequenceLength')})
+
+    def settled(index):
+        status = api('/v1/playback/status')
+        return (status.get('currentIndex') == index and not status.get('isLoading')
+                and status.get('playing'))
+
     failure = None
     try:
         wait_until(lambda: process.poll() is None and handshake.exists()
@@ -185,6 +224,26 @@ def main():
         for tick in range(int(SECONDS * 2.5 / 0.5)):
             time.sleep(0.5)
             sample(f'auto-advance {tick * 0.5 + 0.5:.1f}s')
+
+        # The released window on a 2,000-song queue.
+        act('shuffle off', '/v1/playback/shuffle', {'enabled': False})
+        api('/v1/playback/queue', {'songIds': LONG_QUEUE})
+        wait_until(lambda: settled(0), 120, 'the long queue')
+        window_sample('long queue', 0)
+        for target in (1500, 1540, 1510, 12, len(LONG_QUEUE) - 1, 0, 1000):
+            act(f'jump {target}', '/v1/playback/queue-index', {'index': target})
+            wait_until(lambda: settled(target), 60, f'jump {target}')
+            time.sleep(0.5)
+            window_sample(f'jump {target}', target)
+        # Previous across the head released by the far jump to 1000.
+        for press in range(40):
+            act(f'previous {press + 1}', '/v1/playback/previous', {})
+            time.sleep(0.15)
+        wait_until(lambda: settled(960), 60, 'previous 40')
+        window_sample('previous 40', 960)
+        # Let songs play on so played ones are trimmed.
+        time.sleep(SECONDS * 3)
+        window_sample('played on')
     except Exception as error:  # noqa: BLE001 - reported below
         failure = f'{type(error).__name__}: {error}'
     finally:

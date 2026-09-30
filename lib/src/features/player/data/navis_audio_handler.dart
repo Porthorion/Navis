@@ -5861,6 +5861,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final partialCacheBytes = _partialCacheBytesForSong(songId);
     return <String, Object?>{
       'songId': songId,
+      'currentIndex': snapshot.currentIndex,
       'queueLength': snapshot.queueSongIds.length,
       'playerSequenceLength': _player.sequence.length,
       'materializedLength': _queueItems.length,

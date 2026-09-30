@@ -293,7 +293,12 @@ an isolated muted Linux profile against an empty database, turns shuffle on,
 presses Next five times and lets two tracks advance on their own. Each sample
 compares the reported `songId` with the song mpv is playing
 (`native.mediaKitCurrent`, reduced to the stream `id` or cache file name so no
-credential-bearing URI is reported). The run writes
+credential-bearing URI is reported). It then queues 2,000 songs (the album 50
+times), jumps far ahead, near, far back and to both ends, presses Previous 40
+times across the released head and lets songs play on; those samples also
+check the reported `currentIndex`, that `deferredHeadLength` +
+`materializedLength` + `deferredLength` equals the queue, and that
+`playerSequenceLength` stays within the released window. The run writes
 `build/shuffle-parity-diagnostics/<timestamp>/report.json` and exits 1 when any
 sample or control call disagrees. `NAVIS_PARITY_BUNDLE` runs a built profile
 bundle instead of `flutter run`.
