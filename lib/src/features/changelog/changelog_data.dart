@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'On desktop, album and artist shelves and the You Might Like cover strip can be scrolled by dragging with the mouse',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Resizing the window or rotating your phone no longer interrupts a swipe in You Might Like or rebuilds the carousel on every frame',
         type: ChangelogEntryType.fix,
       ),

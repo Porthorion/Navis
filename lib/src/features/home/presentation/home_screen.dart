@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
+import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:flutter/rendering.dart' show RenderBox, RenderAbstractViewport;
 import 'package:flutter/services.dart';
@@ -3117,50 +3118,52 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
     final coverRadius = coverArtShapeToRadius(coverShape);
     final colors = Theme.of(context).colorScheme;
 
-    final scroller = SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List<Widget>.generate(albums.length, (index) {
-          final item = albums[index];
-          final active = currentPage == index;
-          return Padding(
-            padding: EdgeInsets.only(
-              right: index == albums.length - 1 ? 0 : 6,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: coverRadius,
-              child: InkWell(
-                key: ValueKey<String>(
-                  'home-random-desktop-mini-cover-$index',
-                ),
+    final scroller = MouseDragScroll(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List<Widget>.generate(albums.length, (index) {
+            final item = albums[index];
+            final active = currentPage == index;
+            return Padding(
+              padding: EdgeInsets.only(
+                right: index == albums.length - 1 ? 0 : 6,
+              ),
+              child: Material(
+                color: Colors.transparent,
                 borderRadius: coverRadius,
-                onTap: () => onPageSelected(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  width: active ? 34 : 32,
-                  height: active ? 34 : 32,
-                  padding: const EdgeInsets.all(1.2),
-                  decoration: BoxDecoration(
-                    borderRadius: coverRadius,
-                    border: Border.all(
-                      color: active
-                          ? colors.primary
-                          : colors.outlineVariant.withValues(alpha: 0.42),
-                      width: active ? 1.6 : 1.0,
-                    ),
+                child: InkWell(
+                  key: ValueKey<String>(
+                    'home-random-desktop-mini-cover-$index',
                   ),
-                  child: _RandomMiniCover(
-                    item: item,
-                    borderRadius: coverRadius,
+                  borderRadius: coverRadius,
+                  onTap: () => onPageSelected(index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    width: active ? 34 : 32,
+                    height: active ? 34 : 32,
+                    padding: const EdgeInsets.all(1.2),
+                    decoration: BoxDecoration(
+                      borderRadius: coverRadius,
+                      border: Border.all(
+                        color: active
+                            ? colors.primary
+                            : colors.outlineVariant.withValues(alpha: 0.42),
+                        width: active ? 1.6 : 1.0,
+                      ),
+                    ),
+                    child: _RandomMiniCover(
+                      item: item,
+                      borderRadius: coverRadius,
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
     if (!showArrows) {
