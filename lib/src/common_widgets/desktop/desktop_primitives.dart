@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/theme/desktop_tokens.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class DesktopFrame extends StatelessWidget {
   const DesktopFrame({
@@ -18,7 +18,24 @@ class DesktopFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(padding: padding, child: child);
+    // Content stays full-width on ordinary displays; very wide windows centre
+    // it at a readable maximum so table columns do not drift apart. Extra
+    // padding (rather than Align) keeps the parent's constraints tight.
+    final maxWidth = NavisTokens.of(context).frameMaxWidthUltraWide;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final framed = Padding(padding: padding, child: child);
+        if (!constraints.hasBoundedWidth || constraints.maxWidth <= maxWidth) {
+          return framed;
+        }
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: (constraints.maxWidth - maxWidth) / 2,
+          ),
+          child: framed,
+        );
+      },
+    );
   }
 }
 
@@ -37,7 +54,7 @@ class DesktopPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final tokens = desktopTokensOf(context);
+    final tokens = NavisTokens.of(context);
     return Material(
       color: color ?? colors.surfaceContainerLow,
       elevation: tokens.panelElevation,
@@ -131,7 +148,7 @@ class DesktopListRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
-    final tokens = desktopTokensOf(context);
+    final tokens = NavisTokens.of(context);
     final playbackState = playbackSongId == null
         ? SongPlaybackIndicatorState.inactive
         : ref.watch(songPlaybackIndicatorStateProvider(playbackSongId!));
@@ -143,9 +160,9 @@ class DesktopListRow extends ConsumerWidget {
       color: isSelected
           ? colors.primary.withValues(alpha: 0.08)
           : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: NavisRadius.mdAll,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: NavisRadius.mdAll,
         mouseCursor: onTap != null
             ? SystemMouseCursors.click
             : MouseCursor.defer,
@@ -207,91 +224,5 @@ class DesktopListRow extends ConsumerWidget {
       ),
     );
     return SongPlaybackSemantics(state: playbackState, child: row);
-  }
-}
-
-class DesktopCard extends StatelessWidget {
-  const DesktopCard({
-    required this.child,
-    super.key,
-    this.onTap,
-    this.padding = const EdgeInsets.all(12),
-  });
-
-  final Widget child;
-  final VoidCallback? onTap;
-  final EdgeInsetsGeometry padding;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final tokens = desktopTokensOf(context);
-    return Material(
-      color: colors.surfaceContainer,
-      borderRadius: BorderRadius.circular(tokens.cardRadius),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(padding: padding, child: child),
-      ),
-    );
-  }
-}
-
-class DesktopEmptyState extends StatelessWidget {
-  const DesktopEmptyState({
-    required this.title,
-    super.key,
-    this.subtitle,
-    this.icon = Icons.hourglass_empty,
-    this.action,
-  });
-
-  final String title;
-  final String? subtitle;
-  final IconData icon;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(icon, size: 42, color: colors.onSurfaceVariant),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (subtitle != null && subtitle!.trim().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    subtitle!,
-                    textAlign: TextAlign.center,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              if (action != null) ...<Widget>[
-                const SizedBox(height: 14),
-                action!,
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

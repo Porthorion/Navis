@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Strength of the haptic tick for a ruler movement.
 enum RulerTick { none, minor, major, neutral }
@@ -75,6 +76,12 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   late double _visualValue;
   double _from = 0;
   double _to = 0;
+  Curve _curve = Curves.easeOut;
+
+  /// True while gliding to a value chosen elsewhere (chip, preset, reset),
+  /// which ticks like a swipe; drag-release settling stays silent.
+  bool _glideTicks = false;
+  double _lastGlideValue = 0;
   double _wheelPixels = 0;
   double? _requestedValue;
   bool _dragging = false;
@@ -86,29 +93,75 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
     _visualValue = widget.value;
     _settle =
         AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 140),
-        )..addListener(() {
-          setState(() {
-            _visualValue =
-                _from + (_to - _from) * Curves.easeOut.transform(_settle.value);
+            vsync: this,
+            duration: _settleDuration,
+          )
+          ..addListener(() {
+            final next =
+                _from + (_to - _from) * _curve.transform(_settle.value);
+            if (_glideTicks && widget.enabled) {
+              _tick(
+                rulerTickFeedback(_lastGlideValue, next, widget.resetValue),
+                _settle.lastElapsedDuration,
+              );
+            }
+            _lastGlideValue = next;
+            setState(() => _visualValue = next);
+          })
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed ||
+                status == AnimationStatus.dismissed) {
+              _glideTicks = false;
+            }
           });
-        });
   }
+
+  static const _settleDuration = Duration(milliseconds: 140);
 
   @override
   void didUpdateWidget(AdjustmentRuler oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.interactionToken != oldWidget.interactionToken ||
-        widget.enabled != oldWidget.enabled ||
-        (widget.value != oldWidget.value && widget.value != _requestedValue)) {
-      _dragging = false;
-      _wheelPixels = 0;
-      _settle.stop();
-      _visualValue = widget.value;
+    final externalChange =
+        widget.value != oldWidget.value && widget.value != _requestedValue;
+    if (widget.enabled != oldWidget.enabled) {
+      _snapTo(widget.value);
+    } else if (externalChange ||
+        widget.interactionToken != oldWidget.interactionToken) {
+      _glideTo(widget.value);
     } else if (!_dragging && !_settle.isAnimating) {
       _visualValue = widget.value;
     }
+  }
+
+  void _snapTo(double value) {
+    _dragging = false;
+    _wheelPixels = 0;
+    _glideTicks = false;
+    _settle.stop();
+    _visualValue = value;
+  }
+
+  /// Sweeps the scale to [target] as if it were swiped there: farther jumps
+  /// take a little longer, and the lines it passes tick like a drag.
+  void _glideTo(double target) {
+    final distance = (target - _visualValue).abs();
+    if (distance < 1e-10 || MediaQuery.disableAnimationsOf(context)) {
+      _snapTo(target);
+      return;
+    }
+    _dragging = false;
+    _wheelPixels = 0;
+    _from = _visualValue;
+    _to = target;
+    _lastGlideValue = _visualValue;
+    // Glide timestamps restart at zero, unlike drag timestamps.
+    _lastMinorTick = null;
+    _glideTicks = true;
+    _curve = Curves.easeInOutCubic;
+    _settle.duration = Duration(
+      milliseconds: (160 + math.min(distance, 2) * 160).round(),
+    );
+    _settle.forward(from: 0);
   }
 
   /// Minor ticks closer together than this are skipped so fast swipes do
@@ -167,6 +220,9 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
     } else {
       _from = _visualValue;
       _to = target;
+      _glideTicks = false;
+      _curve = Curves.easeOut;
+      _settle.duration = _settleDuration;
       _settle.forward(from: 0);
     }
   }
@@ -289,7 +345,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                     colors.surfaceContainerHigh,
                   ],
                 ),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: NavisRadius.mdAll,
                 border: Border.all(
                   color: _focused ? colors.primary : colors.outlineVariant,
                 ),
@@ -304,7 +360,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
                           3,
                         ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: NavisRadius.mdAll,
                   child: CustomPaint(
                     painter: _RulerPainter(
                       value: _visualValue,

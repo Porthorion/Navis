@@ -106,7 +106,7 @@ class _DesktopQuickSearchOverlayState
                       child: Material(
                         elevation: 12,
                         color: colorScheme.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: NavisRadius.xlAll,
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                           child: Column(

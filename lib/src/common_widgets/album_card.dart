@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 /// Size presets for [AlbumCard].
 enum AlbumCardSize {
@@ -158,9 +164,9 @@ class AlbumCard extends ConsumerWidget {
                                   album.artistName ?? '',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
+                                  style: theme.textTheme.labelSmall?.copyWith(
                                     color: artistColor,
-                                    fontSize: 11,
+                                    fontWeight: FontWeight.w400,
                                   ),
                                 ),
                               ],
@@ -168,10 +174,72 @@ class AlbumCard extends ConsumerWidget {
                           ),
                         ),
                       ),
+                      if (onTap != null && isDesktopRuntime)
+                        Positioned.fill(
+                          child: _AlbumCardHoverPlay(albumId: album.id),
+                        ),
                     ],
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Desktop quick-play button that appears while the pointer is over a card.
+///
+/// It stays out of the focus order and hit testing while hidden; keyboard
+/// users play albums from the card's context menu or detail page.
+class _AlbumCardHoverPlay extends ConsumerStatefulWidget {
+  const _AlbumCardHoverPlay({required this.albumId});
+
+  final String albumId;
+
+  @override
+  ConsumerState<_AlbumCardHoverPlay> createState() =>
+      _AlbumCardHoverPlayState();
+}
+
+class _AlbumCardHoverPlayState extends ConsumerState<_AlbumCardHoverPlay> {
+  bool _hovered = false;
+
+  void _setHovered(bool value) {
+    if (_hovered != value) setState(() => _hovered = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final motion = MotionPolicy.of(context);
+    return MouseRegion(
+      opaque: false,
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
+      child: Center(
+        child: IgnorePointer(
+          ignoring: !_hovered,
+          child: ExcludeFocus(
+            excluding: !_hovered,
+            child: AnimatedOpacity(
+              opacity: _hovered ? 1 : 0,
+              duration: motion.reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 120),
+              child: IconButton.filled(
+                key: const ValueKey<String>('albumCardHoverPlay'),
+                tooltip: l10n.libraryAlbumMenuPlay,
+                iconSize: 28,
+                constraints: const BoxConstraints(
+                  minWidth: 52,
+                  minHeight: 52,
+                ),
+                onPressed: () => unawaited(playAlbumById(ref, widget.albumId)),
+                icon: const Icon(Icons.play_arrow_rounded),
+              ),
             ),
           ),
         ),

@@ -145,7 +145,7 @@ third-party scrobbling. Settings > External Services lets users configure:
 
 - Last.fm API key, shared secret, browser authorization, and session
   connection.
-- ListenBrainz user token validation.
+- ListenBrainz User Token validation.
 
 Last.fm shared secrets, Last.fm session keys, and ListenBrainz tokens are stored
 through platform secure storage. Drift stores only non-secret enabled/status
@@ -180,3 +180,6 @@ contributors should read [`AGENTS.md`](AGENTS.md) and the canonical
 ## License
 
 [GPL-3.0](LICENSE)
+
+Navis bundles the [Inter](https://github.com/rsms/inter) typeface under the
+SIL Open Font License 1.1 ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).

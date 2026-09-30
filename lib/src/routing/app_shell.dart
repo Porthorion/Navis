@@ -57,6 +57,7 @@ import 'package:navis/src/features/player/presentation/queue_screen.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/listenbrainz_feedback_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
+import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
@@ -66,7 +67,7 @@ import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/theme/desktop_tokens.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -906,7 +907,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             desktopWindowControllerProvider.select((c) => c.isMiniPlayerMode),
           )
         : false;
-    final desktopTokens = desktopTokensOf(context);
+    final desktopTokens = NavisTokens.of(context);
     final configuredNavbarStyle = desktopRuntime
         ? ref.watch(desktopNavbarStyleProvider)
         : 'comfortable';

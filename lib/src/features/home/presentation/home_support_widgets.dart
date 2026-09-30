@@ -37,7 +37,7 @@ class _RandomHeroShimmer extends StatelessWidget {
           child: Column(
             children: <Widget>[
               ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: NavisRadius.xlAll,
                 child: ShimmerPlaceholder(
                   height: heroHeight,
                   width: double.infinity,
@@ -53,7 +53,7 @@ class _RandomHeroShimmer extends StatelessWidget {
                     child: ShimmerPlaceholder(
                       height: 6,
                       width: index == 1 ? 16 : 6,
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: NavisRadius.pillAll,
                     ),
                   ),
                 ),
@@ -94,7 +94,7 @@ class _CarouselShimmer extends StatelessWidget {
             child: Card(
               clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: NavisRadius.mdAll,
               ),
               child: ShimmerPlaceholder(
                 height: cardSize,
@@ -128,7 +128,7 @@ class _ListShimmer extends StatelessWidget {
             child: ShimmerPlaceholder(
               height: compactDensity ? 52 : 60,
               width: double.infinity,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: NavisRadius.mdAll,
             ),
           ),
         ),
@@ -286,7 +286,7 @@ class _ChangelogDiscoveryCardState
         child: Material(
           color: colorScheme.surfaceContainerHigh,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: NavisRadius.lgAll,
             side: BorderSide(
               color: colorScheme.primary.withValues(alpha: 0.24),
             ),

@@ -135,7 +135,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // The preview shows old and new metadata plus the playlist reference.
-    expect(find.text('Relink item'), findsOneWidget);
+    expect(find.text('Relink Item'), findsOneWidget);
     expect(find.text('Selected replacement'), findsOneWidget);
     expect(find.textContaining('Playlist entries: 1'), findsOneWidget);
 

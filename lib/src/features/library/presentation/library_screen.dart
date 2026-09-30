@@ -44,9 +44,12 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/entity_action_bar.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:navis/src/features/library/presentation/liked_playback_provider.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 part 'library_support_widgets.dart';
 part 'library_tabs.dart';
@@ -1831,9 +1834,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             double.infinity,
           );
           final gap = ContentLayout.gap(width);
-          final titleStyle = width < 600
+          final compactTitles = width < 600;
+          final titleStyle = compactTitles
               ? Theme.of(context).textTheme.titleMedium
               : Theme.of(context).textTheme.titleLarge;
+          // Liked sections share one inset; See all buttons carry their own
+          // padding, so the end inset is smaller.
+          const sectionHeaderPadding = EdgeInsetsDirectional.fromSTEB(
+            16,
+            8,
+            8,
+            4,
+          );
           final albumExtent = width < 600 ? 128.0 : 148.0;
           final artistExtent = width < 600 ? 56.0 : 64.0;
           final artistWidth = width < 600 ? 80.0 : 88.0;
@@ -1875,23 +1887,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               else ...<Widget>[
                 if (filteredArtists.isNotEmpty)
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 12, 4),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              '${l10n.libraryLikedOnlyFilter} ${l10n.libraryTabArtists}',
-                              style: titleStyle,
-                            ),
-                          ),
-                          if (filteredArtists.isNotEmpty)
-                            TextButton(
-                              onPressed: _openLikedArtistsAll,
-                              child: Text(l10n.libraryLikedAlbumsSeeAll),
-                            ),
-                        ],
-                      ),
+                    child: NavisSectionHeader(
+                      title: l10n.libraryLikedArtistsSectionTitle,
+                      compact: compactTitles,
+                      padding: sectionHeaderPadding,
+                      onSeeAll: _openLikedArtistsAll,
                     ),
                   ),
                 if (filteredArtists.isNotEmpty)
@@ -1936,24 +1936,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   ),
                 if (filteredAlbums.isNotEmpty)
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              l10n.libraryLikedAlbumsSectionTitle,
-                              style: titleStyle,
-                            ),
-                          ),
-                          if (filteredAlbums.isNotEmpty)
-                            TextButton(
-                              onPressed: () =>
-                                  context.push('/library/liked-albums'),
-                              child: Text(l10n.libraryLikedAlbumsSeeAll),
-                            ),
-                        ],
-                      ),
+                    child: NavisSectionHeader(
+                      title: l10n.libraryLikedAlbumsSectionTitle,
+                      compact: compactTitles,
+                      padding: sectionHeaderPadding,
+                      onSeeAll: () => context.push('/library/liked-albums'),
                     ),
                   ),
                 if (filteredAlbums.isNotEmpty)
@@ -2014,64 +2001,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     filteredPlaybackSongs.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        16,
+                        12,
+                        16,
+                        8,
+                      ),
                       child: Wrap(
-                        spacing: 10,
+                        spacing: 12,
                         runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Text(
-                            l10n.libraryLikedSongsSectionTitle,
-                            style: titleStyle,
+                          Semantics(
+                            header: true,
+                            child: Text(
+                              l10n.libraryLikedSongsSectionTitle,
+                              style: titleStyle,
+                            ),
                           ),
-                          if (filteredPlaybackSongs.isNotEmpty &&
-                              width < 600) ...[
-                            IconButton.filled(
-                              tooltip: l10n.albumDetailPlayAction,
-                              constraints: const BoxConstraints(
-                                minWidth: 48,
-                                minHeight: 48,
-                              ),
-                              onPressed: () => unawaited(
+                          if (filteredPlaybackSongs.isNotEmpty)
+                            EntityActionBar(
+                              compact: width < 600,
+                              onPlay: () => unawaited(
                                 _queueLikedSongs(filteredPlaybackSongs),
                               ),
-                              icon: const Icon(Icons.play_arrow_rounded),
-                            ),
-                            IconButton.outlined(
-                              tooltip: l10n.albumDetailShuffleAction,
-                              constraints: const BoxConstraints(
-                                minWidth: 48,
-                                minHeight: 48,
-                              ),
-                              onPressed: () => unawaited(
+                              onShuffle: () => unawaited(
                                 _queueLikedSongs(
                                   filteredPlaybackSongs,
                                   shuffle: true,
                                 ),
                               ),
-                              icon: const Icon(Icons.shuffle_rounded),
                             ),
-                          ],
-                          if (filteredPlaybackSongs.isNotEmpty &&
-                              width >= 600) ...[
-                            FilledButton.icon(
-                              onPressed: () => unawaited(
-                                _queueLikedSongs(filteredPlaybackSongs),
-                              ),
-                              icon: const Icon(Icons.play_arrow_rounded),
-                              label: Text(l10n.albumDetailPlayAction),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => unawaited(
-                                _queueLikedSongs(
-                                  filteredPlaybackSongs,
-                                  shuffle: true,
-                                ),
-                              ),
-                              icon: const Icon(Icons.shuffle_rounded),
-                              label: Text(l10n.albumDetailShuffleAction),
-                            ),
-                          ],
                         ],
                       ),
                     ),

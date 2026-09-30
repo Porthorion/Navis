@@ -14,6 +14,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
@@ -25,6 +26,7 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -557,8 +559,8 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
+    const border = OutlineInputBorder(
+      borderRadius: NavisRadius.mdAll,
       borderSide: BorderSide.none,
     );
     return TextField(
@@ -568,19 +570,20 @@ class _SearchBar extends StatelessWidget {
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: hint,
-        border: desktopMode ? border : InputBorder.none,
-        enabledBorder: desktopMode ? border : InputBorder.none,
-        focusedBorder: desktopMode ? border : InputBorder.none,
-        fillColor: desktopMode
-            ? Theme.of(context).colorScheme.surfaceContainerHigh
-            : null,
-        filled: desktopMode,
-        contentPadding: desktopMode
-            ? const EdgeInsets.symmetric(horizontal: 14, vertical: 14)
-            : null,
+        prefixIcon: const Icon(Icons.search),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: border,
+        fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+        filled: true,
+        // The phone field sits inside the app bar, so it stays compact.
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: NavisSpace.sm,
+          vertical: desktopMode ? 14 : 10,
+        ),
         suffixIcon: onClear != null
             ? IconButton(
-                tooltip: l10n.searchClearRecent,
+                tooltip: l10n.searchClearQuery,
                 icon: const Icon(Icons.close),
                 onPressed: onClear,
               )
@@ -720,23 +723,12 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 8, 4),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-          ),
-          if (itemCount > 5)
-            TextButton(
-              onPressed: onToggle,
-              child: Text(expanded ? l10n.searchShowLess : l10n.searchShowAll),
-            ),
-        ],
-      ),
+    return NavisSectionHeader(
+      title: title,
+      compact: true,
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+      onSeeAll: itemCount > 5 ? onToggle : null,
+      seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
     );
   }
 }

@@ -16,6 +16,20 @@ import 'package:navis/src/routing/navigation_service.dart';
 
 /// Shows a bottom sheet context menu for an album identified by [albumId].
 ///
+/// Replaces the queue with [albumId]'s tracks, as the menu's Play action does.
+///
+/// Used by quick-play affordances such as the desktop album-card hover
+/// button. Does nothing when the album has no tracks yet.
+Future<void> playAlbumById(WidgetRef ref, String albumId) async {
+  final album = await ref.read(albumProvider(albumId).future);
+  final songs = album?.songs ?? const <SongsTableData>[];
+  if (songs.isEmpty) return;
+  ref
+      .read(librarySyncControllerProvider.notifier)
+      .registerAlbumInteraction(albumId);
+  await ref.read(queueProvider.notifier).replaceWithTableData(songs);
+}
+
 /// Actions: Open, Play, Add to Queue, Like/Unlike, Download.
 Future<void> showAlbumContextMenu(
   BuildContext context,

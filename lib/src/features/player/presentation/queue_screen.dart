@@ -10,6 +10,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_unavailable_tracks.dart';
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider, songByIdProvider, subsonicApiProvider;
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});
@@ -245,7 +246,7 @@ class _QueueItem extends ConsumerWidget {
                   size: kCoverArtStandardSize,
                   width: 48,
                   height: 48,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: NavisRadius.xsAll,
                   isExternalSource: song.isExternal,
                   remoteSourceIndicatorPolicy:
                       RemoteSourceIndicatorPolicy.hidden,

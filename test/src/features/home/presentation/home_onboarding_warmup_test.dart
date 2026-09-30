@@ -263,7 +263,7 @@ void main() {
         );
 
         // The first rendered frame remains the normal, interactive setup UI.
-        expect(find.text('Make Navis yours'), findsOneWidget);
+        expect(find.text('Make Navis Yours'), findsOneWidget);
         await tester.pump();
         expect(resolverCalls, 1);
 

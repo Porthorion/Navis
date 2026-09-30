@@ -1362,12 +1362,22 @@ void main() {
           ],
         );
 
+        expect(find.text('Last sync failed'), findsOneWidget);
         expect(find.text('Connection lost'), findsOneWidget);
         await tester.tap(
           find.byKey(const ValueKey<String>('library-sync-status-retry')),
         );
         await tester.pump();
         expect(retryCalls, 1);
+
+        await tester.tap(
+          find.byKey(const ValueKey<String>('library-sync-status-dismiss')),
+        );
+        await tester.pump();
+        expect(
+          find.byKey(const ValueKey<String>('library-sync-status-banner')),
+          findsNothing,
+        );
       },
     );
 
@@ -2214,7 +2224,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
-        expect(find.widgetWithText(OutlinedButton, 'Shuffle'), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, 'Shuffle'), findsOneWidget);
 
         await tester.tap(find.widgetWithText(FilledButton, 'Play'));
         await tester.pumpAndSettle();
@@ -2399,7 +2409,7 @@ void main() {
 
         await tester.tap(find.text('Liked'));
         await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(OutlinedButton, 'Shuffle'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Shuffle'));
         await tester.pumpAndSettle();
 
         final container = ProviderScope.containerOf(

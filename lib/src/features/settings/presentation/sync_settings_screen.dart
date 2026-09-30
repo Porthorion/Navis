@@ -475,7 +475,6 @@ class SyncSettingsScreen extends ConsumerWidget {
                               ? currentInterval
                               : 60,
                           decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
                             isDense: true,
                           ),
                           items: _intervalChoices

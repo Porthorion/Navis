@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Visual variants for the cache badge.
 enum CacheBadgeType {
@@ -41,7 +42,7 @@ class CacheBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: NavisRadius.pillAll,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

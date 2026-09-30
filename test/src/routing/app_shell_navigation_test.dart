@@ -863,6 +863,7 @@ void main() {
     }
 
     expect(button('desktopPlayerPlayPauseButton').onPressed, isNotNull);
+    expect(button('desktopPlayerInstantMixButton').onPressed, isNull);
     expect(button('desktopPlayerPreviousButton').onPressed, isNull);
     expect(button('desktopPlayerNextButton').onPressed, isNull);
     expect(button('desktopPlayerRepeatButton').onPressed, isNull);

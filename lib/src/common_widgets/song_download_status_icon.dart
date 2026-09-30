@@ -5,6 +5,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// The resolved download/cache state of a single song.
 enum SongDownloadStatus {
@@ -176,7 +177,7 @@ class SongDownloadStatusIcon extends ConsumerWidget {
         icon: Icon(
           Icons.check_circle,
           size: size,
-          color: Colors.green,
+          color: NavisTokens.of(context).success,
         ),
         tooltip: l10n.deleteDownloadAction,
         onPressed: () => confirmAndDeleteDownload(context, ref, songId),

@@ -73,7 +73,6 @@ class _TransportControls extends ConsumerWidget {
       );
     }
 
-    final shuffleOn = playback.shuffleMode == AudioServiceShuffleMode.all;
     final repeatMode = playback.repeatMode;
     final volume = ref.watch(playbackVolumeProvider);
 
@@ -158,22 +157,9 @@ class _TransportControls extends ConsumerWidget {
                 placeholderWhenUnsupported: true,
                 dense: tight,
               ),
-            IconButton(
-              icon: Icon(
-                Icons.shuffle,
-                color: shuffleOn ? Theme.of(context).colorScheme.primary : null,
-              ),
-              visualDensity: compact ? VisualDensity.compact : null,
-              tooltip: shuffleOn
-                  ? l10n.nowPlayingShuffle
-                  : l10n.nowPlayingShuffleOff,
-              onPressed: () {
-                final handler = ref.read(audioHandlerProvider);
-                final next = shuffleOn
-                    ? AudioServiceShuffleMode.none
-                    : AudioServiceShuffleMode.all;
-                unawaited(handler?.setShuffleMode(next));
-              },
+            _NowPlayingMixButton(
+              songId: playback.currentSongId,
+              compact: compact,
             ),
             gap,
             IconButton(

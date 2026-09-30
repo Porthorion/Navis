@@ -3,6 +3,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 class TrackRowModeScope extends InheritedWidget {
@@ -21,6 +22,58 @@ class TrackRowModeScope extends InheritedWidget {
       oldWidget.mode != mode;
 }
 
+/// Whether the enclosing track row is hovered or playing.
+///
+/// Desktop row actions stay quiet until their row is emphasized so dense
+/// tables read as lists of songs rather than columns of icons.
+class TrackRowEmphasisScope extends InheritedWidget {
+  const TrackRowEmphasisScope({
+    required this.emphasized,
+    required super.child,
+    super.key,
+  });
+
+  final bool emphasized;
+
+  /// Null outside a shared track row, where actions keep full emphasis.
+  static bool? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<TrackRowEmphasisScope>()
+      ?.emphasized;
+
+  @override
+  bool updateShouldNotify(TrackRowEmphasisScope oldWidget) =>
+      oldWidget.emphasized != emphasized;
+}
+
+class _TrackRowHoverRegion extends StatefulWidget {
+  const _TrackRowHoverRegion({required this.selected, required this.child});
+
+  final bool selected;
+  final Widget child;
+
+  @override
+  State<_TrackRowHoverRegion> createState() => _TrackRowHoverRegionState();
+}
+
+class _TrackRowHoverRegionState extends State<_TrackRowHoverRegion> {
+  bool _hovered = false;
+
+  void _setHovered(bool value) {
+    if (_hovered != value) setState(() => _hovered = value);
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    opaque: false,
+    onEnter: (_) => _setHovered(true),
+    onExit: (_) => _setHovered(false),
+    child: TrackRowEmphasisScope(
+      emphasized: _hovered || widget.selected,
+      child: widget.child,
+    ),
+  );
+}
+
 double _durationWidth(BuildContext context) {
   final painter = TextPainter(
     text: TextSpan(
@@ -35,17 +88,21 @@ double _durationWidth(BuildContext context) {
   return width;
 }
 
-Widget _columns(TrackRowMode mode, List<Widget> children) => Row(
-  children: [
-    for (var i = 0; i < children.length; i++) ...[
-      if (i > 0) const SizedBox(width: 12),
-      Expanded(
-        flex: mode == TrackRowMode.wide ? [45, 25, 30][i] : [65, 35][i],
-        child: children[i],
-      ),
+Widget _columns(List<Widget> children) {
+  final flexes = switch (children.length) {
+    3 => const [45, 25, 30],
+    2 => const [65, 35],
+    _ => List<int>.filled(children.length, 1),
+  };
+  return Row(
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0) const SizedBox(width: 12),
+        Expanded(flex: flexes[i], child: children[i]),
+      ],
     ],
-  ],
-);
+  );
+}
 
 /// Presentation-only row; callers retain playback and occurrence ownership.
 class AdaptiveTrackRow extends StatelessWidget {
@@ -66,6 +123,7 @@ class AdaptiveTrackRow extends StatelessWidget {
     this.onLongPress,
     this.onSecondaryTapDown,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    this.showAlbumColumn = true,
     super.key,
   });
 
@@ -85,6 +143,10 @@ class AdaptiveTrackRow extends StatelessWidget {
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
   final EdgeInsetsGeometry padding;
+
+  /// False on an album's own track list, where every row would repeat the
+  /// same album name.
+  final bool showAlbumColumn;
 
   @override
   Widget build(BuildContext context) {
@@ -111,11 +173,11 @@ class AdaptiveTrackRow extends StatelessWidget {
         );
         final secondary = switch (mode) {
           TrackRowMode.compact =>
-            [artist, album]
+            [artist, if (showAlbumColumn) album]
                 .whereType<String>()
                 .where((value) => value.trim().isNotEmpty)
                 .join(' · '),
-          TrackRowMode.medium => album ?? '',
+          TrackRowMode.medium => showAlbumColumn ? album ?? '' : '',
           TrackRowMode.wide => '',
         };
         final titleColumn = Column(
@@ -146,10 +208,11 @@ class AdaptiveTrackRow extends StatelessWidget {
         );
         final information = mode == TrackRowMode.compact
             ? titleColumn
-            : _columns(mode, [
+            : _columns([
                 titleColumn,
                 metadata(artist),
-                if (mode == TrackRowMode.wide) metadata(album),
+                if (mode == TrackRowMode.wide && showAlbumColumn)
+                  metadata(album),
               ]);
         final durationWidget = SizedBox(
           width: _durationWidth(context),
@@ -235,36 +298,39 @@ class AdaptiveTrackRow extends StatelessWidget {
         );
         return TrackRowModeScope(
           mode: mode,
-          child: Material(
-            color: selected
-                ? theme.colorScheme.primary.withValues(alpha: .08)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              onTap: onTap,
-              onLongPress: onLongPress,
-              onSecondaryTapDown: onSecondaryTapDown,
-              borderRadius: BorderRadius.circular(12),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 64),
-                child: Padding(
-                  padding: padding,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: compactMobile
-                        ? MainAxisAlignment.center
-                        : MainAxisAlignment.start,
-                    children: [
-                      body,
-                      if (stackControls)
-                        Row(
-                          children: [
-                            if (!compactMobile) durationWidget,
-                            const Spacer(),
-                            ?actionWidget,
-                          ],
-                        ),
-                    ],
+          child: _TrackRowHoverRegion(
+            selected: selected,
+            child: Material(
+              color: selected
+                  ? theme.colorScheme.primary.withValues(alpha: .08)
+                  : Colors.transparent,
+              borderRadius: NavisRadius.mdAll,
+              child: InkWell(
+                onTap: onTap,
+                onLongPress: onLongPress,
+                onSecondaryTapDown: onSecondaryTapDown,
+                borderRadius: NavisRadius.mdAll,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 64),
+                  child: Padding(
+                    padding: padding,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: compactMobile
+                          ? MainAxisAlignment.center
+                          : MainAxisAlignment.start,
+                      children: [
+                        body,
+                        if (stackControls)
+                          Row(
+                            children: [
+                              if (!compactMobile) durationWidget,
+                              const Spacer(),
+                              ?actionWidget,
+                            ],
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -376,6 +442,7 @@ class AdaptiveTrackHeader extends StatelessWidget {
     this.leadingGap = 12,
     this.actionExtent,
     this.padding = const EdgeInsets.fromLTRB(12, 8, 12, 8),
+    this.showAlbumColumn = true,
     super.key,
   }) : assert(
          numberColumnExtent == null ||
@@ -387,6 +454,9 @@ class AdaptiveTrackHeader extends StatelessWidget {
   final double leadingGap;
   final double? actionExtent;
   final EdgeInsetsGeometry padding;
+
+  /// Must match the rows' [AdaptiveTrackRow.showAlbumColumn].
+  final bool showAlbumColumn;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -428,10 +498,11 @@ class AdaptiveTrackHeader extends StatelessWidget {
                     ),
             ),
             Expanded(
-              child: _columns(mode, [
+              child: _columns([
                 label(l10n.trackColumnTitle),
                 label(l10n.trackColumnArtist),
-                if (mode == TrackRowMode.wide) label(l10n.trackColumnAlbum),
+                if (mode == TrackRowMode.wide && showAlbumColumn)
+                  label(l10n.trackColumnAlbum),
               ]),
             ),
             const SizedBox(width: 12),

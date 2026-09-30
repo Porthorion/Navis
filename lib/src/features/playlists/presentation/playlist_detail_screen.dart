@@ -11,6 +11,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -23,6 +24,7 @@ import 'package:navis/src/features/playlists/presentation/playlist_providers.dar
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({required this.playlistId, super.key});
@@ -178,7 +180,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             coverArtId: playlist.coverArt,
                             size: kCoverArtStandardSize,
                             height: 220,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: NavisRadius.lgAll,
                             placeholderIcon: Icons.queue_music,
                           ),
                           const SizedBox(width: 24),
@@ -212,54 +214,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                   ),
                                 ],
                                 const SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: <Widget>[
-                                    // Play is the one primary entity action;
-                                    // Shuffle and Download remain supporting
-                                    // actions, matching album and artist detail.
-                                    FilledButton.icon(
-                                      onPressed: visibleSongs.isEmpty
-                                          ? null
-                                          : () => _queuePlaylist(
-                                              visibleSongs,
-                                              shuffle: false,
-                                            ),
-                                      icon: const Icon(Icons.play_arrow),
-                                      label: Text(
-                                        l10n.playlistDetailPlayAction,
-                                      ),
-                                    ),
-                                    FilledButton.tonalIcon(
-                                      onPressed: visibleSongs.isEmpty
-                                          ? null
-                                          : () => _queuePlaylist(
-                                              visibleSongs,
-                                              shuffle: true,
-                                            ),
-                                      icon: const Icon(
-                                        Icons.shuffle_outlined,
-                                      ),
-                                      label: Text(
-                                        l10n.playlistDetailShuffleAction,
-                                      ),
-                                    ),
-                                    FilledButton.tonalIcon(
-                                      onPressed: visibleSongs.isEmpty
-                                          ? null
-                                          : () => unawaited(
-                                              _downloadPlaylist(
-                                                playlist,
-                                                visibleSongs,
-                                              ),
-                                            ),
-                                      icon: const Icon(
-                                        Icons.download_outlined,
-                                      ),
-                                      label: Text(l10n.downloadAction),
-                                    ),
-                                  ],
+                                _playlistActions(
+                                  playlist,
+                                  visibleSongs,
+                                  compact: false,
                                 ),
                               ],
                             ),
@@ -278,7 +236,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             coverArtId: playlist.coverArt,
                             size: kCoverArtStandardSize,
                             height: 180,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: NavisRadius.mdAll,
                             placeholderIcon: Icons.queue_music,
                           ),
                         ),
@@ -312,42 +270,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Wrap(
-                          spacing: 8,
-                          children: [
-                            // Keep the phone hierarchy identical to desktop:
-                            // one filled Play action, then tonal supporting
-                            // actions.
-                            FilledButton.icon(
-                              onPressed: visibleSongs.isEmpty
-                                  ? null
-                                  : () => _queuePlaylist(
-                                      visibleSongs,
-                                      shuffle: false,
-                                    ),
-                              icon: const Icon(Icons.play_arrow),
-                              label: Text(l10n.playlistDetailPlayAction),
-                            ),
-                            FilledButton.tonalIcon(
-                              onPressed: visibleSongs.isEmpty
-                                  ? null
-                                  : () => _queuePlaylist(
-                                      visibleSongs,
-                                      shuffle: true,
-                                    ),
-                              icon: const Icon(Icons.shuffle_outlined),
-                              label: Text(l10n.playlistDetailShuffleAction),
-                            ),
-                            FilledButton.tonalIcon(
-                              onPressed: visibleSongs.isEmpty
-                                  ? null
-                                  : () => unawaited(
-                                      _downloadPlaylist(playlist, visibleSongs),
-                                    ),
-                              icon: const Icon(Icons.download_outlined),
-                              label: Text(l10n.downloadAction),
-                            ),
-                          ],
+                        child: _playlistActions(
+                          playlist,
+                          visibleSongs,
+                          compact: true,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -500,6 +426,33 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
         ],
       ),
+    );
+  }
+
+  Widget _playlistActions(
+    PlaylistsTableData playlist,
+    List<SongsTableData> visibleSongs, {
+    required bool compact,
+  }) {
+    final hasSongs = visibleSongs.isNotEmpty;
+    return EntityActionBar(
+      compact: compact,
+      onPlay: hasSongs
+          ? () => _queuePlaylist(visibleSongs, shuffle: false)
+          : null,
+      onShuffle: hasSongs
+          ? () => _queuePlaylist(visibleSongs, shuffle: true)
+          : null,
+      secondary: <Widget>[
+        EntitySecondaryAction(
+          compact: compact,
+          icon: const Icon(Icons.download_outlined),
+          label: AppLocalizations.of(context)!.downloadAction,
+          onPressed: hasSongs
+              ? () => unawaited(_downloadPlaylist(playlist, visibleSongs))
+              : null,
+        ),
+      ],
     );
   }
 

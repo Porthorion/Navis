@@ -108,11 +108,11 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
             children: <Widget>[
               Material(
                 color: Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: NavisRadius.xlAll,
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: widget.onOpenPlayer,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: NavisRadius.xlAll,
                   child: Stack(
                     children: <Widget>[
                       Padding(
@@ -264,7 +264,6 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                                       .textTheme
                                                       .bodySmall
                                                       ?.copyWith(
-                                                        fontSize: 12,
                                                         color: cs.primary,
                                                         fontWeight:
                                                             FontWeight.w500,
@@ -280,7 +279,6 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                                   .textTheme
                                                   .bodySmall
                                                   ?.copyWith(
-                                                    fontSize: 12,
                                                     color: cs.onSurfaceVariant,
                                                   ),
                                             ),
@@ -429,7 +427,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                             curve: Curves.easeOut,
                             opacity: _isSeeking && canSeek ? 1 : 0,
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: NavisRadius.xlAll,
                               child: BackdropFilter(
                                 filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                                 child: Container(
@@ -886,7 +884,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 size: kCoverArtStandardSize,
                                 width: 48,
                                 height: 48,
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: NavisRadius.smAll,
                                 loadPriority: CoverArtLoadPriority.critical,
                                 isExternalSource: widget.isExternalSource,
                                 remoteSourceIndicatorPolicy:
@@ -1126,7 +1124,7 @@ class _MiniRadioArt extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = artUrl;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: NavisRadius.smAll,
       child: url != null && url.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: url,
@@ -1170,7 +1168,7 @@ class _MiniRemoteArt extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = artUrl;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: NavisRadius.smAll,
       child: url != null && url.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: url,

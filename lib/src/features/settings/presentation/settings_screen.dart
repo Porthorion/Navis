@@ -136,16 +136,32 @@ class SettingsScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.only(top: 12),
             children: <Widget>[
-              for (final entry in entries)
-                ListTile(
-                  leading: Icon(entry.icon),
-                  title: Text(entry.title),
-                  subtitle: entry.subtitle == null
-                      ? null
-                      : Text(entry.subtitle!),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: entry.enabled ? () => context.push(entry.route) : null,
+              for (final group in groups.entries) ...<Widget>[
+                Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 4),
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      group.key,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
                 ),
+                for (final entry in group.value)
+                  ListTile(
+                    leading: Icon(entry.icon),
+                    title: Text(entry.title),
+                    subtitle: entry.subtitle == null
+                        ? null
+                        : Text(entry.subtitle!),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: entry.enabled
+                        ? () => context.push(entry.route)
+                        : null,
+                  ),
+              ],
             ],
           ),
         ),

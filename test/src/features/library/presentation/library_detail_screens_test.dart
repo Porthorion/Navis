@@ -624,7 +624,7 @@ void main() {
 
       expect(find.text('Artist'), findsNothing);
       expect(find.text('Artist 1'), findsNWidgets(2));
-      expect(find.textContaining('1 albums'), findsNWidgets(2));
+      expect(find.textContaining('1 album'), findsNWidgets(2));
       expect(find.text('Albums'), findsOneWidget);
       expect(find.byIcon(Icons.more_horiz), findsNWidgets(2));
       expect(find.text('Album 1'), findsAtLeastNWidgets(1));
@@ -1237,49 +1237,37 @@ void main() {
         expect(
           find.descendant(
             of: toolbar,
-            matching: find.widgetWithIcon(IconButton, Icons.play_arrow),
+            matching: find.widgetWithIcon(IconButton, Icons.play_arrow_rounded),
           ),
           findsOneWidget,
         );
         expect(
           find.descendant(
             of: toolbar,
-            matching: find.widgetWithIcon(IconButton, Icons.shuffle),
+            matching: find.widgetWithIcon(IconButton, Icons.shuffle_rounded),
           ),
           findsOneWidget,
         );
-        expect(
-          find.descendant(
-            of: toolbar,
-            matching: find.widgetWithText(FilterChip, 'Liked'),
-          ),
-          findsNothing,
+        // Filters live behind one toolbar button instead of a separate row.
+        expect(find.byType(FilterChip), findsNothing);
+        final filterButton = find.descendant(
+          of: toolbar,
+          matching: find.byKey(const ValueKey<String>('album-filter-button')),
         );
-        final filterRow = find.byKey(
-          const ValueKey<String>('albumDetailCompactWideFilterRow'),
-        );
-        expect(filterRow, findsOneWidget);
+        expect(filterButton, findsOneWidget);
+        await tester.tap(filterButton);
+        await tester.pump(const Duration(milliseconds: 300));
+        // CheckboxMenuButton forwards its key to its inner MenuItemButton.
         expect(
-          find.descendant(
-            of: filterRow,
-            matching: find.text('Filters'),
-          ),
-          findsOneWidget,
+          find.byKey(const ValueKey<String>('album-filter-liked')),
+          findsWidgets,
         );
         expect(
-          find.descendant(
-            of: filterRow,
-            matching: find.widgetWithText(FilterChip, 'Liked'),
-          ),
-          findsOneWidget,
+          find.byKey(const ValueKey<String>('album-filter-downloaded')),
+          findsWidgets,
         );
-        expect(
-          find.descendant(
-            of: filterRow,
-            matching: find.widgetWithText(FilterChip, 'Downloaded'),
-          ),
-          findsOneWidget,
-        );
+        await tester.tapAt(Offset.zero);
+        await tester.pump(const Duration(milliseconds: 300));
         expect(find.text('Visible Track'), findsOneWidget);
         await _disposeApp(tester);
       },
@@ -1325,7 +1313,9 @@ void main() {
       expect(find.byTooltip('Play'), findsOneWidget);
       expect(find.byTooltip('Shuffle'), findsOneWidget);
       expect(find.byTooltip('Like'), findsOneWidget);
-      expect(find.byTooltip('Show menu'), findsOneWidget);
+      // The shorter header lets the collapsed overlay toolbar, with its own
+      // menu button, appear alongside the in-content action row.
+      expect(find.byTooltip('Show menu'), findsAtLeastNWidgets(1));
       await _disposeApp(tester);
     });
 
@@ -1544,7 +1534,7 @@ void main() {
           find.widgetWithText(OutlinedButton, 'Download Album'),
           findsNothing,
         );
-        expect(find.text('Filters'), findsOneWidget);
+        expect(find.byTooltip('Filters'), findsOneWidget);
         expect(tester.takeException(), isNull);
         await expectLater(
           find.byType(AlbumDetailScreen),
@@ -1778,7 +1768,7 @@ void main() {
     );
 
     testWidgets(
-      'compact-wide filter chips toggle liked and downloaded empty states',
+      'compact-wide filter menu toggles liked and downloaded empty states',
       (tester) async {
         await _pumpAlbumDetail(
           tester,
@@ -1810,24 +1800,37 @@ void main() {
           ],
         );
 
+        Future<void> toggleFilter(String key) async {
+          final item = find.byKey(ValueKey<String>(key));
+          if (item.evaluate().isEmpty) {
+            await tester.tap(
+              find.byKey(const ValueKey<String>('album-filter-button')),
+            );
+            await tester.pump(const Duration(milliseconds: 300));
+          }
+          await tester.tap(item.first);
+          // Menu items run their action in a post-frame callback.
+          await tester.pump();
+        }
+
         expect(find.text('Liked Track'), findsOneWidget);
         expect(find.text('Downloaded Track'), findsOneWidget);
 
-        await tester.tap(find.widgetWithText(FilterChip, 'Liked'));
+        await toggleFilter('album-filter-liked');
         await tester.pump();
 
         expect(find.text('Liked Track'), findsOneWidget);
         expect(find.text('Downloaded Track'), findsNothing);
 
-        await tester.tap(find.widgetWithText(FilterChip, 'Liked'));
+        await toggleFilter('album-filter-liked');
         await tester.pump();
-        await tester.tap(find.widgetWithText(FilterChip, 'Downloaded'));
+        await toggleFilter('album-filter-downloaded');
         await tester.pump();
 
         expect(find.text('Liked Track'), findsNothing);
         expect(find.text('Downloaded Track'), findsOneWidget);
 
-        await tester.tap(find.widgetWithText(FilterChip, 'Liked'));
+        await toggleFilter('album-filter-liked');
         await tester.pump();
 
         expect(find.text('Liked Track'), findsNothing);

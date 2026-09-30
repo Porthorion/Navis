@@ -79,7 +79,8 @@ Implications for Navis:
 - Pin source URLs and hashes for vendored/native modules.
 - Keep build scripts deterministic and avoid host-specific paths.
 - Confirm the source and licenses for all bundled runtime dependencies are
-  redistributable.
+  redistributable. This includes the Inter font (`assets/fonts/`, SIL OFL
+  1.1), which ships inside `flutter_assets` and needs no fontconfig setup.
 
 ## Metadata Requirements
 

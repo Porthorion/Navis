@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Shows the explanatory hover label without Material [Tooltip]'s
 /// [OverlayPortal] semantics reparenting.
@@ -220,7 +221,7 @@ class _NavisTooltipBubble extends StatelessWidget {
           key: bubbleKey ?? NavisTooltip.defaultBubbleKey,
           decoration: BoxDecoration(
             color: colors.inverseSurface,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: NavisRadius.xsAll,
             boxShadow: const <BoxShadow>[
               BoxShadow(
                 color: Color(0x33000000),

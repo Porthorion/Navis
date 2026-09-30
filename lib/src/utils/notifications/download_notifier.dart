@@ -53,7 +53,7 @@ class DownloadNotifier {
       'Downloads',
       channelDescription: 'Download queue and progress updates',
       icon: 'ic_stat_navis_light',
-      color: const Color(0xFFFFFFFF),
+      color: Colors.white,
       importance: Importance.low,
       priority: Priority.low,
       onlyAlertOnce: true,
@@ -95,7 +95,7 @@ class DownloadNotifier {
       'Downloads',
       channelDescription: 'Download queue and progress updates',
       icon: 'ic_stat_navis_light',
-      color: Color(0xFFFFFFFF),
+      color: Colors.white,
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );
@@ -122,7 +122,7 @@ class DownloadNotifier {
       'Downloads',
       channelDescription: 'Download queue and progress updates',
       icon: 'ic_stat_navis_light',
-      color: Color(0xFFFFFFFF),
+      color: Colors.white,
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );

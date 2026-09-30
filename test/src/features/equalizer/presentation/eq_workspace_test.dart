@@ -299,7 +299,7 @@ void main() {
   ) async {
     final container = await mount(tester, size: _desktop, desktop: true);
     expect(find.textContaining('Draft saved on this device'), findsOneWidget);
-    expect(find.text('Save as new'), findsOneWidget);
+    expect(find.text('Save as New'), findsOneWidget);
     expect(find.text('Discard'), findsOneWidget);
     final controller = container.read(equalizerProvider.notifier);
     await controller.saveAs('Studio monitors');

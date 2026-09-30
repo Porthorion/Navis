@@ -17,6 +17,7 @@ class TrackListTile extends ConsumerWidget {
     this.trailing,
     this.badge,
     this.showAlbumArt = false,
+    this.showAlbumColumn = true,
     this.horizontalTitleGap,
     this.contentPadding,
     this.actionExtent,
@@ -42,6 +43,9 @@ class TrackListTile extends ConsumerWidget {
   /// number. Useful in contexts where the track number is meaningless (e.g.,
   /// the Liked songs list which spans many albums).
   final bool showAlbumArt;
+
+  /// See [AdaptiveTrackRow.showAlbumColumn].
+  final bool showAlbumColumn;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -93,6 +97,7 @@ class TrackListTile extends ConsumerWidget {
       title: song.title,
       artist: song.artistName,
       album: song.albumName,
+      showAlbumColumn: showAlbumColumn,
       duration: song.duration,
       leading: leading,
       leadingExtent: showAlbumArt ? 48 : 32,

@@ -4,6 +4,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class ArtistCard extends StatelessWidget {
   const ArtistCard({
@@ -69,6 +70,7 @@ class ArtistCard extends StatelessWidget {
           ),
         ],
       ),
+      shape: const RoundedRectangleBorder(borderRadius: NavisRadius.mdAll),
       onTap: onTap,
       onLongPress: onLongPress == null
           ? null
@@ -77,8 +79,10 @@ class ArtistCard extends StatelessWidget {
               onLongPress!();
             },
     );
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    // Flat rows, like track lists: a card per artist added 12 px of chrome
+    // to every row without grouping anything.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: NavisSpace.sm),
       child: onSecondaryTapDown == null
           ? tile
           : GestureDetector(

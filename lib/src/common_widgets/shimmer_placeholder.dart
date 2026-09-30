@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class ShimmerPlaceholder extends StatefulWidget {
   const ShimmerPlaceholder({
     super.key,
     this.height = 16,
     this.width = double.infinity,
-    this.borderRadius = const BorderRadius.all(Radius.circular(8)),
+    this.borderRadius = NavisRadius.smAll,
   });
 
   final double height;
@@ -82,7 +83,7 @@ class ShimmerListTile extends StatelessWidget {
           ShimmerPlaceholder(
             height: leadingSize,
             width: leadingSize,
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
+            borderRadius: NavisRadius.xsAll,
           ),
           const SizedBox(width: 12),
           Expanded(

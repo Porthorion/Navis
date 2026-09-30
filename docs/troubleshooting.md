@@ -268,7 +268,7 @@ If scrobbling appears stuck, verify:
 
 ## Mix and Instant Radio troubleshooting
 
-**Server mix** uses portable Subsonic similarity first. An empty batch can
+**Server Mix** uses portable Subsonic similarity first. An empty batch can
 mean the server has no recommendations for that seed, including while a server
 plugin is still indexing. Try another song or use **Instant Radio**, which can
 draw from eligible liked, recent, and local songs. The client does not infer a

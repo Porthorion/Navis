@@ -99,7 +99,6 @@ class _EqPasteDialogState extends State<EqPasteDialog> {
                 style: const TextStyle(fontFamily: 'monospace'),
                 decoration: InputDecoration(
                   errorText: error,
-                  border: const OutlineInputBorder(),
                 ),
               ),
               CheckboxListTile(
@@ -196,7 +195,6 @@ class _EqImportPreviewDialogState extends State<EqImportPreviewDialog> {
                   maxLength: 120,
                   decoration: InputDecoration(
                     labelText: l10n.eqName,
-                    border: const OutlineInputBorder(),
                   ),
                   validator: (s) =>
                       s == null || s.trim().isEmpty ? l10n.eqNameInvalid : null,
@@ -416,7 +414,6 @@ class _EqAutoEqDialogState extends ConsumerState<EqAutoEqDialog> {
                 labelText: l10n.eqSearch,
                 helperText: l10n.eqAutoEqHint,
                 prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
               ),
               onChanged: (value) => setState(() => query = value),
             ),

@@ -70,7 +70,7 @@ void main() {
 
       await tester.drag(find.byType(ListView), const Offset(0, -1000));
       await tester.pump();
-      expect(find.text('Reset caches & rebuild library'), findsOneWidget);
+      expect(find.text('Reset Caches & Rebuild Library'), findsOneWidget);
       expect(
         find.text(
           'Clear local streaming and artwork caches plus library metadata, then rebuild from the server. Downloaded music is kept.',

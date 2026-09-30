@@ -94,6 +94,16 @@ Checks performed:
 
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
 
+The full suite includes the design-token ratchet
+(`test/src/theme/design_token_guard_test.dart`). It fails when a file under
+`lib/src/` (outside `lib/src/theme/`) adds a literal radius, `fontSize`,
+`Color(0x…)` or palette `Colors.*` beyond its recorded count. It also fails
+when a count drops until the baseline is lowered with:
+
+```bash
+NAVIS_UPDATE_TOKEN_BASELINE=1 flutter test test/src/theme/design_token_guard_test.dart
+```
+
 ## Mandatory Runtime Validation
 
 For exploratory Linux setup and sync routing, `./tool/dev_app.sh run -d linux`

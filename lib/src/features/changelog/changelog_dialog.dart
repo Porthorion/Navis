@@ -6,6 +6,7 @@ import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_entry_tile.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 /// Shows a dismissable changelog dialog for the given [version].
 ///
@@ -58,7 +59,7 @@ class _ChangelogDialog extends StatelessWidget {
         : l10n.whatsNewTitle;
 
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: NavisRadius.xlAll),
       titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),

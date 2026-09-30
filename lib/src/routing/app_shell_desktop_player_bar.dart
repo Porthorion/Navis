@@ -247,13 +247,16 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   required VoidCallback? onPressed,
                   Color? iconColor,
                   FocusNode? focusNode,
+                  Widget Function(Widget icon)? decorateIcon,
+                  String? semanticLabel,
                 }) {
+                  final iconWidget = Icon(icon, color: iconColor);
                   return Semantics(
                     key: ValueKey<String>(keyName),
                     container: true,
                     button: true,
                     enabled: onPressed != null,
-                    label: tooltip,
+                    label: semanticLabel ?? tooltip,
                     onTap: onPressed,
                     excludeSemantics: true,
                     child: NavisTooltip(
@@ -268,7 +271,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         onPressed: onPressed,
-                        icon: Icon(icon, color: iconColor),
+                        icon: decorateIcon?.call(iconWidget) ?? iconWidget,
                       ),
                     ),
                   );
@@ -285,7 +288,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     height: compactLayout ? 42 : 48,
                     decoration: BoxDecoration(
                       color: colors.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: NavisRadius.smAll,
                     ),
                     child: Icon(
                       Icons.music_note_rounded,
@@ -305,7 +308,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     size: kCoverArtStandardSize,
                     width: compactLayout ? 42 : 48,
                     height: compactLayout ? 42 : 48,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: NavisRadius.smAll,
                     loadPriority: CoverArtLoadPriority.critical,
                     isExternalSource: widget.isExternalSource,
                     remoteSourceIndicatorPolicy:
@@ -454,7 +457,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             visualDensity:
                                                 VisualDensity.compact,
                                             alignment: Alignment.centerLeft,
-                                            foregroundColor: colors.primary,
+                                            foregroundColor:
+                                                colors.onSurfaceVariant,
                                           ),
                                           onPressed: () => unawaited(
                                             NormalPlaybackMetadataNavigator.goToArtist(
@@ -464,6 +468,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                               artistName: widget.songArtist,
                                             ),
                                           ),
+                                          // Only the title carries the
+                                          // accent; the artist link stays
+                                          // secondary like other metadata.
                                           child: Text(
                                             artist,
                                             maxLines: 1,
@@ -472,8 +479,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                 .textTheme
                                                 .bodySmall
                                                 ?.copyWith(
-                                                  color: colors.primary,
-                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                  fontWeight: FontWeight.w500,
                                                 ),
                                           ),
                                         ),
@@ -677,7 +685,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                       if (!playback.isRadioMode)
                                         IconButton(
                                           key: const ValueKey<String>(
-                                            'desktopPlayerPreviousButton',
+                                            'desktopPlayerInstantMixButton',
                                           ),
                                           tooltip: canToggleLegacyMix
                                               ? l10n.nowPlayingInstantMixLabel
@@ -728,6 +736,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         ),
                                       if (!playback.isRadioMode)
                                         IconButton(
+                                          key: const ValueKey<String>(
+                                            'desktopPlayerPreviousButton',
+                                          ),
                                           tooltip: hasPlayback
                                               ? l10n.nowPlayingPrevious
                                               : l10n.desktopPlaybackUnavailableTooltip,
@@ -964,6 +975,17 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         ? widget.onToggleQueue
                                         : null,
                                     icon: Icons.queue_music_outlined,
+                                    decorateIcon: (icon) =>
+                                        QueueShuffleBadge(child: icon),
+                                    semanticLabel:
+                                        canOpenQueue &&
+                                            ref.watch(
+                                              queueShuffleEnabledProvider,
+                                            )
+                                        ? l10n.queueShuffleOnStatus(
+                                            l10n.queueTitle,
+                                          )
+                                        : null,
                                   ),
                                   persistentActionButton(
                                     keyName: 'desktopPlayerMiniPlayerButton',

@@ -46,9 +46,7 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
                   const SizedBox(width: 10),
                   Text(
                     l10n.nowPlayingLyrics,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
                   const SizedBox(width: 16),
                   Container(

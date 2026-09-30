@@ -73,7 +73,7 @@
   "settingsTitle": "Settings",
   "settingsServerTitle": "Configuration",
   "settingsServerSubtitle": "Server connection, account, and external services.",
-  "settingsCacheTitle": "Device storage & cache",
+  "settingsCacheTitle": "Device Storage & Cache",
   "settingsCacheSubtitle": "Manage on-device audio, artwork, and download storage.",
   "settingsDownloadsSubtitle": "Manage offline downloads and queue.",
   "settingsSyncTitle": "Sync",
@@ -339,11 +339,11 @@
   "syncSettingsRepairMeteredConfirmTitle": "Repair Library on Mobile Data?",
   "syncSettingsRepairMeteredConfirmBody": "Repairing your library can download a large amount of metadata over your current connection.",
   "syncSettingsRepairMeteredConfirmAction": "Repair on Mobile Data",
-  "cacheSettingsResetLibraryCache": "Reset caches & rebuild library",
+  "cacheSettingsResetLibraryCache": "Reset Caches & Rebuild Library",
   "cacheSettingsResetLibraryCacheDescription": "Clear local streaming and artwork caches plus library metadata, then rebuild from the server. Downloaded music is kept.",
-  "cacheSettingsResetLibraryCacheConfirmTitle": "Reset caches & rebuild library?",
+  "cacheSettingsResetLibraryCacheConfirmTitle": "Reset Caches & Rebuild Library?",
   "cacheSettingsResetLibraryCacheConfirmBody": "This permanently deletes your streaming cache, cover art cache, and local library metadata. Downloaded music will be kept. Navis will then rebuild your library from the server.",
-  "cacheSettingsResetLibraryCacheConfirmAction": "Reset caches & rebuild",
+  "cacheSettingsResetLibraryCacheConfirmAction": "Reset Caches & Rebuild",
   "cacheSettingsResetLibraryCacheMeteredConfirmTitle": "Rebuild Library on Mobile Data?",
   "cacheSettingsResetLibraryCacheMeteredConfirmBody": "Rebuilding your library can download a large amount of metadata over your current connection.",
   "cacheSettingsResetLibraryCacheMeteredConfirmAction": "Rebuild on Mobile Data",
@@ -364,11 +364,11 @@
   "playbackSettingsLrclibSubtitle": "When server lyrics are unavailable, try LRCLIB and cache per song.",
   "playbackSettingsGaplessTitle": "Enable Gapless Playback",
   "playbackSettingsGaplessSubtitle": "Preload tracks to reduce gaps between songs.",
-  "playbackSettingsLegacyInstantMixTitle": "Server mix",
+  "playbackSettingsLegacyInstantMixTitle": "Server Mix",
   "playbackSettingsLegacyInstantMixSubtitle": "Use your server's song recommendations. Turn off for Last.fm · Same Vibes.",
   "playbackSettingsLastFmSameVibesTitle": "Last.fm · Same Vibes",
-  "playbackSettingsLastFmSameVibesSubtitle": "Match Last.fm recommendations to your library. Turn on for Server mix.",
-  "playbackSettingsLegacyInstantMixLocked": "This build has no Last.fm API key, so Server mix is required.",
+  "playbackSettingsLastFmSameVibesSubtitle": "Match Last.fm recommendations to your library. Turn on for Server Mix.",
+  "playbackSettingsLegacyInstantMixLocked": "This build has no Last.fm API key, so Server Mix is required.",
   "playbackSettingsShowRadioPageTitle": "Show Radio Page",
   "playbackSettingsShowRadioPageSubtitle": "Display the Radio tab in bottom navigation.",
   "playbackSettingsAndroidDspSectionTitle": "Android Audio Effects",
@@ -696,6 +696,7 @@
   "libraryArtistsEmptySubtitle": "Run a sync to populate your library.",
   "libraryArtistsIndexAll": "All",
   "libraryArtistsErrorTitle": "Could Not Load Artists",
+  "libraryLikedArtistsSectionTitle": "Liked Artists",
   "libraryLikedAlbumsSectionTitle": "Liked Albums",
   "libraryLikedAlbumsSeeAll": "See all",
   "libraryLikedAlbumsAllTitle": "Liked Albums",
@@ -791,7 +792,7 @@
   "libraryGenreSongsEmptyTitle": "No Songs in This Genre",
   "libraryGenreSongsEmptySubtitle": "Sync to refresh genre songs.",
   "libraryGenreLoadErrorTitle": "Could Not Load Genre",
-  "artistCardAlbumCount": "{count} albums",
+  "artistCardAlbumCount": "{count, plural, =1{1 album} other{{count} albums}}",
   "@artistCardAlbumCount": {
     "placeholders": {
       "count": {
@@ -936,6 +937,14 @@
   "nowPlayingUnknownAlbum": "Unknown album",
   "nowPlayingShuffle": "Shuffle",
   "nowPlayingShuffleOff": "Shuffle off",
+  "queueShuffleOnStatus": "{queue}, shuffle on",
+  "@queueShuffleOnStatus": {
+    "placeholders": {
+      "queue": {
+        "type": "String"
+      }
+    }
+  },
   "nowPlayingPrevious": "Previous",
   "nowPlayingRestartCurrent": "Restarting current track",
   "nowPlayingPlay": "Play",
@@ -1003,6 +1012,7 @@
   "ratingHint": "Tap a star to set or clear",
   "ratingNoValue": "No Rating",
   "ratingNotLiked": "Not liked",
+  "ratingActionLabel": "Rate",
   "ratingValueShort": "{rating}/5",
   "@ratingValueShort": {
     "placeholders": {
@@ -1031,6 +1041,7 @@
   "sameVibesRateLimited": "Last.fm is limiting requests. Try again later.",
   "searchRecentTitle": "Recent Searches",
   "searchClearRecent": "Clear",
+  "searchClearQuery": "Clear search",
   "searchNoResults": "No Results Found",
   "searchNoResultsForQuery": "No results for \"{query}\"",
   "@searchNoResultsForQuery": {
@@ -1064,6 +1075,25 @@
   "playlistsEmpty": "No Playlists Yet",
   "playlistsEmptySubtitle": "Create a playlist to get started.",
   "playlistsLoadError": "Failed to load playlists",
+  "entityTotalDurationMinutes": "{minutes} min",
+  "@entityTotalDurationMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "entityTotalDurationHours": "{hours} hr {minutes} min",
+  "@entityTotalDurationHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "playlistsSongCount": "{count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
   "@playlistsSongCount": {
     "placeholders": {
@@ -1686,7 +1716,7 @@
   "unavailableReviewTitle": "Unavailable Items",
   "unavailableReviewEmpty": "No unavailable items are waiting for review.",
   "unavailableReviewLoadError": "Could not load the review list.",
-  "unavailableReviewUnknownTitle": "Unknown item",
+  "unavailableReviewUnknownTitle": "Unknown Item",
   "unavailableReviewReasonMissing": "No longer on the server. Favorites, ratings, history, and downloads are kept until you decide.",
   "unavailableReviewReasonAmbiguous": "Several possible replacements were found. Decide which one is correct before anything is relinked.",
   "unavailableReviewReasonConflicting": "Conflicting identifiers were found in the catalog. Review before anything is relinked.",
@@ -1697,7 +1727,7 @@
   "unavailableReviewKeepForLater": "Keep for later",
   "unavailableReviewRemoveFromLiked": "Remove from Liked",
   "unavailableReviewNoMatchFound": "No matching item found in the current library.",
-  "unavailableReviewRelinkTitle": "Relink item",
+  "unavailableReviewRelinkTitle": "Relink Item",
   "unavailableReviewRelinkOld": "Unavailable item",
   "unavailableReviewRelinkNew": "Selected replacement",
   "unavailableReviewReferences": "References carried over",
@@ -1722,7 +1752,7 @@
   "unavailableReviewEntry": "Unavailable items",
   "unavailableReviewEntryWithCount": "Unavailable items ({count})",
 
-  "appearanceArtworkSizeLabel": "Artwork size",
+  "appearanceArtworkSizeLabel": "Artwork Size",
   "appearanceArtworkSizeSub": "Controls artwork size in album and artist grids. Columns adjust to the available space.",
   "appearanceArtworkSizeSmall": "Small",
   "appearanceArtworkSizeMedium": "Medium",
@@ -1742,7 +1772,7 @@
   "playbackPresetLabel": "Preset",
   "playbackPresetNone": "Normal",
   "playbackPresetCustom": "Custom",
-  "playbackPresetSaveNew": "Save as new",
+  "playbackPresetSaveNew": "Save as New",
   "playbackPresetName": "Preset name",
   "playbackPresetRename": "Rename",
   "playbackPresetDelete": "Delete",
@@ -1753,7 +1783,7 @@
   "playbackAdjustmentSaveFailure": "Could not save your changes. Retry to keep them after restart.",
   "playbackAdjustmentLoadFailure": "Could not load playback adjustments.",
   "playbackAdjustmentRetry": "Retry",
-  "playbackAdjustmentResetBoth": "Reset speed & pitch",
+  "playbackAdjustmentResetBoth": "Reset Speed & Pitch",
   "playbackAdjustmentCancel": "Cancel",
   "playbackAdjustmentApply": "Apply",
   "playbackAdjustmentSave": "Save",
@@ -1771,8 +1801,8 @@
       "value": {"type": "String"}
     }
   },
-  "playbackPitchLock": "Pitch follows speed",
-  "playbackPitchLockSubtitle": "Faster sounds higher, like a record player.",
+  "playbackPitchLock": "Pitch Lock",
+  "playbackPitchLockSubtitle": "Match pitch to speed.",
   "playbackPitchFollowsSpeed": "Follows playback speed",
   "playbackPitchLockUnsupportedRange": "Pitch cannot follow this speed on this audio backend. Choose a speed within the supported linked range.",
   "playbackAdjustmentPrecision": "Enter a number with no more than two decimal places.",
@@ -1873,7 +1903,7 @@
   "eqMode": "Editing mode",
   "eqPresets": "Presets",
   "eqBuiltIn": "Built in",
-  "eqSaveAs": "Save as new",
+  "eqSaveAs": "Save as New",
   "eqUpdate": "Update preset",
   "eqRename": "Rename",
   "eqDuplicate": "Duplicate",
@@ -1918,7 +1948,7 @@
   "eqRemoveFilter": "Remove filter",
   "eqFilterEnabled": "Filter enabled",
   "eqNoFilters": "No filters. Add one to shape the curve.",
-  "eqModeChangeTitle": "Start a new flat curve?",
+  "eqModeChangeTitle": "Start a New Flat Curve?",
   "eqModeChangeDescription": "Changing to a fixed-band mode starts a new Custom draft. Saved presets stay in your library. Undo restores the previous curve.",
   "eqContinue": "Continue",
   "eqImportText": "AutoEQ ParametricEQ / FixedBandEQ text, or Navis preset JSON",
@@ -1978,7 +2008,7 @@
   "eqSaveChanges": "Save changes",
   "eqDiscardChanges": "Discard changes",
   "eqDiscardDescription": "Discard all mode drafts for this preset and restore its saved settings?",
-  "eqDiscardDelete": "Discard and delete",
+  "eqDiscardDelete": "Discard and Delete",
   "eqDeleteDraftDescription": "This preset has drafts. Save them as a new preset or discard them before deleting.",
   "eqApply": "Apply",
   "eqEditBand": "Edit band",
@@ -2056,5 +2086,97 @@
       "parameter": {"type": "String"}
     }
   },
-  "eqCloseLibrary": "Close presets"
+  "eqCloseLibrary": "Close presets",
+  "onboardingSaveFailed": "Could not save setup. Try again.",
+  "onboardingSkipDialogTitle": "Skip Customization?",
+  "onboardingSkipDialogMessage": "Your current settings will be kept. You can reopen this from Settings at any time.",
+  "onboardingKeepCustomizing": "Keep customizing",
+  "onboardingSkipSetup": "Skip setup",
+  "onboardingTitle": "Make Navis Yours",
+  "onboardingReviewTitle": "Customize Navis",
+  "onboardingStepProgress": "Step {current} of {total}",
+  "@onboardingStepProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingStepProgressSemantics": "Customization step {current} of {total}",
+  "@onboardingStepProgressSemantics": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingBack": "Back",
+  "onboardingContinue": "Continue",
+  "onboardingFinish": "Finish",
+  "onboardingScrollForMore": "Scroll for more options",
+  "onboardingAppearanceTitle": "Choose Your Look",
+  "onboardingAppearanceDescription": "Pick a theme and accent. You can change both later in Appearance settings.",
+  "onboardingAccentColor": "Accent color",
+  "onboardingAppearanceColorPickerHint": "This is the full color picker from Appearance settings. You can revisit it there at any time.",
+  "onboardingListeningTitle": "Tune Your Listening",
+  "onboardingListeningDescription": "Choose stream quality, formats, local playback priority, and track transitions.",
+  "onboardingWifiQuality": "Wi-Fi quality",
+  "onboardingWifiFormat": "Wi-Fi format",
+  "onboardingMobileQuality": "Mobile quality",
+  "onboardingMobileFormat": "Mobile format",
+  "onboardingPreferLocalTitle": "Prefer Downloaded or Cached Audio",
+  "onboardingPreferLocalSubtitle": "Use a complete local copy before streaming when one is available.",
+  "onboardingScrobbleTitle": "Scrobble to Your Music Server",
+  "onboardingScrobbleSubtitle": "Report now-playing and completed plays to your Subsonic server.",
+  "onboardingGaplessTitle": "Gapless Playback",
+  "onboardingGaplessSubtitle": "Move between tracks without an added pause.",
+  "onboardingCrossfadeTitle": "Crossfade",
+  "onboardingCrossfadeSubtitle": "Blend the end of a track into the next one.",
+  "onboardingCrossfadeDuration": "{seconds, plural, =1{Crossfade duration: 1 second} other{Crossfade duration: {seconds} seconds}}",
+  "@onboardingCrossfadeDuration": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingCrossfadeSecondsShort": "{seconds}s",
+  "@onboardingCrossfadeSecondsShort": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingCrossfadeType": "Crossfade type",
+  "onboardingCrossfadeTypeSmart": "Smart — only between different albums",
+  "onboardingCrossfadeSmartDescription": "Smart avoids blending tracks from the same album.",
+  "onboardingCrossfadeNormalDescription": "Normal blends every eligible track transition.",
+  "onboardingQueueTitle": "Queue and Downloads",
+  "onboardingQueueDescription": "Control what happens when you play a track and when downloads can run.",
+  "onboardingAlbumQueueTitle": "Queue Whole Albums",
+  "onboardingAlbumQueueSubtitle": "Playing a track from an album queues the album from that track.",
+  "onboardingLikedQueueTitle": "Queue All Liked Songs",
+  "onboardingLikedQueueSubtitle": "On the Liked page, start from the selected song.",
+  "onboardingLikedQueueDisabledSubtitle": "Enable album queueing to use this option.",
+  "onboardingWifiOnlyDownloadsTitle": "Download Only on Wi-Fi",
+  "onboardingWifiOnlyDownloadsSubtitle": "Avoid downloading music over a metered connection.",
+  "onboardingServicesTitle": "Optional Music Services",
+  "onboardingServicesDescription": "These services are optional. You can configure or remove them later in Settings.",
+  "onboardingListenBrainzDisclosure": "When enabled, Navis sends track, artist, album, duration, play time, and now-playing activity to ListenBrainz. Your token stays in secure device storage.",
+  "onboardingListenBrainzTokenLabel": "ListenBrainz User Token",
+  "onboardingListenBrainzGetToken": "Get a ListenBrainz user token",
+  "onboardingValidating": "Validating…",
+  "onboardingListenBrainzValidate": "Validate and connect",
+  "onboardingLastFmBundledDescription": "This build already includes a Last.fm API key. Same Vibes similar-song queues and artist top tracks are available; Last.fm scrobbling is not enabled.",
+  "onboardingLastFmDescription": "A Last.fm API key enables Same Vibes similar-song queues and artist top tracks. It does not enable Last.fm scrobbling.",
+  "onboardingLastFmApiKeyLabel": "Last.fm API Key",
+  "onboardingLastFmValidateKey": "Validate key",
+  "onboardingLastFmGetApiKey": "Get API key"
 }

@@ -15,6 +15,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_theme.dart';
+import 'package:navis/src/theme/navis_tokens.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
   const AppearanceSettingsScreen({super.key});
@@ -532,7 +533,6 @@ class _LanguageSelector extends StatelessWidget {
       child: DropdownButtonFormField<String?>(
         initialValue: appLocale,
         decoration: InputDecoration(
-          border: const OutlineInputBorder(),
           helperText: enabled ? null : l10n.appearanceLanguageUnavailable,
         ),
         items: <DropdownMenuItem<String?>>[
@@ -588,11 +588,11 @@ class _SettingsCollapsibleGroupState extends State<_SettingsCollapsibleGroup> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Material(
         color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: NavisRadius.mdAll,
         child: Column(
           children: <Widget>[
             InkWell(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: NavisRadius.mdAll,
               onTap: () {
                 final nextExpanded = !_expanded;
                 setState(() => _expanded = nextExpanded);
@@ -629,9 +629,7 @@ class _SettingsCollapsibleGroupState extends State<_SettingsCollapsibleGroup> {
                         children: <Widget>[
                           Text(
                             widget.title,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: theme.textTheme.titleMedium,
                           ),
                         ],
                       ),
@@ -1337,7 +1335,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 prefixText: '#',
                 labelText: l10n.appearanceColorPickerHexLabel,
                 isDense: true,
-                border: OutlineInputBorder(),
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 10,
@@ -1447,7 +1444,7 @@ class _HueSlider extends StatelessWidget {
         Container(
           height: 24,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: NavisRadius.mdAll,
             gradient: LinearGradient(
               colors: List<Color>.generate(
                 360 ~/ 10 + 1,
@@ -1550,7 +1547,7 @@ class _HomeDensitySelector extends StatelessWidget {
                   ? colorScheme.onPrimaryContainer
                   : colorScheme.onSurfaceVariant,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: NavisRadius.mdAll,
               ),
             ),
           ),
@@ -1908,7 +1905,7 @@ class _DesktopNavbarSettings extends StatelessWidget {
                   ? colorScheme.onPrimaryContainer
                   : colorScheme.onSurfaceVariant,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: NavisRadius.mdAll,
               ),
             ),
           ),
