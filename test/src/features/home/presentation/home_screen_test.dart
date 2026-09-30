@@ -822,8 +822,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 120));
 
     expect(find.text('Matching'), findsOneWidget);
-    expect(find.text('Ambiguous match'), findsOneWidget);
-    expect(find.text('Not available on your server'), findsOneWidget);
+    // Short labels on the title line; full wording in their tooltips.
+    expect(find.text('Unclear match'), findsOneWidget);
+    expect(find.text('Not on server'), findsOneWidget);
+    expect(find.byTooltip('Ambiguous match'), findsOneWidget);
+    expect(find.byTooltip('Not available on your server'), findsOneWidget);
     expect(find.byTooltip('Matching'), findsOneWidget);
     expect(find.byTooltip('Search'), findsNWidgets(2));
   });

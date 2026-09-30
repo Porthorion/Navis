@@ -124,6 +124,8 @@ class AdaptiveTrackRow extends StatelessWidget {
     this.onSecondaryTapDown,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     this.showAlbumColumn = true,
+    this.titleBadge,
+    this.minHeight = 64,
     super.key,
   });
 
@@ -147,6 +149,14 @@ class AdaptiveTrackRow extends StatelessWidget {
   /// False on an album's own track list, where every row would repeat the
   /// same album name.
   final bool showAlbumColumn;
+
+  /// A compact status shown after the title on the same line (for example
+  /// "Not on server"), so it never adds a line to the row.
+  final Widget? titleBadge;
+
+  /// Rows sized for artwork use 64; numbered lists without artwork can be
+  /// denser.
+  final double minHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -187,17 +197,27 @@ class AdaptiveTrackRow extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            RemoteSourceMetadataLine(
-              isRemote: remoteOnTitle,
-              metadata: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: selected ? theme.colorScheme.primary : null,
+            Row(
+              children: [
+                Flexible(
+                  child: RemoteSourceMetadataLine(
+                    isRemote: remoteOnTitle,
+                    metadata: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: selected ? theme.colorScheme.primary : null,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                if (titleBadge case final badge?) ...[
+                  const SizedBox(width: 6),
+                  Flexible(child: badge),
+                ],
+              ],
             ),
             if (secondary.isNotEmpty)
               RemoteSourceMetadataLine(
@@ -261,7 +281,7 @@ class AdaptiveTrackRow extends StatelessWidget {
           );
         } else if (actions != null && mode != TrackRowMode.compact) {
           actionWidget = ConstrainedBox(
-            constraints: BoxConstraints(minWidth: estimatedActions.toDouble()),
+            constraints: BoxConstraints(minWidth: estimatedActions),
             child: Align(
               alignment: Alignment.centerRight,
               widthFactor: 1,
@@ -333,7 +353,7 @@ class AdaptiveTrackRow extends StatelessWidget {
                 onSecondaryTapDown: onSecondaryTapDown,
                 borderRadius: NavisRadius.mdAll,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 64),
+                  constraints: BoxConstraints(minHeight: minHeight),
                   child: Padding(
                     padding: padding,
                     child: Column(

@@ -1145,6 +1145,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get weeklyPlaylistTrackUnavailable => 'Not available on your server';
 
   @override
+  String get weeklyPlaylistTrackUnavailableShort => 'Not on server';
+
+  @override
+  String get weeklyPlaylistAmbiguousMatchShort => 'Unclear match';
+
+  @override
   String get homeContinueListeningTitle => 'Continue Listening';
 
   @override

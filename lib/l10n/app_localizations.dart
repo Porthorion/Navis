@@ -2022,6 +2022,18 @@ abstract class AppLocalizations {
   /// **'Not available on your server'**
   String get weeklyPlaylistTrackUnavailable;
 
+  /// No description provided for @weeklyPlaylistTrackUnavailableShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Not on server'**
+  String get weeklyPlaylistTrackUnavailableShort;
+
+  /// No description provided for @weeklyPlaylistAmbiguousMatchShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Unclear match'**
+  String get weeklyPlaylistAmbiguousMatchShort;
+
   /// No description provided for @homeContinueListeningTitle.
   ///
   /// In en, this message translates to:

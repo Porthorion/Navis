@@ -593,6 +593,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
     required this.onSearch,
     this.contentPadding,
     this.horizontalTitleGap = 6,
+    this.minHeight = 64,
   });
 
   final ListenBrainzResolvedRecommendation recommendation;
@@ -601,6 +602,7 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
   final ValueChanged<ListenBrainzPlaylistTrack> onSearch;
   final EdgeInsetsGeometry? contentPadding;
   final double horizontalTitleGap;
+  final double minHeight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -622,13 +624,24 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
         ? SongPlaybackIndicatorState.inactive
         : ref.watch(songPlaybackIndicatorStateProvider(playableSong.id));
     final isSelected = playbackState.isSelected;
+    final ambiguous =
+        recommendation.status ==
+        ListenBrainzRecommendationMatchStatus.ambiguous;
     final statusLabel = pending
         ? l10n.weeklyPlaylistMatching
         : unavailable
-        ? recommendation.status ==
-                  ListenBrainzRecommendationMatchStatus.ambiguous
+        ? ambiguous
               ? l10n.weeklyPlaylistAmbiguousMatch
               : l10n.weeklyPlaylistTrackUnavailable
+        : null;
+    // The status rides on the title line as a short label; the full
+    // sentence stays available as its tooltip and accessible label.
+    final shortStatus = pending
+        ? l10n.weeklyPlaylistMatching
+        : unavailable
+        ? ambiguous
+              ? l10n.weeklyPlaylistAmbiguousMatchShort
+              : l10n.weeklyPlaylistTrackUnavailableShort
         : null;
 
     final tile = Opacity(
@@ -648,13 +661,44 @@ class _ListenBrainzRecommendationTile extends ConsumerWidget {
           leadingExtent: 32,
           leadingGap: horizontalTitleGap,
           actionExtent: 96,
-          badge: statusLabel == null
+          minHeight: minHeight,
+          titleBadge: shortStatus == null
               ? null
-              : Text(
-                  statusLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall,
+              : Tooltip(
+                  // "Matching" is already short and matches the hourglass
+                  // button's tooltip, so it needs no second tooltip.
+                  message: shortStatus == statusLabel ? '' : statusLabel,
+                  excludeFromSemantics: true,
+                  child: Semantics(
+                    label: statusLabel,
+                    excludeSemantics: true,
+                    child: Row(
+                      key: const ValueKey<String>('weekly-track-status'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!pending) ...[
+                          Icon(
+                            ambiguous
+                                ? Icons.help_outline_rounded
+                                : Icons.cloud_off_rounded,
+                            size: 13,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 3),
+                        ],
+                        Flexible(
+                          child: Text(
+                            shortStatus,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
           leading: SizedBox(
             width: 32,

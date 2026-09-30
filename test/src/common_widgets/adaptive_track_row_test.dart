@@ -49,6 +49,43 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('title badges share the title line in dense rows', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1000, 600));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(
+          body: Column(
+            children: [
+              AdaptiveTrackRow(
+                key: ValueKey('dense'),
+                title: 'Unmatched title',
+                artist: 'An artist',
+                album: 'An album',
+                minHeight: 48,
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                titleBadge: Text('Not on server'),
+                leading: Text('6'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('dense'));
+    expect(tester.getSize(row).height, 48);
+    final title = tester.getRect(find.text('Unmatched title'));
+    final badge = tester.getRect(find.text('Not on server'));
+    expect(badge.center.dy, closeTo(title.center.dy, 2));
+    expect(badge.left, greaterThan(title.right));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('wide remote rows keep the badge on the title line', (
     tester,
   ) async {

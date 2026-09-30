@@ -474,6 +474,8 @@
   "weeklyPlaylistSearchAction": "Search",
   "weeklyPlaylistAmbiguousMatch": "Ambiguous match",
   "weeklyPlaylistTrackUnavailable": "Not available on your server",
+  "weeklyPlaylistTrackUnavailableShort": "Not on server",
+  "weeklyPlaylistAmbiguousMatchShort": "Unclear match",
   "homeContinueListeningTitle": "Continue Listening",
   "homeContinueListeningResume": "Resume",
   "homeContinueListeningOpenNowPlaying": "Open player",

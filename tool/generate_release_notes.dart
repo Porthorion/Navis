@@ -372,6 +372,10 @@ const List<_Version> _changelogs = [
         type: _EntryType.fix,
       ),
       _Entry(
+        'The You Might Like track lists on desktop are more compact, and unmatched weekly-playlist tracks show a short "Not on server" or "Unclear match" label beside the title (with the full explanation on hover) instead of an extra line',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
         'Missing album artwork now shows a softly shaded tile with an icon sized to the cover, so grids, headers and the Mini Player no longer look broken where art is absent',
         type: _EntryType.improvement,
       ),

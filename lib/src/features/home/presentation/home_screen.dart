@@ -2867,6 +2867,8 @@ class _DesktopListenBrainzSongListState
         return _ListenBrainzRecommendationTile(
           recommendation: recommendation,
           index: index + 1,
+          // Numbered hero list without artwork: denser rows.
+          minHeight: 48,
           onPlay: (song) {
             final tableSong = recommendation.hasServerSong
                 ? recommendation.tableSong
@@ -3062,6 +3064,8 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
       leadingExtent: 24,
       leadingGap: 6,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      // Numbered hero list without artwork: denser rows.
+      minHeight: 48,
       leading: Center(
         child: playbackState.isSelected
             ? SongPlaybackMarker(state: playbackState, size: 17)
