@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_import_service.dart';
@@ -141,7 +142,7 @@ class _DownloadMatchPickerState extends ConsumerState<_DownloadMatchPicker> {
     _controller = TextEditingController(
       text: widget.item.sourceTitle?.isNotEmpty == true
           ? widget.item.sourceTitle!
-          : widget.item.relativePath.split('/').last.split('.').first,
+          : p.basenameWithoutExtension(widget.item.relativePath),
     );
     _results = _search(_controller.text);
   }

@@ -314,6 +314,44 @@ void main() {
       },
     );
 
+    test('a tagged download is recognised by its sidecar record', () async {
+      final artist = Directory('${root.path}/Jack Harlow')..createSync();
+      // A FLAC with a Vorbis comment block, which the tag writer rewrites.
+      final comment = <int>[5, 0, 0, 0, ...'navis'.codeUnits, 0, 0, 0, 0];
+      final file = File('${artist.path}/Hello Miss Johnson.flac')
+        ..writeAsBytesSync(<int>[
+          ...'fLaC'.codeUnits,
+          0,
+          0,
+          0,
+          0,
+          0x84,
+          0,
+          0,
+          comment.length,
+          ...comment,
+          0xff,
+          0xf8,
+          0,
+          0,
+        ]);
+      final before = file.lengthSync();
+      await service('profile').recordDownloaded(
+        root: root,
+        file: file,
+        songId: 'song-1',
+        format: 'flac',
+      );
+      expect(file.lengthSync(), isNot(before));
+
+      final preview = await service('profile').preview(root);
+
+      expect(
+        preview.items.single.matchOrigin,
+        PermanentDownloadMatchOrigin.manifest,
+      );
+    });
+
     test('rejects a sidecar record from another profile', () async {
       final artist = Directory('${root.path}/Jack Harlow')..createSync();
       final file = File('${artist.path}/Hello Miss Johnson.flac')

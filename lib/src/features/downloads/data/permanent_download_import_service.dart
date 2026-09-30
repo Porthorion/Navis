@@ -750,6 +750,9 @@ class PermanentDownloadImportService {
     required String format,
   }) async {
     final canonicalRoot = await root.resolveSymbolicLinks();
+    // Tag first: rewriting FLAC comments changes the size the manifest
+    // records, and a stale size defeats the manifest match on rescan.
+    await _writeIdentityTags(file, songId);
     final stat = await file.stat();
     final manifest = _openManifest(Directory(canonicalRoot));
     try {
@@ -764,7 +767,6 @@ class PermanentDownloadImportService {
           updatedAt: DateTime.now(),
         ),
       );
-      await _writeIdentityTags(file, songId);
     } finally {
       manifest.close();
     }
