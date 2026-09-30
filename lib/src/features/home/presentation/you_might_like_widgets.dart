@@ -281,10 +281,12 @@ class _ShowcaseInfoPanel extends ConsumerWidget {
 
 /// A soft wash of the focused cover's colours behind the section.
 ///
-/// The cached cover is decoded at a tiny size and stretched, which blurs it
-/// without a live blur filter; an overlay then fades it into the page, so no
-/// offscreen layer is needed while idle.
-class _ShowcaseColourWash extends StatelessWidget {
+/// The cover is sampled into a small colour grid (see
+/// [coverColourFieldProvider]) and painted as a smoothly shaded mesh, which
+/// stays smooth at any width, unlike a stretched thumbnail. Switching covers
+/// glides the colours instead of crossfading images, and a page-coloured
+/// veil keeps contrast.
+class _ShowcaseColourWash extends ConsumerWidget {
   const _ShowcaseColourWash({required this.coverArtId, this.subtle = false});
 
   static const Key washKey = ValueKey<String>('home-showcase-wash');
@@ -295,7 +297,7 @@ class _ShowcaseColourWash extends StatelessWidget {
   final bool subtle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final background = theme.scaffoldBackgroundColor;
     final motion = MotionPolicy.of(context);
@@ -303,55 +305,58 @@ class _ShowcaseColourWash extends StatelessWidget {
     // Light surfaces need a gentler tint to keep text contrast.
     final light = theme.brightness == Brightness.light;
     final veil = subtle ? (light ? 0.9 : 0.78) : (light ? 0.84 : 0.66);
-    final Widget wash = coverId == null || coverId.isEmpty
-        ? const SizedBox.expand()
-        : SizedBox.expand(
-            key: ValueKey<String>('home-showcase-wash-$coverId'),
-            child: FittedBox(
-              fit: BoxFit.cover,
-              clipBehavior: Clip.hardEdge,
-              child: CoverArtImage(
-                coverArtId: coverId,
-                size: kCoverArtStandardSize,
-                width: 16,
-                height: 16,
-                fadeInDuration: Duration.zero,
-                showLoadingPlaceholder: false,
-                showErrorPlaceholder: false,
-                remoteSourceIndicatorPolicy: RemoteSourceIndicatorPolicy.hidden,
-              ),
-            ),
-          );
+    final field = coverId == null || coverId.isEmpty
+        ? null
+        : ref.watch(coverColourFieldProvider(coverId)).asData?.value;
+    final target = field ?? CoverColourField.uniform(background);
     return IgnorePointer(
       key: washKey,
       child: ExcludeSemantics(
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            AnimatedSwitcher(
-              duration: motion.reduceMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 400),
-              child: wash,
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    background,
-                    background.withValues(alpha: veil),
-                    background.withValues(alpha: veil),
-                    background,
-                  ],
-                  stops: const <double>[0, 0.18, 0.7, 1],
+        // The mesh overscans its box so no edge shows; clip it to the box so
+        // the unveiled overscan never spills onto neighbouring content.
+        child: ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              TweenAnimationBuilder<CoverColourField>(
+                tween: _CoverColourFieldTween(end: target),
+                duration: motion.reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 400),
+                curve: Curves.easeOut,
+                builder: (context, value, _) => CustomPaint(
+                  painter: CoverColourFieldPainter(value),
                 ),
               ),
-            ),
-          ],
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[
+                      background,
+                      background.withValues(alpha: veil),
+                      background.withValues(alpha: veil),
+                      background,
+                    ],
+                    stops: const <double>[0, 0.18, 0.7, 1],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+class _CoverColourFieldTween extends Tween<CoverColourField> {
+  _CoverColourFieldTween({super.end});
+
+  @override
+  CoverColourField lerp(double t) {
+    final from = begin ?? end!;
+    return CoverColourField.lerp(from, end!, t);
   }
 }

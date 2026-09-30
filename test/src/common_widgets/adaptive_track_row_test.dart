@@ -49,6 +49,54 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('wide remote rows keep the badge on the title line', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1000, 600));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(
+          body: Column(
+            children: [
+              AdaptiveTrackRow(
+                key: ValueKey('local'),
+                title: 'Local title',
+                artist: 'An artist',
+                album: 'An album',
+                duration: 223,
+                leading: Icon(Icons.music_note),
+              ),
+              AdaptiveTrackRow(
+                key: ValueKey('remote'),
+                title: 'Remote title',
+                artist: 'An artist',
+                album: 'An album',
+                duration: 223,
+                isRemote: true,
+                leading: Icon(Icons.music_note),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final local = find.byKey(const ValueKey('local'));
+    final remote = find.byKey(const ValueKey('remote'));
+    expect(tester.getSize(remote).height, tester.getSize(local).height);
+    final title = tester.getRect(find.text('Remote title'));
+    expect(title.left, tester.getRect(find.text('Local title')).left);
+    final badge = tester.getRect(
+      find.descendant(of: remote, matching: find.byType(RemoteSourceIndicator)),
+    );
+    expect(badge.center.dy, closeTo(title.center.dy, 2));
+    expect(badge.left, greaterThan(title.right));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('narrow row actions keep every column under its heading', (
     tester,
   ) async {

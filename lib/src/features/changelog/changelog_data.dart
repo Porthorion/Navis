@@ -343,6 +343,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'The You Might Like colour wash is now a smooth gradient drawn from each cover\'s colours, so it no longer looks pixelated on wide displays, and it blends between picks. In song lists, the Remote badge sits beside the title instead of on its own line, so remote songs line up with the rest',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Missing album artwork now shows a softly shaded tile with an icon sized to the cover, so grids, headers and the Mini Player no longer look broken where art is absent',
         type: ChangelogEntryType.improvement,
       ),

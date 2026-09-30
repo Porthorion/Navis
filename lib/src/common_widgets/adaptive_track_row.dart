@@ -180,20 +180,26 @@ class AdaptiveTrackRow extends StatelessWidget {
           TrackRowMode.medium => showAlbumColumn ? album ?? '' : '',
           TrackRowMode.wide => '',
         };
+        // Without a secondary line the Remote badge rides on the title line,
+        // so remote rows keep the height and title position of local rows.
+        final remoteOnTitle = isRemote && secondary.isEmpty;
         final titleColumn = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: selected ? theme.colorScheme.primary : null,
+            RemoteSourceMetadataLine(
+              isRemote: remoteOnTitle,
+              metadata: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: selected ? theme.colorScheme.primary : null,
+                ),
               ),
             ),
-            if (secondary.isNotEmpty || isRemote)
+            if (secondary.isNotEmpty)
               RemoteSourceMetadataLine(
                 metadata: Text(
                   secondary,

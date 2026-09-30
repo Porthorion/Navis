@@ -510,11 +510,18 @@ recommendation showcase.
 header adds the same reason line and a compact Play/Shuffle pair.
 
 **Colour wash (`_ShowcaseColourWash`, both layouts):**
-- Decodes the cached 600 px cover at 16 px and stretches it. There is no
-  live blur and no extra network request.
+- `coverColourFieldProvider` (`cover_colour_field.dart`) decodes the cached
+  600 px cover at 24 px (same URL and cache key as the cards, so no new
+  request), averages it into a 3×3 colour grid, and keeps the result in a
+  64-entry LRU.
+- `CoverColourFieldPainter` draws the grid as a vertex-coloured mesh
+  (`Canvas.drawVertices`). The GPU shades it smoothly at any width, where a
+  stretched thumbnail pixelates on wide displays. The mesh overscans its box
+  and is clipped to it.
 - A veil of the page colour covers it (lighter in light themes and on
   desktop), so it needs no offscreen layer while idle.
-- Reduced motion removes its crossfade.
+- Changing covers interpolates the nine colours over 400 ms; reduced motion
+  switches instantly.
 
 Paging, auto-advance and the test/diagnostics keys
 `home-random-hero-carousel(-page-N)` are unchanged.
