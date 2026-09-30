@@ -87,13 +87,14 @@ Filter 3: OFF HSC Fc 10000 Hz Gain -6.6 dB Q 0.70
     for (final invalid in [
       '',
       'Preamp: -3 dB',
-      'Preamp: -3 dB\nPreamp: -4 dB\nFilter 1: ON PK Fc 100 Hz Gain 1 dB Q 1',
-      '$profile\nInclude: other.txt',
-      '$profile\nFilter 1: ON PK Fc 100 Hz Gain 1 dB Q 1',
       'Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 25 dB Q 1',
       'Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 1 dB Q 0',
       'Preamp: NaN dB\nFilter 1: ON PK Fc 100 Hz Gain 1 dB Q 1',
-      'GraphicEQ: 20 -3; 1000 0',
+      'Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 1 dB',
+      'Preamp: -3 dB\nFilter 1: ON XY Fc 100 Hz Gain 1 dB Q 1',
+      'Preamp: -3 dB\nSomething odd',
+      'GraphicEQ: 20 -3',
+      '{"not": "an eq"}',
     ]) {
       expect(() => parse(invalid), throwsFormatException, reason: invalid);
     }

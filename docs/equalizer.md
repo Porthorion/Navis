@@ -251,14 +251,35 @@ offline, with recommended-only filtering by default. Explicit refresh downloads
 and validates both index files at one immutable revision, replacing the cached
 index atomically. Existing saved presets never update automatically.
 
-Downloading a selection obtains its `ParametricEQ.txt` export. File and paste
-imports also accept `FixedBandEQ.txt` and versioned Navis JSON. Imports preserve
-preamp, filter order, frequencies, gains, Q, on/off flags, source, revision,
-measurement attribution, and original text. The supported AutoEQ forms are
-`PK`, `LSC`, and `HSC`. Dense `GraphicEQ`, convolution audio, unknown directives,
-oversized input (over 1 MiB), malformed content, and unsupported versions are
-rejected before changing playback. Exported Navis JSON retains the full profile
-and original source for a round trip.
+Downloading a selection obtains its `ParametricEQ.txt` export.
+
+## Importing presets
+
+File and paste imports go through one pipeline
+(`lib/src/features/equalizer/data/eq_import_parser.dart` and `eq_import/`) that
+recognises the format by content, never by file name:
+
+| Format | Read as |
+|---|---|
+| Navis preset JSON (`format: navis-eq`, version 1) | As saved; the file's own name is kept and the EQ is never switched on by an import. |
+| EasyEffects equalizer JSON | Left-channel bands; Bell, shelf, pass and notch types; `mute` disables a band; input plus output gain becomes the preamp. |
+| AutoEQ `ParametricEQ.txt`, REW filter exports, Equalizer APO configs | Numbered or unnumbered `Filter:` lines with `PK`/`PEQ`, `LS`/`LSC`/`HS`/`HSC` (Q or a dB/octave slope), `LP`/`LPQ`, `HP`/`HPQ` and `NO`; `Fc`, `Gain`, `Q` or `BW Oct`. REW headers and empty `None` slots are skipped. |
+| AutoEQ `FixedBandEQ.txt` | Detected when there are ten peaking bands at the AutoEQ frequencies with one shared Q, and kept as Imported fixed bands. |
+| `GraphicEQ:` curves (AutoEQ, Wavelet) | Fitted with up to 31 third-octave peaking filters (damped Gauss–Newton against the curve on a log grid, using Navis's own biquad response); the preview reports the average error. |
+
+Files may be UTF-8 (with or without a BOM), UTF-16 in either byte order (with
+or without a BOM, as Windows Notepad writes "Unicode") or Windows-1252, and may
+use CR/LF line endings and comma decimals. As in Equalizer APO, several
+`Preamp:` lines add up and a missing preamp means 0 dB with automatic headroom.
+Instructions that do not change the curve (`Device`, `Include`, `Copy`,
+`Stage`, `Delay`, ...), band-pass and all-pass filters, and per-channel blocks
+after the first are left out with a note in the preview. Values outside the
+supported limits, unknown instructions, more than 32 filters, oversized input
+(over 1 MiB) and unsupported versions are rejected with the offending line
+before anything changes playback. Imports preserve preamp, filter order,
+frequencies, gains, Q, on/off flags, source, revision, measurement attribution,
+and original text, and exported Navis JSON round-trips them. Export file names
+are made safe on every platform.
 
 AutoEQ is by Jaakko Pasanen and contributors under the MIT licence; the bundled
 licence is `assets/autoeq/LICENSE`. Rebuild the bundled index with

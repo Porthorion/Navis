@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/utils/file_utils.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -150,43 +151,12 @@ class PermanentDownloadPathResolver {
     }
   }
 
-  /// Longest file or folder name Navis writes, in UTF-16 code units. Keeps
-  /// `<root>/<artist>/<title> [hash].<ext>` well inside Windows' 260
-  /// character path limit for typical roots, and every platform's 255-byte
-  /// component limit for most scripts.
-  static const int maxComponentLength = 120;
+  /// Longest file or folder name Navis writes; see [safeFileNameComponent].
+  static const int maxComponentLength = safeFileNameMaxLength;
 
   static String sanitizePathComponent(String? raw, {required String fallback}) {
-    var sanitized = _clean(raw);
-    if (sanitized.isEmpty) sanitized = _clean(fallback);
-    if (sanitized.isEmpty) sanitized = unknownTrackFileName;
-    if (_isReservedWindowsName(sanitized)) sanitized = '_$sanitized';
-    return sanitized;
-  }
-
-  static String _clean(String? raw) {
-    var value = (raw ?? '')
-        .replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F\x7F]'), '_')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (value.length > maxComponentLength) {
-      var end = maxComponentLength;
-      // Never split a surrogate pair.
-      final unit = value.codeUnitAt(end - 1);
-      if (unit >= 0xD800 && unit <= 0xDBFF) end--;
-      value = value.substring(0, end);
-    }
-    // Windows drops trailing dots and spaces, so names ending in them would
-    // not round-trip.
-    return value.replaceAll(RegExp(r'[. ]+$'), '');
-  }
-
-  /// Windows reserves these device names with any extension (`CON.flac`)
-  /// and regardless of case.
-  static bool _isReservedWindowsName(String name) {
-    final stem = name.split('.').first.trimRight().toUpperCase();
-    return _reservedWindowsNames.contains(stem) ||
-        RegExp(r'^(COM|LPT)[0-9\u00B9\u00B2\u00B3]$').hasMatch(stem);
+    final cleaned = safeFileNameComponent(raw, fallback: fallback);
+    return cleaned.isEmpty ? unknownTrackFileName : cleaned;
   }
 
   bool _isPathAvailable({
@@ -208,13 +178,3 @@ class PermanentDownloadPathResolver {
     return trimmed.isEmpty ? 'bin' : trimmed;
   }
 }
-
-const Set<String> _reservedWindowsNames = <String>{
-  'CON',
-  'PRN',
-  'AUX',
-  'NUL',
-  'CONIN\$',
-  'CONOUT\$',
-  'CLOCK\$',
-};

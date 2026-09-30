@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/utils/file_utils.dart';
+import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_import_messages.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/equalizer/data/eq_import_parser.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -1314,7 +1317,10 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
         }
       case 'export':
         try {
-          final safe = preset.name.replaceAll(RegExp(r'[^\w .()\-]'), '_');
+          final safe = safeFileNameComponent(
+            preset.name,
+            fallback: l10n.eqImportDefaultName,
+          );
           await FilePicker.saveFile(
             fileName: '$safe.navis-eq.json',
             bytes: Uint8List.fromList(
@@ -1350,14 +1356,20 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
   Future<void> _import(String action) async {
     setState(() => _importing = true);
     try {
-      EqPreset? preset;
+      EqImportResult? imported;
       if (action == 'autoeq') {
-        preset = await showDialog<EqPreset>(
+        final preset = await showDialog<EqPreset>(
           context: context,
           builder: (_) => const EqAutoEqDialog(),
         );
+        if (preset != null) {
+          imported = EqImportResult(
+            preset: preset,
+            format: EqImportFormat.parametric,
+          );
+        }
       } else if (action == 'paste') {
-        preset = await showDialog<EqPreset>(
+        imported = await showDialog<EqImportResult>(
           context: context,
           builder: (_) => const EqPasteDialog(),
         );
@@ -1368,28 +1380,28 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
         );
         if (file != null) {
           if (await file.length() > EqImportParser.maximumBytes) {
-            throw const FormatException(
-              'EQ imports must be smaller than 1 MB.',
-            );
+            throw EqImportException(EqImportErrorCode.tooLarge);
           }
-          final text = utf8.decode(await file.readAsBytes());
-          preset = EqImportParser().parse(
-            text,
+          // The contents decide the format and encoding; the file name is
+          // only the suggested preset name.
+          imported = EqImportParser().parseBytes(
+            await file.readAsBytes(),
             id: 'preview',
             name: file.name.replaceAll(
               RegExp(r'\.(txt|json)$', caseSensitive: false),
               '',
             ),
-            fixedBand: file.name.toLowerCase().contains('fixedbandeq'),
           );
         }
       }
-      if (preset != null && mounted) {
+      if (imported != null && mounted) {
+        final preset = imported.preset;
         final choice = await showDialog<(String, bool)>(
           context: context,
           builder: (_) => EqImportPreviewDialog(
-            preset: preset!,
+            preset: preset,
             name: controller.suggestedName(preset.name),
+            warnings: imported!.warnings,
           ),
         );
         if (choice != null && mounted) {
@@ -1401,9 +1413,10 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           );
         }
       }
-    } on FormatException catch (error) {
-      if (mounted) _error(error.message);
-    } on Object {
+    } on EqImportException catch (error) {
+      if (mounted) _error(describeEqImportError(l10n, error));
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning('EQ import failed. $error\n$stackTrace');
       if (mounted) _error(l10n.eqImportError);
     } finally {
       if (mounted) setState(() => _importing = false);

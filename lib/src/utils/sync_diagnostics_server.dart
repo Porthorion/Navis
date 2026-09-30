@@ -1842,7 +1842,7 @@ class SyncDiagnosticsServer {
                 body['text'] as String,
                 id: 'preview',
                 name: body['name'] as String,
-                fixedBand: body['fixedBand'] == true,
+                fixedBand: body['fixedBand'] as bool?,
               );
               success =
                   await controller.saveAs(

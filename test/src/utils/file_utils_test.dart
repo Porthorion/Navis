@@ -69,4 +69,16 @@ void main() {
       expect(root.existsSync(), isTrue);
     });
   });
+
+  group('safeFileNameComponent', () {
+    test('a name with nothing usable falls back', () {
+      expect(safeFileNameComponent('...', fallback: 'EQ preset'), 'EQ preset');
+      expect(safeFileNameComponent('   ', fallback: ''), '');
+    });
+
+    test('keeps letters in any script', () {
+      expect(safeFileNameComponent('صوت دافئ', fallback: 'x'), 'صوت دافئ');
+      expect(safeFileNameComponent('Nul.flac', fallback: 'x'), '_Nul.flac');
+    });
+  });
 }

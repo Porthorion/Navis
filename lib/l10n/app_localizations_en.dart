@@ -4524,6 +4524,120 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not refresh. The existing catalogue is still available.';
 
   @override
+  String get eqImportDefaultName => 'Imported profile';
+
+  @override
+  String get eqImportErrorTooLarge => 'EQ files must be smaller than 1 MB.';
+
+  @override
+  String get eqImportErrorEmpty => 'The EQ file is empty.';
+
+  @override
+  String get eqImportErrorUnreadable =>
+      'The text in this file could not be read.';
+
+  @override
+  String get eqImportErrorNavisPreset =>
+      'This Navis preset is damaged or from a newer version.';
+
+  @override
+  String get eqImportErrorUnsupportedJson =>
+      'This JSON file is not an EQ format Navis can import.';
+
+  @override
+  String eqImportErrorLine(int line) {
+    return 'Line $line is not an EQ setting Navis understands.';
+  }
+
+  @override
+  String eqImportErrorValue(int line) {
+    return 'Line $line has a value outside the supported range.';
+  }
+
+  @override
+  String get eqImportErrorValueNoLine =>
+      'A value is outside the supported range.';
+
+  @override
+  String eqImportErrorTooMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'EQ profiles can have at most $count filters.',
+      one: 'EQ profiles can have at most 1 filter.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get eqImportErrorNoFilters => 'No EQ filters were found in this file.';
+
+  @override
+  String get eqImportErrorPreamp =>
+      'The preamp is outside the supported range.';
+
+  @override
+  String get eqImportErrorFixedBand =>
+      'Fixed-band profiles can only contain peaking filters.';
+
+  @override
+  String get eqImportErrorGraphic =>
+      'A GraphicEQ curve needs at least two points.';
+
+  @override
+  String get eqImportWarningsTitle => 'Notes';
+
+  @override
+  String get eqImportWarningPreampSummed =>
+      'Several preamp lines were added together.';
+
+  @override
+  String get eqImportWarningPreampMissing =>
+      'No preamp was set; automatic headroom prevents clipping.';
+
+  @override
+  String eqImportWarningIgnored(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count settings that do not affect the curve were ignored.',
+      one: '1 setting that does not affect the curve was ignored.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String eqImportWarningDropped(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count filters of unsupported types were left out.',
+      one: '1 filter of an unsupported type was left out.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get eqImportWarningChannels =>
+      'Only the first channel’s settings were imported.';
+
+  @override
+  String get eqImportWarningSplitChannels =>
+      'Left and right differ; the left channel was imported.';
+
+  @override
+  String eqImportWarningGraphic(int count, String rms) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'The curve was matched with $count filters (average difference $rms dB).',
+      one: 'The curve was matched with 1 filter (average difference $rms dB).',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get eqImportError => 'Could not read the preset file.';
 
   @override

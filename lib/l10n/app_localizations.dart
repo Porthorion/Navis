@@ -7871,6 +7871,138 @@ abstract class AppLocalizations {
   /// **'Could not refresh. The existing catalogue is still available.'**
   String get eqRefreshError;
 
+  /// No description provided for @eqImportDefaultName.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported profile'**
+  String get eqImportDefaultName;
+
+  /// No description provided for @eqImportErrorTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'EQ files must be smaller than 1 MB.'**
+  String get eqImportErrorTooLarge;
+
+  /// No description provided for @eqImportErrorEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The EQ file is empty.'**
+  String get eqImportErrorEmpty;
+
+  /// No description provided for @eqImportErrorUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The text in this file could not be read.'**
+  String get eqImportErrorUnreadable;
+
+  /// No description provided for @eqImportErrorNavisPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'This Navis preset is damaged or from a newer version.'**
+  String get eqImportErrorNavisPreset;
+
+  /// No description provided for @eqImportErrorUnsupportedJson.
+  ///
+  /// In en, this message translates to:
+  /// **'This JSON file is not an EQ format Navis can import.'**
+  String get eqImportErrorUnsupportedJson;
+
+  /// No description provided for @eqImportErrorLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Line {line} is not an EQ setting Navis understands.'**
+  String eqImportErrorLine(int line);
+
+  /// No description provided for @eqImportErrorValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Line {line} has a value outside the supported range.'**
+  String eqImportErrorValue(int line);
+
+  /// No description provided for @eqImportErrorValueNoLine.
+  ///
+  /// In en, this message translates to:
+  /// **'A value is outside the supported range.'**
+  String get eqImportErrorValueNoLine;
+
+  /// No description provided for @eqImportErrorTooMany.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{EQ profiles can have at most 1 filter.} other{EQ profiles can have at most {count} filters.}}'**
+  String eqImportErrorTooMany(int count);
+
+  /// No description provided for @eqImportErrorNoFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'No EQ filters were found in this file.'**
+  String get eqImportErrorNoFilters;
+
+  /// No description provided for @eqImportErrorPreamp.
+  ///
+  /// In en, this message translates to:
+  /// **'The preamp is outside the supported range.'**
+  String get eqImportErrorPreamp;
+
+  /// No description provided for @eqImportErrorFixedBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed-band profiles can only contain peaking filters.'**
+  String get eqImportErrorFixedBand;
+
+  /// No description provided for @eqImportErrorGraphic.
+  ///
+  /// In en, this message translates to:
+  /// **'A GraphicEQ curve needs at least two points.'**
+  String get eqImportErrorGraphic;
+
+  /// No description provided for @eqImportWarningsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes'**
+  String get eqImportWarningsTitle;
+
+  /// No description provided for @eqImportWarningPreampSummed.
+  ///
+  /// In en, this message translates to:
+  /// **'Several preamp lines were added together.'**
+  String get eqImportWarningPreampSummed;
+
+  /// No description provided for @eqImportWarningPreampMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No preamp was set; automatic headroom prevents clipping.'**
+  String get eqImportWarningPreampMissing;
+
+  /// No description provided for @eqImportWarningIgnored.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 setting that does not affect the curve was ignored.} other{{count} settings that do not affect the curve were ignored.}}'**
+  String eqImportWarningIgnored(int count);
+
+  /// No description provided for @eqImportWarningDropped.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 filter of an unsupported type was left out.} other{{count} filters of unsupported types were left out.}}'**
+  String eqImportWarningDropped(int count);
+
+  /// No description provided for @eqImportWarningChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the first channel’s settings were imported.'**
+  String get eqImportWarningChannels;
+
+  /// No description provided for @eqImportWarningSplitChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'Left and right differ; the left channel was imported.'**
+  String get eqImportWarningSplitChannels;
+
+  /// No description provided for @eqImportWarningGraphic.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{The curve was matched with 1 filter (average difference {rms} dB).} other{The curve was matched with {count} filters (average difference {rms} dB).}}'**
+  String eqImportWarningGraphic(int count, String rms);
+
   /// No description provided for @eqImportError.
   ///
   /// In en, this message translates to:

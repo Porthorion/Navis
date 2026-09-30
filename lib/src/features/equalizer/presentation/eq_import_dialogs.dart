@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_import_messages.dart';
 import 'package:navis/src/features/equalizer/data/autoeq_catalogue.dart';
 import 'package:navis/src/features/equalizer/data/eq_import_parser.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -121,15 +122,16 @@ class _EqPasteDialogState extends State<EqPasteDialog> {
             try {
               Navigator.pop(
                 context,
-                EqImportParser().parse(
+                EqImportParser().parseText(
                   text.text,
                   id: 'preview',
-                  name: 'Imported profile',
-                  fixedBand: fixed,
+                  name: l10n.eqImportDefaultName,
+                  // Unchecked lets the contents decide.
+                  fixedBand: fixed ? true : null,
                 ),
               );
-            } on FormatException catch (e) {
-              setState(() => error = e.message);
+            } on EqImportException catch (e) {
+              setState(() => error = describeEqImportError(l10n, e));
             }
           },
           child: Text(l10n.eqImportPreview),
@@ -144,10 +146,14 @@ class EqImportPreviewDialog extends StatefulWidget {
   const EqImportPreviewDialog({
     required this.preset,
     required this.name,
+    this.warnings = const <EqImportWarning>[],
     super.key,
   });
   final EqPreset preset;
   final String name;
+
+  /// What the import could not reproduce exactly.
+  final List<EqImportWarning> warnings;
   @override
   State<EqImportPreviewDialog> createState() => _EqImportPreviewDialogState();
 }
@@ -232,6 +238,21 @@ class _EqImportPreviewDialogState extends State<EqImportPreviewDialog> {
                   SelectableText(source!.url!, style: muted),
                 if (source?.revision != null)
                   SelectableText(source!.revision!, style: muted),
+                if (widget.warnings.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.eqImportWarningsTitle,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  for (final note in describeEqImportWarnings(
+                    l10n,
+                    widget.warnings,
+                  ))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(note, style: theme.textTheme.bodyMedium),
+                    ),
+                ],
                 const SizedBox(height: 16),
                 EqResponseGraph(configuration: configuration),
                 const SizedBox(height: 16),

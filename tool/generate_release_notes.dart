@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'EQ import reads presets from Equalizer APO, REW, EasyEffects and AutoEQ GraphicEQ as well as ParametricEQ, FixedBandEQ and Navis files, whatever text encoding or decimal separator they use; the preview explains anything it could not reproduce, and errors name the line to fix',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
         'Setup shows a clear message when ListenBrainz or Last.fm validation fails instead of a technical error, and Home dates, track counts and weekly playlist names follow your language',
         type: _EntryType.fix,
       ),
