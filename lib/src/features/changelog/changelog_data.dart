@@ -56,6 +56,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Downloads interrupted by closing Navis now resume when you open it again, instead of waiting until you next use a download control',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'A download interrupted by a crash, power loss or closing the app no longer leaves a half-written song under its real name in your Downloads folder; unfinished downloads use a temporary name that Navis removes on the next start, and the retried download keeps the normal file name',
         type: ChangelogEntryType.fix,
       ),

@@ -1929,9 +1929,11 @@ contract.
    `<final name>.navis-part` and renamed into place (with retries while
    Windows antivirus holds the new file) only after it completes, then
    tagged and registered, so an interrupted download never appears under a
-   song's name. Startup after interrupted downloads removes `*.navis-part`
-   files, and only those, from the active folder without following links;
-   folder scans ignore them. Promoting a rolling-cache file reuses an
+   song's name. The app shell starts `DownloadService` at launch (it was
+   otherwise created only when a download control was first used), and its
+   startup after interrupted downloads requeues them and removes
+   `*.navis-part` files, and only those, from the active folder without
+   following links; folder scans ignore them. Promoting a rolling-cache file reuses an
    existing destination only when its size matches. Resetting server data (a full
    sign-out or server switch) removes the library rows but deletes only
    Navis-owned audio files; files inside the custom folder and Android SAF

@@ -608,6 +608,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Keep the sync controller alive without rebuilding the shell on each of
     // its progress updates.
     ref.listen(librarySyncControllerProvider, (_, _) {});
+    // Start the download service at launch, so downloads interrupted by a
+    // crash or a closed app resume (and their partial files are removed)
+    // without the user opening a download feature first.
+    ref.listen(downloadServiceProvider, (_, _) {});
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(listenBrainzFeedbackDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);
