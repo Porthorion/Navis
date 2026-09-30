@@ -1087,7 +1087,13 @@ Identified tracks omitted by preparation stay in `retainedArtistQueueProvider`
 as grey removable rows in both queue views, separate from native playable
 indexes. These retained rows last for the current session and clear on queue
 replacement/clear, radio, or account changes. Unresolved releases with no track
-identities cannot create queue rows.
+identities cannot create queue rows. Songs the handler drops after accepting
+them (a deferred song that cannot be prepared when released, a move into the
+window that fails, a rebuild that cannot prepare a song) are published on
+`NavisPlaybackHandler.droppedSongsStream` as `QueueSongsDropped`;
+`artistQueueDropRetentionProvider`, kept alive by the app shell with a direct
+stream subscription, adds those that belong to the artist queue still in the
+player to the same retained rows.
 
 Play orders known releases chronologically and tracks by disc then track. Newly
 loaded tracks join the upcoming queue in that order while keeping the current

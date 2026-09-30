@@ -1018,6 +1018,28 @@ void main() {
       },
     );
 
+    test(
+      'a deferred song that can no longer be prepared is reported',
+      () async {
+        final (handler, player, database) = await windowed(60);
+        final dropped = <QueueSongsDropped>[];
+        final subscription = handler.droppedSongsStream.listen(dropped.add);
+        addTearDown(subscription.cancel);
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        // Gone from the library while it waited in the tail.
+        await database.customStatement(
+          "DELETE FROM songs WHERE id = 'song-10'",
+        );
+
+        player.moveTo(6);
+        await until(() => player.sourceIds.length == 16);
+
+        expect(player.sourceIds, isNot(contains('song-10')));
+        expect(dropped.single.songIds, <String>['song-10']);
+        expect(dropped.single.reason, QueueDropReason.release);
+      },
+    );
+
     test('a near jump into the tail releases through it and seeks', () async {
       final (handler, player, _) = await windowed(60);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);

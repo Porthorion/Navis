@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Songs from an artist queue that turn out to be unplayable only when the player reaches them now stay visible in the Queue as unavailable rows, instead of silently disappearing',
+        type: _EntryType.fix,
+      ),
+      _Entry(
         'On desktop, seeking in a streamed song that had finished caching no longer empties the rest of the queue; playback continues from the cached file with every queued song kept',
         type: _EntryType.fix,
       ),

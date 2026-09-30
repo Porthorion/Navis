@@ -1788,6 +1788,13 @@ final playbackLoadFailureProvider = StreamProvider<PlaybackLoadFailure>((ref) {
   return handler.loadFailureStream;
 });
 
+/// Songs the handler dropped from the queue after accepting them. A plain
+/// stream, so a subscriber receives every event even while no widget listens.
+final queueSongsDroppedProvider = Provider<Stream<QueueSongsDropped>>((ref) {
+  final handler = ref.watch(audioHandlerProvider);
+  return handler?.droppedSongsStream ?? const Stream<QueueSongsDropped>.empty();
+});
+
 /// Whether the player is currently playing audio.
 final isPlayingProvider = Provider<bool>((ref) {
   return ref.watch(playerStateProvider.select((s) => s.playing));

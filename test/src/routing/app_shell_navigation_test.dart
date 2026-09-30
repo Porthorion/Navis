@@ -100,6 +100,7 @@ class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
         #currentMediaItem => null,
         #mediaItemStream => const Stream<MediaItem?>.empty(),
         #loadFailureStream => const Stream<PlaybackLoadFailure>.empty(),
+        #droppedSongsStream => const Stream<QueueSongsDropped>.empty(),
         #radioStreamErrorStream => const Stream<void>.empty(),
         _ => null,
       };

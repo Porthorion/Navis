@@ -70,6 +70,10 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
       const Stream<PlaybackLoadFailure>.empty();
 
   @override
+  Stream<QueueSongsDropped> get droppedSongsStream =>
+      const Stream<QueueSongsDropped>.empty();
+
+  @override
   Stream<TransportVisualCue> get transportVisualCueStream =>
       const Stream<TransportVisualCue>.empty();
 

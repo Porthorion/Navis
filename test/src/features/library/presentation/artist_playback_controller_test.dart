@@ -13,7 +13,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart'
-    show QueueInsertRun;
+    show QueueDropReason, QueueInsertRun, QueueSongsDropped;
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -209,9 +209,11 @@ void main() {
     ArtistPlaybackResolver service,
     QueueSpy queue, {
     SubsonicApiClient? Function()? readApi,
+    Stream<QueueSongsDropped>? drops,
   }) {
     final container = ProviderContainer(
       overrides: [
+        if (drops != null) queueSongsDroppedProvider.overrideWithValue(drops),
         artistPlaybackResolverProvider.overrideWithValue(service),
         queueProvider.overrideWith(() => queue),
         playerStateProvider.overrideWithValue(const PlaybackSnapshot.idle()),
@@ -965,6 +967,62 @@ void main() {
       ]);
     },
   );
+  group('songs the player drops later', () {
+    Future<(ProviderContainer, StreamController<QueueSongsDropped>)>
+    prepared() async {
+      final drops = StreamController<QueueSongsDropped>.broadcast();
+      addTearDown(drops.close);
+      final container = containerFor(resolver, QueueSpy(), drops: drops.stream);
+      // The app shell keeps this alive.
+      container.read(artistQueueDropRetentionProvider);
+      await container
+          .read(artistPlaybackControllerProvider.notifier)
+          .prepare('artist', ArtistPlaybackAction.play);
+      return (container, drops);
+    }
+
+    test(
+      'are retained as unavailable while the queue is the artist\'s',
+      () async {
+        final (container, drops) = await prepared();
+        expect(container.read(retainedArtistQueueProvider), isEmpty);
+
+        drops.add(
+          const QueueSongsDropped(
+            songIds: ['track-album-2', 'someone-else'],
+            reason: QueueDropReason.release,
+          ),
+        );
+        drops.add(
+          const QueueSongsDropped(
+            songIds: ['track-album-2'],
+            reason: QueueDropReason.rebuild,
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(container.read(retainedArtistQueueProvider).map((s) => s.id), [
+          'track-album-2',
+        ]);
+      },
+    );
+
+    test('are ignored once another queue replaced it', () async {
+      final (container, drops) = await prepared();
+      container.read(queueProvider.notifier).reserveSelection();
+
+      drops.add(
+        const QueueSongsDropped(
+          songIds: ['track-album-2'],
+          reason: QueueDropReason.release,
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(container.read(retainedArtistQueueProvider), isEmpty);
+    });
+  });
+
   test('a batch that throws is retained as unavailable, not lost', () async {
     final queue = QueueSpy()..throwingAppendIds = {'track-album-2'};
     final container = containerFor(resolver, queue);

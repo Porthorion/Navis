@@ -233,6 +233,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
   final StreamController<void> _radioStreamErrorController =
       StreamController<void>.broadcast();
+  final StreamController<QueueSongsDropped> _droppedSongsController =
+      StreamController<QueueSongsDropped>.broadcast();
   final StreamController<PlaybackLoadFailure> _loadFailureController =
       StreamController<PlaybackLoadFailure>.broadcast();
 
@@ -439,6 +441,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Stream<PlaybackLoadFailure> get loadFailureStream =>
       _loadFailureController.stream;
+
+  @override
+  Stream<QueueSongsDropped> get droppedSongsStream =>
+      _droppedSongsController.stream;
 
   @override
   Stream<Duration> get positionStream => _positionController.stream;
@@ -1472,6 +1478,10 @@ class NavisAudioHandler extends BaseAudioHandler
       _observeLockCacheForPrepared(prepared);
     }
     final dropped = take - prepared.length;
+    _reportDroppedSongs(<String>[
+      for (var i = 0; i < take; i++)
+        if (offsets[i] == null) entries[i].id,
+    ], QueueDropReason.release);
     _tailReleaseCount++;
     _tailReleasedSongCount += prepared.length;
     _tailDroppedSongCount += dropped;
@@ -1567,6 +1577,16 @@ class NavisAudioHandler extends BaseAudioHandler
       _lastFailedSongId = loadingSongId;
     }
     _emitSnapshot();
+  }
+
+  void _reportDroppedSongs(List<String> songIds, QueueDropReason reason) {
+    if (songIds.isEmpty || _droppedSongsController.isClosed) return;
+    _droppedSongsController.add(
+      QueueSongsDropped(
+        songIds: List<String>.unmodifiable(songIds),
+        reason: reason,
+      ),
+    );
   }
 
   void _emitLoadFailure({
@@ -1807,6 +1827,7 @@ class NavisAudioHandler extends BaseAudioHandler
           )
           .timeout(_playerLoadTimeout);
       _setCurrentMediaItem(_queueItems[landed]);
+      _reportDroppedSongs(dropped, QueueDropReason.rebuild);
       if (dropped.isNotEmpty) {
         AppLogger.warning(
           'Queue reload after a timeout dropped ${dropped.length} songs '
@@ -5212,7 +5233,10 @@ class NavisAudioHandler extends BaseAudioHandler
           _deferredTail.insert(oldIndex - materialized, entry);
           rethrow;
         }
-        if (inserted.isEmpty) _tailDroppedSongCount++;
+        if (inserted.isEmpty) {
+          _tailDroppedSongCount++;
+          _reportDroppedSongs(<String>[entry.id], QueueDropReason.insert);
+        }
       } else {
         if (adjustedIndex >= materialized &&
             oldIndex == (_player.currentIndex ?? -1)) {
@@ -5817,21 +5841,25 @@ class NavisAudioHandler extends BaseAudioHandler
               index = before + landed;
             } else {
               // Far into the tail: rebuild the player around the target.
-              final rows = await _rowsForDeferredEntries(
-                _logicalQueueEntries(),
-              );
+              final entries = _logicalQueueEntries();
+              final rows = await _rowsForDeferredEntries(entries);
               _checkQueueWorkCurrent(token, generation);
               final songs = <SongsTableData>[];
+              final missing = <String>[];
               var jumpIndex = -1;
               for (var i = 0; i < rows.length; i++) {
                 final row = rows[i];
-                if (row == null) continue;
+                if (row == null) {
+                  missing.add(entries[i].id);
+                  continue;
+                }
                 if (i == index) jumpIndex = songs.length;
                 songs.add(row);
               }
               if (jumpIndex < 0) {
                 throw StateError('The selected song is no longer available.');
               }
+              _reportDroppedSongs(missing, QueueDropReason.rebuild);
               rebuildSongs = songs;
               index = jumpIndex;
               _pendingLogicalQueueSongIds = List<String>.unmodifiable(
@@ -7745,6 +7773,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _bufferStateController.close();
     await _radioStreamErrorController.close();
     await _loadFailureController.close();
+    await _droppedSongsController.close();
     _disposeHandlerCompleted = true;
   }
 

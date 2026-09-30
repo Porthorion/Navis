@@ -36,6 +36,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.4.0',
     entries: [
       ChangelogEntry(
+        'Songs from an artist queue that turn out to be unplayable only when the player reaches them now stay visible in the Queue as unavailable rows, instead of silently disappearing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On desktop, seeking in a streamed song that had finished caching no longer empties the rest of the queue; playback continues from the cached file with every queued song kept',
         type: ChangelogEntryType.fix,
       ),
