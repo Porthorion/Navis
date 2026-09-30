@@ -212,6 +212,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
               navbarAutohide: widget.navbarAutohide,
               onToggleAutohide: widget.onToggleAutohide,
               librarySectionsFit: widget.librarySectionsFit,
+              showHistoryControls: true,
             ),
           ),
         ),
@@ -401,7 +402,6 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                 ? widget.playback.radioStation?.nowPlayingArtUrl
                 : widget.coverArtUrl,
             isExternalSource: widget.isExternalSource,
-            onOpenPlayer: widget.onOpenPlayer,
             onToggleQueue: widget.onToggleQueue,
             queueToggleFocusNode: widget.queueToggleFocusNode,
             lyricsActive: widget.showLyricsOverlay,

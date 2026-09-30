@@ -15,6 +15,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/routing/navigation_history_provider.dart';
 
 /// Route configuration for an album opened from an interactive surface.
 ///
@@ -57,18 +58,20 @@ abstract final class NavService {
     final fadeOnly =
         adaptiveContext.desktopRuntime ||
         !adaptiveContext.useCompactWideLandscape;
-    unawaited(
-      context.push<void>(
-        AppRoutes.album(albumId),
-        extra: AlbumDetailRouteRequest(
-          // The page fades in as one already-composed surface, so it must
-          // not pair with the tapped card's Hero during the route change.
-          openingHeroTag:
-              fadeOnly || normalizedHeroTag == null || normalizedHeroTag.isEmpty
-              ? null
-              : normalizedHeroTag,
-          fadeOnly: fadeOnly,
-        ),
+    final request = AlbumDetailRouteRequest(
+      // The page fades in as one already-composed surface, so it must not
+      // pair with the tapped card's Hero during the route change.
+      openingHeroTag:
+          fadeOnly || normalizedHeroTag == null || normalizedHeroTag.isEmpty
+          ? null
+          : normalizedHeroTag,
+      fadeOnly: fadeOnly,
+    );
+    _navigateVisibly(
+      context,
+      ref,
+      (router) => unawaited(
+        router.push<void>(AppRoutes.album(albumId), extra: request),
       ),
     );
   }
@@ -134,7 +137,11 @@ abstract final class NavService {
     clearExitPrompt();
     _prepareForNavigation(context, ref);
     ref.read(librarySectionProvider.notifier).setSection(section);
-    context.go(AppRoutes.librarySection(section.name));
+    _navigateVisibly(
+      context,
+      ref,
+      (router) => router.go(AppRoutes.librarySection(section.name)),
+    );
   }
 
   /// Keep the Library location in step with a section chosen inside the
@@ -377,7 +384,7 @@ abstract final class NavService {
         ref.read(navisDatabaseProvider).historyDao.saveSearchQuery(trimmed),
       );
     }
-    context.go(AppRoutes.search);
+    _navigateVisibly(context, ref, (router) => router.go(AppRoutes.search));
   }
 
   /// Switch to a shell tab.
@@ -409,6 +416,28 @@ abstract final class NavService {
   // ---------------------------------------------------------------------------
   // Player helpers
   // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // Desktop
+  // ---------------------------------------------------------------------------
+
+  /// Moves through desktop navigation history (mouse Back/Forward, the
+  /// Back/Forward shortcuts and the workspace header buttons).
+  static Future<void> navigateHistory(
+    WidgetRef ref, {
+    required bool forward,
+  }) async {
+    // Mini Player has no pages to move between.
+    if (ref.read(desktopWindowControllerProvider).isMiniPlayerMode) {
+      return;
+    }
+    final history = ref.read(navigationHistoryProvider.notifier);
+    if (forward) {
+      history.navigateForward();
+    } else {
+      history.navigateBack();
+    }
+  }
 
   /// Show the playback queue on the shell-managed player overlay stack.
   static void showQueue(BuildContext context, WidgetRef ref) {
@@ -487,7 +516,35 @@ abstract final class NavService {
   static void _drillIn(BuildContext context, WidgetRef ref, String location) {
     clearExitPrompt();
     _prepareForNavigation(context, ref);
-    unawaited(context.push<void>(location));
+    _navigateVisibly(
+      context,
+      ref,
+      (router) => unawaited(router.push<void>(location)),
+    );
+  }
+
+  /// Runs [navigate] where the person can see it.
+  ///
+  /// Mini Player shows no pages, so links followed from it (such as the
+  /// album or artist of the playing track) first return to Desktop View. When
+  /// the window is too small for Desktop View the link does nothing.
+  static void _navigateVisibly(
+    BuildContext context,
+    WidgetRef ref,
+    void Function(GoRouter router) navigate,
+  ) {
+    // Captured now: the Mini Player surface, and with it [context], goes
+    // away when the window leaves Mini Player.
+    final router = GoRouter.of(context);
+    final window = ref.read(desktopWindowControllerProvider);
+    if (!window.isMiniPlayerMode) {
+      navigate(router);
+      return;
+    }
+    if (!window.desktopViewAvailable) {
+      return;
+    }
+    unawaited(window.setMiniPlayerMode(false).then((_) => navigate(router)));
   }
 
   /// Dismiss popup routes and clear the shell's own player overlay stack.

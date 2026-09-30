@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
@@ -29,6 +30,8 @@ enum DesktopCommandAction {
   speedUp,
   speedDown,
   speedReset,
+  navigateBack,
+  navigateForward,
 }
 
 @immutable
@@ -107,6 +110,8 @@ const List<DesktopCommandAction> configurableDesktopShortcutActions =
       DesktopCommandAction.goLibrary,
       DesktopCommandAction.goSearch,
       DesktopCommandAction.goSettings,
+      DesktopCommandAction.navigateBack,
+      DesktopCommandAction.navigateForward,
       DesktopCommandAction.refreshLibrary,
       DesktopCommandAction.forceRescanLibrary,
       DesktopCommandAction.speedUp,
@@ -140,6 +145,22 @@ defaultDesktopShortcutBindings() {
         DesktopCommandAction.goSettings: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.digit4,
         ),
+        // Browser conventions: Cmd+[ / Cmd+] on macOS, Alt+Left / Alt+Right
+        // elsewhere.
+        DesktopCommandAction.navigateBack: _isApplePlatform
+            ? const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketLeft)
+            : const DesktopShortcutBinding(
+                key: LogicalKeyboardKey.arrowLeft,
+                primaryModifier: false,
+                alt: true,
+              ),
+        DesktopCommandAction.navigateForward: _isApplePlatform
+            ? const DesktopShortcutBinding(key: LogicalKeyboardKey.bracketRight)
+            : const DesktopShortcutBinding(
+                key: LogicalKeyboardKey.arrowRight,
+                primaryModifier: false,
+                alt: true,
+              ),
         DesktopCommandAction.refreshLibrary: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.keyR,
         ),
@@ -162,6 +183,8 @@ defaultDesktopShortcutBindings() {
     ),
   );
 }
+
+bool get _isApplePlatform => defaultTargetPlatform == TargetPlatform.macOS;
 
 const String _desktopShortcutStorageKey = 'navis.desktop.shortcut_bindings.v1';
 const FlutterSecureStorage _desktopShortcutStorage = FlutterSecureStorage();
@@ -568,5 +591,8 @@ DesktopCommandAction? matchAnyDesktopCommandForKeyEvent(
 bool isTextSensitiveDesktopCommand(DesktopCommandAction action) {
   return action == DesktopCommandAction.playPause ||
       action == DesktopCommandAction.nextTrack ||
-      action == DesktopCommandAction.previousTrack;
+      action == DesktopCommandAction.previousTrack ||
+      // Modified arrows move the caret by word in text fields.
+      action == DesktopCommandAction.navigateBack ||
+      action == DesktopCommandAction.navigateForward;
 }

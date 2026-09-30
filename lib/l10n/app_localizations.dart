@@ -8560,6 +8560,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Forward'**
   String get navigationForwardTooltip;
+
+  /// No description provided for @desktopShortcutsNavigateBackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go back'**
+  String get desktopShortcutsNavigateBackTitle;
+
+  /// No description provided for @desktopShortcutsNavigateBackDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to the previous page; the mouse Back button does the same'**
+  String get desktopShortcutsNavigateBackDescription;
+
+  /// No description provided for @desktopShortcutsNavigateForwardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go forward'**
+  String get desktopShortcutsNavigateForwardTitle;
+
+  /// No description provided for @desktopShortcutsNavigateForwardDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to the next page after going back; the mouse Forward button does the same'**
+  String get desktopShortcutsNavigateForwardDescription;
 }
 
 class _AppLocalizationsDelegate

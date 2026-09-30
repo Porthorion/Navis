@@ -4913,4 +4913,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navigationForwardTooltip => 'Forward';
+
+  @override
+  String get desktopShortcutsNavigateBackTitle => 'Go back';
+
+  @override
+  String get desktopShortcutsNavigateBackDescription =>
+      'Return to the previous page; the mouse Back button does the same';
+
+  @override
+  String get desktopShortcutsNavigateForwardTitle => 'Go forward';
+
+  @override
+  String get desktopShortcutsNavigateForwardDescription =>
+      'Go to the next page after going back; the mouse Forward button does the same';
 }

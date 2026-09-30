@@ -68,6 +68,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/routing/navigation_history_provider.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/motion_policy.dart';
@@ -119,6 +120,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   );
   bool _didCheckBatteryOptimizationPrompt = false;
   GoRouter? _router;
+  // The last Desktop View size; the hidden workspace keeps it in Mini Player.
+  Size? _lastDesktopViewSize;
   bool Function()? _nowPlayingBackInterceptor;
   bool _compactWideInternalOverlayActive = false;
   VoidCallback? _compactWideQueueRequestHandler;
@@ -252,6 +255,19 @@ class _AppShellState extends ConsumerState<AppShell> {
       ref.read(librarySectionProvider.notifier).setSection(section);
     }
   }
+
+  /// Desktop commands that act on pages or shell panels.
+  static const _pageCommands = <DesktopCommandAction>{
+    DesktopCommandAction.focusSearch,
+    DesktopCommandAction.openQuickSearch,
+    DesktopCommandAction.toggleQueue,
+    DesktopCommandAction.goHome,
+    DesktopCommandAction.goLibrary,
+    DesktopCommandAction.goSearch,
+    DesktopCommandAction.goSettings,
+    DesktopCommandAction.navigateBack,
+    DesktopCommandAction.navigateForward,
+  };
 
   /// The shell's system back handler, shared by every back entry point.
   ///
@@ -988,6 +1004,9 @@ class _AppShellState extends ConsumerState<AppShell> {
             desktopWindowControllerProvider.select((c) => c.isMiniPlayerMode),
           )
         : false;
+    if (useDesktopShell && !isMiniPlayerMode) {
+      _lastDesktopViewSize = mediaSize;
+    }
     final desktopTokens = NavisTokens.of(context);
     final configuredNavbarStyle = desktopRuntime
         ? ref.watch(desktopNavbarStyleProvider)
@@ -1220,6 +1239,13 @@ class _AppShellState extends ConsumerState<AppShell> {
       AppLogger.debug(
         '[ACP_INPUT] desktopCommand action=${action.name} quickSearch=$_showQuickSearchOverlay queue=$queueVisible expanded=$expanded hasPlayback=$hasPlayback',
       );
+      // Mini Player shows no pages or shell panels, so commands that would
+      // change them are ignored rather than acting invisibly.
+      if (desktopRuntime &&
+          ref.read(desktopWindowControllerProvider).isMiniPlayerMode &&
+          _pageCommands.contains(action)) {
+        return;
+      }
       switch (action) {
         case DesktopCommandAction.focusSearch:
           onDestinationSelected(ShellBranch.search.index);
@@ -1292,6 +1318,12 @@ class _AppShellState extends ConsumerState<AppShell> {
           return;
         case DesktopCommandAction.goSettings:
           onDestinationSelected(ShellBranch.settings.index);
+          return;
+        case DesktopCommandAction.navigateBack:
+          await NavService.navigateHistory(ref, forward: false);
+          return;
+        case DesktopCommandAction.navigateForward:
+          await NavService.navigateHistory(ref, forward: true);
           return;
         case DesktopCommandAction.playPause:
           final handler = ref.read(audioHandlerProvider);
@@ -1426,6 +1458,73 @@ class _AppShellState extends ConsumerState<AppShell> {
                       !useCompactWideLandscape && !(showPlayer && isExpanded),
                   body: Stack(
                     children: <Widget>[
+                      if (useDesktopShell &&
+                          (!isMiniPlayerMode || _lastDesktopViewSize != null))
+                        // Kept mounted, hidden, in Mini Player once Desktop
+                        // View has been shown, so every tab keeps its pages;
+                        // it must stay the first child.
+                        _HiddenWorkspaceLayer(
+                          key: const ValueKey<String>('desktopWorkspaceLayer'),
+                          hidden: desktopRuntime && isMiniPlayerMode,
+                          desktopViewSize: _lastDesktopViewSize ?? mediaSize,
+                          child: _DesktopWorkspace(
+                            desktopLayoutClass: desktopLayoutClass,
+                            sidebarWidth: desktopSidebarWidth,
+                            navbarStyle: navbarStyle,
+                            navbarAutohide: navbarAutohide,
+                            expandRequestNotifier: _navExpandRequestNotifier,
+                            selectedIndex: selectedIndex,
+                            destinations: railDestinations,
+                            showOfflineBanner: showOfflineBanner,
+                            offlineBannerText: offlineBannerText,
+                            showPlayer: showPlayer,
+                            showQueueOverlay: showQueueOverlay,
+                            hasPlayerOverlay: hasPlayerOverlay,
+                            navigationShell: navigationShell,
+                            playback: playback,
+                            songTitle: songTitle,
+                            songArtist: songArtist,
+                            artistId: artistId,
+                            albumId: albumId,
+                            coverArtId: coverArtId,
+                            coverArtUrl: coverArtUrl,
+                            isExternalSource: isExternalSource,
+                            onDestinationSelected: onDestinationSelected,
+                            showLibrarySubNavigation: showLibrarySubNavigation,
+                            librarySectionsFit: _librarySectionsFitSidebar,
+                            selectedLibrarySection: selectedLibrarySection,
+                            visibleLibrarySections: visibleLibrarySections,
+                            onLibrarySectionSelected: onLibrarySectionSelected,
+                            allowScrollableRail: allowScrollableRail,
+                            onOpenPlayer: _toggleDesktopLyricsOverlay,
+                            onToggleQueue: () {
+                              if (showQueueOverlay) {
+                                _hideQueueWithAnimation();
+                              } else {
+                                _showQueueOverlay(
+                                  queueOnly: useDesktopShell,
+                                  invokerFocusNode:
+                                      _desktopQueueToggleFocusNode,
+                                );
+                              }
+                            },
+                            onDismissQueue: _handleQueueOverlayDismissed,
+                            queueToggleFocusNode: _desktopQueueToggleFocusNode,
+                            queueOverlayKey: _queueOverlayKey,
+                            showLyricsOverlay: showDesktopLyricsOverlay,
+                            onToggleLyrics: _toggleDesktopLyricsOverlay,
+                            onSystemBack: () {
+                              _handleShellBack();
+                            },
+                            onToggleAutohide: () async {
+                              final db = ref.read(navisDatabaseProvider);
+                              await db.appSettingsDao
+                                  .updateDesktopNavbarAutohide(
+                                    !navbarAutohide,
+                                  );
+                            },
+                          ),
+                        ),
                       if (desktopRuntime && isMiniPlayerMode)
                         if (miniPlayerBelowMinimum)
                           const _DesktopMiniPlayerUndersizedSurface()
@@ -1446,61 +1545,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 _handleCompactWideQueueRequestChanged,
                           )
                       else if (useDesktopShell)
-                        _DesktopWorkspace(
-                          desktopLayoutClass: desktopLayoutClass,
-                          sidebarWidth: desktopSidebarWidth,
-                          navbarStyle: navbarStyle,
-                          navbarAutohide: navbarAutohide,
-                          expandRequestNotifier: _navExpandRequestNotifier,
-                          selectedIndex: selectedIndex,
-                          destinations: railDestinations,
-                          showOfflineBanner: showOfflineBanner,
-                          offlineBannerText: offlineBannerText,
-                          showPlayer: showPlayer,
-                          showQueueOverlay: showQueueOverlay,
-                          hasPlayerOverlay: hasPlayerOverlay,
-                          navigationShell: navigationShell,
-                          playback: playback,
-                          songTitle: songTitle,
-                          songArtist: songArtist,
-                          artistId: artistId,
-                          albumId: albumId,
-                          coverArtId: coverArtId,
-                          coverArtUrl: coverArtUrl,
-                          isExternalSource: isExternalSource,
-                          onDestinationSelected: onDestinationSelected,
-                          showLibrarySubNavigation: showLibrarySubNavigation,
-                          librarySectionsFit: _librarySectionsFitSidebar,
-                          selectedLibrarySection: selectedLibrarySection,
-                          visibleLibrarySections: visibleLibrarySections,
-                          onLibrarySectionSelected: onLibrarySectionSelected,
-                          allowScrollableRail: allowScrollableRail,
-                          onOpenPlayer: _toggleDesktopLyricsOverlay,
-                          onToggleQueue: () {
-                            if (showQueueOverlay) {
-                              _hideQueueWithAnimation();
-                            } else {
-                              _showQueueOverlay(
-                                queueOnly: useDesktopShell,
-                                invokerFocusNode: _desktopQueueToggleFocusNode,
-                              );
-                            }
-                          },
-                          onDismissQueue: _handleQueueOverlayDismissed,
-                          queueToggleFocusNode: _desktopQueueToggleFocusNode,
-                          queueOverlayKey: _queueOverlayKey,
-                          showLyricsOverlay: showDesktopLyricsOverlay,
-                          onToggleLyrics: _toggleDesktopLyricsOverlay,
-                          onSystemBack: () {
-                            _handleShellBack();
-                          },
-                          onToggleAutohide: () async {
-                            final db = ref.read(navisDatabaseProvider);
-                            await db.appSettingsDao.updateDesktopNavbarAutohide(
-                              !navbarAutohide,
-                            );
-                          },
-                        )
+                        const SizedBox.shrink()
                       else if (useRailNavigation)
                         Padding(
                           padding: useCompactWideLandscape
@@ -2108,6 +2153,57 @@ class _AppShellState extends ConsumerState<AppShell> {
         focusNode: _shellFocusNode,
         autofocus: true,
         child: activeShell,
+      ),
+    );
+  }
+}
+
+/// Hosts the desktop workspace, hiding it while Mini Player is shown.
+///
+/// The workspace stays mounted so the navigation shell keeps every tab's
+/// pages and their state. Hidden, it neither paints, animates, takes focus
+/// nor counts as active, and it is laid out at the last Desktop View size so
+/// the small Mini Player window does not squeeze it. The widget structure is
+/// identical in both states so switching never remounts the workspace.
+class _HiddenWorkspaceLayer extends StatelessWidget {
+  const _HiddenWorkspaceLayer({
+    required this.hidden,
+    required this.desktopViewSize,
+    required this.child,
+    super.key,
+  });
+
+  final bool hidden;
+  final Size desktopViewSize;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final active = !hidden && HomeActivityScope.of(context);
+    return Offstage(
+      offstage: hidden,
+      child: TickerMode(
+        enabled: !hidden,
+        child: ExcludeFocus(
+          excluding: hidden,
+          child: HomeActivityScope(
+            active: active,
+            child: OverflowBox(
+              alignment: Alignment.topLeft,
+              minWidth: hidden ? desktopViewSize.width : null,
+              maxWidth: hidden ? desktopViewSize.width : null,
+              minHeight: hidden ? desktopViewSize.height : null,
+              maxHeight: hidden ? desktopViewSize.height : null,
+              child: MediaQuery(
+                data: hidden
+                    ? mediaQuery.copyWith(size: desktopViewSize)
+                    : mediaQuery,
+                child: child,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

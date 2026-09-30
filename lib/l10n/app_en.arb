@@ -2175,5 +2175,9 @@
   "routeNotFoundMessage": "This page is no longer available.",
   "routeNotFoundGoHome": "Go to Home",
   "navigationBackTooltip": "Back",
-  "navigationForwardTooltip": "Forward"
+  "navigationForwardTooltip": "Forward",
+  "desktopShortcutsNavigateBackTitle": "Go back",
+  "desktopShortcutsNavigateBackDescription": "Return to the previous page; the mouse Back button does the same",
+  "desktopShortcutsNavigateForwardTitle": "Go forward",
+  "desktopShortcutsNavigateForwardDescription": "Go to the next page after going back; the mouse Forward button does the same"
 }

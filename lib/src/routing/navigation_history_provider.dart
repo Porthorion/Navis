@@ -1,189 +1,167 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
+import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/routing/app_router.dart';
-import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/navigation_history.dart';
 
-/// Immutable snapshot of the navigation history.
-///
-/// [stack] is the ordered list of URI strings visited, [index] is the
-/// current position within that list.
-///
-/// Library section tabs are encoded as virtual destinations using a URI
-/// fragment, e.g. `/library#artists`, so that switching between Albums,
-/// Artists, Playlists, Liked, and Radio is fully captured in history.
+/// Immutable desktop navigation history: visited [entries] and the current
+/// [index] within them.
+@immutable
 class NavigationHistoryState {
   const NavigationHistoryState({
-    this.stack = const [],
+    this.entries = const <NavHistoryEntry>[],
     this.index = -1,
   });
 
-  final List<String> stack;
+  final List<NavHistoryEntry> entries;
   final int index;
 
   bool get canGoBack => index > 0;
-  bool get canGoForward => index < stack.length - 1;
+  bool get canGoForward => index >= 0 && index < entries.length - 1;
 
-  String? get previousLocation => canGoBack ? stack[index - 1] : null;
-  String? get nextLocation => canGoForward ? stack[index + 1] : null;
+  /// Visible locations, oldest first.
+  List<String> get stack => <String>[
+    for (final entry in entries) entry.uri.toString(),
+  ];
 }
 
-/// Notifier that tracks navigation history and powers mouse back/forward
-/// button support on desktop.
+/// Desktop back/forward history across tabs.
 ///
-/// GoRouter-level routes are captured via the [GoRouterDelegate] change
-/// listener. Library section tab changes are captured via a separate
-/// [librarySectionProvider] listener and stored as `/library#sectionName`.
+/// Records every change of the router's configuration while a shell location
+/// is shown. Going back to the page directly beneath the current one pops it;
+/// every other move restores the recorded [RouteMatchList], so tabs keep
+/// their page stacks, pages keep their state, and `extra` payloads survive.
 class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
-  // Suppress recording while we are performing our own history navigation so
-  // we don't double-add an entry.
-  bool _suppressRecord = false;
+  /// Maximum number of remembered entries.
+  static const capacity = 100;
+
+  GoRouter? _router;
+
+  /// The entry a back/forward move is heading to, until the router confirms
+  /// it. A different result (for example a redirect) is recorded as new
+  /// navigation instead.
+  int? _pendingIndex;
 
   @override
   NavigationHistoryState build() {
     final router = ref.watch(appRouterProvider);
+    _router = router;
+    _pendingIndex = null;
 
-    // --- GoRouter route changes ---
-    void onRouteChanged() {
-      if (_suppressRecord) return;
-      _record(_currentLocation(router));
-    }
+    void onRouteChanged() =>
+        _record(router.routerDelegate.currentConfiguration);
 
     router.routerDelegate.addListener(onRouteChanged);
     ref.onDispose(() => router.routerDelegate.removeListener(onRouteChanged));
-
-    // --- Library section tab changes ---
-    // Only record when the GoRouter is actually on the library root screen.
-    // Navigating to a detail route (e.g. /library/albums/123) does not change
-    // the section, so this listener stays quiet during detail navigation.
-    ref.listen(librarySectionProvider, (prev, next) {
-      if (_suppressRecord) return;
-      if (_isLibraryRoot(router.state.uri)) {
-        _record('${AppRoutes.library}#${next.name}');
+    ref.listen<SessionRoutePhase>(sessionRoutePhaseProvider, (_, next) {
+      if (next == SessionRoutePhase.unauthenticated) {
+        _pendingIndex = null;
+        state = const NavigationHistoryState();
       }
     });
 
-    return const NavigationHistoryState();
+    final initial = NavHistoryEntry.fromConfiguration(
+      router.routerDelegate.currentConfiguration,
+    );
+    return initial == null
+        ? const NavigationHistoryState()
+        : NavigationHistoryState(
+            entries: <NavHistoryEntry>[initial],
+            index: 0,
+          );
   }
 
-  void _record(String location) {
-    final normalized = _normalizeLocation(location);
-    if (normalized == null) {
+  void _record(RouteMatchList configuration) {
+    final entry = NavHistoryEntry.fromConfiguration(configuration);
+    if (entry == null) {
       return;
     }
-    // Drop consecutive duplicates (e.g. same URL re-emitted on rebuild).
-    if (state.index >= 0 &&
-        state.stack.isNotEmpty &&
-        state.stack[state.index] == normalized) {
+    final entries = state.entries;
+    final pending = _pendingIndex;
+    _pendingIndex = null;
+    if (pending != null &&
+        pending < entries.length &&
+        entries[pending].sameLocation(entry)) {
+      _replaceAt(pending, entry, index: pending);
       return;
     }
-    // Everything after the current index is discarded on new navigation,
-    // exactly like a browser.
-    final newStack = [
-      ...state.stack.sublist(0, state.index + 1),
-      normalized,
-    ];
-    state = NavigationHistoryState(
-      stack: newStack,
-      index: newStack.length - 1,
-    );
-  }
-
-  /// Navigate to the previous location in history (mouse back button).
-  void navigateBack(GoRouter router) {
-    final target = state.previousLocation;
-    if (target == null) return;
-    _suppressRecord = true;
-    state = NavigationHistoryState(
-      stack: state.stack,
-      index: state.index - 1,
-    );
-    _applyLocation(router, target);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _suppressRecord = false;
-    });
-  }
-
-  /// Navigate to the next location in history (mouse forward button).
-  void navigateForward(GoRouter router) {
-    final target = state.nextLocation;
-    if (target == null) return;
-    _suppressRecord = true;
-    state = NavigationHistoryState(
-      stack: state.stack,
-      index: state.index + 1,
-    );
-    _applyLocation(router, target);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _suppressRecord = false;
-    });
-  }
-
-  /// Apply [location] to the live UI.
-  ///
-  /// Virtual library-section entries (`/library#sectionName`) are decoded
-  /// back into a router navigation + section provider update. All other
-  /// entries are a plain [GoRouter.go] call.
-  void _applyLocation(GoRouter router, String location) {
-    final normalized = _normalizeLocation(location);
-    if (normalized == null) {
+    final index = state.index;
+    if (index >= 0 && entries[index].sameLocation(entry)) {
+      // The same location re-emitted, e.g. with new route extras.
+      _replaceAt(index, entry, index: index);
       return;
     }
-    if (normalized.startsWith('${AppRoutes.library}#')) {
-      final sectionName = normalized.substring('${AppRoutes.library}#'.length);
-      final section = LibrarySection.values.firstWhere(
-        (s) => s.name == sectionName,
-        orElse: () => LibrarySection.albums,
-      );
-      // Navigate to the library root if not already there.
-      if (!_isLibraryRoot(router.state.uri)) {
-        router.go(AppRoutes.library);
-      }
-      ref.read(librarySectionProvider.notifier).setSection(section);
-    } else {
-      router.go(normalized);
+    if (index > 0 &&
+        entries[index - 1].sameLocation(entry) &&
+        entry.isPopOf(entries[index])) {
+      // A page back button or system back popped the current page.
+      _replaceAt(index - 1, entry, index: index - 1);
+      return;
     }
-  }
-
-  String _currentLocation(GoRouter router) {
-    final uri = router.state.uri;
-    if (_isLibraryRoot(uri)) {
-      final section = uri.fragment.isNotEmpty
-          ? _librarySectionFromName(uri.fragment)
-          : ref.read(librarySectionProvider);
-      return '${AppRoutes.library}#${section.name}';
+    // New navigation discards forward history, like a browser.
+    var next = <NavHistoryEntry>[...entries.sublist(0, index + 1), entry];
+    if (next.length > capacity) {
+      next = next.sublist(next.length - capacity);
     }
-    return uri.toString();
-  }
-
-  String? _normalizeLocation(String location) {
-    final uri = Uri.tryParse(location);
-    if (uri == null) {
-      return null;
-    }
-    if (_isLibraryRoot(uri)) {
-      final section = uri.fragment.isNotEmpty
-          ? _librarySectionFromName(uri.fragment)
-          : ref.read(librarySectionProvider);
-      return '${AppRoutes.library}#${section.name}';
-    }
-    if (uri.path == AppRoutes.library && uri.fragment.isNotEmpty) {
-      final section = _librarySectionFromName(uri.fragment);
-      return '${AppRoutes.library}#${section.name}';
-    }
-    return uri.toString();
-  }
-
-  bool _isLibraryRoot(Uri uri) {
-    return uri.path == AppRoutes.library && uri.query.isEmpty;
-  }
-
-  LibrarySection _librarySectionFromName(String name) {
-    return LibrarySection.values.firstWhere(
-      (section) => section.name == name,
-      orElse: () => LibrarySection.albums,
+    state = NavigationHistoryState(
+      entries: List<NavHistoryEntry>.unmodifiable(next),
+      index: next.length - 1,
     );
+  }
+
+  void _replaceAt(int position, NavHistoryEntry entry, {required int index}) {
+    final next = List<NavHistoryEntry>.of(state.entries)..[position] = entry;
+    state = NavigationHistoryState(
+      entries: List<NavHistoryEntry>.unmodifiable(next),
+      index: index,
+    );
+  }
+
+  /// Go to the previous history entry (mouse Back, Alt+Left, header button).
+  void navigateBack() {
+    if (!state.canGoBack) {
+      return;
+    }
+    _moveTo(state.index - 1);
+  }
+
+  /// Go to the next history entry (mouse Forward, Alt+Right, header button).
+  void navigateForward() {
+    if (!state.canGoForward) {
+      return;
+    }
+    _moveTo(state.index + 1);
+  }
+
+  void _moveTo(int targetIndex) {
+    final router = _router;
+    if (router == null) {
+      return;
+    }
+    final current = state.entries[state.index];
+    final target = state.entries[targetIndex];
+    _prepareForHistoryNavigation(router);
+    _pendingIndex = targetIndex;
+    state = NavigationHistoryState(entries: state.entries, index: targetIndex);
+    if (target.isPopOf(current) && router.canPop()) {
+      // Popping completes the page's push future, which pages such as the
+      // Equalizer use to restore where they were opened from.
+      router.pop();
+      return;
+    }
+    router.restore(rehydrateNavigationSnapshot(target.snapshot));
+  }
+
+  /// Clears transient surfaces before history moves, like NavService does
+  /// for other navigation: the keyboard, popup routes and player overlays.
+  void _prepareForHistoryNavigation(GoRouter router) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    router.routerDelegate.navigatorKey.currentState?.popUntil(
+      (route) => route is! PopupRoute,
+    );
+    ref.read(playerOverlayStackProvider.notifier).clear();
   }
 }
 

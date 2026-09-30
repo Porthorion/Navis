@@ -492,6 +492,12 @@ class SyncDiagnosticsServer {
           });
           return;
         }
+        if (!_navigationDriver.resolves(location)) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'location does not match an app route',
+          });
+          return;
+        }
         final librarySection = _librarySectionForDiagnosticsLocation(location);
         _navigationDriver.go(
           librarySection == null
@@ -3800,6 +3806,9 @@ class SyncDiagnosticsServer {
 abstract interface class DiagnosticsNavigationDriver {
   String get location;
 
+  /// Whether [location] matches an app route.
+  bool resolves(String location);
+
   void go(String location);
 }
 
@@ -3811,6 +3820,12 @@ class ProviderDiagnosticsNavigationDriver
 
   @override
   String get location => _router().state.uri.toString();
+
+  @override
+  bool resolves(String location) {
+    final match = _router().configuration.findMatch(Uri.parse(location));
+    return !match.isError && match.isNotEmpty;
+  }
 
   @override
   void go(String location) => _router().go(location);

@@ -2,132 +2,165 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/auth/presentation/session_route_provider.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/navigation_history_provider.dart';
+import 'package:navis/src/routing/navigation_service.dart';
+
+import '../../helpers/navigation_shell_harness.dart';
+import '../../helpers/test_theme.dart';
 
 void main() {
-  testWidgets('mouse back and forward mirror normalized routes', (
+  testWidgets('records from launch, without waiting for a Back press', (
     tester,
   ) async {
     final harness = await _pumpHistoryHarness(tester);
 
-    harness.router.go('/search');
-    await tester.pump();
-    harness.router.go('/library/albums/album-1');
-    await tester.pump();
-
-    expect(
-      harness.container.read(navigationHistoryProvider).stack,
-      containsAllInOrder(<String>['/search', '/library/albums/album-1']),
-    );
-
-    harness.container
-        .read(navigationHistoryProvider.notifier)
-        .navigateBack(harness.router);
-    await tester.pump();
-    expect(harness.router.state.uri.toString(), '/search');
-
-    harness.container
-        .read(navigationHistoryProvider.notifier)
-        .navigateForward(harness.router);
-    await tester.pump();
-    expect(harness.router.state.uri.toString(), '/library/albums/album-1');
+    expect(harness.history.stack, <String>[AppRoutes.home]);
+    await harness.tap('Open album');
+    expect(harness.history.stack, <String>[
+      AppRoutes.home,
+      AppRoutes.album('album-1'),
+    ]);
+    expect(harness.history.canGoBack, isTrue);
   });
 
-  testWidgets('new navigation after mouse back truncates forward history', (
+  testWidgets(
+    'back and forward across tabs keep each tab stack and route extras',
+    (tester) async {
+      final harness = await _pumpHistoryHarness(tester);
+      await harness.tap('Open album');
+      await harness.tap('go:search');
+      expect(find.text('SearchScreen'), findsOneWidget);
+
+      await harness.back();
+      expect(find.text('tab:home'), findsOneWidget);
+      expect(find.text('Album album-1'), findsOneWidget);
+      expect(harness.router.state.extra, isA<AlbumDetailRouteRequest>());
+
+      await harness.back();
+      expect(find.text('HomeScreen'), findsOneWidget);
+      expect(harness.history.canGoBack, isFalse);
+
+      await harness.forward();
+      expect(find.text('Album album-1'), findsOneWidget);
+      expect(harness.router.state.extra, isA<AlbumDetailRouteRequest>());
+
+      await harness.forward();
+      expect(find.text('SearchScreen'), findsOneWidget);
+      expect(find.text('tab:search'), findsOneWidget);
+
+      // The restored album page can still be popped normally.
+      await harness.back();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('HomeScreen'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('a page pop moves back through history instead of adding', (
     tester,
   ) async {
     final harness = await _pumpHistoryHarness(tester);
+    await harness.tap('Open album');
 
-    harness.router.go('/search');
-    await tester.pump();
-    harness.router.go('/library/albums/album-1');
-    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
 
-    harness.container
-        .read(navigationHistoryProvider.notifier)
-        .navigateBack(harness.router);
-    await tester.pump();
-    expect(
-      harness.container.read(navigationHistoryProvider).canGoForward,
-      true,
-    );
-
-    harness.router.go('/library/artists/artist-1');
-    await tester.pump();
-
-    final history = harness.container.read(navigationHistoryProvider);
-    expect(history.canGoForward, false);
-    expect(history.stack.last, '/library/artists/artist-1');
+    expect(harness.history.index, 0);
+    expect(harness.history.entries, hasLength(2));
+    expect(harness.history.canGoForward, isTrue);
   });
 
-  testWidgets('library section virtual history restores selected section', (
+  testWidgets('new navigation after going back discards forward history', (
     tester,
   ) async {
     final harness = await _pumpHistoryHarness(tester);
+    await harness.tap('go:search');
+    await harness.back();
 
-    harness.router.go('/library');
-    await tester.pump();
-    harness.container
-        .read(librarySectionProvider.notifier)
-        .setSection(LibrarySection.artists);
-    await tester.pump();
+    await harness.tap('go:settings');
+
+    expect(harness.history.stack, <String>[
+      AppRoutes.home,
+      AppRoutes.settings,
+    ]);
+    expect(harness.history.canGoForward, isFalse);
+  });
+
+  testWidgets('library sections are ordinary history entries', (
+    tester,
+  ) async {
+    final harness = await _pumpHistoryHarness(tester);
+    harness.router.go(AppRoutes.librarySection('artists'));
+    await tester.pumpAndSettle();
+    harness.router.go(AppRoutes.librarySection('playlists'));
+    await tester.pumpAndSettle();
+    await harness.tap('go:search');
+
+    await harness.back();
+    expect(
+      harness.router.state.uri.toString(),
+      AppRoutes.librarySection('playlists'),
+    );
+    await harness.back();
+    expect(
+      harness.router.state.uri.toString(),
+      AppRoutes.librarySection('artists'),
+    );
+  });
+
+  testWidgets('history keeps at most its capacity', (tester) async {
+    final harness = await _pumpHistoryHarness(tester);
+    for (var i = 0; i < NavigationHistoryNotifier.capacity + 10; i++) {
+      harness.router.go(i.isEven ? AppRoutes.search : AppRoutes.settings);
+      await tester.pump();
+    }
 
     expect(
-      harness.container.read(navigationHistoryProvider).stack,
-      containsAllInOrder(<String>['/library#albums', '/library#artists']),
+      harness.history.entries,
+      hasLength(NavigationHistoryNotifier.capacity),
     );
+    expect(harness.history.index, NavigationHistoryNotifier.capacity - 1);
+  });
+
+  testWidgets('signing out clears history', (tester) async {
+    final harness = await _pumpHistoryHarness(tester);
+    await harness.tap('go:search');
+    expect(harness.history.canGoBack, isTrue);
 
     harness.container
-        .read(navigationHistoryProvider.notifier)
-        .navigateBack(harness.router);
+        .read(_sessionPhaseProvider.notifier)
+        .set(SessionRoutePhase.unauthenticated);
     await tester.pump();
-    expect(
-      harness.container.read(librarySectionProvider),
-      LibrarySection.albums,
-    );
 
-    harness.container
-        .read(navigationHistoryProvider.notifier)
-        .navigateForward(harness.router);
-    await tester.pump();
-    expect(
-      harness.container.read(librarySectionProvider),
-      LibrarySection.artists,
-    );
+    expect(harness.history.entries, isEmpty);
+    expect(harness.history.canGoBack, isFalse);
   });
 }
 
+class _SessionPhase extends Notifier<SessionRoutePhase> {
+  @override
+  SessionRoutePhase build() => SessionRoutePhase.ready;
+
+  void set(SessionRoutePhase phase) => state = phase;
+}
+
+final _sessionPhaseProvider =
+    NotifierProvider<_SessionPhase, SessionRoutePhase>(
+      _SessionPhase.new,
+    );
+
 Future<_HistoryHarness> _pumpHistoryHarness(WidgetTester tester) async {
-  final router = GoRouter(
-    routes: <RouteBase>[
-      GoRoute(path: '/', builder: (context, state) => const Text('Home')),
-      GoRoute(
-        path: '/search',
-        builder: (context, state) => const Text('Search'),
-      ),
-      GoRoute(
-        path: '/library',
-        builder: (context, state) => const Text('Library'),
-        routes: <RouteBase>[
-          GoRoute(
-            path: 'albums/:id',
-            builder: (context, state) =>
-                Text('Album ${state.pathParameters['id']}'),
-          ),
-          GoRoute(
-            path: 'artists/:id',
-            builder: (context, state) =>
-                Text('Artist ${state.pathParameters['id']}'),
-          ),
-        ],
-      ),
-    ],
-  );
+  final router = createNavigationShellHarnessRouter();
   final container = ProviderContainer(
     overrides: [
       appRouterProvider.overrideWithValue(router),
+      sessionRoutePhaseProvider.overrideWith(
+        (ref) => ref.watch(_sessionPhaseProvider),
+      ),
     ],
   );
   addTearDown(() {
@@ -138,17 +171,37 @@ Future<_HistoryHarness> _pumpHistoryHarness(WidgetTester tester) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp.router(routerConfig: router),
+      child: MaterialApp.router(theme: testTheme(), routerConfig: router),
     ),
   );
-  container.read(navigationHistoryProvider);
-  await tester.pump();
-  return _HistoryHarness(container: container, router: router);
+  await tester.pumpAndSettle();
+  // The app listens from launch on desktop; mirror that here.
+  container.listen(navigationHistoryProvider, (_, _) {});
+  return _HistoryHarness(tester, container, router);
 }
 
 class _HistoryHarness {
-  const _HistoryHarness({required this.container, required this.router});
+  const _HistoryHarness(this.tester, this.container, this.router);
 
+  final WidgetTester tester;
   final ProviderContainer container;
   final GoRouter router;
+
+  NavigationHistoryState get history =>
+      container.read(navigationHistoryProvider);
+
+  Future<void> tap(String label) async {
+    await tester.tap(find.text(label).last);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> back() async {
+    container.read(navigationHistoryProvider.notifier).navigateBack();
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> forward() async {
+    container.read(navigationHistoryProvider.notifier).navigateForward();
+    await tester.pumpAndSettle();
+  }
 }

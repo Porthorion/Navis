@@ -1227,6 +1227,10 @@ void main() {
     () async {
       final presentation = _MockPresentationController();
       final navigationDriver = _MockDiagnosticsNavigationDriver();
+      when(() => navigationDriver.resolves(any())).thenAnswer(
+        (invocation) => !(invocation.positionalArguments.single as String)
+            .startsWith('/missing'),
+      );
       var location = '/';
       when(() => navigationDriver.location).thenAnswer((_) => location);
       when(() => navigationDriver.go(any())).thenAnswer((invocation) {
@@ -1398,6 +1402,20 @@ void main() {
       expect(
         fixture.container.read(librarySectionProvider),
         LibrarySection.liked,
+      );
+
+      final unknownRoute = await _request(
+        fixture.port,
+        '/v1/presentation/navigate',
+        method: 'POST',
+        token: fixture.token,
+        body: const <String, Object?>{'location': '/missing/page'},
+      );
+      expect(unknownRoute.statusCode, HttpStatus.badRequest);
+      expect(
+        likedNavigation.body['actualLocation'],
+        '/library?section=liked',
+        reason: 'a rejected location must not navigate',
       );
 
       final invalidLibraryFilter = await _request(
@@ -1584,6 +1602,10 @@ void main() {
   test('library actions are bounded, authenticated and clone-only', () async {
     final presentation = _MockPresentationController();
     final navigationDriver = _MockDiagnosticsNavigationDriver();
+    when(() => navigationDriver.resolves(any())).thenAnswer(
+      (invocation) => !(invocation.positionalArguments.single as String)
+          .startsWith('/missing'),
+    );
     when(() => navigationDriver.location).thenReturn('/library');
     for (final action in DiagnosticsPresentationController.libraryActions) {
       when(() => presentation.activateLibraryControl(action: action))
@@ -2042,6 +2064,10 @@ void main() {
     () async {
       var location = '/';
       final navigationDriver = _MockDiagnosticsNavigationDriver();
+      when(() => navigationDriver.resolves(any())).thenAnswer(
+        (invocation) => !(invocation.positionalArguments.single as String)
+            .startsWith('/missing'),
+      );
       when(() => navigationDriver.location).thenAnswer((_) => location);
       when(() => navigationDriver.go(any())).thenAnswer((invocation) {
         location = invocation.positionalArguments.single as String;
@@ -2097,6 +2123,10 @@ void main() {
     () async {
       var location = '/';
       final navigationDriver = _MockDiagnosticsNavigationDriver();
+      when(() => navigationDriver.resolves(any())).thenAnswer(
+        (invocation) => !(invocation.positionalArguments.single as String)
+            .startsWith('/missing'),
+      );
       when(() => navigationDriver.location).thenAnswer((_) => location);
       when(() => navigationDriver.go(any())).thenAnswer((invocation) {
         location = invocation.positionalArguments.single as String;

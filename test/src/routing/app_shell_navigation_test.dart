@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
@@ -662,6 +663,68 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 201));
   });
+
+  testWidgets(
+    'Mini Player keeps the navigation shell and ignores page shortcuts',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final windowController = DesktopWindowController.fallback(
+        desktopRuntime: true,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: true,
+            playback: const PlaybackSnapshot.idle(),
+          ),
+          desktopWindowControllerProvider.overrideWith(
+            (ref) => windowController,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      final router = container.read(appRouterProvider);
+      router.go(AppRoutes.settings);
+      await tester.pumpAndSettle();
+      unawaited(router.push<void>(SettingsPage.cache.location));
+      await tester.pumpAndSettle();
+      final shellState = tester.state(find.byType(StatefulNavigationShell));
+
+      // The window shrinks with the mode, as the real window controller does.
+      await windowController.setMiniPlayerMode(true);
+      tester.view.physicalSize = const Size(720, 405);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('desktopMiniPlayerSurface')),
+        findsOneWidget,
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, SettingsPage.cache.location);
+
+      await windowController.setMiniPlayerMode(false);
+      tester.view.physicalSize = const Size(1280, 800);
+      await tester.pumpAndSettle();
+      expect(
+        tester.state(find.byType(StatefulNavigationShell)),
+        same(shellState),
+      );
+      expect(router.state.uri.path, SettingsPage.cache.location);
+      expect(router.canPop(), isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('720x405 Mini Player uses the dedicated desktop surface', (
     tester,

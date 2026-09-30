@@ -130,12 +130,23 @@ class _DesktopQuickSearchOverlayState
                                               _cycleNext();
                                             }
                                             return KeyEventResult.handled;
-                                          } else if (key ==
-                                              LogicalKeyboardKey.arrowRight) {
+                                          }
+                                          // Arrows move the caret while there
+                                          // is text; only an empty field uses
+                                          // them to change the filter.
+                                          final empty =
+                                              widget.controller.text.isEmpty;
+                                          if (empty &&
+                                              key ==
+                                                  LogicalKeyboardKey
+                                                      .arrowRight) {
                                             _cycleNext();
                                             return KeyEventResult.handled;
-                                          } else if (key ==
-                                              LogicalKeyboardKey.arrowLeft) {
+                                          }
+                                          if (empty &&
+                                              key ==
+                                                  LogicalKeyboardKey
+                                                      .arrowLeft) {
                                             _cyclePrev();
                                             return KeyEventResult.handled;
                                           }
