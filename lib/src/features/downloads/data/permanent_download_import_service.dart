@@ -9,6 +9,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_media_identity.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -162,8 +163,7 @@ class PermanentDownloadImportService {
         ? sqlite3.open(manifestFile.path)
         : null;
     try {
-      final songs = await _libraryDao.getDownloadReconciliationSongs();
-      final songIndex = _DownloadMatchIndex(songs);
+      final songIndex = await _openMatchIndex();
       final registered = await _cacheDao.getPermanentEntries();
       final registeredPaths = registered
           .map((track) => p.normalize(track.filePath))
@@ -218,7 +218,7 @@ class PermanentDownloadImportService {
             continue;
           }
           if (manifestRecord.fileSize == stat.size &&
-              songIndex.containsId(manifestRecord.songId)) {
+              await songIndex.containsId(manifestRecord.songId)) {
             items.add(
               PermanentDownloadImportItem(
                 relativePath: relativePath,
@@ -251,7 +251,7 @@ class PermanentDownloadImportService {
             );
             continue;
           }
-          if (songIndex.containsId(taggedSongId)) {
+          if (await songIndex.containsId(taggedSongId)) {
             items.add(
               PermanentDownloadImportItem(
                 relativePath: relativePath,
@@ -267,7 +267,7 @@ class PermanentDownloadImportService {
             continue;
           }
         }
-        final match = songIndex.match(
+        final match = await songIndex.match(
           rootPath: canonicalRoot,
           filePath: normalizedPath,
           format: format,
@@ -318,8 +318,7 @@ class PermanentDownloadImportService {
       );
     }
     final profileFingerprint = _profileFingerprint();
-    final songs = await _libraryDao.getDownloadReconciliationSongs();
-    final songIndex = _DownloadMatchIndex(songs);
+    final songIndex = await _openMatchIndex();
     final registered = await _cacheDao.getPermanentEntries();
     final registeredPaths = registered.map((track) => track.filePath).toSet();
     final registeredSongsByPath = <String, String>{
@@ -378,7 +377,7 @@ class PermanentDownloadImportService {
         }
         if (manifestRecord != null &&
             manifestRecord.fileSize == document.size &&
-            songIndex.containsId(manifestRecord.songId)) {
+            await songIndex.containsId(manifestRecord.songId)) {
           items.add(
             PermanentDownloadImportItem(
               relativePath: document.relativePath,
@@ -416,7 +415,7 @@ class PermanentDownloadImportService {
             );
             continue;
           }
-          final match = songIndex.match(
+          final match = await songIndex.match(
             rootPath: '',
             filePath: document.relativePath,
             format: format,
@@ -425,7 +424,7 @@ class PermanentDownloadImportService {
           final recognizedTag =
               taggedSongId != null &&
               taggedSongId.isNotEmpty &&
-              songIndex.containsId(taggedSongId);
+              await songIndex.containsId(taggedSongId);
           items.add(
             PermanentDownloadImportItem(
               relativePath: document.relativePath,
@@ -485,6 +484,10 @@ class PermanentDownloadImportService {
     }
   }
 
+  /// Adopts the reviewed files. Adopted files are never modified: the folder
+  /// index records their identity. Index records are written in one
+  /// transaction and cache rows in chunks, so the library's cache-derived
+  /// views update a few times rather than once per file.
   Future<PermanentDownloadImportResult> commit(
     PermanentDownloadImportPreview preview, {
     Map<String, String> manualSongIds = const <String, String>{},
@@ -501,7 +504,9 @@ class PermanentDownloadImportService {
     final manifest = _openManifest(root);
     var imported = 0;
     var skipped = 0;
+    final rows = <CachedTracksTableCompanion>[];
     try {
+      manifest.execute('BEGIN');
       for (final item in preview.items) {
         if (!includeRecognized &&
             item.disposition == PermanentDownloadImportDisposition.recognized) {
@@ -525,7 +530,6 @@ class PermanentDownloadImportService {
                   updatedAt: DateTime.now(),
                 ),
               );
-              await _writeIdentityTags(file, songId);
             }
           }
           continue;
@@ -546,7 +550,7 @@ class PermanentDownloadImportService {
           continue;
         }
         final stat = await file.stat();
-        await _cacheDao.upsertCachedTrack(
+        rows.add(
           CachedTracksTableCompanion.insert(
             songId: songId,
             filePath: file.path,
@@ -568,13 +572,17 @@ class PermanentDownloadImportService {
             updatedAt: DateTime.now(),
           ),
         );
-        await _writeIdentityTags(file, songId);
         imported++;
       }
+      manifest.execute('COMMIT');
+      await _cacheDao.upsertCachedTracks(rows);
       return PermanentDownloadImportResult(
         importedCount: imported,
         skippedCount: skipped,
       );
+    } on Object {
+      if (manifest.autocommit == false) manifest.execute('ROLLBACK');
+      rethrow;
     } finally {
       manifest.close();
     }
@@ -585,23 +593,12 @@ class PermanentDownloadImportService {
     required Map<String, String> manualSongIds,
     required bool includeRecognized,
   }) async {
-    final documents = await _safStorage.listRecursively(preview.rootPath);
-    final existingSidecar = documents.where(
-      (document) => document.relativePath == permanentDownloadManifestFileName,
-    );
-    File manifestFile;
-    if (existingSidecar.isEmpty) {
-      final temporaryDirectory = await Directory.systemTemp.createTemp(
-        'navis-downloads-',
-      );
-      manifestFile = File(p.join(temporaryDirectory.path, 'manifest.sqlite'));
-    } else {
-      manifestFile = await _safStorage.materialize(existingSidecar.first.uri);
-    }
-    final manifest = _openManifestFile(manifestFile);
+    final (manifestFile, manifest) = await _openSafManifest(preview.rootPath);
     var imported = 0;
     var skipped = 0;
+    final rows = <CachedTracksTableCompanion>[];
     try {
+      manifest.execute('BEGIN');
       for (final item in preview.items) {
         if (!includeRecognized &&
             item.disposition == PermanentDownloadImportDisposition.recognized) {
@@ -636,30 +633,12 @@ class PermanentDownloadImportService {
           skipped++;
           continue;
         }
-        var locator = item.sourceUri!;
-        File? local;
-        try {
-          local = await _safStorage.materialize(locator);
-          await _writeIdentityTags(local, songId);
-          // Replacing the document is intentional: SAF does not expose a
-          // filesystem handle for an atomic in-place tag edit. The cache row is
-          // updated to the returned document URI before becoming visible.
-          locator = await _safStorage.writeFromFile(
-            treeUri: preview.rootPath,
-            relativePath: item.relativePath,
-            source: local,
-            mimeType: _mimeTypeFor(item.format),
-          );
-        } finally {
-          if (local != null) {
-            final localFile = local;
-            await localFile.delete().catchError((_) => localFile);
-          }
-        }
-        await _cacheDao.upsertCachedTrack(
+        // The document is adopted in place: no copy out, no tag rewrite, no
+        // copy back. The folder index records its identity.
+        rows.add(
           CachedTracksTableCompanion.insert(
             songId: songId,
-            filePath: locator,
+            filePath: item.sourceUri!,
             storageKind: const Value('androidSaf'),
             fileSize: item.fileSize,
             format: item.format,
@@ -681,13 +660,16 @@ class PermanentDownloadImportService {
         );
         imported++;
       }
-      manifest.close();
+      manifest
+        ..execute('COMMIT')
+        ..close();
       await _safStorage.writeFromFile(
         treeUri: preview.rootPath,
         relativePath: permanentDownloadManifestFileName,
         source: manifestFile,
         mimeType: 'application/vnd.sqlite3',
       );
+      await _cacheDao.upsertCachedTracks(rows);
       return PermanentDownloadImportResult(
         importedCount: imported,
         skippedCount: skipped,
@@ -699,6 +681,24 @@ class PermanentDownloadImportService {
       } catch (_) {}
       await manifestFile.delete().catchError((_) => manifestFile);
     }
+  }
+
+  /// A local copy of a SAF folder's index (or a new, empty one), found
+  /// directly rather than by listing the whole folder.
+  Future<(File, Database)> _openSafManifest(String treeUri) async {
+    final existing = await _safStorage.findDocument(
+      treeUri: treeUri,
+      relativePath: permanentDownloadManifestFileName,
+    );
+    final manifestFile = existing == null
+        ? File(
+            p.join(
+              (await Directory.systemTemp.createTemp('navis-downloads-')).path,
+              'manifest.sqlite',
+            ),
+          )
+        : await _safStorage.materialize(existing);
+    return (manifestFile, _openManifestFile(manifestFile));
   }
 
   /// Records a Navis-created permanent download. This intentionally does not
@@ -731,68 +731,61 @@ class PermanentDownloadImportService {
     }
   }
 
-  /// Adds a sidecar entry for a single Navis-created SAF document without
-  /// scanning or adopting any other file in the selected folder.
-  Future<String> recordDownloadedSaf({
+  /// Adds folder index entries for Navis-created SAF documents, with one
+  /// index read and write for the whole batch. The media is not touched:
+  /// Navis writes identity tags before uploading its own downloads.
+  Future<void> recordDownloadedSafEntries({
     required String treeUri,
-    required String documentUri,
-    required String relativePath,
-    required int fileSize,
-    required String songId,
-    required String format,
+    required List<
+      ({String relativePath, int fileSize, String songId, String format})
+    >
+    entries,
   }) async {
-    final documents = await _safStorage.listRecursively(treeUri);
-    final existing = documents.where(
-      (document) => document.relativePath == permanentDownloadManifestFileName,
-    );
-    final manifestFile = existing.isEmpty
-        ? File(
-            p.join(
-              (await Directory.systemTemp.createTemp('navis-downloads-')).path,
-              'manifest.sqlite',
-            ),
-          )
-        : await _safStorage.materialize(existing.first.uri);
-    final manifest = _openManifestFile(manifestFile);
-    File? localMedia;
+    if (entries.isEmpty) return;
+    final (manifestFile, manifest) = await _openSafManifest(treeUri);
     try {
-      localMedia = await _safStorage.materialize(documentUri);
-      await _writeIdentityTags(localMedia, songId);
-      final locator = await _safStorage.writeFromFile(
-        treeUri: treeUri,
-        relativePath: relativePath,
-        source: localMedia,
-        mimeType: _mimeTypeFor(format),
-      );
-      _writeManifestRecord(
-        manifest,
-        _ManifestRecord(
-          relativePath: relativePath,
-          songId: songId,
-          profileFingerprint: _profileFingerprint(),
-          fileSize: fileSize,
-          format: format,
-          updatedAt: DateTime.now(),
-        ),
-      );
-      manifest.close();
+      manifest.execute('BEGIN');
+      for (final entry in entries) {
+        _writeManifestRecord(
+          manifest,
+          _ManifestRecord(
+            relativePath: entry.relativePath,
+            songId: entry.songId,
+            profileFingerprint: _profileFingerprint(),
+            fileSize: entry.fileSize,
+            format: entry.format,
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+      manifest
+        ..execute('COMMIT')
+        ..close();
       await _safStorage.writeFromFile(
         treeUri: treeUri,
         relativePath: permanentDownloadManifestFileName,
         source: manifestFile,
         mimeType: 'application/vnd.sqlite3',
       );
-      return locator;
     } finally {
       try {
         manifest.close();
       } catch (_) {}
-      if (localMedia != null) {
-        final localFile = localMedia;
-        await localFile.delete().catchError((_) => localFile);
-      }
       await manifestFile.delete().catchError((_) => manifestFile);
     }
+  }
+
+  /// Writes Navis identity tags into a local file Navis downloaded, before it
+  /// is published to a SAF folder.
+  Future<void> writeIdentityTags(File file, String songId) =>
+      _writeIdentityTags(file, songId);
+
+  /// A matcher that looks catalogue songs up by name as files are reviewed,
+  /// instead of normalizing the whole library up front.
+  Future<_DownloadMatchIndex> _openMatchIndex() async {
+    // Name keys come from the derived search index; make it current.
+    await _libraryDao.refreshSongSearchIndex();
+    return _DownloadMatchIndex(_libraryDao);
   }
 
   bool _isNavisSidecar(String path) {
@@ -848,15 +841,6 @@ class PermanentDownloadImportService {
   }
 
   bool _isSafTreeUri(String value) => value.startsWith('content://');
-
-  String _mimeTypeFor(String format) => switch (format.toLowerCase()) {
-    'flac' => 'audio/flac',
-    'mp3' => 'audio/mpeg',
-    'm4a' => 'audio/mp4',
-    'ogg' => 'audio/ogg',
-    'opus' => 'audio/ogg',
-    _ => 'application/octet-stream',
-  };
 
   Map<String, _ManifestRecord> _readManifestRecords(Database db) {
     final rows = db.select(
@@ -927,95 +911,77 @@ class _DownloadMatchResult {
   final bool usedArtist;
 }
 
-/// Precomputed metadata index for legacy folders. It deliberately retains all
-/// duplicate candidates: uniqueness is a safety requirement, not a ranking
-/// decision.
+/// Name matching for legacy folders. It deliberately retains all duplicate
+/// candidates: uniqueness is a safety requirement, not a ranking decision.
+///
+/// Titles and artists use the `normalizeSearchText` form stored in
+/// `song_search_text`, so each distinct title is one indexed lookup, and
+/// titles in any script match (the former ASCII-only form dropped Arabic,
+/// CJK, and accented letters).
 class _DownloadMatchIndex {
-  _DownloadMatchIndex(List<DownloadReconciliationSong> songs)
-    : _songIds = songs.map((song) => song.id).toSet() {
-    for (final song in songs) {
-      final title = _normalize(song.title);
-      if (title.isEmpty) continue;
-      final artist = _normalize(song.artistName ?? '');
-      final suffix = song.suffix?.trim().toLowerCase() ?? '';
-      (_byTitle.putIfAbsent(
-        title,
-        () => <DownloadReconciliationSong>[],
-      )).add(song);
-      (_byTitleFormat.putIfAbsent(
-        '$title\u0000$suffix',
-        () => <DownloadReconciliationSong>[],
-      )).add(song);
-      if (artist.isNotEmpty) {
-        (_byTitleArtist.putIfAbsent(
-          '$title\u0000$artist',
-          () => <DownloadReconciliationSong>[],
-        )).add(song);
-        (_byTitleArtistFormat.putIfAbsent(
-          '$title\u0000$artist\u0000$suffix',
-          () => <DownloadReconciliationSong>[],
-        )).add(song);
-      }
-    }
-  }
+  _DownloadMatchIndex(this._dao);
 
-  final Set<String> _songIds;
-  final Map<String, List<DownloadReconciliationSong>> _byTitle = {};
-  final Map<String, List<DownloadReconciliationSong>> _byTitleArtist = {};
-  final Map<String, List<DownloadReconciliationSong>> _byTitleFormat = {};
-  final Map<String, List<DownloadReconciliationSong>> _byTitleArtistFormat = {};
+  final LibraryDao _dao;
+  final Map<
+    String,
+    Future<List<({DownloadReconciliationSong song, String artistKey})>>
+  >
+  _byTitle =
+      <
+        String,
+        Future<List<({DownloadReconciliationSong song, String artistKey})>>
+      >{};
+  final Map<String, Future<bool>> _known = <String, Future<bool>>{};
 
-  bool containsId(String id) => _songIds.contains(id);
+  Future<bool> containsId(String id) =>
+      _known[id] ??= _dao.isDownloadReconciliationSong(id);
 
-  _DownloadMatchResult match({
+  Future<_DownloadMatchResult> match({
     required String rootPath,
     required String filePath,
     required String format,
     required Map<String, String> tags,
-  }) {
+  }) async {
     final relative = p.relative(filePath, from: rootPath);
     final segments = p.split(relative);
-    final title = _normalize(
+    final title = normalizeSearchText(
       tags['TITLE'] ?? p.basenameWithoutExtension(filePath),
     );
-    final artist = _normalize(
+    final artist = normalizeSearchText(
       tags['ARTIST'] ??
           (segments.length > 1 ? segments[segments.length - 2] : ''),
     );
-    final candidates = _candidates(
-      title: title,
-      artist: artist,
-      format: format,
-    );
     return _DownloadMatchResult(
-      candidates: candidates,
+      candidates: await _candidates(
+        title: title,
+        artist: artist,
+        format: format,
+      ),
       title: title,
       artist: artist,
       usedArtist: artist.isNotEmpty,
     );
   }
 
-  List<DownloadReconciliationSong> _candidates({
+  Future<List<DownloadReconciliationSong>> _candidates({
     required String title,
     required String artist,
     required String format,
-  }) {
+  }) async {
     if (title.isEmpty) return const <DownloadReconciliationSong>[];
-    final source = artist.isEmpty
-        ? <DownloadReconciliationSong>[
-            ...?_byTitleFormat['$title\u0000$format'],
-            ...?_byTitleFormat['$title\u0000'],
-          ]
-        : <DownloadReconciliationSong>[
-            ...?_byTitleArtistFormat['$title\u0000$artist\u0000$format'],
-            ...?_byTitleArtistFormat['$title\u0000$artist\u0000'],
-          ];
-    // A song with no declared suffix is compatible with every source format.
-    return source.isEmpty
-        ? const <DownloadReconciliationSong>[]
-        : source.toList(growable: false);
+    final songs = await (_byTitle[title] ??= _dao
+        .getDownloadReconciliationSongsByTitleKey(title));
+    return <DownloadReconciliationSong>[
+      for (final entry in songs)
+        // A song with no declared suffix is compatible with every format.
+        if ((artist.isEmpty || entry.artistKey == artist) &&
+            _formatCompatible(entry.song.suffix, format))
+          entry.song,
+    ];
   }
 
-  static String _normalize(String input) =>
-      input.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+  static bool _formatCompatible(String? suffix, String format) {
+    final normalized = suffix?.trim().toLowerCase() ?? '';
+    return normalized.isEmpty || normalized == format;
+  }
 }

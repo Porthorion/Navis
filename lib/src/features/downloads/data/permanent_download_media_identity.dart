@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'dart:convert';
@@ -50,24 +51,41 @@ class PermanentDownloadMediaIdentity {
     }
   }
 
+  /// Writes Navis identity comments into a FLAC file Navis created. Files
+  /// whose comments already match are left untouched; otherwise the rewrite,
+  /// which reads and copies the whole file, runs in a background isolate.
   Future<void> write({
     required File file,
     required String songId,
     required String profileFingerprint,
   }) async {
     if (!file.path.toLowerCase().endsWith('.flac')) return;
-    final bytes = await file.readAsBytes();
-    final replacement = _writeFlac(
-      bytes,
-      <String, String>{
-        songIdKey: songId,
-        profileFingerprintKey: profileFingerprint,
-      },
+    final current = await _readFlacMetadata(file);
+    if (current[songIdKey] == songId &&
+        current[profileFingerprintKey] == profileFingerprint) {
+      return;
+    }
+    final path = file.path;
+    final additions = <String, String>{
+      songIdKey: songId,
+      profileFingerprintKey: profileFingerprint,
+    };
+    await Isolate.run(() => _rewriteFlacFile(path, additions));
+  }
+
+  static Future<void> _rewriteFlacFile(
+    String path,
+    Map<String, String> additions,
+  ) async {
+    final file = File(path);
+    final replacement = PermanentDownloadMediaIdentity()._writeFlac(
+      await file.readAsBytes(),
+      additions,
     );
     if (replacement == null) return;
-    final temporary = File('${file.path}.navis-writing');
+    final temporary = File('$path.navis-writing');
     await temporary.writeAsBytes(replacement, flush: true);
-    await temporary.rename(file.path);
+    await temporary.rename(path);
   }
 
   Uint8List? _writeFlac(Uint8List bytes, Map<String, String> additions) {

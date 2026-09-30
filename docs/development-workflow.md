@@ -333,6 +333,9 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   files from an earlier run never change the next run's workload.
 - `--scenarios` selects from `idle`, `queue2k`, `queue10k`, `library`,
   `search`, `artist`, `artist-remote`, `folder-import`, and `cold`.
+  `--refresh-golden` launches once, lets migrations and startup maintenance
+  bring the derived indexes up to date, and saves that as the golden
+  snapshot, so later runs measure steady state rather than a one-off rebuild.
   `--skip-build` reuses the last profile build; `NAVIS_PERF_BUNDLE` (Linux) or
   `NAVIS_PERF_APK` (Android) runs a saved build instead, for example an
   unmodified baseline.
@@ -340,7 +343,8 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   (default `SQUARE ENIX MUSIC`, which has many remote releases on the test
   server), waits for its release metadata, presses Shuffle through
   `POST /v1/presentation/artist-action`, and opens the Queue every five
-  seconds while releases hydrate.
+  seconds while releases hydrate, timing the first frame that shows it
+  (`"settle": false` on `POST /v1/presentation/player-overlay`).
 - `folder-import` builds `--folder-files` (default 400) small files named
   `<artist>/<title>.<suffix>` from the catalogue (FLAC files get a minimal
   header) and adopts them through `POST /v1/downloads/folder/adopt`, the same

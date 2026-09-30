@@ -963,6 +963,93 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         .toList(growable: false);
   }
 
+  /// Album and artist ids of permanently downloaded songs, for the
+  /// "Downloaded only" library filters.
+  Stream<({Set<String> albumIds, Set<String> artistIds})>
+  watchDownloadedContentIds() {
+    return customSelect(
+      '''
+      SELECT DISTINCT songs.album_id AS album_id, songs.artist_id AS artist_id
+      FROM cached_tracks c
+      JOIN songs ON songs.id = c.song_id
+      WHERE c.cache_type = ?
+      ''',
+      variables: <Variable<Object>>[
+        Variable<String>(CacheType.permanent.name),
+      ],
+      readsFrom: {cachedTracksTable, songsTable},
+    ).watch().map((rows) {
+      final albumIds = <String>{};
+      final artistIds = <String>{};
+      for (final row in rows) {
+        final albumId = row.readNullable<String>('album_id');
+        final artistId = row.readNullable<String>('artist_id');
+        if (albumId != null) albumIds.add(albumId);
+        if (artistId != null) artistIds.add(artistId);
+      }
+      return (albumIds: albumIds, artistIds: artistIds);
+    });
+  }
+
+  /// Catalogue songs whose normalized title (the `normalizeSearchText` form
+  /// kept in `song_search_text`) equals [titleKey], with their normalized
+  /// artist, for matching files in a downloads folder by name. One indexed
+  /// range read; rows whose index entry is stale are not returned, so callers
+  /// refresh the index first.
+  Future<List<({DownloadReconciliationSong song, String artistKey})>>
+  getDownloadReconciliationSongsByTitleKey(String titleKey) async {
+    if (titleKey.isEmpty) {
+      return const <({DownloadReconciliationSong song, String artistKey})>[];
+    }
+    final prefix = '$titleKey$songSearchFieldSeparator';
+    final rows = await customSelect(
+      '''
+      SELECT songs.id AS id, songs.title AS title,
+        songs.artist_name AS artist_name, songs.suffix AS suffix,
+        t.search_text AS search_text
+      FROM song_search_text t
+      JOIN songs ON songs.id = t.song_id
+      WHERE t.search_text >= ? AND t.search_text < ?
+        AND t.source = ($_songSearchSourceSql)
+        AND songs.server_deleted_at IS NULL AND songs.is_provisional = 0
+      ''',
+      variables: <Variable<Object>>[
+        Variable<String>(prefix),
+        Variable<String>('$prefix\u{10FFFF}'),
+      ],
+      readsFrom: {songsTable, songSearchTextTable},
+    ).get();
+    return <({DownloadReconciliationSong song, String artistKey})>[
+      for (final row in rows)
+        (
+          song: DownloadReconciliationSong(
+            id: row.read<String>('id'),
+            title: row.read<String>('title'),
+            artistName: row.readNullable<String>('artist_name'),
+            suffix: row.readNullable<String>('suffix'),
+          ),
+          artistKey: row
+              .read<String>('search_text')
+              .split(songSearchFieldSeparator)
+              .elementAt(1),
+        ),
+    ];
+  }
+
+  /// Whether [songId] is a catalogue song a download can be matched to.
+  Future<bool> isDownloadReconciliationSong(String songId) async {
+    final row = await customSelect(
+      '''
+      SELECT 1 AS found FROM songs
+      WHERE id = ? AND server_deleted_at IS NULL AND is_provisional = 0
+      LIMIT 1
+      ''',
+      variables: <Variable<Object>>[Variable<String>(songId)],
+      readsFrom: {songsTable},
+    ).getSingleOrNull();
+    return row != null;
+  }
+
   /// Candidate results for a manual download-file mapping. Exact title matches
   /// are returned before related matches; liked songs and liked-album tracks
   /// are ranked first within each group.

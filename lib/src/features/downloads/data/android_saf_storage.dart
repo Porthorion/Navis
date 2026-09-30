@@ -67,6 +67,20 @@ class AndroidSafStorage {
         .toList(growable: false);
   }
 
+  /// The document at [relativePath] below [treeUri], or null when there is
+  /// none. Resolves one path component per provider query instead of listing
+  /// the whole tree.
+  Future<String?> findDocument({
+    required String treeUri,
+    required String relativePath,
+  }) => _invoke(
+    () => _channel.invokeMethod<String>(
+      'findDocument',
+      <String, Object?>{'treeUri': treeUri, 'relativePath': relativePath},
+    ),
+    'Could not read the selected Android folder.',
+  );
+
   /// Copies a document into app-private temporary storage and returns that
   /// filesystem path. This keeps parser/SQLite libraries off `content://`.
   Future<File> materialize(String uri) async {

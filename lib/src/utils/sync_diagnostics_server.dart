@@ -819,10 +819,17 @@ class SyncDiagnosticsServer {
         final route = surface == 'queue'
             ? PlayerOverlayRoute.queue
             : PlayerOverlayRoute.nowPlaying;
+        // `settle: false` waits for one rendered frame instead of all
+        // animations, so the call measures how quickly the surface appears
+        // even while unrelated animations run.
+        final settle = body['settle'] != false;
+        Future<void> waitForUi() => settle
+            ? presentation.waitForFrame()
+            : WidgetsBinding.instance.endOfFrame;
         if (surface == 'queue') {
           if (visible) {
             controller.hideQueue();
-            await presentation.waitForFrame();
+            await waitForUi();
             controller.showQueueOnly();
           } else {
             controller.hideQueue();
@@ -837,7 +844,7 @@ class SyncDiagnosticsServer {
               .read(desktopNowPlayingDiagnosticsProvider.notifier)
               .setVisible(visible);
         }
-        await presentation.waitForFrame();
+        await waitForUi();
         final stack = _container.read(playerOverlayStackProvider);
         await _respond(request, HttpStatus.ok, <String, Object?>{
           'surface': surface,

@@ -30,6 +30,25 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return into(cachedTracksTable).insertOnConflictUpdate(companion);
   }
 
+  /// Upserts [companions] in transactions of [chunkSize] rows, so every
+  /// cache-derived query re-runs once per chunk instead of once per row.
+  Future<void> upsertCachedTracks(
+    List<CachedTracksTableCompanion> companions, {
+    int chunkSize = 250,
+  }) async {
+    for (var offset = 0; offset < companions.length; offset += chunkSize) {
+      final end = offset + chunkSize < companions.length
+          ? offset + chunkSize
+          : companions.length;
+      await batch(
+        (batch) => batch.insertAllOnConflictUpdate(
+          cachedTracksTable,
+          companions.sublist(offset, end),
+        ),
+      );
+    }
+  }
+
   /// Like [upsertCachedTrack] but never downgrades a [CacheType.permanent]
   /// entry to [CacheType.rolling]. Use this when the rolling cache registers a
   /// playback write so that already-downloaded tracks keep their status.

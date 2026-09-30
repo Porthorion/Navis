@@ -744,10 +744,11 @@ class DownloadService {
       destFile = await _resolveDownloadFile(song, item);
 
       _activeCancelToken = CancelToken();
-      // Dio reports every received chunk. Persist progress only in whole
-      // percent steps: each write re-emits the download queue to every
-      // watching screen and badge.
+      // Dio reports every received chunk. Persist progress at most twice a
+      // second, in whole percent steps: each write re-emits the download
+      // queue and album download badges to every watching screen.
       var lastPersistedProgress = -1.0;
+      final sincePersisted = Stopwatch()..start();
       final response = await _dio.downloadUri(
         downloadUri,
         destFile.path,
@@ -758,10 +759,12 @@ class DownloadService {
             if (!shouldPersistDownloadProgress(
               previous: lastPersistedProgress,
               next: progress,
+              sinceLastWrite: sincePersisted.elapsed,
             )) {
               return;
             }
             lastPersistedProgress = progress;
+            sincePersisted.reset();
             _trackProgressWrite(
               _downloadQueueDao.updateProgress(item.id, progress),
             );
@@ -796,7 +799,13 @@ class DownloadService {
         if (_isSafRoot(_readCustomDownloadFolderPath())) {
           final treeUri = _readCustomDownloadFolderPath()!;
           final relativePath = _safRelativePathFor(song, format);
-          final pendingLocator = await _safStorage.writeFromFile(
+          // Tag the local file before its single upload; a document is never
+          // copied back out to be tagged.
+          await _permanentDownloadImportService.writeIdentityTags(
+            destFile,
+            songId,
+          );
+          final locator = await _safStorage.writeFromFile(
             treeUri: treeUri,
             relativePath: relativePath,
             source: destFile,
@@ -804,15 +813,17 @@ class DownloadService {
             replace: false,
           );
           await tryDeleteFile(destFile);
-          final locator = await _permanentDownloadImportService
-              .recordDownloadedSaf(
-                treeUri: treeUri,
-                documentUri: pendingLocator,
+          await _permanentDownloadImportService.recordDownloadedSafEntries(
+            treeUri: treeUri,
+            entries: [
+              (
                 relativePath: relativePath,
                 fileSize: stat.size,
                 songId: songId,
                 format: format,
-              );
+              ),
+            ],
+          );
           await _cacheDao.upsertCachedTrack(
             CachedTracksTableCompanion.insert(
               songId: songId,
@@ -1209,6 +1220,8 @@ class DownloadService {
     final oldLocators = <String>[];
     final newLocators = <String>[];
     final movedEntries = <_SafRelocatedPermanentDownload>[];
+    final indexEntries =
+        <({String relativePath, int fileSize, String songId, String format})>[];
     try {
       for (final entry in entries) {
         if (_isSafRoot(entry.filePath) &&
@@ -1248,26 +1261,26 @@ class DownloadService {
         );
         newLocators.add(target);
         oldLocators.add(entry.filePath);
-        final taggedTarget = await _permanentDownloadImportService
-            .recordDownloadedSaf(
-              treeUri: treeUri,
-              documentUri: target,
-              relativePath: relativePath,
-              fileSize: entry.fileSize,
-              songId: entry.songId,
-              format: format,
-            );
-        newLocators.add(taggedTarget);
-        movedEntries.add(
-          (entry: entry, locator: taggedTarget, format: format),
-        );
+        // Navis's own downloads already carry identity tags; only the folder
+        // index needs entries, written once for the whole move.
+        indexEntries.add((
+          relativePath: relativePath,
+          fileSize: entry.fileSize,
+          songId: entry.songId,
+          format: format,
+        ));
+        movedEntries.add((entry: entry, locator: target, format: format));
         if (temporary != null) {
           final temporaryFile = temporary;
           await temporaryFile.delete().catchError((_) => temporaryFile);
         }
       }
-      for (final moved in movedEntries) {
-        await _cacheDao.upsertCachedTrack(
+      await _permanentDownloadImportService.recordDownloadedSafEntries(
+        treeUri: treeUri,
+        entries: indexEntries,
+      );
+      await _cacheDao.upsertCachedTracks(<CachedTracksTableCompanion>[
+        for (final moved in movedEntries)
           CachedTracksTableCompanion.insert(
             songId: moved.entry.songId,
             filePath: moved.locator,
@@ -1281,8 +1294,7 @@ class DownloadService {
             downloadStatus: moved.entry.downloadStatus,
             lastAccessedAt: DateTime.now(),
           ),
-        );
-      }
+      ]);
       for (final locator in oldLocators) {
         await _deletePermanentLocator(locator);
       }
@@ -1717,10 +1729,14 @@ class DownloadService {
   }
 }
 
-/// Whether a download progress update is worth persisting: at least one
-/// percentage point since the last write, or completion.
+/// Whether a download progress update is worth persisting: completion, or at
+/// least one percentage point and half a second since the last write.
 @visibleForTesting
 bool shouldPersistDownloadProgress({
   required double previous,
   required double next,
-}) => next >= 1.0 || next - previous >= 0.01;
+  Duration sinceLastWrite = const Duration(days: 1),
+}) =>
+    next >= 1.0 ||
+    (next - previous >= 0.01 &&
+        (previous < 0 || sinceLastWrite >= const Duration(milliseconds: 500)));

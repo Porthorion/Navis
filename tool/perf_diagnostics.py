@@ -524,8 +524,11 @@ class Runner:
                 # interaction that used to become unusable.
                 opened = time.monotonic()
                 try:
+                    # Time to the first frame with the Queue, not to every
+                    # animation settling (the loading indicator never does).
                     self.app.api('/v1/presentation/player-overlay',
-                                 {'surface': 'queue', 'visible': True},
+                                 {'surface': 'queue', 'visible': True,
+                                  'settle': False},
                                  timeout=30)
                     queue_open_ms.append(round((time.monotonic() - opened) * 1000))
                     time.sleep(1.5)
@@ -791,6 +794,10 @@ def main() -> int:
                              'artist,artist-remote,folder-import,cold')
     parser.add_argument('--folder-files', type=int, default=400,
                         help='files in the folder-import fixture')
+    parser.add_argument('--refresh-golden', action='store_true',
+                        help='launch once, let startup maintenance bring the '
+                             'derived indexes up to date, then save the '
+                             'profile as the golden snapshot')
     args = parser.parse_args()
     wanted = set(args.scenarios.split(','))
 
@@ -822,6 +829,17 @@ def main() -> int:
     try:
         launch = app.launch('launch')
         runner.results['S2_launch'] = launch
+        if args.refresh_golden and not android:
+            # Migrations and deferred maintenance (20 s after launch) rewrite
+            # derived indexes; measure later runs against their steady state.
+            time.sleep(90)
+            app.stop()
+            with sqlite3.connect(
+                    f'file:{PROFILE / "navis.sqlite"}?mode=ro',
+                    uri=True) as source, sqlite3.connect(GOLDEN) as golden:
+                source.backup(golden)
+            print('[perf] golden snapshot refreshed', flush=True)
+            return 0
         if args.fresh:
             first_sync(app, runner, credentials)
             if not android:

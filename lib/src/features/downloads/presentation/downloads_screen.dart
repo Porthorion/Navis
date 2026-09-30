@@ -1293,6 +1293,11 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
 
 /// A tree URI is intentionally opaque. Android users see the provider's
 /// folder name, while desktop platforms retain the useful filesystem path.
+/// Names of SAF folders already looked up, so rebuilding the Downloads
+/// settings does not query the folder's provider again.
+final Map<String, Future<AndroidSafTree>> _safFolderDetails =
+    <String, Future<AndroidSafTree>>{};
+
 class _CustomFolderLabel extends StatelessWidget {
   const _CustomFolderLabel({required this.path});
 
@@ -1307,7 +1312,13 @@ class _CustomFolderLabel extends StatelessWidget {
       return Text(value ?? '');
     }
     return FutureBuilder<AndroidSafTree>(
-      future: const AndroidSafStorage().inspectTree(value),
+      future: _safFolderDetails[value] ??= const AndroidSafStorage()
+          .inspectTree(value)
+          .catchError((Object error) {
+            // Look the folder up again next time instead of caching a failure.
+            _safFolderDetails.remove(value);
+            throw error;
+          }),
       builder: (context, snapshot) => Text(
         snapshot.data?.displayName ?? 'Selected folder',
         maxLines: 1,

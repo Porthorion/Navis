@@ -17,6 +17,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.StandardMethodCodec
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileOutputStream
@@ -251,9 +252,17 @@ class MainActivity : AudioServiceActivity() {
             }
         }
 
+        // Storage Access Framework calls query a content provider for every
+        // document, and on Android the platform thread is also Flutter's UI
+        // thread. Run them on a background task queue (serial, so calls keep
+        // their order) so scanning or writing a large folder never freezes
+        // the app.
+        val storageMessenger = flutterEngine.dartExecutor.binaryMessenger
         MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
+            storageMessenger,
             permanentDownloadStorageChannelName,
+            StandardMethodCodec.INSTANCE,
+            storageMessenger.makeBackgroundTaskQueue(),
         ).setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
@@ -317,9 +326,14 @@ class MainActivity : AudioServiceActivity() {
                         result.success(treeDetails(tree, canReplace = probeWritableTree(tree)))
                     }
                     "listRecursively" -> {
-                        val documents = mutableListOf<Map<String, Any?>>()
-                        listDocuments(requiredTree(call.argument<String>("treeUri")), "", documents)
-                        result.success(documents)
+                        result.success(listDocuments(requiredTree(call.argument<String>("treeUri"))))
+                    }
+                    "findDocument" -> {
+                        val tree = requiredTree(call.argument<String>("treeUri"))
+                        result.success(
+                            findDocumentId(tree, requireNotNull(call.argument<String>("relativePath")))
+                                ?.let { DocumentsContract.buildDocumentUriUsingTree(tree.uri, it).toString() },
+                        )
                     }
                     "materialize" -> {
                         val output = File.createTempFile("navis-saf-", ".tmp", cacheDir)
@@ -381,19 +395,78 @@ class MainActivity : AudioServiceActivity() {
             ?: throw IllegalArgumentException("Selected folder is unavailable")
     }
 
-    private fun listDocuments(directory: DocumentFile, prefix: String, output: MutableList<Map<String, Any?>>) {
-        directory.listFiles().forEach { child ->
-            val name = child.name ?: return@forEach
-            val relativePath = if (prefix.isEmpty()) name else "$prefix/$name"
-            if (child.isDirectory) {
-                listDocuments(child, relativePath, output)
-            } else if (child.isFile) {
-                output += mapOf(
-                    "uri" to child.uri.toString(), "relativePath" to relativePath,
-                    "displayName" to name, "size" to child.length(), "mimeType" to child.type,
-                )
+    private val childProjection = arrayOf(
+        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+        DocumentsContract.Document.COLUMN_MIME_TYPE,
+        DocumentsContract.Document.COLUMN_SIZE,
+    )
+
+    /**
+     * Lists every file below [tree] with one provider query per folder.
+     * DocumentFile made about five queries per file (name, type, size and two
+     * kind checks). Like DocumentFile.isFile, entries without a MIME type are
+     * skipped.
+     */
+    private fun listDocuments(tree: DocumentFile): List<Map<String, Any?>> {
+        val treeUri = tree.uri
+        val output = mutableListOf<Map<String, Any?>>()
+        val pending = ArrayDeque<Pair<String, String>>()
+        pending.add(DocumentsContract.getDocumentId(treeUri) to "")
+        while (pending.isNotEmpty()) {
+            val (parentId, prefix) = pending.removeFirst()
+            forEachChild(treeUri, parentId) { id, name, mimeType, size ->
+                val relativePath = if (prefix.isEmpty()) name else "$prefix/$name"
+                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    pending.add(id to relativePath)
+                } else if (!mimeType.isNullOrEmpty()) {
+                    output += mapOf(
+                        "uri" to DocumentsContract.buildDocumentUriUsingTree(treeUri, id).toString(),
+                        "relativePath" to relativePath,
+                        "displayName" to name,
+                        "size" to size,
+                        "mimeType" to mimeType,
+                    )
+                }
             }
         }
+        return output
+    }
+
+    private inline fun forEachChild(
+        treeUri: Uri,
+        parentId: String,
+        action: (id: String, name: String, mimeType: String?, size: Long) -> Unit,
+    ) {
+        contentResolver.query(
+            DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentId),
+            childProjection,
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getString(0) ?: continue
+                val name = cursor.getString(1) ?: continue
+                val size = if (cursor.isNull(3)) 0L else cursor.getLong(3)
+                action(id, name, cursor.getString(2), size)
+            }
+        }
+    }
+
+    /** Resolves [relativePath] below [tree] with one query per path component. */
+    private fun findDocumentId(tree: DocumentFile, relativePath: String): String? {
+        val parts = relativePath.split('/').filter { it.isNotBlank() }
+        if (parts.isEmpty() || parts.any { it == "." || it == ".." }) return null
+        var currentId = DocumentsContract.getDocumentId(tree.uri)
+        for (name in parts) {
+            var found: String? = null
+            forEachChild(tree.uri, currentId) { id, childName, _, _ ->
+                if (found == null && childName == name) found = id
+            }
+            currentId = found ?: return null
+        }
+        return currentId
     }
 
     private fun readNavisFlacIdentity(input: java.io.InputStream): Map<String, String> {
@@ -448,14 +521,42 @@ class MainActivity : AudioServiceActivity() {
         return result
     }
 
+    // Folders resolved by createDocument, keyed by tree and relative path.
+    // Downloads share artist and album folders, and DocumentFile.findFile
+    // queries every sibling's name, so resolving them once per session avoids
+    // most provider round trips. Only touched on the storage task queue.
+    private val resolvedFolders = HashMap<String, DocumentFile>()
+
     private fun createDocument(root: DocumentFile, relativePath: String, mimeType: String, replace: Boolean): DocumentFile {
         val parts = relativePath.split('/').filter { it.isNotBlank() }
         require(parts.isNotEmpty() && parts.none { it == "." || it == ".." }) { "Invalid relative path" }
+        return try {
+            createDocumentIn(root, parts, mimeType, replace, useCache = true)
+        } catch (error: Exception) {
+            // A cached folder may have been removed outside Navis.
+            resolvedFolders.clear()
+            createDocumentIn(root, parts, mimeType, replace, useCache = false)
+        }
+    }
+
+    private fun createDocumentIn(
+        root: DocumentFile,
+        parts: List<String>,
+        mimeType: String,
+        replace: Boolean,
+        useCache: Boolean,
+    ): DocumentFile {
         var directory = root
+        var path = root.uri.toString()
         for (name in parts.dropLast(1)) {
-            directory = directory.findFile(name) ?: directory.createDirectory(name)
-                ?: throw IllegalStateException("Could not create folder")
-            if (!directory.isDirectory) throw IllegalStateException("Path component is not a folder")
+            path = "$path/$name"
+            val cached = if (useCache) resolvedFolders[path] else null
+            directory = cached ?: (directory.findFile(name) ?: directory.createDirectory(name)
+                ?: throw IllegalStateException("Could not create folder"))
+            if (cached == null) {
+                if (!directory.isDirectory) throw IllegalStateException("Path component is not a folder")
+                resolvedFolders[path] = directory
+            }
         }
         val filename = parts.last()
         val existing = directory.findFile(filename)

@@ -1857,10 +1857,21 @@ contract.
    or indexed filename matches. Ambiguous and unknown files enter a transient
    manual-review screen; its local-song picker shows cover art and ranks exact
    title matches with liked songs (including liked-album tracks) first. Closing
-   that review leaves unresolved user files untouched. Legacy matching indexes
-   the local song snapshot once, and FLAC identity reads are bounded to metadata
-   rather than loading complete audio files; Android SAF reads identity metadata
-   directly through `ContentResolver` without staging audio files.
+   that review leaves unresolved user files untouched. Adopted files are never
+   modified: the sidecar is their identity record, and adoption writes sidecar
+   records in one transaction and cache rows in chunks of 250 (one
+   `cached_tracks` notification per chunk). Only files Navis downloads itself
+   carry identity tags; they are written to the local file, off the UI
+   isolate and only when missing, before its single upload to a SAF folder.
+   Legacy matching looks each distinct file title up in `song_search_text`
+   (an indexed prefix read in the `normalizeSearchText` form, so titles in
+   any script match) instead of normalizing the whole library, and FLAC
+   identity reads are bounded to metadata rather than loading complete audio
+   files; Android SAF reads identity metadata directly through
+   `ContentResolver` without staging audio files. The Android storage channel
+   runs on a background task queue (the platform thread is also Flutter's UI
+   thread), lists a tree with one provider query per folder, and resolves the
+   sidecar by path instead of listing the tree.
    The Downloads settings page retains the latest in-process scan's unresolved
    paths behind a disabled-or-enabled **Manual Matching** entry beneath Rescan.
    Its count badge and description expose how many files still need an explicit
@@ -1942,8 +1953,15 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
   streams instead of opening one database watch per row.
 - High-frequency values are published in bounded steps: sync progress through
   `LatestValueThrottle` (status and stage changes immediately, counts at most
-  every 250 ms), download progress in whole-percent steps, and network usage
-  records aggregated in memory and flushed every five seconds.
+  every 250 ms), download progress in whole-percent steps at most twice a
+  second, and network usage records aggregated in memory and flushed every
+  five seconds.
+- Views derived from `cached_tracks` (cache stats, cached and downloaded id
+  sets, cache types) emit only when their value changes, since most writes
+  (a playback touch, download progress) leave them unchanged. The
+  "Downloaded only" album and artist ids come from one join
+  (`watchDownloadedContentIds`) instead of reloading every downloaded song
+  on each write.
 - Position ticks (5–10 Hz) are watched only by leaf widgets inside a
   `RepaintBoundary` (seek sliders, progress bars). The collapsed mobile Now
   Playing stays mounted under a disabled `TickerMode`, which pauses its

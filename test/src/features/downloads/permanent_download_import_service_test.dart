@@ -63,6 +63,96 @@ void main() {
       expect(preview.skippedCount, 2);
     });
 
+    test('adopting leaves files untouched and batches cache rows', () async {
+      final bytes = <int>[
+        ...'fLaC'.codeUnits,
+        0x84,
+        0,
+        0,
+        8,
+        4,
+        0,
+        0,
+        0,
+        0x6e,
+        0x61,
+        0x76,
+        0x69,
+        0,
+        0,
+        0,
+        0,
+        1,
+        2,
+        3,
+        4,
+      ];
+      final files = <File>[];
+      final songs = <SongsTableCompanion>[];
+      for (var i = 0; i < 30; i++) {
+        songs.add(
+          SongsTableCompanion.insert(
+            id: 'batch-$i',
+            title: 'Track $i',
+            artistName: const Value('Batch Artist'),
+            suffix: const Value('flac'),
+          ),
+        );
+      }
+      await database.libraryDao.upsertSongs(songs);
+      final artist = Directory('${root.path}/Batch Artist')..createSync();
+      for (var i = 0; i < 30; i++) {
+        files.add(
+          File('${artist.path}/Track $i.flac')..writeAsBytesSync(bytes),
+        );
+      }
+      final notifications = <Set<TableUpdate>>[];
+      final subscription = database
+          .tableUpdates(TableUpdateQuery.onTable(database.cachedTracksTable))
+          .listen(notifications.add);
+      addTearDown(subscription.cancel);
+
+      final preview = await service('https://example.test|navis').preview(root);
+      expect(preview.recognizedCount, 30);
+      await service('https://example.test|navis').commit(preview);
+      await pumpEventQueue();
+
+      // Adopted files are never rewritten; the folder index is the identity.
+      for (final file in files) {
+        expect(file.readAsBytesSync(), bytes);
+      }
+      expect(await database.cacheDao.getPermanentEntries(), hasLength(30));
+      expect(notifications, hasLength(1));
+    });
+
+    test('matches file names in any script', () async {
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'arabic-1',
+          title: 'حبيبي يا نور العين',
+          artistName: const Value('عمرو دياب'),
+          suffix: const Value('mp3'),
+        ),
+        SongsTableCompanion.insert(
+          id: 'accented-1',
+          title: 'Café del Mar',
+          artistName: const Value('Energy 52'),
+        ),
+      ]);
+      final arabic = Directory('${root.path}/عمرو دياب')..createSync();
+      File('${arabic.path}/حبيبي يا نور العين.mp3').writeAsBytesSync(<int>[1]);
+      final accented = Directory('${root.path}/Energy 52')..createSync();
+      File('${accented.path}/Cafe del Mar.mp3').writeAsBytesSync(<int>[1]);
+
+      final preview = await service('https://example.test|navis').preview(root);
+      final matched = <String?>{
+        for (final item in preview.items)
+          if (item.disposition == PermanentDownloadImportDisposition.recognized)
+            item.songId,
+      };
+      expect(matched, containsAll(<String>['arabic-1', 'accented-1']));
+    });
+
     test('adopts a uniquely matched legacy artist/title file', () async {
       final artist = Directory('${root.path}/Jack Harlow')..createSync();
       final file = File('${artist.path}/Hello Miss Johnson.flac')

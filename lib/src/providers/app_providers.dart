@@ -10,7 +10,8 @@ import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Variable;
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show mapEquals, setEquals, visibleForTesting;
 import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -2155,35 +2156,48 @@ class CacheStats {
   final int totalBytes;
 }
 
+// Cache-derived views emit only when their value changes: most
+// cached_tracks writes (a playback touch, a download's progress) leave them
+// unchanged, and every emission rebuilds badges and lists.
 final rollingCacheStatsProvider = StreamProvider<CacheStats>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
-  return dao.watchCachedTracksByType(CacheType.rolling).map((tracks) {
-    final total = tracks.fold<int>(0, (sum, item) => sum + item.fileSize);
-    return CacheStats(trackCount: tracks.length, totalBytes: total);
-  });
+  return dao
+      .watchCachedTracksByType(CacheType.rolling)
+      .map(_cacheStatsOf)
+      .distinct(_sameCacheStats);
 });
 
 final permanentCacheStatsProvider = StreamProvider<CacheStats>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
-  return dao.watchCachedTracksByType(CacheType.permanent).map((tracks) {
-    final total = tracks.fold<int>(0, (sum, item) => sum + item.fileSize);
-    return CacheStats(trackCount: tracks.length, totalBytes: total);
-  });
+  return dao
+      .watchCachedTracksByType(CacheType.permanent)
+      .map(_cacheStatsOf)
+      .distinct(_sameCacheStats);
 });
+
+CacheStats _cacheStatsOf(List<CachedTracksTableData> tracks) => CacheStats(
+  trackCount: tracks.length,
+  totalBytes: tracks.fold<int>(0, (sum, item) => sum + item.fileSize),
+);
+
+bool _sameCacheStats(CacheStats a, CacheStats b) =>
+    a.trackCount == b.trackCount && a.totalBytes == b.totalBytes;
 
 final cachedSongIdsProvider = StreamProvider<Set<String>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
-  return dao.watchCachedTracks().map(
-    (tracks) => tracks.map((track) => track.songId).toSet(),
-  );
+  return dao
+      .watchCachedTracks()
+      .map((tracks) => tracks.map((track) => track.songId).toSet())
+      .distinct(setEquals);
 });
 
 /// Maps songId → CacheType for all cached tracks (rolling + permanent).
 final cachedSongTypesProvider = StreamProvider<Map<String, CacheType>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
-  return dao.watchCachedTracks().map(
-    (tracks) => {for (final t in tracks) t.songId: t.cacheType},
-  );
+  return dao
+      .watchCachedTracks()
+      .map((tracks) => {for (final t in tracks) t.songId: t.cacheType})
+      .distinct(mapEquals);
 });
 
 class DownloadedOnlyFilterController extends Notifier<bool> {
@@ -2218,7 +2232,8 @@ final downloadedSongIdsProvider = StreamProvider<Set<String>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
   return dao
       .watchCachedTracksByType(CacheType.permanent)
-      .map((tracks) => tracks.map((track) => track.songId).toSet());
+      .map((tracks) => tracks.map((track) => track.songId).toSet())
+      .distinct(setEquals);
 });
 
 /// Provides the set of album IDs and artist IDs that have permanently cached
@@ -2231,31 +2246,17 @@ final downloadedSongIdsProvider = StreamProvider<Set<String>>((ref) {
 /// stored; but the parent album/artist still shows in the filtered view.
 final downloadedContentIdsProvider =
     StreamProvider<({Set<String> albumIds, Set<String> artistIds})>((ref) {
-      final db = ref.watch(navisDatabaseProvider);
-
-      final cachedStream = db.cacheDao.watchCachedTracksByType(
-        CacheType.permanent,
-      );
-
-      return cachedStream.asyncMap((cachedTracks) async {
-        final songIds = <String>{};
-        for (final t in cachedTracks) {
-          songIds.add(t.songId);
-        }
-
-        if (songIds.isEmpty) {
-          return (albumIds: <String>{}, artistIds: <String>{});
-        }
-
-        final songs = await db.libraryDao.getSongsByIds(songIds);
-        final albumIds = <String>{};
-        final artistIds = <String>{};
-        for (final song in songs) {
-          if (song.albumId != null) albumIds.add(song.albumId!);
-          if (song.artistId != null) artistIds.add(song.artistId!);
-        }
-        return (albumIds: albumIds, artistIds: artistIds);
-      });
+      // One join returning only the distinct album and artist ids, instead
+      // of loading every downloaded song after each cached_tracks write.
+      return ref
+          .watch(navisDatabaseProvider)
+          .libraryDao
+          .watchDownloadedContentIds()
+          .distinct(
+            (a, b) =>
+                setEquals(a.albumIds, b.albumIds) &&
+                setEquals(a.artistIds, b.artistIds),
+          );
     });
 
 /// Provides the list of permanently cached tracks.
