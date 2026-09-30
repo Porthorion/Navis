@@ -14,6 +14,8 @@ class NavisQueueWindow {
     this.lowWater = 12,
     this.page = 32,
     this.nearJump = 64,
+    this.behind = 32,
+    this.trimSlack = 16,
   });
 
   /// Replacement queues longer than this defer the songs after [ahead].
@@ -32,6 +34,34 @@ class NavisQueueWindow {
   /// A jump this far or less into the tail releases through the target;
   /// farther jumps rebuild the player around it.
   final int nearJump;
+
+  /// Played songs kept in the player before the current one; older ones
+  /// move to the deferred head. A replacement starting deep in a queue
+  /// materialises this many before the start song.
+  final int behind;
+
+  /// Played songs beyond [behind] allowed to pile up before a trim, so trims
+  /// run in batches rather than after every song.
+  final int trimSlack;
+}
+
+/// The queue as it was before a far jump replaced it.
+class _QueueRestorePoint {
+  const _QueueRestorePoint({
+    required this.head,
+    required this.items,
+    required this.tail,
+    required this.capture,
+    required this.missing,
+  });
+
+  final List<_DeferredQueueEntry> head;
+  final List<MediaItem> items;
+  final List<_DeferredQueueEntry> tail;
+  final ({int? index, Duration position, bool playing}) capture;
+
+  /// Songs the jump could not prepare, reported once it succeeds.
+  final List<String> missing;
 }
 
 /// A queued song that has not been handed to the native player yet.

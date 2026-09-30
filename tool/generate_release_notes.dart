@@ -61,6 +61,10 @@ const List<_Version> _changelogs = [
     '1.4.0',
     [
       _Entry(
+        'Very long queues stay light: songs you have played are released from the player after a while and come back when you go back to them, and jumping far ahead or back in a long queue loads only the songs around the one you picked (if it cannot load, the song that was playing continues)',
+        type: _EntryType.improvement,
+      ),
+      _Entry(
         'Shuffle is now handled by Navis on every platform: the Queue shows the order songs will really play in, the song shown as playing on desktop always matches what you hear, long shuffled queues start as quickly as unshuffled ones, and a shuffled queue survives restarts in the same order; turning shuffle off returns to the original order, including songs added meanwhile',
         type: _EntryType.fix,
       ),

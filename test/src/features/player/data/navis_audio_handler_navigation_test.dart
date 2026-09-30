@@ -58,6 +58,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   double appliedPitch = 1;
   bool failPitchOnce = false;
   String? failAppendSongId;
+
+  /// A load whose first song is this one fails, as a broken source would.
+  String? failLoadSongId;
   Completer<void>? seekGate;
   Completer<void>? loadGate;
   Completer<void>? loadEntered;
@@ -239,6 +242,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     ShuffleOrder? shuffleOrder,
   }) => _mutate(() async {
     await _hangIf('setAudioSources');
+    final failing = failLoadSongId;
+    if (failing != null &&
+        sources.isNotEmpty &&
+        sources.first is IndexedAudioSource &&
+        ((sources.first as IndexedAudioSource).tag as MediaItem?)?.id ==
+            failing) {
+      throw StateError('load failed');
+    }
     state = ProcessingState.loading;
     final gate = loadGate;
     loadGate = null;
@@ -278,6 +289,16 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> moveAudioSource(int currentIndex, int newIndex) =>
       _mutate(() async {
         _sources.insert(newIndex, _sources.removeAt(currentIndex));
+        // Like just_audio: the playing item keeps playing wherever it moves.
+        final playing = index;
+        if (playing == null) return;
+        if (playing == currentIndex) {
+          index = newIndex;
+        } else if (currentIndex < playing && newIndex >= playing) {
+          index = playing - 1;
+        } else if (currentIndex > playing && newIndex <= playing) {
+          index = playing + 1;
+        }
       });
 
   @override
@@ -1143,7 +1164,150 @@ void main() {
       expect(handler.snapshot.currentIndex, 50);
       expect(handler.snapshot.currentSongId, 'song-50');
       expect(handler.snapshot.queueSongIds, ids(60));
+      // Only a window around the target: 32 before it, 8 after.
+      expect(player.sourceIds, ids(59, 18));
+      expect(handler.collectPlaybackDiagnostics()['deferredHeadLength'], 18);
+      expect(player.index, 32);
+    });
+
+    test('jumping back into released songs brings them back', () async {
+      final (handler, player, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      await handler.playFromIndex(50);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-50' &&
+            !handler.snapshot.isLoading,
+      );
+
+      // Near: the head releases back into the player.
+      await handler.playFromIndex(5);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-5' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.currentIndex, 5);
+      expect(handler.snapshot.queueSongIds, ids(60));
+      // The target, the songs after it and a page before it (here the rest
+      // of the 18 released songs).
       expect(player.sourceIds, ids(59));
+      expect(player.sourceIds[player.index!], 'song-5');
+    });
+
+    group('played songs', () {
+      const small = NavisQueueWindow(
+        deferThreshold: 16,
+        ahead: 4,
+        lowWater: 2,
+        page: 4,
+        nearJump: 8,
+        behind: 4,
+        trimSlack: 2,
+      );
+
+      Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
+      trimmed() async {
+        final directory = await Directory.systemTemp.createTemp('navis-trim-');
+        final created = await createHandler(directory, 60, queueWindow: small);
+        final (handler, player, database) = created;
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(ids(60), expandMatchFlows: false);
+        // Play through ten songs.
+        for (var i = 0; i < 10; i++) {
+          player.moveTo(player.index! + 1);
+          await until(() => handler.snapshot.currentSongId == 'song-${i + 1}');
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        return created;
+      }
+
+      int head(NavisAudioHandler handler) =>
+          handler.collectPlaybackDiagnostics()['deferredHeadLength'] as int;
+
+      test('beyond the window leave the player in batches', () async {
+        final (handler, player, database) = await trimmed();
+        expect(head(handler), 6);
+        expect(player.sourceIds.first, 'song-6');
+        expect(player.index, 4);
+        expect(handler.snapshot.currentIndex, 10);
+        expect(handler.snapshot.queueSongIds, ids(60));
+        await handler.debugFlushQueuePersistence();
+        expect(
+          (await database.playQueueDao.getQueueItems()).map((s) => s.id),
+          ids(60),
+        );
+        expect((await database.playQueueDao.getQueueState())!.currentIndex, 10);
+      });
+
+      test(
+        'come back with Previous past the first song the player holds',
+        () async {
+          final (handler, player, _) = await trimmed();
+          for (var target = 9; target >= 4; target--) {
+            await handler.skipToPrevious();
+            await until(
+              () =>
+                  handler.snapshot.currentSongId == 'song-$target' &&
+                  !handler.snapshot.isLoading,
+            );
+          }
+          expect(handler.snapshot.currentIndex, 4);
+          expect(player.sourceIds[player.index!], 'song-4');
+          expect(handler.snapshot.queueSongIds, ids(60));
+          // One release of the target and a page before it.
+          expect(head(handler), 1);
+        },
+      );
+    });
+
+    test('a far jump whose song cannot load keeps the old queue', () async {
+      final (handler, player, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      player
+        ..moveTo(3)
+        ..isPlaying = true;
+      await until(() => handler.snapshot.currentSongId == 'song-3');
+      player.failLoadSongId = 'song-50';
+
+      await handler.playFromIndex(50);
+      await until(
+        () =>
+            handler.snapshot.lastFailedSongId == 'song-50' &&
+            !handler.snapshot.isLoading,
+      );
+
+      expect(handler.snapshot.currentSongId, 'song-3');
+      expect(handler.snapshot.currentIndex, 3);
+      expect(handler.snapshot.queueSongIds, ids(60));
+      expect(player.sourceIds.first, 'song-0');
+      expect(player.sourceIds[player.index!], 'song-3');
+    });
+
+    test('a far jump back rebuilds around the first song', () async {
+      final (handler, player, _) = await windowed(60);
+      await handler.replaceQueue(ids(60), expandMatchFlows: false);
+      await handler.playFromIndex(50);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-50' &&
+            !handler.snapshot.isLoading,
+      );
+
+      await handler.playFromIndex(0);
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-0' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.currentIndex, 0);
+      expect(handler.snapshot.queueSongIds, ids(60));
+      expect(player.sourceIds, ids(9));
+      expect(handler.collectPlaybackDiagnostics()['deferredHeadLength'], 0);
     });
 
     group('a remote row matched to a local song', () {
@@ -1177,6 +1341,13 @@ void main() {
         await until(
           () =>
               handler.snapshot.currentSongId == 'song-50' &&
+              !handler.snapshot.isLoading,
+        );
+        // Now among the released songs; bring it back.
+        await handler.playFromIndex(3);
+        await until(
+          () =>
+              handler.snapshot.currentSongId == 'song-3' &&
               !handler.snapshot.isLoading,
         );
         expect(titleOf(handler, 'song-3'), 'Remote 3');
@@ -1233,11 +1404,17 @@ void main() {
         _ControllableAudioPlayer player,
       ) {
         final queue = handler.snapshot.queueSongIds;
+        final diagnostics = handler.collectPlaybackDiagnostics();
+        final head = diagnostics['deferredHeadLength'] as int;
         expect(player.shuffleEnabled, isFalse);
-        expect(player.sourceIds, queue.take(player.sourceIds.length));
         expect(
-          player.sourceIds.length +
-              (handler.collectPlaybackDiagnostics()['deferredLength'] as int),
+          player.sourceIds,
+          queue.skip(head).take(player.sourceIds.length),
+        );
+        expect(
+          head +
+              player.sourceIds.length +
+              (diagnostics['deferredLength'] as int),
           queue.length,
         );
       }
@@ -1396,7 +1573,7 @@ void main() {
       });
     });
 
-    test('repeat all waits until nothing is deferred', () async {
+    test('repeat all waits until nothing is deferred on either side', () async {
       final (handler, player, _) = await windowed(60);
       await handler.replaceQueue(ids(60), expandMatchFlows: false);
       await handler.setRepeatMode(AudioServiceRepeatMode.all);
@@ -1408,7 +1585,18 @@ void main() {
             handler.snapshot.currentSongId == 'song-59' &&
             !handler.snapshot.isLoading,
       );
-      expect(player.appliedLoopMode, LoopMode.all);
+      // The first songs were released from the player, so it cannot wrap to
+      // them itself; Navis wraps once the last song ends.
+      expect(player.appliedLoopMode, LoopMode.off);
+      player.state = ProcessingState.completed;
+      await handler.play();
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-0' &&
+            !handler.snapshot.isLoading,
+      );
+      expect(handler.snapshot.currentIndex, 0);
+      expect(player.appliedLoopMode, LoopMode.off);
     });
 
     test('repeat all resumes when a new queue has nothing deferred', () async {
@@ -1455,5 +1643,185 @@ void main() {
       final earlier = queue.where(ids(10).contains).toList();
       expect(earlier, ids(10));
     });
+  });
+  group('queue window model', () {
+    // A tiny window, so heads, tails, releases and trims happen constantly.
+    const tiny = NavisQueueWindow(
+      deferThreshold: 12,
+      ahead: 3,
+      lowWater: 2,
+      page: 3,
+      nearJump: 5,
+      behind: 3,
+      trimSlack: 1,
+    );
+    final seeds =
+        int.tryParse(Platform.environment['NAVIS_QUEUE_MODEL_SEEDS'] ?? '') ??
+        500;
+    const steps = 24;
+    const songCount = 30;
+
+    Future<void> settle(NavisAudioHandler handler) async {
+      var quiet = 0;
+      for (var i = 0; i < 2000 && quiet < 3; i++) {
+        await Future<void>.delayed(Duration.zero);
+        quiet = handler.debugQueueLaneIdle && !handler.snapshot.isLoading
+            ? quiet + 1
+            : 0;
+      }
+      if (quiet < 3) fail('queue work did not settle');
+    }
+
+    test('matches a plain list through random edits and navigation', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-model-');
+      addTearDown(() => directory.delete(recursive: true));
+      for (var seed = 0; seed < seeds; seed++) {
+        final random = Random(seed);
+        final (handler, player, database) = await createHandler(
+          directory,
+          songCount,
+          queueWindow: tiny,
+        );
+        final log = <String>[];
+        try {
+          var model = List<String>.generate(20, (i) => 'song-$i');
+          var current = random.nextInt(model.length);
+          await handler.replaceQueue(
+            model,
+            startIndex: current,
+            expandMatchFlows: false,
+          );
+          await settle(handler);
+
+          void check(String step) {
+            final reason = 'seed $seed after ${log.join(', ')}';
+            final snapshot = handler.snapshot;
+            expect(snapshot.queueSongIds, model, reason: reason);
+            expect(snapshot.currentIndex, current, reason: reason);
+            expect(snapshot.currentSongId, model[current], reason: reason);
+            final head =
+                handler.collectPlaybackDiagnostics()['deferredHeadLength']
+                    as int;
+            final native = player.sourceIds;
+            expect(
+              native,
+              model.sublist(head, head + native.length),
+              reason: reason,
+            );
+            expect(player.index! + head, current, reason: reason);
+            expect(player.shuffleEnabled, isFalse, reason: reason);
+          }
+
+          check('start');
+          for (var step = 0; step < steps; step++) {
+            final song = 'song-${random.nextInt(songCount)}';
+            switch (random.nextInt(9)) {
+              case 0:
+                log.add('next');
+                await handler.skipToNext();
+                if (current < model.length - 1) current++;
+              case 1:
+                log.add('previous');
+                await handler.skipToPrevious();
+                if (current > 0) current--;
+              case 2:
+                final target = random.nextInt(model.length);
+                log.add('jump $target');
+                await handler.playFromIndex(target);
+                current = target;
+              case 3:
+                final index = player.index!;
+                if (index + 1 >= player.sourceIds.length) continue;
+                log.add('advance');
+                player.moveTo(index + 1);
+                current++;
+              case 4:
+                log.add('add $song');
+                await handler.addToQueue(<String>[
+                  song,
+                ], expandMatchFlows: false);
+                model = <String>[...model, song];
+              case 5:
+                log.add('play next $song');
+                await handler.playNext(<String>[song], expandMatchFlows: false);
+                model = <String>[...model]..insert(current + 1, song);
+              case 6:
+                if (model.length < 3) continue;
+                var index = random.nextInt(model.length);
+                if (index == current) index = (index + 1) % model.length;
+                log.add('remove $index');
+                await handler.removeAt(index);
+                model = <String>[...model]..removeAt(index);
+                if (index < current) current--;
+              case 7:
+                var from = random.nextInt(model.length);
+                if (from == current) from = (from + 1) % model.length;
+                final to = random.nextInt(model.length + 1);
+                final adjusted = from < to ? to - 1 : to;
+                if (from == adjusted) continue;
+                log.add('move $from to $to');
+                await handler.reorderQueue(from, to);
+                final next = <String>[...model];
+                next.insert(adjusted, next.removeAt(from));
+                model = next;
+                if (from < current && adjusted >= current) {
+                  current--;
+                } else if (from > current && adjusted <= current) {
+                  current++;
+                }
+              case 8:
+                final on =
+                    handler.snapshot.shuffleMode ==
+                    AudioServiceShuffleMode.none;
+                log.add(on ? 'shuffle on' : 'shuffle off');
+                final playing = model[current];
+                await handler.setShuffleMode(
+                  on
+                      ? AudioServiceShuffleMode.all
+                      : AudioServiceShuffleMode.none,
+                );
+                await settle(handler);
+                final reordered = handler.snapshot.queueSongIds;
+                expect(
+                  List<String>.of(reordered)..sort(),
+                  List<String>.of(model)..sort(),
+                  reason: 'seed $seed: ${log.join(', ')}',
+                );
+                expect(
+                  handler.snapshot.currentSongId,
+                  playing,
+                  reason: 'seed $seed: ${log.join(', ')}',
+                );
+                if (on) {
+                  expect(
+                    reordered.take(current + 1),
+                    model.take(current + 1),
+                    reason: 'seed $seed: ${log.join(', ')}',
+                  );
+                }
+                model = List<String>.of(reordered);
+                current = handler.snapshot.currentIndex!;
+            }
+            await settle(handler);
+            check(log.last);
+          }
+          await handler.debugFlushQueuePersistence();
+          final saved = await database.playQueueDao.getQueueItems();
+          expect(
+            saved.map((song) => song.id),
+            model,
+            reason: 'seed $seed saved: ${log.join(', ')}',
+          );
+          expect(
+            (await database.playQueueDao.getQueueState())!.currentIndex,
+            current,
+            reason: 'seed $seed saved index: ${log.join(', ')}',
+          );
+        } finally {
+          await handler.disposeHandler();
+          await database.close();
+        }
+      }
+    }, timeout: const Timeout(Duration(minutes: 10)));
   });
 }

@@ -1321,26 +1321,43 @@ even if the rest of the queue is still filling.
 #### Released queue window
 
 Long queues are not handed to the native player whole. `NavisAudioHandler`
-keeps `_queueItems` and the native playlist one to one (so a logical index is
-the native index for everything the player holds) and keeps later songs in a
-Dart-only deferred tail (`NavisQueueWindow`, `navis_queue_window.dart`).
-Replacing, restoring, or rebuilding a queue longer than 256 songs materialises
-the prefix and 32 songs after the start song; the rest is deferred. When fewer
-than 12 materialised songs remain after the current one, one page of 32 is
-released with a single `addAudioSources` append. Releases run as idle queue
-lane work and never cancel a user command. `PlaybackSnapshot.queueSongIds`
-always lists the whole logical queue, so the Queue UI shows and edits every
-song; tapping a deferred song within 64 of the window releases through it and
-seeks, farther taps rebuild the player around it, and removes and reorders
-inside the tail are Dart-only. Songs that cannot be resolved when released are
-dropped, except that a song that is only unplayable for now (offline without a
-cached copy, or no server session) stays deferred with every song after it and
-the release backs off and retries. Shuffled queues defer like any other (see
-Shuffle below), and repeat-all stays off natively until
-nothing is deferred, so the player never wraps early; the reported repeat mode
-is the user's. `GET /v1/playback/status` reports `materializedLength`,
-`deferredLength`, and release counters. Known limit: restoring at, or jumping
-to, a far index still materialises the prefix before it.
+keeps `_queueItems` and the native playlist one to one and keeps the rest of
+the queue in two Dart-only lists (`NavisQueueWindow`,
+`navis_queue_window.dart`): a deferred tail of songs still to come and a
+deferred head of played songs released from the player. The logical queue is
+head + materialised + tail, so a logical index is the native index plus the
+head's length; snapshots, persistence and every index-based API (jumps,
+remove, reorder, insert runs, merges) use logical indices, while
+`playbackState.queueIndex` stays native, paired with the materialised `queue`
+that MPRIS, SMTC and Android media sessions see. Replacing, restoring, or
+rebuilding a queue longer than 256 songs materialises 32 songs before and 32
+after the start song; earlier songs go to the head and later ones to the
+tail. When fewer than 12 materialised songs remain after the current one, one
+page of 32 is released with a single `addAudioSources` append; once more than
+48 played songs (`behind` 32 + `trimSlack` 16) pile up in a long queue, the
+oldest beyond 32 move to the head with one range removal. Releases and trims
+run as idle queue lane work and never cancel a user command.
+`PlaybackSnapshot.queueSongIds` always lists the whole logical queue, so the
+Queue UI shows and edits every song. Tapping a deferred song within 64 of the
+window (either side) releases through it, and a page more for Previous, then
+seeks; farther taps rebuild the player around it, materialising only that
+window, and keep the old queue playing if the target cannot load. Removes,
+reorders and inserts entirely inside the head or tail are Dart-only; a
+reorder reaching into the head releases it first. Songs that cannot be
+resolved when released are dropped, except that a song that is only
+unplayable for now (offline without a cached copy, or no server session)
+stays deferred with every song after it and the release backs off and
+retries. Shuffled queues defer like any other (see Shuffle below).
+Repeat-all stays off natively while anything is deferred on either side, so
+the player never wraps early; the reported repeat mode is the user's, and at
+the end of the last song Navis wraps to the first itself.
+`GET /v1/playback/status` reports `materializedLength`, `deferredLength`,
+`deferredHeadLength` and release counters. The queue window model test
+(`queue window model` in
+`test/src/features/player/data/navis_audio_handler_navigation_test.dart`)
+runs 500 seeded random sequences of navigation, auto-advance, edits and
+shuffle against a tiny window and checks the queue, index, native playlist
+and saved queue after every step; `NAVIS_QUEUE_MODEL_SEEDS` changes the count.
 
 Shuffle is owned by Navis, not the player (`_shuffleEnabled`,
 `navis_shuffle_order.dart`). Native shuffle is never enabled: it can order
