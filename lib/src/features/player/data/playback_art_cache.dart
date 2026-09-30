@@ -30,6 +30,10 @@ class PlaybackArtCache {
 
   final NetworkUsageReporter? _reportNetworkUsage;
 
+  /// Shared client, so consecutive track changes reuse a keep-alive
+  /// connection instead of paying a TCP and TLS handshake each time.
+  HttpClient? _client;
+
   /// In-memory map: coverArtId → absolute file path of the cached file.
   ///
   /// Keyed by Subsonic cover-art ID rather than URL so all tracks in the same
@@ -88,8 +92,8 @@ class PlaybackArtCache {
 
       // Download using dart:io HttpClient so we use the same platform HTTP
       // stack as the rest of the app (SSL certificates, proxy settings, etc.).
-      final client = HttpClient();
-      client.connectionTimeout = _connectionTimeout;
+      final client = _client ??= HttpClient()
+        ..connectionTimeout = _connectionTimeout;
       try {
         final request = await client.getUrl(artUri).timeout(_connectionTimeout);
         final response = await request.close().timeout(_responseTimeout);
@@ -98,6 +102,8 @@ class PlaybackArtCache {
           AppLogger.warning(
             'PlaybackArtCache: HTTP ${response.statusCode} for $coverArtId',
           );
+          // Drain so the keep-alive connection can serve the next request.
+          await response.drain<void>().timeout(_responseTimeout);
           return null;
         }
 
@@ -109,6 +115,7 @@ class PlaybackArtCache {
             'PlaybackArtCache: unexpected Content-Type "$contentType" '
             'for $coverArtId – skipping',
           );
+          await response.drain<void>().timeout(_responseTimeout);
           return null;
         }
 
@@ -134,8 +141,11 @@ class PlaybackArtCache {
           'PlaybackArtCache: art for $coverArtId → ${file.path} ($written bytes)',
         );
         return file.path;
-      } finally {
-        client.close();
+      } on Object {
+        // A failed or timed-out exchange may leave the connection unusable.
+        _client = null;
+        client.close(force: true);
+        rethrow;
       }
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
@@ -148,5 +158,8 @@ class PlaybackArtCache {
     }
   }
 
-  void dispose() {}
+  void dispose() {
+    _client?.close();
+    _client = null;
+  }
 }

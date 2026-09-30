@@ -54,6 +54,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
+import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 enum SyncDiagnosticsMode {
@@ -74,6 +75,7 @@ class SyncDiagnosticsServer {
     required this.handshakePath,
     required this.onShutdown,
     this.presentationController,
+    this.providerCounter,
     this.androidHandshakePublisher,
     this.androidHandshakeClearer,
     DiagnosticsNavigationDriver? navigationDriver,
@@ -91,6 +93,7 @@ class SyncDiagnosticsServer {
   final String handshakePath;
   final Future<void> Function() onShutdown;
   final DiagnosticsPresentationController? presentationController;
+  final DiagnosticsProviderCounter? providerCounter;
   final Future<void> Function(Map<String, Object?> handshake)?
   androidHandshakePublisher;
   final Future<void> Function()? androidHandshakeClearer;
@@ -101,6 +104,8 @@ class SyncDiagnosticsServer {
   final List<int> _frameRasterMicros = <int>[];
   final List<int> _frameSpanMicros = <int>[];
   final List<Map<String, Object?>> _slowFrameSamples = <Map<String, Object?>>[];
+  DateTime _frameWindowStartedAt = DateTime.now();
+  int _frameWindowCount = 0;
   final List<int> _databaseCanaryMicros = <int>[];
   final Map<String, List<int>> _databaseCanaryMicrosByPhase =
       <String, List<int>>{};
@@ -2172,9 +2177,13 @@ class SyncDiagnosticsServer {
           return;
         }
         final database = _container.read(navisDatabaseProvider);
+        final songsById = <String, SongsTableData>{
+          for (final song in await database.libraryDao.getSongsByIds(songIds))
+            song.id: song,
+        };
         final songs = <SongsTableData>[];
         for (final songId in songIds) {
-          final song = await database.libraryDao.getSongById(songId);
+          final song = songsById[songId];
           if (song == null) {
             await _respond(request, HttpStatus.notFound, <String, Object?>{
               'error': 'song not found',
@@ -2408,11 +2417,21 @@ class SyncDiagnosticsServer {
         _frameRasterMicros.clear();
         _frameSpanMicros.clear();
         _slowFrameSamples.clear();
+        _frameWindowStartedAt = DateTime.now();
+        _frameWindowCount = 0;
         _databaseCanaryMicros.clear();
         _databaseCanaryMicrosByPhase.clear();
         _slowDatabaseCanarySamples.clear();
         _playbackFailureCount = 0;
         await _respond(request, HttpStatus.ok, {'status': 'reset'});
+        return;
+      }
+      if (request.method == 'GET' && path == '/v1/diagnostics/local-search') {
+        final query = (request.uri.queryParameters['query'] ?? '').trim();
+        if (query.isEmpty || query.length > 128) {
+          throw const FormatException();
+        }
+        await _respond(request, HttpStatus.ok, await _localSearchTiming(query));
         return;
       }
       if (request.method == 'GET' && path == '/v1/diagnostics/report') {
@@ -3307,6 +3326,9 @@ class SyncDiagnosticsServer {
       'frameRaster': _sampleSummary(_frameRasterMicros),
       'frameSpan': _sampleSummary(_frameSpanMicros),
       'slowFrameSamples': _slowFrameSamples,
+      'frameWindow': _frameWindowJson(),
+      'imageCache': _imageCacheJson(),
+      'providers': providerCounter?.toJson(),
       'databaseCanary': _sampleSummary(_databaseCanaryMicros),
       'databaseCanaryByPhase': <String, Object?>{
         for (final entry in _databaseCanaryMicrosByPhase.entries)
@@ -3577,7 +3599,64 @@ class SyncDiagnosticsServer {
     });
   }
 
+  /// Times the production local-search DAO queries. Only counts and
+  /// durations are returned; no titles or IDs leave the process.
+  Future<Map<String, Object?>> _localSearchTiming(String query) async {
+    final dao = _container.read(navisDatabaseProvider).libraryDao;
+    final stopwatch = Stopwatch()..start();
+    final artists = await dao.searchArtistsLocal(query);
+    final artistMicros = stopwatch.elapsedMicroseconds;
+    stopwatch.reset();
+    final albums = await dao.searchAlbumsLocal(query);
+    final albumMicros = stopwatch.elapsedMicroseconds;
+    stopwatch.reset();
+    final songs = await dao.searchSongsLocal(query);
+    final songMicros = stopwatch.elapsedMicroseconds;
+    return <String, Object?>{
+      'artists': <String, Object?>{
+        'count': artists.length,
+        'elapsedMicros': artistMicros,
+      },
+      'albums': <String, Object?>{
+        'count': albums.length,
+        'elapsedMicros': albumMicros,
+      },
+      'songs': <String, Object?>{
+        'count': songs.length,
+        'elapsedMicros': songMicros,
+      },
+    };
+  }
+
+  Map<String, Object?> _frameWindowJson() {
+    final elapsedMs = DateTime.now()
+        .difference(_frameWindowStartedAt)
+        .inMilliseconds;
+    return <String, Object?>{
+      'frames': _frameWindowCount,
+      'elapsedMs': elapsedMs,
+      'framesPerSecond': elapsedMs <= 0
+          ? 0
+          : double.parse(
+              (_frameWindowCount * 1000 / elapsedMs).toStringAsFixed(2),
+            ),
+    };
+  }
+
+  Map<String, Object?> _imageCacheJson() {
+    final cache = PaintingBinding.instance.imageCache;
+    return <String, Object?>{
+      'currentSize': cache.currentSize,
+      'currentSizeBytes': cache.currentSizeBytes,
+      'liveImageCount': cache.liveImageCount,
+      'pendingImageCount': cache.pendingImageCount,
+      'maximumSize': cache.maximumSize,
+      'maximumSizeBytes': cache.maximumSizeBytes,
+    };
+  }
+
   void _recordFrameTimings(List<FrameTiming> timings) {
+    _frameWindowCount += timings.length;
     for (final timing in timings) {
       final buildMicros = timing.buildDuration.inMicroseconds;
       final rasterMicros = timing.rasterDuration.inMicroseconds;
@@ -3672,9 +3751,12 @@ class SyncDiagnosticsServer {
 
     return <String, Object?>{
       'samples': sorted.length,
+      'p50Micros': percentile(0.5),
       'p95Micros': percentile(0.95),
       'p99Micros': percentile(0.99),
       'maxMicros': sorted.last,
+      'over16ms': sorted.where((value) => value > 16667).length,
+      'over33ms': sorted.where((value) => value > 33333).length,
     };
   }
 

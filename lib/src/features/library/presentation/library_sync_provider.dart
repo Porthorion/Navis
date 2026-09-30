@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/utils/latest_value_throttle.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -259,6 +260,10 @@ final librarySyncControllerProvider =
     NotifierProvider<LibrarySyncController, LibrarySyncState>(
       LibrarySyncController.new,
     );
+
+/// Minimum interval between count-only sync progress publications.
+@visibleForTesting
+const Duration librarySyncProgressPublishInterval = Duration(milliseconds: 250);
 
 class LibrarySyncController extends Notifier<LibrarySyncState> {
   bool _startupSyncInFlight = false;
@@ -1345,13 +1350,50 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required LibrarySyncRequestCaller caller,
     required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
+    // Engines report progress per artist or album batch, and every published
+    // state rebuilds each listener (shell, Home, Library). Status and stage
+    // changes publish immediately; count-only updates at most every 250 ms.
+    // A held update is dropped once the run returns, because the caller
+    // publishes the final result itself.
+    final throttle = LatestValueThrottle<LibrarySyncState>(
+      interval: librarySyncProgressPublishInterval,
+      onPublish: (progress) {
+        if (ref.mounted) {
+          state = progress;
+        }
+      },
+    );
+
     void updateProgress(LibrarySyncState progress) {
-      if (ref.mounted) {
-        state = progress;
-      }
       onProgressExternal(progress);
+      final current = ref.mounted ? state : null;
+      throttle.add(
+        progress,
+        urgent:
+            current == null ||
+            current.status != progress.status ||
+            current.stage != progress.stage,
+      );
     }
 
+    return _runSyncEngine(
+      engine: engine,
+      force: force,
+      forceFull: forceFull,
+      allowMeteredBroadOverride: allowMeteredBroadOverride,
+      caller: caller,
+      updateProgress: updateProgress,
+    ).whenComplete(throttle.close);
+  }
+
+  Future<LibrarySyncState> _runSyncEngine({
+    required LibrarySyncEngine engine,
+    required bool force,
+    required bool forceFull,
+    required bool allowMeteredBroadOverride,
+    required LibrarySyncRequestCaller caller,
+    required void Function(LibrarySyncState progress) updateProgress,
+  }) {
     if (engine is AdaptiveLibrarySyncCoordinator) {
       final request = forceFull
           ? caller == LibrarySyncRequestCaller.cacheReset

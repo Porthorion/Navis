@@ -59,6 +59,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
 
 class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
   double? _dragSliderValue;
+  double _lastSeekPreviewMs = 0;
   bool _isSeeking = false;
 
   @override
@@ -66,31 +67,17 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final playback = widget.playback;
-    final livePosition = ref.watch(playbackPositionProvider).asData?.value;
-    final bufferState =
-        ref.watch(playbackBufferStateProvider).asData?.value ??
-        const PlaybackBufferState.idle();
+    // Position and buffer ticks arrive 5-10 times a second. Only the slider
+    // and progress leaves below watch them, so the rest of the player is not
+    // rebuilt on every tick.
     final isPlaying = playback.playing;
-    final position = livePosition ?? playback.position;
     final duration = playback.duration;
     final durationMs = duration.inMilliseconds;
     final canSeek = !widget.isRadio && durationMs > 0;
     final sliderMax = canSeek ? durationMs.toDouble() : 1.0;
-    final positionMs = canSeek
-        ? position.inMilliseconds.clamp(0, durationMs).toDouble()
-        : 0.0;
-    final sliderValue = canSeek
-        ? ((_dragSliderValue ?? positionMs).clamp(0.0, sliderMax))
-        : 0.0;
-    final bufferedValue = resolveBufferedSeekValue(
-      currentSongId: playback.currentSongId,
-      bufferState: bufferState,
-      duration: duration,
+    final seekPreviewPosition = Duration(
+      milliseconds: (_dragSliderValue ?? _lastSeekPreviewMs).round(),
     );
-    final seekPreviewPosition = Duration(milliseconds: sliderValue.round());
-    final progress = duration.inMilliseconds > 0
-        ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
-        : 0.0;
     final artistDisplay =
         (widget.songArtist == null || widget.songArtist!.trim().isEmpty)
         ? l10n.miniPlayerUnknownArtist
@@ -468,56 +455,78 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
               ),
               const SizedBox(height: 6),
               if (canSeek)
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 6,
-                    ),
-                    overlayShape: const RoundSliderOverlayShape(
-                      overlayRadius: 12,
-                    ),
-                  ),
-                  child: Slider(
-                    value: sliderValue,
-                    secondaryTrackValue: bufferedValue,
-                    secondaryActiveColor: resolveBufferedSeekColor(context),
-                    max: sliderMax,
-                    onChangeStart: (value) {
-                      setState(() {
-                        _isSeeking = true;
-                        _dragSliderValue = value;
-                      });
-                    },
-                    onChanged: (value) {
-                      setState(() => _dragSliderValue = value);
-                    },
-                    onChangeEnd: (value) {
-                      setState(() {
-                        _isSeeking = false;
-                        _dragSliderValue = null;
-                      });
-                      unawaited(
-                        ref
-                            .read(audioHandlerProvider)
-                            ?.seek(Duration(milliseconds: value.round())),
+                RepaintBoundary(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final position =
+                          ref.watch(playbackPositionProvider).asData?.value ??
+                          playback.position;
+                      final bufferState =
+                          ref
+                              .watch(playbackBufferStateProvider)
+                              .asData
+                              ?.value ??
+                          const PlaybackBufferState.idle();
+                      final positionMs = position.inMilliseconds
+                          .clamp(0, durationMs)
+                          .toDouble();
+                      final sliderValue = (_dragSliderValue ?? positionMs)
+                          .clamp(0.0, sliderMax);
+                      final bufferedValue = resolveBufferedSeekValue(
+                        currentSongId: playback.currentSongId,
+                        bufferState: bufferState,
+                        duration: duration,
+                      );
+                      return SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 3,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 12,
+                          ),
+                        ),
+                        child: Slider(
+                          value: sliderValue,
+                          secondaryTrackValue: bufferedValue,
+                          secondaryActiveColor: resolveBufferedSeekColor(
+                            context,
+                          ),
+                          max: sliderMax,
+                          onChangeStart: (value) {
+                            setState(() {
+                              _isSeeking = true;
+                              _dragSliderValue = value;
+                              _lastSeekPreviewMs = value;
+                            });
+                          },
+                          onChanged: (value) {
+                            setState(() {
+                              _dragSliderValue = value;
+                              _lastSeekPreviewMs = value;
+                            });
+                          },
+                          onChangeEnd: (value) {
+                            setState(() {
+                              _isSeeking = false;
+                              _dragSliderValue = null;
+                            });
+                            unawaited(
+                              ref
+                                  .read(audioHandlerProvider)
+                                  ?.seek(Duration(milliseconds: value.round())),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
                 )
               else
-                LinearProgressIndicator(
-                  value: widget.isRadio
-                      ? (playback.processingState ==
-                                    AudioProcessingState.loading ||
-                                playback.processingState ==
-                                    AudioProcessingState.buffering
-                            ? null
-                            : 0.0)
-                      : progress,
-                  minHeight: 3,
-                  color: cs.primary,
-                  backgroundColor: cs.primary.withValues(alpha: 0.12),
+                _LivePlaybackProgressBar(
+                  playback: playback,
+                  isRadio: widget.isRadio,
                 ),
             ],
           ),
@@ -645,12 +654,6 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final compactControls = viewportWidth < 380;
     final isPlaying = playback.playing;
-    final livePosition = ref.watch(playbackPositionProvider).asData?.value;
-    final position = livePosition ?? playback.position;
-    final duration = playback.duration;
-    final progress = duration.inMilliseconds > 0
-        ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
-        : 0.0;
 
     return GestureDetector(
       onHorizontalDragEnd: isRadio
@@ -1053,23 +1056,55 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                         ),
                       ),
                       if (!flattenWideStyle)
-                        LinearProgressIndicator(
-                          value: isRadio
-                              ? (playback.processingState ==
-                                            AudioProcessingState.loading ||
-                                        playback.processingState ==
-                                            AudioProcessingState.buffering
-                                    ? null
-                                    : 0.0)
-                              : progress,
-                          minHeight: 3,
-                          color: cs.primary,
-                          backgroundColor: cs.primary.withValues(alpha: 0.12),
+                        _LivePlaybackProgressBar(
+                          playback: playback,
+                          isRadio: isRadio,
                         ),
                     ],
                   ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The mini players' thin progress bar. It alone watches the playback
+/// position, so position ticks repaint the bar rather than the player.
+class _LivePlaybackProgressBar extends ConsumerWidget {
+  const _LivePlaybackProgressBar({
+    required this.playback,
+    required this.isRadio,
+  });
+
+  final PlaybackSnapshot playback;
+  final bool isRadio;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final double? value;
+    if (isRadio) {
+      value =
+          playback.processingState == AudioProcessingState.loading ||
+              playback.processingState == AudioProcessingState.buffering
+          ? null
+          : 0.0;
+    } else {
+      final position =
+          ref.watch(playbackPositionProvider).asData?.value ??
+          playback.position;
+      final durationMs = playback.duration.inMilliseconds;
+      value = durationMs > 0
+          ? (position.inMilliseconds / durationMs).clamp(0.0, 1.0)
+          : 0.0;
+    }
+    return RepaintBoundary(
+      child: LinearProgressIndicator(
+        value: value,
+        minHeight: 3,
+        color: cs.primary,
+        backgroundColor: cs.primary.withValues(alpha: 0.12),
       ),
     );
   }

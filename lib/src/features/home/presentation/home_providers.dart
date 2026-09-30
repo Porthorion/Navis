@@ -1660,21 +1660,27 @@ void _ensureListenBrainzIdentityCacheEpoch() {
   _listenBrainzMatchCacheIdentityEpoch = epoch;
 }
 
+/// An order-independent fingerprint of the fields the local candidate
+/// snapshot depends on. It keys an in-memory, per-run cache, so it hashes in
+/// one pass instead of building, sorting and joining a string per song.
+@visibleForTesting
+String listenBrainzLocalCandidateFingerprint(List<SongsTableData> songs) {
+  var sum = 0;
+  var xor = 0;
+  for (final song in songs) {
+    final hash = Object.hash(song.id, song.recordingMbid, song.isProvisional);
+    sum = (sum + hash) & 0x1FFFFFFFFFFFFF;
+    xor ^= hash;
+  }
+  return '${songs.length}:$sum:$xor';
+}
+
 Future<_ListenBrainzLocalCandidateSnapshot>
 _loadListenBrainzLocalCandidateSnapshot(
   List<SongsTableData> songs,
 ) async {
   _ensureListenBrainzIdentityCacheEpoch();
-  final fingerprint =
-      songs
-          .map(
-            (song) =>
-                '${song.id}\u0000${song.recordingMbid ?? ''}\u0000'
-                '${song.isProvisional ? 1 : 0}',
-          )
-          .toList(growable: false)
-        ..sort();
-  final joinedFingerprint = fingerprint.join('\u0001');
+  final joinedFingerprint = listenBrainzLocalCandidateFingerprint(songs);
   if (_listenBrainzLocalCandidateCache != null &&
       _listenBrainzLocalCandidateCacheFingerprint == joinedFingerprint) {
     return _listenBrainzLocalCandidateCache!;

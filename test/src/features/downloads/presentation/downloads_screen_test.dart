@@ -55,6 +55,9 @@ void main() {
             permanentCachedTracksProvider.overrideWithValue(
               const AsyncData(<CachedTracksTableData>[]),
             ),
+            downloadRelatedSongsProvider.overrideWith(
+              (ref) => Stream.value({song.id: song}),
+            ),
             songByIdProvider.overrideWith(
               (ref, songId) => Stream.value(song),
             ),
@@ -127,6 +130,9 @@ void main() {
               const AsyncData(<DownloadQueueTableData>[]),
             ),
             permanentCachedTracksProvider.overrideWithValue(AsyncData([track])),
+            downloadRelatedSongsProvider.overrideWith(
+              (ref) => Stream.value({song.id: song}),
+            ),
             songByIdProvider.overrideWith((ref, id) => Stream.value(song)),
             playerStateProvider.overrideWithValue(_pausedSnapshot(song.id)),
           ],
@@ -257,6 +263,9 @@ void main() {
               permanentCachedTracksProvider.overrideWithValue(
                 AsyncData(<CachedTracksTableData>[track]),
               ),
+              downloadRelatedSongsProvider.overrideWith(
+                (ref) => Stream.value({song.id: song}),
+              ),
               songByIdProvider.overrideWith(
                 (ref, songId) => Stream.value(song),
               ),
@@ -328,6 +337,9 @@ void main() {
             ),
             permanentCachedTracksProvider.overrideWithValue(
               const AsyncData(<CachedTracksTableData>[]),
+            ),
+            downloadRelatedSongsProvider.overrideWith(
+              (ref) => Stream.value({song.id: song}),
             ),
             songByIdProvider.overrideWith(
               (ref, songId) => Stream.value(song),

@@ -68,6 +68,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/song_identity_aliases_table.dart';
+import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 import 'package:path/path.dart' as p;
@@ -85,6 +86,7 @@ part 'navis_database.g.dart';
     ArtistsTable,
     AlbumsTable,
     SongsTable,
+    SongSearchTextTable,
     GenresTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
@@ -147,11 +149,20 @@ part 'navis_database.g.dart';
 )
 class NavisDatabase extends _$NavisDatabase {
   NavisDatabase([QueryExecutor? executor])
-    : super(
-        (executor ?? _openConnection()).interceptWith(
-          SyncWriteFenceInterceptor(),
-        ),
+    : super(_withSyncWriteFence(executor ?? _openConnection()));
+
+  /// Fences sync writes. A supplied [DatabaseConnection] keeps its own stream
+  /// store, so tests can opt into synchronous stream closing.
+  static QueryExecutor _withSyncWriteFence(QueryExecutor executor) {
+    if (executor is DatabaseConnection) {
+      return DatabaseConnection(
+        executor.executor.interceptWith(SyncWriteFenceInterceptor()),
+        streamQueries: executor.streamQueries,
+        connectionData: executor.connectionData,
       );
+    }
+    return executor.interceptWith(SyncWriteFenceInterceptor());
+  }
 
   NavisDatabase.atPath(String databasePath)
     : this(_openFileConnection(File(databasePath)));
@@ -175,7 +186,7 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   @override
-  int get schemaVersion => 85;
+  int get schemaVersion => 86;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -451,6 +462,17 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 85 && to >= 85) {
       await from84To85(migrator);
+    }
+    if (from < 86 && to >= 86) {
+      await from85To86(migrator);
+    }
+  }
+
+  /// Adds the lazily maintained local-search index. Rows are derived data, so
+  /// there is no blocking backfill: searches normalize and store stale rows.
+  Future<void> from85To86(Migrator migrator) async {
+    if (!await _tableExists('song_search_text')) {
+      await migrator.createTable(songSearchTextTable);
     }
   }
 
@@ -2205,6 +2227,20 @@ FROM scrobble_queue;
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_playlist_songs_order ON playlist_songs(playlist_id, sort_order);',
     );
+    // Reverse lookups by song. These are also the child side of cascading
+    // foreign keys, so without them every song delete scans the table.
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_playlist_songs_song ON playlist_songs(song_id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_play_queue_items_song ON play_queue_items(song_id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist_id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_starred ON songs(starred) WHERE starred IS NOT NULL;',
+    );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_play_queue_items_order ON play_queue_items(queue_id, sort_order);',
     );
@@ -2285,6 +2321,14 @@ FROM scrobble_queue;
     );
   }
 
+  /// Low-priority maintenance run after startup: refresh bounded planner
+  /// statistics and the local-search index. Safe to call repeatedly.
+  Future<void> runDeferredMaintenance() async {
+    await customStatement('PRAGMA analysis_limit = 400');
+    await customStatement('PRAGMA optimize');
+    await libraryDao.scheduleSongSearchIndexRefresh();
+  }
+
   Future<bool> _tableExists(String tableName) async {
     final rows = await customSelect(
       'SELECT 1 AS value FROM sqlite_master '
@@ -2309,4 +2353,14 @@ void _configureNativeDatabase(Database database) {
   database.execute('PRAGMA foreign_keys = ON');
   database.execute('PRAGMA journal_mode = WAL');
   database.execute('PRAGMA busy_timeout = 5000');
+  // WAL with synchronous=NORMAL is corruption-safe; only the last commits can
+  // be lost on an OS crash or power loss, never on an app kill. It avoids an
+  // fsync on every commit.
+  database.execute('PRAGMA synchronous = NORMAL');
+  // 8 MiB page cache per connection (the default is 2 MiB) for a catalog of
+  // tens of thousands of rows, sorts in memory, and a bounded WAL file after
+  // large catalog promotions.
+  database.execute('PRAGMA cache_size = -8192');
+  database.execute('PRAGMA temp_store = MEMORY');
+  database.execute('PRAGMA journal_size_limit = 67108864');
 }

@@ -1058,6 +1058,34 @@ void main() {
       expect(container.read<int>(regularQueueReplacementEpochProvider), 1);
     });
 
+    test('queueProvider prewarms lyrics only for a small window', () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      final ids = List<String>.generate(50, (index) => 'song-$index');
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        for (final id in ids) SongsTableCompanion.insert(id: id, title: id),
+      ]);
+      final handler = _FakePlaybackHandler();
+      final prewarmed = <String>[];
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((id) async {
+            prewarmed.add(id);
+          }),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+        await database.close();
+      });
+
+      await container.read(queueProvider.notifier).replace(ids, startIndex: 10);
+
+      expect(prewarmed, <String>['song-10', 'song-11', 'song-12']);
+    });
+
     test(
       'queueProvider prewarms lyrics without blocking replacement',
       () async {

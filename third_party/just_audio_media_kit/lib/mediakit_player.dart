@@ -187,7 +187,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
           _currentIndex = playlist.index;
         }
         _duration = _currentMedia?.extras?['overrideDuration'];
-        _updatePlaybackEvent();
+        if (!_bulkPlaylistMutation) _updatePlaybackEvent();
       }),
       _player.stream.playlistMode.listen((playlistMode) {
         _dataController.add(
@@ -244,6 +244,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       _dataController.stream;
 
   /// Updates the playback event
+  /// True while [concatenatingInsertAll] applies several children; playlist
+  /// updates then defer their playback event to the end of the insert.
+  bool _bulkPlaylistMutation = false;
+
   void _updatePlaybackEvent() {
     _eventController.add(PlaybackEventMessage(
       processingState: _processingState,
@@ -472,19 +476,32 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   Future<ConcatenatingInsertAllResponse> concatenatingInsertAll(
       ConcatenatingInsertAllRequest request) async {
     // _logger.fine('concatenatingInsertAll(${request.toMap()})');
-    for (final source in request.children) {
-      await _player.add(_convertAudioSourceIntoMediaKit(source));
+    // Each add/move re-emits the playlist. Emit one playback event after the
+    // whole insert instead of two per child, so a large queue fill does not
+    // flood just_audio (and its listeners) with intermediate states.
+    _bulkPlaylistMutation = true;
+    try {
+      for (var offset = 0; offset < request.children.length; offset++) {
+        await _player
+            .add(_convertAudioSourceIntoMediaKit(request.children[offset]));
 
-      final length = _player.state.playlist.medias.length;
+        final length = _player.state.playlist.medias.length;
 
-      if (length == 0 || length == 1) continue;
+        if (length == 0 || length == 1) continue;
 
-      if (request.index < (length - 1) && request.index >= 0) {
-        // `add` appends at length - 1. Passing length asks libmpv to move a
-        // nonexistent entry, leaving its playlist out of sync with just_audio.
-        await _player.move(length - 1, request.index);
+        // Children keep their order: child N belongs at index + N.
+        final target = request.index + offset;
+        if (target < (length - 1) && target >= 0) {
+          // `add` appends at length - 1. Passing length asks libmpv to move a
+          // nonexistent entry, leaving its playlist out of sync with
+          // just_audio.
+          await _player.move(length - 1, target);
+        }
       }
+    } finally {
+      _bulkPlaylistMutation = false;
     }
+    _updatePlaybackEvent();
 
     return ConcatenatingInsertAllResponse();
   }

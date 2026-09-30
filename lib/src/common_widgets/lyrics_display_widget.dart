@@ -7,6 +7,35 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 enum LyricsDisplayMode { synced, unsynced, none }
 
+/// The start of the synced line active at [position], or -1 ms before the
+/// first line (and for unsynced lyrics).
+///
+/// Callers pass this instead of the raw playback position so that
+/// [LyricsDisplayWidget] is rebuilt when the active line changes, not on every
+/// 5-10 Hz position tick.
+Duration lyricsActiveLinePosition(LyricsList? lyrics, Duration position) {
+  const beforeFirstLine = Duration(milliseconds: -1);
+  final lines = lyrics?.structuredLyrics.firstOrNull?.line;
+  if (lines == null || lines.isEmpty) return beforeFirstLine;
+  final positionMs = position.inMilliseconds;
+  // Lines are ordered by start time; find the last one that has started.
+  var low = 0;
+  var high = lines.length - 1;
+  int? active;
+  while (low <= high) {
+    final middle = (low + high) >> 1;
+    final start = lines[middle].start ?? 0;
+    if (start <= positionMs) {
+      active = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  if (active == null) return beforeFirstLine;
+  return Duration(milliseconds: lines[active].start ?? 0);
+}
+
 class LyricsDisplayWidget extends StatefulWidget {
   const LyricsDisplayWidget({
     required this.lyrics,

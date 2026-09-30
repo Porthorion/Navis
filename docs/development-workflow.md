@@ -274,6 +274,45 @@ Clone-only `POST /v1/presentation/artist-action` activates mounted
 `play`, `shuffle`, `cancel`, or the desktop `queue` control. These endpoints
 exercise the production controller and buttons; they do not supply queue rows.
 
+### Performance diagnostics
+
+`tool/perf_diagnostics.py` measures frames, memory, provider lifetimes,
+playback startup, queue fill, local search and cold restart against a real
+Subsonic server with an isolated profile. Every wait inside it is bounded and a
+run ends with one `summary.json`/`summary.md` under
+`build/perf-diagnostics/runs/`, so it can run in the background without
+polling.
+
+```bash
+NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
+  python3 tool/perf_diagnostics.py --label before
+```
+
+- The credential file is a mode-600 JSON object with `url`, `username`, and
+  `password`. Keep it under the ignored `build/` tree. The password is written
+  only to the clone's mode-600 credential file and sent only to
+  `POST /v1/session/connect`; it is never logged.
+- The default profile clones the normal Navis database once into
+  `build/perf-diagnostics/profile` and points the clone at the credential
+  file's server and user. Later runs reuse it (clearing only its saved queue).
+  `--fresh` starts empty and measures the first sync instead.
+- `--scenarios` selects from `idle`, `queue2k`, `queue10k`, `library`,
+  `search`, `artist`, and `cold`. `--skip-build` reuses the last profile build.
+- `--android <serial>` builds and installs the `com.navis.app.navis.perf`
+  profile sidecar, keeps its database in private internal storage, and drives
+  the same scenarios over `adb forward`. `--android-seed` copies the synced
+  Linux profile database into the sidecar first.
+
+The report fields it relies on are part of the authenticated diagnostics API:
+`GET /v1/diagnostics/report` includes frame p50/p95/p99 with `over16ms` and
+`over33ms` counts, a `frameWindow` rate since the last
+`POST /v1/diagnostics/metrics/reset`, `imageCache` usage, and `providers`
+(live provider counts and the largest provider families, without family
+arguments). `GET /v1/playback/status` includes `playerSequenceLength`,
+`queueFill` stage timings, and persistence-lane counts. Read-only
+`GET /v1/diagnostics/local-search?query=` times the production local artist,
+album and song searches and returns only counts and durations.
+
 ### Windows SMTC diagnostics
 
 Run `tool/windows_smtc_diagnostics.ps1` from an isolated current-build

@@ -299,6 +299,7 @@ final networkUsageMeterProvider = Provider<NetworkUsageMeter>((ref) {
     dao: ref.watch(navisDatabaseProvider).networkUsageDao,
     readNetworkType: () => ref.read(networkTypeProvider),
   );
+  ref.onDispose(meter.dispose);
   unawaited(
     meter.pruneOld().catchError((Object error, StackTrace stackTrace) {
       AppLogger.debug('Network usage prune failed: $error\n$stackTrace');
@@ -1406,8 +1407,10 @@ final likedAlbumCountProvider = StreamProvider<int>((ref) {
   return dao.watchAlbumCount(likedOnly: true);
 });
 
-final pagedAlbumsProvider =
-    StreamProvider.family<List<AlbumsTableData>, AlbumPageRequest>((
+// Each page request (limit 60, 120, ...) is its own instance; auto-dispose
+// frees earlier limits once the grid watches the next one.
+final pagedAlbumsProvider = StreamProvider.autoDispose
+    .family<List<AlbumsTableData>, AlbumPageRequest>((
       ref,
       request,
     ) {
@@ -1480,21 +1483,30 @@ final songsBySortProvider =
       return dao.watchSongsSorted(sort);
     });
 
-final songByIdProvider = StreamProvider.family<SongsTableData?, String>((
+// Per-song and per-list families are auto-disposed: rows are created while
+// scrolling long lists, and each instance holds a live database watch.
+final songByIdProvider = StreamProvider.autoDispose
+    .family<SongsTableData?, String>((
+      ref,
+      songId,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchSongById(songId);
+    });
+
+/// Emits `true` when the song with [songId] is starred/liked.
+final songStarredProvider = StreamProvider.autoDispose.family<bool, String>((
   ref,
   songId,
 ) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchSongById(songId);
-});
-
-/// Emits `true` when the song with [songId] is starred/liked.
-final songStarredProvider = StreamProvider.family<bool, String>((ref, songId) {
-  final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchSongStarred(songId);
 });
 
-final songRatingProvider = StreamProvider.family<int?, String>((ref, songId) {
+final songRatingProvider = StreamProvider.autoDispose.family<int?, String>((
+  ref,
+  songId,
+) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchSongRating(songId);
 });
@@ -2009,11 +2021,33 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   final database = ref.read(navisDatabaseProvider);
   final dao = database.libraryDao;
   final song = (await dao.getSongsByIds(<String>[songId])).firstOrNull;
-  final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
+  // Only the playing item's metadata can supplement the lookup, so watch just
+  // that. Watching the whole media item would re-run every cached lyrics
+  // lookup on each track change or artwork re-emit.
+  final currentMetadata = ref.watch(
+    currentMediaItemProvider.select((value) {
+      final item = value.asData?.value;
+      if (item == null || item.id != songId) return null;
+      return (
+        title: item.title,
+        artist: item.artist,
+        album: item.album,
+        duration: item.duration,
+      );
+    }),
+  );
   final lookupMetadata = navisResolveLyricsLookupMetadata(
     songId: songId,
     song: song,
-    currentMediaItem: currentMediaItem,
+    currentMediaItem: currentMetadata == null
+        ? null
+        : MediaItem(
+            id: songId,
+            title: currentMetadata.title,
+            artist: currentMetadata.artist,
+            album: currentMetadata.album,
+            duration: currentMetadata.duration,
+          ),
   );
   final cachedTrack = await database.cacheDao.getCachedTrack(songId);
   final resolver = LyricsResolver(
@@ -2100,19 +2134,23 @@ final artistInfoProvider = FutureProvider.family<ArtistInfo?, String>((
   return api.getArtistInfo2(artistId);
 });
 
-final downloadProgressProvider = StreamProvider.family<double?, String>((
+final downloadProgressProvider = Provider.autoDispose.family<double?, String>((
   ref,
   songId,
 ) {
-  final dao = ref.watch(navisDatabaseProvider).downloadQueueDao;
-  return dao.watchQueue().map((items) {
-    for (final item in items) {
-      if (item.songId == songId) {
-        return item.progress;
+  // Derived from the shared queue stream rather than one database watch per
+  // song.
+  return ref.watch(
+    downloadQueueProvider.select((queue) {
+      for (final item
+          in queue.asData?.value ?? const <DownloadQueueTableData>[]) {
+        if (item.songId == songId) {
+          return item.progress;
+        }
       }
-    }
-    return null;
-  });
+      return null;
+    }),
+  );
 });
 
 final downloadQueueProvider = StreamProvider<List<DownloadQueueTableData>>((
@@ -2233,6 +2271,13 @@ final downloadedContentIdsProvider =
     });
 
 /// Provides the list of permanently cached tracks.
+/// Songs for the Downloads screen (downloaded or queued), keyed by ID.
+final downloadRelatedSongsProvider =
+    StreamProvider.autoDispose<Map<String, SongsTableData>>((ref) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchDownloadRelatedSongs();
+    });
+
 final permanentCachedTracksProvider =
     StreamProvider<List<CachedTracksTableData>>((ref) {
       final dao = ref.watch(navisDatabaseProvider).cacheDao;

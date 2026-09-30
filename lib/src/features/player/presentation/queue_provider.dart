@@ -611,6 +611,8 @@ class QueueController extends Notifier<List<String>> {
     );
   }
 
+  static const int _lyricsPrewarmWindow = 3;
+
   void _prewarmLyricsForIds(
     Iterable<String> ids, {
     String? priorityId,
@@ -619,11 +621,18 @@ class QueueController extends Notifier<List<String>> {
     if (normalized.isEmpty) {
       return;
     }
+    // Prefetch only a small window: the selected song and the next few.
+    // Prefetching a whole artist or library queue would start one lyrics
+    // lookup (database, server and optionally LRCLIB) per song at once.
     final priority = priorityId?.trim();
-    final ordered = <String>[
-      if (priority != null && priority.isNotEmpty) priority,
-      ...normalized.where((id) => id != priority),
-    ];
+    final priorityIndex = priority == null || priority.isEmpty
+        ? -1
+        : normalized.indexOf(priority);
+    final windowStart = priorityIndex < 0 ? 0 : priorityIndex;
+    final ordered = normalized
+        .skip(windowStart)
+        .take(_lyricsPrewarmWindow)
+        .toList(growable: false);
     final tasks = <({String id, Future<void> future})>[];
     final prewarmLyrics = ref.read(lyricsPrewarmProvider);
     for (final id in ordered) {

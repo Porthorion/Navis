@@ -1296,4 +1296,12 @@ void main() {
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
   });
+
+  test('progress persistence is limited to whole-percent steps', () {
+    expect(shouldPersistDownloadProgress(previous: -1, next: 0), isTrue);
+    expect(shouldPersistDownloadProgress(previous: 0, next: 0.004), isFalse);
+    expect(shouldPersistDownloadProgress(previous: 0, next: 0.01), isTrue);
+    expect(shouldPersistDownloadProgress(previous: 0.5, next: 0.509), isFalse);
+    expect(shouldPersistDownloadProgress(previous: 0.995, next: 1), isTrue);
+  });
 }

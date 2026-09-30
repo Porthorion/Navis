@@ -222,6 +222,29 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         _indices.add(index);
       });
 
+  int batchMutationCount = 0;
+
+  @override
+  Future<void> moveAudioSource(int currentIndex, int newIndex) =>
+      _mutate(() async {
+        _sources.insert(newIndex, _sources.removeAt(currentIndex));
+      });
+
+  @override
+  Future<void> addAudioSources(List<AudioSource> sources) => _mutate(() async {
+    batchMutationCount++;
+    _sources.addAll(sources);
+  });
+
+  @override
+  Future<void> insertAudioSources(int at, List<AudioSource> sources) =>
+      _mutate(() async {
+        batchMutationCount++;
+        _sources.insertAll(at, sources);
+        if (index != null && at <= index!) index = index! + sources.length;
+        _indices.add(index);
+      });
+
   @override
   Future<void> seek(Duration? position, {int? index}) => _mutate(() async {
     final gate = seekGate;
@@ -246,6 +269,7 @@ void main() {
     Directory directory,
     int count, {
     bool crossfade = false,
+    int savedQueueIndex = -1,
   }) async {
     final database = createTestDatabase();
     final songs = <SongsTableCompanion>[];
@@ -268,6 +292,12 @@ void main() {
           downloadStatus: DownloadStatus.complete,
           lastAccessedAt: DateTime.now(),
         ),
+      );
+    }
+    if (savedQueueIndex >= 0) {
+      await database.playQueueDao.saveQueue(
+        currentIndex: savedQueueIndex,
+        songIds: List<String>.generate(count, (index) => 'song-$index'),
       );
     }
     final cache = DriftRollingCacheManager(cacheDao: database.cacheDao);
@@ -467,6 +497,114 @@ void main() {
       expect(player.audioSources.length, 3);
     },
   );
+
+  test(
+    'large queue fill applies sources in batches, in order',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-nav-test-',
+      );
+      final (handler, player, database) = await createHandler(directory, 100);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = List<String>.generate(100, (index) => 'song-$index');
+      final songs = await database.libraryDao.getSongsByIds(ids);
+      final byId = {for (final song in songs) song.id: song};
+      final filled = handler.snapshotStream
+          .firstWhere((snapshot) => snapshot.queueSongIds.length == 100)
+          .timeout(const Duration(seconds: 60));
+      await handler.replaceQueueWithData(
+        [for (final id in ids) byId[id]!],
+        startIndex: 50,
+      );
+      await filled;
+
+      // A small first batch then 64-song batches on each side of the start,
+      // instead of one native mutation per song.
+      expect(player.batchMutationCount, 4);
+      expect(handler.snapshot.queueSongIds, ids);
+      expect(
+        player.sequence.map((source) => (source.tag as MediaItem).id),
+        ids,
+      );
+      expect(handler.snapshot.currentIndex, 50);
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    'large saved queue restores the current item first, then fills in order',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-nav-test-',
+      );
+      final (handler, player, database) = await createHandler(
+        directory,
+        100,
+        savedQueueIndex: 40,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = List<String>.generate(100, (index) => 'song-$index');
+
+      // Ready resolves before the background fill, with the saved current
+      // item already loaded and the full logical queue visible.
+      expect(handler.snapshot.currentSongId, 'song-40');
+      expect(handler.snapshot.queueSongIds, ids);
+
+      await handler.snapshotStream
+          .firstWhere((snapshot) => player.sequence.length == 100)
+          .timeout(const Duration(seconds: 30));
+      await pumpEventQueue();
+      expect(
+        player.sequence.map((source) => (source.tag as MediaItem).id),
+        ids,
+      );
+      expect(handler.snapshot.currentIndex, 40);
+      expect(handler.snapshot.currentSongId, 'song-40');
+      expect(
+        (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+        ids,
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test('a burst of reorders persists the final queue once', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-nav-test-');
+    final (handler, player, database) = await createHandler(directory, 6);
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    final ids = List<String>.generate(6, (index) => 'song-$index');
+    await handler.replaceQueueWithData(
+      await database.libraryDao.getSongsByIds(ids),
+    );
+
+    for (var i = 0; i < 4; i++) {
+      await handler.reorderQueue(5, 1);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+
+    final persistence =
+        handler.collectPlaybackDiagnostics()['persistence']!
+            as Map<String, Object?>;
+    final byContext = persistence['byContext']! as Map<String, int>;
+    expect(byContext['reorder queue'], 1);
+    expect(
+      (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+      handler.snapshot.queueSongIds,
+    );
+    expect(handler.snapshot.queueSongIds, isNot(ids));
+  });
 
   test('burst keeps latest target and serializes player mutations', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');

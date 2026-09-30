@@ -15,10 +15,9 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
-    final playback = ref.watch(playerStateProvider);
-    final songId = playback.currentSongId;
-    final position =
-        ref.watch(playbackPositionProvider).asData?.value ?? playback.position;
+    final songId = ref.watch(
+      playerStateProvider.select((playback) => playback.currentSongId),
+    );
     final title = (songTitle ?? '').trim().isEmpty
         ? l10n.miniPlayerUnknownTrack
         : songTitle!.trim();
@@ -112,7 +111,7 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
                       ),
                     ),
                   )
-                : _DesktopLyricsContent(songId: songId, position: position),
+                : _DesktopLyricsContent(songId: songId),
           ),
         ],
       ),
@@ -121,16 +120,25 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
 }
 
 class _DesktopLyricsContent extends ConsumerWidget {
-  const _DesktopLyricsContent({required this.songId, required this.position});
+  const _DesktopLyricsContent({required this.songId});
 
   final String songId;
-  final Duration position;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
     final lyricsAsync = ref.watch(lyricsProvider(songId));
+    final lyrics = lyricsAsync.asData?.value.lyrics;
+    // Rebuild on active-line changes only, not on every position tick.
+    final position = ref.watch(
+      playbackPositionProvider.select(
+        (value) => lyricsActiveLinePosition(
+          lyrics,
+          value.asData?.value ?? ref.read(playerStateProvider).position,
+        ),
+      ),
+    );
 
     return lyricsAsync.when(
       data: (resolution) => LyricsDisplayWidget(

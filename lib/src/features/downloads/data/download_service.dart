@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:drift/drift.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -743,6 +744,10 @@ class DownloadService {
       destFile = await _resolveDownloadFile(song, item);
 
       _activeCancelToken = CancelToken();
+      // Dio reports every received chunk. Persist progress only in whole
+      // percent steps: each write re-emits the download queue to every
+      // watching screen and badge.
+      var lastPersistedProgress = -1.0;
       final response = await _dio.downloadUri(
         downloadUri,
         destFile.path,
@@ -750,6 +755,13 @@ class DownloadService {
         onReceiveProgress: (received, total) {
           if (!_stopped && total > 0) {
             final progress = (received / total).clamp(0.0, 1.0);
+            if (!shouldPersistDownloadProgress(
+              previous: lastPersistedProgress,
+              next: progress,
+            )) {
+              return;
+            }
+            lastPersistedProgress = progress;
             _trackProgressWrite(
               _downloadQueueDao.updateProgress(item.id, progress),
             );
@@ -1704,3 +1716,11 @@ class DownloadService {
     return song.bitRate;
   }
 }
+
+/// Whether a download progress update is worth persisting: at least one
+/// percentage point since the last write, or completion.
+@visibleForTesting
+bool shouldPersistDownloadProgress({
+  required double previous,
+  required double next,
+}) => next >= 1.0 || next - previous >= 0.01;

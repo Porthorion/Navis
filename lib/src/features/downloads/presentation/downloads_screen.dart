@@ -232,15 +232,13 @@ class _QueueTab extends ConsumerWidget {
         }
 
         // Resolve song data for all items so we can filter by title/artist.
-        final resolvedSongs = <int, SongsTableData?>{};
-        for (final item in items) {
-          if (item.songId != null) {
-            resolvedSongs[item.id] = ref
-                .watch(songByIdProvider(item.songId!))
-                .asData
-                ?.value;
-          }
-        }
+        final songsById =
+            ref.watch(downloadRelatedSongsProvider).asData?.value ??
+            const <String, SongsTableData>{};
+        final resolvedSongs = <int, SongsTableData?>{
+          for (final item in items)
+            if (item.songId != null) item.id: songsById[item.songId],
+        };
 
         final filtered = query.isEmpty
             ? items
@@ -481,13 +479,9 @@ class _DownloadedTab extends ConsumerWidget {
         }
 
         // Resolve song data so we can filter by title/artist.
-        final resolvedSongs = <String, SongsTableData?>{};
-        for (final track in tracks) {
-          resolvedSongs[track.songId] = ref
-              .watch(songByIdProvider(track.songId))
-              .asData
-              ?.value;
-        }
+        final resolvedSongs =
+            ref.watch(downloadRelatedSongsProvider).asData?.value ??
+            const <String, SongsTableData>{};
 
         final filtered = query.isEmpty
             ? tracks

@@ -170,6 +170,31 @@ void main() {
     return container;
   }
 
+  test('coalesces fast release hydrations into one publication', () async {
+    final selections = <int>[];
+    final coalescing = ArtistPlaybackResolver(
+      readSnapshot: resolver.readSnapshot,
+      hydrate: resolver.hydrate,
+      canHydrate: () => true,
+      isOffline: () => false,
+      isLocallyPlayable: (_) async => true,
+      publishInterval: const Duration(minutes: 1),
+    );
+    final result = await coalescing.resolve(
+      'artist',
+      isCurrent: () => true,
+      onProgress: (_) {},
+      onSelection: (selection) async => selections.add(selection.songs.length),
+    );
+
+    // The cached release publishes immediately; the two hydrated releases are
+    // published together instead of once each.
+    expect(result!.songs, hasLength(3));
+    expect(selections.first, 1);
+    expect(selections.where((count) => count == 2), isEmpty);
+    expect(requests, ['album:album-2', 'album:album-3', 'artist:artist']);
+  });
+
   test(
     'starts available audio while metadata is held, and cancel stops refills',
     () async {

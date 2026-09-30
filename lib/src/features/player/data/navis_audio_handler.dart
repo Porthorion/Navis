@@ -179,6 +179,19 @@ class NavisAudioHandler extends BaseAudioHandler
   // which AAOS uses for the background art behind playback controls.
   final PlaybackArtCache? _artCache;
   late AudioPlayer _player;
+
+  /// Stage timings (ms since phase 2 start) of the latest background queue
+  /// fill, exposed through diagnostics. Counts only; no song identities.
+  Map<String, Object?>? _lastQueueFill;
+  int _queueFillResolveMs = 0;
+  int _queueFillNativeMs = 0;
+  int _queueFillBatches = 0;
+
+  /// Persistence-lane operations that ran for at least 500 ms (diagnostics).
+  final List<Map<String, Object?>> _slowPersistence = <Map<String, Object?>>[];
+  int _persistOperationCount = 0;
+  int _persistRunMs = 0;
+  final Map<String, int> _persistContextCounts = <String, int>{};
   bool _equalizerPipelineEnabled = false;
 
   final StreamController<PlaybackSnapshot> _snapshotController =
@@ -220,6 +233,8 @@ class NavisAudioHandler extends BaseAudioHandler
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
   Timer? _transportPersistTimer;
+  Timer? _queueItemsPersistTimer;
+  String? _queueItemsPersistContext;
   Future<void> _persistTail = Future<void>.value();
   StreamSubscription<AudioInterruptionEvent>? _interruptionSubscription;
   StreamSubscription<void>? _becomingNoisySubscription;
@@ -517,9 +532,10 @@ class NavisAudioHandler extends BaseAudioHandler
         final downloadedSongIds = await _rollingCacheManager
             .getPermanentlyCachedSongIds();
         if (downloadedSongIds.isEmpty) return false;
-        final songs = (await _libraryDao.watchAllSongs().first)
-            .where((song) => downloadedSongIds.contains(song.id))
-            .toList(growable: false);
+        final songs = await _libraryDao.getSongsSorted(
+          SongSortOrder.newest,
+          onlyIds: downloadedSongIds,
+        );
         if (songs.isEmpty) return false;
         await replaceQueueWithData(
           songs,
@@ -567,9 +583,10 @@ class NavisAudioHandler extends BaseAudioHandler
           AutoMediaContextType.downloads => () async {
             final downloadedSongIds = await _rollingCacheManager
                 .getPermanentlyCachedSongIds();
-            return (await _libraryDao.watchAllSongs().first)
-                .where((item) => downloadedSongIds.contains(item.id))
-                .toList(growable: false);
+            return _libraryDao.getSongsSorted(
+              SongSortOrder.newest,
+              onlyIds: downloadedSongIds,
+            );
           }(),
           AutoMediaContextType.liked =>
             _libraryDao.watchAllStarredSongs().first,
@@ -1066,12 +1083,12 @@ class NavisAudioHandler extends BaseAudioHandler
         await _restoreQueueFromDisk().timeout(const Duration(seconds: 10));
       } on TimeoutException catch (error, stackTrace) {
         _queueRestoreOutcome = 'timeout';
+        // Keep the saved queue: large queues restore their current item
+        // first, so a timeout is transient and must not lose the user's queue.
         AppLogger.warning(
-          'Queue restore timed out during startup. '
-          'Clearing persisted queue to unblock playback startup. '
+          'Queue restore timed out during startup; keeping the saved queue. '
           '$error\n$stackTrace',
         );
-        await _clearPersistedQueueBestEffort();
       } on Object catch (error, stackTrace) {
         _queueRestoreOutcome = 'failed';
         AppLogger.error(
@@ -1101,6 +1118,9 @@ class NavisAudioHandler extends BaseAudioHandler
     List<String>? pendingLogicalQueueSongIds,
   }) {
     _clearQueueReplacementMetadataAnchor();
+    _queueItemsPersistTimer?.cancel();
+    _queueItemsPersistTimer = null;
+    _queueItemsPersistContext = null;
     _pendingLogicalQueueSongIds = pendingLogicalQueueSongIds == null
         ? null
         : List<String>.unmodifiable(pendingLogicalQueueSongIds);
@@ -1562,17 +1582,23 @@ class NavisAudioHandler extends BaseAudioHandler
       _scheduleTransportPersistence(context: 'current index update');
     });
 
-    _shuffleModeSubscription = _player.shuffleModeEnabledStream.listen((_) {
-      _broadcastPlaybackState();
-      unawaited(
-        _persistSafely(
-          () => _persistQueueState(includePosition: false),
-          context: 'shuffle mode stream update',
-        ),
-      );
-    });
+    // just_audio derives these from sequenceStateStream without distinct(),
+    // so every queue insert re-emits them. Without distinct() a large queue
+    // fill queued two full queue-state writes per batch and delayed the final
+    // queue persistence by tens of seconds.
+    _shuffleModeSubscription = _player.shuffleModeEnabledStream
+        .distinct()
+        .listen((_) {
+          _broadcastPlaybackState();
+          unawaited(
+            _persistSafely(
+              () => _persistQueueState(includePosition: false),
+              context: 'shuffle mode stream update',
+            ),
+          );
+        });
 
-    _loopModeSubscription = _player.loopModeStream.listen((_) {
+    _loopModeSubscription = _player.loopModeStream.distinct().listen((_) {
       _broadcastPlaybackState();
       unawaited(
         _persistSafely(
@@ -2331,17 +2357,42 @@ class NavisAudioHandler extends BaseAudioHandler
       milliseconds: math.max(0, queueState?.positionMs ?? 0),
     );
 
+    // A large saved queue is restored like a queue replacement: the current
+    // item first, so startup and media-session Play are not blocked by
+    // resolving every song, then the rest in the queue lane.
+    final restoreInTwoPhases = queuedSongs.length > _eagerQueueRestoreLimit;
+    int? fillGeneration;
+    _PreparedQueueItem? restoredStartItem;
     try {
-      await _setQueueFromSongs(
-        queuedSongs,
-        startIndex: startIndex,
-        autoPlay: false,
-        initialPosition: restorePosition,
-        persist: false,
-        preloadWhenPaused: false,
-        forcePreloadWhenPaused: true,
-      );
+      if (restoreInTwoPhases) {
+        final generation = ++_loadGeneration;
+        fillGeneration = generation;
+        _activeLoadGeneration = generation;
+        _pendingLogicalQueueSongIds = List<String>.unmodifiable(
+          queuedSongs.map((song) => song.id),
+        );
+        restoredStartItem = await _replaceQueuePhase1(
+          songs: queuedSongs,
+          startIndex: startIndex,
+          autoPlay: false,
+          persist: false,
+          generation: generation,
+          token: OperationToken(),
+          initialPosition: restorePosition,
+        );
+      } else {
+        await _setQueueFromSongs(
+          queuedSongs,
+          startIndex: startIndex,
+          autoPlay: false,
+          initialPosition: restorePosition,
+          persist: false,
+          preloadWhenPaused: false,
+          forcePreloadWhenPaused: true,
+        );
+      }
     } on PlaybackSourceUnavailableException {
+      _clearPendingLogicalQueue();
       _queueRestoreOutcome = 'deferred_auth';
       AppLogger.warning(
         'Playback queue restore skipped because auth/session was unavailable.',
@@ -2354,6 +2405,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'Clearing persisted queue. '
         '$error\n$stackTrace',
       );
+      _clearPendingLogicalQueue();
       await _playQueueDao.clearQueue();
       await _clearQueueInternal(persist: false);
       return;
@@ -2382,7 +2434,43 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueRestoreOutcome = 'restored';
     _broadcastPlaybackState();
     _emitSnapshot();
+
+    final generation = fillGeneration;
+    final startItem = restoredStartItem;
+    if (generation == null) return;
+    if (startItem == null) {
+      _clearPendingLogicalQueue();
+      return;
+    }
+    unawaited(
+      _queueLane.run((token) async {
+        try {
+          _checkQueueWorkCurrent(token, generation);
+          await _replaceQueuePhase2(
+            songs: queuedSongs,
+            startIndex: startIndex,
+            startItem: startItem,
+            persist: false,
+            token: token,
+            generation: generation,
+          );
+          _completeQueueLoad(generation);
+        } on OperationCancelledException {
+          AppLogger.debug('Queue restore fill superseded by a newer command.');
+        } on Object catch (error, stackTrace) {
+          AppLogger.warning(
+            'Queue restore fill failed; the current item stays playable. '
+            '$error\n$stackTrace',
+          );
+          _completeQueueLoad(generation);
+        }
+      }),
+    );
   }
+
+  /// Saved queues up to this size are restored in one step; larger ones
+  /// restore the current item first and fill the rest in the background.
+  static const int _eagerQueueRestoreLimit = 64;
 
   Future<void> _restorePersistedQueueForPrepareIfEmpty() async {
     if (_radioStation != null || _queueItems.isNotEmpty) {
@@ -2775,10 +2863,23 @@ class NavisAudioHandler extends BaseAudioHandler
     List<SongsTableData> songs, {
     required bool preferLockCaching,
   }) async {
+    // Resolutions are independent; run a bounded chunk at a time. Order is
+    // preserved and the first failure still propagates to the caller.
+    const chunkSize = 64;
     final prepared = <_PreparedQueueItem>[];
-    for (final song in songs) {
-      prepared.add(
-        await _prepareSingleItem(song, preferLockCaching: preferLockCaching),
+    for (var offset = 0; offset < songs.length; offset += chunkSize) {
+      prepared.addAll(
+        await Future.wait(
+          songs
+              .skip(offset)
+              .take(chunkSize)
+              .map(
+                (song) => _prepareSingleItem(
+                  song,
+                  preferLockCaching: preferLockCaching,
+                ),
+              ),
+        ),
       );
     }
     return prepared;
@@ -3081,7 +3182,12 @@ class NavisAudioHandler extends BaseAudioHandler
 
     // We need to rebuild the player's audio source list to include all songs
     // in the correct order.  First, resolve sources for the remaining songs.
-    const batchSize = 5;
+    final fillWatch = Stopwatch()..start();
+    final fillTimings = <String, Object?>{'requested': songs.length};
+    _lastQueueFill = fillTimings;
+    _queueFillResolveMs = 0;
+    _queueFillNativeMs = 0;
+    _queueFillBatches = 0;
     final preparedByIndex = <int, _PreparedQueueItem>{
       clampedIndex: startItem,
     };
@@ -3092,128 +3198,66 @@ class NavisAudioHandler extends BaseAudioHandler
       'startIndex=$clampedIndex song=${startItem.song.id}',
     );
 
-    // Resolve songs before the start index and insert them before the current
-    // position.  _queueItems is intentionally NOT updated during these inserts:
-    // the playbackEventStream fires position ticks on every event loop turn,
-    // and any _emitSnapshot() call between _queueItems.insert() and the player
+    // Each native insert re-sends the complete shuffle order to the platform
+    // and rebuilds the player's sequence, so per-song inserts are O(n²) for a
+    // large queue. Resolve a batch, then insert it with a single call. The
+    // first batch is small so the upcoming track is available for gapless
+    // playback almost immediately.
+    //
+    // _queueItems is intentionally NOT updated during these inserts: the
+    // playbackEventStream fires position ticks on every event loop turn, and
+    // any _emitSnapshot() call between _queueItems.insert() and the player
     // acknowledging the new currentIndex would produce a stale snapshot.
     // Keeping _queueItems=[startSong] throughout Phase 2 lets the metadata
     // anchor keep the display on the tapped song until _queueItems is rebuilt
     // atomically from allPrepared at the very end.
+    //
+    // Songs after the start are appended first so the next track is queued
+    // before the (possibly long) prefix is inserted behind the current item.
+    var appended = 0;
+    while (appended < afterStart.length) {
+      final batchEnd = math.min(
+        appended + _queueFillBatchSize(appended),
+        afterStart.length,
+      );
+      await _fillQueueBatch(
+        batch: afterStart.sublist(appended, batchEnd),
+        firstOriginalIndex: clampedIndex + 1 + appended,
+        preparedByIndex: preparedByIndex,
+        skippedSongIds: skippedSongIds,
+        generation: generation,
+        token: token,
+        operation: 'replace queue append after',
+        apply: _player.addAudioSources,
+      );
+      appended = batchEnd;
+    }
+
     var insertedBeforeCount = 0;
-    for (var i = 0; i < beforeStart.length; i += batchSize) {
-      _checkQueueWorkCurrent(token, generation);
-      final batchEnd = math.min(i + batchSize, beforeStart.length);
-      final batch = beforeStart.sublist(i, batchEnd);
-      final prepared = <_PreparedQueueItem>[];
-      final preparedIndexes = <int>[];
-      for (var j = 0; j < batch.length; j++) {
-        final originalIndex = i + j;
-        final item = await _prepareSingleItemForQueueFill(batch[j]);
-        if (item == null) {
-          skippedSongIds.add(batch[j].id);
-          continue;
-        }
-        preparedByIndex[originalIndex] = item;
-        prepared.add(item);
-        preparedIndexes.add(originalIndex);
-      }
-
-      _checkQueueWorkCurrent(token, generation);
-      for (var j = 0; j < prepared.length; j++) {
-        try {
-          await _runTimedPlayerOperation(
-            generation: generation,
-            operation: 'replace queue insert before',
-            action: () => _player.insertAudioSource(
-              insertedBeforeCount,
-              prepared[j].audioSource,
-            ),
-            songId: prepared[j].song.id,
-          );
-        } on PlaybackLoadTimeoutException catch (error) {
-          _lastFailedSongId = error.songId ?? prepared[j].song.id;
-          AppLogger.warning(
-            'Queue fill insert timed out for song=${prepared[j].song.id}; '
-            'aborting the uncertain player state.',
-          );
-          rethrow;
-        } on OperationCancelledException {
-          rethrow;
-        } on Object catch (error, stackTrace) {
-          skippedSongIds.add(prepared[j].song.id);
-          preparedByIndex.remove(preparedIndexes[j]);
-          _markSongLockCachingBypassed(
-            prepared[j].song.id,
-            reason: 'queue fill insert failed',
-          );
-          AppLogger.warning(
-            'Queue fill insert failed for song=${prepared[j].song.id}; '
-            'skipping. $error\n$stackTrace',
-          );
-          continue;
-        }
-        insertedBeforeCount++;
-        _checkQueueWorkCurrent(token, generation);
-      }
-      _observeLockCacheForPrepared(prepared);
+    var resolvedBefore = 0;
+    while (resolvedBefore < beforeStart.length) {
+      final batchEnd = math.min(
+        resolvedBefore + _queueFillBatchSize(resolvedBefore),
+        beforeStart.length,
+      );
+      final insertAt = insertedBeforeCount;
+      insertedBeforeCount += await _fillQueueBatch(
+        batch: beforeStart.sublist(resolvedBefore, batchEnd),
+        firstOriginalIndex: resolvedBefore,
+        preparedByIndex: preparedByIndex,
+        skippedSongIds: skippedSongIds,
+        generation: generation,
+        token: token,
+        operation: 'replace queue insert before',
+        apply: (sources) => _player.insertAudioSources(insertAt, sources),
+      );
+      resolvedBefore = batchEnd;
     }
 
-    // Resolve songs after the start index and append them.
-    for (var i = 0; i < afterStart.length; i += batchSize) {
-      _checkQueueWorkCurrent(token, generation);
-      final batchEnd = math.min(i + batchSize, afterStart.length);
-      final batch = afterStart.sublist(i, batchEnd);
-      final prepared = <_PreparedQueueItem>[];
-      final preparedIndexes = <int>[];
-      for (var j = 0; j < batch.length; j++) {
-        final originalIndex = clampedIndex + 1 + i + j;
-        final item = await _prepareSingleItemForQueueFill(batch[j]);
-        if (item == null) {
-          skippedSongIds.add(batch[j].id);
-          continue;
-        }
-        preparedByIndex[originalIndex] = item;
-        prepared.add(item);
-        preparedIndexes.add(originalIndex);
-      }
-
-      _checkQueueWorkCurrent(token, generation);
-      for (var j = 0; j < prepared.length; j++) {
-        try {
-          await _runTimedPlayerOperation(
-            generation: generation,
-            operation: 'replace queue append after',
-            action: () => _player.addAudioSource(prepared[j].audioSource),
-            songId: prepared[j].song.id,
-          );
-        } on PlaybackLoadTimeoutException catch (error) {
-          _lastFailedSongId = error.songId ?? prepared[j].song.id;
-          AppLogger.warning(
-            'Queue fill append timed out for song=${prepared[j].song.id}; '
-            'aborting the uncertain player state.',
-          );
-          rethrow;
-        } on OperationCancelledException {
-          rethrow;
-        } on Object catch (error, stackTrace) {
-          skippedSongIds.add(prepared[j].song.id);
-          preparedByIndex.remove(preparedIndexes[j]);
-          _markSongLockCachingBypassed(
-            prepared[j].song.id,
-            reason: 'queue fill append failed',
-          );
-          AppLogger.warning(
-            'Queue fill append failed for song=${prepared[j].song.id}; '
-            'skipping. $error\n$stackTrace',
-          );
-          continue;
-        }
-        _checkQueueWorkCurrent(token, generation);
-      }
-      _observeLockCacheForPrepared(prepared);
-    }
-
+    fillTimings['applyMs'] = fillWatch.elapsedMilliseconds;
+    fillTimings['resolveTotalMs'] = _queueFillResolveMs;
+    fillTimings['nativeTotalMs'] = _queueFillNativeMs;
+    fillTimings['nativeBatches'] = _queueFillBatches;
     // Build the prepared list in album order for two purposes:
     // (a) syncing the crossfade inactive deck, and
     // (b) atomically rebuilding _queueItems now that all inserts are done.
@@ -3252,9 +3296,14 @@ class NavisAudioHandler extends BaseAudioHandler
       _clearQueueReplacementMetadataAnchor();
     }
 
+    fillTimings['deckClearMs'] = fillWatch.elapsedMilliseconds;
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
+    fillTimings['queuePublishMs'] = fillWatch.elapsedMilliseconds;
     _broadcastPlaybackState();
     _emitSnapshot();
+    fillTimings['snapshotMs'] = fillWatch.elapsedMilliseconds;
+    fillTimings['prepared'] = allPrepared.length;
+    fillTimings['skipped'] = skippedSongIds.length;
 
     AppLogger.debug(
       'Queue replacement phase 2 complete: requested=${songs.length} '
@@ -3264,10 +3313,103 @@ class NavisAudioHandler extends BaseAudioHandler
 
     if (persist) {
       await _persistSafely(
-        () => _persistQueueState(includeQueueItems: true),
+        () {
+          fillTimings['persistStartMs'] = fillWatch.elapsedMilliseconds;
+          return _persistQueueState(includeQueueItems: true);
+        },
         context: 'queue replacement (phase 2)',
       );
     }
+    fillTimings['persistMs'] = fillWatch.elapsedMilliseconds;
+  }
+
+  static const int _queueFillFirstBatchSize = 8;
+  static const int _queueFillBatchSizeLimit = 64;
+
+  static int _queueFillBatchSize(int alreadyProcessed) => alreadyProcessed == 0
+      ? _queueFillFirstBatchSize
+      : _queueFillBatchSizeLimit;
+
+  /// Resolves [batch] and applies every playable source with one [apply]
+  /// call. Returns the number of sources applied to the player.
+  ///
+  /// A timeout leaves the player in an uncertain state and is rethrown, as is
+  /// cancellation. Any other failure skips the whole batch, matching the
+  /// previous per-song skip semantics at batch granularity.
+  Future<int> _fillQueueBatch({
+    required List<SongsTableData> batch,
+    required int firstOriginalIndex,
+    required Map<int, _PreparedQueueItem> preparedByIndex,
+    required List<String> skippedSongIds,
+    required int generation,
+    required OperationToken token,
+    required String operation,
+    required Future<void> Function(List<AudioSource> sources) apply,
+  }) async {
+    _checkQueueWorkCurrent(token, generation);
+    // Each resolution is independent and mostly waits on a database or file
+    // check, so resolve the batch concurrently. Results keep queue order.
+    final resolveWatch = Stopwatch()..start();
+    final resolved = await Future.wait(
+      batch.map(_prepareSingleItemForQueueFill),
+    );
+    _queueFillResolveMs += resolveWatch.elapsedMilliseconds;
+    final prepared = <_PreparedQueueItem>[];
+    final preparedIndexes = <int>[];
+    for (var j = 0; j < batch.length; j++) {
+      final item = resolved[j];
+      if (item == null) {
+        skippedSongIds.add(batch[j].id);
+        continue;
+      }
+      prepared.add(item);
+      preparedIndexes.add(firstOriginalIndex + j);
+    }
+    _checkQueueWorkCurrent(token, generation);
+    if (prepared.isEmpty) {
+      return 0;
+    }
+    final applyWatch = Stopwatch()..start();
+    try {
+      _queueFillBatches++;
+      await _runTimedPlayerOperation(
+        generation: generation,
+        operation: operation,
+        action: () => apply(
+          prepared.map((item) => item.audioSource).toList(growable: false),
+        ),
+        songId: prepared.first.song.id,
+      );
+    } on PlaybackLoadTimeoutException catch (error) {
+      _lastFailedSongId = error.songId ?? prepared.first.song.id;
+      AppLogger.warning(
+        'Queue fill "$operation" timed out for ${prepared.length} songs; '
+        'aborting the uncertain player state.',
+      );
+      rethrow;
+    } on OperationCancelledException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      for (final item in prepared) {
+        skippedSongIds.add(item.song.id);
+        _markSongLockCachingBypassed(
+          item.song.id,
+          reason: 'queue fill batch failed',
+        );
+      }
+      AppLogger.warning(
+        'Queue fill "$operation" failed for ${prepared.length} songs; '
+        'skipping the batch. $error\n$stackTrace',
+      );
+      return 0;
+    }
+    _queueFillNativeMs += applyWatch.elapsedMilliseconds;
+    for (var j = 0; j < prepared.length; j++) {
+      preparedByIndex[preparedIndexes[j]] = prepared[j];
+    }
+    _checkQueueWorkCurrent(token, generation);
+    _observeLockCacheForPrepared(prepared);
+    return prepared.length;
   }
 
   /// Register rolling-cache progress listeners for any lock-cached entries
@@ -4300,10 +4442,10 @@ class NavisAudioHandler extends BaseAudioHandler
       }
 
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
-      await _persistSafely(
-        () => _persistQueueState(includeQueueItems: true),
-        context: 'reorder queue',
-      );
+      // Reorders arrive in bursts (drag sequences, shuffled artist growth),
+      // and each full-queue write rewrites every row. Persist once the burst
+      // settles.
+      _scheduleQueueItemsPersistence(context: 'reorder queue');
       _broadcastPlaybackState();
       _emitSnapshot();
     });
@@ -4575,6 +4717,14 @@ class NavisAudioHandler extends BaseAudioHandler
     return <String, Object?>{
       'songId': songId,
       'queueLength': snapshot.queueSongIds.length,
+      'playerSequenceLength': _player.sequence.length,
+      'queueFill': _lastQueueFill,
+      'slowPersistence': List<Map<String, Object?>>.of(_slowPersistence),
+      'persistence': <String, Object?>{
+        'operations': _persistOperationCount,
+        'runMs': _persistRunMs,
+        'byContext': Map<String, int>.of(_persistContextCounts),
+      },
       'playing': snapshot.playing,
       'processingState': snapshot.processingState.name,
       'isLoading': snapshot.isLoading,
@@ -5229,13 +5379,29 @@ class NavisAudioHandler extends BaseAudioHandler
     // Queue replacement and delayed position saves may be issued from
     // different lanes. Commit them in issue order so an older asynchronous
     // write cannot land after a newer queue/current-index snapshot.
-    final write = _persistTail.then(
-      (_) => navisPersistSafely(
+    final queued = Stopwatch()..start();
+    final write = _persistTail.then((_) async {
+      final waitedMs = queued.elapsedMilliseconds;
+      final running = Stopwatch()..start();
+      await navisPersistSafely(
         persistOperation,
         context: context,
         logWarning: AppLogger.warning,
-      ),
-    );
+      );
+      final ranMs = running.elapsedMilliseconds;
+      _persistOperationCount++;
+      _persistRunMs += ranMs;
+      _persistContextCounts[context] =
+          (_persistContextCounts[context] ?? 0) + 1;
+      if (ranMs >= 500) {
+        _slowPersistence.add(<String, Object?>{
+          'context': context,
+          'waitedMs': waitedMs,
+          'ranMs': ranMs,
+        });
+        if (_slowPersistence.length > 8) _slowPersistence.removeAt(0);
+      }
+    });
     _persistTail = write.catchError((Object error, StackTrace stackTrace) {
       AppLogger.warning('Playback persistence lane failed: $error');
     });
@@ -5271,6 +5437,28 @@ class NavisAudioHandler extends BaseAudioHandler
         positionMs: positionMs,
       );
     }, context: 'logical queue selection');
+  }
+
+  void _scheduleQueueItemsPersistence({required String context}) {
+    _queueItemsPersistTimer?.cancel();
+    _queueItemsPersistContext = context;
+    _queueItemsPersistTimer = Timer(
+      const Duration(milliseconds: 300),
+      () => unawaited(_flushQueueItemsPersistence()),
+    );
+  }
+
+  /// Writes a scheduled full-queue persistence now, if one is pending.
+  Future<void> _flushQueueItemsPersistence() async {
+    final context = _queueItemsPersistContext;
+    _queueItemsPersistTimer?.cancel();
+    _queueItemsPersistTimer = null;
+    _queueItemsPersistContext = null;
+    if (context == null) return;
+    await _persistSafely(
+      () => _persistQueueState(includeQueueItems: true),
+      context: context,
+    );
   }
 
   void _scheduleTransportPersistence({required String context}) {
@@ -6357,8 +6545,11 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<String?> _coldStartMixSeed() async {
     final liked = await _libraryDao.watchAllStarredSongs().first;
     if (liked.isNotEmpty) return liked.first.id;
-    final all = await _libraryDao.watchAllSongs().first;
-    return all.isEmpty ? null : all.first.id;
+    final first = await _libraryDao.getSongsSorted(
+      SongSortOrder.newest,
+      limit: 1,
+    );
+    return first.isEmpty ? null : first.first.id;
   }
 
   /// Starts an Instant Radio seeded from a random liked song.
@@ -6403,13 +6594,9 @@ class NavisAudioHandler extends BaseAudioHandler
         AppLogger.warning('Instant Radio API fallback failed: $e\n$st');
       }
     }
-    final all = await _libraryDao.watchAllSongs().first;
-    if (all.isEmpty) return false;
-    final shuffled = List.of(all)..shuffle();
-    await replaceQueueWithData(
-      shuffled.take(50).toList(growable: false),
-      expandMatchFlows: false,
-    );
+    final shuffled = await _libraryDao.getRandomSongs(50);
+    if (shuffled.isEmpty) return false;
+    await replaceQueueWithData(shuffled, expandMatchFlows: false);
     return _queueItems.isNotEmpty;
   }
 
@@ -6456,19 +6643,18 @@ class NavisAudioHandler extends BaseAudioHandler
       }
     }
 
-    final all = await _libraryDao.watchAllSongs().first;
-    if (all.isEmpty) {
+    final shuffled = await _libraryDao.getRandomSongs(50);
+    if (shuffled.isEmpty) {
       AppLogger.debug('Android Auto fallback: local library is empty.');
       return false;
     }
 
-    final shuffled = List.of(all)..shuffle();
     AppLogger.debug(
       'Android Auto fallback: queueing local random songs '
       '(count=${shuffled.length}, autoPlay=$autoPlay).',
     );
     await replaceQueueWithData(
-      shuffled.take(50).toList(growable: false),
+      shuffled,
       autoPlay: autoPlay,
       expandMatchFlows: false,
     );
@@ -6558,6 +6744,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _disposeInactiveCrossfadeDeck();
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();
+    await _flushQueueItemsPersistence();
     _radioStation = null;
     _radioMetadataService.dispose();
     await _sidecarDownloader.dispose();
@@ -6602,6 +6789,7 @@ class NavisAudioHandler extends BaseAudioHandler
     unawaited(_disposeInactiveCrossfadeDeck());
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();
+    unawaited(_flushQueueItemsPersistence());
     _radioStation = null;
     _radioMetadataService.dispose();
     unawaited(_disposePlayerListeners());

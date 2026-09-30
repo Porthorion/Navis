@@ -51,10 +51,22 @@ class NetworkUsageMeter {
 
   static const retention = Duration(days: 30);
 
+  /// Records are aggregated in memory and written at most this often. Every
+  /// HTTP request used to insert its own row, which during a sync meant
+  /// thousands of fenced commits on the database writer.
+  static const flushInterval = Duration(seconds: 5);
+  static const _maxBufferedKeys = 64;
+
   final NetworkUsageDao _dao;
   final NetworkType Function() _readNetworkType;
   final DateTime Function() _now;
   final Map<String, ({int bytes, int requests})> _sessionTotals = {};
+  final Map<
+    ({String category, String? operation, String networkType}),
+    ({int bytes, int requests})
+  >
+  _buffered = {};
+  Timer? _flushTimer;
 
   List<NetworkUsageSessionTotal> get sessionTotals {
     return _sessionTotals.entries
@@ -88,22 +100,49 @@ class NetworkUsageMeter {
       bytes: existing.bytes + (bytes < 0 ? 0 : bytes),
       requests: existing.requests + (requestCount < 1 ? 1 : requestCount),
     );
-    unawaited(
-      _dao
-          .recordUsage(
-            category: category.key,
-            operation: operation,
-            networkType: resolvedNetwork.name,
-            bytes: bytes,
-            requestCount: requestCount,
-            occurredAt: _now(),
-          )
-          .catchError((Object error, StackTrace stackTrace) {
-            AppLogger.debug(
-              'Network usage record failed: $error\n$stackTrace',
-            );
-          }),
+    final bufferKey = (
+      category: category.key,
+      operation: operation,
+      networkType: resolvedNetwork.name,
     );
+    final buffered = _buffered[bufferKey] ?? (bytes: 0, requests: 0);
+    _buffered[bufferKey] = (
+      bytes: buffered.bytes + bytes,
+      requests: buffered.requests + requestCount,
+    );
+    if (_buffered.length >= _maxBufferedKeys) {
+      unawaited(flush());
+    } else {
+      _flushTimer ??= Timer(flushInterval, () => unawaited(flush()));
+    }
+  }
+
+  /// Writes the aggregated records now. Called periodically and on disposal.
+  Future<void> flush() async {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    if (_buffered.isEmpty) return;
+    final entries = _buffered.entries.toList(growable: false);
+    _buffered.clear();
+    final occurredAt = _now();
+    for (final entry in entries) {
+      try {
+        await _dao.recordUsage(
+          category: entry.key.category,
+          operation: entry.key.operation,
+          networkType: entry.key.networkType,
+          bytes: entry.value.bytes,
+          requestCount: entry.value.requests,
+          occurredAt: occurredAt,
+        );
+      } on Object catch (error, stackTrace) {
+        AppLogger.debug('Network usage record failed: $error\n$stackTrace');
+      }
+    }
+  }
+
+  void dispose() {
+    unawaited(flush());
   }
 
   Future<void> pruneOld() {
@@ -111,6 +150,9 @@ class NetworkUsageMeter {
   }
 
   Future<void> clearAll() async {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    _buffered.clear();
     _sessionTotals.clear();
     await _dao.clearAll();
   }

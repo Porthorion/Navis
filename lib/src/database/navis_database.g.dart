@@ -9906,6 +9906,270 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   }
 }
 
+class $SongSearchTextTableTable extends SongSearchTextTable
+    with TableInfo<$SongSearchTextTableTable, SongSearchTextTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SongSearchTextTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _songIdMeta = const VerificationMeta('songId');
+  @override
+  late final GeneratedColumn<String> songId = GeneratedColumn<String>(
+    'song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _searchTextMeta = const VerificationMeta(
+    'searchText',
+  );
+  @override
+  late final GeneratedColumn<String> searchText = GeneratedColumn<String>(
+    'search_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [songId, source, searchText];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'song_search_text';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SongSearchTextTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('song_id')) {
+      context.handle(
+        _songIdMeta,
+        songId.isAcceptableOrUnknown(data['song_id']!, _songIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_songIdMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('search_text')) {
+      context.handle(
+        _searchTextMeta,
+        searchText.isAcceptableOrUnknown(data['search_text']!, _searchTextMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_searchTextMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {songId};
+  @override
+  SongSearchTextTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SongSearchTextTableData(
+      songId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}song_id'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      searchText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}search_text'],
+      )!,
+    );
+  }
+
+  @override
+  $SongSearchTextTableTable createAlias(String alias) {
+    return $SongSearchTextTableTable(attachedDatabase, alias);
+  }
+
+  @override
+  bool get withoutRowId => true;
+}
+
+class SongSearchTextTableData extends DataClass
+    implements Insertable<SongSearchTextTableData> {
+  final String songId;
+  final String source;
+  final String searchText;
+  const SongSearchTextTableData({
+    required this.songId,
+    required this.source,
+    required this.searchText,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['song_id'] = Variable<String>(songId);
+    map['source'] = Variable<String>(source);
+    map['search_text'] = Variable<String>(searchText);
+    return map;
+  }
+
+  SongSearchTextTableCompanion toCompanion(bool nullToAbsent) {
+    return SongSearchTextTableCompanion(
+      songId: Value(songId),
+      source: Value(source),
+      searchText: Value(searchText),
+    );
+  }
+
+  factory SongSearchTextTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SongSearchTextTableData(
+      songId: serializer.fromJson<String>(json['songId']),
+      source: serializer.fromJson<String>(json['source']),
+      searchText: serializer.fromJson<String>(json['searchText']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'songId': serializer.toJson<String>(songId),
+      'source': serializer.toJson<String>(source),
+      'searchText': serializer.toJson<String>(searchText),
+    };
+  }
+
+  SongSearchTextTableData copyWith({
+    String? songId,
+    String? source,
+    String? searchText,
+  }) => SongSearchTextTableData(
+    songId: songId ?? this.songId,
+    source: source ?? this.source,
+    searchText: searchText ?? this.searchText,
+  );
+  SongSearchTextTableData copyWithCompanion(SongSearchTextTableCompanion data) {
+    return SongSearchTextTableData(
+      songId: data.songId.present ? data.songId.value : this.songId,
+      source: data.source.present ? data.source.value : this.source,
+      searchText: data.searchText.present
+          ? data.searchText.value
+          : this.searchText,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SongSearchTextTableData(')
+          ..write('songId: $songId, ')
+          ..write('source: $source, ')
+          ..write('searchText: $searchText')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(songId, source, searchText);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SongSearchTextTableData &&
+          other.songId == this.songId &&
+          other.source == this.source &&
+          other.searchText == this.searchText);
+}
+
+class SongSearchTextTableCompanion
+    extends UpdateCompanion<SongSearchTextTableData> {
+  final Value<String> songId;
+  final Value<String> source;
+  final Value<String> searchText;
+  const SongSearchTextTableCompanion({
+    this.songId = const Value.absent(),
+    this.source = const Value.absent(),
+    this.searchText = const Value.absent(),
+  });
+  SongSearchTextTableCompanion.insert({
+    required String songId,
+    required String source,
+    required String searchText,
+  }) : songId = Value(songId),
+       source = Value(source),
+       searchText = Value(searchText);
+  static Insertable<SongSearchTextTableData> custom({
+    Expression<String>? songId,
+    Expression<String>? source,
+    Expression<String>? searchText,
+  }) {
+    return RawValuesInsertable({
+      if (songId != null) 'song_id': songId,
+      if (source != null) 'source': source,
+      if (searchText != null) 'search_text': searchText,
+    });
+  }
+
+  SongSearchTextTableCompanion copyWith({
+    Value<String>? songId,
+    Value<String>? source,
+    Value<String>? searchText,
+  }) {
+    return SongSearchTextTableCompanion(
+      songId: songId ?? this.songId,
+      source: source ?? this.source,
+      searchText: searchText ?? this.searchText,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (songId.present) {
+      map['song_id'] = Variable<String>(songId.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (searchText.present) {
+      map['search_text'] = Variable<String>(searchText.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SongSearchTextTableCompanion(')
+          ..write('songId: $songId, ')
+          ..write('source: $source, ')
+          ..write('searchText: $searchText')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $GenresTableTable extends GenresTable
     with TableInfo<$GenresTableTable, GenresTableData> {
   @override
@@ -32501,6 +32765,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final $ArtistsTableTable artistsTable = $ArtistsTableTable(this);
   late final $AlbumsTableTable albumsTable = $AlbumsTableTable(this);
   late final $SongsTableTable songsTable = $SongsTableTable(this);
+  late final $SongSearchTextTableTable songSearchTextTable =
+      $SongSearchTextTableTable(this);
   late final $GenresTableTable genresTable = $GenresTableTable(this);
   late final $AlbumInfoCacheTableTable albumInfoCacheTable =
       $AlbumInfoCacheTableTable(this);
@@ -32622,6 +32888,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     artistsTable,
     albumsTable,
     songsTable,
+    songSearchTextTable,
     genresTable,
     albumInfoCacheTable,
     externalLyricsCacheTable,
@@ -39282,6 +39549,180 @@ typedef $$SongsTableTableProcessedTableManager =
         bool scrobbleQueueTableRefs,
         bool listenBrainzFeedbackQueueTableRefs,
       })
+    >;
+typedef $$SongSearchTextTableTableCreateCompanionBuilder =
+    SongSearchTextTableCompanion Function({
+      required String songId,
+      required String source,
+      required String searchText,
+    });
+typedef $$SongSearchTextTableTableUpdateCompanionBuilder =
+    SongSearchTextTableCompanion Function({
+      Value<String> songId,
+      Value<String> source,
+      Value<String> searchText,
+    });
+
+class $$SongSearchTextTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $SongSearchTextTableTable> {
+  $$SongSearchTextTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SongSearchTextTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $SongSearchTextTableTable> {
+  $$SongSearchTextTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SongSearchTextTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $SongSearchTextTableTable> {
+  $$SongSearchTextTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get songId =>
+      $composableBuilder(column: $table.songId, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => column,
+  );
+}
+
+class $$SongSearchTextTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $SongSearchTextTableTable,
+          SongSearchTextTableData,
+          $$SongSearchTextTableTableFilterComposer,
+          $$SongSearchTextTableTableOrderingComposer,
+          $$SongSearchTextTableTableAnnotationComposer,
+          $$SongSearchTextTableTableCreateCompanionBuilder,
+          $$SongSearchTextTableTableUpdateCompanionBuilder,
+          (
+            SongSearchTextTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $SongSearchTextTableTable,
+              SongSearchTextTableData
+            >,
+          ),
+          SongSearchTextTableData,
+          PrefetchHooks Function()
+        > {
+  $$SongSearchTextTableTableTableManager(
+    _$NavisDatabase db,
+    $SongSearchTextTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SongSearchTextTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SongSearchTextTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SongSearchTextTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> songId = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> searchText = const Value.absent(),
+              }) => SongSearchTextTableCompanion(
+                songId: songId,
+                source: source,
+                searchText: searchText,
+              ),
+          createCompanionCallback:
+              ({
+                required String songId,
+                required String source,
+                required String searchText,
+              }) => SongSearchTextTableCompanion.insert(
+                songId: songId,
+                source: source,
+                searchText: searchText,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SongSearchTextTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $SongSearchTextTableTable,
+      SongSearchTextTableData,
+      $$SongSearchTextTableTableFilterComposer,
+      $$SongSearchTextTableTableOrderingComposer,
+      $$SongSearchTextTableTableAnnotationComposer,
+      $$SongSearchTextTableTableCreateCompanionBuilder,
+      $$SongSearchTextTableTableUpdateCompanionBuilder,
+      (
+        SongSearchTextTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $SongSearchTextTableTable,
+          SongSearchTextTableData
+        >,
+      ),
+      SongSearchTextTableData,
+      PrefetchHooks Function()
     >;
 typedef $$GenresTableTableCreateCompanionBuilder =
     GenresTableCompanion Function({
@@ -53916,6 +54357,8 @@ class $NavisDatabaseManager {
       $$AlbumsTableTableTableManager(_db, _db.albumsTable);
   $$SongsTableTableTableManager get songsTable =>
       $$SongsTableTableTableManager(_db, _db.songsTable);
+  $$SongSearchTextTableTableTableManager get songSearchTextTable =>
+      $$SongSearchTextTableTableTableManager(_db, _db.songSearchTextTable);
   $$GenresTableTableTableManager get genresTable =>
       $$GenresTableTableTableManager(_db, _db.genresTable);
   $$AlbumInfoCacheTableTableTableManager get albumInfoCacheTable =>

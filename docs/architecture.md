@@ -1226,6 +1226,31 @@ queue operation ends and use the pending target ID while the previous song's
 metadata is still visible. A ready selected source keeps its play/pause icon
 even if the rest of the queue is still filling.
 
+Phase 2 resolves sources concurrently within a batch (8 songs first, then 64)
+and applies each batch with one `addAudioSources`/`insertAudioSources` call:
+every native insert re-sends the whole shuffle order and rebuilds the player
+sequence, so per-song inserts were quadratic in queue length. Songs after the
+selection are appended before the prefix is inserted, so the next track is
+ready for gapless playback first. The handler subscribes to just_audio's
+shuffle and loop streams with `distinct()`: they are derived from the sequence
+state and otherwise re-emit on every insert, each queueing a full queue-state
+write. `GET /v1/playback/status` reports `queueFill` stage timings,
+`playerSequenceLength`, and persistence-lane counts (`persistence`,
+`slowPersistence`) without song identities. On desktop, media_kit/libmpv still
+cost roughly linear time per inserted child, so queues of 10,000 songs
+take about 30 s to finish filling, although playback starts immediately.
+
+A saved queue larger than 64 songs is restored the same way at startup: the
+current song is prepared at its saved position first, and the rest is filled
+in the queue lane, so handler readiness and media-session Play do not wait for
+every source. A restore timeout keeps the saved queue instead of deleting it.
+Permanent-download pruning and orphan rolling-file cleanup still run before
+readiness because they guard partial-file ownership.
+
+Queue replacement prefetches lyrics only for the selected song and the next
+two. `lyricsProvider` watches just the playing item's lookup metadata, so a
+track change or artwork re-emit does not re-run every cached lookup.
+
 Each selection keeps a bounded, redacted startup timeline in the handler. A
 remote Search selection starts it before provisional database writes. The
 handler then records source resolution, selected-source apply, player readiness,
@@ -1662,8 +1687,12 @@ contract.
 
 ### Cache Flow
 
-1. Playback starts on any native platform → `LockCachingAudioSource` writes the
-   consumed stream into the rolling cache without a second download
+1. Playback starts → on Android/iOS `LockCachingAudioSource` writes the
+   consumed stream into the rolling cache without a second download. Desktop
+   (media_kit) cannot seek that proxy, so it streams over HTTPS while a
+   sidecar download fills the rolling cache: each uncached track is fetched
+   twice (a FLAC is typically 25–50 MB, and transcoding runs twice on the
+   server). This is a deliberate cost of seekable desktop playback.
 2. On completion → `RollingCacheManager.registerTrack()`
 3. Cache manager reads the current budget and enforces it via LRU eviction
 4. User pins content → Download to permanent cache
@@ -1730,6 +1759,46 @@ primary profile, so testing first setup or a cache reset cannot delete the
 primary profile's media. Initial offline/metered overrides are seeded before
 the first sync decision; the authenticated diagnostics API can change them
 while the scenario is running.
+
+### Performance contracts
+
+These rules keep the UI at 60 FPS and memory bounded with libraries of tens
+of thousands of songs. `tool/perf_diagnostics.py` measures them (see
+`docs/development-workflow.md`).
+
+- Never load the whole songs table to pick a few rows. Use bounded DAO queries
+  (`getSongsSorted`, `getRandomSongs`, `getSongsByIds`) or SQL aggregates.
+- Local song search runs against `song_search_text`, a derived index of each
+  song's normalized title, artist, and album. A row is current only while its
+  `source` column equals the song's raw fields, so no song write path needs to
+  maintain it: stale or missing rows are normalized by the search itself and
+  rewritten by `scheduleSongSearchIndexRefresh`, which also runs from deferred
+  startup maintenance. Normalization keeps letters and numbers from every
+  script and folds Latin diacritics and common Arabic letter variants. The SQL
+  prefilter requires each query token as an in-order subsequence, which every
+  ranked match (exact, prefix, substring, token, fuzzy) satisfies, so ranking
+  is unchanged.
+- Per-song and per-page provider families (`songByIdProvider`,
+  `songStarredProvider`, `songDownloadStateProvider`,
+  `songPlaybackIndicatorStateProvider`, `pagedAlbumsProvider`, …) are
+  auto-disposed. Row-level providers `select` their own entry from shared
+  streams instead of opening one database watch per row.
+- High-frequency values are published in bounded steps: sync progress through
+  `LatestValueThrottle` (status and stage changes immediately, counts at most
+  every 250 ms), download progress in whole-percent steps, and network usage
+  records aggregated in memory and flushed every five seconds.
+- Position ticks (5–10 Hz) are watched only by leaf widgets inside a
+  `RepaintBoundary` (seek sliders, progress bars). The collapsed mobile Now
+  Playing stays mounted under a disabled `TickerMode`, which pauses its
+  animations and provider listeners.
+- Database connections use WAL with `synchronous=NORMAL`, an 8 MiB page cache,
+  in-memory temp storage, and a 64 MiB WAL size limit. Deferred startup
+  maintenance runs a bounded `PRAGMA optimize`. Reverse-lookup indexes cover
+  `songs(artist_id)`, `play_queue_items(song_id)`, `playlist_songs(song_id)`,
+  and starred songs.
+- Response byte accounting uses Dio's received-byte count; Navidrome gzips
+  JSON without `Content-Length`, and re-encoding the decoded body cost two full
+  JSON encodes of every large page on the UI isolate.
 
 ## Testing Strategy
 

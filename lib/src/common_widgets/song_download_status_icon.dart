@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -43,45 +44,51 @@ class SongDownloadState {
 /// a single [SongDownloadState] per song ID.
 ///
 /// Priority: downloaded > downloading > queued > cached > none.
-final songDownloadStateProvider = Provider.family<SongDownloadState, String>((
-  ref,
-  songId,
-) {
-  // 1. Check cache type (rolling / permanent).
-  final cachedTypes = ref.watch(cachedSongTypesProvider).asData?.value;
-  final cacheType = cachedTypes?[songId];
+final songDownloadStateProvider = Provider.autoDispose
+    .family<SongDownloadState, String>((ref, songId) {
+      // Select only this song's entries so a row rebuilds only when its own cache
+      // or download state changes, not on every queue progress write.
+      // 1. Check cache type (rolling / permanent).
+      final cacheType = ref.watch(
+        cachedSongTypesProvider.select((types) => types.asData?.value[songId]),
+      );
 
-  if (cacheType == CacheType.permanent) {
-    return const SongDownloadState(status: SongDownloadStatus.downloaded);
-  }
+      if (cacheType == CacheType.permanent) {
+        return const SongDownloadState(status: SongDownloadStatus.downloaded);
+      }
 
-  // 2. Check download queue.
-  final queue = ref.watch(downloadQueueProvider).asData?.value;
-  if (queue != null) {
-    for (final item in queue) {
-      if (item.songId == songId) {
-        if (item.status == DownloadStatus.downloading) {
+      // 2. Check download queue.
+      final queued = ref.watch(
+        downloadQueueProvider.select((queue) {
+          for (final item
+              in queue.asData?.value ?? const <DownloadQueueTableData>[]) {
+            if (item.songId == songId) {
+              return (status: item.status, progress: item.progress);
+            }
+          }
+          return null;
+        }),
+      );
+      if (queued != null) {
+        if (queued.status == DownloadStatus.downloading) {
           return SongDownloadState(
             status: SongDownloadStatus.downloading,
-            progress: item.progress.clamp(0.0, 1.0),
+            progress: queued.progress.clamp(0.0, 1.0),
           );
         }
-        if (item.status == DownloadStatus.queued) {
+        if (queued.status == DownloadStatus.queued) {
           return const SongDownloadState(status: SongDownloadStatus.queued);
         }
         // Failed items — treat as "none" so the user can re-download.
-        break;
       }
-    }
-  }
 
-  // 3. Rolling cache.
-  if (cacheType == CacheType.rolling) {
-    return const SongDownloadState(status: SongDownloadStatus.cached);
-  }
+      // 3. Rolling cache.
+      if (cacheType == CacheType.rolling) {
+        return const SongDownloadState(status: SongDownloadStatus.cached);
+      }
 
-  return SongDownloadState.none;
-});
+      return SongDownloadState.none;
+    });
 
 /// An icon widget that replaces both the old download button and the
 /// prior cache-status indicator.

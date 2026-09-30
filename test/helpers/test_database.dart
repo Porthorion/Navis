@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' show DatabaseConnection;
 import 'package:drift/native.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -7,8 +8,15 @@ import 'package:riverpod/src/framework.dart' show Override;
 import 'package:sqlite3/sqlite3.dart';
 
 NavisDatabase createTestDatabase({File? file}) {
+  // Close query streams as soon as their last listener leaves. Otherwise
+  // drift keeps them for one event-loop turn with a timer, which widget tests
+  // report as pending when auto-disposed providers release a stream while the
+  // widget tree is torn down.
   return NavisDatabase(
-    file == null ? NativeDatabase.memory() : NativeDatabase(file),
+    DatabaseConnection(
+      file == null ? NativeDatabase.memory() : NativeDatabase(file),
+      closeStreamsSynchronously: true,
+    ),
   );
 }
 

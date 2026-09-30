@@ -64,6 +64,7 @@ class ArtistPlaybackResolver {
     required this.canHydrate,
     required this.isOffline,
     required this.isLocallyPlayable,
+    this.publishInterval = Duration.zero,
   });
 
   final Future<ArtistPlaybackSnapshot> Function(String) readSnapshot;
@@ -71,6 +72,10 @@ class ArtistPlaybackResolver {
   final bool Function() canHydrate;
   final bool Function() isOffline;
   final Future<bool> Function(SongsTableData) isLocallyPlayable;
+
+  /// Minimum interval between progressive publications while releases are
+  /// hydrated. A publication that would start an empty queue is never held.
+  final Duration publishInterval;
 
   Future<ArtistPlaybackSelection?> resolve(
     String artistId, {
@@ -124,8 +129,15 @@ class ArtistPlaybackResolver {
       return selection;
     }
 
+    // Re-reading the snapshot loads the artist's whole catalog in a
+    // transaction, and each publish may mutate the queue. With hundreds of
+    // releases, doing that after every album saturated the database, so
+    // hydrated albums are published at most once per interval, and at the end.
     Future<void> hydrateAlbums() async {
       final albums = List.of(snapshot.albums);
+      final sincePublish = Stopwatch()..start();
+      var unpublished = false;
+      var snapshotWasEmpty = snapshot.songs.isEmpty;
       for (final album in albums) {
         if (!isCurrent()) return;
         if (_completeAlbumIds(snapshot).contains(album.id) ||
@@ -149,6 +161,18 @@ class ArtistPlaybackResolver {
         } else {
           failedAlbums.add(album.id);
         }
+        unpublished = true;
+        if (snapshotWasEmpty || sincePublish.elapsed >= publishInterval) {
+          snapshot = await readSnapshot(artistId);
+          await publish();
+          snapshotWasEmpty = snapshot.songs.isEmpty;
+          unpublished = false;
+          sincePublish
+            ..reset()
+            ..start();
+        }
+      }
+      if (unpublished && isCurrent()) {
         snapshot = await readSnapshot(artistId);
         await publish();
       }
@@ -199,6 +223,10 @@ class ArtistPlaybackResolver {
   }
 }
 
+/// Minimum interval between progressive artist-queue publications while
+/// releases are hydrated in the app.
+const Duration artistPlaybackPublishInterval = Duration(seconds: 1);
+
 final artistPlaybackResolverProvider = Provider<ArtistPlaybackResolver>((ref) {
   final container = ref.container;
   return ArtistPlaybackResolver(
@@ -213,6 +241,7 @@ final artistPlaybackResolverProvider = Provider<ArtistPlaybackResolver>((ref) {
         container.read(librarySyncEngineProvider) != null &&
         container.read(syncNetworkPolicyProvider).allowsInteractiveHydration,
     isOffline: () => container.read(syncNetworkPolicyProvider).isOffline,
+    publishInterval: artistPlaybackPublishInterval,
     isLocallyPlayable: (song) async {
       final cache = await container
           .read(navisDatabaseProvider)

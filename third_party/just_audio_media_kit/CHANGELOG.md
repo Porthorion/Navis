@@ -4,6 +4,9 @@
   leave a stale `load()` Future pending indefinitely.
 - Move the valid appended playlist index during queue insertion; the old
   one-past-end index produced libmpv `playlist-move` errors.
+- Keep child order when inserting several sources before the end of the
+  playlist; each child was moved to the same index, reversing the batch.
+- Emit one playback event per multi-source insert instead of two per child.
 
 ## 2.1.0
 

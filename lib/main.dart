@@ -19,6 +19,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
+import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/notifications/notification_bootstrap.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as path;
@@ -84,6 +85,19 @@ Future<void> main() async {
       ),
     );
     runApp(diagnosticsPresentation?.wrap(app) ?? app);
+    // Planner statistics and the local-search index are refreshed off the
+    // startup path. Both are derived data; a failure only costs speed.
+    unawaited(
+      Future<void>.delayed(const Duration(seconds: 20), () async {
+        try {
+          await rootContainer
+              .read(navisDatabaseProvider)
+              .runDeferredMaintenance();
+        } on Object catch (error) {
+          AppLogger.debug('Deferred database maintenance skipped: $error');
+        }
+      }),
+    );
     if (_syncDiagnosticsRuntimeEnabled) {
       unawaited(
         _startSyncDiagnostics(
@@ -122,6 +136,8 @@ Future<void> main() async {
 
 AppLifecycleListener? _androidUiLifecycleListener;
 
+final _diagnosticsProviderCounter = DiagnosticsProviderCounter();
+
 ProviderContainer _createRootProviderContainer({
   required _DesktopBootstrap? desktopBootstrap,
   NavisDatabase? databaseOverride,
@@ -129,6 +145,9 @@ ProviderContainer _createRootProviderContainer({
   var remainingInjectedBootstrapFailures =
       _diagnosticsAudioBootstrapFailureAttempts;
   return ProviderContainer(
+    observers: [
+      if (_syncDiagnosticsRuntimeEnabled) _diagnosticsProviderCounter,
+    ],
     overrides: [
       if (databaseOverride != null || desktopBootstrap != null)
         navisDatabaseProvider.overrideWith(
@@ -290,6 +309,7 @@ Future<void> _startSyncDiagnostics({
     mode: mode,
     handshakePath: _isAndroidRuntime ? '' : _syncDiagnosticsHandshakePath,
     presentationController: presentationController,
+    providerCounter: _diagnosticsProviderCounter,
     androidHandshakePublisher: _isAndroidRuntime
         ? _publishAndroidDiagnosticsHandshake
         : null,

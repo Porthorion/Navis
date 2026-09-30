@@ -120,6 +120,11 @@ It can simulate network cost overrides without cellular hardware. The focused
 action-correlation regression check is `python3 -m unittest
 tool.sync_diagnostics_action_test`.
 
+`tool/perf_diagnostics.py` is a manual before/after measurement tool, not a
+gate: it needs a real server credential file and the network, and its numbers
+depend on the host. Run it around performance-sensitive changes and record the
+comparison, as in `docs/audits/performance-audit-2026-09-30.md`.
+
 Target-hydration controller isolation has a separate clone-only Linux gate:
 
 ```bash

@@ -428,11 +428,22 @@ void main() {
       }.entries) {
         expect(report.body[entry.key], {
           'samples': 5000,
+          'p50Micros': entry.value,
           'p95Micros': entry.value,
           'p99Micros': entry.value,
           'maxMicros': entry.value,
+          'over16ms': 0,
+          'over33ms': 0,
         });
       }
+      expect(
+        report.body['frameWindow'],
+        allOf(containsPair('frames', 5040), contains('framesPerSecond')),
+      );
+      expect(
+        report.body['imageCache'],
+        allOf(contains('currentSizeBytes'), contains('liveImageCount')),
+      );
       final slowFrames = report.body['slowFrameSamples']! as List<Object?>;
       expect(slowFrames, hasLength(32));
       expect(slowFrames.first, containsPair('totalMicros', 1000999));
@@ -541,6 +552,29 @@ void main() {
     expect(jsonEncode(ledger.body), isNot(contains('private')));
   });
 
+  test('local search timing returns only counts and durations', () async {
+    final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(fixture.close);
+
+    final response = await _request(
+      fixture.port,
+      '/v1/diagnostics/local-search?query=song',
+      token: fixture.token,
+    );
+    expect(response.statusCode, HttpStatus.ok);
+    for (final kind in <String>['artists', 'albums', 'songs']) {
+      final entry = response.body[kind]! as Map<String, Object?>;
+      expect(entry.keys, unorderedEquals(<String>['count', 'elapsedMicros']));
+    }
+
+    final missing = await _request(
+      fixture.port,
+      '/v1/diagnostics/local-search',
+      token: fixture.token,
+    );
+    expect(missing.statusCode, HttpStatus.badRequest);
+  });
+
   test('diagnostics API requires its random bearer token', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
@@ -558,7 +592,7 @@ void main() {
     );
     expect(authorized.statusCode, HttpStatus.ok);
     expect(authorized.body['mode'], 'clone');
-    expect(authorized.body['schemaVersion'], 85);
+    expect(authorized.body['schemaVersion'], 86);
   });
 
   test('cache upgrade clears then completes a full library scan', () async {

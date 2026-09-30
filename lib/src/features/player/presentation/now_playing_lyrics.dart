@@ -10,9 +10,16 @@ class _InlineLyrics extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final lyricsAsync = ref.watch(lyricsProvider(songId));
-    final position =
-        ref.watch(playbackPositionProvider).asData?.value ??
-        ref.watch(playerStateProvider).position;
+    final lyrics = lyricsAsync.asData?.value.lyrics;
+    // Rebuild on active-line changes only, not on every position tick.
+    final position = ref.watch(
+      playbackPositionProvider.select(
+        (value) => lyricsActiveLinePosition(
+          lyrics,
+          value.asData?.value ?? ref.read(playerStateProvider).position,
+        ),
+      ),
+    );
 
     Widget buildContent(LyricsResolution resolution) {
       return LyricsDisplayWidget(

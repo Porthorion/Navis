@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
 void main() {
@@ -84,4 +85,38 @@ void main() {
       expect(afterClear.requestCount, 0);
     });
   });
+
+  test(
+    'meter aggregates requests in memory and writes them on flush',
+    () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final meter = NetworkUsageMeter(
+        dao: database.networkUsageDao,
+        readNetworkType: () => NetworkType.wifi,
+        now: () => DateTime(2026, 6, 5, 12),
+      );
+      for (var i = 0; i < 50; i++) {
+        meter.record(
+          category: NetworkUsageCategory.librarySync,
+          bytes: 100,
+          operation: '/rest/getAlbum.view',
+        );
+      }
+      final before = await database.networkUsageDao.getCategoryTotalSince(
+        category: NetworkUsageCategory.librarySync.key,
+        since: DateTime(2026),
+      );
+      expect(before.requestCount, 0);
+
+      await meter.flush();
+      final after = await database.networkUsageDao.getCategoryTotalSince(
+        category: NetworkUsageCategory.librarySync.key,
+        since: DateTime(2026),
+      );
+      expect(after.bytes, 5000);
+      expect(after.requestCount, 50);
+      expect(meter.sessionTotals.single.requestCount, 50);
+    },
+  );
 }

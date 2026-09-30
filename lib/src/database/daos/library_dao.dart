@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
+import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/snapshot_write_guard.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -22,6 +24,7 @@ import 'package:navis/src/database/tables/play_queue_items_table.dart';
 import 'package:navis/src/database/tables/playlist_songs_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/scrobble_queue_table.dart';
+import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
@@ -119,6 +122,7 @@ class DownloadReconciliationSong {
     ArtistsTable,
     AlbumsTable,
     SongsTable,
+    SongSearchTextTable,
     GenresTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
@@ -425,7 +429,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ${limit == null ? '' : 'LIMIT ?'}
       ''',
       variables: [if (limit != null) Variable<int>(limit < 1 ? 1 : limit)],
-      readsFrom: {albumsTable, songsTable},
+      readsFrom: {albumsTable},
     ).watch().map(
       (rows) =>
           rows.map((row) => albumsTable.map(row.data)).toList(growable: false),
@@ -449,7 +453,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       FROM albums
       WHERE ${_likedAlbumPredicate('albums')}
       ''',
-      readsFrom: {albumsTable, songsTable},
+      readsFrom: {albumsTable},
     ).watchSingle().map((row) => row.read<int>('count'));
   }
 
@@ -520,6 +524,27 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
               ..where(albumsTable.catalogGeneration.equals(generation)))
             .get();
     return rows.map((row) => row.read(albumsTable.id)!).toSet();
+  }
+
+  /// Songs that are permanently downloaded or in the download queue, keyed
+  /// by ID. One query replaces a per-row song watch on the Downloads screen.
+  Stream<Map<String, SongsTableData>> watchDownloadRelatedSongs() {
+    return customSelect(
+      '''
+      SELECT s.* FROM songs s
+      WHERE s.id IN (
+        SELECT song_id FROM cached_tracks WHERE cache_type = 'permanent'
+        UNION
+        SELECT song_id FROM download_queue WHERE song_id IS NOT NULL
+      )
+      ''',
+      readsFrom: {songsTable, cachedTracksTable, downloadQueueTable},
+    ).watch().map(
+      (rows) => <String, SongsTableData>{
+        for (final row in rows)
+          row.read<String>('id'): songsTable.map(row.data),
+      },
+    );
   }
 
   Stream<List<SongsTableData>> watchSongsByAlbum(String albumId) {
@@ -618,7 +643,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     String query, {
     int limit = 60,
   }) async {
-    final normalized = _normalizeSearchText(query);
+    final normalized = _asciiSearchText(query);
     if (normalized.isEmpty || limit < 1) return const <SongsTableData>[];
     final pattern = '%$normalized%';
     final rows = await customSelect(
@@ -668,6 +693,42 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Stream<List<SongsTableData>> watchSongsSorted(SongSortOrder sort) {
+    return _songsSortedQuery(sort).watch();
+  }
+
+  /// One-shot, bounded variant of [watchSongsSorted] for callers that need a
+  /// few rows rather than a live list of the whole catalog.
+  ///
+  /// [onlyIds] restricts the result to those songs, in catalog order.
+  Future<List<SongsTableData>> getSongsSorted(
+    SongSortOrder sort, {
+    int? limit,
+    Set<String>? onlyIds,
+  }) async {
+    if (onlyIds != null && onlyIds.isEmpty) return const <SongsTableData>[];
+    final query = _songsSortedQuery(sort);
+    if (onlyIds != null) {
+      query.where((table) => table.id.isIn(onlyIds));
+    }
+    if (limit != null) query.limit(limit);
+    return query.get();
+  }
+
+  /// Up to [limit] random catalog songs, chosen in SQL.
+  Future<List<SongsTableData>> getRandomSongs(int limit) {
+    final query = select(songsTable)
+      ..where(
+        (table) =>
+            table.serverDeletedAt.isNull() & table.isProvisional.equals(false),
+      )
+      ..orderBy([(_) => OrderingTerm.random()])
+      ..limit(limit);
+    return query.get();
+  }
+
+  SimpleSelectStatement<$SongsTableTable, SongsTableData> _songsSortedQuery(
+    SongSortOrder sort,
+  ) {
     final query = select(songsTable)
       ..where(
         (table) =>
@@ -694,7 +755,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           (table) => OrderingTerm.asc(table.id),
         ]);
     }
-    return query.watch();
+    return query;
   }
 
   Stream<List<GenresTableData>> watchGenres() {
@@ -2849,14 +2910,23 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// Search cached songs with ranked substring, token, and fuzzy matching.
+  ///
+  /// Matching runs in SQL against the `song_search_text` index: each query
+  /// token must be an in-order subsequence of the song's normalized text,
+  /// which every ranked match satisfies. Only candidates are scored in Dart.
+  /// Missing or stale index rows are normalized here and stored afterwards,
+  /// so any songs write path stays correct without maintaining the index.
   Future<List<SongsTableData>> searchCachedSongs(
     String query, {
     int limit = 20,
     bool includeLocalOnly = false,
   }) async {
     if (limit < 1) return const <SongsTableData>[];
-    final normalizedQuery = _normalizeSearchText(query);
+    final normalizedQuery = normalizeSearchText(query);
     if (normalizedQuery.isEmpty) {
+      // Punctuation-only input matches nothing; it must not fall through to an
+      // unrelated alphabetical list.
+      if (query.trim().isNotEmpty) return const <SongsTableData>[];
       return (select(songsTable)
             ..where(
               (t) => includeLocalOnly
@@ -2871,74 +2941,210 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           .get();
     }
 
-    final songs =
-        await (select(songsTable)
-              ..where(
-                (t) => includeLocalOnly
-                    ? _searchableSongPredicate()
-                    : t.serverDeletedAt.isNull() & _searchableSongPredicate(),
-              )
-              ..orderBy([
-                (t) => OrderingTerm.asc(t.title),
-                (t) => OrderingTerm.asc(t.id),
-              ]))
-            .get();
     final tokens = normalizedQuery
         .split(' ')
         .where((token) => token.isNotEmpty)
         .toList(growable: false);
-    final matches = <_SongSearchMatch>[];
+    final rows = await customSelect(
+      '''
+      SELECT songs.id AS id, songs.title AS title,
+        songs.artist_name AS artist_name, songs.album_name AS album_name,
+        CASE WHEN t.source = ($_songSearchSourceSql)
+          THEN t.search_text END AS search_text
+      FROM songs
+      LEFT JOIN song_search_text t ON t.song_id = songs.id
+      WHERE ${includeLocalOnly ? '' : 'songs.server_deleted_at IS NULL AND '}
+        $_searchableSongSql
+        AND (
+          t.source IS NOT ($_songSearchSourceSql)
+          OR (${List<String>.filled(tokens.length, 't.search_text GLOB ?').join(' AND ')})
+        )
+      ''',
+      variables: <Variable<Object>>[
+        for (final token in tokens)
+          Variable<String>(songSearchSubsequenceGlob(token)),
+      ],
+      readsFrom: {songsTable, songSearchTextTable},
+    ).get();
 
-    for (final song in songs) {
-      final score = _songSearchScore(song, normalizedQuery, tokens);
+    final stale = <({String songId, String source, String searchText})>[];
+    final matches = <_SongSearchMatch>[];
+    for (final row in rows) {
+      final title = row.read<String>('title');
+      var searchText = row.readNullable<String>('search_text');
+      if (searchText == null) {
+        final artistName = row.readNullable<String>('artist_name');
+        final albumName = row.readNullable<String>('album_name');
+        searchText = buildSongSearchText(
+          title: title,
+          artistName: artistName,
+          albumName: albumName,
+        );
+        stale.add((
+          songId: row.read<String>('id'),
+          source: _songSearchSource(title, artistName, albumName),
+          searchText: searchText,
+        ));
+      }
+      final score = _songSearchScore(searchText, normalizedQuery, tokens);
       if (score == null) continue;
-      matches.add(_SongSearchMatch(song: song, score: score));
+      matches.add(
+        _SongSearchMatch(
+          songId: row.read<String>('id'),
+          title: title,
+          score: score,
+        ),
+      );
+    }
+    if (stale.isNotEmpty) {
+      // One background refresh at a time rewrites every stale row; searches
+      // meanwhile keep normalizing their stale candidates in Dart.
+      unawaited(scheduleSongSearchIndexRefresh());
     }
 
     matches.sort((a, b) {
       final scoreDiff = a.score.compareTo(b.score);
       if (scoreDiff != 0) return scoreDiff;
-      final titleDiff = a.song.title.toLowerCase().compareTo(
-        b.song.title.toLowerCase(),
-      );
+      final titleDiff = a.title.toLowerCase().compareTo(b.title.toLowerCase());
       if (titleDiff != 0) return titleDiff;
-      return a.song.id.compareTo(b.song.id);
+      return a.songId.compareTo(b.songId);
     });
-
-    return matches
-        .take(limit)
-        .map((match) => match.song)
-        .toList(growable: false);
+    return getSongsByIds(matches.take(limit).map((match) => match.songId));
   }
 
+  Future<int>? _songSearchIndexRefresh;
+
+  /// Starts [refreshSongSearchIndex] unless one is already running, and
+  /// returns the in-flight refresh.
+  Future<int> scheduleSongSearchIndexRefresh() {
+    return _songSearchIndexRefresh ??= refreshSongSearchIndex()
+        .catchError((Object error) {
+          AppLogger.debug('Song search index refresh skipped: $error');
+          return 0;
+        })
+        .whenComplete(() => _songSearchIndexRefresh = null);
+  }
+
+  /// Normalizes and stores every missing or stale local-search index row, in
+  /// bounded transactions. Returns the number of rows written.
+  ///
+  /// Raw statements are used so the derived index never wakes song watchers.
+  Future<int> refreshSongSearchIndex({int batchSize = 2000}) async {
+    var written = 0;
+    while (true) {
+      final rows = await customSelect(
+        '''
+        SELECT songs.id AS id, songs.title AS title,
+          songs.artist_name AS artist_name, songs.album_name AS album_name
+        FROM songs
+        LEFT JOIN song_search_text t ON t.song_id = songs.id
+        WHERE t.source IS NOT ($_songSearchSourceSql)
+        LIMIT ?
+        ''',
+        variables: <Variable<Object>>[Variable<int>(batchSize)],
+        readsFrom: {songsTable, songSearchTextTable},
+      ).get();
+      if (rows.isEmpty) break;
+      final stored = await _storeSongSearchText([
+        for (final row in rows)
+          (
+            songId: row.read<String>('id'),
+            source: _songSearchSource(
+              row.read<String>('title'),
+              row.readNullable<String>('artist_name'),
+              row.readNullable<String>('album_name'),
+            ),
+            searchText: buildSongSearchText(
+              title: row.read<String>('title'),
+              artistName: row.readNullable<String>('artist_name'),
+              albumName: row.readNullable<String>('album_name'),
+            ),
+          ),
+      ]);
+      if (!stored) break;
+      written += rows.length;
+      if (rows.length < batchSize) break;
+    }
+    await customStatement(
+      'DELETE FROM song_search_text '
+      'WHERE song_id NOT IN (SELECT id FROM songs)',
+    );
+    return written;
+  }
+
+  Future<bool> _storeSongSearchText(
+    List<({String songId, String source, String searchText})> entries,
+  ) async {
+    // One multi-row statement per chunk keeps a full rebuild to about a
+    // hundred round trips to the database isolate.
+    const chunkSize = 500;
+    for (var offset = 0; offset < entries.length; offset += chunkSize) {
+      final chunk = entries.sublist(
+        offset,
+        math.min(offset + chunkSize, entries.length),
+      );
+      try {
+        await customStatement(
+          'INSERT INTO song_search_text(song_id, source, search_text) VALUES '
+          '${List<String>.filled(chunk.length, '(?, ?, ?)').join(', ')} '
+          'ON CONFLICT(song_id) DO UPDATE SET '
+          'source = excluded.source, search_text = excluded.search_text',
+          <Object?>[
+            for (final entry in chunk) ...<Object?>[
+              entry.songId,
+              entry.source,
+              entry.searchText,
+            ],
+          ],
+        );
+      } on Object catch (error) {
+        // The index is derived data; a failed write only means the next
+        // search normalizes these rows again.
+        AppLogger.debug('Song search index write skipped: $error');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static const String _songSearchSourceSql =
+      "songs.title || char(31) || ifnull(songs.artist_name, '') || char(31) "
+      "|| ifnull(songs.album_name, '')";
+
+  static String _songSearchSource(
+    String title,
+    String? artistName,
+    String? albumName,
+  ) => '$title\u001f${artistName ?? ''}\u001f${albumName ?? ''}';
+
   int? _songSearchScore(
-    SongsTableData song,
+    String searchText,
     String query,
     List<String> tokens,
   ) {
-    final scores = <int>[];
-    final title = _normalizeSearchText(song.title);
-    final artist = _normalizeSearchText(song.artistName ?? '');
-    final album = _normalizeSearchText(song.albumName ?? '');
+    final fields = searchText.split(songSearchFieldSeparator);
+    final title = fields.isNotEmpty ? fields[0] : '';
+    final artist = fields.length > 1 ? fields[1] : '';
+    final album = fields.length > 2 ? fields[2] : '';
     final combined = <String>[
       title,
       artist,
       album,
     ].where((field) => field.isNotEmpty).join(' ');
 
+    int? best;
     void addScore(String field, int weight) {
       final score = _searchFieldScore(field, query, tokens);
-      if (score != null) scores.add(weight + score);
+      if (score == null) return;
+      final weighted = weight + score;
+      if (best == null || weighted < best!) best = weighted;
     }
 
     addScore(title, 0);
     addScore(artist, 8);
     addScore(album, 12);
     addScore(combined, 18);
-
-    if (scores.isEmpty) return null;
-    scores.sort();
-    return scores.first;
+    return best;
   }
 
   int? _searchFieldScore(String field, String query, List<String> tokens) {
@@ -2994,7 +3200,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return gapPenalty;
   }
 
-  String _normalizeSearchText(String value) {
+  /// ASCII-only normalization for SQL `LIKE` against `LOWER(title)`, which
+  /// cannot fold Unicode the way the local search index does.
+  String _asciiSearchText(String value) {
     return value
         .toLowerCase()
         .replaceAll(RegExp('[^a-z0-9]+'), ' ')
@@ -3198,10 +3406,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       sql.write(' OFFSET ?');
       variables.add(Variable<int>(offset < 0 ? 0 : offset));
     }
+    // Album-only queries must not declare songs: sync writes songs in many
+    // small chunks, and each would re-run every visible album list.
     return customSelect(
       sql.toString(),
       variables: variables,
-      readsFrom: {albumsTable, songsTable},
+      readsFrom: {albumsTable},
     ).watch().map(
       (rows) =>
           rows.map((row) => albumsTable.map(row.data)).toList(growable: false),
@@ -3214,8 +3424,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Expression<bool> _searchableSongPredicate() {
-    return const CustomExpression<bool>(
-      '''
+    return const CustomExpression<bool>(_searchableSongSql);
+  }
+
+  static const String _searchableSongSql = '''
       (
         songs.is_provisional = 0
         OR EXISTS (
@@ -3253,9 +3465,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           WHERE st.item_type = 'song' AND st.item_id = songs.id
         )
       )
-      ''',
-    );
-  }
+      ''';
 
   String _albumOrderSql(AlbumSortOrder sort, bool includeUnknownYearsLast) {
     switch (sort) {
@@ -3419,8 +3629,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 }
 
 class _SongSearchMatch {
-  const _SongSearchMatch({required this.song, required this.score});
+  const _SongSearchMatch({
+    required this.songId,
+    required this.title,
+    required this.score,
+  });
 
-  final SongsTableData song;
+  final String songId;
+  final String title;
   final int score;
 }

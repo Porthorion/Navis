@@ -258,11 +258,18 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
                   onVerticalDragCancel: widget.dragEnabled
                       ? _handleDragCancel
                       : null,
-                  child: Opacity(
-                    opacity: _fullOpacity,
-                    child: FractionalTranslation(
-                      translation: _slideOffset,
-                      child: widget.fullPlayer,
+                  // While fully collapsed the player stays mounted (so opening
+                  // it is instant) but must not keep working: a disabled
+                  // TickerMode stops its animations and pauses its provider
+                  // listeners, such as the 5-10 Hz position stream.
+                  child: TickerMode(
+                    enabled: progress > 0,
+                    child: Opacity(
+                      opacity: _fullOpacity,
+                      child: FractionalTranslation(
+                        translation: _slideOffset,
+                        child: widget.fullPlayer,
+                      ),
                     ),
                   ),
                 ),

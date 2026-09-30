@@ -59,8 +59,8 @@ SongPlaybackIndicatorState resolveQueueSongPlaybackIndicatorState({
       : SongPlaybackIndicatorState.inactive;
 }
 
-final songPlaybackIndicatorStateProvider =
-    Provider.family<SongPlaybackIndicatorState, String>((ref, songId) {
+final songPlaybackIndicatorStateProvider = Provider.autoDispose
+    .family<SongPlaybackIndicatorState, String>((ref, songId) {
       final playback = ref.watch(
         playerStateProvider.select(
           (snapshot) => (

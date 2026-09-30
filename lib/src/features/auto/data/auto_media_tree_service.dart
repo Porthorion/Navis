@@ -349,10 +349,12 @@ class AutoMediaTreeService {
     if (downloadedSongIds.isEmpty) {
       return _emptyItems(AutoMediaRoot.downloads, 'No downloads');
     }
-    final songs = await _libraryDao.watchAllSongs().first;
+    final songs = await _libraryDao.getSongsSorted(
+      SongSortOrder.newest,
+      onlyIds: downloadedSongIds,
+      limit: _kMaxBrowseItems,
+    );
     final items = songs
-        .where((song) => downloadedSongIds.contains(song.id))
-        .take(_kMaxBrowseItems)
         .map(
           (song) => _songToMediaItem(
             song,

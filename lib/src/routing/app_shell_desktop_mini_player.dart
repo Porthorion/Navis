@@ -235,13 +235,9 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
-    final position =
-        ref.watch(playbackPositionProvider).asData?.value ?? playback.position;
+    // Only the seek slider below watches position ticks.
     final durationMs = playback.duration.inMilliseconds;
     final canSeek = !playback.isRadioMode && durationMs > 0;
-    final seekValue = canSeek
-        ? position.inMilliseconds.clamp(0, durationMs).toDouble()
-        : 0.0;
     final title = (songTitle ?? '').trim().isEmpty
         ? l10n.miniPlayerUnknownTrack
         : songTitle!.trim();
@@ -486,21 +482,39 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerWidget {
                         ),
                       )
                     else
-                      Slider(
-                        key: const ValueKey<String>(
-                          'desktopMiniPlayerSeekSlider',
-                        ),
-                        value: seekValue,
-                        max: canSeek ? durationMs.toDouble() : 1,
-                        onChanged: canSeek
-                            ? (value) => unawaited(
+                      RepaintBoundary(
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final position =
                                 ref
-                                    .read(audioHandlerProvider)
-                                    ?.seek(
-                                      Duration(milliseconds: value.round()),
-                                    ),
-                              )
-                            : null,
+                                    .watch(playbackPositionProvider)
+                                    .asData
+                                    ?.value ??
+                                playback.position;
+                            return Slider(
+                              key: const ValueKey<String>(
+                                'desktopMiniPlayerSeekSlider',
+                              ),
+                              value: canSeek
+                                  ? position.inMilliseconds
+                                        .clamp(0, durationMs)
+                                        .toDouble()
+                                  : 0.0,
+                              max: canSeek ? durationMs.toDouble() : 1,
+                              onChanged: canSeek
+                                  ? (value) => unawaited(
+                                      ref
+                                          .read(audioHandlerProvider)
+                                          ?.seek(
+                                            Duration(
+                                              milliseconds: value.round(),
+                                            ),
+                                          ),
+                                    )
+                                  : null,
+                            );
+                          },
+                        ),
                       ),
                     transport,
                     const _DesktopMiniPlayerInlineVolumeControl(),

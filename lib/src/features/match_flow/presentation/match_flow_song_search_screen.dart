@@ -106,12 +106,7 @@ class _MatchFlowSongSearchScreenState
     final libraryDao = ref.read(navisDatabaseProvider).libraryDao;
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
-      return libraryDao
-          .watchSongsSorted(SongSortOrder.name)
-          .first
-          .then(
-            (songs) => songs.take(80).toList(growable: false),
-          );
+      return libraryDao.getSongsSorted(SongSortOrder.name, limit: 80);
     }
     return libraryDao.searchCachedSongs(trimmed, limit: 80);
   }

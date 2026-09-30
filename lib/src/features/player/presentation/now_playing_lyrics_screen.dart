@@ -12,10 +12,21 @@ class NowPlayingLyricsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final playback = ref.watch(playerStateProvider);
-    final songId = playback.currentSongId;
-    final position =
-        ref.watch(playbackPositionProvider).asData?.value ?? playback.position;
+    final songId = ref.watch(
+      playerStateProvider.select((playback) => playback.currentSongId),
+    );
+    final lyrics = songId == null
+        ? null
+        : ref.watch(lyricsProvider(songId)).asData?.value.lyrics;
+    // Rebuild on active-line changes only, not on every position tick.
+    final position = ref.watch(
+      playbackPositionProvider.select(
+        (value) => lyricsActiveLinePosition(
+          lyrics,
+          value.asData?.value ?? ref.read(playerStateProvider).position,
+        ),
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(

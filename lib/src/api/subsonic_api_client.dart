@@ -787,6 +787,10 @@ class SubsonicApiClient {
     final scope = SyncRequestScope.current;
     final endpoint = syncEndpointForPath(path, query);
     var attempt = scope?.beginTransport(endpoint);
+    // Decoded bytes as they arrive. Navidrome gzips JSON without a
+    // Content-Length, and re-encoding the parsed body to count it cost two
+    // full JSON encodes of every large page on the UI isolate.
+    var receivedBytes = 0;
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         path,
@@ -803,34 +807,34 @@ class SubsonicApiClient {
               },
           },
         ),
-        onReceiveProgress: maxResponseBytes == null && scope == null
-            ? null
-            : (received, total) {
-                attempt?.observe(received);
-                final knownTotal = total > 0 ? total : null;
-                if (maxResponseBytes != null &&
-                    knownTotal != null &&
-                    knownTotal > maxResponseBytes) {
-                  cancelToken?.cancel(
-                    'Response exceeds sync byte budget ($maxResponseBytes).',
-                  );
-                  throw SubsonicResponseBudgetExceededException(
-                    maxBytes: maxResponseBytes,
-                    observedBytes: knownTotal,
-                  );
-                }
-                if (maxResponseBytes != null && received > maxResponseBytes) {
-                  cancelToken?.cancel(
-                    'Response exceeds sync byte budget ($maxResponseBytes).',
-                  );
-                  throw SubsonicResponseBudgetExceededException(
-                    maxBytes: maxResponseBytes,
-                    observedBytes: received,
-                  );
-                }
-              },
+        onReceiveProgress: (received, total) {
+          receivedBytes = received;
+          if (maxResponseBytes == null && scope == null) return;
+          attempt?.observe(received);
+          final knownTotal = total > 0 ? total : null;
+          if (maxResponseBytes != null &&
+              knownTotal != null &&
+              knownTotal > maxResponseBytes) {
+            cancelToken?.cancel(
+              'Response exceeds sync byte budget ($maxResponseBytes).',
+            );
+            throw SubsonicResponseBudgetExceededException(
+              maxBytes: maxResponseBytes,
+              observedBytes: knownTotal,
+            );
+          }
+          if (maxResponseBytes != null && received > maxResponseBytes) {
+            cancelToken?.cancel(
+              'Response exceeds sync byte budget ($maxResponseBytes).',
+            );
+            throw SubsonicResponseBudgetExceededException(
+              maxBytes: maxResponseBytes,
+              observedBytes: received,
+            );
+          }
+        },
       );
-      final bytes = _responseBodyBytes(response);
+      final bytes = _responseBodyBytes(response, receivedBytes: receivedBytes);
       attempt?.observe(bytes);
       if (maxResponseBytes != null && bytes > maxResponseBytes) {
         throw SubsonicResponseBudgetExceededException(
@@ -838,7 +842,7 @@ class SubsonicApiClient {
           observedBytes: bytes,
         );
       }
-      _recordUsageForResponse(path, response);
+      _recordUsageForResponse(path, bytes);
       final payload = _asMap(response.data);
       final root = _extractRoot(payload);
       attempt?.finish(succeeded: true);
@@ -867,15 +871,11 @@ class SubsonicApiClient {
     }
   }
 
-  void _recordUsageForResponse(
-    String path,
-    Response<Map<String, dynamic>> response,
-  ) {
+  void _recordUsageForResponse(String path, int bytes) {
     final reporter = _reportNetworkUsage;
     if (reporter == null) {
       return;
     }
-    final bytes = _responseBodyBytes(response);
     if (bytes <= 0) {
       return;
     }
@@ -891,12 +891,18 @@ class SubsonicApiClient {
     );
   }
 
-  int _responseBodyBytes(Response<Map<String, dynamic>> response) {
+  int _responseBodyBytes(
+    Response<Map<String, dynamic>> response, {
+    int receivedBytes = 0,
+  }) {
     final contentLength = int.tryParse(
       response.headers.value(HttpHeaders.contentLengthHeader) ?? '',
     );
     if (contentLength != null && contentLength > 0) {
       return contentLength;
+    }
+    if (receivedBytes > 0) {
+      return receivedBytes;
     }
     final data = response.data;
     if (data == null) {
