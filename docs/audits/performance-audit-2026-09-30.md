@@ -109,12 +109,70 @@ The remaining raster increase comes from the new card visuals. On the Android
 emulator at 1.5×, the media session reported 4,020 ms while the track was at
 6,028 ms, with speed 1.0.
 
+## Follow-up: remote-heavy artists and downloads folders
+
+Two reports remained: pressing Shuffle on an artist with many remote
+releases (`SQUARE ENIX MUSIC`: 29 albums, 25 of them remote Deezer releases
+with 1,284 tracks once hydrated) made the whole app unusable, and adopting a
+custom downloads folder froze Android. Freezes are measured with a frame
+heartbeat (the wall-clock gap between frames; a blocked UI or merged
+platform thread produces no frames). Baselines were rebuilt with the same
+diagnostics code; the Android folder fixture adds 2 ms per provider call.
+
+Causes:
+
+- Each later artist admit appended songs one at a time and then moved every
+  new song to its random or chronological place one at a time: 1,016 native
+  moves, 2,042 snapshot broadcasts, and 855k MediaItems sent through queue
+  updates (to the Android media session, over the platform channel, on the
+  thread that also runs Flutter's UI).
+- The artist page watched every album in the library and the artist top
+  tracks loaded all 56k songs.
+- Every Storage Access Framework call ran on Android's main thread, which is
+  Flutter's UI thread; `DocumentFile` made about five provider queries per
+  file, and each adopted FLAC was copied out, re-tagged and copied back.
+- Scrobble and play-history sessions were keyed by queue index, so songs
+  inserted before the playing one restarted the session (417 play-history
+  writes during a 10k-song fill).
+
+Changes: a released queue window (only the current song plus about 32 ahead
+in the native player, the rest deferred and released in pages), queue-lane
+work kinds that never drop edits, one batched edit per artist admit, a
+bounded media-session window, derived `album_artist_index` and track-match
+keys, background SAF calls with one query per folder, adoption without
+modifying files, chunked cache writes, and change-only cache-derived views.
+
+| Scenario | Platform | Before | After |
+|---|---|---|---|
+| Remote-artist Shuffle, gaps > 50 ms | Android | 228 | 0 |
+| Remote-artist Shuffle, longest gap | Android | 161 ms | 39 ms |
+| Remote-artist Shuffle, CPU | Android | 161 % | 36 % |
+| Remote-artist Shuffle, all releases queued | Android | 63 s | 26 s |
+| Remote-artist Shuffle, Queue first frame | Android | 41–77 ms | 27–39 ms |
+| Remote-artist Shuffle, gaps > 50 ms | Linux | 71 | 1 |
+| Remote-artist Shuffle, queue update items | Linux | 854k | 580 |
+| Folder import (300 files), total | Android | 87 s | 2.2 s |
+| Folder import, longest gap | Android | 5,180 ms | 19 ms |
+| Folder import, gaps > 250 ms | Android | 128 | 0 |
+| Folder import, `cached_tracks` notifications | Android | 232 | 1 |
+| Folder import (400 files), total | Linux | 16.5 s | 5.5 s |
+| 10k-song queue, fill complete | Linux | 21.1 s | 6.0 s |
+| 10k-song queue, CPU | Android | 178 % | 66 % |
+| 10k-song queue, media-session items | Android | 10,006 | 34 |
+| 10k-song queue, play-history writes | Linux | 417 | 1 |
+| Local artist Shuffle (3,782 songs) | Linux | 35.8 s | 28.2 s |
+| Remote artist page open, longest gap | Linux | 73 ms | 39 ms |
+
+Adopted file counts rose (Linux 326 → 346, Android 232 → 246) because file
+names in any script and with accents now match. Library scrolling, search,
+and idle playback are unchanged.
+
 ## Known limits
 
-- Desktop queues above ~5,000 songs keep playing immediately but fill slowly:
-  media_kit/libmpv cost grows per inserted child (2,000 songs ≈4.5 s,
-  10,000 ≈31 s). The largest artist in this library has 3,590 songs.
+- Restoring at, or jumping to, a far queue index still materialises every
+  song before it (fast start first, the rest in the background).
 - Stale artist releases hydrate one at a time under the coordinator's single
-  execution lease (≈2.5 s per release on this server).
+  execution lease (about 1 s per release on this server once the UI is no
+  longer saturated); hydration no longer affects frame pacing.
 - Desktop fetches each uncached track twice (stream plus rolling-cache
   sidecar); documented in `docs/architecture.md` Cache Flow.
