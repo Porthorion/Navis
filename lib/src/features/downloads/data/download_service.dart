@@ -1529,31 +1529,15 @@ class DownloadService {
       customDownloadFolderEnabled: customDownloadFolderEnabled,
       customDownloadFolderPath: customDownloadFolderPath,
     );
-    final artistDirectory = PermanentDownloadPathResolver.sanitizePathComponent(
-      null,
-      fallback: PermanentDownloadPathResolver.unknownArtistDirectory,
-    );
-    final fileStem = PermanentDownloadPathResolver.sanitizePathComponent(
-      p.basenameWithoutExtension(existingPath ?? songId),
-      fallback: songId,
-    );
-    final extension = format.trim().replaceFirst('.', '');
-    final basePath = p.join(
-      rootDirectory.path,
-      artistDirectory,
-      '$fileStem.${extension.isEmpty ? 'bin' : extension}',
-    );
-    if (existingPath != null && p.equals(basePath, existingPath)) {
-      return basePath;
-    }
-    if (!reservedPaths.contains(basePath) && !File(basePath).existsSync()) {
-      return basePath;
-    }
-    final suffix = sha1.convert(utf8.encode(songId)).toString().substring(0, 8);
-    return p.join(
-      rootDirectory.path,
-      artistDirectory,
-      '$fileStem [$suffix].${extension.isEmpty ? 'bin' : extension}',
+    return _permanentPathResolver.resolvePathInDirectory(
+      rootDirectory: rootDirectory,
+      artist: null,
+      title: p.basenameWithoutExtension(existingPath ?? songId),
+      titleFallback: songId,
+      identity: songId,
+      extension: format,
+      existingPath: existingPath,
+      reservedPaths: reservedPaths,
     );
   }
 
