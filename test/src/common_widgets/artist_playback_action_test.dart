@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -12,6 +14,8 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart'
+    show QueueInsertRun;
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../helpers/test_theme.dart';
@@ -23,6 +27,27 @@ class _QueueSpy extends QueueController {
   Future<void> addTableData(List<SongsTableData> songs) async {
     appends++;
     state = [...state, ...songs.map((song) => song.id)];
+  }
+
+  @override
+  Future<List<String>> insertRuns(List<QueueInsertRun> runs) async {
+    appends++;
+    state = [
+      ...state,
+      for (final run in runs) ...run.songs.map((song) => song.id),
+    ];
+    return const <String>[];
+  }
+
+  @override
+  Future<List<String>> mergeIntoUpcoming(
+    List<SongsTableData> songs, {
+    required int notBefore,
+    Random? random,
+  }) async {
+    appends++;
+    state = [...state, ...songs.map((song) => song.id)];
+    return const <String>[];
   }
 
   @override

@@ -59,6 +59,42 @@ class ArtistPlaybackSnapshot {
   final ArtistsTableData? artist;
   final List<AlbumsTableData> albums;
   final List<SongsTableData> songs;
+
+  /// This snapshot with one album's row and songs refreshed, keeping album
+  /// order. Lets artist playback publish a newly hydrated release without
+  /// re-reading the whole catalogue.
+  ArtistPlaybackSnapshot withAlbum(
+    String albumId,
+    AlbumsTableData? album,
+    List<SongsTableData> albumSongs,
+  ) {
+    final albumIndex = albums.indexWhere((entry) => entry.id == albumId);
+    if (albumIndex < 0) return this;
+    final nextAlbums = List<AlbumsTableData>.of(albums);
+    if (album != null) nextAlbums[albumIndex] = album;
+    final ranks = <String, int>{
+      for (var i = 0; i < nextAlbums.length; i++) nextAlbums[i].id: i,
+    };
+    final kept = songs.where((song) => song.albumId != albumId).toList();
+    var insertAt = kept.length;
+    for (var i = 0; i < kept.length; i++) {
+      final rank = ranks[kept[i].albumId];
+      if (rank == null || rank > albumIndex) {
+        insertAt = i;
+        break;
+      }
+    }
+    final seen = kept.map((song) => song.id).toSet();
+    kept.insertAll(
+      insertAt,
+      albumSongs.where((song) => seen.add(song.id)),
+    );
+    return ArtistPlaybackSnapshot(
+      artist: artist,
+      albums: List<AlbumsTableData>.unmodifiable(nextAlbums),
+      songs: List<SongsTableData>.unmodifiable(kept),
+    );
+  }
 }
 
 class PreservedProvisionalTree {
@@ -310,6 +346,31 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         ].where((song) => seen.add(song.id)).toList(growable: false),
       );
     });
+  }
+
+  /// One album's row and playable songs, filtered and ordered like
+  /// [getArtistPlaybackSnapshot].
+  Future<({AlbumsTableData? album, List<SongsTableData> songs})>
+  getArtistPlaybackAlbum(String albumId) async {
+    final album = await (select(
+      albumsTable,
+    )..where((table) => table.id.equals(albumId))).getSingleOrNull();
+    final songs =
+        await (select(songsTable)..where(
+              (table) =>
+                  table.albumId.equals(albumId) &
+                  (table.isProvisional.equals(false) |
+                      table.isExternal.equals(true)) &
+                  _selectableForBulkUse,
+            ))
+            .get();
+    songs.sort((a, b) {
+      final disc = (a.discNumber ?? 1).compareTo(b.discNumber ?? 1);
+      if (disc != 0) return disc;
+      final track = (a.track ?? 0x7fffffff).compareTo(b.track ?? 0x7fffffff);
+      return track != 0 ? track : a.id.compareTo(b.id);
+    });
+    return (album: album, songs: songs);
   }
 
   Stream<ArtistAlbumBuckets> watchArtistAlbumBuckets(String artistId) {

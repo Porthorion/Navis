@@ -811,7 +811,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         ? l10n.serverOfflineBanner
         : l10n.serverOfflineQuietBanner;
     final appNoticeTopOffset = showOfflineBanner ? 66.0 : 12.0;
-    final playback = ref.watch(playerStateProvider);
+    // Queue-only changes (songs merged or released while an artist loads)
+    // must not rebuild the whole shell; nothing here renders the queue.
+    final playback = ref
+        .watch(playerStateProvider.select(_ShellPlayback.new))
+        .snapshot;
     final currentSongId = playback.currentSongId;
     final currentSongAsync = currentSongId == null
         ? const AsyncValue.data(null)
@@ -2107,4 +2111,45 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
   }
+}
+
+/// The playback snapshot as the shell sees it: equal when everything except
+/// the queue order is unchanged.
+@immutable
+class _ShellPlayback {
+  const _ShellPlayback(this.snapshot);
+
+  final PlaybackSnapshot snapshot;
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! _ShellPlayback) return false;
+    final a = snapshot;
+    final b = other.snapshot;
+    return identical(a, b) ||
+        (a.currentSongId == b.currentSongId &&
+            a.currentIndex == b.currentIndex &&
+            a.playing == b.playing &&
+            a.processingState == b.processingState &&
+            a.duration == b.duration &&
+            a.shuffleMode == b.shuffleMode &&
+            a.repeatMode == b.repeatMode &&
+            a.isCurrentSongLiked == b.isCurrentSongLiked &&
+            identical(a.radioStation, b.radioStation) &&
+            a.isLoading == b.isLoading &&
+            a.hasPendingLogicalQueue == b.hasPendingLogicalQueue &&
+            a.pendingQueueIndex == b.pendingQueueIndex &&
+            a.loadingSongId == b.loadingSongId &&
+            a.lastFailedSongId == b.lastFailedSongId &&
+            a.queueSongIds.isEmpty == b.queueSongIds.isEmpty);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    snapshot.currentSongId,
+    snapshot.currentIndex,
+    snapshot.playing,
+    snapshot.processingState,
+    snapshot.isLoading,
+  );
 }

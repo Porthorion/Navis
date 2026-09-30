@@ -8,6 +8,44 @@ abstract interface class PlaybackStartupObserver {
   bool isPlaybackSelectionCurrent(int attempt);
 }
 
+/// A run of songs inserted contiguously at a logical queue index.
+@immutable
+class QueueInsertRun {
+  const QueueInsertRun(this.index, this.songs);
+
+  final int index;
+  final List<SongsTableData> songs;
+}
+
+/// Outcome of a batched queue edit.
+@immutable
+class QueueBatchEditResult {
+  const QueueBatchEditResult({this.skippedSongIds = const <String>[]});
+
+  /// Songs that could not be queued because no playable source was found.
+  final List<String> skippedSongIds;
+}
+
+/// Batched queue edits for sources that grow while they play, such as an
+/// artist whose releases are still loading. Optional: callers fall back to
+/// [NavisPlaybackHandler.addToQueue] for handlers without it.
+abstract interface class QueueBatchEditor {
+  /// Inserts [songs] at uniformly random positions among the upcoming songs
+  /// at or after logical index [notBefore]; the next two songs keep their
+  /// place. Costs at most one native removal regardless of how many songs
+  /// arrive.
+  Future<QueueBatchEditResult> mergeIntoUpcoming(
+    List<SongsTableData> songs, {
+    required int notBefore,
+    math.Random? random,
+  });
+
+  /// Inserts each run's songs contiguously at its logical index. Indices
+  /// refer to the queue before the call; runs are applied from the highest
+  /// index down, so earlier runs do not shift later ones.
+  Future<QueueBatchEditResult> insertQueueRuns(List<QueueInsertRun> runs);
+}
+
 abstract class NavisPlaybackHandler {
   PlaybackSnapshot get snapshot;
   Stream<PlaybackSnapshot> get snapshotStream;

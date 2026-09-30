@@ -100,7 +100,7 @@ class QueueSheet extends ConsumerWidget {
                         );
 
                     return _QueueItem(
-                      key: ValueKey('$index-$songId'),
+                      key: queueRowKey(queueIds, index),
                       songId: songId,
                       index: index,
                       indicatorState: indicatorState,

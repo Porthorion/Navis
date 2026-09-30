@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
@@ -46,6 +48,7 @@ part 'navis_playback_rules.dart';
 part 'navis_audio_handler_bootstrap.dart';
 part 'navis_playback_lanes.dart';
 part 'navis_audio_handler_support.dart';
+part 'navis_queue_window.dart';
 
 /// Produces queue identities without replacing an explicitly supplied remote
 /// source with a locally reconciled match.
@@ -61,7 +64,7 @@ List<String> navisQueueSourceIds(
 
 class NavisAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler
-    implements NavisPlaybackHandler, PlaybackStartupObserver {
+    implements NavisPlaybackHandler, PlaybackStartupObserver, QueueBatchEditor {
   NavisAudioHandler({
     required LibraryDao libraryDao,
     required PlaylistDao playlistDao,
@@ -86,7 +89,9 @@ class NavisAudioHandler extends BaseAudioHandler
     PlaybackAdjustmentCapabilities? adjustmentCapabilities,
     EqCapabilities? equalizerCapabilities,
     AudioPlayer Function()? crossfadePlayerFactory,
-  }) : _adjustmentCapabilities = adjustmentCapabilities,
+    NavisQueueWindow queueWindow = const NavisQueueWindow(),
+  }) : _queueWindow = queueWindow,
+       _adjustmentCapabilities = adjustmentCapabilities,
        _injectedEqualizerCapabilities = equalizerCapabilities,
        _crossfadePlayerFactory = crossfadePlayerFactory,
        _libraryDao = libraryDao,
@@ -131,6 +136,11 @@ class NavisAudioHandler extends BaseAudioHandler
       player: _player,
     );
     _wirePlayerListeners();
+    _queueLane.onDrained = _maybeReleaseTail;
+    _queueEmissionCounter = queue.listen((items) {
+      _queueEmissionCount++;
+      _queueEmittedItemCount += items.length;
+    });
     _positionPersistTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) => unawaited(
@@ -180,6 +190,14 @@ class NavisAudioHandler extends BaseAudioHandler
   // which AAOS uses for the background art behind playback controls.
   final PlaybackArtCache? _artCache;
   late AudioPlayer _player;
+  // Diagnostics-only counters; cheap monotonic integers reported through
+  // collectPlaybackDiagnostics().
+  int _snapshotBroadcastCount = 0;
+  int _queueEmissionCount = 0;
+  int _queueEmittedItemCount = 0;
+  int _timedPlayerOperationCount = 0;
+  int _nativeMoveCount = 0;
+  StreamSubscription<List<MediaItem>>? _queueEmissionCounter;
 
   /// Stage timings (ms since phase 2 start) of the latest background queue
   /// fill, exposed through diagnostics. Counts only; no song identities.
@@ -210,7 +228,26 @@ class NavisAudioHandler extends BaseAudioHandler
   final StreamController<PlaybackLoadFailure> _loadFailureController =
       StreamController<PlaybackLoadFailure>.broadcast();
 
-  final List<MediaItem> _queueItems = <MediaItem>[];
+  /// Materialised queue: mirrors the native player's playlist one to one.
+  final _RevisionedList<MediaItem> _queueItems = _RevisionedList<MediaItem>();
+
+  /// Songs queued after [_queueItems] that the native player does not hold
+  /// yet; released in pages as playback approaches them.
+  final _RevisionedList<_DeferredQueueEntry> _deferredTail =
+      _RevisionedList<_DeferredQueueEntry>();
+  final NavisQueueWindow _queueWindow;
+  List<String>? _logicalIdsCache;
+  int _logicalIdsQueueRevision = -1;
+  int _logicalIdsTailRevision = -1;
+
+  /// The user's repeat mode. The native player loops only once nothing is
+  /// deferred; wrapping earlier would skip the deferred songs.
+  LoopMode _desiredLoopMode = LoopMode.off;
+  int _tailReleaseCount = 0;
+  int _tailReleasedSongCount = 0;
+  int _tailDroppedSongCount = 0;
+  int _tailReleaseFailures = 0;
+  DateTime? _tailReleaseRetryAt;
   List<String>? _pendingLogicalQueueSongIds;
   List<SongsTableData>? _pendingLogicalQueueSongs;
   MediaItem? _currentMediaItem;
@@ -236,6 +273,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Timer? _transportPersistTimer;
   Timer? _queueItemsPersistTimer;
   String? _queueItemsPersistContext;
+  DateTime? _queueItemsPersistFirstScheduledAt;
   Future<void> _persistTail = Future<void>.value();
   StreamSubscription<AudioInterruptionEvent>? _interruptionSubscription;
   StreamSubscription<void>? _becomingNoisySubscription;
@@ -272,7 +310,8 @@ class NavisAudioHandler extends BaseAudioHandler
   double _userVolume;
   bool _resumeAfterInterruption = false;
   bool _gaplessEnabled = true;
-  String? _activeScrobbleQueueToken;
+  MediaItem? _activeScrobbleItem;
+  int? _activeScrobbleIndex;
   String? _activeScrobbleSongId;
   String? _activeScrobbleSessionKey;
   bool _sentNowPlayingScrobble = false;
@@ -1117,15 +1156,21 @@ class NavisAudioHandler extends BaseAudioHandler
     bool isLoading = false,
     String? loadingSongId,
     List<String>? pendingLogicalQueueSongIds,
+    bool navigation = false,
   }) {
     _clearQueueReplacementMetadataAnchor();
     _queueItemsPersistTimer?.cancel();
     _queueItemsPersistTimer = null;
     _queueItemsPersistContext = null;
+    _queueItemsPersistFirstScheduledAt = null;
     _pendingLogicalQueueSongIds = pendingLogicalQueueSongIds == null
         ? null
         : List<String>.unmodifiable(pendingLogicalQueueSongIds);
-    _queueLane.cancelCurrent();
+    if (navigation) {
+      _queueLane.cancelForNavigation();
+    } else {
+      _queueLane.cancelCurrent();
+    }
     final generation = ++_loadGeneration;
     _activeLoadGeneration = generation;
     _isLoading = isLoading;
@@ -1154,6 +1199,243 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _clearPendingLogicalQueue() {
     _pendingLogicalQueueSongIds = null;
+  }
+
+  /// Every queued song id in play order: the materialised queue followed by
+  /// the deferred tail, or the requested order while a replacement loads.
+  /// Cached per revision so playback events do not rebuild it.
+  List<String> get _logicalQueueIds {
+    final pending = _pendingLogicalQueueSongIds;
+    if (pending != null) return pending;
+    final cached = _logicalIdsCache;
+    if (cached != null &&
+        _logicalIdsQueueRevision == _queueItems.revision &&
+        _logicalIdsTailRevision == _deferredTail.revision) {
+      return cached;
+    }
+    final ids = List<String>.unmodifiable(<String>[
+      for (final item in _queueItems) item.id,
+      for (final entry in _deferredTail) entry.id,
+    ]);
+    _logicalIdsCache = ids;
+    _logicalIdsQueueRevision = _queueItems.revision;
+    _logicalIdsTailRevision = _deferredTail.revision;
+    return ids;
+  }
+
+  _DeferredQueueEntry _deferredEntryFor(SongsTableData song) =>
+      _DeferredQueueEntry(song.id, song.isExternal ? song : null);
+
+  bool _shouldDeferTail(int queueLength) =>
+      !_player.shuffleModeEnabled && queueLength > _queueWindow.deferThreshold;
+
+  /// Applies the user's repeat mode to the native player, except that "all"
+  /// waits until nothing is deferred: the player would otherwise wrap to the
+  /// first song before reaching the deferred ones.
+  Future<void> _syncNativeLoopMode() async {
+    final native = _desiredLoopMode == LoopMode.all && _deferredTail.isNotEmpty
+        ? LoopMode.off
+        : _desiredLoopMode;
+    if (_player.loopMode != native) {
+      await _player.setLoopMode(native);
+    }
+    final inactiveDeck = _crossfadePlayer;
+    if (inactiveDeck != null && inactiveDeck.loopMode != native) {
+      await inactiveDeck.setLoopMode(native);
+    }
+  }
+
+  bool _shouldReleaseTail() {
+    if (_deferredTail.isEmpty ||
+        _radioStation != null ||
+        _pendingLogicalQueueSongIds != null ||
+        _isLoading ||
+        _isCrossfading ||
+        _crossfadeHandoffInProgress) {
+      return false;
+    }
+    final retryAt = _tailReleaseRetryAt;
+    if (retryAt != null && DateTime.now().isBefore(retryAt)) return false;
+    final current = _player.currentIndex ?? 0;
+    return _queueItems.length - 1 - current < _queueWindow.lowWater;
+  }
+
+  bool _continuingIntoDeferredTail = false;
+
+  /// The player reached the end of the materialised queue while songs are
+  /// still deferred (a release could not keep ahead, for example after a
+  /// failed release). Continue with the first deferred song.
+  void _continueIntoDeferredTail() {
+    if (_continuingIntoDeferredTail ||
+        _deferredTail.isEmpty ||
+        _radioStation != null ||
+        _pendingLogicalQueueSongIds != null ||
+        _isLoading) {
+      return;
+    }
+    _continuingIntoDeferredTail = true;
+    unawaited(
+      playFromIndex(_queueItems.length).whenComplete(
+        () => _continuingIntoDeferredTail = false,
+      ),
+    );
+  }
+
+  /// Offers a background release when playback nears the end of the
+  /// materialised queue. It runs only while the queue lane is idle and yields
+  /// to every user command.
+  void _maybeReleaseTail() {
+    if (!_shouldReleaseTail()) return;
+    final started = _queueLane.tryRunIdle((token) async {
+      if (!_shouldReleaseTail()) return;
+      try {
+        await _releaseTail(count: _queueWindow.page, token: token);
+      } on OperationCancelledException {
+        rethrow;
+      } on Object catch (error, stackTrace) {
+        _tailReleaseFailures++;
+        final delay = Duration(
+          seconds: math.min(60, 1 << math.min(6, _tailReleaseFailures)),
+        );
+        _tailReleaseRetryAt = DateTime.now().add(delay);
+        Timer(delay, _maybeReleaseTail);
+        AppLogger.warning(
+          'Deferred queue release failed; retrying in ${delay.inSeconds}s. '
+          '$error\n$stackTrace',
+        );
+      }
+    });
+    if (started == null) return;
+    unawaited(started);
+  }
+
+  Future<List<SongsTableData?>> _rowsForDeferredEntries(
+    List<_DeferredQueueEntry> entries,
+  ) async {
+    final missing = <String>[
+      for (final entry in entries)
+        if (entry.song == null) entry.id,
+    ];
+    final byId = <String, SongsTableData>{
+      if (missing.isNotEmpty)
+        for (final song in await _libraryDao.getSongsByIds(missing))
+          song.id: song,
+    };
+    return <SongsTableData?>[
+      for (final entry in entries) entry.song ?? byId[entry.id],
+    ];
+  }
+
+  /// Moves up to [count] songs from the front of the deferred tail into the
+  /// native player with a single append; songs that cannot be resolved are
+  /// dropped. [token] is honoured only before the native call: an append that
+  /// succeeded is always committed, so the Dart queue never diverges from the
+  /// player. Returns, per released tail entry, its offset from the old end
+  /// of the materialised queue, or null when it was dropped.
+  Future<List<int?>> _releaseTail({
+    required int count,
+    OperationToken? token,
+  }) async {
+    if (_deferredTail.isEmpty || count <= 0) return const <int?>[];
+    final take = math.min(count, _deferredTail.length);
+    final entries = _deferredTail.sublist(0, take);
+    final rows = await _rowsForDeferredEntries(entries);
+    token?.checkCancelled();
+    final prepared = <_PreparedQueueItem>[];
+    final offsets = <int?>[];
+    for (
+      var start = 0;
+      start < rows.length;
+      start += _queueFillBatchSizeLimit
+    ) {
+      final chunk = rows.sublist(
+        start,
+        math.min(start + _queueFillBatchSizeLimit, rows.length),
+      );
+      final resolved = await Future.wait(
+        chunk.map(
+          (row) => row == null
+              ? Future<_PreparedQueueItem?>.value()
+              : _prepareSingleItemForQueueFill(row),
+        ),
+      );
+      for (final item in resolved) {
+        offsets.add(item == null ? null : prepared.length);
+        if (item != null) prepared.add(item);
+      }
+      token?.checkCancelled();
+    }
+    // The lane serialises queue work, so the tail is unchanged since [take]
+    // was read.
+    if (prepared.isNotEmpty) {
+      final inactiveDeck = _crossfadePlayer;
+      final deckInSync =
+          inactiveDeck != null &&
+          inactiveDeck.sequence.length == _queueItems.length;
+      await _runTimedPlayerOperation(
+        generation: _activeLoadGeneration,
+        operation: 'release deferred queue',
+        action: () => _player.addAudioSources(
+          prepared.map((item) => item.audioSource).toList(growable: false),
+        ),
+        songId: prepared.first.song.id,
+        cancelAfterSuccess: false,
+      );
+      _queueItems.addAll(prepared.map((item) => item.mediaItem));
+      if (deckInSync) {
+        try {
+          await inactiveDeck.addAudioSources(
+            prepared
+                .map(
+                  (item) =>
+                      item.source.asClonedAudioSource(tag: item.mediaItem),
+                )
+                .toList(growable: false),
+          );
+        } on Object catch (error) {
+          AppLogger.debug('Deferred queue deck mirror failed: $error');
+        }
+      }
+      _observeLockCacheForPrepared(prepared);
+    }
+    _deferredTail.removeRange(0, take);
+    final dropped = take - prepared.length;
+    _tailReleaseCount++;
+    _tailReleasedSongCount += prepared.length;
+    _tailDroppedSongCount += dropped;
+    _tailReleaseFailures = 0;
+    _tailReleaseRetryAt = null;
+    if (_deferredTail.isEmpty) {
+      await _syncNativeLoopMode();
+    }
+    queue.add(List<MediaItem>.unmodifiable(_queueItems));
+    _broadcastPlaybackState();
+    _emitSnapshot();
+    if (dropped > 0) {
+      _scheduleQueueItemsPersistence(context: 'deferred queue drop');
+    }
+    return offsets;
+  }
+
+  /// Finds [songId] in the logical queue, preferring [expected] and then the
+  /// nearest other occurrence. Returns -1 when the song is no longer queued.
+  int _locateQueueTarget(String songId, int expected) {
+    final ids = _logicalQueueIds;
+    if (expected >= 0 && expected < ids.length && ids[expected] == songId) {
+      return expected;
+    }
+    for (var distance = 1; distance < ids.length; distance++) {
+      final before = expected - distance;
+      final after = expected + distance;
+      if (before < 0 && after >= ids.length) break;
+      if (before >= 0 && before < ids.length && ids[before] == songId) {
+        return before;
+      }
+      if (after >= 0 && after < ids.length && ids[after] == songId) {
+        return after;
+      }
+    }
+    return -1;
   }
 
   void _setQueueReplacementMetadataAnchor({
@@ -1330,8 +1612,13 @@ class NavisAudioHandler extends BaseAudioHandler
     required Future<T> Function() action,
     String? songId,
     Duration timeout = _playerLoadTimeout,
+    // Queue edits must commit a native change that succeeded, even if a newer
+    // command superseded the generation meanwhile; dropping it would leave
+    // the Dart queue and the player out of step.
+    bool cancelAfterSuccess = true,
   }) async {
     _lastFailedSongId = null;
+    _timedPlayerOperationCount++;
     final startupTrace = _activeStartupTrace;
     startupTrace?.mark('player:$operation:start');
     var timedOut = false;
@@ -1354,7 +1641,7 @@ class NavisAudioHandler extends BaseAudioHandler
       );
       final result = await operationFuture.timeout(timeout);
       startupTrace?.mark('player:$operation:complete');
-      if (!_isActiveLoadGeneration(generation)) {
+      if (cancelAfterSuccess && !_isActiveLoadGeneration(generation)) {
         throw OperationCancelledException();
       }
       return result;
@@ -1476,6 +1763,9 @@ class NavisAudioHandler extends BaseAudioHandler
       (_) {
         final processing = _player.processingState;
         final index = _player.currentIndex;
+        if (processing == ProcessingState.completed) {
+          _continueIntoDeferredTail();
+        }
         if (processing != _eqObservedProcessingState ||
             index != _eqObservedIndex) {
           _eqObservedProcessingState = processing;
@@ -1581,6 +1871,7 @@ class NavisAudioHandler extends BaseAudioHandler
       _broadcastPlaybackState();
       _emitSnapshot();
       _scheduleTransportPersistence(context: 'current index update');
+      _maybeReleaseTail();
     });
 
     // just_audio derives these from sequenceStateStream without distinct(),
@@ -2093,6 +2384,8 @@ class NavisAudioHandler extends BaseAudioHandler
     } finally {
       _isCrossfading = false;
       _crossfadeHandoffInProgress = false;
+      // A release skipped during the fade can run now.
+      scheduleMicrotask(_maybeReleaseTail);
       _crossfadeTargetIndex = null;
       _crossfadeActiveTransitionId = null;
       _crossfadePrewarmLatencyMs = null;
@@ -2126,6 +2419,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _crossfadeSessionToken += 1;
     _isCrossfading = false;
     _crossfadeHandoffInProgress = false;
+    scheduleMicrotask(_maybeReleaseTail);
     _emitCrossfadeMetric(
       transitionId: transitionId,
       targetIndex: _crossfadeTargetIndex,
@@ -2413,16 +2707,13 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     if (queueState != null) {
-      final loopMode = switch (queueState.repeatMode) {
+      _desiredLoopMode = switch (queueState.repeatMode) {
         schema.RepeatMode.one => LoopMode.one,
         schema.RepeatMode.all => LoopMode.all,
         schema.RepeatMode.off => LoopMode.off,
       };
-      await _player.setLoopMode(loopMode);
+      await _syncNativeLoopMode();
       final inactiveDeck = _crossfadePlayer;
-      if (inactiveDeck != null) {
-        await inactiveDeck.setLoopMode(loopMode);
-      }
 
       final shuffle = queueState.shuffleMode == schema.ShuffleMode.all;
       await _player.setShuffleModeEnabled(shuffle);
@@ -2454,6 +2745,7 @@ class NavisAudioHandler extends BaseAudioHandler
             persist: false,
             token: token,
             generation: generation,
+            deferTail: _shouldDeferTail(queuedSongs.length),
           );
           _completeQueueLoad(generation);
         } on OperationCancelledException {
@@ -2886,40 +3178,6 @@ class NavisAudioHandler extends BaseAudioHandler
     return prepared;
   }
 
-  /// Convenience wrapper: resolve song IDs from the library, then prepare
-  /// [_PreparedQueueItem]s with lock-caching fallback.  Used by the
-  /// incremental queue operations ([addToQueue], [playNext]).
-  Future<List<_PreparedQueueItem>> _prepareQueueItemsFromIds(
-    List<String> songIds, {
-    bool skipUnavailable = false,
-    OperationToken? token,
-  }) async {
-    final songs = await _libraryDao.getSongsByIds(songIds);
-    if (songs.isEmpty) return const <_PreparedQueueItem>[];
-    if (skipUnavailable) {
-      final prepared = <_PreparedQueueItem>[];
-      for (final song in songs) {
-        token?.checkCancelled();
-        final entry = await _prepareSingleItemForQueueFill(song);
-        token?.checkCancelled();
-        if (entry != null) prepared.add(entry);
-      }
-      return prepared;
-    }
-    try {
-      return await _prepareQueueItems(songs, preferLockCaching: true);
-    } on PlaybackSourceUnavailableException {
-      rethrow;
-    } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Incremental queue preparation failed with lock-cached sources. '
-        'Retrying with direct-stream sources. '
-        '$error\n$stackTrace',
-      );
-      return _prepareQueueItems(songs, preferLockCaching: false);
-    }
-  }
-
   /// Resolve a single song's playback source with the standard fallback chain
   /// (lock-caching → direct stream).
   Future<_PreparedQueueItem> _prepareSingleItem(
@@ -3066,6 +3324,7 @@ class NavisAudioHandler extends BaseAudioHandler
     // setAudioSource) maps index 0 → startItem.mediaItem, not the first
     // album track.  Phase 2 will insert/append the remaining items.
     _queueItems.clear();
+    _deferredTail.clear();
     _queueItems.add(startItem.mediaItem);
     if (songs.length > 1) {
       _setQueueReplacementMetadataAnchor(
@@ -3172,14 +3431,22 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool persist,
     required OperationToken token,
     required int generation,
+    bool deferTail = false,
   }) async {
     final clampedIndex = startIndex.clamp(0, songs.length - 1);
 
     // Collect songs that still need resolution (everything except startIndex).
     final beforeStart = songs.sublist(0, clampedIndex);
-    final afterStart = clampedIndex + 1 < songs.length
+    final allAfterStart = clampedIndex + 1 < songs.length
         ? songs.sublist(clampedIndex + 1)
         : <SongsTableData>[];
+    // A long queue hands only a window after the start song to the native
+    // player; the rest waits in the deferred tail and is released in pages as
+    // playback approaches it.
+    final afterStart = deferTail && allAfterStart.length > _queueWindow.ahead
+        ? allAfterStart.sublist(0, _queueWindow.ahead)
+        : allAfterStart;
+    final deferredSongs = allAfterStart.sublist(afterStart.length);
 
     // We need to rebuild the player's audio source list to include all songs
     // in the correct order.  First, resolve sources for the remaining songs.
@@ -3285,6 +3552,9 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueItems
       ..clear()
       ..addAll(allPrepared.map((p) => p.mediaItem));
+    _deferredTail
+      ..clear()
+      ..addAll(deferredSongs.map(_deferredEntryFor));
     _clearPendingLogicalQueue();
     if (_queueItems.length > 1 &&
         finalStartIndex >= 0 &&
@@ -3305,6 +3575,8 @@ class NavisAudioHandler extends BaseAudioHandler
     fillTimings['snapshotMs'] = fillWatch.elapsedMilliseconds;
     fillTimings['prepared'] = allPrepared.length;
     fillTimings['skipped'] = skippedSongIds.length;
+    fillTimings['deferred'] = deferredSongs.length;
+    await _syncNativeLoopMode();
 
     AppLogger.debug(
       'Queue replacement phase 2 complete: requested=${songs.length} '
@@ -3442,6 +3714,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueItems
       ..clear()
       ..addAll(prepared.map((entry) => entry.mediaItem));
+    _deferredTail.clear();
 
     final audioSources = prepared
         .map((entry) => entry.audioSource)
@@ -3747,6 +4020,7 @@ class NavisAudioHandler extends BaseAudioHandler
           persist: true,
           token: token,
           generation: generation,
+          deferTail: _shouldDeferTail(songs.length),
         );
         _completeQueueLoad(generation);
       } on OperationCancelledException {
@@ -3928,6 +4202,7 @@ class NavisAudioHandler extends BaseAudioHandler
           persist: true,
           token: token,
           generation: generation,
+          deferTail: _shouldDeferTail(songs.length),
         );
         _completeQueueLoad(generation);
       } on OperationCancelledException {
@@ -3971,8 +4246,7 @@ class NavisAudioHandler extends BaseAudioHandler
     List<String> songIds, {
     bool expandMatchFlows = true,
   }) {
-    return _queueLane.run((token) async {
-      await _ready;
+    return _enqueueQueueEdit((token) async {
       songIds = (await _expandMatchFlowIds(
         songIds,
         startIndex: 0,
@@ -3995,82 +4269,392 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
 
-      // Prepare only the new songs and append their audio sources
-      // incrementally – this does NOT interrupt current playback.
-      final prepared = await _prepareQueueItemsFromIds(
-        songIds,
-        skipUnavailable: true,
+      await _appendToQueue(
+        songIds.map(_DeferredQueueEntry.new).toList(growable: false),
         token: token,
+        context: 'add to queue',
       );
-      if (prepared.isEmpty) return;
+    });
+  }
 
-      token.checkCancelled();
-
-      final generation = _activeLoadGeneration;
-      final inserted = <_PreparedQueueItem>[];
+  /// Appends [entries] to the end of the logical queue without interrupting
+  /// playback. Behind a deferred tail they simply join it; otherwise up to one
+  /// page is materialised with a single native append and the rest deferred.
+  /// Returns the ids that were dropped as unplayable.
+  Future<List<String>> _appendToQueue(
+    List<_DeferredQueueEntry> entries, {
+    required OperationToken token,
+    required String context,
+  }) async {
+    if (entries.isEmpty) return const <String>[];
+    final canDefer = !_player.shuffleModeEnabled;
+    if (canDefer && _deferredTail.isNotEmpty) {
+      _deferredTail.addAll(entries);
+      _afterQueueEdit(context: context);
+      return const <String>[];
+    }
+    final materialize = canDefer && entries.length > _queueWindow.page
+        ? entries.sublist(0, _queueWindow.page)
+        : entries;
+    final rows = await _rowsForDeferredEntries(materialize);
+    final (:prepared, :offsets) = await _prepareRowsConcurrently(
+      rows,
+      token: token,
+    );
+    final skipped = <String>[
+      for (var i = 0; i < materialize.length; i++)
+        if (offsets[i] == null) materialize[i].id,
+    ];
+    var inserted = const <_PreparedQueueItem>[];
+    if (prepared.isNotEmpty) {
       final wasPlayingBeforeMutation = _player.playing;
       final firstInsertedIndex = _queueItems.length;
       final queueWasCompletedBeforeInsertion =
           _player.processingState == ProcessingState.completed;
-      for (final entry in prepared) {
-        try {
-          await _runTimedPlayerOperation(
-            generation: generation,
-            operation: 'add to queue append',
-            action: () => _player.addAudioSource(entry.audioSource),
-            songId: entry.song.id,
-          );
-        } on OperationCancelledException {
-          rethrow;
-        } on Object {
-          token.checkCancelled();
-          if (!_isActiveLoadGeneration(generation)) return;
-          _lastFailedSongId = entry.song.id;
-          AppLogger.warning('Queue append source unavailable; skipping entry.');
-          continue;
-        }
-        _queueItems.add(entry.mediaItem);
-        final inactiveDeck = _crossfadePlayer;
-        if (inactiveDeck != null) {
-          try {
-            await _runTimedPlayerOperation(
-              generation: generation,
-              operation: 'add to queue inactive append',
-              action: () => inactiveDeck.addAudioSource(
-                entry.source.asClonedAudioSource(tag: entry.mediaItem),
-              ),
-              songId: entry.song.id,
-            );
-          } on Object catch (error) {
-            AppLogger.debug(
-              'addToQueue inactive deck append failed for ${entry.song.id}: '
-              '$error',
-            );
-          }
-        }
-        inserted.add(entry);
-        token.checkCancelled();
-      }
-
+      inserted = await _applyMaterialisedInsert(
+        prepared,
+        at: _queueItems.length,
+        operation: '$context append',
+      );
+      skipped.addAll(
+        prepared
+            .where((item) => !inserted.contains(item))
+            .map((item) => item.song.id),
+      );
       await _resumeInsertedItemIfCompleted(
         wasPlayingBeforeMutation: wasPlayingBeforeMutation,
         queueWasCompletedBeforeInsertion: queueWasCompletedBeforeInsertion,
         firstInsertedIndex: firstInsertedIndex,
       );
+    }
+    if (materialize.length < entries.length) {
+      _deferredTail.addAll(entries.sublist(materialize.length));
+      await _syncNativeLoopMode();
+    }
+    if (inserted.isEmpty && materialize.length == entries.length) {
+      return skipped;
+    }
+    _afterQueueEdit(context: context);
+    return skipped;
+  }
 
-      if (inserted.isEmpty) {
+  /// Inserts prepared songs at materialised index [at] with one native call
+  /// (and one mirror call on an in-sync crossfade deck). A successful native
+  /// call is always committed. When the batch fails, songs are inserted one by
+  /// one and the failing ones skipped. Returns the songs that were inserted.
+  Future<List<_PreparedQueueItem>> _applyMaterialisedInsert(
+    List<_PreparedQueueItem> prepared, {
+    required int at,
+    required String operation,
+  }) async {
+    final inactiveDeck = _crossfadePlayer;
+    final deckInSync =
+        inactiveDeck != null &&
+        inactiveDeck.sequence.length == _queueItems.length;
+    Future<void> apply(int index, List<_PreparedQueueItem> items) {
+      final sources = items
+          .map((item) => item.audioSource)
+          .toList(growable: false);
+      return _runTimedPlayerOperation(
+        generation: _activeLoadGeneration,
+        operation: operation,
+        action: () => index >= _queueItems.length
+            ? _player.addAudioSources(sources)
+            : _player.insertAudioSources(index, sources),
+        songId: items.first.song.id,
+        cancelAfterSuccess: false,
+      );
+    }
+
+    final inserted = <_PreparedQueueItem>[];
+    try {
+      await apply(at, prepared);
+      _queueItems.insertAll(at, prepared.map((item) => item.mediaItem));
+      inserted.addAll(prepared);
+    } on PlaybackLoadTimeoutException {
+      rethrow;
+    } on OperationCancelledException {
+      rethrow;
+    } on Object catch (error) {
+      AppLogger.warning(
+        '$operation failed for ${prepared.length} songs; inserting them one '
+        'by one. $error',
+      );
+      var index = at;
+      for (final item in prepared) {
+        try {
+          await apply(index, <_PreparedQueueItem>[item]);
+        } on PlaybackLoadTimeoutException {
+          rethrow;
+        } on Object {
+          _lastFailedSongId = item.song.id;
+          continue;
+        }
+        _queueItems.insert(index, item.mediaItem);
+        inserted.add(item);
+        index++;
+      }
+    }
+    if (deckInSync && inserted.isNotEmpty) {
+      final clones = inserted
+          .map((item) => item.source.asClonedAudioSource(tag: item.mediaItem))
+          .toList(growable: false);
+      try {
+        if (at >= inactiveDeck.sequence.length) {
+          await inactiveDeck.addAudioSources(clones);
+        } else {
+          await inactiveDeck.insertAudioSources(at, clones);
+        }
+      } on Object catch (error) {
+        AppLogger.debug('$operation inactive deck mirror failed: $error');
+      }
+    }
+    _observeLockCacheForPrepared(inserted);
+    return inserted;
+  }
+
+  /// Publishes a queue edit: one queue emission, one coalesced save, one
+  /// snapshot.
+  void _afterQueueEdit({required String context}) {
+    queue.add(List<MediaItem>.unmodifiable(_queueItems));
+    _scheduleQueueItemsPersistence(context: context);
+    _broadcastPlaybackState();
+    _emitSnapshot();
+  }
+
+  /// Resolves [rows] concurrently in chunks, keeping queue order. `offsets`
+  /// gives each row's index in `prepared`, or null when it was dropped.
+  Future<({List<_PreparedQueueItem> prepared, List<int?> offsets})>
+  _prepareRowsConcurrently(
+    List<SongsTableData?> rows, {
+    OperationToken? token,
+  }) async {
+    final prepared = <_PreparedQueueItem>[];
+    final offsets = <int?>[];
+    for (
+      var start = 0;
+      start < rows.length;
+      start += _queueFillBatchSizeLimit
+    ) {
+      final chunk = rows.sublist(
+        start,
+        math.min(start + _queueFillBatchSizeLimit, rows.length),
+      );
+      final resolved = await Future.wait(
+        chunk.map(
+          (row) => row == null
+              ? Future<_PreparedQueueItem?>.value()
+              : _prepareSingleItemForQueueFill(row),
+        ),
+      );
+      for (final item in resolved) {
+        offsets.add(item == null ? null : prepared.length);
+        if (item != null) prepared.add(item);
+      }
+      token?.checkCancelled();
+    }
+    return (prepared: prepared, offsets: offsets);
+  }
+
+  /// Runs a queue edit in order behind other queue work. An edit that finds
+  /// a replacement still loading (its owner was superseded by a navigation
+  /// queued after this edit) waits for that once, so it applies to the
+  /// finished queue rather than the half-built one.
+  Future<void> _enqueueQueueEdit(
+    Future<void> Function(OperationToken token) edit,
+  ) {
+    final done = Completer<void>();
+    var waitedForLoad = false;
+    Future<void> attempt() async {
+      var requeue = false;
+      try {
+        await _queueLane.enqueue((token) async {
+          await _ready;
+          if (!waitedForLoad && _pendingLogicalQueueSongIds != null) {
+            waitedForLoad = true;
+            requeue = true;
+            return;
+          }
+          await edit(token);
+        });
+      } on Object catch (error, stackTrace) {
+        if (!done.isCompleted) done.completeError(error, stackTrace);
         return;
       }
+      if (requeue) {
+        unawaited(attempt());
+        return;
+      }
+      if (!done.isCompleted) done.complete();
+    }
 
-      _observeLockCacheForPrepared(inserted);
-      queue.add(List<MediaItem>.unmodifiable(_queueItems));
-      await _persistSafely(
-        () => _persistQueueState(includeQueueItems: true),
-        context: 'add to queue',
+    unawaited(attempt());
+    return done.future;
+  }
+
+  @override
+  Future<QueueBatchEditResult> mergeIntoUpcoming(
+    List<SongsTableData> songs, {
+    required int notBefore,
+    math.Random? random,
+  }) async {
+    var result = const QueueBatchEditResult();
+    if (songs.isEmpty) return result;
+    await _enqueueQueueEdit((token) async {
+      if (_queueItems.isEmpty) return;
+      final entries = songs.map(_deferredEntryFor).toList(growable: false);
+      if (_player.shuffleModeEnabled) {
+        // Native shuffle places new songs itself.
+        result = QueueBatchEditResult(
+          skippedSongIds: await _appendToQueue(
+            entries,
+            token: token,
+            context: 'merge upcoming',
+          ),
+        );
+        return;
+      }
+      // The current song and the next two stay in the player (gapless, and
+      // a stable "up next"); everything after them is merged in Dart. Songs
+      // the player already holds past that point go back to the deferred
+      // tail with one native call, so a merge costs O(1) native operations
+      // however many songs arrive, and refills release them again.
+      final current = _player.currentIndex ?? 0;
+      final mergeFrom = math.max(notBefore, current + 3);
+      if (mergeFrom < _queueItems.length) {
+        await _deferMaterialisedFrom(mergeFrom);
+      }
+      final tailStart = math.max(0, mergeFrom - _queueItems.length);
+      final region = _deferredTail.sublist(
+        math.min(tailStart, _deferredTail.length),
       );
-      _broadcastPlaybackState();
-      _emitSnapshot();
+      final merged = _interleaveRandomly(
+        region,
+        entries,
+        random ?? math.Random(),
+      );
+      _deferredTail
+        ..removeRange(
+          math.min(tailStart, _deferredTail.length),
+          _deferredTail.length,
+        )
+        ..addAll(merged);
+      await _syncNativeLoopMode();
+      _afterQueueEdit(context: 'merge upcoming');
     });
+    return result;
+  }
+
+  /// Moves the materialised songs from [from] onward back to the front of
+  /// the deferred tail with one native range removal.
+  Future<void> _deferMaterialisedFrom(int from) async {
+    final end = _queueItems.length;
+    if (from >= end) return;
+    final inactiveDeck = _crossfadePlayer;
+    final deckInSync =
+        inactiveDeck != null && inactiveDeck.sequence.length == end;
+    await _runTimedPlayerOperation(
+      generation: _activeLoadGeneration,
+      operation: 'defer materialised queue',
+      action: () => _player.removeAudioSourceRange(from, end),
+      songId: _queueItems[from].id,
+      timeout: _playerResetTimeout,
+      cancelAfterSuccess: false,
+    );
+    final moved = _queueItems.sublist(from);
+    _queueItems.removeRange(from, end);
+    _deferredTail.insertAll(
+      0,
+      moved.map((item) => _DeferredQueueEntry(item.id)),
+    );
+    if (deckInSync) {
+      try {
+        await inactiveDeck.removeAudioSourceRange(from, end);
+      } on Object catch (error) {
+        AppLogger.debug('Deferred range deck mirror failed: $error');
+      }
+    }
+  }
+
+  /// Uniform random interleave of [incoming] into [existing], keeping the
+  /// relative order of [existing]; O(n + m).
+  static List<T> _interleaveRandomly<T>(
+    List<T> existing,
+    List<T> incoming,
+    math.Random random,
+  ) {
+    final shuffled = List<T>.of(incoming)..shuffle(random);
+    final result = <T>[];
+    var a = 0;
+    var b = 0;
+    while (a < existing.length || b < shuffled.length) {
+      final remainingA = existing.length - a;
+      final remainingB = shuffled.length - b;
+      if (remainingB > 0 &&
+          (remainingA == 0 ||
+              random.nextInt(remainingA + remainingB) < remainingB)) {
+        result.add(shuffled[b++]);
+      } else {
+        result.add(existing[a++]);
+      }
+    }
+    return result;
+  }
+
+  @override
+  Future<QueueBatchEditResult> insertQueueRuns(
+    List<QueueInsertRun> runs,
+  ) async {
+    final skipped = <String>[];
+    if (runs.every((run) => run.songs.isEmpty)) {
+      return const QueueBatchEditResult();
+    }
+    await _enqueueQueueEdit((token) async {
+      if (_queueItems.isEmpty) return;
+      final ordered = List<QueueInsertRun>.of(runs)
+        ..sort((a, b) => b.index.compareTo(a.index));
+      var changed = false;
+      for (final run in ordered) {
+        if (run.songs.isEmpty) continue;
+        final total = _queueItems.length + _deferredTail.length;
+        final index = run.index.clamp(0, total);
+        final entries = run.songs
+            .map(_deferredEntryFor)
+            .toList(growable: false);
+        if (index >= _queueItems.length &&
+            !_player.shuffleModeEnabled &&
+            (_deferredTail.isNotEmpty || entries.length > _queueWindow.page)) {
+          _deferredTail.insertAll(index - _queueItems.length, entries);
+          changed = true;
+          continue;
+        }
+        final rows = await _rowsForDeferredEntries(entries);
+        final (:prepared, :offsets) = await _prepareRowsConcurrently(
+          rows,
+          token: token,
+        );
+        for (var i = 0; i < entries.length; i++) {
+          if (offsets[i] == null) skipped.add(entries[i].id);
+        }
+        if (prepared.isEmpty) continue;
+        final inserted = await _applyMaterialisedInsert(
+          prepared,
+          at: math.min(index, _queueItems.length),
+          operation: 'insert queue run',
+        );
+        skipped.addAll(
+          prepared
+              .where((item) => !inserted.contains(item))
+              .map((item) => item.song.id),
+        );
+        changed = changed || inserted.isNotEmpty;
+      }
+      if (changed) {
+        await _syncNativeLoopMode();
+        _afterQueueEdit(context: 'insert queue runs');
+      }
+    });
+    return QueueBatchEditResult(skippedSongIds: skipped);
   }
 
   @override
@@ -4078,8 +4662,7 @@ class NavisAudioHandler extends BaseAudioHandler
     List<String> songIds, {
     bool expandMatchFlows = true,
   }) {
-    return _queueLane.run((token) async {
-      await _ready;
+    return _enqueueQueueEdit((token) async {
       final expanded = (await _expandMatchFlowIds(
         songIds,
         startIndex: 0,
@@ -4104,17 +4687,18 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
 
-      // Prepare only the new songs and insert their audio sources
-      // incrementally at the position right after the currently playing item.
-      final prepared = await _prepareQueueItemsFromIds(incoming);
+      // Resolve the new songs and insert them right after the current item
+      // with one native call; this does not interrupt playback.
+      final rows = await _rowsForDeferredEntries(
+        incoming.map(_DeferredQueueEntry.new).toList(growable: false),
+      );
+      final (:prepared, offsets: _) = await _prepareRowsConcurrently(
+        rows,
+        token: token,
+      );
       if (prepared.isEmpty) return;
-
       token.checkCancelled();
 
-      // Insert in reverse order at the same position so relative order is
-      // preserved (first incoming song ends up right after current).
-      final generation = _activeLoadGeneration;
-      final inserted = <_PreparedQueueItem>[];
       final wasPlayingBeforeMutation = _player.playing;
       final currentIndex = (_player.currentIndex ?? 0).clamp(
         0,
@@ -4123,70 +4707,19 @@ class NavisAudioHandler extends BaseAudioHandler
       final insertAt = (currentIndex + 1).clamp(0, _queueItems.length);
       final queueWasCompletedBeforeInsertion =
           _player.processingState == ProcessingState.completed;
-      for (var i = prepared.length - 1; i >= 0; i--) {
-        final entry = prepared[i];
-        try {
-          await _runTimedPlayerOperation(
-            generation: generation,
-            operation: 'play next insert',
-            action: () =>
-                _player.insertAudioSource(insertAt, entry.audioSource),
-            songId: entry.song.id,
-          );
-        } on Object catch (error) {
-          if (inserted.isEmpty) {
-            rethrow;
-          }
-          AppLogger.debug(
-            'playNext stopped after partial insert: '
-            'inserted=${inserted.length} remaining=${i + 1} error=$error',
-          );
-          break;
-        }
-        _queueItems.insert(insertAt, entry.mediaItem);
-        final inactiveDeck = _crossfadePlayer;
-        if (inactiveDeck != null) {
-          try {
-            await _runTimedPlayerOperation(
-              generation: generation,
-              operation: 'play next inactive insert',
-              action: () => inactiveDeck.insertAudioSource(
-                insertAt,
-                entry.source.asClonedAudioSource(
-                  tag: entry.mediaItem,
-                ),
-              ),
-              songId: entry.song.id,
-            );
-          } on Object catch (error) {
-            AppLogger.debug(
-              'playNext inactive deck insert failed for ${entry.song.id}: '
-              '$error',
-            );
-          }
-        }
-        inserted.add(entry);
-        token.checkCancelled();
-      }
+      final inserted = await _applyMaterialisedInsert(
+        prepared,
+        at: insertAt,
+        operation: 'play next insert',
+      );
+      if (inserted.isEmpty) return;
 
       await _resumeInsertedItemIfCompleted(
         wasPlayingBeforeMutation: wasPlayingBeforeMutation,
         queueWasCompletedBeforeInsertion: queueWasCompletedBeforeInsertion,
         firstInsertedIndex: insertAt,
       );
-
-      if (inserted.isEmpty) {
-        return;
-      }
-
-      _observeLockCacheForPrepared(inserted);
-      queue.add(List<MediaItem>.unmodifiable(_queueItems));
-      await _persistSafely(
-        () => _persistQueueState(includeQueueItems: true),
-        context: 'play next',
-      );
-      _broadcastPlaybackState();
-      _emitSnapshot();
+      _afterQueueEdit(context: 'play next');
     });
   }
 
@@ -4235,7 +4768,9 @@ class NavisAudioHandler extends BaseAudioHandler
           currentIndex = fallbackIndex;
         }
 
-        if (_queueItems.length == 1 && currentIndex == 0) {
+        if (_queueItems.length == 1 &&
+            currentIndex == 0 &&
+            _deferredTail.isEmpty) {
           return;
         }
 
@@ -4265,6 +4800,8 @@ class NavisAudioHandler extends BaseAudioHandler
           token.checkCancelled();
         }
 
+        _deferredTail.clear();
+        await _syncNativeLoopMode();
         _clearQueueReplacementMetadataAnchor();
         _clearPendingLogicalQueue();
         if (_queueItems.isNotEmpty) {
@@ -4353,9 +4890,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> playFromIndex(int index) {
-    final logicalIds =
-        _pendingLogicalQueueSongIds ??
-        _queueItems.map((item) => item.id).toList(growable: false);
+    final logicalIds = _logicalQueueIds;
     if (index < 0 || index >= logicalIds.length) return Future<void>.value();
     _invalidatePendingStartupSelection();
     return _applyNavigationDecision(
@@ -4368,15 +4903,30 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> removeAt(int index) {
-    return _queueLane.run((_) async {
-      await _ready;
-      if (index < 0 || index >= _queueItems.length) {
+    return _enqueueQueueEdit((_) async {
+      final total = _queueItems.length + _deferredTail.length;
+      if (index < 0 || index >= total) {
         return;
       }
 
-      if (_queueItems.length == 1) {
+      if (total == 1) {
         await _clearQueueInternal(persist: true);
         return;
+      }
+
+      if (index >= _queueItems.length) {
+        _deferredTail.removeAt(index - _queueItems.length);
+        if (_deferredTail.isEmpty) await _syncNativeLoopMode();
+        _scheduleQueueItemsPersistence(context: 'remove at');
+        _broadcastPlaybackState();
+        _emitSnapshot();
+        return;
+      }
+
+      // The player needs a following song before its last materialised one
+      // goes; otherwise removing the current song would end playback.
+      if (index == _queueItems.length - 1 && _deferredTail.isNotEmpty) {
+        await _releaseTail(count: _queueWindow.page);
       }
 
       // Remove the audio source and queue item incrementally — this does NOT
@@ -4396,10 +4946,7 @@ class NavisAudioHandler extends BaseAudioHandler
         _setCurrentMediaItem(_queueItems[nowIndex]);
       }
 
-      await _persistSafely(
-        () => _persistQueueState(includeQueueItems: true),
-        context: 'remove at',
-      );
+      _scheduleQueueItemsPersistence(context: 'remove at');
       _broadcastPlaybackState();
       _emitSnapshot();
     });
@@ -4407,48 +4954,90 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> reorderQueue(int oldIndex, int newIndex) {
-    return _queueLane.run((_) async {
-      await _ready;
-      if (_queueItems.isEmpty) {
+    return _enqueueQueueEdit((token) async {
+      final total = _queueItems.length + _deferredTail.length;
+      if (total == 0) {
         return;
       }
-      if (oldIndex < 0 || oldIndex >= _queueItems.length) {
+      if (oldIndex < 0 || oldIndex >= total) {
         return;
       }
       // ReorderableListView can report newIndex == length when dragging to
       // the end; treat that as a valid destination.
-      if (newIndex < 0 || newIndex > _queueItems.length) {
+      if (newIndex < 0 || newIndex > total) {
         return;
       }
 
       final adjustedIndex = oldIndex < newIndex
           ? newIndex - 1
-          : newIndex.clamp(0, _queueItems.length - 1);
+          : newIndex.clamp(0, total - 1);
       if (oldIndex == adjustedIndex) {
         return;
       }
 
-      // Reorder the in-memory queue items to match the new order.
-      final movedItem = _queueItems.removeAt(oldIndex);
-      _queueItems.insert(adjustedIndex, movedItem);
+      var materialized = _queueItems.length;
+      if (oldIndex >= materialized && adjustedIndex >= materialized) {
+        // Both ends deferred: a Dart-only move.
+        final entry = _deferredTail.removeAt(oldIndex - materialized);
+        _deferredTail.insert(adjustedIndex - materialized, entry);
+      } else if (oldIndex >= materialized) {
+        // Deferred song moved into the player's window: resolve it and insert
+        // it with one native call.
+        final entry = _deferredTail.removeAt(oldIndex - materialized);
+        final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
+          entry,
+        ]);
+        final (:prepared, offsets: _) = await _prepareRowsConcurrently(rows);
+        final inserted = prepared.isEmpty
+            ? const <_PreparedQueueItem>[]
+            : await _applyMaterialisedInsert(
+                prepared,
+                at: adjustedIndex,
+                operation: 'reorder into window',
+              );
+        if (inserted.isEmpty) _tailDroppedSongCount++;
+      } else {
+        if (adjustedIndex >= materialized &&
+            oldIndex == (_player.currentIndex ?? -1)) {
+          // Keep the playing song in the player: release through the target
+          // so the move stays inside the window.
+          await _releaseTail(count: adjustedIndex - materialized + 1);
+          materialized = _queueItems.length;
+        }
+        if (adjustedIndex < materialized) {
+          // Reorder the in-memory queue items to match the new order.
+          final movedItem = _queueItems.removeAt(oldIndex);
+          _queueItems.insert(adjustedIndex, movedItem);
 
-      // Move the audio source in the player's playlist — this does NOT
-      // interrupt playback; just_audio tracks the current item internally.
-      await _player.moveAudioSource(oldIndex, adjustedIndex);
-      final inactiveDeck = _crossfadePlayer;
-      if (inactiveDeck != null &&
-          inactiveDeck.sequence.length > oldIndex &&
-          inactiveDeck.sequence.length > adjustedIndex) {
-        await inactiveDeck.moveAudioSource(oldIndex, adjustedIndex);
+          // Move the audio source in the player's playlist — this does NOT
+          // interrupt playback; just_audio tracks the current item internally.
+          _nativeMoveCount++;
+          await _player.moveAudioSource(oldIndex, adjustedIndex);
+          final inactiveDeck = _crossfadePlayer;
+          if (inactiveDeck != null &&
+              inactiveDeck.sequence.length > oldIndex &&
+              inactiveDeck.sequence.length > adjustedIndex) {
+            await inactiveDeck.moveAudioSource(oldIndex, adjustedIndex);
+          }
+        } else {
+          // Materialised song moved behind the window: take it out of the
+          // player and defer it at its new logical position.
+          final movedItem = _queueItems.removeAt(oldIndex);
+          await _player.removeAudioSourceAt(oldIndex);
+          final inactiveDeck = _crossfadePlayer;
+          if (inactiveDeck != null && inactiveDeck.sequence.length > oldIndex) {
+            await inactiveDeck.removeAudioSourceAt(oldIndex);
+          }
+          _deferredTail.insert(
+            adjustedIndex - _queueItems.length,
+            _DeferredQueueEntry(movedItem.id),
+          );
+        }
       }
 
-      queue.add(List<MediaItem>.unmodifiable(_queueItems));
-      // Reorders arrive in bursts (drag sequences, shuffled artist growth),
-      // and each full-queue write rewrites every row. Persist once the burst
-      // settles.
-      _scheduleQueueItemsPersistence(context: 'reorder queue');
-      _broadcastPlaybackState();
-      _emitSnapshot();
+      // Reorders arrive in bursts (drag sequences), and each full-queue write
+      // rewrites every row. Persist once the burst settles.
+      _afterQueueEdit(context: 'reorder queue');
     });
   }
 
@@ -4533,6 +5122,12 @@ class NavisAudioHandler extends BaseAudioHandler
     // completed) and the user presses play, just_audio stays stuck at the end
     // rather than restarting.  Seek back to the beginning of the queue first
     // so playback actually resumes from the start.
+    if (_player.processingState == ProcessingState.completed &&
+        _radioStation == null &&
+        _deferredTail.isNotEmpty) {
+      await playFromIndex(_queueItems.length);
+      return;
+    }
     if (_player.processingState == ProcessingState.completed &&
         navisShouldRestartCompletedQueue(
           queueLength: _queueItems.length,
@@ -4719,7 +5314,19 @@ class NavisAudioHandler extends BaseAudioHandler
       'songId': songId,
       'queueLength': snapshot.queueSongIds.length,
       'playerSequenceLength': _player.sequence.length,
+      'materializedLength': _queueItems.length,
+      'deferredLength': _deferredTail.length,
       'queueFill': _lastQueueFill,
+      'counters': <String, Object?>{
+        'tailReleases': _tailReleaseCount,
+        'tailReleasedSongs': _tailReleasedSongCount,
+        'tailDroppedSongs': _tailDroppedSongCount,
+        'snapshotBroadcasts': _snapshotBroadcastCount,
+        'queueEmissions': _queueEmissionCount,
+        'queueEmittedItems': _queueEmittedItemCount,
+        'timedPlayerOperations': _timedPlayerOperationCount,
+        'nativeMoves': _nativeMoveCount,
+      },
       'slowPersistence': List<Map<String, Object?>>.of(_slowPersistence),
       'persistence': <String, Object?>{
         'operations': _persistOperationCount,
@@ -4844,9 +5451,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> skipToPrevious() => _navigateRelative(forward: false);
 
   Future<void> _navigateRelative({required bool forward}) {
-    final logicalIds =
-        _pendingLogicalQueueSongIds ??
-        _queueItems.map((item) => item.id).toList(growable: false);
+    final logicalIds = _logicalQueueIds;
     final confirmedIndex =
         _resolveCurrentQueueMetadata().currentIndex ?? _player.currentIndex;
     final effectiveOrder =
@@ -4887,7 +5492,8 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool shouldPlay,
     required String context,
   }) {
-    final index = decision.index!;
+    final requestedIndex = decision.index!;
+    final targetId = logicalIds[requestedIndex];
     if (_navigationInFlightRevision != null) {
       _navigationSupersededCount++;
     }
@@ -4898,11 +5504,13 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     final generation = _supersedeQueueWork(
       isLoading: true,
-      loadingSongId: logicalIds[index],
+      loadingSongId: targetId,
       pendingLogicalQueueSongIds: _pendingLogicalQueueSongIds,
+      navigation: true,
     );
     final pendingSongs = _pendingLogicalQueueSongs;
-    final work = _queueLane.run((token) async {
+    final work = _queueLane.navigate((token) async {
+      var index = requestedIndex;
       var selectionConfirmed = false;
       var rebuiltPendingQueue = false;
       int? preparedTargetIndex;
@@ -4925,14 +5533,69 @@ class NavisAudioHandler extends BaseAudioHandler
         _cancelCrossfade();
         _clearQueueReplacementMetadataAnchor();
 
+        List<SongsTableData>? rebuildSongs;
         if (_pendingLogicalQueueSongIds != null) {
-          rebuiltPendingQueue = true;
-          final songs =
+          rebuildSongs =
               pendingSongs ?? await _libraryDao.getSongsByIds(logicalIds);
           _checkQueueWorkCurrent(token, generation);
-          if (songs.length != logicalIds.length) {
+          if (rebuildSongs.length != logicalIds.length) {
             throw StateError('A queued song is no longer available.');
           }
+        } else {
+          // Queue edits that ran after this decision may have moved the song.
+          index = _locateQueueTarget(targetId, requestedIndex);
+          if (index < 0) {
+            throw StateError('The selected song is no longer queued.');
+          }
+          if (index >= _queueItems.length) {
+            final offset = index - _queueItems.length;
+            if (offset < _queueWindow.nearJump) {
+              // Near the materialised end: release through the target and
+              // seek, as for any queued song.
+              final before = _queueItems.length;
+              final released = await _releaseTail(
+                count: offset + 1 + _queueWindow.ahead,
+              );
+              _checkQueueWorkCurrent(token, generation);
+              final landed = released.skip(offset).nonNulls.firstOrNull;
+              if (landed == null) {
+                throw StateError('The selected song is no longer available.');
+              }
+              index = before + landed;
+            } else {
+              // Far into the tail: rebuild the player around the target.
+              final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
+                for (final item in _queueItems) _DeferredQueueEntry(item.id),
+                ..._deferredTail,
+              ]);
+              _checkQueueWorkCurrent(token, generation);
+              final songs = <SongsTableData>[];
+              var jumpIndex = -1;
+              for (var i = 0; i < rows.length; i++) {
+                final row = rows[i];
+                if (row == null) continue;
+                if (i == index) jumpIndex = songs.length;
+                songs.add(row);
+              }
+              if (jumpIndex < 0) {
+                throw StateError('The selected song is no longer available.');
+              }
+              rebuildSongs = songs;
+              index = jumpIndex;
+              _pendingLogicalQueueSongIds = List<String>.unmodifiable(
+                songs.map((song) => song.id),
+              );
+              _emitSnapshot();
+            }
+          }
+        }
+
+        if (rebuildSongs != null) {
+          rebuiltPendingQueue = true;
+          final songs = rebuildSongs;
+          final rebuildIds = songs
+              .map((song) => song.id)
+              .toList(growable: false);
           final startItem = await _replaceQueuePhase1(
             songs: songs,
             startIndex: index,
@@ -4947,11 +5610,11 @@ class NavisAudioHandler extends BaseAudioHandler
           }
           final preparedMetadata = _resolveCurrentQueueMetadata();
           if (preparedMetadata.currentIndex == index &&
-              preparedMetadata.mediaItem?.id == logicalIds[index]) {
+              preparedMetadata.mediaItem?.id == rebuildIds[index]) {
             confirmSelection();
           }
           await _persistLogicalQueue(
-            logicalIds,
+            rebuildIds,
             index,
             generation: generation,
           );
@@ -4963,6 +5626,7 @@ class NavisAudioHandler extends BaseAudioHandler
               persist: true,
               token: token,
               generation: generation,
+              deferTail: _shouldDeferTail(songs.length),
             );
           }
           preparedTargetIndex = _queueItems.indexWhere(
@@ -4974,7 +5638,7 @@ class NavisAudioHandler extends BaseAudioHandler
               generation: generation,
               operation: 'manual queue navigation',
               action: () => _player.seek(Duration.zero, index: index),
-              songId: logicalIds[index],
+              songId: targetId,
               timeout: _playerControlTimeout,
             );
           }
@@ -4994,7 +5658,7 @@ class NavisAudioHandler extends BaseAudioHandler
               generation: generation,
               operation: 'manual navigation stop loading',
               action: _player.stop,
-              songId: logicalIds[index],
+              songId: targetId,
               timeout: _playerResetTimeout,
             );
             _checkQueueWorkCurrent(token, generation);
@@ -5007,7 +5671,7 @@ class NavisAudioHandler extends BaseAudioHandler
                 initialIndex: index,
                 initialPosition: Duration.zero,
               ),
-              songId: logicalIds[index],
+              songId: targetId,
             );
           }
         }
@@ -5018,7 +5682,8 @@ class NavisAudioHandler extends BaseAudioHandler
             ? preparedTargetIndex == null ||
                   preparedTargetIndex < 0 ||
                   confirmedMetadata.currentIndex != preparedTargetIndex ||
-                  confirmedMetadata.mediaItem?.id != logicalIds[index]
+                  confirmedMetadata.mediaItem?.id !=
+                      rebuildSongs?.elementAtOrNull(index)?.id
             : _player.currentIndex != index) {
           throw StateError('Player did not confirm the requested queue entry.');
         }
@@ -5040,14 +5705,14 @@ class NavisAudioHandler extends BaseAudioHandler
         _navigationIntent.confirm(decision.revision);
         _completeQueueLoad(
           generation,
-          loadingSongId: logicalIds[index],
+          loadingSongId: targetId,
           failed: true,
         );
         // The timed-out player was retired, so it cannot keep playing the
         // selected song. Rebuild the logical queue at the next playable entry
         // instead of leaving a full-looking queue backed by an idle player.
         final nextIndex = _nextPlayableIndexAfterFailure(
-          index,
+          requestedIndex,
           logicalIds.length,
         );
         if (nextIndex != null) {
@@ -5076,13 +5741,13 @@ class NavisAudioHandler extends BaseAudioHandler
         _navigationIntent.confirm(decision.revision);
         _completeQueueLoad(
           generation,
-          loadingSongId: logicalIds[index],
+          loadingSongId: targetId,
           failed: true,
         );
         _emitLoadFailure(
           operation: context,
           message: 'Could not change to the selected track.',
-          songId: logicalIds[index],
+          songId: targetId,
         );
         AppLogger.warning('Manual navigation failed: $error\n$stackTrace');
       } finally {
@@ -5101,17 +5766,26 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     await _ready;
     final enabled = shuffleMode == AudioServiceShuffleMode.all;
-    await _player.setShuffleModeEnabled(enabled);
-    if (enabled) {
-      await _player.shuffle();
-    }
-    final inactiveDeck = _crossfadePlayer;
-    if (inactiveDeck != null) {
-      await inactiveDeck.setShuffleModeEnabled(enabled);
+    await _enqueueQueueEdit((_) async {
+      // Native shuffle orders only what the player holds, so a deferred tail
+      // is released first; shuffled queues then stay fully materialised.
       if (enabled) {
-        await inactiveDeck.shuffle();
+        while (_deferredTail.isNotEmpty) {
+          await _releaseTail(count: _queueFillBatchSizeLimit);
+        }
       }
-    }
+      await _player.setShuffleModeEnabled(enabled);
+      if (enabled) {
+        await _player.shuffle();
+      }
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null) {
+        await inactiveDeck.setShuffleModeEnabled(enabled);
+        if (enabled) {
+          await inactiveDeck.shuffle();
+        }
+      }
+    });
     await _persistSafely(
       () => _persistQueueState(includePosition: false),
       context: 'set shuffle mode',
@@ -5129,11 +5803,8 @@ class NavisAudioHandler extends BaseAudioHandler
       AudioServiceRepeatMode.group => LoopMode.all,
       AudioServiceRepeatMode.none => LoopMode.off,
     };
-    await _player.setLoopMode(loopMode);
-    final inactiveDeck = _crossfadePlayer;
-    if (inactiveDeck != null) {
-      await inactiveDeck.setLoopMode(loopMode);
-    }
+    _desiredLoopMode = loopMode;
+    await _syncNativeLoopMode();
     await _persistSafely(
       () => _persistQueueState(includePosition: false),
       context: 'set repeat mode',
@@ -5419,7 +6090,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required int generation,
   }) {
     final immutableIds = List<String>.unmodifiable(songIds);
-    final repeatMode = switch (_player.loopMode) {
+    final repeatMode = switch (_desiredLoopMode) {
       LoopMode.one => schema.RepeatMode.one,
       LoopMode.all => schema.RepeatMode.all,
       LoopMode.off => schema.RepeatMode.off,
@@ -5443,10 +6114,26 @@ class NavisAudioHandler extends BaseAudioHandler
   void _scheduleQueueItemsPersistence({required String context}) {
     _queueItemsPersistTimer?.cancel();
     _queueItemsPersistContext = context;
+    // Coalesce bursts, but never postpone a save by more than two seconds.
+    final firstPending = _queueItemsPersistFirstScheduledAt ??= DateTime.now();
+    final waited = DateTime.now().difference(firstPending);
+    const settle = Duration(milliseconds: 300);
+    const maxWait = Duration(seconds: 2);
     _queueItemsPersistTimer = Timer(
-      const Duration(milliseconds: 300),
+      waited + settle > maxWait
+          ? (maxWait - waited).isNegative
+                ? Duration.zero
+                : maxWait - waited
+          : settle,
       () => unawaited(_flushQueueItemsPersistence()),
     );
+  }
+
+  /// Writes any coalesced queue save now and waits for the persistence lane.
+  @visibleForTesting
+  Future<void> debugFlushQueuePersistence() async {
+    await _flushQueueItemsPersistence();
+    await _persistTail;
   }
 
   /// Writes a scheduled full-queue persistence now, if one is pending.
@@ -5455,6 +6142,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueItemsPersistTimer?.cancel();
     _queueItemsPersistTimer = null;
     _queueItemsPersistContext = null;
+    _queueItemsPersistFirstScheduledAt = null;
     if (context == null) return;
     await _persistSafely(
       () => _persistQueueState(includeQueueItems: true),
@@ -5482,8 +6170,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (normalized.isEmpty) {
       return Future<void>.value();
     }
-    return _queueLane.run((_) async {
-      await _ready;
+    return _enqueueQueueEdit((_) async {
       for (final entry in normalized.entries) {
         _songIdentityAliases[entry.key] = _canonicalSongId(entry.value);
       }
@@ -5500,6 +6187,13 @@ class NavisAudioHandler extends BaseAudioHandler
 
       for (var index = 0; index < _queueItems.length; index++) {
         _queueItems[index] = remap(_queueItems[index]);
+      }
+      for (var index = 0; index < _deferredTail.length; index++) {
+        final entry = _deferredTail[index];
+        final canonicalId = _canonicalSongId(entry.id);
+        if (canonicalId != entry.id) {
+          _deferredTail[index] = _DeferredQueueEntry(canonicalId);
+        }
       }
       final pending = _pendingLogicalQueueSongIds;
       if (pending != null) {
@@ -5544,7 +6238,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final repeatMode = switch (_player.loopMode) {
+    final repeatMode = switch (_desiredLoopMode) {
       LoopMode.one => schema.RepeatMode.one,
       LoopMode.all => schema.RepeatMode.all,
       LoopMode.off => schema.RepeatMode.off,
@@ -5564,7 +6258,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (includeQueueItems) {
       await _playQueueDao.saveQueue(
         currentIndex: resolvedCurrentIndex,
-        songIds: _queueItems.map((item) => item.id).toList(growable: false),
+        songIds: _logicalQueueIds,
         shuffleMode: shuffleMode,
         repeatMode: repeatMode,
         positionMs: positionMs,
@@ -5587,7 +6281,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final currentIndex = resolved.currentIndex;
     final effectiveDuration = _effectivePlaybackDuration(currentItem);
     final capabilities = navisOsControlCapabilities(
-      queueLength: _radioStation == null ? _queueItems.length : 0,
+      queueLength: _radioStation == null ? _logicalQueueIds.length : 0,
       currentIndex: _radioStation == null ? currentIndex : null,
       isRadioMode: _radioStation != null,
       duration: effectiveDuration,
@@ -5609,7 +6303,7 @@ class NavisAudioHandler extends BaseAudioHandler
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
       queueIndex: _radioStation == null ? currentIndex : null,
-      repeatMode: _mapRepeatMode(_player.loopMode),
+      repeatMode: _mapRepeatMode(_desiredLoopMode),
       shuffleMode: _player.shuffleModeEnabled
           ? AudioServiceShuffleMode.all
           : AudioServiceShuffleMode.none,
@@ -5727,14 +6421,24 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _updateScrobbleSession(MediaItem? currentItem, {int? currentIndex}) {
     final songId = currentItem?.id;
-    final queueToken = songId == null ? null : '${currentIndex ?? -1}:$songId';
-
-    if (queueToken == _activeScrobbleQueueToken) {
+    // The same play continues when only the queue around it changed (songs
+    // inserted, released or moved before it shift its index; the queue entry
+    // is the same object) or when its metadata was refreshed in place (for
+    // example its liked state; the index is unchanged). Keying the session
+    // on the index alone restarted it on every shift, recording duplicate
+    // play history and scrobbles.
+    if (songId != null &&
+        songId == _activeScrobbleSongId &&
+        (identical(currentItem, _activeScrobbleItem) ||
+            currentIndex == _activeScrobbleIndex)) {
+      _activeScrobbleItem = currentItem;
+      _activeScrobbleIndex = currentIndex;
       return;
     }
 
-    if (queueToken == null) {
-      _activeScrobbleQueueToken = null;
+    if (songId == null) {
+      _activeScrobbleItem = null;
+      _activeScrobbleIndex = null;
       _activeScrobbleSongId = null;
       _activeScrobbleSessionKey = null;
       _sentNowPlayingScrobble = false;
@@ -5742,7 +6446,8 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    _activeScrobbleQueueToken = queueToken;
+    _activeScrobbleItem = currentItem;
+    _activeScrobbleIndex = currentIndex;
     _activeScrobbleSongId = songId;
     _activeScrobbleSessionKey =
         '${songId}_${DateTime.now().microsecondsSinceEpoch}';
@@ -5770,10 +6475,7 @@ class NavisAudioHandler extends BaseAudioHandler
     final currentItem = resolved.mediaItem;
     final isLiked = currentItem?.extras?['liked'] as bool? ?? false;
     final nextSnapshot = PlaybackSnapshot(
-      queueSongIds: _radioStation != null
-          ? const <String>[]
-          : _pendingLogicalQueueSongIds ??
-                _queueItems.map((item) => item.id).toList(growable: false),
+      queueSongIds: _radioStation != null ? const <String>[] : _logicalQueueIds,
       currentSongId: _radioStation != null ? null : currentItem?.id,
       currentIndex: _radioStation != null ? null : resolved.currentIndex,
       playing: _player.playing,
@@ -5784,7 +6486,7 @@ class NavisAudioHandler extends BaseAudioHandler
       shuffleMode: _player.shuffleModeEnabled
           ? AudioServiceShuffleMode.all
           : AudioServiceShuffleMode.none,
-      repeatMode: _mapRepeatMode(_player.loopMode),
+      repeatMode: _mapRepeatMode(_desiredLoopMode),
       isCurrentSongLiked: _radioStation == null && isLiked,
       radioStation: _radioStation,
       isLoading: _isLoading,
@@ -5812,6 +6514,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
     if (!_snapshotController.isClosed) {
+      _snapshotBroadcastCount++;
       _snapshotController.add(_snapshot);
     }
   }
@@ -6065,6 +6768,7 @@ class NavisAudioHandler extends BaseAudioHandler
           generation: queueGeneration,
           songId: song.id,
         );
+        _deferredTail.clear();
         _queueItems
           ..clear()
           ..add(
@@ -6119,9 +6823,8 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final queueSongIds = _queueItems
-        .map((item) => item.id)
-        .toList(growable: false);
+    // The logical queue, so a deferred tail survives the rebuild.
+    final queueSongIds = _logicalQueueIds;
     if (queueSongIds.isEmpty) {
       return;
     }
@@ -6207,6 +6910,7 @@ class NavisAudioHandler extends BaseAudioHandler
             persist: true,
             token: queueToken,
             generation: queueGeneration,
+            deferTail: _shouldDeferTail(orderedSongs.length),
           );
           _completeQueueLoad(queueGeneration);
         } on OperationCancelledException {
@@ -6701,6 +7405,17 @@ class NavisAudioHandler extends BaseAudioHandler
         updated = true;
       }
     }
+    // Remote rows kept in the deferred tail carry their own liked state.
+    for (var i = 0; i < _deferredTail.length; i++) {
+      final entry = _deferredTail[i];
+      final song = entry.song;
+      if (entry.id == songId && song != null) {
+        _deferredTail[i] = _DeferredQueueEntry(
+          entry.id,
+          song.copyWith(starred: Value(liked ? DateTime.now() : null)),
+        );
+      }
+    }
     if (updated) {
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
       _broadcastPlaybackState();
@@ -6752,6 +7467,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _sidecarSongsById.clear();
     await _interruptionSubscription?.cancel();
     await _becomingNoisySubscription?.cancel();
+    await _queueEmissionCounter?.cancel();
     await _disposePlayerListeners();
     for (final subscription in _cacheProgressSubscriptions.values) {
       await subscription.cancel();
@@ -6888,6 +7604,7 @@ class NavisAudioHandler extends BaseAudioHandler
         );
 
         _queueItems.clear();
+        _deferredTail.clear();
         _updateScrobbleSession(null);
 
         final radioMediaItem = MediaItem(
@@ -7118,6 +7835,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }) async {
     _clearQueueReplacementMetadataAnchor();
     _queueItems.clear();
+    _deferredTail.clear();
     if (generation > 0) {
       await _runTimedPlayerOperation(
         generation: generation,

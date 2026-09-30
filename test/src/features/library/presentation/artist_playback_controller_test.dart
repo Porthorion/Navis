@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:async';
 
 import 'package:drift/drift.dart';
@@ -11,6 +12,8 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart'
+    show QueueInsertRun;
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -64,6 +67,47 @@ class QueueSpy extends QueueController {
     await onReplace?.call(songs);
     ids = songs.map((song) => song.id).toList();
     state = List.of(ids);
+  }
+
+  /// Runs applied by [insertRuns], as (index, inserted ids).
+  final List<(int, List<String>)> insertedRuns = [];
+
+  @override
+  Future<List<String>> insertRuns(List<QueueInsertRun> runs) async {
+    appends++;
+    final skipped = <String>[];
+    final ordered = List.of(runs)..sort((a, b) => b.index.compareTo(a.index));
+    for (final run in ordered) {
+      final accepted = <String>[];
+      for (final song in run.songs) {
+        (skippedAppendIds.contains(song.id) ? skipped : accepted).add(song.id);
+      }
+      ids.insertAll(run.index.clamp(0, ids.length), accepted);
+      insertedRuns.add((run.index, accepted));
+    }
+    state = List.of(ids);
+    return skipped;
+  }
+
+  @override
+  Future<List<String>> mergeIntoUpcoming(
+    List<SongsTableData> songs, {
+    required int notBefore,
+    Random? random,
+  }) async {
+    appends++;
+    final skipped = <String>[];
+    final source = random ?? Random();
+    for (final song in songs) {
+      if (skippedAppendIds.contains(song.id)) {
+        skipped.add(song.id);
+        continue;
+      }
+      final start = notBefore.clamp(0, ids.length);
+      ids.insert(start + source.nextInt(ids.length - start + 1), song.id);
+    }
+    state = List.of(ids);
+    return skipped;
   }
 
   @override
@@ -398,7 +442,19 @@ void main() {
         'track-album-2',
         'track-album-3',
       ]);
-      expect(queue.moves, [(3, 1)]);
+      // One batched run at the album's chronological place; no moves.
+      expect(queue.moves, isEmpty);
+      expect(
+        [
+          for (final (index, ids) in queue.insertedRuns) [index, ids],
+        ],
+        [
+          [
+            1,
+            ['disc-two'],
+          ],
+        ],
+      );
     },
   );
 

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show ValueKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -111,9 +113,16 @@ class QueueController extends Notifier<List<String>> {
 
   @override
   List<String> build() {
-    final snapshot = ref.watch(playbackSnapshotProvider).asData?.value;
-    final ids = snapshot?.queueSongIds ?? const <String>[];
-    return List<String>.unmodifiable(ids);
+    // Only the queue ids: play/pause and loading changes must not rebuild
+    // every queue listener. The handler publishes an unmodifiable list and
+    // reuses it until the queue changes, so this neither copies nor rebuilds
+    // for unchanged queues.
+    return ref.watch(
+          playbackSnapshotProvider.select(
+            (snapshot) => snapshot.asData?.value.queueSongIds,
+          ),
+        ) ??
+        const <String>[];
   }
 
   Future<void> replace(
@@ -193,6 +202,43 @@ class QueueController extends Notifier<List<String>> {
       expandMatchFlows: false,
     );
     _prewarmLyricsForIds(songs.map((song) => song.id));
+  }
+
+  /// Merges [songs] at random upcoming positions at or after [notBefore]
+  /// without touching songs already handed to the player. Returns the ids
+  /// that could not be queued. Handlers without batched edits append instead.
+  Future<List<String>> mergeIntoUpcoming(
+    List<SongsTableData> songs, {
+    required int notBefore,
+    Random? random,
+  }) async {
+    if (songs.isEmpty) return const <String>[];
+    final handler = _requireHandler();
+    if (handler is QueueBatchEditor) {
+      final result = await (handler as QueueBatchEditor).mergeIntoUpcoming(
+        songs,
+        notBefore: notBefore,
+        random: random,
+      );
+      return result.skippedSongIds;
+    }
+    await addTableData(songs);
+    return const <String>[];
+  }
+
+  /// Inserts each run's songs contiguously at its queue index, in one batched
+  /// edit. Returns the ids that could not be queued. Handlers without batched
+  /// edits append instead.
+  Future<List<String>> insertRuns(List<QueueInsertRun> runs) async {
+    final songs = <SongsTableData>[for (final run in runs) ...run.songs];
+    if (songs.isEmpty) return const <String>[];
+    final handler = _requireHandler();
+    if (handler is QueueBatchEditor) {
+      final result = await (handler as QueueBatchEditor).insertQueueRuns(runs);
+      return result.skippedSongIds;
+    }
+    await addTableData(songs);
+    return const <String>[];
   }
 
   Future<void> playNext(String id) async {
@@ -684,6 +730,24 @@ class QueueController extends Notifier<List<String>> {
       }),
     );
   }
+}
+
+final Expando<List<int>> _queueRowOccurrences = Expando<List<int>>(
+  'queue row occurrences',
+);
+
+/// A stable key for the queue row at [index]: its song id and which
+/// occurrence of that song it is. Unlike an index-based key, songs inserted
+/// or released elsewhere do not remount (and re-query) every following row.
+ValueKey<(String, int)> queueRowKey(List<String> queueIds, int index) {
+  final occurrences = _queueRowOccurrences[queueIds] ??= () {
+    final seen = <String, int>{};
+    return List<int>.unmodifiable(<int>[
+      for (final id in queueIds)
+        seen.update(id, (count) => count + 1, ifAbsent: () => 0),
+    ]);
+  }();
+  return ValueKey<(String, int)>((queueIds[index], occurrences[index]));
 }
 
 final queueProvider = NotifierProvider<QueueController, List<String>>(

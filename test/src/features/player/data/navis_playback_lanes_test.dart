@@ -69,4 +69,99 @@ void main() {
     });
     expect(ran, isTrue);
   });
+
+  test(
+    'edits wait in order behind a replacement and are never dropped',
+    () async {
+      final lane = NavisSupersedingLane();
+      final release = Completer<void>();
+      final order = <String>[];
+      final fill = lane.run((token) async {
+        await release.future;
+        token.checkCancelled();
+        order.add('fill');
+      });
+      final edits = <Future<void>>[
+        for (final name in ['add', 'remove', 'reorder'])
+          lane.enqueue((_) async => order.add(name)),
+      ];
+      expect(lane.pendingCount, 3);
+      release.complete();
+      await fill;
+      await Future.wait(edits);
+      expect(order, ['fill', 'add', 'remove', 'reorder']);
+    },
+  );
+
+  test('a replacement cancels waiting edits', () async {
+    final lane = NavisSupersedingLane();
+    final release = Completer<void>();
+    final order = <String>[];
+    unawaited(lane.run((_) async => release.future));
+    final edit = lane.enqueue((_) async => order.add('edit'));
+    final replace = lane.run((_) async => order.add('replace'));
+    release.complete();
+    await edit;
+    await replace;
+    expect(order, ['replace']);
+  });
+
+  test('navigation cancels replacements but lets edits finish first', () async {
+    final lane = NavisSupersedingLane();
+    final release = Completer<void>();
+    final order = <String>[];
+    unawaited(
+      lane.enqueue((_) async {
+        await release.future;
+        order.add('active edit');
+      }),
+    );
+    final waitingEdit = lane.enqueue((_) async => order.add('edit'));
+    final replace = lane.run((token) async {
+      token.checkCancelled();
+      order.add('replace');
+    });
+    // `run` supersedes everything, including edits; navigation does not.
+    final edit = lane.enqueue((_) async => order.add('later edit'));
+    final navigate = lane.navigate((_) async => order.add('navigate'));
+    release.complete();
+    await Future.wait([waitingEdit, replace, edit, navigate]);
+    expect(order, ['active edit', 'later edit', 'navigate']);
+  });
+
+  test('idle work runs only on an empty lane and yields to commands', () async {
+    final lane = NavisSupersedingLane();
+    final release = Completer<void>();
+    final order = <String>[];
+    unawaited(lane.enqueue((_) async => release.future));
+    expect(lane.tryRunIdle((_) async => order.add('too early')), isNull);
+    release.complete();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    final idleEntered = Completer<void>();
+    final idleRelease = Completer<void>();
+    final idle = lane.tryRunIdle((token) async {
+      idleEntered.complete();
+      await idleRelease.future;
+      token.checkCancelled();
+      order.add('idle');
+    });
+    expect(idle, isNotNull);
+    await idleEntered.future;
+    final edit = lane.enqueue((_) async => order.add('edit'));
+    idleRelease.complete();
+    await Future.wait([idle!, edit]);
+    expect(order, ['edit']);
+  });
+
+  test('the lane reports when it drains', () async {
+    final lane = NavisSupersedingLane();
+    var drained = 0;
+    lane.onDrained = () => drained++;
+    await lane.enqueue((_) async {});
+    await Future<void>.delayed(Duration.zero);
+    expect(drained, 1);
+    expect(lane.isIdle, isTrue);
+  });
 }

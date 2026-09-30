@@ -1091,8 +1091,15 @@ identities cannot create queue rows.
 
 Play orders known releases chronologically and tracks by disc then track. Newly
 loaded tracks join the upcoming queue in that order while keeping the current
-song and played prefix in place. Shuffle randomizes available tracks and inserts
-new batches randomly among upcoming tracks, without restarting the current song.
+song and played prefix in place: each admit is one `insertQueueRuns` edit with
+one contiguous run per release. Shuffle randomizes available tracks and merges
+each new batch at random upcoming positions with one `mergeIntoUpcoming` edit,
+without restarting the current song. The current song and the next two keep
+their place; the rest of the upcoming queue is merged in Dart after one native
+range removal, so an admit costs O(1) native operations however many songs it
+carries (per-song moves made a remote-heavy artist's Shuffle quadratic and
+flooded the media session). After a hydrated release, the resolver re-reads
+only that album (`getArtistPlaybackAlbum`) instead of the whole catalogue.
 Once a user edits the queue, filling preserves that order and appends subsequent
 batches. Removed song IDs are not reintroduced by later snapshots. Artist Add to
 Queue uses the same incremental batches and preserves every existing occurrence;
@@ -1305,6 +1312,38 @@ queue operation ends and use the pending target ID while the previous song's
 metadata is still visible. A ready selected source keeps its play/pause icon
 even if the rest of the queue is still filling.
 
+#### Released queue window
+
+Long queues are not handed to the native player whole. `NavisAudioHandler`
+keeps `_queueItems` and the native playlist one to one (so a logical index is
+the native index for everything the player holds) and keeps later songs in a
+Dart-only deferred tail (`NavisQueueWindow`, `navis_queue_window.dart`).
+Replacing, restoring, or rebuilding a queue longer than 256 songs materialises
+the prefix and 32 songs after the start song; the rest is deferred. When fewer
+than 12 materialised songs remain after the current one, one page of 32 is
+released with a single `addAudioSources` append. Releases run as idle queue
+lane work and never cancel a user command. `PlaybackSnapshot.queueSongIds`
+always lists the whole logical queue, so the Queue UI shows and edits every
+song; tapping a deferred song within 64 of the window releases through it and
+seeks, farther taps rebuild the player around it, and removes and reorders
+inside the tail are Dart-only. Songs that cannot be resolved when released are
+dropped. Turning shuffle on releases the whole tail first (native shuffle
+orders only what the player holds), and repeat-all stays off natively until
+nothing is deferred, so the player never wraps early; the reported repeat mode
+is the user's. `GET /v1/playback/status` reports `materializedLength`,
+`deferredLength`, and release counters. Known limit: restoring at, or jumping
+to, a far index still materialises the prefix before it.
+
+The queue lane (`NavisSupersedingLane`) has four kinds of work. Replacements
+supersede everything; navigation cancels replacements and idle work but lets
+queued edits finish first; edits (add, play next, remove, reorder, merges,
+alias updates) run in FIFO order and are never silently dropped; idle work
+(tail releases) runs only on an empty lane. Edits apply one batched native
+call where possible, fall back to per-song inserts only when a batch fails,
+and coalesce their queue save (at most 2 s). A successful native call made by
+an edit is always committed even if a newer command superseded it, so the
+Dart queue never diverges from the player.
+
 Phase 2 resolves sources concurrently within a batch (8 songs first, then 64)
 and applies each batch with one `addAudioSources`/`insertAudioSources` call:
 every native insert re-sends the whole shuffle order and rebuilds the player
@@ -1316,8 +1355,8 @@ state and otherwise re-emit on every insert, each queueing a full queue-state
 write. `GET /v1/playback/status` reports `queueFill` stage timings,
 `playerSequenceLength`, and persistence-lane counts (`persistence`,
 `slowPersistence`) without song identities. On desktop, media_kit/libmpv still
-cost roughly linear time per inserted child, so queues of 10,000 songs
-take about 30 s to finish filling, although playback starts immediately.
+cost roughly linear time per inserted child; the released window keeps that
+cost to the materialised part of a queue.
 
 A saved queue larger than 64 songs is restored the same way at startup: the
 current song is prepared at its saved position first, and the rest is filled
@@ -1334,13 +1373,23 @@ field and many head units, headphones and lock screens tick at 1×. The
 projection therefore publishes position, buffered position and duration
 divided by the speed, reports 1×, and multiplies system seek requests back to
 track time. At 1× it forwards values unchanged, and metadata is republished
-only when the item or speed changes. Linux MPRIS keeps the spec's track-time
+only when the item or speed changes. The projection also publishes the system
+queue as a window of about 100 songs around the current one, republished only
+when those songs change, and maps system queue indices (`skipToQueueItem`,
+`removeQueueItemAt`, `insertQueueItem`, `playbackState.queueIndex`) to the full
+queue. audio_service sends the whole list over the platform channel on every
+queue change, and on Android the platform thread is the UI thread. Linux MPRIS
+keeps the spec's track-time
 Position and publishes Rate on every speed change. Windows SMTC has no rate,
 so `WindowsSmtcBridge` publishes its timeline in real listening time and
 converts SMTC seek and skip requests back to track time.
 
+A scrobble and play-history session belongs to the playing queue entry: songs
+inserted, released, or moved before it shift its index without starting a new
+session, and neither does refreshing its metadata in place.
+
 Queue replacement prefetches lyrics only for the selected song and the next
-two. `lyricsProvider` watches just the playing item's lookup metadata, so a
+two; batched artist admits prefetch none. `lyricsProvider` watches just the playing item's lookup metadata, so a
 track change or artwork re-emit does not re-run every cached lookup.
 
 Each selection keeps a bounded, redacted startup timeline in the handler. A
@@ -1891,6 +1940,17 @@ of thousands of songs. `tool/perf_diagnostics.py` measures them (see
 - Response byte accounting uses Dio's received-byte count; Navidrome gzips
   JSON without `Content-Length`, and re-encoding the decoded body cost two full
   JSON encodes of every large page on the UI isolate.
+- Native and OS payloads stay bounded whatever the queue size: the native
+  player holds a released window of the queue, the system media session a
+  window of about 100 songs, and every queue edit is one batched native call
+  (see "Released queue window"). On Android the platform thread is the UI
+  thread (merged threads are Flutter's default), so any per-song platform call
+  blocks frames.
+- Queue changes publish one snapshot with a queue id list that is reused until
+  the queue changes, so snapshot comparisons and `queueProvider` are
+  identity checks for unchanged queues. The app shell ignores queue-only
+  snapshot changes, and queue rows are keyed by song id and occurrence so
+  inserting or releasing songs elsewhere does not remount rows.
 
 ## Testing Strategy
 

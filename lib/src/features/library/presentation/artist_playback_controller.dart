@@ -10,6 +10,8 @@ import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart'
+    show QueueInsertRun;
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -65,9 +67,18 @@ class ArtistPlaybackResolver {
     required this.isOffline,
     required this.isLocallyPlayable,
     this.publishInterval = Duration.zero,
+    this.readAlbum,
   });
 
   final Future<ArtistPlaybackSnapshot> Function(String) readSnapshot;
+
+  /// Reads one album's row and songs. When set, a hydrated release updates
+  /// the snapshot in place instead of re-reading the artist's whole catalogue
+  /// (which also loaded every album in the library).
+  final Future<({AlbumsTableData? album, List<SongsTableData> songs})> Function(
+    String albumId,
+  )?
+  readAlbum;
   final Future<LibrarySyncState> Function(LibrarySyncTarget) hydrate;
   final bool Function() canHydrate;
   final bool Function() isOffline;
@@ -133,10 +144,22 @@ class ArtistPlaybackResolver {
     // transaction, and each publish may mutate the queue. With hundreds of
     // releases, doing that after every album saturated the database, so
     // hydrated albums are published at most once per interval, and at the end.
+    Future<ArtistPlaybackSnapshot> refreshed(Set<String> albumIds) async {
+      final read = readAlbum;
+      if (read == null) return readSnapshot(artistId);
+      var next = snapshot;
+      for (final albumId in albumIds) {
+        final album = await read(albumId);
+        next = next.withAlbum(albumId, album.album, album.songs);
+      }
+      return next;
+    }
+
     Future<void> hydrateAlbums() async {
       final albums = List.of(snapshot.albums);
       final sincePublish = Stopwatch()..start();
       var unpublished = false;
+      final hydratedSinceRead = <String>{};
       var snapshotWasEmpty = snapshot.songs.isEmpty;
       for (final album in albums) {
         if (!isCurrent()) return;
@@ -162,8 +185,10 @@ class ArtistPlaybackResolver {
           failedAlbums.add(album.id);
         }
         unpublished = true;
+        hydratedSinceRead.add(album.id);
         if (snapshotWasEmpty || sincePublish.elapsed >= publishInterval) {
-          snapshot = await readSnapshot(artistId);
+          snapshot = await refreshed(hydratedSinceRead);
+          hydratedSinceRead.clear();
           await publish();
           snapshotWasEmpty = snapshot.songs.isEmpty;
           unpublished = false;
@@ -173,7 +198,7 @@ class ArtistPlaybackResolver {
         }
       }
       if (unpublished && isCurrent()) {
-        snapshot = await readSnapshot(artistId);
+        snapshot = await refreshed(hydratedSinceRead);
         await publish();
       }
     }
@@ -242,6 +267,10 @@ final artistPlaybackResolverProvider = Provider<ArtistPlaybackResolver>((ref) {
         container.read(syncNetworkPolicyProvider).allowsInteractiveHydration,
     isOffline: () => container.read(syncNetworkPolicyProvider).isOffline,
     publishInterval: artistPlaybackPublishInterval,
+    readAlbum: (albumId) => container
+        .read(navisDatabaseProvider)
+        .libraryDao
+        .getArtistPlaybackAlbum(albumId),
     isLocallyPlayable: (song) async {
       final cache = await container
           .read(navisDatabaseProvider)
@@ -395,12 +424,49 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
           progress: state.progress,
         );
         if (append) {
+          // One batched edit per admit. Shuffle merges new songs at random
+          // upcoming positions and Play inserts each album where its rank
+          // belongs; neither moves songs one at a time, and songs the player
+          // already holds keep their order.
+          final ids = ref.read(queueProvider);
+          final current = ref.read(playerStateProvider).currentIndex ?? 0;
+          final firstUpcoming = max(current + 1, appendBoundary);
+          final ranks = {
+            for (var i = 0; i < selection.songs.length; i++)
+              selection.songs[i].id: i,
+          };
+          var skipped = const <String>[];
           try {
-            await queue.addTableData(songs);
+            if (!preserveOrder) {
+              // Manual edits and automatic source recovery own the existing
+              // order: only append.
+              skipped = await queue.insertRuns(<QueueInsertRun>[
+                QueueInsertRun(ids.length, songs),
+              ]);
+            } else if (action == ArtistPlaybackAction.shuffle) {
+              skipped = await queue.mergeIntoUpcoming(
+                songs,
+                notBefore: firstUpcoming,
+                random: random,
+              );
+            } else {
+              skipped = await queue.insertRuns(
+                _rankedRuns(
+                  songs: songs,
+                  queueIds: ids,
+                  firstUpcoming: firstUpcoming,
+                  ranks: ranks,
+                ),
+              );
+            }
           } on Object {
             AppLogger.warning('Artist queue batch could not finish.');
-            // A canceled native mutation may have inserted only part of a batch.
-            // Inspect occurrences below; never replace or restart that queue.
+          }
+          if (!_owns(generation)) return;
+          final byId = {for (final song in songs) song.id: song};
+          for (final id in skipped) {
+            final song = byId[id];
+            if (song != null) failures[id] = song;
           }
         } else {
           while (songs.isNotEmpty && _owns(generation)) {
@@ -427,66 +493,13 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
               failures[failed.id] = failed;
             }
           }
-        }
-        if (!_owns(generation)) return;
-        final missing = _unqueuedSongs(
-          _withSongs(selection, songs),
-          append ? before : const [],
-        );
-        for (final song in missing) {
-          failures[song.id] = song;
-        }
-        if (append && preserveOrder) {
-          // Move only newly appended occurrences, leaving the current song and
-          // already played prefix in place. Never reorder a user-edited queue.
-          final actual = ref.read(queueProvider);
-          final inserted = songs
-              .where((s) => !failures.containsKey(s.id))
-              .toList();
-          if (listEquals(actual, [...before, ...inserted.map((s) => s.id)])) {
-            final ranks = {
-              for (var i = 0; i < selection.songs.length; i++)
-                selection.songs[i].id: i,
-            };
-            var expectedOrder = List<String>.of(actual);
-            for (final song in inserted) {
-              if (!_owns(generation)) return;
-              final ids = ref.read(queueProvider);
-              if (!listEquals(ids, expectedOrder)) {
-                preserveOrder = false;
-                break;
-              }
-              final oldIndex = ids.lastIndexOf(song.id);
-              final current = ref.read(playerStateProvider).currentIndex ?? 0;
-              final firstUpcoming = max(current + 1, appendBoundary);
-              if (oldIndex < firstUpcoming) continue;
-              var target = oldIndex;
-              if (action == ArtistPlaybackAction.shuffle) {
-                target =
-                    firstUpcoming +
-                    random.nextInt(oldIndex - firstUpcoming + 1);
-              } else {
-                for (var i = firstUpcoming; i < oldIndex; i++) {
-                  if ((ranks[ids[i]] ?? -1) > ranks[song.id]!) {
-                    target = i;
-                    break;
-                  }
-                }
-              }
-              if (target != oldIndex) {
-                expectedOrder = List.of(ids)..removeAt(oldIndex);
-                expectedOrder.insert(target, song.id);
-                try {
-                  await queue.reorder(oldIndex, target);
-                } on Object {
-                  preserveOrder = false;
-                  AppLogger.warning('Artist queue ordering could not finish.');
-                  break;
-                }
-              }
-            }
-          } else {
-            preserveOrder = false;
+          if (!_owns(generation)) return;
+          final missing = _unqueuedSongs(
+            _withSongs(selection, songs),
+            const <String>[],
+          );
+          for (final song in missing) {
+            failures[song.id] = song;
           }
         }
       }
@@ -551,6 +564,37 @@ class ArtistPlaybackController extends Notifier<ArtistPlaybackState> {
         _recordOutcome();
       }
     }
+  }
+
+  /// Groups [songs] (in album order) into contiguous runs, each inserted at
+  /// the first upcoming queue position whose song ranks after it.
+  List<QueueInsertRun> _rankedRuns({
+    required List<SongsTableData> songs,
+    required List<String> queueIds,
+    required int firstUpcoming,
+    required Map<String, int> ranks,
+  }) {
+    final runs = <QueueInsertRun>[];
+    var runIndex = -1;
+    var runSongs = <SongsTableData>[];
+    // Songs arrive in album order and the upcoming queue keeps that order, so
+    // each target is at or after the previous one: one pass over the queue.
+    var scan = min(firstUpcoming, queueIds.length);
+    for (final song in songs) {
+      final rank = ranks[song.id] ?? -1;
+      while (scan < queueIds.length && (ranks[queueIds[scan]] ?? -1) <= rank) {
+        scan++;
+      }
+      final target = scan;
+      if (target != runIndex && runSongs.isNotEmpty) {
+        runs.add(QueueInsertRun(runIndex, runSongs));
+        runSongs = <SongsTableData>[];
+      }
+      runIndex = target;
+      runSongs.add(song);
+    }
+    if (runSongs.isNotEmpty) runs.add(QueueInsertRun(runIndex, runSongs));
+    return runs;
   }
 
   ArtistPlaybackSelection _withSongs(

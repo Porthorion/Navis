@@ -4,10 +4,19 @@ import 'package:navis/src/features/player/data/real_time_projection_audio_handle
 
 class _InnerHandler extends BaseAudioHandler {
   final List<Duration> seeks = <Duration>[];
+  final List<int> skips = <int>[];
 
   @override
   Future<void> seek(Duration position) async => seeks.add(position);
+
+  @override
+  Future<void> skipToQueueItem(int index) async => skips.add(index);
 }
+
+List<MediaItem> _items(int count) => List<MediaItem>.generate(
+  count,
+  (index) => MediaItem(id: 'song-$index', title: 'Song $index'),
+);
 
 void main() {
   const item = MediaItem(
@@ -77,5 +86,58 @@ void main() {
     inner.playbackState.add(PlaybackState(speed: 2));
     await pumpEventQueue();
     expect(published.last!.duration, const Duration(seconds: 90));
+  });
+
+  test(
+    'the system queue is a bounded window around the current song',
+    () async {
+      final inner = _InnerHandler();
+      final projection = RealTimeProjectionAudioHandler(inner);
+      final published = <List<MediaItem>>[];
+      projection.queue.listen(published.add);
+      final items = _items(5000);
+      inner.queue.add(items);
+      inner.playbackState.add(PlaybackState(queueIndex: 2500));
+      await pumpEventQueue();
+
+      const size =
+          RealTimeProjectionAudioHandler.queueWindowBefore +
+          RealTimeProjectionAudioHandler.queueWindowAfter +
+          1;
+      final window = projection.queue.value;
+      expect(window.length, size);
+      expect(window.first.id, 'song-${2500 - 20}');
+      expect(projection.playbackState.value.queueIndex, 20);
+
+      // A system tap on a window row plays that song in the full queue.
+      await projection.skipToQueueItem(25);
+      expect(inner.skips, <int>[2505]);
+    },
+  );
+
+  test('the window is republished only when its songs change', () async {
+    final inner = _InnerHandler();
+    final projection = RealTimeProjectionAudioHandler(inner);
+    final published = <List<MediaItem>>[];
+    projection.queue.listen(published.add);
+    final items = _items(300);
+    inner.queue.add(items);
+    inner.playbackState.add(PlaybackState(queueIndex: 100));
+    await pumpEventQueue();
+    final before = published.length;
+
+    // Advancing a few songs and appending far beyond the window change
+    // nothing the system shows.
+    inner.playbackState.add(PlaybackState(queueIndex: 101));
+    inner.queue.add(<MediaItem>[...items, ..._items(2000).skip(300)]);
+    await pumpEventQueue();
+    expect(published.length, before);
+
+    // Reaching the window's edge recentres it once.
+    inner.playbackState.add(PlaybackState(queueIndex: 170));
+    await pumpEventQueue();
+    expect(published.length, before + 1);
+    expect(projection.queue.value.first.id, 'song-150');
+    expect(projection.playbackState.value.queueIndex, 20);
   });
 }

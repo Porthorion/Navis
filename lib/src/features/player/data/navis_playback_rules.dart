@@ -254,7 +254,10 @@ bool navisPlaybackSnapshotsStructurallyEqual(
   PlaybackSnapshot previous,
   PlaybackSnapshot next,
 ) {
-  return listEquals(previous.queueSongIds, next.queueSongIds) &&
+  // The handler reuses one list per queue revision, so an unchanged queue is
+  // usually the identical list and skips the element-wise comparison.
+  return (identical(previous.queueSongIds, next.queueSongIds) ||
+          listEquals(previous.queueSongIds, next.queueSongIds)) &&
       previous.currentSongId == next.currentSongId &&
       previous.currentIndex == next.currentIndex &&
       previous.playing == next.playing &&

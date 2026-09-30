@@ -176,7 +176,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
 }
 
 class WindowsNavisPlaybackHandler
-    implements NavisPlaybackHandler, PlaybackStartupObserver {
+    implements NavisPlaybackHandler, PlaybackStartupObserver, QueueBatchEditor {
   WindowsNavisPlaybackHandler(this._delegate) {
     _smtcBridge = WindowsSmtcBridge(handler: this);
   }
@@ -194,6 +194,21 @@ class WindowsNavisPlaybackHandler
   @override
   bool isPlaybackSelectionCurrent(int attempt) =>
       _delegate.isPlaybackSelectionCurrent(attempt);
+
+  @override
+  Future<QueueBatchEditResult> mergeIntoUpcoming(
+    List<SongsTableData> songs, {
+    required int notBefore,
+    math.Random? random,
+  }) => _delegate.mergeIntoUpcoming(
+    songs,
+    notBefore: notBefore,
+    random: random,
+  );
+
+  @override
+  Future<QueueBatchEditResult> insertQueueRuns(List<QueueInsertRun> runs) =>
+      _delegate.insertQueueRuns(runs);
   late final WindowsSmtcBridge _smtcBridge;
 
   void beginTeardown() {
@@ -422,7 +437,7 @@ class WindowsNavisPlaybackHandler
 }
 
 class LinuxNavisPlaybackHandler
-    implements NavisPlaybackHandler, PlaybackStartupObserver {
+    implements NavisPlaybackHandler, PlaybackStartupObserver, QueueBatchEditor {
   LinuxNavisPlaybackHandler(this._delegate) {
     _mprisBridge = LinuxMprisBridge(handler: this);
   }
@@ -440,6 +455,21 @@ class LinuxNavisPlaybackHandler
   @override
   bool isPlaybackSelectionCurrent(int attempt) =>
       _delegate.isPlaybackSelectionCurrent(attempt);
+
+  @override
+  Future<QueueBatchEditResult> mergeIntoUpcoming(
+    List<SongsTableData> songs, {
+    required int notBefore,
+    math.Random? random,
+  }) => _delegate.mergeIntoUpcoming(
+    songs,
+    notBefore: notBefore,
+    random: random,
+  );
+
+  @override
+  Future<QueueBatchEditResult> insertQueueRuns(List<QueueInsertRun> runs) =>
+      _delegate.insertQueueRuns(runs);
   late final LinuxMprisBridge _mprisBridge;
 
   void beginTeardown() {
